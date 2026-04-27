@@ -1,4 +1,4 @@
-# TAHAI Web Services Browser
+﻿# TAHAI Web Services Browser
 
 [![Validate Source](https://github.com/JTAHAI/tahai-web-services-browser/actions/workflows/validate-source.yml/badge.svg)](https://github.com/JTAHAI/tahai-web-services-browser/actions/workflows/validate-source.yml)
 
@@ -70,3 +70,9 @@ npm run verify:release-blockers
 4. Add public CI build verification.
 5. Apply for open-source signing through SignPath Foundation.
 6. Move future Windows releases to a signed installer workflow.
+
+
+## Code signing policy
+
+See [docs/code-signing-policy.md](docs/code-signing-policy.md).
+
