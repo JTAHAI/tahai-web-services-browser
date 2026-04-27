@@ -1,6 +1,6 @@
 # Known Issues
 
-## 1.8.0 preview
+## 1.8.1 preview
 
-- Dedicated mouse back/forward buttons are not wired yet. Keyboard navigation works, including `Alt+Left` and `Alt+Right`. The mouse Button 4 / Button 5 parity fix is the first planned 1.8.1 source-first pass.
-- The initial friend-feedback Windows build is unsigned. Windows SmartScreen may show a warning. Public source publication and open-source code signing are in progress.
+- Mouse Button 4 / Button 5 navigation is wired through Electron app-command events for Windows parity. It still requires installed-app hardware verification on Windows before broad distribution.
+- The initial friend-feedback Windows build is unsigned. Windows SmartScreen may show a warning. The project has been published publicly on GitHub, and SignPath Foundation open-source code signing has been submitted/in progress.

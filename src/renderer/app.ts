@@ -16,6 +16,7 @@ type TabState = {
   button: HTMLButtonElement;
   webview: Electron.WebviewTag;
   consoleMessages: ConsoleEntry[];
+  missionPaneId?: string;
 };
 
 type PageCapture = {
@@ -299,6 +300,9 @@ type LaunchRecipe = {
   urls: string[];
   comingSoon?: boolean;
   note: string;
+  missionType?: MissionType;
+  missionLayout?: MissionLayoutType;
+  missionRoles?: MissionTabRole[];
 };
 
 type CommandPaletteAction = {
@@ -309,6 +313,25 @@ type CommandPaletteAction = {
   shortcut?: string;
   run: () => void | Promise<void>;
 };
+
+type MissionType = 'deployment' | 'incident' | 'support' | 'documentation' | 'migration' | 'audit' | 'admin' | 'development' | 'security-review' | 'generic';
+type MissionTabRole = 'primary-console' | 'logs' | 'docs' | 'runbook' | 'ticket' | 'monitoring' | 'evidence' | 'live-target' | 'vendor-portal' | 'tool';
+type MissionLayoutType = 'single' | 'split-horizontal' | 'split-vertical' | 'triple' | 'quad' | 'focus' | 'command';
+type MissionRunbookStepState = 'todo' | 'doing' | 'done' | 'blocked';
+type MissionMode = 'local-only' | 'signed-in' | 'org-selected' | 'itdocs-linked' | 'psa-available' | 'psa-linked' | 'offline' | 'session-expired' | 'permission-denied';
+
+type MissionTabRef = { tabId: string; role: MissionTabRole; url: string; title: string; pinned: boolean; paneId: string };
+type MissionLayout = { type: MissionLayoutType; activePaneId: string; panes: Array<{ paneId: string; role: MissionTabRole; tabId: string }> };
+type MissionTimelineEvent = { eventId: string; kind: 'created' | 'tab-added' | 'tab-role-set' | 'layout-set' | 'saved' | 'restored' | 'note' | 'exported' | 'runbook-updated' | 'checklist-added' | 'checklist-updated'; createdAt: string; title: string; detail: string };
+type MissionRunbookStep = { stepId: string; label: string; state: MissionRunbookStepState; evidenceNote: string };
+type MissionRunbook = { objective: string; rollback: string; steps: MissionRunbookStep[] };
+type MissionState = { schemaVersion: number; missionId: string; name: string; missionType: MissionType; mode: MissionMode; createdAt: string; updatedAt: string; tabs: MissionTabRef[]; layout: MissionLayout; notes: string[]; runbook: MissionRunbook; timeline: MissionTimelineEvent[]; links: { itDocs: Record<string, string> | null; psa: Record<string, string> | null } };
+
+const missionTypes: MissionType[] = ['deployment','incident','support','documentation','migration','audit','admin','development','security-review','generic'];
+const missionTabRoles: MissionTabRole[] = ['primary-console','logs','docs','runbook','ticket','monitoring','evidence','live-target','vendor-portal','tool'];
+const missionLayouts: MissionLayoutType[] = ['single','split-horizontal','split-vertical','triple','quad','focus'];
+const missionRunbookStepStates: MissionRunbookStepState[] = ['todo','doing','done','blocked'];
+const missionPaneIds = ['pane-1','pane-2','pane-3','pane-4'] as const;
 
 
 function showBootDiagnostic(detail: string): void {
@@ -344,6 +367,7 @@ const launchpadButton = document.getElementById('launchpad') as HTMLButtonElemen
 const onboardingButton = document.getElementById('onboarding') as HTMLButtonElement;
 const profileSwitcherButton = document.getElementById('profile-switcher') as HTMLButtonElement;
 const opsHubToggleButton = document.getElementById('ops-hub-toggle') as HTMLButtonElement;
+const missionControlButton = document.getElementById('mission-control-toggle') as HTMLButtonElement;
 const opsHub = document.getElementById('ops-hub') as HTMLElement;
 const closeOpsHubButton = document.getElementById('close-ops-hub') as HTMLButtonElement;
 const opsHubProfile = document.getElementById('ops-hub-profile') as HTMLElement;
@@ -351,6 +375,30 @@ const opsHubUrl = document.getElementById('ops-hub-url') as HTMLElement;
 const opsHubRecipes = document.getElementById('ops-hub-recipes') as HTMLElement;
 const opsHubWorkspaces = document.getElementById('ops-hub-workspaces') as HTMLElement;
 const opsHubEvidence = document.getElementById('ops-hub-evidence') as HTMLElement;
+const missionDialog = document.getElementById('mission-dialog') as HTMLDialogElement;
+const closeMissionButton = document.getElementById('close-mission') as HTMLButtonElement;
+const missionForm = document.getElementById('mission-form') as HTMLFormElement;
+const missionNameInput = document.getElementById('mission-name') as HTMLInputElement;
+const missionTypeSelect = document.getElementById('mission-type') as HTMLSelectElement;
+const missionStatus = document.getElementById('mission-status') as HTMLElement;
+const missionList = document.getElementById('mission-list') as HTMLElement;
+const missionRecipes = document.getElementById('mission-recipes') as HTMLElement;
+const missionTabsList = document.getElementById('mission-tabs-list') as HTMLElement;
+const missionTimeline = document.getElementById('mission-timeline') as HTMLElement;
+const missionRunbookObjective = document.getElementById('mission-runbook-objective') as HTMLInputElement;
+const missionRunbookRollback = document.getElementById('mission-runbook-rollback') as HTMLTextAreaElement;
+const missionRunbookStepInput = document.getElementById('mission-runbook-step-input') as HTMLInputElement;
+const missionRunbookAddStepButton = document.getElementById('mission-runbook-add-step') as HTMLButtonElement;
+const missionRunbookList = document.getElementById('mission-runbook-list') as HTMLElement;
+const missionNoteInput = document.getElementById('mission-note-input') as HTMLTextAreaElement;
+const missionAddNoteButton = document.getElementById('mission-add-note') as HTMLButtonElement;
+const missionNotesList = document.getElementById('mission-notes-list') as HTMLElement;
+const missionCreateButton = document.getElementById('mission-create') as HTMLButtonElement;
+const missionAddActiveTabButton = document.getElementById('mission-add-active-tab') as HTMLButtonElement;
+const missionMakeQuadButton = document.getElementById('mission-make-quad') as HTMLButtonElement;
+const missionSaveButton = document.getElementById('mission-save') as HTMLButtonElement;
+const missionLayoutsEl = document.getElementById('mission-layouts') as HTMLElement;
+const missionExportPreview = document.getElementById('mission-export-preview') as HTMLTextAreaElement;
 const commandPaletteDialog = document.getElementById('command-palette-dialog') as HTMLDialogElement;
 const commandPaletteInput = document.getElementById('command-palette-input') as HTMLInputElement;
 const commandPaletteList = document.getElementById('command-palette-list') as HTMLElement;
@@ -533,6 +581,10 @@ let browserProfileState: BrowserProfileState | undefined;
 let editingProfileId = '';
 let commandPaletteActions: CommandPaletteAction[] = [];
 let commandPaletteIndex = 0;
+let currentMission: MissionState | undefined;
+let missionStore: MissionState[] = [];
+let missionPaneDropZones: HTMLElement | undefined;
+const missionRuntimeTabs = new Map<string, string>();
 const evidenceStorageKey = 'tahai-browser:evidence-timeline:v1';
 const workspaceStorageKey = 'tahai-browser:workspace-snapshots:v1';
 const tabs = new Map<string, TabState>();
@@ -605,6 +657,7 @@ function setActive(tabId: string): void {
     addressInput.value = active.url;
     setStatus(active.title, securityLabel(active.url));
   }
+  renderMissionLayout();
   if (typeof config !== 'undefined') renderOpsHub();
 }
 
@@ -616,6 +669,7 @@ function updateTab(tab: TabState, patch: Partial<Pick<TabState, 'title' | 'url'>
     addressInput.value = tab.url;
     setStatus(tab.title, securityLabel(tab.url));
   }
+  updateMissionTabRuntimeFromBrowser(tab);
   if (typeof config !== 'undefined') renderOpsHub();
 }
 
@@ -624,12 +678,17 @@ function closeTab(tabId: string): void {
   if (!tab) return;
   tab.button.remove();
   tab.webview.remove();
+  for (const [missionTabId, runtimeTabId] of missionRuntimeTabs.entries()) {
+    if (runtimeTabId === tabId) missionRuntimeTabs.delete(missionTabId);
+  }
   tabs.delete(tabId);
   if (activeTabId === tabId) {
     const next = Array.from(tabs.keys()).at(-1);
     if (next) setActive(next);
     else createTab(config.homeUrl);
   }
+  renderMissionControl();
+  renderMissionLayout();
 }
 
 function errorUrl(targetUrl: string, reason: string): string {
@@ -638,12 +697,15 @@ function errorUrl(targetUrl: string, reason: string): string {
   return `${config.errorPageUrl}?url=${encodedUrl}&reason=${encodedReason}`;
 }
 
-function createTab(url: string): void {
+function createTab(url: string): string {
   const safeUrl = normalizeTarget(url);
   const tabId = id();
   const button = document.createElement('button');
   button.className = 'tab';
   button.type = 'button';
+  button.draggable = true;
+  button.dataset.browserTabId = tabId;
+  button.title = 'Drag this tab onto a Mission pane, or right-click for pane assignment.';
   button.innerHTML = `<span class="tab-title"></span><button class="tab-close" type="button" title="Close tab">×</button>`;
   tabsEl.appendChild(button);
 
@@ -664,6 +726,9 @@ function createTab(url: string): void {
     if (target.classList.contains('tab-close')) closeTab(tabId);
     else setActive(tabId);
   });
+  button.addEventListener('dragstart', (event) => startMissionTabDrag(tabId, event));
+  button.addEventListener('dragend', () => endMissionTabDrag());
+  button.addEventListener('contextmenu', (event) => openTabPaneQuickAssign(tabId, event));
 
   webview.addEventListener('page-title-updated', (event: any) => updateTab(tab, { title: event.title || titleFromUrl(tab.url) }));
   webview.addEventListener('did-start-loading', () => setStatus(`Loading ${titleFromUrl(tab.url)}`, securityLabel(tab.url)));
@@ -678,6 +743,7 @@ function createTab(url: string): void {
     }
   });
   webview.addEventListener('console-message', (event: any) => recordConsoleMessage(tab, event));
+  webview.addEventListener('focus', () => setActive(tabId));
   webview.addEventListener('did-fail-load', (event: any) => {
     if (event.errorCode === -3) return;
     const failedUrl = event.validatedURL || tab.url;
@@ -691,6 +757,7 @@ function createTab(url: string): void {
   });
 
   setActive(tabId);
+  return tabId;
 }
 
 function active(): TabState | undefined { return tabs.get(activeTabId); }
@@ -701,6 +768,552 @@ function navigate(url: string): void {
     tab.webview.loadURL(target);
     updateTab(tab, { url: target, title: titleFromUrl(target) });
   }
+}
+
+function missionUuid(): string {
+  const cryptoRef = window.crypto as Crypto | undefined;
+  if (cryptoRef?.randomUUID) return cryptoRef.randomUUID();
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (char) => (Number(char) ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(char) / 4).toString(16));
+}
+
+function missionRoleLabel(role: MissionTabRole): string {
+  return role.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+}
+
+function missionLayoutLabel(layout: MissionLayoutType): string {
+  if (layout === 'split-horizontal') return '2-Up Split';
+  if (layout === 'split-vertical') return '2-Up Stack';
+  if (layout === 'triple') return '3-Up Triad';
+  if (layout === 'quad') return '4-Up Quad Ops';
+  if (layout === 'focus') return 'Focus Pane';
+  return '1-Up Normal';
+}
+
+function missionDefaultRole(url: string): MissionTabRole {
+  const lower = url.toLowerCase();
+  if (lower.includes('github') || lower.includes('actions') || lower.includes('log')) return 'logs';
+  if (lower.includes('docs') || lower.includes('learn.microsoft') || lower.includes('developer.mozilla')) return 'docs';
+  if (lower.includes('status') || lower.includes('monitor')) return 'monitoring';
+  if (lower.includes('ticket') || lower.includes('jira') || lower.includes('zendesk')) return 'ticket';
+  if (lower.includes('cloudflare') || lower.includes('console') || lower.includes('portal.azure') || lower.includes('admin.microsoft')) return 'primary-console';
+  return 'live-target';
+}
+
+function missionVisiblePaneIds(layout: MissionLayoutType): string[] {
+  if (layout === 'quad') return ['pane-1','pane-2','pane-3','pane-4'];
+  if (layout === 'triple') return ['pane-1','pane-2','pane-3'];
+  if (layout === 'split-horizontal' || layout === 'split-vertical') return ['pane-1','pane-2'];
+  if (layout === 'focus') return [currentMission?.layout.activePaneId || 'pane-1'];
+  return ['pane-1'];
+}
+
+function orderedBrowserTabs(): TabState[] {
+  const orderedIds = Array.from(tabsEl.querySelectorAll<HTMLElement>('.tab'))
+    .map((button) => button.dataset.browserTabId)
+    .filter((tabId): tabId is string => Boolean(tabId));
+  const ordered = orderedIds.map((tabId) => tabs.get(tabId)).filter((tab): tab is TabState => Boolean(tab));
+  const missing = Array.from(tabs.values()).filter((tab) => !ordered.includes(tab));
+  return [...ordered, ...missing];
+}
+
+function firstOpenMissionPane(excludingPaneId?: string): string {
+  const occupied = new Set((currentMission?.tabs || []).map((tab) => tab.paneId));
+  return missionPaneIds.find((paneId) => paneId !== excludingPaneId && !occupied.has(paneId)) || missionPaneIds.find((paneId) => paneId !== excludingPaneId) || 'pane-4';
+}
+
+function upsertBrowserTabIntoMissionPane(browserTabId: string, paneId: string, options: { activateLayout?: boolean } = {}): boolean {
+  if (!missionPaneIds.includes(paneId as typeof missionPaneIds[number])) return false;
+  const browserTab = tabs.get(browserTabId);
+  if (!browserTab) return false;
+  const mission = ensureCurrentMission();
+  const existing = mission.tabs.find((candidate) => missionRuntimeTabs.get(candidate.tabId) === browserTab.id || candidate.url === browserTab.url);
+  const previousPane = existing?.paneId;
+  const occupying = mission.tabs.find((candidate) => candidate.paneId === paneId && candidate.tabId !== existing?.tabId);
+  if (occupying) occupying.paneId = previousPane && previousPane !== paneId ? previousPane : firstOpenMissionPane(paneId);
+  if (existing) {
+    existing.url = browserTab.url;
+    existing.title = browserTab.title;
+    existing.paneId = paneId;
+    existing.role = missionDefaultRole(browserTab.url);
+    missionRuntimeTabs.set(existing.tabId, browserTab.id);
+  } else {
+    const missionTabId = missionUuid();
+    mission.tabs.push({ tabId: missionTabId, role: missionDefaultRole(browserTab.url), url: browserTab.url, title: browserTab.title, pinned: false, paneId });
+    missionRuntimeTabs.set(missionTabId, browserTab.id);
+  }
+  browserTab.missionPaneId = paneId;
+  mission.layout.activePaneId = paneId;
+  if (options.activateLayout && mission.layout.type === 'single') mission.layout.type = 'quad';
+  syncMissionLayoutPanes();
+  missionTimelineEvent('tab-added', browserTab.title, 'Assigned to ' + paneId.replace('pane-', 'Pane ') + ' · ' + browserTab.url);
+  renderMissionControl();
+  renderMissionLayout();
+  setStatus('Tab sent to ' + paneId.replace('pane-', 'Pane '), browserTab.title);
+  return true;
+}
+
+function makeQuadFromOpenTabs(): void {
+  const openTabs = orderedBrowserTabs().slice(0, 4);
+  if (!openTabs.length) {
+    setStatus('No open tabs for Quad View', 'Open up to four tabs first.');
+    return;
+  }
+  const mission = ensureCurrentMission();
+  missionRuntimeTabs.clear();
+  mission.tabs = openTabs.map((tab, index) => {
+    const paneId = missionPaneIds[index] || 'pane-1';
+    const missionTabId = missionUuid();
+    tab.missionPaneId = paneId;
+    missionRuntimeTabs.set(missionTabId, tab.id);
+    return { tabId: missionTabId, role: missionDefaultRole(tab.url), url: tab.url, title: tab.title, pinned: false, paneId };
+  });
+  mission.layout.type = 'quad';
+  mission.layout.activePaneId = 'pane-1';
+  syncMissionLayoutPanes();
+  missionTimelineEvent('layout-set', 'Quad built from open tabs', openTabs.length + ' browser tab(s) assigned to Mission panes.');
+  renderMissionControl();
+  renderMissionLayout();
+  if (openTabs[0]) setActive(openTabs[0].id);
+  setStatus('Quad View ready', openTabs.length + ' open tab(s) assigned to panes.');
+}
+
+function startMissionTabDrag(tabId: string, event: DragEvent): void {
+  const tab = tabs.get(tabId);
+  if (!tab || !event.dataTransfer) return;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('application/x-tahai-browser-tab-id', tabId);
+  event.dataTransfer.setData('text/plain', tab.title || tab.url);
+  document.body.classList.add('mission-tab-dragging');
+  if (!currentMission) ensureCurrentMission();
+  if (currentMission?.layout.type === 'single') currentMission.layout.type = 'quad';
+  renderMissionLayout();
+  setStatus('Drag tab to Mission pane', 'Drop on Pane 1, 2, 3, or 4.');
+}
+
+function endMissionTabDrag(): void {
+  document.body.classList.remove('mission-tab-dragging');
+  missionPaneDropZones?.querySelectorAll('.drag-over').forEach((element) => element.classList.remove('drag-over'));
+}
+
+function openTabPaneQuickAssign(tabId: string, event: MouseEvent): void {
+  event.preventDefault();
+  const pane = window.prompt('Send tab to Mission pane number (1-4). Use Cancel to leave it alone.', currentMission?.layout.activePaneId?.replace('pane-', '') || '1');
+  if (!pane) return;
+  const paneId = 'pane-' + pane.trim();
+  if (!missionPaneIds.includes(paneId as typeof missionPaneIds[number])) {
+    setStatus('Pane assignment blocked', 'Use pane 1, 2, 3, or 4.');
+    return;
+  }
+  upsertBrowserTabIntoMissionPane(tabId, paneId, { activateLayout: true });
+}
+
+function ensureMissionPaneDropZones(): HTMLElement {
+  if (missionPaneDropZones) return missionPaneDropZones;
+  const container = document.createElement('div');
+  container.className = 'mission-pane-drop-zones';
+  container.setAttribute('aria-hidden', 'true');
+  for (const paneId of missionPaneIds) {
+    const zone = document.createElement('div');
+    zone.className = 'mission-pane-drop-zone';
+    zone.dataset.dropMissionPane = paneId;
+    zone.dataset.paneId = paneId;
+    zone.innerHTML = '<strong>' + paneId.replace('pane-', 'Pane ') + '</strong><span>Drop tab here</span>';
+    zone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      zone.classList.add('drag-over');
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      zone.classList.remove('drag-over');
+      const tabId = event.dataTransfer?.getData('application/x-tahai-browser-tab-id');
+      if (tabId) upsertBrowserTabIntoMissionPane(tabId, paneId, { activateLayout: true });
+      endMissionTabDrag();
+    });
+    container.appendChild(zone);
+  }
+  stageEl.appendChild(container);
+  missionPaneDropZones = container;
+  return container;
+}
+
+function renderMissionPaneDropZones(layout: MissionLayoutType, active: boolean): void {
+  const container = ensureMissionPaneDropZones();
+  const visiblePaneIds = missionVisiblePaneIds(layout);
+  container.dataset.layout = layout;
+  container.hidden = !active;
+  container.querySelectorAll<HTMLElement>('.mission-pane-drop-zone').forEach((zone) => {
+    const paneId = zone.dataset.dropMissionPane || 'pane-1';
+    zone.hidden = !visiblePaneIds.includes(paneId);
+    zone.classList.toggle('active-pane', currentMission?.layout.activePaneId === paneId);
+  });
+}
+
+function defaultRunbookStepLabels(type: MissionType): string[] {
+  if (type === 'deployment') return ['Confirm change scope and owner', 'Capture pre-change state', 'Execute deployment step', 'Run smoke validation', 'Record rollback result or closure note'];
+  if (type === 'incident') return ['Declare impact and severity', 'Capture current symptoms', 'Assign mitigation owner', 'Validate recovery signal', 'Record customer/internal update'];
+  if (type === 'migration') return ['Confirm source and target state', 'Capture backup/export evidence', 'Apply migration change', 'Validate live target and DNS/TLS', 'Record rollback path and closeout'];
+  if (type === 'admin') return ['Confirm authorized admin scope', 'Capture starting configuration', 'Apply requested change', 'Validate affected service', 'Document final state'];
+  if (type === 'documentation') return ['Collect source references', 'Draft/update runbook', 'Review security-sensitive terms', 'Publish or stage handoff', 'Log next documentation owner'];
+  return ['Define mission objective', 'Capture starting context', 'Perform work step', 'Validate result', 'Document closeout'];
+}
+
+function createMissionRunbook(type: MissionType, objectiveSeed = ''): MissionRunbook {
+  return {
+    objective: objectiveSeed || 'Define the operational outcome before closing this mission.',
+    rollback: 'Stop, roll back, or escalate if validation fails, permissions are unclear, or secret-bearing material appears.',
+    steps: defaultRunbookStepLabels(type).map((label) => ({ stepId: missionUuid(), label, state: 'todo' as MissionRunbookStepState, evidenceNote: '' }))
+  };
+}
+
+function ensureMissionRunbook(mission: MissionState): MissionRunbook {
+  if (!mission.runbook) mission.runbook = createMissionRunbook(mission.missionType);
+  if (!Array.isArray(mission.runbook.steps)) mission.runbook.steps = [];
+  return mission.runbook;
+}
+
+function updateMissionRunbookFromFields(): void {
+  if (!currentMission) return;
+  const runbook = ensureMissionRunbook(currentMission);
+  runbook.objective = missionRunbookObjective.value.trim().slice(0, 500);
+  runbook.rollback = missionRunbookRollback.value.trim().slice(0, 500);
+  currentMission.updatedAt = new Date().toISOString();
+  missionTimelineEvent('runbook-updated', 'Runbook updated', 'Objective or rollback/stop condition changed locally.');
+  renderMissionControl();
+}
+
+function addMissionRunbookStep(): void {
+  const mission = ensureCurrentMission();
+  const label = missionRunbookStepInput.value.trim().replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 220);
+  if (!label) return;
+  ensureMissionRunbook(mission).steps.unshift({ stepId: missionUuid(), label, state: 'todo', evidenceNote: '' });
+  missionRunbookStepInput.value = '';
+  missionTimelineEvent('checklist-added', 'Runbook step added', label);
+  renderMissionControl();
+  setStatus('Runbook step added', label);
+}
+
+function cycleMissionRunbookStep(stepId: string): void {
+  if (!currentMission) return;
+  const step = ensureMissionRunbook(currentMission).steps.find((candidate) => candidate.stepId === stepId);
+  if (!step) return;
+  const nextIndex = (missionRunbookStepStates.indexOf(step.state) + 1) % missionRunbookStepStates.length;
+  step.state = missionRunbookStepStates[nextIndex] || 'todo';
+  currentMission.updatedAt = new Date().toISOString();
+  missionTimelineEvent('checklist-updated', step.label, 'Step marked ' + step.state + '.');
+  renderMissionControl();
+}
+
+function removeMissionRunbookStep(stepId: string): void {
+  if (!currentMission) return;
+  const runbook = ensureMissionRunbook(currentMission);
+  const removed = runbook.steps.find((step) => step.stepId === stepId);
+  runbook.steps = runbook.steps.filter((step) => step.stepId !== stepId);
+  currentMission.updatedAt = new Date().toISOString();
+  if (removed) missionTimelineEvent('checklist-updated', 'Runbook step removed', removed.label);
+  renderMissionControl();
+}
+
+function addMissionNote(): void {
+  const mission = ensureCurrentMission();
+  const note = missionNoteInput.value.trim().replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 4000);
+  if (!note) return;
+  mission.notes.unshift(note);
+  mission.notes = mission.notes.slice(0, 80);
+  missionNoteInput.value = '';
+  missionTimelineEvent('note', 'Local note added', note.slice(0, 180));
+  renderMissionControl();
+  setStatus('Mission note added', 'Run Ops Guard before sharing or syncing.');
+}
+
+function ensureCurrentMission(): MissionState {
+  if (currentMission) return currentMission;
+  const now = new Date().toISOString();
+  const mission: MissionState = {
+    schemaVersion: 1,
+    missionId: missionUuid(),
+    name: missionNameInput?.value.trim() || 'Untitled mission',
+    missionType: (missionTypes.includes(missionTypeSelect?.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType,
+    mode: 'local-only',
+    createdAt: now,
+    updatedAt: now,
+    tabs: [],
+    layout: { type: 'single', activePaneId: 'pane-1', panes: [] },
+    notes: [],
+    runbook: createMissionRunbook((missionTypes.includes(missionTypeSelect?.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType),
+    timeline: [{ eventId: missionUuid(), kind: 'created', createdAt: now, title: 'Mission created', detail: 'Local-only Mission Tabs model initialized.' }],
+    links: { itDocs: null, psa: null }
+  };
+  currentMission = mission;
+  return mission;
+}
+
+function missionTimelineEvent(kind: MissionTimelineEvent['kind'], title: string, detail: string): void {
+  const mission = ensureCurrentMission();
+  mission.timeline.unshift({ eventId: missionUuid(), kind, createdAt: new Date().toISOString(), title, detail });
+  mission.timeline = mission.timeline.slice(0, 160);
+  mission.updatedAt = new Date().toISOString();
+}
+
+function syncMissionLayoutPanes(): void {
+  if (!currentMission) return;
+  const usedTabIds = new Set<string>();
+  const panes: MissionLayout['panes'] = [];
+  for (const paneId of missionPaneIds) {
+    const tab = currentMission.tabs.find((candidate) => candidate.paneId === paneId && !usedTabIds.has(candidate.tabId));
+    if (!tab) continue;
+    usedTabIds.add(tab.tabId);
+    panes.push({ paneId, role: tab.role, tabId: tab.tabId });
+  }
+  currentMission.layout.panes = panes;
+  if (!currentMission.layout.activePaneId || !missionPaneIds.includes(currentMission.layout.activePaneId as typeof missionPaneIds[number])) currentMission.layout.activePaneId = 'pane-1';
+}
+
+function updateMissionTabRuntimeFromBrowser(tab: TabState): void {
+  if (!currentMission) return;
+  const missionTab = currentMission.tabs.find((candidate) => missionRuntimeTabs.get(candidate.tabId) === tab.id);
+  if (!missionTab) return;
+  missionTab.title = tab.title;
+  missionTab.url = tab.url;
+  currentMission.updatedAt = new Date().toISOString();
+  renderMissionControl();
+}
+
+function renderMissionLayout(): void {
+  if (!stageEl || !tabs.size) return;
+  const layout = currentMission?.layout.type || 'single';
+  const missionModeActive = Boolean(currentMission && layout !== 'single');
+  stageEl.classList.toggle('mission-layout', missionModeActive);
+  for (const name of missionLayouts) stageEl.classList.toggle('mission-layout-' + name, missionModeActive && layout === name);
+  if (!missionModeActive) {
+    renderMissionPaneDropZones(layout, false);
+    for (const tab of tabs.values()) {
+      tab.webview.classList.toggle('active', tab.id === activeTabId);
+      tab.webview.classList.remove('mission-active-pane');
+      tab.webview.removeAttribute('data-pane-label');
+      tab.webview.style.removeProperty('order');
+    }
+    return;
+  }
+  const visiblePanes = missionVisiblePaneIds(layout);
+  renderMissionPaneDropZones(layout, true);
+  const runtimeByPane = new Map<string, string>();
+  for (const missionTab of currentMission?.tabs || []) {
+    const runtimeTabId = missionRuntimeTabs.get(missionTab.tabId);
+    if (runtimeTabId && visiblePanes.includes(missionTab.paneId) && !runtimeByPane.has(missionTab.paneId)) runtimeByPane.set(missionTab.paneId, runtimeTabId);
+  }
+  const activePaneId = currentMission?.layout.activePaneId || 'pane-1';
+  for (const tab of tabs.values()) {
+    const paneId = Array.from(runtimeByPane.entries()).find(([, runtimeTabId]) => runtimeTabId === tab.id)?.[0];
+    const visible = Boolean(paneId);
+    tab.webview.classList.toggle('active', visible);
+    tab.webview.classList.toggle('mission-active-pane', visible && paneId === activePaneId);
+    if (paneId) {
+      tab.webview.setAttribute('data-pane-label', paneId.replace('pane-', 'Pane '));
+      tab.webview.style.order = String(visiblePanes.indexOf(paneId) + 1);
+    } else {
+      tab.webview.removeAttribute('data-pane-label');
+      tab.webview.style.removeProperty('order');
+    }
+  }
+}
+
+function setMissionLayout(layout: MissionLayoutType): void {
+  const mission = ensureCurrentMission();
+  mission.layout.type = layout;
+  syncMissionLayoutPanes();
+  missionTimelineEvent('layout-set', missionLayoutLabel(layout), 'Mission Control view changed locally.');
+  renderMissionControl();
+  renderMissionLayout();
+  setStatus('Mission layout set', missionLayoutLabel(layout));
+}
+
+function setMissionActivePane(paneId: string): void {
+  if (!currentMission || !missionPaneIds.includes(paneId as typeof missionPaneIds[number])) return;
+  currentMission.layout.activePaneId = paneId;
+  const missionTab = currentMission.tabs.find((candidate) => candidate.paneId === paneId);
+  const runtimeTabId = missionTab ? missionRuntimeTabs.get(missionTab.tabId) : undefined;
+  if (runtimeTabId && tabs.has(runtimeTabId)) setActive(runtimeTabId);
+  renderMissionLayout();
+}
+
+function missionExportMarkdown(): string {
+  if (!currentMission) return '';
+  const runbook = ensureMissionRunbook(currentMission);
+  const rows = currentMission.tabs.map((tab) => '| ' + tab.role + ' | ' + md(tab.title) + ' | ' + md(tab.url) + ' | ' + md(tab.paneId) + ' |').join('\n') || '| _No mission tabs captured._ |  |  |  |';
+  const checklist = runbook.steps.map((step) => '- [' + (step.state === 'done' ? 'x' : ' ') + '] ' + md(step.label) + ' — ' + md(step.state)).join('\n') || '- _No runbook checklist steps._';
+  const notes = currentMission.notes.map((note) => '- ' + md(note)).join('\n') || '- _No local notes yet._';
+  const timeline = currentMission.timeline.map((event) => '- ' + md(event.createdAt) + ' — ' + md(event.kind) + ' — ' + md(event.title) + (event.detail ? ' — ' + md(event.detail) : '')).join('\n') || '- _No timeline yet._';
+  return '# TAHAI Mission Packet — ' + md(currentMission.name) + '\n\n' +
+    '> Local-only Mission Control export preview. Review through Ops Guard before sharing or syncing. IT Docs/PSA writeback stays disabled until an authorized server-side contract is active.\n\n' +
+    '| Field | Value |\n| --- | --- |\n' +
+    '| Mission type | ' + md(currentMission.missionType) + ' |\n' +
+    '| Mode | ' + md(currentMission.mode) + ' |\n' +
+    '| Layout | ' + md(currentMission.layout.type) + ' |\n' +
+    '| Active pane | ' + md(currentMission.layout.activePaneId) + ' |\n\n' +
+    '## Tabs\n\n| Role | Title | URL | Pane |\n| --- | --- | --- | --- |\n' + rows + '\n\n' +
+    '## Runbook Rail\n\nObjective: ' + md(runbook.objective || 'Not set') + '\n\nRollback / stop condition: ' + md(runbook.rollback || 'Not set') + '\n\n' + checklist + '\n\n' +
+    '## Local Notes\n\n' + notes + '\n\n' +
+    '## Timeline\n\n' + timeline + '\n';
+}
+
+function renderMissionList(): void {
+  if (!missionList) return;
+  if (!missionStore.length) {
+    missionList.innerHTML = '<article class="ops-hub-empty">No local missions saved yet.</article>';
+    return;
+  }
+  missionList.innerHTML = missionStore.map((mission) => '<article class="ops-hub-row split">' +
+    '<button type="button" data-load-mission-id="' + escapeHtml(mission.missionId) + '"><strong>' + escapeHtml(mission.name) + '</strong><span>' + escapeHtml(mission.missionType + ' · ' + mission.tabs.length + ' tab(s) · ' + new Date(mission.updatedAt).toLocaleString()) + '</span></button>' +
+    '<button type="button" class="mini-danger" data-restore-mission-id="' + escapeHtml(mission.missionId) + '" title="Restore mission tabs">↗</button>' +
+    '</article>').join('');
+}
+
+function renderMissionControl(): void {
+  if (!missionDialog) return;
+  const mission = currentMission;
+  missionNameInput.value = mission?.name || missionNameInput.value || '';
+  missionTypeSelect.value = mission?.missionType || missionTypeSelect.value || 'generic';
+  missionStatus.innerHTML = mission
+    ? '<strong>' + escapeHtml(mission.name) + '</strong><span>Local Only · ' + escapeHtml(missionLayoutLabel(mission.layout.type)) + ' · ' + mission.tabs.length + ' mission tab(s) · drag tab strip items onto panes</span>'
+    : '<strong>No active mission</strong><span>Create a local Mission Tab set or restore one from disk.</span>';
+  missionTabsList.innerHTML = mission?.tabs.length ? mission.tabs.map((tab) =>
+    '<article class="mission-tab-row">' +
+    '<button type="button" data-focus-mission-tab="' + escapeHtml(tab.tabId) + '"><strong>' + escapeHtml(tab.title) + '</strong><span>' + escapeHtml(tab.url) + '</span></button>' +
+    '<select data-role-mission-tab="' + escapeHtml(tab.tabId) + '">' + missionTabRoles.map((role) => '<option value="' + role + '"' + (role === tab.role ? ' selected' : '') + '>' + missionRoleLabel(role) + '</option>').join('') + '</select>' +
+    '<button type="button" class="home-button secondary" data-pane-mission-tab="' + escapeHtml(tab.tabId) + '">' + escapeHtml(tab.paneId) + '</button>' +
+    '</article>'
+  ).join('') : '<article class="ops-hub-empty">Add the active browser tab to start shaping this mission.</article>';
+  if (mission) {
+    const runbook = ensureMissionRunbook(mission);
+    if (document.activeElement !== missionRunbookObjective) missionRunbookObjective.value = runbook.objective || '';
+    if (document.activeElement !== missionRunbookRollback) missionRunbookRollback.value = runbook.rollback || '';
+    missionRunbookList.innerHTML = runbook.steps.length ? runbook.steps.map((step) => '<article class="mission-runbook-step ' + escapeHtml(step.state) + '">' +
+      '<button type="button" class="mission-step-state" data-cycle-runbook-step="' + escapeHtml(step.stepId) + '">' + escapeHtml(step.state) + '</button>' +
+      '<span>' + escapeHtml(step.label) + '</span>' +
+      '<button type="button" class="mini-danger" data-remove-runbook-step="' + escapeHtml(step.stepId) + '" title="Remove step">×</button>' +
+      '</article>').join('') : '<article class="ops-hub-empty">No checklist steps. Add a bounded runbook step.</article>';
+    missionNotesList.innerHTML = mission.notes.length ? mission.notes.slice(0, 5).map((note) => '<article class="ops-hub-row"><strong>Local note</strong><span>' + escapeHtml(note) + '</span></article>').join('') : '<article class="ops-hub-empty">No local mission notes yet.</article>';
+  } else {
+    missionRunbookObjective.value = '';
+    missionRunbookRollback.value = '';
+    missionRunbookList.innerHTML = '<article class="ops-hub-empty">Create or load a mission to use the runbook rail.</article>';
+    missionNotesList.innerHTML = '<article class="ops-hub-empty">No active mission notes.</article>';
+  }
+  missionTimeline.innerHTML = mission?.timeline.length ? mission.timeline.slice(0, 8).map((event) => '<article class="ops-hub-row"><strong>' + escapeHtml(event.title) + '</strong><span>' + escapeHtml(event.kind + ' · ' + new Date(event.createdAt).toLocaleString() + (event.detail ? ' · ' + event.detail : '')) + '</span></article>').join('') : '<article class="ops-hub-empty">Timeline starts after mission actions.</article>';
+  missionLayoutsEl.querySelectorAll<HTMLButtonElement>('[data-mission-layout]').forEach((button) => button.classList.toggle('active', button.dataset.missionLayout === (mission?.layout.type || 'single')));
+  missionExportPreview.value = missionExportMarkdown();
+  renderMissionList();
+  renderMissionRecipes();
+}
+
+async function refreshMissionStore(): Promise<void> {
+  const result = await window.tahaiBrowser.listMissions();
+  missionStore = result.ok ? result.missions : [];
+  renderMissionControl();
+}
+
+async function openMissionControl(): Promise<void> {
+  closeToolMenus();
+  if (!missionTypeSelect.options.length) {
+    missionTypeSelect.innerHTML = missionTypes.map((type) => '<option value="' + type + '">' + type.replace(/-/g, ' ') + '</option>').join('');
+  }
+  await refreshMissionStore();
+  renderMissionControl();
+  if (!missionDialog.open) missionDialog.showModal();
+}
+
+function createMissionFromForm(): void {
+  const now = new Date().toISOString();
+  currentMission = {
+    schemaVersion: 1,
+    missionId: missionUuid(),
+    name: missionNameInput.value.trim() || 'Untitled mission',
+    missionType: (missionTypes.includes(missionTypeSelect.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType,
+    mode: 'local-only',
+    createdAt: now,
+    updatedAt: now,
+    tabs: [],
+    layout: { type: 'single', activePaneId: 'pane-1', panes: [] },
+    notes: [],
+    runbook: createMissionRunbook((missionTypes.includes(missionTypeSelect.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType),
+    timeline: [{ eventId: missionUuid(), kind: 'created', createdAt: now, title: 'Mission created', detail: 'Local-only browser mission started.' }],
+    links: { itDocs: null, psa: null }
+  };
+  missionRuntimeTabs.clear();
+  renderMissionControl();
+  renderMissionLayout();
+  setStatus('Mission created', currentMission.name);
+}
+
+function addActiveTabToMission(): void {
+  const tab = active();
+  if (!tab) return;
+  const mission = ensureCurrentMission();
+  const existing = mission.tabs.find((candidate) => missionRuntimeTabs.get(candidate.tabId) === tab.id || candidate.url === tab.url);
+  if (existing) {
+    missionRuntimeTabs.set(existing.tabId, tab.id);
+    tab.missionPaneId = existing.paneId;
+    setStatus('Tab already in mission', existing.title);
+    return;
+  }
+  const tabId = missionUuid();
+  const paneId = missionPaneIds[Math.min(mission.tabs.length, 3)] || 'pane-1';
+  const role = missionDefaultRole(tab.url);
+  mission.tabs.push({ tabId, role, url: tab.url, title: tab.title, pinned: false, paneId });
+  missionRuntimeTabs.set(tabId, tab.id);
+  tab.missionPaneId = paneId;
+  syncMissionLayoutPanes();
+  missionTimelineEvent('tab-added', tab.title, role + ' · ' + tab.url);
+  renderMissionControl();
+  renderMissionLayout();
+  setStatus('Mission tab added', tab.title);
+}
+
+async function saveCurrentMission(): Promise<void> {
+  const mission = ensureCurrentMission();
+  mission.name = missionNameInput.value.trim() || mission.name;
+  mission.missionType = (missionTypes.includes(missionTypeSelect.value as MissionType) ? missionTypeSelect.value : mission.missionType) as MissionType;
+  const runbook = ensureMissionRunbook(mission);
+  runbook.objective = missionRunbookObjective.value.trim().slice(0, 500) || runbook.objective;
+  runbook.rollback = missionRunbookRollback.value.trim().slice(0, 500) || runbook.rollback;
+  syncMissionLayoutPanes();
+  missionTimelineEvent('saved', 'Mission saved locally', 'Validated main-process persistence requested.');
+  const result = await window.tahaiBrowser.saveMission(mission);
+  if (result.ok && result.mission) {
+    const savedMission = result.mission;
+    currentMission = savedMission;
+    await refreshMissionStore();
+    renderMissionControl();
+    setStatus('Mission saved', result.path || savedMission.name);
+  } else {
+    setStatus('Mission save blocked', result.error || 'Validation failed.');
+  }
+}
+
+async function loadMissionById(missionId: string, restoreTabs = false): Promise<void> {
+  const result = await window.tahaiBrowser.loadMission(missionId);
+  if (!result.ok || !result.mission) {
+    setStatus('Mission load failed', result.error || 'Mission not available.');
+    return;
+  }
+  const loadedMission = result.mission;
+  currentMission = loadedMission;
+  missionRuntimeTabs.clear();
+  if (restoreTabs) {
+    closeAllTabsForProfileSwitch();
+    for (const missionTab of loadedMission.tabs) {
+      const runtimeTabId = createTab(missionTab.url);
+      const runtimeTab = tabs.get(runtimeTabId);
+      if (runtimeTab) runtimeTab.missionPaneId = missionTab.paneId;
+      missionRuntimeTabs.set(missionTab.tabId, runtimeTabId);
+    }
+    missionTimelineEvent('restored', 'Mission restored', 'Mission tabs opened into the active browser window.');
+  }
+  renderMissionControl();
+  renderMissionLayout();
+  setStatus(restoreTabs ? 'Mission restored' : 'Mission loaded', loadedMission.name);
 }
 
 type ToolMenuName = 'devops' | 'it';
@@ -810,12 +1423,16 @@ function runToolFromMenu(action: () => void | Promise<void>): void {
 }
 
 const premiumLaunchRecipes: LaunchRecipe[] = [
-  { id: 'google-admin', label: 'Google Admin', group: 'Provider consoles', profileKind: 'google', profileName: 'Google Admin', urls: ['https://admin.google.com', 'https://console.cloud.google.com', 'https://mail.google.com', 'https://drive.google.com'], note: 'Google Workspace, GCP, Gmail, and Drive in a Google-labeled profile.' },
-  { id: 'azure-m365', label: 'Azure / M365', group: 'Provider consoles', profileKind: 'microsoft', profileName: 'Azure / M365', urls: ['https://admin.microsoft.com', 'https://portal.azure.com', 'https://entra.microsoft.com', 'https://security.microsoft.com'], note: 'Microsoft 365, Azure, Entra, and Security in a Microsoft-labeled profile.' },
-  { id: 'aws-console', label: 'AWS Operations', group: 'Provider consoles', profileKind: 'work', profileName: 'AWS Operations', urls: ['https://console.aws.amazon.com', 'https://health.aws.amazon.com/health/status', 'https://status.aws.amazon.com'], note: 'AWS console, health, and public status lane.' },
-  { id: 'client-workspace', label: 'Client Workspace', group: 'Client work', profileKind: 'client', profileName: 'Client Workspace', urls: ['https://tahaiportal.com', 'https://docs.tahaiportal.com'], note: 'Client-focused operational launch lane with TAHAI Portal and IT Docs.' },
-  { id: 'tahai-it-docs', label: 'TAHAI IT Docs', group: 'TAHAI products', profileKind: 'work', profileName: 'TAHAI IT Docs', urls: ['https://docs.tahaiportal.com', 'https://tahaiportal.com'], note: 'Documentation and operational intelligence workspace.' },
-  { id: 'tahai-psa', label: 'TAHAI PSA', group: 'TAHAI products', profileKind: 'work', profileName: 'TAHAI PSA', urls: ['https://tahaiportal.com'], comingSoon: true, note: 'Coming soon: PSA workspace lane, linked here so it is already part of the browser workflow.' }
+  { id: 'google-admin', label: 'Google Admin', group: 'Admin console profiles', profileKind: 'google', profileName: 'Google Admin', urls: ['https://admin.google.com', 'https://console.cloud.google.com', 'https://mail.google.com', 'https://drive.google.com'], missionType: 'admin', missionLayout: 'quad', missionRoles: ['primary-console','vendor-portal','docs','runbook'], note: 'Google Workspace, GCP, Gmail, and Drive in a Google-labeled profile.' },
+  { id: 'azure-m365', label: 'Azure / M365', group: 'Admin console profiles', profileKind: 'microsoft', profileName: 'Azure / M365', urls: ['https://admin.microsoft.com', 'https://portal.azure.com', 'https://entra.microsoft.com', 'https://security.microsoft.com'], missionType: 'admin', missionLayout: 'quad', missionRoles: ['primary-console','vendor-portal','monitoring','logs'], note: 'Microsoft 365, Azure, Entra, and Security in a Microsoft-labeled profile.' },
+  { id: 'aws-console', label: 'AWS Operations', group: 'DevOps recipes', profileKind: 'work', profileName: 'AWS Operations', urls: ['https://console.aws.amazon.com', 'https://health.aws.amazon.com/health/status', 'https://status.aws.amazon.com', 'https://docs.aws.amazon.com'], missionType: 'deployment', missionLayout: 'quad', missionRoles: ['primary-console','monitoring','live-target','docs'], note: 'AWS console, health, public status, and documentation lane.' },
+  { id: 'cloudflare-dns', label: 'Cloudflare DNS Migration', group: 'IT admin recipes', profileKind: 'work', profileName: 'Cloudflare DNS', urls: ['https://dash.cloudflare.com', 'https://www.cloudflarestatus.com', 'https://developers.cloudflare.com/dns/', 'https://docs.tahaiportal.com'], missionType: 'migration', missionLayout: 'quad', missionRoles: ['primary-console','monitoring','docs','runbook'], note: 'DNS migration cockpit: Cloudflare, status, docs, and IT Docs runbook lane.' },
+  { id: 'github-vercel-release', label: 'GitHub / Vercel Release', group: 'DevOps recipes', profileKind: 'work', profileName: 'GitHub / Vercel Release', urls: ['https://github.com', 'https://vercel.com/dashboard', 'https://www.vercel-status.com', 'https://docs.tahaiportal.com'], missionType: 'deployment', missionLayout: 'quad', missionRoles: ['logs','primary-console','monitoring','runbook'], note: 'Release cockpit for source, deployment provider, status, and handoff notes.' },
+  { id: 'incident-war-room', label: 'Incident War Room', group: 'Incident recipes', profileKind: 'work', profileName: 'Incident War Room', urls: ['https://docs.tahaiportal.com', 'https://www.cloudflarestatus.com', 'https://status.aws.amazon.com', 'https://githubstatus.com'], missionType: 'incident', missionLayout: 'quad', missionRoles: ['runbook','monitoring','monitoring','monitoring'], note: 'Clean local war-room starter with runbook and public status surfaces only.' },
+  { id: 'documentation-sprint', label: 'Documentation Sprint', group: 'Documentation recipes', profileKind: 'work', profileName: 'Documentation Sprint', urls: ['https://docs.tahaiportal.com', 'https://github.com', 'https://developer.mozilla.org', 'https://www.markdownguide.org/basic-syntax/'], missionType: 'documentation', missionLayout: 'triple', missionRoles: ['runbook','docs','docs','tool'], note: 'Documentation workspace for IT Docs, source references, and technical writing.' },
+  { id: 'client-workspace', label: 'Client Workspace', group: 'Client work', profileKind: 'client', profileName: 'Client Workspace', urls: ['https://tahaiportal.com', 'https://docs.tahaiportal.com'], missionType: 'support', missionLayout: 'split-horizontal', missionRoles: ['live-target','runbook'], note: 'Client-focused operational launch lane with TAHAI Portal and IT Docs.' },
+  { id: 'tahai-it-docs', label: 'TAHAI IT Docs', group: 'TAHAI products', profileKind: 'work', profileName: 'TAHAI IT Docs', urls: ['https://docs.tahaiportal.com', 'https://tahaiportal.com'], missionType: 'documentation', missionLayout: 'split-horizontal', missionRoles: ['runbook','live-target'], note: 'Documentation and operational intelligence workspace.' },
+  { id: 'tahai-psa', label: 'TAHAI PSA', group: 'TAHAI products', profileKind: 'work', profileName: 'TAHAI PSA', urls: ['https://tahaiportal.com'], comingSoon: true, missionType: 'support', missionLayout: 'single', missionRoles: ['ticket'], note: 'Coming soon: PSA workspace lane, linked here so it is already part of the browser workflow.' }
 ];
 
 const shortcutRows = [
@@ -841,6 +1458,9 @@ const shortcutRows = [
   ['F12 / Ctrl+Shift+I', 'Open Chromium DevTools'],
   ['Ctrl+Shift+P', 'Open Profiles'],
   ['Ctrl+L', 'Focus address bar'],
+  ['Ctrl+Alt+N', 'Open Mission Runbook Rail'],
+  ['Ctrl+Alt+Q', 'Open Mission Quad View'],
+  ['Drag tab → pane', 'Drop a tab strip item onto a Mission pane'],
   ['Alt+← / Alt+→', 'Back / Forward']
 ];
 
@@ -886,9 +1506,23 @@ function toggleOpsHub(open = opsHub.hidden): void {
 function renderLaunchRecipes(container: HTMLElement): void {
   container.innerHTML = premiumLaunchRecipes.map((recipe) => {
     const soon = recipe.comingSoon ? '<em>Coming soon</em>' : '';
+    const missionBadge = recipe.missionLayout ? ' · ' + missionLayoutLabel(recipe.missionLayout) : '';
     return '<button class="ops-hub-row" type="button" data-recipe-id="' + escapeHtml(recipe.id) + '">' +
       '<strong>' + escapeHtml(recipe.label) + soon + '</strong>' +
-      '<span>' + escapeHtml(recipe.note) + '</span>' +
+      '<span>' + escapeHtml(recipe.group + missionBadge + ' · ' + recipe.note) + '</span>' +
+      '</button>';
+  }).join('');
+}
+
+function renderMissionRecipes(): void {
+  if (!missionRecipes) return;
+  missionRecipes.innerHTML = premiumLaunchRecipes.map((recipe) => {
+    const layout = recipe.missionLayout ? missionLayoutLabel(recipe.missionLayout) : '1-Up Normal';
+    const disabled = recipe.comingSoon ? ' aria-disabled="true"' : '';
+    const soon = recipe.comingSoon ? '<em>Coming soon</em>' : '';
+    return '<button class="ops-hub-row" type="button" data-start-mission-recipe-id="' + escapeHtml(recipe.id) + '"' + disabled + '>' +
+      '<strong>' + escapeHtml(recipe.label) + soon + '</strong>' +
+      '<span>' + escapeHtml(recipe.group + ' · ' + layout + ' · ' + recipe.profileName) + '</span>' +
       '</button>';
   }).join('');
 }
@@ -948,6 +1582,7 @@ function renderOpsHub(): void {
   renderLaunchRecipes(opsHubRecipes);
   renderWorkspaceSnapshots();
   renderEvidenceTimeline();
+  renderMissionControl();
 }
 
 async function saveWorkspaceSnapshot(): Promise<void> {
@@ -1466,6 +2101,53 @@ async function openLaunchRecipe(recipeId: string): Promise<void> {
   setStatus(recipe.comingSoon ? `${recipe.label} is coming soon` : `${recipe.label} opened`, recipe.note);
 }
 
+async function startMissionFromRecipe(recipeId: string): Promise<void> {
+  const recipe = premiumLaunchRecipes.find((candidate) => candidate.id === recipeId);
+  if (!recipe) return;
+  if (recipe.comingSoon) {
+    setStatus(`${recipe.label} is coming soon`, recipe.note);
+    return;
+  }
+  await ensureRecipeProfile(recipe);
+  closeAllTabsForProfileSwitch();
+  const now = new Date().toISOString();
+  const mission: MissionState = {
+    schemaVersion: 1,
+    missionId: missionUuid(),
+    name: recipe.label,
+    missionType: recipe.missionType || 'generic',
+    mode: 'local-only',
+    createdAt: now,
+    updatedAt: now,
+    tabs: [],
+    layout: { type: recipe.missionLayout || 'single', activePaneId: 'pane-1', panes: [] },
+    notes: [`Started from Launch Recipe: ${recipe.label}. ${recipe.note}`],
+    runbook: createMissionRunbook(recipe.missionType || 'generic', recipe.note),
+    timeline: [{ eventId: missionUuid(), kind: 'created', createdAt: now, title: 'Mission recipe started', detail: recipe.note }],
+    links: { itDocs: null, psa: null }
+  };
+  currentMission = mission;
+  missionRuntimeTabs.clear();
+  recipe.urls.slice(0, 4).forEach((url, index) => {
+    const safeUrl = normalizeTarget(url);
+    const runtimeTabId = createTab(safeUrl);
+    const paneId = missionPaneIds[index] || 'pane-1';
+    const runtimeTab = tabs.get(runtimeTabId);
+    if (runtimeTab) runtimeTab.missionPaneId = paneId;
+    const missionTabId = missionUuid();
+    const role = recipe.missionRoles?.[index] || missionDefaultRole(safeUrl);
+    mission.tabs.push({ tabId: missionTabId, role, url: safeUrl, title: titleFromUrl(safeUrl), pinned: false, paneId });
+    missionRuntimeTabs.set(missionTabId, runtimeTabId);
+  });
+  syncMissionLayoutPanes();
+  const saveResult = await window.tahaiBrowser.saveMission(mission);
+  if (saveResult.ok && saveResult.mission) currentMission = saveResult.mission;
+  await refreshMissionStore();
+  renderOpsHub();
+  renderMissionLayout();
+  setStatus('Mission recipe started', `${recipe.label} · ${missionLayoutLabel(recipe.missionLayout || 'single')}`);
+}
+
 function openKeyboardShortcuts(): void {
   shortcutList.innerHTML = shortcutRows.map(([keys, action]) => '<article><kbd>' + escapeHtml(keys) + '</kbd><span>' + escapeHtml(action) + '</span></article>').join('');
   if (!shortcutDialog.open) shortcutDialog.showModal();
@@ -1474,6 +2156,12 @@ function openKeyboardShortcuts(): void {
 function buildCommandPaletteActions(): CommandPaletteAction[] {
   const actions: CommandPaletteAction[] = [
     { id: 'open-ops-hub', title: 'Open Ops Panel', detail: 'Persistent right-side DevOps / IT operational rail.', group: 'Shell', shortcut: 'Ctrl+Alt+H', run: () => toggleOpsHub(true) },
+    { id: 'mission-control', title: 'Mission Control', detail: 'Create, restore, save, and lay out local Mission Tabs.', group: 'Mission', shortcut: 'Ctrl+Alt+M', run: openMissionControl },
+    { id: 'mission-add-tab', title: 'Add Active Tab to Mission', detail: 'Assign the active tab to the current local Mission.', group: 'Mission', run: addActiveTabToMission },
+    { id: 'mission-make-quad', title: 'Make Quad From Open Tabs', detail: 'Assign the first four browser tabs to Mission panes and switch to Quad View.', group: 'Mission', run: makeQuadFromOpenTabs },
+    { id: 'mission-quad', title: 'Mission Quad View', detail: 'Switch Mission Control to 4-Up Quad Ops View.', group: 'Mission', shortcut: 'Ctrl+Alt+Q', run: () => setMissionLayout('quad') },
+    { id: 'mission-split', title: 'Mission Split View', detail: 'Switch Mission Control to 2-Up Split View.', group: 'Mission', shortcut: 'Ctrl+Alt+S', run: () => setMissionLayout('split-horizontal') },
+    { id: 'mission-runbook', title: 'Mission Runbook Rail', detail: 'Open checklist, rollback, notes, and mission timeline.', group: 'Mission', shortcut: 'Ctrl+Alt+N', run: openMissionControl },
     { id: 'save-workspace', title: 'Save Workspace Snapshot', detail: 'Save current tabs and active profile context.', group: 'Workspace', run: saveWorkspaceSnapshot },
     { id: 'pin-evidence', title: 'Pin Latest Evidence', detail: 'Add current tool output to the local evidence timeline.', group: 'Evidence', run: pinLatestEvidence },
     { id: 'build-bundle', title: 'Build Evidence / Change Bundle', detail: 'Bundle pinned evidence, workspaces, IT Docs handoff, and PSA-ready fields.', group: 'Evidence', shortcut: 'Ctrl+Alt+B', run: openChangeBundleComposer },
@@ -1496,7 +2184,10 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     { id: 'it-docs', title: 'TAHAI IT Docs', detail: 'Open production TAHAI IT Docs.', group: 'TAHAI', run: () => openLaunchRecipe('tahai-it-docs') },
     { id: 'psa', title: 'TAHAI PSA Coming Soon', detail: 'Reserved PSA launch lane.', group: 'TAHAI', run: () => openLaunchRecipe('tahai-psa') }
   ];
-  for (const recipe of premiumLaunchRecipes) actions.push({ id: 'recipe-' + recipe.id, title: recipe.label, detail: recipe.note, group: 'Launch Recipe', run: () => openLaunchRecipe(recipe.id) });
+  for (const recipe of premiumLaunchRecipes) {
+    actions.push({ id: 'recipe-' + recipe.id, title: recipe.label, detail: recipe.note, group: 'Launch Recipe', run: () => openLaunchRecipe(recipe.id) });
+    if (!recipe.comingSoon) actions.push({ id: 'mission-recipe-' + recipe.id, title: 'Start Mission: ' + recipe.label, detail: recipe.group + ' · ' + missionLayoutLabel(recipe.missionLayout || 'single'), group: 'Mission Recipe', run: () => startMissionFromRecipe(recipe.id) });
+  }
   for (const profile of browserProfileState?.profiles || []) actions.push({ id: 'profile-' + profile.id, title: 'Switch Profile: ' + profile.name, detail: profileKindLabel(profile.kind) + ' · ' + profile.partition, group: 'Profiles', run: async () => { browserProfileState = await window.tahaiBrowser.setActiveProfile(profile.id); renderProfileBadge(); reloadForActiveProfile(); renderOpsHub(); } });
   for (const snapshot of readJsonArray<WorkspaceSnapshot>(workspaceStorageKey)) actions.push({ id: 'workspace-' + snapshot.id, title: 'Restore Workspace: ' + snapshot.name, detail: snapshot.profileName + ' · ' + snapshot.urls.length + ' tab(s)', group: 'Workspace', run: () => restoreWorkspaceSnapshot(snapshot.id) });
   return actions;
@@ -3638,6 +4329,11 @@ function handleMenuCommand(command: string): void {
   if (command === 'settings') openSettings();
   if (command === 'command-palette') openCommandPalette();
   if (command === 'ops-hub') toggleOpsHub(true);
+  if (command === 'mission-control') void openMissionControl();
+  if (command === 'mission-add-tab') addActiveTabToMission();
+  if (command === 'mission-make-quad') makeQuadFromOpenTabs();
+  if (command === 'mission-quad') setMissionLayout('quad');
+  if (command === 'mission-split') setMissionLayout('split-horizontal');
   if (command === 'shortcuts') openKeyboardShortcuts();
   if (command === 'save-workspace') void saveWorkspaceSnapshot();
   if (command === 'pin-evidence') void pinLatestEvidence();
@@ -3681,6 +4377,7 @@ launchpadButton.addEventListener('click', () => navigate(config.newTabUrl));
 onboardingButton.addEventListener('click', () => navigate(config.onboardingUrl));
 profileSwitcherButton.addEventListener('click', () => { void openProfileManager(); });
 opsHubToggleButton.addEventListener('click', () => toggleOpsHub());
+missionControlButton.addEventListener('click', () => { void openMissionControl(); });
 closeOpsHubButton.addEventListener('click', () => toggleOpsHub(false));
 opsHub.addEventListener('click', (event) => {
   const target = event.target as HTMLElement;
@@ -3688,6 +4385,7 @@ opsHub.addEventListener('click', (event) => {
   if (!button) return;
   const action = button.dataset.opsAction;
   if (action === 'command') openCommandPalette();
+  if (action === 'mission') void openMissionControl();
   if (action === 'save-workspace') void saveWorkspaceSnapshot();
   if (action === 'pin-evidence') void pinLatestEvidence();
   if (action === 'bundle') openChangeBundleComposer();
@@ -3700,6 +4398,37 @@ opsHub.addEventListener('click', (event) => {
   if (button.dataset.copyEvidenceId) void copyEvidenceItem(button.dataset.copyEvidenceId);
   if (button.dataset.deleteEvidenceId) deleteEvidenceItem(button.dataset.deleteEvidenceId);
 });
+closeMissionButton.addEventListener('click', () => missionDialog.close());
+missionForm.addEventListener('submit', (event) => { event.preventDefault(); createMissionFromForm(); });
+missionCreateButton.addEventListener('click', () => createMissionFromForm());
+missionAddActiveTabButton.addEventListener('click', () => addActiveTabToMission());
+missionMakeQuadButton.addEventListener('click', () => makeQuadFromOpenTabs());
+missionSaveButton.addEventListener('click', () => { void saveCurrentMission(); });
+missionLayoutsEl.addEventListener('click', (event) => {
+  const target = event.target as HTMLElement;
+  const layoutButton = target.closest<HTMLButtonElement>('[data-mission-layout]');
+  if (layoutButton?.dataset.missionLayout) setMissionLayout(layoutButton.dataset.missionLayout as MissionLayoutType);
+  const paneButton = target.closest<HTMLButtonElement>('[data-send-active-pane]');
+  if (paneButton?.dataset.sendActivePane) {
+    const tab = active();
+    if (tab) upsertBrowserTabIntoMissionPane(tab.id, paneButton.dataset.sendActivePane, { activateLayout: true });
+  }
+});
+missionList.addEventListener('click', (event) => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button'); if (!button) return; if (button.dataset.loadMissionId) void loadMissionById(button.dataset.loadMissionId, false); if (button.dataset.restoreMissionId) void loadMissionById(button.dataset.restoreMissionId, true); });
+missionRecipes.addEventListener('click', (event) => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-start-mission-recipe-id]'); if (button?.dataset.startMissionRecipeId) void startMissionFromRecipe(button.dataset.startMissionRecipeId); });
+missionRunbookObjective.addEventListener('change', updateMissionRunbookFromFields);
+missionRunbookRollback.addEventListener('change', updateMissionRunbookFromFields);
+missionRunbookStepInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addMissionRunbookStep(); } });
+missionRunbookAddStepButton.addEventListener('click', addMissionRunbookStep);
+missionAddNoteButton.addEventListener('click', addMissionNote);
+missionRunbookList.addEventListener('click', (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  if (!button) return;
+  if (button.dataset.cycleRunbookStep) cycleMissionRunbookStep(button.dataset.cycleRunbookStep);
+  if (button.dataset.removeRunbookStep) removeMissionRunbookStep(button.dataset.removeRunbookStep);
+});
+missionTabsList.addEventListener('click', (event) => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button'); if (!button || !currentMission) return; if (button.dataset.focusMissionTab) { const runtimeTabId = missionRuntimeTabs.get(button.dataset.focusMissionTab); if (runtimeTabId) setActive(runtimeTabId); } if (button.dataset.paneMissionTab) { const tab = currentMission.tabs.find((candidate) => candidate.tabId === button.dataset.paneMissionTab); if (tab) { const currentIndex = missionPaneIds.indexOf(tab.paneId as typeof missionPaneIds[number]); tab.paneId = missionPaneIds[(currentIndex + 1) % missionPaneIds.length]; currentMission.layout.activePaneId = tab.paneId; syncMissionLayoutPanes(); missionTimelineEvent('layout-set', 'Pane assignment changed', tab.title + ' → ' + tab.paneId.replace('pane-', 'Pane ')); renderMissionControl(); renderMissionLayout(); } } });
+missionTabsList.addEventListener('change', (event) => { const select = (event.target as HTMLElement).closest<HTMLSelectElement>('select[data-role-mission-tab]'); if (!select || !currentMission) return; const tab = currentMission.tabs.find((candidate) => candidate.tabId === select.dataset.roleMissionTab); if (tab && missionTabRoles.includes(select.value as MissionTabRole)) { tab.role = select.value as MissionTabRole; syncMissionLayoutPanes(); missionTimelineEvent('tab-role-set', tab.title, tab.role); renderMissionControl(); } });
 closeCommandPaletteButton.addEventListener('click', () => commandPaletteDialog.close());
 commandPaletteInput.addEventListener('input', () => { commandPaletteIndex = 0; renderCommandPalette(); });
 commandPaletteList.addEventListener('click', (event) => {
@@ -4027,11 +4756,17 @@ settingsForm.addEventListener('submit', async (event) => {
 window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openCommandPalette(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'h') { event.preventDefault(); toggleOpsHub(); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'm') { event.preventDefault(); void openMissionControl(); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'n') { event.preventDefault(); void openMissionControl(); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'q') { event.preventDefault(); setMissionLayout('quad'); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 's') { event.preventDefault(); setMissionLayout('split-horizontal'); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'f') { event.preventDefault(); setMissionLayout(currentMission?.layout.type === 'focus' ? 'quad' : 'focus'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'b') { event.preventDefault(); openChangeBundleComposer(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'y') { event.preventDefault(); openHandoffCenter('it-docs'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'g') { event.preventDefault(); openOpsGuardReview(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'o') { event.preventDefault(); openToolMenu('devops'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'i') { event.preventDefault(); openToolMenu('it'); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && ['1','2','3','4'].includes(event.key)) { event.preventDefault(); setMissionActivePane('pane-' + event.key); }
   if (event.ctrlKey && event.key.toLowerCase() === 'l') { event.preventDefault(); addressInput.focus(); addressInput.select(); }
   if (event.ctrlKey && event.key.toLowerCase() === 'r') { event.preventDefault(); active()?.webview.reload(); }
   if (event.ctrlKey && event.key.toLowerCase() === 't') { event.preventDefault(); createTab(config.newTabUrl); }
@@ -4068,6 +4803,7 @@ window.tahaiBrowser.getConfig().then((loaded) => {
   applyUiSettings();
   renderProfileBadge();
   renderOpsHub();
+  void refreshMissionStore();
   createTab(config.startupUrl || config.homeUrl);
   markRendererShellReady();
 }).catch((error) => {

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { MissionListResult, MissionLoadResult, MissionSaveResult, MissionState } from '../shared/mission-types';
 
 export type TahaiBrowserSettings = {
   homeUrl: string;
@@ -165,6 +166,11 @@ export type CredentialVaultCopyResult = {
   reason: string;
 };
 
+export type MissionApiState = MissionState;
+export type MissionApiListResult = MissionListResult;
+export type MissionApiLoadResult = MissionLoadResult;
+export type MissionApiSaveResult = MissionSaveResult;
+
 export type ItServiceCardDiagnostics = {
   ok: boolean;
   checkedAt: string;
@@ -192,6 +198,9 @@ contextBridge.exposeInMainWorld('tahaiBrowser', {
   clearBrowsingData: (): Promise<boolean> => ipcRenderer.invoke('tahai-browser:clear-browsing-data'),
   openUserData: (): Promise<boolean> => ipcRenderer.invoke('tahai-browser:open-user-data'),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('tahai-browser:open-external', url),
+  listMissions: (): Promise<MissionApiListResult> => ipcRenderer.invoke('tahai-browser:list-missions'),
+  loadMission: (missionId: string): Promise<MissionApiLoadResult> => ipcRenderer.invoke('tahai-browser:load-mission', missionId),
+  saveMission: (mission: MissionApiState): Promise<MissionApiSaveResult> => ipcRenderer.invoke('tahai-browser:save-mission', mission),
   copyDevOpsCapture: (markdown: string): Promise<boolean> => ipcRenderer.invoke('tahai-browser:copy-devops-capture', markdown),
   saveDevOpsCapture: (markdown: string, sourceUrl: string): Promise<DevOpsCaptureSaveResult> => ipcRenderer.invoke('tahai-browser:save-devops-capture', markdown, sourceUrl),
   runUrlDiagnostics: (sourceUrl: string): Promise<OpsUrlDiagnostics> => ipcRenderer.invoke('tahai-browser:run-url-diagnostics', sourceUrl),

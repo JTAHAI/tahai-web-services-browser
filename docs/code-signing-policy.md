@@ -16,7 +16,7 @@ Free code signing provided by SignPath.io, certificate by SignPath Foundation.
 Because this project is currently maintained by a single maintainer, the current roles are:
 
 - Committer: Justin Tahai / JTAHAI
-- Reviewer: Justin Tahai / JTAIHAI
+- Reviewer: Justin Tahai / JTAHAI
 - Signing approver: Justin Tahai / JTAHAI
 
 As the project grows, these roles may be expanded to additional trusted maintainers.
@@ -38,3 +38,4 @@ Third-party websites, provider consoles, AI services, cloud services, and browse
 ## Release integrity
 
 Official release artifacts should be published with checksums and tied to a public repository commit, tag, or GitHub release.
+

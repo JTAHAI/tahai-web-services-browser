@@ -9,7 +9,7 @@ const exists = (p) => fs.existsSync(path.join(root, p));
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 const pkg = JSON.parse(read('package.json'));
-if (pkg.version !== '1.8.0') fail(`expected version 1.8.0, got ${pkg.version}`);
+if (pkg.version !== '1.8.6') fail(`expected version 1.8.6, got ${pkg.version}`);
 if (pkg.build?.appId !== 'com.tahai.webservices.browser') fail('wrong appId');
 if (pkg.build?.productName !== 'TAHAI Web Services Browser') fail('wrong productName');
 if (pkg.build?.win?.icon !== 'build/icon.ico') fail('missing Windows icon config');
@@ -59,3 +59,4 @@ for (const token of ['grid-template-columns:minmax(86px,108px) max-content minma
 }
 
 console.log('TAHAI_BROWSER_RELEASE_VERIFY=OK');
+process.exit(0);

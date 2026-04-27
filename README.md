@@ -1,4 +1,4 @@
-﻿# TAHAI Web Services Browser
+# TAHAI Web Services Browser
 
 [![Validate Source](https://github.com/JTAHAI/tahai-web-services-browser/actions/workflows/validate-source.yml/badge.svg)](https://github.com/JTAHAI/tahai-web-services-browser/actions/workflows/validate-source.yml)
 
@@ -8,17 +8,17 @@ It is designed as a polished TAHAI-branded launchpad for developer workflows, De
 
 ## Current status
 
-Version: `1.8.0`
+Version: `1.8.1`
 
 This is an early friend-feedback preview.
 
 The current Windows preview installer is unsigned. Windows SmartScreen may show a warning. Only install preview builds downloaded directly from TAHAI Web Services or from the official GitHub Releases page for this repository.
 
-Open-source publication and code signing are in progress.
+The source is now public on GitHub. Open-source code signing through SignPath Foundation has been submitted/in progress.
 
 ## Known preview limitation
 
-Keyboard back/forward shortcuts work, including `Alt+Left` and `Alt+Right`. Dedicated mouse back/forward buttons are scheduled for the next browser navigation parity pass.
+Keyboard back/forward shortcuts work, including `Alt+Left` and `Alt+Right`. On Windows, dedicated mouse Button 4 / Button 5 app commands now route to the active browser tab/webview and safely no-op when no tab history exists.
 
 ## Source license
 
@@ -71,8 +71,10 @@ npm run verify:release-blockers
 5. Apply for open-source signing through SignPath Foundation.
 6. Move future Windows releases to a signed installer workflow.
 
-
 ## Code signing policy
 
 See [docs/code-signing-policy.md](docs/code-signing-policy.md).
 
+## Privacy policy
+
+See [docs/privacy-policy.md](docs/privacy-policy.md).

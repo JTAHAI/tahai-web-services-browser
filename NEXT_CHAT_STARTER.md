@@ -1,75 +1,77 @@
 Project: TAHAI Web Services Browser
 
+Current canonical repo:
+https://github.com/JTAHAI/tahai-web-services-browser
+
 Current Windows repo path:
 C:\dev\browser\app
 
 Current stabilized source version:
-1.8.0
+1.8.1
 
-Current source bundle:
-tahai-web-services-browser-1.8.0-public-github-ready-source.zip
-
-Goal:
-Continue hardening TAHAI Browser toward an enterprise-grade public friend-feedback release, then publish the source to a public GitHub repository and proceed toward SignPath open-source code signing.
+Current status:
+- 1.8.0 friend-feedback Windows build exists locally.
+- Public GitHub repo has been created and pushed under JTAHAI/tahai-web-services-browser.
+- Source is Apache-2.0 with NOTICE and TRADEMARKS.md attribution.
+- SignPath Foundation open-source code signing application has been submitted.
+- Current release may be distributed unsigned with clear SmartScreen / unsigned preview note while signing is pending.
+- 1.8.1 source pass adds mouse Button 4 / Button 5 navigation parity through Electron app-command events.
 
 Hard rules:
 - Do not use blind runtime DOM hacks.
 - Fix actual Electron source, renderer templates, CSS, package resources, and installer scripts.
 - Do not commit generated installers, release zips, dist, node_modules, runtime profiles, caches, secrets, certs, .env files, or local data.
-- Keep Apache-2.0 LICENSE, NOTICE attribution, and TRADEMARKS.md in place.
-- Verify before returning zips.
+- Keep Apache-2.0 LICENSE, NOTICE attribution, TRADEMARKS.md, SECURITY.md, docs/code-signing-policy.md, and docs/privacy-policy.md in place.
+- Verify before returning zips or installer artifacts.
+- Be explicit when Windows-only packaging/signing cannot be verified in ChatGPT.
 
-Completed 1.8.0 stabilization:
-- DevOps and IT Tools buttons open again.
-- Guide has packaged onboarding fallback.
-- Ops Panel is more readable.
-- Tool cards no longer overlap shortcut pills.
-- release blockers passed locally for the previous 1.8.0 build.
-- Friend-feedback Windows installer was built locally by Justin:
-  - TAHAI-Web-Services-Browser-1.8.0-x64.exe
-  - TAHAI-Web-Services-Browser-1.8.0-x64.msi
-  - TAHAI-Web-Services-Browser-1.8.0-Preview-Friend-Feedback.zip
+Completed 1.8.1 navigation parity hardening:
+- Added BrowserWindow app-command handler in src/main/main.ts.
+- browser-backward routes to renderer menu command back.
+- browser-forward routes to renderer menu command forward.
+- Renderer routes Back/Forward through goBackIfPossible() / goForwardIfPossible().
+- Active webview/tab remains the single navigation target.
+- No history safely no-ops because canGoBack() / canGoForward() guard the action.
+- Alt+Left, Alt+Right, toolbar Back/Forward, and History menu Back/Forward share the same active-tab path.
+- RELEASE_NOTES_1.8.1_PREVIEW.md documents installed Windows hardware verification.
 
-Open-source/public repo hardening added:
-- Apache-2.0 LICENSE.
-- NOTICE attribution.
-- TRADEMARKS.md.
-- SECURITY.md.
-- CONTRIBUTING.md.
-- CODE_OF_CONDUCT.md.
-- SUPPORT.md.
-- README.md refreshed for public preview.
-- GitHub Actions validation workflow.
-- GitHub Actions unsigned preview package workflow.
-- Dependabot config.
-- Issue templates and PR template.
-- docs/open-source-release-plan.md.
-- docs/code-signing-signpath-plan.md.
-- docs/known-issues.md.
-- scripts/verify-public-repo.mjs.
-- npm script verify:public-repo.
+Verification completed in ChatGPT container:
+- node scripts/verify-public-repo.mjs passed.
+- node scripts/verify-enterprise-release.mjs passed.
 
-NEXT PASS — first priority:
-Implement browser mouse back/forward button parity:
-- Electron BrowserWindow/BaseWindow app-command event.
-- browser-backward -> active webview/tab goBack() if canGoBack().
-- browser-forward -> active webview/tab goForward() if canGoForward().
-- Must target the active browser tab/webview, not only the shell window.
-- Must safely no-op when there is no history.
-- Keep Alt+Left and Alt+Right behavior working.
-- No renderer DOM hacks.
-- Add/extend verification notes for installed Windows build.
+Verification still required on local Windows repo:
+- npm ci
+- npm run verify:public-repo
+- npm run verify:release-blockers
+- npm run package:win:release
+- npm run release:friend:zip
+- Installed app hardware test for Mouse Button 4 / Button 5.
 
-Then:
-1. Run npm ci.
-2. Run npm run verify:public-repo.
-3. Run npm run verify:release-blockers.
-4. Create/push public GitHub repo JTAHAI/tahai-web-services-browser.
-5. Publish unsigned 1.8.0 preview release with SmartScreen note.
-6. Prepare SignPath Foundation application path.
-
-Windows commands Justin prefers for repo/app work should start with:
-wsl -d FedoraLinux-43 --cd /mnt/c/dev/tahai-os-sentinel
-
-For this browser repo, use PowerShell path:
+Useful Windows commands:
 Set-Location C:\dev\browser\app
+npm ci
+npm run verify:public-repo
+npm run verify:release-blockers
+
+Windows package commands:
+Set-Location C:\dev\browser\app
+Remove-Item .\release -Recurse -Force -ErrorAction SilentlyContinue
+$env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
+npm run package:win:release
+npm run release:friend:zip
+
+Installed Windows navigation test:
+1. Open any normal website in a browser tab.
+2. Navigate two or more pages deep in that same tab.
+3. Press Mouse Button 4 and confirm the active tab goes back like Chrome/Edge.
+4. Press Mouse Button 5 and confirm the active tab goes forward like Chrome/Edge.
+5. Open a new tab with no history and confirm Mouse Button 4 / 5 safely no-op without visible error.
+
+Git commands after verified source fix:
+git status
+git add -A
+git commit -m "Add mouse back forward navigation parity"
+git push
+
+NEXT PASS recommendation:
+After local Windows verification, build the 1.8.1 unsigned friend-feedback installer, publish a GitHub release draft with checksums, and keep SignPath signed-release work separate from the unsigned preview lane.

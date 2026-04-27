@@ -1,6 +1,6 @@
 {
   "name": "tahai-web-services-browser",
-  "version": "1.8.0",
+  "version": "1.8.6",
   "private": true,
   "description": "TAHAI Web Services Browser - enterprise-grade Chromium workbench for developers, DevOps, and IT engineering workflows.",
   "productName": "TAHAI Web Services Browser",
@@ -43,11 +43,12 @@
     "taskbar:inspect:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\inspect-tahai-browser-taskbar-pins.ps1",
     "taskbar:repair:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\repair-tahai-browser-taskbar-pin.ps1",
     "close:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\close-running-tahai-browser.ps1",
-    "verify:release-blockers": "node scripts/verify-enterprise-release.mjs && npm run build",
+    "verify:release-blockers": "node scripts/verify-enterprise-release.mjs && npm run verify:mission-tabs-security && npm run build",
     "release:win:installer": "npm run verify:release-blockers && electron-builder --win nsis msi --x64",
     "release:friend:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\create-friend-feedback-release.ps1",
     "preflight:release": "node scripts/verify-enterprise-release.mjs",
-    "verify:public-repo": "node scripts/verify-public-repo.mjs"
+    "verify:public-repo": "node scripts/verify-public-repo.mjs",
+    "verify:mission-tabs-security": "node scripts/verify-mission-tabs-security.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",

@@ -19,3 +19,8 @@ npm ci
 npm run verify:release-blockers
 npm run verify:public-repo
 ```
+
+
+## Superseded by 1.8.1 source pass
+
+A newer 1.8.1 preview note is available in `RELEASE_NOTES_1.8.1_PREVIEW.md`.

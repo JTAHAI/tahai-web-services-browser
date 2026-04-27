@@ -8,6 +8,8 @@ import { pathToFileURL } from 'node:url';
 import { getSettingsPath, readBrowserSettings, resetBrowserSettings, writeBrowserSettings } from './settings';
 import { hardenSession } from './runtime-security';
 import { runFirstLaunchChecks } from './first-run';
+import { listMissions, loadMission, saveMission } from './mission-store';
+import { isSafeExternalUrl, safeOpenExternal } from './safe-open-external';
 
 const PRODUCT_NAME = 'TAHAI Web Services Browser';
 const SOURCE_DEFAULT_HOME_URL = 'https://tahaiportal.com';
@@ -387,11 +389,7 @@ function localFileUrl(...parts: string[]): string {
 }
 
 function safeExternalUrl(url: string): boolean {
-  try {
-    return SAFE_HTTP_PROTOCOLS.has(new URL(url).protocol);
-  } catch {
-    return false;
-  }
+  return isSafeExternalUrl(url);
 }
 
 function localPages() {
@@ -752,11 +750,7 @@ ipcMain.handle('tahai-browser:open-user-data', async () => {
   await shell.openPath(app.getPath('userData'));
   return true;
 });
-ipcMain.handle('tahai-browser:open-external', async (_event, url: string) => {
-  if (typeof url !== 'string' || !safeExternalUrl(url)) return false;
-  await shell.openExternal(url);
-  return true;
-});
+ipcMain.handle('tahai-browser:open-external', async (_event, url: string) => safeOpenExternal(url));
 
 ipcMain.handle('tahai-browser:copy-devops-capture', (_event, markdown: string) => {
   const clean = markdownSafe(markdown).slice(0, 120000);
@@ -807,6 +801,9 @@ ipcMain.handle('tahai-browser:open-profile-data', async (_event, id: string) => 
   await shell.openPath(target);
   return true;
 });
+ipcMain.handle('tahai-browser:list-missions', () => listMissions());
+ipcMain.handle('tahai-browser:load-mission', (_event, missionId: string) => loadMission(missionId));
+ipcMain.handle('tahai-browser:save-mission', (_event, mission) => saveMission(mission));
 app.setPath('userData', path.join(app.getPath('appData'), 'TAHAI Web Services Browser'));
 
 const gotLock = app.requestSingleInstanceLock();

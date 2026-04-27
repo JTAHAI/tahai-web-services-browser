@@ -1,4 +1,4 @@
-import type { BrowserProfileInput, BrowserProfileState, BrowserProfileUpdateInput, CredentialVaultCopyResult, CredentialVaultRecord, CredentialVaultRevealResult, CredentialVaultSaveInput, CredentialVaultState, DevOpsCaptureSaveResult, DownloadState, ItServiceCardDiagnostics, OpsUrlDiagnostics, TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
+import type { BrowserProfileInput, BrowserProfileState, BrowserProfileUpdateInput, CredentialVaultCopyResult, CredentialVaultRecord, CredentialVaultRevealResult, CredentialVaultSaveInput, CredentialVaultState, DevOpsCaptureSaveResult, DownloadState, ItServiceCardDiagnostics, MissionApiListResult, MissionApiLoadResult, MissionApiSaveResult, MissionApiState, OpsUrlDiagnostics, TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
 
 declare global {
   interface Window {
@@ -10,6 +10,9 @@ declare global {
       clearBrowsingData: () => Promise<boolean>;
       openUserData: () => Promise<boolean>;
       openExternal: (url: string) => Promise<boolean>;
+      listMissions: () => Promise<MissionApiListResult>;
+      loadMission: (missionId: string) => Promise<MissionApiLoadResult>;
+      saveMission: (mission: MissionApiState) => Promise<MissionApiSaveResult>;
       copyDevOpsCapture: (markdown: string) => Promise<boolean>;
       saveDevOpsCapture: (markdown: string, sourceUrl: string) => Promise<DevOpsCaptureSaveResult>;
       runUrlDiagnostics: (sourceUrl: string) => Promise<OpsUrlDiagnostics>;

@@ -325,3 +325,73 @@ body { background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,
 .ops-hub-row strong,.ops-hub-row span,.ops-hub-card strong,.ops-hub-card span { min-width:0; white-space:normal; overflow-wrap:anywhere; }
 @media (max-width:1280px) { #ops-hub-toggle { display:inline-flex; } }
 @media (max-width:900px) { .ops-hub { top:134px; right:10px; width:calc(100vw - 20px); } .ops-hub-grid { grid-template-columns:1fr; } }
+
+/* Pass 1.8.3 Mission Control: local Mission Tabs + multi-pane view modes. */
+.mission-control-button { border-color:rgba(109,255,183,.34); color:#f1fff8; background:linear-gradient(180deg,rgba(109,255,183,.13),rgba(7,16,31,.96)); }
+.mission-dialog { width:min(1240px,calc(100vw - 42px)); height:min(900px,calc(100vh - 42px)); border:1px solid rgba(109,255,183,.34); border-radius:24px; padding:0; background:#06120d; color:var(--text); box-shadow:0 28px 140px rgba(0,0,0,.78),0 0 90px rgba(109,255,183,.16); }
+.mission-dialog::backdrop { background:rgba(0,0,0,.70); backdrop-filter:blur(8px); }
+.mission-panel { display:grid; grid-template-rows:auto auto auto auto minmax(0,1fr) auto; height:100%; padding:0; }
+.mission-panel > header { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px 22px; border-bottom:1px solid rgba(109,255,183,.22); background:linear-gradient(180deg,rgba(109,255,183,.14),rgba(119,219,255,.04)); }
+.mission-panel h2 { margin:3px 0 0; font-size:1.22rem; }
+.mission-form { display:grid; grid-template-columns:minmax(220px,1fr) 190px auto auto auto; gap:10px; align-items:end; padding:14px 18px; border-bottom:1px solid rgba(109,255,183,.14); }
+.mission-status { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 18px; border-bottom:1px solid rgba(109,255,183,.10); color:var(--muted); }
+.mission-status strong { color:#f1fff8; }
+.mission-status span { font-size:.82rem; }
+.mission-layouts { display:flex; flex-wrap:wrap; gap:8px; padding:12px 18px; border-bottom:1px solid rgba(109,255,183,.10); }
+.mission-layouts .active { border-color:rgba(109,255,183,.62); color:#f8fffb; background:linear-gradient(180deg,rgba(109,255,183,.20),rgba(7,16,31,.94)); box-shadow:0 0 24px rgba(109,255,183,.10); }
+.mission-grid { min-height:0; display:grid; grid-template-columns:1.25fr 1fr 1fr; grid-template-rows:minmax(0,1fr) minmax(0,1fr); gap:12px; padding:14px 18px; overflow:hidden; }
+.mission-section { min-height:0; display:grid; grid-template-rows:auto minmax(0,1fr); border:1px solid rgba(109,255,183,.16); border-radius:18px; padding:0 12px 12px; background:rgba(255,255,255,.03); overflow:hidden; }
+.mission-section.export { grid-column:3; grid-row:1 / span 2; }
+.mission-tab-row { display:grid; grid-template-columns:minmax(0,1fr) 170px auto; gap:8px; align-items:center; border:1px solid rgba(109,255,183,.14); border-radius:16px; padding:10px; background:rgba(255,255,255,.04); }
+.mission-tab-row > button:first-child { min-width:0; display:grid; gap:4px; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; }
+.mission-tab-row strong { color:#f7fbff; font-size:.84rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mission-tab-row span { color:var(--muted); font-size:.74rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mission-tab-row select { min-width:0; height:34px; border:1px solid rgba(109,255,183,.18); border-radius:12px; background:#020813; color:var(--text); padding:0 8px; }
+#mission-export-preview { width:100%; height:100%; min-height:320px; resize:none; border:1px solid rgba(109,255,183,.18); border-radius:16px; background:#020813; color:var(--text); padding:14px; font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+.webview-stage.mission-layout { display:grid; gap:8px; padding:8px; }
+.webview-stage.mission-layout .browser-view { position:relative; inset:auto; width:100%; height:100%; min-height:0; border:1px solid rgba(119,219,255,.20); border-radius:18px; display:none; overflow:hidden; box-shadow:inset 0 0 0 1px rgba(255,255,255,.025),0 12px 36px rgba(0,0,0,.28); }
+.webview-stage.mission-layout .browser-view.active { display:flex; }
+.webview-stage.mission-layout-split-horizontal { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:minmax(0,1fr); }
+.webview-stage.mission-layout-split-vertical { grid-template-columns:minmax(0,1fr); grid-template-rows:repeat(2,minmax(0,1fr)); }
+.webview-stage.mission-layout-triple { grid-template-columns:1.15fr .85fr; grid-template-rows:repeat(2,minmax(0,1fr)); }
+.webview-stage.mission-layout-triple .browser-view.active:first-of-type { grid-row:span 2; }
+.webview-stage.mission-layout-quad { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(0,1fr)); }
+.webview-stage.mission-layout-focus { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); }
+.browser-view.mission-active-pane { outline:2px solid rgba(119,219,255,.78); outline-offset:2px; box-shadow:0 0 0 1px rgba(119,219,255,.30),0 0 34px rgba(119,219,255,.16); }
+@media (max-width:1180px) { .mission-grid { grid-template-columns:1.2fr 1fr; } .mission-section.export { grid-column:1 / -1; grid-row:auto; } }
+@media (max-width:980px) { .mission-form { grid-template-columns:1fr; align-items:stretch; } .mission-grid { grid-template-columns:1fr; grid-template-rows:auto; overflow:auto; } .mission-section.export { grid-column:auto; grid-row:auto; } .mission-tab-row { grid-template-columns:1fr; } .webview-stage.mission-layout { grid-template-columns:1fr !important; grid-template-rows:repeat(4,minmax(260px,1fr)) !important; overflow:auto; } }
+.mission-section.runbook { grid-column:2; grid-row:1 / span 2; }
+.mission-runbook-editor { min-height:0; display:grid; grid-template-rows:auto auto auto minmax(0,1fr) auto auto auto; gap:10px; overflow:hidden; }
+.mission-runbook-editor .field { display:grid; gap:5px; }
+.mission-runbook-editor textarea { min-height:58px; resize:vertical; border:1px solid rgba(109,255,183,.18); border-radius:12px; background:#020813; color:var(--text); padding:10px; font:12.5px/1.45 inherit; }
+.mission-runbook-add { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+.mission-runbook-add input { min-width:0; height:38px; border:1px solid rgba(109,255,183,.18); border-radius:12px; background:#020813; color:var(--text); padding:0 10px; }
+.mission-runbook-step { display:grid; grid-template-columns:74px minmax(0,1fr) auto; gap:8px; align-items:center; border:1px solid rgba(109,255,183,.14); border-radius:14px; padding:9px; background:rgba(255,255,255,.035); }
+.mission-runbook-step span { color:#f7fbff; font-size:.82rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mission-step-state { height:30px; border-radius:999px; border:1px solid rgba(109,255,183,.22); background:rgba(109,255,183,.08); color:#dfffee; text-transform:uppercase; font-size:.64rem; letter-spacing:.08em; cursor:pointer; }
+.mission-runbook-step.doing .mission-step-state { border-color:rgba(119,219,255,.48); color:#d9f5ff; }
+.mission-runbook-step.done .mission-step-state { border-color:rgba(109,255,183,.55); color:#eafff3; }
+.mission-runbook-step.blocked .mission-step-state { border-color:rgba(255,204,102,.55); color:#ffe7ad; }
+.ops-hub-list.compact { max-height:124px; }
+@media (max-width:1180px) { .mission-section.runbook { grid-column:auto; grid-row:auto; } }
+
+/* Pass 1.8.6 Mission pane assignment: drag tabs into panes + instant quad from open tabs. */
+.mission-form { grid-template-columns:minmax(220px,1fr) 190px auto auto auto auto; }
+.mission-pane-actions { display:inline-flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
+.mission-pane-actions .home-button { min-height:34px; }
+.tab[draggable="true"] { cursor:grab; }
+.tab[draggable="true"]:active { cursor:grabbing; }
+.mission-pane-drop-zones { position:absolute; inset:8px; display:none; gap:8px; z-index:25; pointer-events:none; }
+body.mission-tab-dragging .webview-stage.mission-layout .mission-pane-drop-zones { display:grid; pointer-events:auto; }
+.mission-pane-drop-zones[data-layout="quad"] { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(0,1fr)); }
+.mission-pane-drop-zones[data-layout="triple"] { grid-template-columns:1.15fr .85fr; grid-template-rows:repeat(2,minmax(0,1fr)); }
+.mission-pane-drop-zones[data-layout="triple"] .mission-pane-drop-zone[data-pane-id="pane-1"] { grid-row:span 2; }
+.mission-pane-drop-zones[data-layout="split-horizontal"] { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:minmax(0,1fr); }
+.mission-pane-drop-zones[data-layout="split-vertical"] { grid-template-columns:minmax(0,1fr); grid-template-rows:repeat(2,minmax(0,1fr)); }
+.mission-pane-drop-zones[data-layout="focus"], .mission-pane-drop-zones[data-layout="single"] { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); }
+.mission-pane-drop-zone { min-height:80px; display:grid; align-content:start; justify-items:start; gap:6px; border:2px dashed rgba(119,219,255,.56); border-radius:18px; padding:14px; background:rgba(2,8,19,.58); color:#f7fbff; box-shadow:inset 0 0 32px rgba(119,219,255,.10),0 12px 42px rgba(0,0,0,.30); backdrop-filter:blur(3px); }
+.mission-pane-drop-zone strong { font-size:.86rem; letter-spacing:.08em; text-transform:uppercase; color:var(--cyan); }
+.mission-pane-drop-zone span { color:var(--muted); font-size:.78rem; }
+.mission-pane-drop-zone.active-pane { border-color:rgba(109,255,183,.72); box-shadow:inset 0 0 32px rgba(109,255,183,.10),0 0 32px rgba(109,255,183,.12); }
+.mission-pane-drop-zone.drag-over { border-style:solid; transform:scale(.995); background:rgba(109,255,183,.18); }
+@media (max-width:980px) { .mission-form { grid-template-columns:1fr; } .mission-pane-actions { width:100%; margin-left:0; } .mission-pane-actions .home-button { flex:1 1 120px; } .mission-pane-drop-zones { grid-template-columns:1fr !important; grid-template-rows:repeat(4,minmax(260px,1fr)) !important; } }
