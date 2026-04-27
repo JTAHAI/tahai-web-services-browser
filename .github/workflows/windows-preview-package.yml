@@ -26,7 +26,7 @@ jobs:
       - name: Build friend-feedback bundle
         run: npm run release:friend:zip
       - name: Upload unsigned preview artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tahai-web-services-browser-unsigned-preview
           path: |
