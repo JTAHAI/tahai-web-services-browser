@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; style-src 'self'; img-src 'self' file: data:; frame-ancestors 'none'; base-uri 'self'; form-action 'none';" />
+  <title>About TAHAI Web Services Browser</title>
+  <link rel="icon" href="../new-tab/assets/tws/tws-square-logo.png" />
+  <link rel="stylesheet" href="../settings/styles.css" />
+  <style>
+    .panel { overflow:hidden; }
+    .sentinel-logo-frame { margin-top:18px; display:grid; place-items:center; min-height:180px; max-height:260px; overflow:hidden; border-radius:22px; border:1px solid rgba(119,219,255,.18); background:radial-gradient(circle at 50% 35%,rgba(47,143,255,.18),rgba(255,255,255,.025) 42%,rgba(0,0,0,.18)); }
+    .sentinel-logo-frame img { display:block; width:min(100%,380px); max-width:100%; max-height:235px; object-fit:contain; border:0; border-radius:0; padding:14px; filter:drop-shadow(0 0 24px rgba(119,219,255,.22)); }
+    .release-note { margin-top:16px; color:var(--muted); line-height:1.45; }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <img src="../new-tab/assets/tws/tws-square-logo.png" alt="" />
+      <div><p class="eyebrow">Chromium-powered launchpad</p><h1>About</h1></div>
+    </section>
+    <section class="grid">
+      <article class="panel">
+        <h2>Product</h2>
+        <p>TAHAI Web Services Browser is a free public browser lane for AI, developer, cloud, provider-console, and BYOK workflows.</p>
+        <div class="row"><span>Default home</span><a href="https://tahaiportal.com">tahaiportal.com</a></div>
+        <div class="row"><span>Engine lane</span><span>Electron / Chromium-compatible wrapper</span></div>
+        <div class="row"><span>Release lane</span><span>v1.1 tool polish</span></div>
+      </article>
+      <article class="panel">
+        <h2>TAHAI OS edition</h2>
+        <p>The bundled OS edition may be branded as TAHAI—SENTINEL Browser using the export bundle only.</p>
+        <figure class="sentinel-logo-frame" aria-label="TAHAI SENTINEL mark">
+          <img src="../new-tab/assets/tws/sentinel-logo.png" alt="TAHAI SENTINEL mark" />
+        </figure>
+        <p class="release-note">SENTINEL branding is constrained inside this card so the image never bleeds across the About page layout.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

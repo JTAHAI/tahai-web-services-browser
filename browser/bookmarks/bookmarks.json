@@ -1,0 +1,240 @@
+{
+  "checksum": "",
+  "roots": {
+    "bookmark_bar": {
+      "children": [
+        {
+          "date_added": "13300000000000000",
+          "id": "10",
+          "name": "TAHAI",
+          "type": "folder",
+          "children": [
+            {
+              "date_added": "13300000000000000",
+              "id": "11",
+              "name": "TAHAI Portal",
+              "type": "url",
+              "url": "https://tahaiportal.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "12",
+              "name": "TAHAI IT Docs",
+              "type": "url",
+              "url": "https://docs.tahaiportal.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "13",
+              "name": "TAHAI OS",
+              "type": "url",
+              "url": "https://os.tahai.net"
+            }
+          ]
+        },
+        {
+          "date_added": "13300000000000000",
+          "id": "14",
+          "name": "AI Workbench",
+          "type": "folder",
+          "children": [
+            {
+              "date_added": "13300000000000000",
+              "id": "15",
+              "name": "ChatGPT",
+              "type": "url",
+              "url": "https://chatgpt.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "16",
+              "name": "OpenAI Platform",
+              "type": "url",
+              "url": "https://platform.openai.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "17",
+              "name": "Anthropic Console",
+              "type": "url",
+              "url": "https://console.anthropic.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "18",
+              "name": "Google AI Studio",
+              "type": "url",
+              "url": "https://aistudio.google.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "19",
+              "name": "Groq Console",
+              "type": "url",
+              "url": "https://console.groq.com"
+            }
+          ]
+        },
+        {
+          "date_added": "13300000000000000",
+          "id": "20",
+          "name": "Cloud Consoles",
+          "type": "folder",
+          "children": [
+            {
+              "date_added": "13300000000000000",
+              "id": "21",
+              "name": "AWS Console",
+              "type": "url",
+              "url": "https://console.aws.amazon.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "22",
+              "name": "Microsoft Azure Portal",
+              "type": "url",
+              "url": "https://portal.azure.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "23",
+              "name": "Google Cloud Console",
+              "type": "url",
+              "url": "https://console.cloud.google.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "24",
+              "name": "Cloudflare Dashboard",
+              "type": "url",
+              "url": "https://dash.cloudflare.com"
+            }
+          ]
+        },
+        {
+          "date_added": "13300000000000000",
+          "id": "25",
+          "name": "Developer Platforms",
+          "type": "folder",
+          "children": [
+            {
+              "date_added": "13300000000000000",
+              "id": "26",
+              "name": "GitHub",
+              "type": "url",
+              "url": "https://github.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "27",
+              "name": "Vercel",
+              "type": "url",
+              "url": "https://vercel.com/dashboard"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "28",
+              "name": "NPM",
+              "type": "url",
+              "url": "https://www.npmjs.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "29",
+              "name": "MDN Web Docs",
+              "type": "url",
+              "url": "https://developer.mozilla.org"
+            }
+          ]
+        },
+        {
+          "date_added": "13300000000000000",
+          "id": "30",
+          "name": "Identity & Security",
+          "type": "folder",
+          "children": [
+            {
+              "date_added": "13300000000000000",
+              "id": "31",
+              "name": "Microsoft 365 Admin",
+              "type": "url",
+              "url": "https://admin.microsoft.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "32",
+              "name": "Microsoft Entra",
+              "type": "url",
+              "url": "https://entra.microsoft.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "33",
+              "name": "Google Admin",
+              "type": "url",
+              "url": "https://admin.google.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "34",
+              "name": "CISA",
+              "type": "url",
+              "url": "https://www.cisa.gov"
+            }
+          ]
+        },
+        {
+          "date_added": "13300000000000000",
+          "id": "35",
+          "name": "Domains & DNS",
+          "type": "folder",
+          "children": [
+            {
+              "date_added": "13300000000000000",
+              "id": "36",
+              "name": "ICANN Lookup",
+              "type": "url",
+              "url": "https://lookup.icann.org"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "37",
+              "name": "MXToolbox",
+              "type": "url",
+              "url": "https://mxtoolbox.com"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "38",
+              "name": "Google Admin Toolbox Dig",
+              "type": "url",
+              "url": "https://toolbox.googleapps.com/apps/dig"
+            }
+          ]
+        }
+      ],
+      "date_added": "13300000000000000",
+      "date_modified": "13300000000000000",
+      "id": "1",
+      "name": "Bookmarks bar",
+      "type": "folder"
+    },
+    "other": {
+      "children": [],
+      "date_added": "13300000000000000",
+      "date_modified": "0",
+      "id": "2",
+      "name": "Other bookmarks",
+      "type": "folder"
+    },
+    "synced": {
+      "children": [],
+      "date_added": "13300000000000000",
+      "date_modified": "0",
+      "id": "3",
+      "name": "Mobile bookmarks",
+      "type": "folder"
+    }
+  },
+  "version": 1
+}

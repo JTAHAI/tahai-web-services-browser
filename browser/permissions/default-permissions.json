@@ -1,0 +1,23 @@
+{
+  "product": "TAHAI Web Services Browser",
+  "default_home": "https://tahaiportal.com",
+  "runtime_settings_file": "%APPDATA%/TAHAI Web Services Browser/settings.json on Windows; XDG app data equivalent on Linux/macOS",
+  "permissions": {
+    "clipboard-read": "blocked by default",
+    "media": "prompt allowed by default",
+    "geolocation": "blocked by default",
+    "notifications": "blocked by default",
+    "fullscreen": "allowed"
+  },
+  "downloads": {
+    "ask_every_time": true,
+    "default_directory": "system Downloads folder when unset"
+  },
+  "blocked_protocols": [
+    "ftp:",
+    "gopher:",
+    "javascript:",
+    "data:"
+  ],
+  "profile_boundary": "Runtime profile, settings, cache, cookies, history, logs, and downloads are never source-controlled."
+}

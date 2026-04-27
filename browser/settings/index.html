@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; style-src 'self'; img-src 'self' file: data:; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none';" />
+  <title>TAHAI Browser Settings</title>
+  <link rel="icon" href="../new-tab/assets/tws/tws-square-logo.png" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <img src="../new-tab/assets/tws/tws-square-logo.png" alt="" />
+      <div><p class="eyebrow">TAHAI Web Services Browser</p><h1>Settings reference</h1></div>
+    </section>
+    <section class="grid">
+      <article class="panel">
+        <h2>Startup</h2>
+        <p>The product default home is locked to the public TAHAI portal. Use the browser chrome Settings button or <code>Ctrl+,</code> to change runtime preferences.</p>
+        <div class="row"><span>Default home</span><a href="https://tahaiportal.com">https://tahaiportal.com</a></div>
+        <div class="row"><span>New tab</span><span>Bundled TAHAI Launchpad</span></div>
+        <div class="row"><span>Search fallback</span><span>Google, DuckDuckGo, or Bing</span></div>
+      </article>
+      <article class="panel">
+        <h2>Privacy posture</h2>
+        <span class="pill">No secrets in source</span><span class="pill">Runtime profile outside repo</span><span class="pill">Context isolation</span><span class="pill">Renderer Node disabled</span><span class="pill">Sandbox enabled</span>
+        <p>Profile/cache/history/settings are generated under the local app data path, never inside the source repo.</p>
+      </article>
+      <article class="panel">
+        <h2>Permission defaults</h2>
+        <div class="row"><span>Camera/mic</span><span>Prompt allowed</span></div>
+        <div class="row"><span>Clipboard read</span><span>Blocked</span></div>
+        <div class="row"><span>Geolocation</span><span>Blocked</span></div>
+        <div class="row"><span>Notifications</span><span>Blocked</span></div>
+      </article>
+      <article class="panel">
+        <h2>Shortcuts</h2>
+        <div class="row"><span><code>Ctrl+L</code></span><span>Address bar</span></div>
+        <div class="row"><span><code>Ctrl+T</code></span><span>New launchpad tab</span></div>
+        <div class="row"><span><code>Ctrl+W</code></span><span>Close tab</span></div>
+        <div class="row"><span><code>Ctrl+,</code></span><span>Runtime settings</span></div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
