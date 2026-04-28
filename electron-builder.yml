@@ -1,7 +1,7 @@
 appId: net.tahai.browser
 productName: TAHAI Web Services Browser
 buildVersion: 1.1.0
-copyright: Copyright © TAHAI Web Services
+copyright: Copyright Â© TAHAI Web Services
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
   output: release
@@ -32,6 +32,7 @@ linux:
   target:
     - AppImage
     - deb
+    - rpm
 nsis:
   oneClick: false
   perMachine: false

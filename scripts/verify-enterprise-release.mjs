@@ -9,7 +9,7 @@ const exists = (p) => fs.existsSync(path.join(root, p));
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 const pkg = JSON.parse(read('package.json'));
-if (pkg.version !== '1.8.6') fail(`expected version 1.8.6, got ${pkg.version}`);
+if (pkg.version !== '1.8.7') fail(`expected version 1.8.7, got ${pkg.version}`);
 if (pkg.build?.appId !== 'com.tahai.webservices.browser') fail('wrong appId');
 if (pkg.build?.productName !== 'TAHAI Web Services Browser') fail('wrong productName');
 if (pkg.build?.win?.icon !== 'build/icon.ico') fail('missing Windows icon config');
