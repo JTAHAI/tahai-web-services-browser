@@ -1597,12 +1597,32 @@ function toolMenuPair(name: ToolMenuName): { button: HTMLButtonElement; panel: H
 }
 
 function closeToolMenus(except?: ToolMenuName): void {
+  let activeLane: ToolMenuName | undefined;
   for (const name of ['devops', 'it'] as ToolMenuName[]) {
-    if (name === except) continue;
+    if (name === except) { activeLane = name; continue; }
     const { button, panel } = toolMenuPair(name);
     panel.hidden = true;
     button.setAttribute('aria-expanded', 'false');
   }
+  if (activeLane) document.body.dataset.commandToolbar = activeLane;
+  else delete document.body.dataset.commandToolbar;
+}
+
+function commandToolbarLabel(name: ToolMenuName): string {
+  return name === 'devops' ? 'DevOps Command Toolbar' : 'IT Tools Command Toolbar';
+}
+
+function ensureToolMenuBackButton(name: ToolMenuName): void {
+  const { button, panel } = toolMenuPair(name);
+  if (panel.querySelector('[data-command-toolbar-back]')) return;
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'home-button secondary tool-menu-back';
+  back.dataset.commandToolbarBack = name;
+  back.title = 'Return to Main Toolbar (Esc)';
+  back.textContent = '← Main Toolbar';
+  back.addEventListener('click', () => { closeToolMenus(); button.focus(); setStatus('Main Toolbar active'); });
+  panel.insertBefore(back, panel.firstChild);
 }
 
 function toolCards(panel: HTMLElement): HTMLButtonElement[] {
@@ -1617,9 +1637,13 @@ function focusToolCard(name: ToolMenuName, direction: 'first' | 'last' = 'first'
 
 function openToolMenu(name: ToolMenuName, direction: 'first' | 'last' = 'first'): void {
   const { button, panel } = toolMenuPair(name);
+  ensureToolMenuBackButton(name);
   closeToolMenus(name);
   panel.hidden = false;
+  panel.title = 'Press Esc to return to Main Toolbar.';
   button.setAttribute('aria-expanded', 'true');
+  document.body.dataset.commandToolbar = name;
+  setStatus(`${commandToolbarLabel(name)} active · Esc returns to Main Toolbar.`);
   focusToolCard(name, direction);
 }
 
@@ -1629,6 +1653,7 @@ function toggleToolMenu(name: ToolMenuName): void {
   if (willOpen) openToolMenu(name);
   else {
     closeToolMenus();
+    setStatus('Main Toolbar active');
     button.focus();
   }
 }

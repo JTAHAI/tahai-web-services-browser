@@ -80,3 +80,91 @@
 @media (max-width: 860px) { .toolbar-overflow-menu { top: 144px; } }
 
 @media (max-width: 620px) { .toolbar-overflow-items { grid-template-columns: 1fr; } }
+
+/* PASS 14 Command Toolbar: focused DevOps/IT lanes use horizontal scrolling and clear return affordances. */
+body[data-command-toolbar="devops"] .toolbar,
+body[data-command-toolbar="it"] .toolbar {
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+}
+.tool-menu-panel {
+  left: 12px !important;
+  right: 12px !important;
+  top: 96px !important;
+  width: auto !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-height: 54px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  white-space: nowrap;
+  scrollbar-width: none;
+  padding: 10px 12px;
+}
+.tool-menu-panel::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.tool-menu-panel[hidden] { display: none !important; }
+.tool-menu-back {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  min-width: 132px;
+  border-color: rgba(119,219,255,.42);
+  background: linear-gradient(180deg, rgba(119,219,255,.16), rgba(7,16,31,.98));
+  box-shadow: 14px 0 22px rgba(2,7,14,.94);
+}
+.tool-menu-header {
+  flex: 0 0 210px;
+  margin: 0;
+  padding: 4px 10px;
+  border-bottom: 0;
+  border-right: 1px solid rgba(119,219,255,.14);
+  align-self: center;
+}
+.tool-menu-header span::after {
+  content: ' · Esc returns to Main Toolbar';
+  color: rgba(119,219,255,.85);
+}
+.tool-menu-section,
+.tool-menu-section.compact {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+.tool-menu-section p {
+  flex: 0 0 auto;
+  align-self: center;
+  max-width: 92px;
+  white-space: normal;
+  line-height: 1.1;
+}
+.tool-menu-panel .tool-card {
+  flex: 0 0 230px;
+  width: 230px;
+  min-height: 58px;
+  grid-template-columns: minmax(74px, 92px) minmax(0, 1fr);
+}
+.tool-menu-panel .tool-card span {
+  white-space: normal;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.tool-menu-footer {
+  flex: 0 0 210px;
+  align-self: center;
+  white-space: normal;
+  line-height: 1.3;
+  color: rgba(219,241,255,.7);
+}
+@media (max-width: 920px) {
+  .tool-menu-panel { top: 136px !important; }
+  .tool-menu-header { flex-basis: 170px; }
+  .tool-menu-panel .tool-card { flex-basis: 210px; width: 210px; }
+}
