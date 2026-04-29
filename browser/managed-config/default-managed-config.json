@@ -1,0 +1,28 @@
+{
+  "product": "TAHAI Web Services Browser",
+  "version": "0.18.0",
+  "defaultHome": "https://tahaiportal.com",
+  "startup": "home",
+  "searchProvider": "google",
+  "permissions": {
+    "allowClipboardRead": false,
+    "allowMedia": true,
+    "allowGeolocation": false,
+    "allowNotifications": false
+  },
+  "downloads": {
+    "askEveryTime": true,
+    "defaultDirectory": ""
+  },
+  "ui": {
+    "showStatusBar": true,
+    "openExternalLinksInNewTab": true
+  },
+  "enterpriseControls": {
+    "homepageCanBeChangedByUser": true,
+    "allowUnsafeLocalFileNavigation": false,
+    "blockDangerousProtocols": ["ftp:", "gopher:", "javascript:", "data:"],
+    "sourceTreeMustExcludeRuntimeProfile": true,
+    "sourceTreeMustExcludeBuildOutputs": true
+  }
+}

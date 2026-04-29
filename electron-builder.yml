@@ -1,0 +1,54 @@
+appId: net.tahai.browser
+productName: TAHAI Web Services Browser
+buildVersion: 1.1.0
+copyright: Copyright (c) 2026 TAHAI Web Services
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - package.json
+extraResources:
+  - from: ../browser/new-tab
+    to: browser/new-tab
+  - from: ../browser/bookmarks
+    to: browser/bookmarks
+  - from: ../browser/preferences
+    to: browser/preferences
+  - from: ../browser/policies
+    to: browser/policies
+win:
+  icon: build/icon.ico
+  target:
+    - target: portable
+    - target: nsis
+linux:
+  maintainer: TAHAI Web Services
+  synopsis: TAHAI Web Services Browser
+  description: Chromium-compatible TAHAI browser launchpad for AI, developer, cloud, provider-console, and BYOK workflows.
+  icon: build/icon.png
+  category: Network
+  target:
+    - AppImage
+    - deb
+    - rpm
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: TAHAI Web Services Browser
+publish: null
+
+protocols:
+  name: TAHAI Browser Link
+  schemes:
+    - tahai-browser
+
+# Enterprise packaging defaults. Signing is intentionally injected at release time, not stored in source.
+asar: true
+compression: maximum
+removePackageScripts: true
+nodeGypRebuild: false

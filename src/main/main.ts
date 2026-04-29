@@ -1,0 +1,874 @@
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, net, shell, session } from 'electron';
+import { copyCredentialVaultValue, deleteCredentialVaultRecord, listCredentialVaultRecords, revealCredentialVaultPassword, saveCredentialVaultRecord } from './credential-vault';
+import { createBrowserProfile, deleteBrowserProfile, listBrowserProfiles, profileDataPath, profileSessionPartitions, setActiveBrowserProfile, updateBrowserProfile } from './profile-manager';
+import * as dns from 'node:dns/promises';
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { getSettingsPath, readBrowserSettings, resetBrowserSettings, writeBrowserSettings } from './settings';
+import { hardenSession } from './runtime-security';
+import { runFirstLaunchChecks } from './first-run';
+import { deleteMission, listMissions, loadMission, saveMission } from './mission-store';
+import { isSafeExternalUrl, safeOpenExternal } from './safe-open-external';
+
+const PRODUCT_NAME = 'TAHAI Web Services Browser';
+const SOURCE_DEFAULT_HOME_URL = 'https://tahaiportal.com';
+const BUNDLE_NAME = 'TAHAI—SENTINEL Browser';
+const RELEASE_CHANNEL = 'public-rc';
+const SAFE_HTTP_PROTOCOLS = new Set(['http:', 'https:']);
+
+type OpsCheckStatus = 'pass' | 'warn' | 'fail' | 'info';
+
+type OpsHeaderCheck = {
+  label: string;
+  status: OpsCheckStatus;
+  detail: string;
+};
+
+type OpsUrlDiagnostics = {
+  ok: boolean;
+  checkedAt: string;
+  inputUrl: string;
+  normalizedUrl: string;
+  method: string;
+  statusCode: number;
+  statusMessage: string;
+  durationMs: number;
+  error: string;
+  headers: Record<string, string>;
+  checks: OpsHeaderCheck[];
+};
+
+type DnsMxRecord = {
+  exchange: string;
+  priority: number;
+};
+
+type ItServiceCardDiagnostics = {
+  ok: boolean;
+  checkedAt: string;
+  inputUrl: string;
+  normalizedUrl: string;
+  hostname: string;
+  dnsEligible: boolean;
+  durationMs: number;
+  records: {
+    a: string[];
+    aaaa: string[];
+    cname: string[];
+    ns: string[];
+    mx: DnsMxRecord[];
+  };
+  errors: Record<string, string>;
+  notes: OpsHeaderCheck[];
+};
+
+const SAFE_DIAGNOSTIC_HEADERS = [
+  'status',
+  'location',
+  'content-type',
+  'content-length',
+  'cache-control',
+  'etag',
+  'last-modified',
+  'strict-transport-security',
+  'content-security-policy',
+  'x-frame-options',
+  'referrer-policy',
+  'permissions-policy',
+  'access-control-allow-origin',
+  'server',
+  'x-powered-by',
+  'cf-cache-status',
+  'x-cache',
+  'via'
+];
+
+const BLOCKED_DIAGNOSTIC_HEADERS = new Set(['set-cookie', 'cookie', 'authorization', 'proxy-authorization']);
+
+function shortHeader(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().slice(0, 900);
+}
+
+function normalizeHeaderMap(headers: Record<string, string | string[]>): Record<string, string> {
+  const output: Record<string, string> = {};
+  for (const [key, rawValue] of Object.entries(headers || {})) {
+    const lower = key.toLowerCase();
+    if (BLOCKED_DIAGNOSTIC_HEADERS.has(lower)) continue;
+    if (!SAFE_DIAGNOSTIC_HEADERS.includes(lower)) continue;
+    const joined = Array.isArray(rawValue) ? rawValue.join('; ') : String(rawValue ?? '');
+    output[lower] = shortHeader(joined);
+  }
+  return output;
+}
+
+function normalizeDiagnosticUrl(inputUrl: string): string {
+  const clean = String(inputUrl || '').trim();
+  if (!clean) return SOURCE_DEFAULT_HOME_URL;
+  if (/^file:\/\//i.test(clean)) return clean;
+  if (/^https?:\/\//i.test(clean)) return clean;
+  if (/^localhost(:\d+)?([/?#].*)?$/i.test(clean) || /^127\.0\.0\.1(:\d+)?([/?#].*)?$/i.test(clean)) return `http://${clean}`;
+  if (/^[\w.-]+\.[a-z]{2,}([/:?#].*)?$/i.test(clean)) return `https://${clean}`;
+  return SOURCE_DEFAULT_HOME_URL;
+}
+
+function header(headers: Record<string, string>, name: string): string {
+  return headers[name.toLowerCase()] || '';
+}
+
+function buildOpsHeaderChecks(url: string, statusCode: number, error: string, headers: Record<string, string>): OpsHeaderCheck[] {
+  const checks: OpsHeaderCheck[] = [];
+  const isHttps = url.startsWith('https://');
+  const csp = header(headers, 'content-security-policy');
+  const xfo = header(headers, 'x-frame-options');
+  const server = header(headers, 'server');
+  const poweredBy = header(headers, 'x-powered-by');
+  const cors = header(headers, 'access-control-allow-origin');
+  const cache = header(headers, 'cache-control');
+
+  if (error) {
+    checks.push({ label: 'Reachability', status: 'fail', detail: error });
+  } else if (statusCode >= 500) {
+    checks.push({ label: 'HTTP response', status: 'fail', detail: `Server returned ${statusCode}.` });
+  } else if (statusCode >= 400) {
+    checks.push({ label: 'HTTP response', status: 'warn', detail: `Client/access response ${statusCode}; confirm whether this is expected.` });
+  } else if (statusCode >= 300) {
+    checks.push({ label: 'HTTP response', status: 'info', detail: `Redirect/alternate response ${statusCode}; review Location if present.` });
+  } else {
+    checks.push({ label: 'HTTP response', status: 'pass', detail: `Reachable with status ${statusCode}.` });
+  }
+
+  checks.push(isHttps
+    ? { label: 'Transport', status: 'pass', detail: 'HTTPS transport is in use.' }
+    : { label: 'Transport', status: 'warn', detail: 'HTTP transport detected; use HTTPS for production and provider-console workflows.' });
+
+  checks.push(header(headers, 'strict-transport-security')
+    ? { label: 'HSTS', status: 'pass', detail: 'Strict-Transport-Security header present.' }
+    : { label: 'HSTS', status: isHttps ? 'warn' : 'info', detail: isHttps ? 'No HSTS header detected.' : 'HSTS only applies after HTTPS is enabled.' });
+
+  checks.push(csp
+    ? { label: 'Content Security Policy', status: 'pass', detail: 'CSP header present.' }
+    : { label: 'Content Security Policy', status: 'warn', detail: 'No CSP header detected; document whether this is acceptable for this app.' });
+
+  checks.push(xfo || /frame-ancestors/i.test(csp)
+    ? { label: 'Clickjacking guard', status: 'pass', detail: 'X-Frame-Options or CSP frame-ancestors detected.' }
+    : { label: 'Clickjacking guard', status: 'warn', detail: 'No X-Frame-Options or CSP frame-ancestors detected.' });
+
+  checks.push(header(headers, 'referrer-policy')
+    ? { label: 'Referrer policy', status: 'pass', detail: 'Referrer-Policy header present.' }
+    : { label: 'Referrer policy', status: 'info', detail: 'No Referrer-Policy header detected.' });
+
+  checks.push(cache
+    ? { label: 'Cache policy', status: 'info', detail: `Cache-Control: ${cache}` }
+    : { label: 'Cache policy', status: 'info', detail: 'No Cache-Control header detected.' });
+
+  checks.push(server || poweredBy
+    ? { label: 'Technology disclosure', status: 'warn', detail: `Server/X-Powered-By disclosure detected${server ? `: ${server}` : ''}${poweredBy ? ` / ${poweredBy}` : ''}.` }
+    : { label: 'Technology disclosure', status: 'pass', detail: 'No Server or X-Powered-By disclosure captured.' });
+
+  checks.push(cors === '*'
+    ? { label: 'CORS exposure', status: 'warn', detail: 'Wildcard Access-Control-Allow-Origin detected.' }
+    : { label: 'CORS exposure', status: cors ? 'info' : 'pass', detail: cors ? `CORS header detected: ${cors}` : 'No broad CORS header captured.' });
+
+  return checks;
+}
+
+function runUrlDiagnostics(inputUrl: string): Promise<OpsUrlDiagnostics> {
+  const normalizedUrl = normalizeDiagnosticUrl(inputUrl);
+  const checkedAt = new Date().toISOString();
+  const started = Date.now();
+  const base: OpsUrlDiagnostics = {
+    ok: false,
+    checkedAt,
+    inputUrl: String(inputUrl || ''),
+    normalizedUrl,
+    method: 'HEAD',
+    statusCode: 0,
+    statusMessage: '',
+    durationMs: 0,
+    error: '',
+    headers: {},
+    checks: []
+  };
+
+  if (!safeExternalUrl(normalizedUrl)) {
+    const error = 'Only http:// and https:// URLs can be checked.';
+    return Promise.resolve({ ...base, error, checks: buildOpsHeaderChecks(normalizedUrl, 0, error, {}) });
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (patch: Partial<OpsUrlDiagnostics>) => {
+      if (settled) return;
+      settled = true;
+      const durationMs = Date.now() - started;
+      const result: OpsUrlDiagnostics = { ...base, ...patch, durationMs };
+      result.ok = !result.error && result.statusCode >= 200 && result.statusCode < 400;
+      result.checks = buildOpsHeaderChecks(result.normalizedUrl, result.statusCode, result.error, result.headers);
+      resolve(result);
+    };
+
+    const request = net.request({ method: 'HEAD', url: normalizedUrl });
+    const timeout = setTimeout(() => {
+      request.abort();
+      finish({ error: 'Timed out after 15 seconds.' });
+    }, 15000);
+
+    request.on('response', (response) => {
+      const headers = normalizeHeaderMap(response.headers as Record<string, string | string[]>);
+      response.on('end', () => {
+        clearTimeout(timeout);
+        finish({ statusCode: response.statusCode, statusMessage: response.statusMessage || '', headers });
+      });
+      response.on('data', () => undefined);
+    });
+    request.on('error', (error) => {
+      clearTimeout(timeout);
+      finish({ error: error.message || 'Network diagnostic failed.' });
+    });
+    request.end();
+  });
+}
+
+function dnsErrorMessage(error: unknown): string {
+  if (!error) return '';
+  const err = error as NodeJS.ErrnoException;
+  return String(err.code || err.message || 'lookup failed').slice(0, 180);
+}
+
+function sortedUnique(values: string[]): string[] {
+  return Array.from(new Set(values.map((item) => String(item || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b)).slice(0, 18);
+}
+
+function isPublicDnsEligibleHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase();
+  if (!host) return false;
+  if (host === 'localhost' || host.endsWith('.local')) return false;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
+  if (host.includes(':')) return false;
+  return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(host);
+}
+
+async function safeResolve<T>(kind: string, resolver: () => Promise<T[]>): Promise<{ values: T[]; error: string }> {
+  try {
+    const values = await resolver();
+    return { values: Array.isArray(values) ? values.slice(0, 24) : [], error: '' };
+  } catch (error) {
+    const detail = dnsErrorMessage(error);
+    if (/^(ENODATA|ENOTFOUND|ENOTIMP|ESERVFAIL)$/i.test(detail)) return { values: [], error: detail };
+    return { values: [], error: `${kind}: ${detail}` };
+  }
+}
+
+async function runItServiceCardDiagnostics(inputUrl: string): Promise<ItServiceCardDiagnostics> {
+  const normalizedUrl = normalizeDiagnosticUrl(inputUrl);
+  const checkedAt = new Date().toISOString();
+  const started = Date.now();
+  const base: ItServiceCardDiagnostics = {
+    ok: false,
+    checkedAt,
+    inputUrl: String(inputUrl || ''),
+    normalizedUrl,
+    hostname: '',
+    dnsEligible: false,
+    durationMs: 0,
+    records: { a: [], aaaa: [], cname: [], ns: [], mx: [] },
+    errors: {},
+    notes: []
+  };
+
+  if (!safeExternalUrl(normalizedUrl)) {
+    const error = 'Only http:// and https:// URLs can be profiled for an IT Service Card.';
+    return { ...base, durationMs: Date.now() - started, errors: { url: error }, notes: [{ label: 'URL scope', status: 'fail', detail: error }] };
+  }
+
+  let hostname = '';
+  try {
+    hostname = new URL(normalizedUrl).hostname.toLowerCase();
+  } catch {
+    const error = 'URL could not be parsed.';
+    return { ...base, durationMs: Date.now() - started, errors: { url: error }, notes: [{ label: 'URL scope', status: 'fail', detail: error }] };
+  }
+
+  const dnsEligible = isPublicDnsEligibleHost(hostname);
+  if (!dnsEligible) {
+    return {
+      ...base,
+      hostname,
+      dnsEligible,
+      durationMs: Date.now() - started,
+      notes: [
+        { label: 'DNS snapshot', status: 'info', detail: 'Public DNS lookup skipped for localhost, IP literals, or non-public hostnames.' },
+        { label: 'IT documentation', status: 'warn', detail: 'Fill owner, environment, access path, recovery, and monitoring fields before storing this service card.' }
+      ]
+    };
+  }
+
+  const [a, aaaa, cname, ns, mx] = await Promise.all([
+    safeResolve('A', () => dns.resolve4(hostname)),
+    safeResolve('AAAA', () => dns.resolve6(hostname)),
+    safeResolve('CNAME', () => dns.resolveCname(hostname)),
+    safeResolve('NS', () => dns.resolveNs(hostname)),
+    safeResolve<DnsMxRecord>('MX', () => dns.resolveMx(hostname) as Promise<DnsMxRecord[]>)
+  ]);
+
+  const records = {
+    a: sortedUnique(a.values as string[]),
+    aaaa: sortedUnique(aaaa.values as string[]),
+    cname: sortedUnique(cname.values as string[]),
+    ns: sortedUnique(ns.values as string[]),
+    mx: (mx.values as DnsMxRecord[])
+      .map((record) => ({ exchange: String(record.exchange || '').trim(), priority: Number(record.priority || 0) }))
+      .filter((record) => record.exchange)
+      .sort((left, right) => left.priority - right.priority || left.exchange.localeCompare(right.exchange))
+      .slice(0, 18)
+  };
+
+  const errors: Record<string, string> = {};
+  for (const [kind, result] of Object.entries({ a, aaaa, cname, ns, mx })) {
+    if (result.error) errors[kind] = result.error;
+  }
+
+  const hasAddress = records.a.length > 0 || records.aaaa.length > 0 || records.cname.length > 0;
+  const notes: OpsHeaderCheck[] = [
+    hasAddress
+      ? { label: 'DNS route', status: 'pass', detail: 'A/AAAA/CNAME route data captured for documentation.' }
+      : { label: 'DNS route', status: 'warn', detail: 'No A/AAAA/CNAME records captured; confirm proxy, split DNS, or provider routing manually.' },
+    records.ns.length
+      ? { label: 'Nameservers', status: 'pass', detail: `${records.ns.length} nameserver record(s) captured.` }
+      : { label: 'Nameservers', status: 'info', detail: 'No NS records captured for this host lookup.' },
+    records.mx.length
+      ? { label: 'Mail routing', status: 'info', detail: `${records.mx.length} MX record(s) captured; document whether this host/domain is mail-enabled.` }
+      : { label: 'Mail routing', status: 'info', detail: 'No MX records captured for this host lookup.' },
+    { label: 'Documentation completeness', status: 'warn', detail: 'Service owner, support path, renewal owner, backup/recovery notes, and monitoring checks still need human confirmation.' }
+  ];
+
+  return {
+    ...base,
+    ok: hasAddress,
+    hostname,
+    dnsEligible,
+    durationMs: Date.now() - started,
+    records,
+    errors,
+    notes
+  };
+}
+
+
+function markdownSafe(value: unknown): string {
+  return String(value ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+}
+
+function captureSlug(value: string): string {
+  return markdownSafe(value)
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 72) || 'tahai-devops-capture';
+}
+
+function defaultCapturePath(sourceUrl: string): string {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  return path.join(app.getPath('documents'), `tahai-devops-capture-${captureSlug(sourceUrl)}-${stamp}.md`);
+}
+
+
+function distPath(...parts: string[]): string {
+  return path.join(__dirname, '..', ...parts);
+}
+
+function resourcePath(...parts: string[]): string {
+  if (app.isPackaged) return path.join(process.resourcesPath, ...parts);
+  return distPath(...parts);
+}
+
+function localFileUrl(...parts: string[]): string {
+  return pathToFileURL(resourcePath(...parts)).toString();
+}
+
+function safeExternalUrl(url: string): boolean {
+  return isSafeExternalUrl(url);
+}
+
+function localPages() {
+  return {
+    newTabUrl: localFileUrl('browser', 'new-tab', 'index.html'),
+    settingsUrl: localFileUrl('browser', 'settings', 'index.html'),
+    aboutUrl: localFileUrl('browser', 'about', 'index.html'),
+    errorPageUrl: localFileUrl('browser', 'error-page', 'index.html'),
+    onboardingUrl: localFileUrl('browser', 'onboarding', 'index.html'),
+    bookmarksUrl: localFileUrl('browser', 'bookmarks', 'bookmarks.json')
+  };
+}
+
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function rendererShellFailureHtml(detail: string, rendererPath: string): string {
+  const safeDetail = escapeHtml(detail).slice(0, 1800);
+  const safePath = escapeHtml(rendererPath).slice(0, 1800);
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TAHAI Browser Shell Load Diagnostic</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #02050b; color: #f5f8ff; font-family: Inter, Segoe UI, sans-serif; }
+    main { width: min(840px, calc(100vw - 40px)); border: 1px solid rgba(119,219,255,.26); border-radius: 24px; padding: 28px; background: linear-gradient(180deg, rgba(7,16,31,.98), rgba(2,5,11,.98)); box-shadow: 0 24px 120px rgba(0,0,0,.72), 0 0 70px rgba(47,143,255,.16); }
+    h1 { margin: 0 0 12px; color: #77dbff; letter-spacing: .02em; }
+    p { color: #9db1c8; line-height: 1.55; }
+    code, pre { color: #f5f8ff; background: rgba(255,255,255,.055); border: 1px solid rgba(119,219,255,.14); border-radius: 14px; }
+    code { padding: 2px 6px; }
+    pre { padding: 14px; overflow: auto; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <main>
+    <p style="margin:0 0 8px;color:#77dbff;text-transform:uppercase;letter-spacing:.14em;font-weight:900;font-size:.72rem;">TAHAI Browser Runtime Diagnostic</p>
+    <h1>Renderer shell did not load</h1>
+    <p>The browser opened, but the Chromium shell HTML failed to load or the renderer process exited. This screen is intentionally shown instead of a blank black window.</p>
+    <p><strong>Renderer path:</strong></p>
+    <pre>${safePath}</pre>
+    <p><strong>Diagnostic:</strong></p>
+    <pre>${safeDetail}</pre>
+    <p>Run <code>npm run verify:release</code>, then rebuild the local Windows test package with <code>npm run package:win:unpacked-zip</code>.</p>
+  </main>
+</body>
+</html>`;
+}
+
+function rendererShellFailureFile(detail: string, rendererPath: string): string {
+  const diagnosticsDir = path.join(app.getPath('userData'), 'diagnostics');
+  fs.mkdirSync(diagnosticsDir, { recursive: true });
+  const failurePath = path.join(diagnosticsDir, 'renderer-shell-failure.html');
+  fs.writeFileSync(failurePath, rendererShellFailureHtml(detail, rendererPath), 'utf8');
+  return failurePath;
+}
+
+async function checkRendererBootHeartbeat(window: BrowserWindow): Promise<boolean> {
+  if (window.isDestroyed()) return false;
+  try {
+    return Boolean(await window.webContents.executeJavaScript(
+      "document.documentElement.dataset.tahaiShellReady === '1'",
+      true
+    ));
+  } catch {
+    return false;
+  }
+}
+
+function loadRendererShell(window: BrowserWindow): void {
+  const rendererPath = distPath('renderer', 'index.html');
+  let fallbackShown = false;
+  let heartbeatTimer: NodeJS.Timeout | undefined;
+
+  const showFailure = (detail: string) => {
+    if (fallbackShown || window.isDestroyed()) return;
+    fallbackShown = true;
+    if (heartbeatTimer) clearTimeout(heartbeatTimer);
+    try {
+      const failurePath = rendererShellFailureFile(detail, rendererPath);
+      window.loadFile(failurePath).catch(() => undefined);
+    } catch {
+      const html = rendererShellFailureHtml(detail, rendererPath);
+      window.webContents.loadURL('about:blank').then(() => {
+        if (!window.isDestroyed()) {
+          window.webContents.executeJavaScript(`document.open();document.write(${JSON.stringify(html)});document.close();`).catch(() => undefined);
+        }
+      }).catch(() => undefined);
+    }
+  };
+
+  const scheduleHeartbeatCheck = (reason: string) => {
+    if (heartbeatTimer) clearTimeout(heartbeatTimer);
+    heartbeatTimer = setTimeout(() => {
+      void checkRendererBootHeartbeat(window).then((ready) => {
+        if (!ready) {
+          showFailure(`${reason}: renderer shell loaded but did not report tahaiShellReady within 8 seconds. The source tree may contain stale dist output, a preload failure, a CSP/script load issue, or a renderer runtime exception.`);
+        }
+      });
+    }, 8000);
+  };
+
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame || fallbackShown) return;
+    showFailure(`did-fail-load ${errorCode}: ${errorDescription || 'Unknown load failure'}\nURL: ${validatedURL || 'unavailable'}`);
+  });
+
+  window.webContents.on('render-process-gone', (_event, details) => {
+    showFailure(`render-process-gone: ${details.reason || 'unknown'} exitCode=${details.exitCode}`);
+  });
+
+  window.webContents.on('did-finish-load', () => {
+    scheduleHeartbeatCheck('did-finish-load');
+  });
+
+  window.loadFile(rendererPath).then(() => {
+    scheduleHeartbeatCheck('loadFile');
+  }).catch((error: unknown) => {
+    showFailure(error instanceof Error ? error.stack || error.message : String(error));
+  });
+}
+
+function startupUrl(): string {
+  const settings = readBrowserSettings();
+  return settings.startup === 'launchpad' ? localPages().newTabUrl : settings.homeUrl || SOURCE_DEFAULT_HOME_URL;
+}
+
+function sendMenuCommand(window: BrowserWindow, command: string): void {
+  window.webContents.send('tahai-browser:menu-command', command);
+}
+
+function installApplicationMenu(window: BrowserWindow): void {
+  const exitItem: Electron.MenuItemConstructorOptions = process.platform === 'darwin' ? { role: 'close' } : { role: 'quit' };
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: 'File',
+      submenu: [
+        { label: 'New Tab', accelerator: 'CmdOrCtrl+T', click: () => sendMenuCommand(window, 'new-tab') },
+        { label: 'New Window', accelerator: 'CmdOrCtrl+N', click: () => createWindow() },
+        { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => sendMenuCommand(window, 'close-tab') },
+        { type: 'separator' },
+        { label: 'Open Location…', accelerator: 'CmdOrCtrl+L', click: () => sendMenuCommand(window, 'focus-address') },
+        { label: 'Save Page Evidence…', accelerator: 'CmdOrCtrl+Shift+E', click: () => sendMenuCommand(window, 'capture') },
+        { type: 'separator' },
+        { label: 'Print…', accelerator: 'CmdOrCtrl+P', click: () => sendMenuCommand(window, 'print') },
+        { type: 'separator' },
+        exitItem
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'pasteAndMatchStyle' },
+        { role: 'delete' },
+        { type: 'separator' },
+        { role: 'selectAll' },
+        { type: 'separator' },
+        { label: 'Find in Page…', accelerator: 'CmdOrCtrl+F', click: () => sendMenuCommand(window, 'focus-address') }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Reload This Page', accelerator: 'CmdOrCtrl+R', click: () => sendMenuCommand(window, 'reload') },
+        { role: 'forceReload', label: 'Force Reload' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+        { type: 'separator' },
+        { label: 'Command Palette…', accelerator: 'CmdOrCtrl+K', click: () => sendMenuCommand(window, 'command-palette') },
+        { label: 'Right-side Ops Panel', accelerator: 'CmdOrCtrl+Alt+H', click: () => sendMenuCommand(window, 'ops-hub') },
+        { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+/', click: () => sendMenuCommand(window, 'shortcuts') },
+        { type: 'separator' },
+        { label: 'Developer Tools', accelerator: 'F12', click: () => window.webContents.send('tahai-browser:toggle-devtools') },
+        { label: 'Chromium DevTools', accelerator: 'CmdOrCtrl+Shift+I', click: () => window.webContents.send('tahai-browser:toggle-devtools') }
+      ]
+    },
+    {
+      label: 'History',
+      submenu: [
+        { label: 'Back', accelerator: 'Alt+Left', click: () => sendMenuCommand(window, 'back') },
+        { label: 'Forward', accelerator: 'Alt+Right', click: () => sendMenuCommand(window, 'forward') },
+        { type: 'separator' },
+        { label: 'Home', accelerator: 'Alt+Home', click: () => sendMenuCommand(window, 'home') },
+        { label: 'TAHAI Launchpad', click: () => sendMenuCommand(window, 'launchpad') }
+      ]
+    },
+    {
+      label: 'Bookmarks',
+      submenu: [
+        { label: 'TAHAI Launchpad', click: () => sendMenuCommand(window, 'launchpad') },
+        { label: 'TAHAI Portal', click: () => sendMenuCommand(window, 'home') },
+        { label: 'First-run Guide', click: () => sendMenuCommand(window, 'guide') }
+      ]
+    },
+    {
+      label: 'Profiles',
+      submenu: [
+        { label: 'Manage Profiles…', accelerator: 'CmdOrCtrl+Shift+P', click: () => sendMenuCommand(window, 'profiles') },
+        { label: 'New Google-labeled Profile…', click: () => sendMenuCommand(window, 'new-google-profile') },
+        { label: 'New Microsoft-labeled Profile…', click: () => sendMenuCommand(window, 'new-microsoft-profile') },
+        { type: 'separator' },
+        { label: 'Open Profile Data Folder', click: () => sendMenuCommand(window, 'open-active-profile-folder') }
+      ]
+    },
+    {
+      label: 'Tools',
+      submenu: [
+        { label: 'Open DevOps Tool Panel', accelerator: 'CmdOrCtrl+Alt+O', click: () => sendMenuCommand(window, 'open-devops-menu') },
+        { label: 'Open IT Tools Panel', accelerator: 'CmdOrCtrl+Alt+I', click: () => sendMenuCommand(window, 'open-it-menu') },
+        { label: 'Command Palette…', accelerator: 'CmdOrCtrl+K', click: () => sendMenuCommand(window, 'command-palette') },
+        { label: 'Right-side Ops Panel', accelerator: 'CmdOrCtrl+Alt+H', click: () => sendMenuCommand(window, 'ops-hub') },
+        { type: 'separator' },
+        { label: 'Save Workspace Snapshot', click: () => sendMenuCommand(window, 'save-workspace') },
+        { label: 'Pin Latest Evidence', click: () => sendMenuCommand(window, 'pin-evidence') },
+        { label: 'Build Evidence / Change Bundle', accelerator: 'CmdOrCtrl+Alt+B', click: () => sendMenuCommand(window, 'bundle') },
+        { label: 'IT Docs / PSA Handoff Center', accelerator: 'CmdOrCtrl+Alt+Y', click: () => sendMenuCommand(window, 'handoff') },
+        { label: 'Ops Guard / Redaction Review', accelerator: 'CmdOrCtrl+Alt+G', click: () => sendMenuCommand(window, 'ops-guard') },
+        { type: 'separator' },
+        {
+          label: 'TAHAI DevOps Tools',
+          submenu: [
+            { label: 'Capture Evidence Note', accelerator: 'CmdOrCtrl+Shift+E', click: () => sendMenuCommand(window, 'capture') },
+            { label: 'Run URL Ops Check', accelerator: 'CmdOrCtrl+Shift+D', click: () => sendMenuCommand(window, 'ops-check') },
+            { label: 'Create Deploy Readiness Report', accelerator: 'CmdOrCtrl+Alt+R', click: () => sendMenuCommand(window, 'deploy') },
+            { label: 'Create Route Map', accelerator: 'CmdOrCtrl+Alt+P', click: () => sendMenuCommand(window, 'route-map') },
+            { label: 'Run Developer Audit', accelerator: 'CmdOrCtrl+Alt+A', click: () => sendMenuCommand(window, 'dev-audit') }
+          ]
+        },
+        {
+          label: 'TAHAI IT Tools',
+          submenu: [
+            { label: 'Create IT Service Card', accelerator: 'CmdOrCtrl+Shift+M', click: () => sendMenuCommand(window, 'it-card') },
+            { label: 'Create Endpoint Snapshot', accelerator: 'CmdOrCtrl+Alt+E', click: () => sendMenuCommand(window, 'endpoint') },
+            { label: 'Create Support Triage Packet', accelerator: 'CmdOrCtrl+Alt+T', click: () => sendMenuCommand(window, 'triage') },
+            { label: 'Open Credential Vault', accelerator: 'CmdOrCtrl+Alt+K', click: () => sendMenuCommand(window, 'credentials') }
+          ]
+        },
+        { type: 'separator' },
+        { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: () => sendMenuCommand(window, 'settings') }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        { role: 'front' }
+      ]
+    },
+    {
+      label: 'Help',
+      submenu: [
+        { label: 'TAHAI Launchpad', click: () => sendMenuCommand(window, 'launchpad') },
+        { label: 'First-run Guide', click: () => sendMenuCommand(window, 'guide') },
+        { label: 'Runtime Settings', click: () => sendMenuCommand(window, 'settings') },
+        { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+/', click: () => sendMenuCommand(window, 'shortcuts') },
+        { type: 'separator' },
+        { label: 'About TAHAI Web Services Browser', click: () => sendMenuCommand(window, 'about') }
+      ]
+    }
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+
+
+function getTahaiBrowserIconPath() {
+  const iconFile = process.platform === "win32" ? "icon.ico" : "icon.png";
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "build", iconFile)
+    : path.join(app.getAppPath(), "build", iconFile);
+}
+
+function createWindow(): BrowserWindow {
+  const window = new BrowserWindow({
+    icon: getTahaiBrowserIconPath(),
+    width: 1460,
+    height: 940,
+    minWidth: 1020,
+    minHeight: 700,
+    title: PRODUCT_NAME,
+    backgroundColor: '#02050b',
+    webPreferences: {
+      preload: path.join(__dirname, '..', 'preload', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webviewTag: true,
+      spellcheck: true,
+      devTools: true
+    },
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default'
+  });
+
+  loadRendererShell(window);
+  installApplicationMenu(window);
+
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (safeExternalUrl(url)) window.webContents.send('tahai-browser:open-in-tab', url);
+    return { action: 'deny' };
+  });
+
+  window.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith('file://')) event.preventDefault();
+  });
+
+  return window;
+}
+
+ipcMain.handle('tahai-browser:get-config', () => {
+  const settings = readBrowserSettings();
+  return {
+    productName: PRODUCT_NAME,
+    bundleName: BUNDLE_NAME,
+    homeUrl: settings.homeUrl || SOURCE_DEFAULT_HOME_URL,
+    startupUrl: startupUrl(),
+    settings,
+    settingsPath: getSettingsPath(),
+    profiles: listBrowserProfiles(),
+    ...localPages(),
+    version: app.getVersion(),
+    releaseChannel: RELEASE_CHANNEL,
+    firstLaunch: runFirstLaunchChecks(),
+    userDataPath: app.getPath('userData')
+  };
+});
+
+ipcMain.handle('tahai-browser:get-settings', () => readBrowserSettings());
+ipcMain.handle('tahai-browser:update-settings', (_event, next) => writeBrowserSettings(next));
+ipcMain.handle('tahai-browser:reset-settings', () => resetBrowserSettings());
+ipcMain.handle('tahai-browser:clear-browsing-data', async () => {
+  const browserSession = session.fromPartition('persist:tahai-browser');
+  await browserSession.clearCache();
+  await browserSession.clearStorageData({ storages: ['cookies', 'filesystem', 'indexdb', 'localstorage', 'shadercache', 'websql', 'serviceworkers', 'cachestorage'] });
+  return true;
+});
+ipcMain.handle('tahai-browser:open-user-data', async () => {
+  await shell.openPath(app.getPath('userData'));
+  return true;
+});
+ipcMain.handle('tahai-browser:open-external', async (_event, url: string) => safeOpenExternal(url));
+
+ipcMain.handle('tahai-browser:copy-devops-capture', (_event, markdown: string) => {
+  const clean = markdownSafe(markdown).slice(0, 120000);
+  if (!clean) return false;
+  clipboard.writeText(clean);
+  return true;
+});
+
+ipcMain.handle('tahai-browser:save-devops-capture', async (_event, markdown: string, sourceUrl: string) => {
+  const clean = markdownSafe(markdown).slice(0, 120000);
+  if (!clean) return { saved: false, canceled: false, path: '' };
+  const owner = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  const options: Electron.SaveDialogOptions = {
+    title: 'Save TAHAI DevOps evidence note',
+    defaultPath: defaultCapturePath(typeof sourceUrl === 'string' ? sourceUrl : 'capture'),
+    buttonLabel: 'Save Markdown',
+    filters: [{ name: 'Markdown', extensions: ['md'] }, { name: 'Text', extensions: ['txt'] }]
+  };
+  const result = owner ? await dialog.showSaveDialog(owner, options) : await dialog.showSaveDialog(options);
+  if (result.canceled || !result.filePath) return { saved: false, canceled: true, path: '' };
+  fs.writeFileSync(result.filePath, clean + '\n', 'utf8');
+  return { saved: true, canceled: false, path: result.filePath };
+});
+
+ipcMain.handle('tahai-browser:run-url-diagnostics', async (_event, sourceUrl: string) => runUrlDiagnostics(sourceUrl));
+ipcMain.handle('tahai-browser:run-it-service-card-diagnostics', async (_event, sourceUrl: string) => runItServiceCardDiagnostics(sourceUrl));
+ipcMain.handle('tahai-browser:list-credentials', () => listCredentialVaultRecords());
+ipcMain.handle('tahai-browser:save-credential', (_event, input) => saveCredentialVaultRecord(input));
+ipcMain.handle('tahai-browser:delete-credential', (_event, id: string) => deleteCredentialVaultRecord(id));
+ipcMain.handle('tahai-browser:reveal-credential-password', (_event, id: string) => revealCredentialVaultPassword(id));
+ipcMain.handle('tahai-browser:copy-credential-value', (_event, id: string, field: 'username' | 'password') => copyCredentialVaultValue(id, field));
+ipcMain.handle('tahai-browser:list-profiles', () => listBrowserProfiles());
+ipcMain.handle('tahai-browser:create-profile', async (_event, input) => {
+  const state = createBrowserProfile(input);
+  await hardenSession(session.fromPartition(state.activeProfile.partition));
+  return state;
+});
+ipcMain.handle('tahai-browser:update-profile', (_event, input) => updateBrowserProfile(input));
+ipcMain.handle('tahai-browser:set-active-profile', async (_event, id: string) => {
+  const state = setActiveBrowserProfile(id);
+  await hardenSession(session.fromPartition(state.activeProfile.partition));
+  return state;
+});
+ipcMain.handle('tahai-browser:delete-profile', (_event, id: string) => deleteBrowserProfile(id));
+ipcMain.handle('tahai-browser:open-profile-data', async (_event, id: string) => {
+  const target = profileDataPath(id);
+  fs.mkdirSync(target, { recursive: true });
+  await shell.openPath(target);
+  return true;
+});
+ipcMain.handle('tahai-browser:list-missions', () => listMissions());
+ipcMain.handle('tahai-browser:load-mission', (_event, missionId: string) => loadMission(missionId));
+ipcMain.handle('tahai-browser:save-mission', (_event, mission) => saveMission(mission));
+ipcMain.handle('tahai-browser:delete-mission', (_event, missionId: string) => deleteMission(missionId));
+app.setPath('userData', path.join(app.getPath('appData'), 'TAHAI Web Services Browser'));
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const [window] = BrowserWindow.getAllWindows();
+    if (window) {
+      if (window.isMinimized()) window.restore();
+      window.focus();
+    }
+  });
+
+  
+const TAHAI_BROWSER_APP_NAME = "TAHAI Web Services Browser";
+
+
+// PASS33_WINDOWS_TASKBAR_ICON_HELPERS_START
+const TAHAI_WINDOWS_APP_ID = "com.tahai.webservices.browser";
+const TAHAI_WINDOWS_APP_NAME = "TAHAI Web Services Browser";
+
+function tahaiResolveWindowIcon(): string {
+  const candidatePaths = [
+    path.join(process.resourcesPath, "icon.ico"),
+    path.join(process.resourcesPath, "app.asar.unpacked", "build", "icon.ico"),
+    path.join(process.resourcesPath, "app", "build", "icon.ico"),
+    path.join(process.cwd(), "build", "icon.ico"),
+    path.join(__dirname, "..", "..", "build", "icon.ico"),
+    path.join(__dirname, "..", "build", "icon.ico"),
+  ];
+
+  const found = candidatePaths.find((candidatePath: string): boolean => {
+    try {
+      return fs.existsSync(candidatePath);
+    } catch {
+      return false;
+    }
+  });
+
+  return found ?? candidatePaths[0];
+}
+
+app.setName(TAHAI_WINDOWS_APP_NAME);
+
+if (process.platform === "win32") {
+  app.setAppUserModelId(TAHAI_WINDOWS_APP_ID);
+}
+// PASS33_WINDOWS_TASKBAR_ICON_HELPERS_END
+
+app.whenReady().then(async () => {
+    runFirstLaunchChecks();
+    await hardenSession(session.defaultSession);
+    await hardenSession(session.fromPartition('persist:tahai-browser'));
+    for (const partition of profileSessionPartitions()) {
+      await hardenSession(session.fromPartition(partition));
+    }
+    createWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  }).catch(() => app.quit());
+}
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});

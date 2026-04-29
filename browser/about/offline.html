@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self' https://browser.tahai.net; connect-src https://browser.tahai.net; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https://browser.tahai.net;"
+  />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TAHAI Web Services Browser — Offline Fallback</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --border: rgba(94, 194, 255, 0.42);
+      --text: #dcecff;
+      --muted: #9fb1c7;
+      --accent: #75d7ff;
+      --gold: #d7a84e;
+      --panel: rgba(7, 19, 35, 0.95);
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 22% 18%, rgba(0, 183, 255, 0.16), transparent 28rem),
+        radial-gradient(circle at 80% 80%, rgba(215, 168, 78, 0.12), transparent 22rem),
+        linear-gradient(135deg, #020812, #040914 55%, #03070d);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      box-sizing: border-box;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+    }
+
+    section {
+      width: min(54rem, 100%);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      background: linear-gradient(180deg, var(--panel), rgba(4, 11, 20, 0.95));
+      box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.42);
+      padding: 1.75rem;
+    }
+
+    .eyebrow {
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 0.6rem;
+    }
+
+    h1 {
+      color: var(--accent);
+      font-size: clamp(1.6rem, 4vw, 2.55rem);
+      margin: 0 0 0.85rem;
+      line-height: 1.06;
+    }
+
+    p {
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.55;
+      margin: 0.5rem 0;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+
+    a,
+    button {
+      appearance: none;
+      border: 1px solid rgba(117, 215, 255, 0.42);
+      border-radius: 999rem;
+      background: rgba(117, 215, 255, 0.08);
+      color: #dff7ff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font: inherit;
+      font-weight: 800;
+      padding: 0.65rem 0.9rem;
+      text-decoration: none;
+    }
+
+    button.secondary,
+    a.secondary {
+      border-color: rgba(215, 168, 78, 0.45);
+      background: rgba(215, 168, 78, 0.08);
+      color: #ffe6aa;
+    }
+
+    .status {
+      border: 1px solid rgba(255, 255, 255, 0.10);
+      border-radius: 0.85rem;
+      background: rgba(255, 255, 255, 0.04);
+      color: #bfd0e6;
+      margin-top: 1.2rem;
+      padding: 0.85rem;
+      word-break: break-word;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+      gap: 0.75rem;
+      margin-top: 1.2rem;
+    }
+
+    .card {
+      border: 1px solid rgba(117, 215, 255, 0.22);
+      border-radius: 0.95rem;
+      padding: 0.95rem;
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .card strong {
+      display: block;
+      color: #ffffff;
+      margin-bottom: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section>
+      <p class="eyebrow">TAHAI Web Services Browser</p>
+      <h1>TAHAI Web Services Browser</h1>
+      <p>
+        This local page is an offline-safe bridge. When an internet connection is available,
+        the About button opens the public browser page. If the page cannot be reached, this
+        local fallback remains available.
+      </p>
+
+      <div class="actions">
+        <a id="openOnline" href="https://browser.tahai.net/">Open browser.tahai.net</a>
+        <button id="stayLocal" class="secondary" type="button">Stay on local fallback</button>
+      </div>
+
+      <div class="status" id="status">
+        Local offline fallback loaded.
+      </div>
+
+      <div class="grid" aria-label="Local fallback overview">
+        <div class="card">
+          <strong>Purpose-built browser shell</strong>
+          <p>AI, DevOps, developer, IT engineering, profile, and operational workflow lanes.</p>
+        </div>
+        <div class="card">
+          <strong>TAHAI workflow launchpad</strong>
+          <p>Command palette, profiles, Ops Panel, DevTools access, and documentation-oriented tooling.</p>
+        </div>
+        <div class="card">
+          <strong>Offline-safe about page</strong>
+          <p>This page ships locally with the installer and remains available without internet access.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var TARGET = "https://browser.tahai.net/";
+      var TIMEOUT_MS = 2500;
+      var status = document.getElementById("status");
+      var stayLocal = document.getElementById("stayLocal");
+      var cancelled = false;
+
+      function setStatus(message) {
+        if (status) status.textContent = message;
+      }
+
+      if (stayLocal) {
+        stayLocal.addEventListener("click", function () {
+          cancelled = true;
+          setStatus("Local fallback selected. You can open browser.tahai.net later when connected.");
+        });
+      }
+
+      function goOnline() {
+        if (cancelled) return;
+        setStatus("Connection available. Opening " + TARGET);
+        window.location.replace(TARGET);
+      }
+
+      function stayOffline(reason) {
+        if (cancelled) return;
+        setStatus(
+          "Online About page could not be reached. Local fallback is active." +
+            (reason ? " Details: " + reason : "")
+        );
+      }
+
+      if (navigator && navigator.onLine === false) {
+        stayOffline("This device reports offline status.");
+        return;
+      }
+
+      var timeout = window.setTimeout(function () {
+        stayOffline("Connection check timed out.");
+      }, TIMEOUT_MS);
+
+      fetch(TARGET, {
+        method: "GET",
+        mode: "no-cors",
+        cache: "no-store"
+      })
+        .then(function () {
+          window.clearTimeout(timeout);
+          goOnline();
+        })
+        .catch(function (error) {
+          window.clearTimeout(timeout);
+          stayOffline(error && error.message ? error.message : "Network request failed.");
+        });
+    })();
+  </script>
+</body>
+</html>

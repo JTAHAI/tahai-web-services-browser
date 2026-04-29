@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: file:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file: https:; media-src 'self' file:; connect-src https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';" />
+  <title>TAHAI Web Services Browser</title>
+  <link rel="icon" href="./assets/tws/tws-square-logo.png" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="ambient" aria-hidden="true">
+    <video class="ambient-video" muted autoplay playsinline loop preload="metadata" poster="./assets/tws/tws-social-cover.png">
+      <source src="./assets/tws/tws-browser-motion-bg.mp4" type="video/mp4" />
+      <source src="./assets/tws/tws-logo-motion.mp4" type="video/mp4" />
+      <source src="./assets/tws/tws-ambient-3.mp4" type="video/mp4" />
+    </video>
+    <div class="brand-ghost"><img src="./assets/tws/tws-square-logo.png" alt="" /></div>
+    <div class="mesh mesh-a"></div>
+    <div class="mesh mesh-b"></div>
+    <div class="scanlines"></div>
+  </div>
+
+  <main class="shell" aria-labelledby="page-title">
+    <section class="hero panel">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <div class="brand-lockup">
+            <img class="brand-mark" src="./assets/tws/tws-square-logo.png" data-fallback="./assets/tws/SQUARE.png" alt="TAHAI Web Services mark" />
+            <div>
+              <p class="eyebrow">TAHAI Web Services</p>
+              <h1 id="page-title">Browser</h1>
+            </div>
+          </div>
+          <p class="subhead">A Chromium-powered launchpad for AI, developer, cloud, provider-console, and BYOK workflows.</p>
+          <form id="search-form" class="search" role="search">
+            <label for="search-input">Search, paste a URL, or jump to a console</label>
+            <div class="search-row">
+              <input id="search-input" name="q" autocomplete="off" spellcheck="false" placeholder="portal, docs, openai, aws, cloudflare, github…" />
+              <button type="submit">Open</button>
+            </div>
+          </form>
+          <div class="home-callout">
+            <span>Default home</span>
+            <a href="https://tahaiportal.com">https://tahaiportal.com</a>
+          </div>
+        </div>
+        <aside class="signal-card" aria-label="Browser lane status">
+          <p class="terminal-label">TAHAI // Chromium wrapper</p>
+          <video class="mini-motion" muted autoplay playsinline loop preload="metadata" poster="./assets/tws/tws-square-logo.png">
+            <source src="./assets/tws/tws-logo-motion.mp4" type="video/mp4" />
+          </video>
+          <dl>
+            <div><dt>Product</dt><dd>TAHAI Web Services Browser</dd></div>
+            <div><dt>Home</dt><dd>tahaiportal.com</dd></div>
+            <div><dt>Lane</dt><dd>Public launchpad</dd></div>
+            <div><dt>Bundle</dt><dd>TAHAI—SENTINEL Browser</dd></div>
+          </dl>
+        </aside>
+      </div>
+    </section>
+
+    <section class="quick-grid" aria-label="Primary launchers">
+      <a class="card primary" href="https://tahaiportal.com"><span>TAHAI Portal</span><strong>Default home</strong></a>
+      <a class="card" href="https://docs.tahaiportal.com"><span>TAHAI IT Docs</span><strong>Ops documentation</strong></a>
+      <a class="card" href="https://os.tahai.net"><span>TAHAI OS</span><strong>SENTINEL workstation</strong></a>
+      <a class="card" href="https://sentinel.tahai.net"><span>SENTINEL</span><strong>Guarded execution</strong></a>
+      <a class="card" href="https://tahai.net"><span>TAHAI Web Services</span><strong>Company gateway</strong></a>
+      <a class="card" href="https://prose.tahaiportal.com"><span>Justice For All</span><strong>Public-interest lane</strong></a>
+    </section>
+
+    <section class="deck panel" aria-label="Workflow launchers">
+      <div class="deck-header">
+        <p class="eyebrow">Console routing</p>
+        <h2>One browser surface for the work that usually gets scattered.</h2>
+      </div>
+      <div class="sections">
+        <div><h3>AI + BYOK</h3><ul><li><a href="https://chatgpt.com">ChatGPT</a></li><li><a href="https://platform.openai.com">OpenAI Platform</a></li><li><a href="https://console.anthropic.com">Anthropic Console</a></li><li><a href="https://aistudio.google.com">Google AI Studio</a></li><li><a href="https://console.groq.com">Groq Console</a></li></ul></div>
+        <div><h3>Developer</h3><ul><li><a href="https://github.com">GitHub</a></li><li><a href="https://vercel.com/dashboard">Vercel Dashboard</a></li><li><a href="https://dash.cloudflare.com">Cloudflare</a></li><li><a href="https://developer.mozilla.org">MDN Web Docs</a></li><li><a href="https://www.npmjs.com">npm</a></li></ul></div>
+        <div><h3>Cloud + identity</h3><ul><li><a href="https://console.aws.amazon.com">AWS Console</a></li><li><a href="https://portal.azure.com">Microsoft Azure</a></li><li><a href="https://console.cloud.google.com">Google Cloud</a></li><li><a href="https://admin.microsoft.com">Microsoft 365 Admin</a></li><li><a href="https://entra.microsoft.com">Microsoft Entra</a></li></ul></div>
+      </div>
+    </section>
+
+
+
+    <section class="deck panel" aria-label="Security and domain launchers">
+      <div class="deck-header">
+        <p class="eyebrow">Operator shortcuts</p>
+        <h2>Built for the daily route: domains, DNS, security, docs, and provider consoles.</h2>
+      </div>
+      <div class="sections">
+        <div><h3>Domains + DNS</h3><ul><li><a href="https://dash.cloudflare.com">Cloudflare DNS</a></li><li><a href="https://domains.google.com/registrar">Google Domains</a></li><li><a href="https://whois.domaintools.com">DomainTools WHOIS</a></li><li><a href="https://mxtoolbox.com">MXToolbox</a></li><li><a href="https://dnschecker.org">DNSChecker</a></li></ul></div>
+        <div><h3>Security + compliance</h3><ul><li><a href="https://www.cisa.gov/resources-tools">CISA Resources</a></li><li><a href="https://pages.nist.gov/800-53-Rev5/">NIST 800-53</a></li><li><a href="https://www.ssllabs.com/ssltest/">SSL Labs</a></li><li><a href="https://securityheaders.com">Security Headers</a></li><li><a href="https://haveibeenpwned.com">Have I Been Pwned</a></li></ul></div>
+        <div><h3>TAHAI bundle lane</h3><ul><li><a href="https://tahaiportal.com">TAHAI Portal</a></li><li><a href="https://docs.tahaiportal.com">TAHAI IT Docs</a></li><li><a href="https://os.tahai.net">TAHAI OS</a></li><li><a href="https://sentinel.tahai.net">SENTINEL</a></li><li><a href="https://tahai.net">TAHAI Web Services</a></li></ul></div>
+      </div>
+    </section>
+
+    <section class="sentinel-strip panel" aria-label="TAHAI SENTINEL browser bundle">
+      <img src="./assets/tws/sentinel-logo.png" alt="TAHAI SENTINEL mark" />
+      <div>
+        <p class="eyebrow">Bundled OS edition</p>
+        <h2>TAHAI—SENTINEL Browser</h2>
+        <p>The TAHAI OS export lane can ship this same browser source with SENTINEL bundle identity, without mixing TAHAI OS, SENTINEL, or Prefrontal source into this repo.</p>
+      </div>
+    </section>
+
+    <section class="footer-stage panel" aria-label="TAHAI brand footer image stage">
+      <img src="./assets/tws/tws-footer.jpg" data-optional="true" alt="TAHAI Web Services footer texture" />
+      <div>
+        <p class="eyebrow">TWS - REBUILT asset source</p>
+        <h2>Brand the browser like the product is real.</h2>
+        <p>The wrapper, local launchpad, Windows package lane, Linux package lane, and TAHAI OS export now share the same copied TWS asset set.</p>
+      </div>
+    </section>
+  </main>
+  <script src="./start.js"></script>
+</body>
+</html>

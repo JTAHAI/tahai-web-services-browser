@@ -1,0 +1,497 @@
+.chromium-bookmarks-installed .app-shell {
+  grid-template-rows: 44px 52px auto minmax(0,1fr) 28px;
+}
+
+.chromium-bookmarks-installed .topbar { grid-row: 1; }
+.chromium-bookmarks-installed .toolbar {
+  grid-row: 2;
+  grid-template-columns: 36px 36px 36px auto minmax(260px,1fr) repeat(14, auto);
+}
+.chromium-bookmarks-installed .chromium-bookmarks-bar { grid-row: 3; }
+.chromium-bookmarks-installed .webview-stage { grid-row: 4; }
+.chromium-bookmarks-installed .statusbar { grid-row: 5; }
+
+.chromium-bookmark-star {
+  min-width: 38px;
+  padding: 0 10px;
+  color: #ffd27a;
+  border-color: rgba(255,210,122,.36);
+}
+
+.chromium-bookmarks-button {
+  border-color: rgba(119,219,255,.30);
+}
+
+.chromium-bookmarks-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px 10px;
+  border-bottom: 1px solid rgba(119,219,255,.14);
+  background: linear-gradient(180deg, rgba(5,12,22,.98), rgba(3,8,18,.98));
+  overflow: hidden;
+  z-index: 31;
+}
+
+.chromium-bookmarks-bar[hidden] {
+  display: none;
+}
+
+.chromium-bookmarks-bar-item,
+.chromium-bookmarks-overflow {
+  height: 25px;
+  max-width: 190px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(119,219,255,.14);
+  border-radius: 9px;
+  padding: 0 9px;
+  color: var(--text);
+  background: rgba(255,255,255,.035);
+  font-size: .76rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chromium-bookmarks-bar-item:hover,
+.chromium-bookmarks-overflow:hover {
+  border-color: rgba(119,219,255,.42);
+  background: rgba(119,219,255,.10);
+}
+
+.chromium-bookmarks-bar-item.folder {
+  color: var(--cyan);
+}
+
+.chromium-bookmarks-folder {
+  position: relative;
+  display: inline-flex;
+}
+
+.chromium-bookmarks-folder-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 80;
+  min-width: 230px;
+  max-width: 360px;
+  max-height: min(520px, calc(100vh - 150px));
+  display: none;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid rgba(119,219,255,.24);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(7,16,31,.99), rgba(2,5,11,.99));
+  box-shadow: 0 20px 80px rgba(0,0,0,.65), 0 0 40px rgba(47,143,255,.13);
+}
+
+.chromium-bookmarks-folder:hover .chromium-bookmarks-folder-menu,
+.chromium-bookmarks-folder:focus-within .chromium-bookmarks-folder-menu {
+  display: grid;
+  gap: 4px;
+}
+
+.chromium-bookmarks-folder-action,
+.chromium-bookmarks-folder-empty {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 9px;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  font-size: .78rem;
+}
+
+.chromium-bookmarks-folder-action {
+  cursor: pointer;
+}
+
+.chromium-bookmarks-folder-action:hover {
+  background: rgba(119,219,255,.10);
+}
+
+.chromium-bookmarks-folder-action.folder {
+  color: var(--cyan);
+}
+
+.chromium-bookmarks-folder-empty,
+.chromium-bookmarks-empty {
+  color: var(--muted);
+  font-size: .76rem;
+}
+
+.chromium-bookmarks-menu {
+  position: fixed;
+  top: 96px;
+  right: 12px;
+  z-index: 78;
+  width: min(420px, calc(100vw - 28px));
+  max-height: min(720px, calc(100vh - 124px));
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0,1fr) auto;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(119,219,255,.26);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(7,16,31,.99), rgba(2,5,11,.99));
+  box-shadow: 0 24px 110px rgba(0,0,0,.72), 0 0 60px rgba(47,143,255,.16);
+}
+
+.chromium-bookmarks-menu[hidden] {
+  display: none;
+}
+
+.chromium-bookmarks-menu header,
+.chromium-bookmarks-manager-panel header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(119,219,255,.14);
+}
+
+.chromium-bookmarks-menu h2,
+.chromium-bookmarks-manager-panel h2 {
+  margin: 3px 0 2px;
+  font-size: 1.12rem;
+}
+
+.chromium-bookmarks-menu header span {
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.chromium-bookmarks-actions,
+.chromium-bookmarks-manager-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chromium-bookmarks-actions .home-button,
+.chromium-bookmarks-manager-toolbar .home-button {
+  height: 29px;
+  padding: 0 10px;
+  font-size: .75rem;
+}
+
+.chromium-bookmarks-search input {
+  width: 100%;
+  height: 34px;
+  border: 1px solid rgba(119,219,255,.18);
+  border-radius: 999px;
+  background: #020813;
+  color: var(--text);
+  padding: 0 13px;
+  font: inherit;
+}
+
+.chromium-bookmarks-menu-list {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+}
+
+.chromium-bookmarks-menu-node {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 6px;
+  align-items: stretch;
+  border: 1px solid rgba(119,219,255,.13);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+  overflow: hidden;
+}
+
+.chromium-bookmarks-menu-node > button:first-child {
+  min-width: 0;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.chromium-bookmarks-menu-node strong,
+.chromium-bookmarks-menu-node span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chromium-bookmarks-menu-node strong {
+  font-size: .82rem;
+}
+
+.chromium-bookmarks-menu-node span {
+  color: var(--muted);
+  font-size: .72rem;
+  margin-top: 2px;
+}
+
+.chromium-bookmarks-menu-node .mini {
+  border: 0;
+  border-left: 1px solid rgba(119,219,255,.12);
+  color: var(--cyan);
+  background: rgba(119,219,255,.04);
+  cursor: pointer;
+  padding: 0 10px;
+}
+
+.chromium-bookmarks-menu footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(119,219,255,.12);
+  color: var(--muted);
+  font-size: .70rem;
+}
+
+.chromium-bookmarks-menu footer button {
+  border: 1px solid rgba(119,219,255,.15);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(255,255,255,.035);
+  cursor: pointer;
+  padding: 5px 8px;
+}
+
+.chromium-bookmarks-empty-card {
+  padding: 18px;
+  border: 1px dashed rgba(119,219,255,.20);
+  border-radius: 14px;
+  color: var(--muted);
+  text-align: center;
+  font-size: .82rem;
+}
+
+.chromium-bookmarks-manager {
+  width: min(1040px, calc(100vw - 46px));
+  height: min(760px, calc(100vh - 46px));
+  border: 1px solid rgba(119,219,255,.30);
+  border-radius: 24px;
+  padding: 0;
+  background: #06101d;
+  color: var(--text);
+  box-shadow: 0 24px 120px rgba(0,0,0,.72), 0 0 72px rgba(47,143,255,.18);
+}
+
+.chromium-bookmarks-manager::backdrop {
+  background: rgba(0,0,0,.66);
+  backdrop-filter: blur(7px);
+}
+
+.chromium-bookmarks-manager-panel {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0,1fr);
+  gap: 14px;
+  padding: 18px;
+}
+
+.chromium-bookmarks-manager-body {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding-right: 6px;
+}
+
+.chromium-bookmarks-tree-node {
+  display: grid;
+  gap: 5px;
+}
+
+.chromium-bookmarks-tree-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto auto;
+  gap: 6px;
+  margin-left: calc(var(--bookmark-depth) * 18px);
+  border: 1px solid rgba(119,219,255,.13);
+  border-radius: 13px;
+  background: rgba(255,255,255,.035);
+  overflow: hidden;
+}
+
+.chromium-bookmarks-tree-main {
+  min-width: 0;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.chromium-bookmarks-tree-main strong,
+.chromium-bookmarks-tree-main span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chromium-bookmarks-tree-main strong {
+  font-size: .84rem;
+}
+
+.chromium-bookmarks-tree-main span {
+  color: var(--muted);
+  font-size: .74rem;
+  margin-top: 2px;
+}
+
+.chromium-bookmarks-tree-row > button:not(.chromium-bookmarks-tree-main) {
+  border: 0;
+  border-left: 1px solid rgba(119,219,255,.12);
+  color: var(--cyan);
+  background: rgba(119,219,255,.04);
+  cursor: pointer;
+  padding: 0 12px;
+}
+
+.chromium-bookmarks-tree-row > button.danger {
+  color: #ff9a9a;
+}
+
+@media (max-width: 900px) {
+  .chromium-bookmarks-installed .app-shell {
+    grid-template-rows: 44px 88px auto minmax(0,1fr) 28px;
+  }
+
+  .chromium-bookmarks-menu {
+    top: 132px;
+  }
+
+  .chromium-bookmarks-bar {
+    overflow: auto hidden;
+  }
+}
+
+@media (max-width: 640px) {
+  .chromium-bookmarks-button {
+    min-width: 42px;
+    width: 42px;
+    overflow: hidden;
+    color: transparent;
+    position: relative;
+  }
+
+  .chromium-bookmarks-button::after {
+    content: '\2605';
+    color: var(--cyan);
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+  }
+
+  .chromium-bookmarks-manager-toolbar,
+  .chromium-bookmarks-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+}
+
+/* Verifier anchor: renderer toggles this class on <body> when the Chromium bookmarks bar is visible. */
+body.chromium-bookmarks-bar-visible .chromium-bookmarks-bar {
+  display: flex;
+}
+
+/* Pass 1.8.8A: keep Chromium bookmark controls visible without crushing the address bar. */
+.chromium-bookmarks-installed .toolbar {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: thin;
+}
+
+.chromium-bookmarks-installed .toolbar > * {
+  flex-shrink: 0;
+}
+
+.chromium-bookmarks-installed .address-form {
+  min-width: 180px;
+}
+
+.chromium-bookmark-star {
+  min-width: 42px;
+  max-width: 54px;
+  padding: 0 8px;
+}
+
+.chromium-bookmarks-button {
+  max-width: 112px;
+  padding-inline: 10px;
+}
+
+@media (max-width: 1180px) {
+  .chromium-bookmarks-button {
+    min-width: 72px;
+    max-width: 72px;
+    overflow: hidden;
+  }
+}
+/* PASS 03 chevron rail cleanup: replace native horizontal scrollbars with explicit controls. */
+.chromium-bookmarks-chevron-rail {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.chromium-bookmarks-strip {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: auto hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+.chromium-bookmarks-strip::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.chromium-bookmarks-rail-arrow {
+  width: 28px;
+  height: 25px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(119,219,255,.22);
+  border-radius: 9px;
+  color: var(--cyan);
+  background: rgba(119,219,255,.06);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.chromium-bookmarks-rail-arrow[hidden] {
+  display: none !important;
+}
+
+.chromium-bookmarks-rail-arrow:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+.chromium-bookmarks-rail-arrow:not(:disabled):hover {
+  border-color: rgba(119,219,255,.56);
+  background: rgba(119,219,255,.14);
+}

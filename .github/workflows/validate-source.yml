@@ -1,0 +1,26 @@
+name: Validate Source
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-source:
+    name: Validate source and build gate
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Public repo readiness
+        run: npm run verify:public-repo
+      - name: Release blocker gate
+        run: npm run verify:release-blockers

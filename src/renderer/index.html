@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: file:; frame-src https: file:; connect-src 'self'; base-uri 'self'; form-action 'self';" />
+  <title>TAHAI Web Services Browser</title>
+  <link rel="stylesheet" href="./styles/browser.css" />
+  <link rel="stylesheet" href="./styles/site-view-mission-rail.css" />
+  <link rel="stylesheet" href="./styles/chromium-bookmarks.css" />
+  <link rel="stylesheet" href="./styles/responsive-toolbar.css" />
+</head>
+<body>
+  <section id="boot-diagnostic" class="boot-diagnostic" aria-live="assertive">
+    <div>
+      <p class="eyebrow">TAHAI Browser Runtime Diagnostic</p>
+      <h1>Booting browser shell&hellip;</h1>
+      <p id="boot-diagnostic-detail">If this message stays visible, the renderer did not complete startup. Re-run <code>npm run verify:release</code> and check the shell diagnostics.</p>
+    </div>
+  </section>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="../browser/new-tab/assets/tws/tws-square-logo.png" alt="" />
+        <div><strong>TAHAI</strong><span>Web Services Browser</span></div>
+      </div>
+      <nav id="tabs" class="tabs" aria-label="Browser tabs"></nav>
+      <button id="new-tab" class="icon-button new-tab-control" type="button" title="New tab">+</button>
+    </header>
+    <section class="toolbar" aria-label="Browser controls">
+      <button id="back" class="icon-button" type="button" title="Back">&larr;</button>
+      <button id="forward" class="icon-button" type="button" title="Forward">&rarr;</button>
+      <button id="reload" class="icon-button" type="button" title="Reload">&#8635;</button>
+      <button id="home" class="home-button" type="button" title="Home">Home</button>
+      <form id="address-form" class="address-form" role="search">
+        <input id="address" autocomplete="off" spellcheck="false" aria-label="Address" />
+      </form>
+      <button id="launchpad" class="home-button" type="button" title="TAHAI launchpad">Launchpad</button>
+      <button id="onboarding" class="home-button secondary" type="button" title="First-run guide">Guide</button>
+      <button id="profile-switcher" class="home-button profile-switcher" type="button" title="Manage browser profiles"><span id="profile-dot" class="profile-dot" aria-hidden="true"></span><span id="profile-name">Default</span></button>
+      <div class="tool-flyout" data-tool-menu="devops">
+        <button id="devops-tools" class="home-button tool-menu-button devops" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="devops-tools-panel" title="Open DevOps and developer tool panel (Ctrl+Alt+O)"><span aria-hidden="true">&#9776;</span><span>DevOps</span></button>
+        <section id="devops-tools-panel" class="tool-menu-panel devops" role="menu" aria-label="DevOps and developer tools" hidden>
+          <header class="tool-menu-header">
+            <div>
+              <strong>DevOps / Developer</strong>
+              <span>Ctrl+Alt+O &middot; arrows to move &middot; Enter to run.</span>
+            </div>
+          </header>
+          <div class="tool-menu-section">
+            <p>Runbooks + change evidence</p>
+            <button id="capture" class="tool-card capture" type="button" role="menuitem" title="Capture active tab into a DevOps evidence note"><strong>Capture</strong><kbd>Ctrl+Shift+E</kbd><span>Evidence note for tickets, runbooks, and incidents.</span></button>
+            <button id="ops-check" class="tool-card ops" type="button" role="menuitem" title="Run URL/header diagnostics and create an IT/DevOps check report"><strong>Ops Check</strong><kbd>Ctrl+Shift+D</kbd><span>Safe URL, status, headers, and readiness checks.</span></button>
+            <button id="deploy" class="tool-card deploy" type="button" role="menuitem" title="Create a DevOps deploy readiness, rollback, and verification report for this page"><strong>Deploy</strong><kbd>Ctrl+Alt+R</kbd><span>Go/no-go, rollback, smoke, and post-deploy matrix.</span></button>
+          </div>
+          <div class="tool-menu-section compact">
+            <p>Developer diagnostics</p>
+            <button id="route-map" class="tool-card route" type="button" role="menuitem" title="Create a safe frontend route/API surface map for this active page"><strong>Routes</strong><kbd>Ctrl+Alt+P</kbd><span>Frontend routes, forms, API-like paths, and origins.</span></button>
+            <button id="dev-audit" class="tool-card developer" type="button" role="menuitem" title="Create a developer audit from console messages, resource timing, page quality, and runtime signals"><strong>Dev Audit</strong><kbd>Ctrl+Alt+A</kbd><span>Console signal, timing, resources, and page quality.</span></button>
+            <button id="ops-guard" class="tool-card guard" type="button" role="menuitem" title="Review generated handoffs, bundles, and evidence for secrets before sharing"><strong>Ops Guard</strong><kbd>Ctrl+Alt+G</kbd><span>Redaction review for bundles, handoffs, and evidence.</span></button>
+            <button id="devtools" class="tool-card developer" type="button" role="menuitem" title="Open Chromium DevTools for the active tab"><strong>DevTools</strong><kbd>F12</kbd><span>Open Chromium DevTools for the active tab.</span></button>
+          </div>
+          <footer class="tool-menu-footer">&uarr;&darr; Move &middot; Enter Run &middot; Esc Close &middot; Ctrl+K Command Palette</footer>
+        </section>
+      </div>
+      <div class="tool-flyout" data-tool-menu="it">
+        <button id="it-tools" class="home-button tool-menu-button it" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="it-tools-panel" title="Open IT engineering tool panel (Ctrl+Alt+I)"><span aria-hidden="true">&#9776;</span><span>IT Tools</span></button>
+        <section id="it-tools-panel" class="tool-menu-panel it" role="menu" aria-label="IT engineering tools" hidden>
+          <header class="tool-menu-header">
+            <div>
+              <strong>IT Engineering</strong>
+              <span>Ctrl+Alt+I &middot; arrows to move &middot; Enter to run.</span>
+            </div>
+          </header>
+          <div class="tool-menu-section">
+            <p>Helpdesk + documentation</p>
+            <button id="it-card" class="tool-card it" type="button" role="menuitem" title="Create a documentation-ready IT Service Card for this URL"><strong>IT Card</strong><kbd>Ctrl+Shift+M</kbd><span>DNS, HTTP, ownership, and CMDB-ready service card.</span></button>
+            <button id="endpoint" class="tool-card endpoint" type="button" role="menuitem" title="Create a safe workstation and browser client snapshot for IT troubleshooting"><strong>Endpoint</strong><kbd>Ctrl+Alt+E</kbd><span>Safe client/browser snapshot for workstation triage.</span></button>
+            <button id="triage" class="tool-card triage" type="button" role="menuitem" title="Create a helpdesk-ready support triage packet for this active page"><strong>Triage</strong><kbd>Ctrl+Alt+T</kbd><span>Impact, repro, escalation, and IT Docs handoff packet.</span></button>
+            <button id="credentials" class="tool-card credentials" type="button" role="menuitem" title="Open the encrypted local credential vault"><strong>Credentials</strong><kbd>Ctrl+Alt+K</kbd><span>Encrypted local vault for service logins and recovery notes.</span></button>
+          </div>
+          <footer class="tool-menu-footer">&uarr;&darr; Move &middot; Enter Run &middot; Esc Close &middot; Ctrl+K Command Palette</footer>
+        </section>
+      </div>
+      <button id="ops-hub-toggle" class="home-button secondary ops-hub-button" type="button" title="Open right-side Ops Panel (Ctrl+Alt+H)">Ops Panel</button>
+      <button id="mission-control-toggle" class="home-button secondary mission-control-button" type="button" title="Open Mission Control (Ctrl+Alt+M)">Mission</button>
+      <button id="settings" class="home-button secondary" type="button" title="Settings">Settings</button>
+      <button id="about" class="home-button secondary" type="button" title="About">About</button>
+    </section>
+    <main id="webview-stage" class="webview-stage"></main>
+    <aside id="ops-hub" class="ops-hub" aria-label="TAHAI Ops Panel" hidden>
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI Operational Shell</p>
+          <h2>Ops Panel</h2>
+        </div>
+        <button id="close-ops-hub" class="icon-button" type="button" title="Close Ops Panel">&times;</button>
+      </header>
+      <section class="ops-hub-context">
+        <strong id="ops-hub-profile">Profile: Default</strong>
+        <span id="ops-hub-url">No active tab yet.</span>
+      </section>
+      <section class="ops-hub-grid">
+        <button class="ops-hub-card" type="button" data-ops-action="command"><strong>Command Palette</strong><span>Ctrl+K &mdash; run any action, tool, recipe, profile, or workspace.</span></button>
+        <button class="ops-hub-card" type="button" data-ops-action="mission"><strong>Mission Control</strong><span>Mission Tabs, Quad View, local save/restore, and export preview.</span></button>
+        <button class="ops-hub-card" type="button" data-ops-action="save-workspace"><strong>Save Workspace</strong><span>Snapshot tabs + active profile context.</span></button>
+        <button class="ops-hub-card" type="button" data-ops-action="pin-evidence"><strong>Pin Evidence</strong><span>Add current tool output to the local case/change timeline.</span></button>
+        <button class="ops-hub-card" type="button" data-ops-action="bundle"><strong>Build Bundle</strong><span>Export pinned evidence + workspaces for IT Docs and PSA handoff.</span></button>
+        <button class="ops-hub-card" type="button" data-ops-action="handoff"><strong>Handoff Center</strong><span>Ctrl+Alt+Y &mdash; IT Docs now, PSA-ready later.</span></button>
+        <button class="ops-hub-card" type="button" data-ops-action="guard"><strong>Ops Guard</strong><span>Ctrl+Alt+G &mdash; redaction review before sharing.</span></button>
+        <button class="ops-hub-card" type="button" data-ops-action="shortcuts"><strong>Shortcuts</strong><span>View keyboard map and flyout navigation hints.</span></button>
+      </section>
+      <section class="ops-hub-section">
+        <div class="ops-hub-section-title"><strong>Launch recipes</strong><span>Profile-aware starts</span></div>
+        <div id="ops-hub-recipes" class="ops-hub-list"></div>
+      </section>
+      <section class="ops-hub-section">
+        <div class="ops-hub-section-title"><strong>Workspaces</strong><span>Saved tab sets</span></div>
+        <div id="ops-hub-workspaces" class="ops-hub-list"></div>
+      </section>
+      <section class="ops-hub-section">
+        <div class="ops-hub-section-title"><strong>Evidence timeline</strong><span>Local pinned outputs</span></div>
+        <div id="ops-hub-evidence" class="ops-hub-list"></div>
+      </section>
+    </aside>
+    <footer id="statusbar" class="statusbar" aria-live="polite">
+      <span id="status-text">TAHAI Web Services Browser</span>
+      <span id="security-text">Home: https://tahaiportal.com</span>
+    </footer>
+  </div>
+
+  <dialog id="mission-dialog" class="mission-dialog" aria-labelledby="mission-title">
+    <section class="ops-panel mission-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI Mission Control</p>
+          <h2 id="mission-title">Mission Tabs</h2>
+        </div>
+        <button id="close-mission" class="icon-button" type="button" title="Close Mission Control">&times;</button>
+      </header>
+      <form id="mission-form" class="mission-form" method="dialog">
+        <label class="field wide"><span>Mission name</span><input id="mission-name" type="text" maxlength="96" placeholder="Cloudflare DNS Migration, Incident P2, M365 Admin Review&hellip;" /></label>
+        <label class="field"><span>Mission type</span><select id="mission-type">
+          <option value="generic">Generic</option>
+          <option value="deployment">Deployment</option>
+          <option value="incident">Incident</option>
+          <option value="support">Support</option>
+          <option value="documentation">Documentation</option>
+          <option value="migration">Migration</option>
+          <option value="audit">Audit</option>
+          <option value="admin">Admin</option>
+          <option value="development">Development</option>
+          <option value="security-review">Security Review</option>
+        </select></label>
+        <button id="mission-create" type="button" class="home-button">New Local Mission</button>
+        <button id="mission-add-active-tab" type="button" class="home-button secondary">Add Active Tab</button>
+        <button id="mission-make-quad" type="button" class="home-button secondary">Make Quad From Tabs</button>
+        <button id="mission-save" type="button" class="home-button secondary">Save Local</button>
+      </form>
+      <section id="mission-status" class="mission-status" aria-live="polite"><strong>No active mission</strong><span>Create a local Mission Tab set or restore one from disk.</span></section>
+      <section id="mission-layouts" class="mission-layouts" aria-label="Mission layout controls">
+        <button type="button" data-mission-layout="single" class="home-button secondary">1-Up</button>
+        <button type="button" data-mission-layout="split-horizontal" class="home-button secondary">2-Up</button>
+        <button type="button" data-mission-layout="triple" class="home-button secondary">3-Up</button>
+        <button type="button" data-mission-layout="quad" class="home-button secondary">4-Up Quad</button>
+        <button type="button" data-mission-layout="focus" class="home-button secondary">Focus</button>
+        <span class="mission-pane-actions" aria-label="Send active tab to pane">
+          <button type="button" data-send-active-pane="pane-1" class="home-button secondary">Active &rarr; Pane 1</button>
+          <button type="button" data-send-active-pane="pane-2" class="home-button secondary">Pane 2</button>
+          <button type="button" data-send-active-pane="pane-3" class="home-button secondary">Pane 3</button>
+          <button type="button" data-send-active-pane="pane-4" class="home-button secondary">Pane 4</button>
+        </span>
+      </section>
+      <div class="mission-grid">
+        <section class="mission-section">
+          <div class="ops-hub-section-title"><strong>Mission tabs</strong><span>Role + pane routing</span></div>
+          <div id="mission-tabs-list" class="ops-hub-list"></div>
+        </section>
+        <section class="mission-section runbook">
+          <div class="ops-hub-section-title"><strong>Runbook rail</strong><span>Checklist + local notes</span></div>
+          <div class="mission-runbook-editor">
+            <label class="field wide"><span>Objective</span><input id="mission-runbook-objective" type="text" maxlength="500" placeholder="What must be accomplished before this mission closes?" /></label>
+            <label class="field wide"><span>Rollback / stop condition</span><textarea id="mission-runbook-rollback" maxlength="500" placeholder="When to stop, roll back, or escalate."></textarea></label>
+            <div class="mission-runbook-add">
+              <input id="mission-runbook-step-input" type="text" maxlength="220" placeholder="Add checklist step&hellip;" />
+              <button id="mission-runbook-add-step" type="button" class="home-button secondary">Add</button>
+            </div>
+            <div id="mission-runbook-list" class="ops-hub-list"></div>
+            <label class="field wide"><span>Local note</span><textarea id="mission-note-input" maxlength="4000" placeholder="Add a local mission note. Secrets are redaction-scanned before export/sync."></textarea></label>
+            <button id="mission-add-note" type="button" class="home-button secondary">Add Note</button>
+            <div id="mission-notes-list" class="ops-hub-list compact"></div>
+          </div>
+        </section>
+        <section class="mission-section">
+          <div class="ops-hub-section-title"><strong>Mission recipes</strong><span>Admin console profiles</span></div>
+          <div id="mission-recipes" class="ops-hub-list"></div>
+        </section>
+        <section class="mission-section">
+          <div class="ops-hub-section-title"><strong>Saved missions</strong><span>Validated local JSON</span></div>
+          <div id="mission-list" class="ops-hub-list"></div>
+        </section>
+        <section class="mission-section">
+          <div class="ops-hub-section-title"><strong>Timeline</strong><span>Local activity</span></div>
+          <div id="mission-timeline" class="ops-hub-list"></div>
+        </section>
+        <section class="mission-section export">
+          <div class="ops-hub-section-title"><strong>Export preview</strong><span>Run Ops Guard before sharing</span></div>
+          <textarea id="mission-export-preview" readonly spellcheck="false"></textarea>
+        </section>
+      </div>
+      <p class="settings-note">Mission Control is local-only in this browser repo. IT Docs and PSA actions remain disabled/reference-only until authorized server-side contracts exist.</p>
+    </section>
+  </dialog>
+
+  <dialog id="command-palette-dialog" class="command-palette-dialog" aria-labelledby="command-palette-title">
+    <section class="command-palette-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI Command Center</p>
+          <h2 id="command-palette-title">Command Palette</h2>
+        </div>
+        <button id="close-command-palette" class="icon-button" type="button" title="Close Command Palette">&times;</button>
+      </header>
+      <label class="command-search"><span>Search actions, tools, profiles, recipes, and workspaces</span><input id="command-palette-input" type="search" autocomplete="off" spellcheck="false" placeholder="Try: IT Docs, Azure, Capture, workspace, profile&hellip;" /></label>
+      <div id="command-palette-list" class="command-palette-list" role="listbox" aria-label="Command results"></div>
+      <footer class="command-palette-footer">&uarr;&darr; Move &middot; Enter Run &middot; Esc Close &middot; Ctrl+K Toggle</footer>
+    </section>
+  </dialog>
+
+  <dialog id="shortcut-dialog" class="shortcut-dialog" aria-labelledby="shortcut-title">
+    <section class="shortcut-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI Keyboard Map</p>
+          <h2 id="shortcut-title">Keyboard Shortcuts</h2>
+        </div>
+        <button id="close-shortcuts" class="icon-button" type="button" title="Close shortcuts">&times;</button>
+      </header>
+      <div id="shortcut-list" class="shortcut-list"></div>
+    </section>
+  </dialog>
+
+  <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
+    <form id="settings-form" class="settings-panel" method="dialog">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI Web Services Browser</p>
+          <h2 id="settings-title">Runtime settings</h2>
+        </div>
+        <button id="close-settings" class="icon-button" type="button" title="Close settings">&times;</button>
+      </header>
+      <section class="settings-grid">
+        <label class="field wide"><span>Home page</span><input id="setting-home-url" type="url" required /></label>
+        <label class="field"><span>Startup</span><select id="setting-startup"><option value="home">Home page</option><option value="launchpad">TAHAI Launchpad</option></select></label>
+        <label class="field"><span>Search fallback</span><select id="setting-search"><option value="google">Google</option><option value="duckduckgo">DuckDuckGo</option><option value="bing">Bing</option></select></label>
+        <label class="check"><input id="setting-media" type="checkbox" /> Allow camera/microphone prompts</label>
+        <label class="check"><input id="setting-clipboard" type="checkbox" /> Allow clipboard-read prompts</label>
+        <label class="check"><input id="setting-geolocation" type="checkbox" /> Allow geolocation prompts</label>
+        <label class="check"><input id="setting-notifications" type="checkbox" /> Allow notification prompts</label>
+        <label class="check"><input id="setting-downloads" type="checkbox" /> Ask where to save each download</label>
+        <label class="check"><input id="setting-statusbar" type="checkbox" /> Show status bar</label>
+      </section>
+      <p class="settings-note">Settings are written under the local app data profile, never into this source repo. Defaults reset to <strong>https://tahaiportal.com</strong>.</p>
+      <footer class="settings-actions">
+        <button id="clear-data" type="button" class="home-button secondary">Clear browser data</button>
+        <button id="open-profile" type="button" class="home-button secondary">Open profile folder</button>
+        <span id="settings-result" class="settings-result" aria-live="polite"></span>
+        <button id="reset-settings" type="button" class="home-button secondary">Reset</button>
+        <button id="save-settings" type="submit" class="home-button">Save</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="profile-dialog" class="profile-dialog" aria-labelledby="profile-title">
+    <section class="ops-panel profile-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI Browser Profiles</p>
+          <h2 id="profile-title">Profiles</h2>
+        </div>
+        <button id="close-profile" class="icon-button" type="button" title="Close profiles">&times;</button>
+      </header>
+      <div class="profile-body">
+        <aside class="profile-list-pane">
+          <div class="credential-toolbar">
+            <button id="new-local-profile" type="button" class="home-button secondary">Local</button>
+            <button id="new-google-profile" type="button" class="home-button secondary">Google</button>
+            <button id="new-microsoft-profile" type="button" class="home-button secondary">Microsoft</button>
+          </div>
+          <p id="profile-status" class="capture-note">Profiles isolate cookies, sessions, storage, cache, permissions, and service login state.</p>
+          <div id="profile-list" class="profile-list" aria-live="polite"></div>
+        </aside>
+        <form id="profile-form" class="profile-form" method="dialog">
+          <input id="profile-id" type="hidden" />
+          <label class="field wide"><span>Profile name</span><input id="profile-label" type="text" maxlength="72" placeholder="Work, Personal, Client, Google, Microsoft&hellip;" /></label>
+          <label class="field"><span>Profile lane</span><select id="profile-kind"><option value="local">Local</option><option value="google">Google-labeled</option><option value="microsoft">Microsoft-labeled</option><option value="work">Work</option><option value="client">Client</option></select></label>
+          <label class="field"><span>Accent color</span><input id="profile-color" type="color" value="#77dbff" /></label>
+          <p class="profile-note wide">This pass creates Chromium-style local profiles using separate Electron session partitions. Google/Microsoft labels are ready for account-centered workflows, but cloud account sync is intentionally not enabled yet.</p>
+          <footer class="profile-actions">
+            <span id="profile-result" class="settings-result" aria-live="polite"></span>
+            <button id="open-active-profile-data" type="button" class="home-button secondary">Open Data</button>
+            <button id="delete-profile" type="button" class="home-button danger">Delete</button>
+            <button id="switch-profile" type="button" class="home-button secondary">Switch</button>
+            <button id="save-profile" type="submit" class="home-button">Save</button>
+          </footer>
+        </form>
+      </div>
+    </section>
+  </dialog>
+
+
+  <dialog id="capture-dialog" class="capture-dialog" aria-labelledby="capture-title">
+    <section class="capture-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI DevOps Evidence</p>
+          <h2 id="capture-title">Documentation-ready capture</h2>
+        </div>
+        <button id="close-capture" class="icon-button" type="button" title="Close capture">&times;</button>
+      </header>
+      <div class="capture-body">
+        <p class="capture-note">Captures the active tab URL, title, visible page structure, basic timing, and a runbook-ready incident/change template. It intentionally avoids cookies, localStorage values, passwords, tokens, and form contents.</p>
+        <textarea id="capture-markdown" spellcheck="true" aria-label="DevOps evidence markdown"></textarea>
+      </div>
+      <footer class="capture-actions">
+        <span id="capture-result" class="settings-result" aria-live="polite"></span>
+        <button id="copy-capture" type="button" class="home-button secondary">Copy Markdown</button>
+        <button id="save-capture" type="button" class="home-button">Save .md</button>
+      </footer>
+    </section>
+  </dialog>
+
+
+  <dialog id="ops-dialog" class="ops-dialog" aria-labelledby="ops-title">
+    <section class="ops-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI IT / DevOps Diagnostics</p>
+          <h2 id="ops-title">URL operations check</h2>
+        </div>
+        <button id="close-ops" class="icon-button" type="button" title="Close ops check">&times;</button>
+      </header>
+      <div class="ops-body">
+        <p class="capture-note">Runs a safe HEAD request against the active URL, summarizes HTTP status and operational headers, and outputs a documentation-ready checklist for IT engineering, DevOps, QA, and support. It excludes cookies, authorization headers, request bodies, localStorage values, and form contents.</p>
+        <div id="ops-summary" class="ops-summary" aria-live="polite"></div>
+        <textarea id="ops-markdown" spellcheck="true" aria-label="URL operations diagnostic markdown"></textarea>
+      </div>
+      <footer class="capture-actions">
+        <span id="ops-result" class="settings-result" aria-live="polite"></span>
+        <button id="copy-ops" type="button" class="home-button secondary">Copy Report</button>
+        <button id="save-ops" type="button" class="home-button">Save .md</button>
+      </footer>
+    </section>
+  </dialog>
+
+  <dialog id="deploy-dialog" class="deploy-dialog" aria-labelledby="deploy-title">
+    <section class="ops-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI DevOps Engineering</p>
+          <h2 id="deploy-title">Deploy Readiness</h2>
+        </div>
+        <button id="close-deploy" class="icon-button" type="button" title="Close Deploy Readiness">&times;</button>
+      </header>
+      <div class="ops-body">
+        <p class="capture-note">Creates a deployment-ready Markdown report for release/change tickets, rollback planning, smoke checks, and post-deploy verification. It combines safe HTTP/header diagnostics, active-page context, load timing, and console error/warning counts. It excludes cookies, authorization headers, request bodies, response bodies, storage values, credentials, tokens, and form contents.</p>
+        <div id="deploy-summary" class="ops-summary" aria-live="polite"></div>
+        <textarea id="deploy-markdown" spellcheck="true" aria-label="Deploy Readiness markdown"></textarea>
+      </div>
+      <footer class="capture-actions">
+        <span id="deploy-result" class="settings-result" aria-live="polite"></span>
+        <button id="copy-deploy" type="button" class="home-button secondary">Copy Report</button>
+        <button id="save-deploy" type="button" class="home-button">Save .md</button>
+      </footer>
+    </section>
+  </dialog>
+
+
+  <dialog id="it-card-dialog" class="it-dialog" aria-labelledby="it-card-title">
+    <section class="ops-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI IT Engineering Documentation</p>
+          <h2 id="it-card-title">IT Service Card</h2>
+        </div>
+        <button id="close-it-card" class="icon-button" type="button" title="Close IT Service Card">&times;</button>
+      </header>
+      <div class="ops-body">
+        <p class="capture-note">Creates a documentation-ready service profile for the active URL with public DNS, safe HTTP headers, page context, ownership placeholders, access notes, monitoring/recovery fields, and TAHAI IT Docs handoff checks. It excludes cookies, authorization headers, request bodies, response bodies, storage values, credentials, tokens, and form contents.</p>
+        <div id="it-card-summary" class="ops-summary" aria-live="polite"></div>
+        <textarea id="it-card-markdown" spellcheck="true" aria-label="IT Service Card markdown"></textarea>
+      </div>
+      <footer class="capture-actions">
+        <span id="it-card-result" class="settings-result" aria-live="polite"></span>
+        <button id="copy-it-card" type="button" class="home-button secondary">Copy Card</button>
+        <button id="save-it-card" type="button" class="home-button">Save .md</button>
+      </footer>
+    </section>
+  </dialog>
+
+
+  <dialog id="endpoint-dialog" class="endpoint-dialog" aria-labelledby="endpoint-title">
+    <section class="ops-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI IT Engineering Support</p>
+          <h2 id="endpoint-title">Endpoint Snapshot</h2>
+        </div>
+        <button id="close-endpoint" class="icon-button" type="button" title="Close Endpoint Snapshot">&times;</button>
+      </header>
+      <div class="ops-body">
+        <p class="capture-note">Creates a safe browser/client environment profile for helpdesk, endpoint troubleshooting, implementation notes, and TAHAI IT Docs handoff. It captures platform, language/timezone, screen/viewport, online state, permission states, storage availability booleans, and active URL context only. It does not read cookies, clipboard contents, storage values, passwords, tokens, local files, IP addresses, or form contents.</p>
+        <div id="endpoint-summary" class="ops-summary" aria-live="polite"></div>
+        <textarea id="endpoint-markdown" spellcheck="true" aria-label="Endpoint Snapshot markdown"></textarea>
+      </div>
+      <footer class="capture-actions">
+        <span id="endpoint-result" class="settings-result" aria-live="polite"></span>
+        <button id="copy-endpoint" type="button" class="home-button secondary">Copy Snapshot</button>
+        <button id="save-endpoint" type="button" class="home-button">Save .md</button>
+      </footer>
+    </section>
+  </dialog>
+
+  <dialog id="triage-dialog" class="triage-dialog" aria-labelledby="triage-title">
+    <section class="ops-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI IT Engineering Support</p>
+          <h2 id="triage-title">Support Triage</h2>
+        </div>
+        <button id="close-triage" class="icon-button" type="button" title="Close Support Triage">&times;</button>
+      </header>
+      <div class="ops-body">
+        <p class="capture-note">Creates a helpdesk-ready support/escalation packet from the active tab with safe page context, endpoint/browser signals, HTTP reachability, console error counts, impact fields, reproduction prompts, and escalation checklist. It excludes cookies, storage values, clipboard contents, passwords, tokens, local files, IP addresses, request bodies, response bodies, and form contents.</p>
+        <div id="triage-summary" class="ops-summary" aria-live="polite"></div>
+        <textarea id="triage-markdown" spellcheck="true" aria-label="Support Triage markdown"></textarea>
+      </div>
+      <footer class="capture-actions">
+        <span id="triage-result" class="settings-result" aria-live="polite"></span>
+        <button id="copy-triage" type="button" class="home-button secondary">Copy Packet</button>
+        <button id="save-triage" type="button" class="home-button">Save .md</button>
+      </footer>
+    </section>
+  </dialog>
+
+
+  <dialog id="credential-dialog" class="credential-dialog" aria-labelledby="credential-title">
+    <section class="ops-panel credential-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI IT Engineering Vault</p>
+          <h2 id="credential-title">Credential Manager</h2>
+        </div>
+        <button id="close-credential" class="icon-button" type="button" title="Close Credential Manager">&times;</button>
+      </header>
+      <div class="credential-body">
+        <aside class="credential-list-pane">
+          <div class="credential-toolbar">
+            <button id="new-credential" type="button" class="home-button secondary">New</button>
+            <button id="refresh-credentials" type="button" class="home-button secondary">Refresh</button>
+          </div>
+          <p id="credential-vault-status" class="capture-note">Credentials are encrypted with OS-backed Electron safeStorage and stored in the local app data profile.</p>
+          <div id="credential-list" class="credential-list" aria-live="polite"></div>
+        </aside>
+        <form id="credential-form" class="credential-form">
+          <input id="credential-id" type="hidden" />
+          <label class="field wide"><span>Label</span><input id="credential-label" autocomplete="off" maxlength="180" placeholder="Example: TAHAI Portal admin" /></label>
+          <label class="field wide"><span>URL / service</span><input id="credential-url" autocomplete="off" maxlength="520" placeholder="https://example.com/login" /></label>
+          <label class="field"><span>Username</span><input id="credential-username" autocomplete="username" maxlength="320" /></label>
+          <label class="field"><span>Password / secret</span><input id="credential-password" class="secret-input" type="password" autocomplete="new-password" maxlength="4000" placeholder="Blank keeps existing password" /></label>
+          <label class="field wide"><span>Notes</span><textarea id="credential-notes" maxlength="1200" spellcheck="true" placeholder="Recovery owner, MFA note, tenant, vendor, or runbook pointer. Do not paste tokens unless you intend to store them locally."></textarea></label>
+          <p class="capture-note">This is a first-party local vault. It does not use Chrome Sync or a Chromium cloud password manager. Secrets are encrypted through Electron safeStorage before writing to disk.</p>
+          <footer class="credential-actions">
+            <span id="credential-result" class="settings-result" aria-live="polite"></span>
+            <button id="credential-use-active" type="button" class="home-button secondary">Use Active Site</button>
+            <button id="copy-credential-username" type="button" class="home-button secondary">Copy User</button>
+            <button id="copy-credential-password" type="button" class="home-button secondary">Copy Password</button>
+            <button id="reveal-credential-password" type="button" class="home-button secondary">Reveal</button>
+            <button id="delete-credential" type="button" class="home-button danger">Delete</button>
+            <button id="save-credential" type="submit" class="home-button">Save</button>
+          </footer>
+        </form>
+      </div>
+    </section>
+  </dialog>
+
+  <dialog id="bundle-dialog" class="bundle-dialog" aria-labelledby="bundle-title">
+    <section class="ops-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI Evidence / Change Control</p>
+          <h2 id="bundle-title">Bundle Composer</h2>
+        </div>
+        <button id="close-bundle" class="icon-button" type="button" title="Close Bundle Composer">&times;</button>
+      </header>
+      <div class="ops-body">
+        <p class="capture-note">Builds a local Markdown bundle from pinned Evidence Timeline items, saved workspace snapshots, active profile context, and IT Docs / PSA handoff fields. It only includes evidence that was explicitly generated or pinned by the user. It does not collect cookies, storage values, credentials, tokens, request bodies, response bodies, clipboard contents, local files, or form values.</p>
+        <div id="bundle-summary" class="ops-summary" aria-live="polite"></div>
+        <textarea id="bundle-markdown" spellcheck="true" aria-label="Evidence and change bundle markdown"></textarea>
+      </div>
+      <footer class="capture-actions">
+        <span id="bundle-result" class="settings-result" aria-live="polite"></span>
+        <button id="copy-bundle" type="button" class="home-button secondary">Copy Bundle</button>
+        <button id="save-bundle" type="button" class="home-button">Save .md</button>
+      </footer>
+    </section>
+  </dialog>
+
+
+
+  <dialog id="handoff-dialog" class="handoff-dialog" aria-labelledby="handoff-title">
+    <section class="ops-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI Operational Handoff</p>
+          <h2 id="handoff-title">IT Docs / PSA Handoff Center</h2>
+        </div>
+        <button id="close-handoff" class="icon-button" type="button" title="Close Handoff Center">&times;</button>
+      </header>
+      <div class="ops-body handoff-body">
+        <p class="capture-note">Creates a focused operational handoff for TAHAI IT Docs today and TAHAI PSA ticket/change workflows when the PSA lane ships. It uses active profile context, current tabs, saved workspaces, and explicitly pinned evidence only.</p>
+        <div class="handoff-tabs" role="group" aria-label="Handoff target">
+          <button type="button" class="home-button secondary active" data-handoff-target="it-docs" aria-pressed="true">TAHAI IT Docs</button>
+          <button type="button" class="home-button secondary" data-handoff-target="psa" aria-pressed="false">TAHAI PSA &mdash; coming soon</button>
+        </div>
+        <div id="handoff-summary" class="ops-summary" aria-live="polite"></div>
+        <textarea id="handoff-markdown" spellcheck="true" aria-label="TAHAI operational handoff markdown"></textarea>
+      </div>
+      <footer class="capture-actions">
+        <span id="handoff-result" class="settings-result" aria-live="polite"></span>
+        <button id="open-it-docs-from-handoff" type="button" class="home-button secondary">Open IT Docs</button>
+        <button id="open-psa-from-handoff" type="button" class="home-button secondary">Open PSA Lane</button>
+        <button id="copy-handoff" type="button" class="home-button secondary">Copy Handoff</button>
+        <button id="save-handoff" type="button" class="home-button">Save .md</button>
+      </footer>
+    </section>
+  </dialog>
+
+  <dialog id="ops-guard-dialog" class="guard-dialog" aria-labelledby="ops-guard-title">
+    <section class="ops-panel guard-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI Ops Guard</p>
+          <h2 id="ops-guard-title">Redaction Review</h2>
+        </div>
+        <button id="close-ops-guard" class="icon-button" type="button" title="Close Ops Guard">&times;</button>
+      </header>
+      <div class="ops-body guard-body">
+        <p class="capture-note">Reviews the latest bundle, handoff, or generated tool output before it leaves the browser. It flags likely secrets, credential terms, private keys, provider tokens, and share-risk markers, then creates a redacted copy for external tickets, emails, or vendor handoffs.</p>
+        <div id="ops-guard-summary" class="ops-summary" aria-live="polite"></div>
+        <div class="guard-columns">
+          <label class="guard-column"><span>Review report</span><textarea id="ops-guard-markdown" spellcheck="true" aria-label="Ops Guard review markdown"></textarea></label>
+          <label class="guard-column"><span>Redacted sharing copy</span><textarea id="ops-guard-redacted" spellcheck="true" aria-label="Ops Guard redacted markdown"></textarea></label>
+        </div>
+      </div>
+      <footer class="capture-actions">
+        <span id="ops-guard-result" class="settings-result" aria-live="polite"></span>
+        <button id="copy-ops-guard-redacted" type="button" class="home-button secondary">Copy Redacted</button>
+        <button id="copy-ops-guard" type="button" class="home-button secondary">Copy Review</button>
+        <button id="save-ops-guard" type="button" class="home-button">Save Review .md</button>
+      </footer>
+    </section>
+  </dialog>
+
+  <dialog id="route-map-dialog" class="route-dialog" aria-labelledby="route-map-title">
+    <section class="ops-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI Developer Engineering</p>
+          <h2 id="route-map-title">Route Map</h2>
+        </div>
+        <button id="close-route-map" class="icon-button" type="button" title="Close Route Map">&times;</button>
+      </header>
+      <div class="ops-body">
+        <p class="capture-note">Creates a documentation-ready frontend route/API surface map from the active tab. It samples same-origin routes, external origins, forms by method/action, resource origins, framework hints, and API-like resource paths. It strips query strings/fragments and excludes cookies, storage values, credentials, tokens, request bodies, response bodies, form values, clipboard contents, and local files.</p>
+        <div id="route-map-summary" class="ops-summary" aria-live="polite"></div>
+        <textarea id="route-map-markdown" spellcheck="true" aria-label="Route Map markdown"></textarea>
+      </div>
+      <footer class="capture-actions">
+        <span id="route-map-result" class="settings-result" aria-live="polite"></span>
+        <button id="copy-route-map" type="button" class="home-button secondary">Copy Map</button>
+        <button id="save-route-map" type="button" class="home-button">Save .md</button>
+      </footer>
+    </section>
+  </dialog>
+
+  <dialog id="dev-audit-dialog" class="dev-dialog" aria-labelledby="dev-audit-title">
+    <section class="ops-panel">
+      <header>
+        <div>
+          <p class="eyebrow">TAHAI Developer Engineering</p>
+          <h2 id="dev-audit-title">Developer Audit</h2>
+        </div>
+        <button id="close-dev-audit" class="icon-button" type="button" title="Close Developer Audit">&times;</button>
+      </header>
+      <div class="ops-body">
+        <p class="capture-note">Creates a documentation-ready developer audit from the active tab: console warnings/errors, resource timing, load metrics, page structure, and lightweight quality checks. It strips query strings from resource URLs and excludes cookies, storage values, credentials, tokens, request bodies, response bodies, and form contents.</p>
+        <div id="dev-audit-summary" class="ops-summary" aria-live="polite"></div>
+        <textarea id="dev-audit-markdown" spellcheck="true" aria-label="Developer Audit markdown"></textarea>
+      </div>
+      <footer class="capture-actions">
+        <span id="dev-audit-result" class="settings-result" aria-live="polite"></span>
+        <button id="copy-dev-audit" type="button" class="home-button secondary">Copy Audit</button>
+        <button id="save-dev-audit" type="button" class="home-button">Save .md</button>
+      </footer>
+    </section>
+  </dialog>
+
+  <script src="./app.js"></script>
+  <script src="./site-view-mission-rail.js"></script>
+  <script src="./chromium-bookmarks.js"></script>
+  <script src="./responsive-toolbar.js"></script>
+</body>
+</html>
+

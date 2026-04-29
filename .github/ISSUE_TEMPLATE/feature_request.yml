@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest a browser, DevOps, or IT engineering improvement
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What workflow problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: dropdown
+    id: lane
+    attributes:
+      label: Lane
+      options:
+        - Browser shell
+        - Developer tools
+        - DevOps tools
+        - IT engineering tools
+        - Documentation
+        - Packaging/installers
+        - Security
+        - Other
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context

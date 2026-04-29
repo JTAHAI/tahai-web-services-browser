@@ -1,0 +1,159 @@
+{
+  "name": "tahai-web-services-browser",
+  "version": "1.8.7",
+  "private": true,
+  "description": "TAHAI Web Services Browser - enterprise-grade Chromium workbench for developers, DevOps, and IT engineering workflows.",
+  "productName": "TAHAI Web Services Browser",
+  "author": "TAHAI Web Services",
+  "main": "dist/main/main.js",
+  "license": "Apache-2.0",
+  "homepage": "https://browser.tahai.net",
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "copy-static": "node scripts/copy-static.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "npm run clean && tsc -p tsconfig.json && npm run copy-static",
+    "dev": "npm run build && electron dist/main/main.js",
+    "start": "electron dist/main/main.js",
+    "package:win:portable": "npm run guard:win:signed-package && npm run build && electron-builder --win portable --config electron-builder.yml",
+    "package:win:nsis": "npm run guard:win:signed-package && npm run build && electron-builder --win nsis --config electron-builder.yml",
+    "package:linux:appimage": "npm run build && electron-builder --linux AppImage --config electron-builder.yml",
+    "package:linux:deb": "npm run build && electron-builder --linux deb --config electron-builder.yml",
+    "verify": "npm run typecheck && npm run build",
+    "smoke:static": "node scripts/smoke-static.mjs",
+    "verify:source": "node ../scripts/check-source-tree-clean.mjs .. && node ../scripts/check-settings-source.mjs .. && node scripts/smoke-static.mjs && node scripts/assert-production-config.mjs",
+    "verify:release": "npm run typecheck && npm run build && npm run smoke:static && npm run assert:production && node ../scripts/check-settings-source.mjs ..",
+    "package:all": "npm run package:win:unpacked-zip && npm run package:linux:appimage && npm run package:linux:deb",
+    "assert:production": "node scripts/assert-production-config.mjs",
+    "generate:sbom": "python ../scripts/generate-source-sbom.py .. --output ../artifacts/sbom/tahai-browser-sbom.json",
+    "verify:enterprise": "npm run verify:release && npm run audit:runtime && npm run generate:sbom",
+    "audit:runtime": "npm audit --omit=dev --audit-level=high",
+    "audit:buildchain": "npm audit --audit-level=high",
+    "clean:release:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\packaging\\windows\\clean-release-windows.ps1",
+    "package:win:unpacked": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\packaging\\windows\\build-windows-unpacked-zip.ps1 -SkipZip",
+    "package:win:unpacked-zip": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\packaging\\windows\\build-windows-unpacked-zip.ps1",
+    "verify:package:win": "node scripts/verify-win-package.mjs",
+    "guard:win:signed-package": "node scripts/guard-win-codesign.mjs",
+    "clean:generated": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\scripts\\clean-local-generated.ps1",
+    "package:win:msi": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\packaging\\windows\\build-windows-msi.ps1",
+    "verify:package:msi": "node scripts/verify-msi-package.mjs",
+    "patch:windows:branding": "node scripts/patch-windows-spider-branding.mjs",
+    "package:win:installer": "npm run build && electron-builder --win nsis --x64",
+    "package:win:release": "npm run build && electron-builder --win nsis msi --x64",
+    "taskbar:inspect:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\inspect-tahai-browser-taskbar-pins.ps1",
+    "taskbar:repair:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\repair-tahai-browser-taskbar-pin.ps1",
+    "close:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\close-running-tahai-browser.ps1",
+    "verify:release-blockers": "node scripts/verify-enterprise-release.mjs && npm run verify:ui-encoding && npm run verify:browser-shell-layout && npm run verify:chevron-overflow && npm run verify:devops-mission-recipes && npm run verify:devops-cockpit-v2 && npm run verify:mission-command-center && npm run verify:mission-tabs-ux && npm run verify:mission-tabs-security && npm run verify:site-view-rail && npm run verify:fedora-linux-build && npm run verify:chromium-bookmarks && npm run verify:pass-12-runtime-git-repair && npm run build",
+    "release:win:installer": "npm run verify:release-blockers && electron-builder --win nsis msi --x64",
+    "release:friend:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\create-friend-feedback-release.ps1",
+    "preflight:release": "node scripts/verify-enterprise-release.mjs",
+    "verify:public-repo": "node scripts/verify-public-repo.mjs",
+    "verify:mission-tabs-security": "node scripts/verify-mission-tabs-security.mjs",
+    "verify:site-view-rail": "node scripts/verify-site-view-mission-rail.mjs",
+    "package:linux:rpm": "npm run build && electron-builder --linux rpm --x64 --config electron-builder.yml",
+    "package:linux:fedora": "npm run verify:fedora-linux-build && npm run build && electron-builder --linux AppImage rpm --x64 --config electron-builder.yml",
+    "verify:fedora-linux-build": "node scripts/verify-fedora-linux-build.mjs",
+    "verify:chromium-bookmarks": "node scripts/verify-chromium-bookmarks.mjs",
+    "verify:ui-encoding": "node scripts/verify-ui-encoding.mjs",
+    "verify:browser-shell-layout": "node scripts/verify-browser-shell-layout.mjs",
+    "verify:devops-mission-recipes": "node scripts/verify-devops-mission-recipes.mjs",
+    "verify:chevron-overflow": "node scripts/verify-chevron-overflow-shell.mjs",
+    "verify:mission-command-center": "node scripts/verify-mission-command-center.mjs",
+    "verify:mission-tabs-ux": "node scripts/verify-mission-tabs-ux.mjs",
+    "verify:devops-cockpit-v2": "node scripts/verify-devops-cockpit-v2.mjs",
+    "verify:pass-12-runtime-git-repair": "node scripts/verify-pass-12-runtime-git-repair.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "electron": "30.5.1",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.4.5"
+  },
+  "build": {
+    "appId": "com.tahai.webservices.browser",
+    "productName": "TAHAI Web Services Browser",
+    "executableName": "TAHAI Web Services Browser",
+    "copyright": "Copyright (c) 2026 TAHAI Web Services",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "publisherName": "TAHAI Web Services",
+      "artifactName": "TAHAI-Web-Services-Browser-${version}-${arch}.${ext}",
+      "target": [
+        "nsis",
+        "msi"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TAHAI Web Services Browser",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
+    },
+    "msi": {
+      "oneClick": false,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TAHAI Web Services Browser"
+    },
+    "extraResources": [
+      {
+        "from": "browser",
+        "to": "browser"
+      },
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "assets/brand/tahai-spider-icon.ico",
+        "to": "assets/brand/tahai-spider-icon.ico"
+      },
+      {
+        "from": "assets/brand/tahai-spider-icon.png",
+        "to": "assets/brand/tahai-spider-icon.png"
+      }
+    ],
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "build/**/*",
+      "browser/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "compression": "normal"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JTAHAI/tahai-web-services-browser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JTAHAI/tahai-web-services-browser/issues"
+  },
+  "keywords": [
+    "electron",
+    "chromium",
+    "browser",
+    "devops",
+    "it-engineering",
+    "developer-tools",
+    "tahai"
+  ]
+}
