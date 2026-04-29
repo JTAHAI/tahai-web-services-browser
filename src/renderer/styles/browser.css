@@ -472,3 +472,28 @@ body.mission-tab-dragging .webview-stage.mission-layout .mission-pane-drop-zones
 .mission-recipe-card.provider-github::before { background:linear-gradient(180deg,#e8eef8,#b184ff); }
 .mission-recipe-card.provider-vercel::before { background:linear-gradient(180deg,#ffffff,#77dbff); }
 .mission-recipe-card.provider-incident::before { background:linear-gradient(180deg,#ff6b6b,#ffd27a); }
+
+/* PASS 17 Mission Control layout polish: active panes stay obvious and quick-swap/focus routing remains readable. */
+.webview-stage.mission-layout .browser-view::before {
+  content:attr(data-pane-label);
+  position:absolute;
+  top:10px;
+  left:10px;
+  z-index:8;
+  pointer-events:none;
+  border:1px solid rgba(119,219,255,.24);
+  border-radius:999px;
+  padding:4px 9px;
+  color:#eafaff;
+  background:rgba(2,8,19,.66);
+  box-shadow:0 10px 28px rgba(0,0,0,.22);
+  font-size:.68rem;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.webview-stage.mission-layout .browser-view.mission-active-pane::before {
+  border-color:rgba(109,255,183,.62);
+  color:#ecfff5;
+  background:rgba(3,24,19,.78);
+}
+.webview-stage.mission-layout-triple .browser-view.active:nth-of-type(1) { grid-row:span 2; }

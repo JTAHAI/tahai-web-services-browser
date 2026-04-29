@@ -727,6 +727,11 @@ function applyUiSettings(): void {
 
 function setActive(tabId: string): void {
   activeTabId = tabId;
+  if (currentMission && currentMission.layout.type !== 'single') {
+    const paneEntry = Array.from(missionRuntimeTabs.entries()).find(([, runtimeTabId]) => runtimeTabId === tabId);
+    const missionTab = paneEntry ? currentMission.tabs.find((candidate) => candidate.tabId === paneEntry[0]) : undefined;
+    if (missionTab && missionVisiblePaneIds(currentMission.layout.type).includes(missionTab.paneId)) currentMission.layout.activePaneId = missionTab.paneId;
+  }
   for (const tab of tabs.values()) {
     const isActive = tab.id === tabId;
     tab.button.classList.toggle('active', isActive);
@@ -841,13 +846,67 @@ function createTab(url: string): string {
 }
 
 function active(): TabState | undefined { return tabs.get(activeTabId); }
-function navigate(url: string): void {
+
+// PASS 17 Mission Control layout routing: toolbar/navigation commands target the active Mission pane.
+function activeMissionPaneId(): string | undefined {
+  if (!currentMission || currentMission.layout.type === 'single') return undefined;
+  const visiblePanes = missionVisiblePaneIds(currentMission.layout.type);
+  const paneId = currentMission.layout.activePaneId || 'pane-1';
+  return visiblePanes.includes(paneId) ? paneId : visiblePanes[0];
+}
+
+function tabForMissionPane(paneId: string | undefined): TabState | undefined {
+  if (!paneId || !currentMission) return undefined;
+  const missionTab = currentMission.tabs.find((candidate) => candidate.paneId === paneId);
+  const runtimeTabId = missionTab ? missionRuntimeTabs.get(missionTab.tabId) : undefined;
+  return runtimeTabId ? tabs.get(runtimeTabId) : undefined;
+}
+
+function activeNavigationTarget(): TabState | undefined {
+  return tabForMissionPane(activeMissionPaneId()) || active();
+}
+
+function navigateTarget(tab: TabState | undefined, url: string): void {
+  if (!tab) return;
   const target = normalizeTarget(url);
-  const tab = active();
-  if (tab) {
-    tab.webview.loadURL(target);
-    updateTab(tab, { url: target, title: titleFromUrl(target) });
-  }
+  tab.webview.loadURL(target);
+  updateTab(tab, { url: target, title: titleFromUrl(target) });
+}
+
+function navigate(url: string): void {
+  navigateTarget(activeNavigationTarget(), url);
+}
+
+function goBackTarget(): void {
+  const tab = activeNavigationTarget();
+  if (tab?.webview.canGoBack()) tab.webview.goBack();
+}
+
+function goForwardTarget(): void {
+  const tab = activeNavigationTarget();
+  if (tab?.webview.canGoForward()) tab.webview.goForward();
+}
+
+function reloadTarget(): void { activeNavigationTarget()?.webview.reload(); }
+
+function swapActiveMissionPane(direction: -1 | 1): void {
+  if (!currentMission || currentMission.layout.type === 'single') return;
+  const visiblePanes = missionVisiblePaneIds(currentMission.layout.type);
+  const activePane = activeMissionPaneId() || visiblePanes[0] || 'pane-1';
+  const index = visiblePanes.indexOf(activePane);
+  if (index < 0 || visiblePanes.length < 2) return;
+  const otherPane = visiblePanes[(index + direction + visiblePanes.length) % visiblePanes.length];
+  const activeMissionTab = currentMission.tabs.find((candidate) => candidate.paneId === activePane);
+  const otherMissionTab = currentMission.tabs.find((candidate) => candidate.paneId === otherPane);
+  if (!activeMissionTab && !otherMissionTab) return;
+  if (activeMissionTab) activeMissionTab.paneId = otherPane;
+  if (otherMissionTab) otherMissionTab.paneId = activePane;
+  currentMission.layout.activePaneId = otherPane;
+  syncMissionLayoutPanes();
+  missionTimelineEvent('layout-set', 'Pane quick swap', activePane.replace('pane-', 'Pane ') + ' swapped with ' + otherPane.replace('pane-', 'Pane '));
+  renderMissionControl();
+  renderMissionLayout();
+  setStatus('Mission pane swapped', activePane.replace('pane-', 'Pane ') + ' ⇄ ' + otherPane.replace('pane-', 'Pane '));
 }
 
 function missionUuid(): string {
@@ -1310,6 +1369,7 @@ function setMissionActivePane(paneId: string): void {
   const runtimeTabId = missionTab ? missionRuntimeTabs.get(missionTab.tabId) : undefined;
   if (runtimeTabId && tabs.has(runtimeTabId)) setActive(runtimeTabId);
   renderMissionLayout();
+  setStatus('Mission active pane', paneId.replace('pane-', 'Pane '));
 }
 
 function missionExportMarkdown(): string {
@@ -1589,6 +1649,23 @@ async function loadMissionById(missionId: string, restoreTabs = false): Promise<
 }
 
 type ToolMenuName = 'devops' | 'it';
+const COMMAND_TOOLBAR_LAST_LANE_KEY = 'tahai.commandToolbar.lastLane';
+
+function isToolMenuName(value: string | null): value is ToolMenuName {
+  return value === 'devops' || value === 'it';
+}
+
+function rememberToolLane(name: ToolMenuName): void {
+  try { window.localStorage.setItem(COMMAND_TOOLBAR_LAST_LANE_KEY, name); } catch { /* localStorage may be unavailable in hardened sessions. */ }
+}
+
+function lastToolLane(): ToolMenuName {
+  try {
+    const stored = window.localStorage.getItem(COMMAND_TOOLBAR_LAST_LANE_KEY);
+    if (isToolMenuName(stored)) return stored;
+  } catch { /* localStorage may be unavailable in hardened sessions. */ }
+  return 'devops';
+}
 
 function toolMenuPair(name: ToolMenuName): { button: HTMLButtonElement; panel: HTMLElement } {
   return name === 'devops'
@@ -1612,6 +1689,56 @@ function commandToolbarLabel(name: ToolMenuName): string {
   return name === 'devops' ? 'DevOps Command Toolbar' : 'IT Tools Command Toolbar';
 }
 
+function commandToolbarShortcut(name: ToolMenuName): string {
+  return name === 'devops' ? 'Ctrl+Alt+O' : 'Ctrl+Alt+I';
+}
+
+function scrollToolMenu(panel: HTMLElement, direction: -1 | 1): void {
+  const amount = Math.max(260, Math.floor(panel.clientWidth * 0.72));
+  panel.scrollBy({ left: amount * direction, behavior: 'smooth' });
+}
+
+function updateToolMenuScrollState(panel: HTMLElement): void {
+  const left = panel.querySelector<HTMLButtonElement>('[data-command-toolbar-scroll="left"]');
+  const right = panel.querySelector<HTMLButtonElement>('[data-command-toolbar-scroll="right"]');
+  if (!left || !right) return;
+  const max = Math.max(0, panel.scrollWidth - panel.clientWidth - 2);
+  left.disabled = panel.scrollLeft <= 2;
+  right.disabled = panel.scrollLeft >= max;
+  panel.classList.toggle('has-overflow', max > 2);
+}
+
+function ensureToolMenuScrollControls(name: ToolMenuName): void {
+  const { panel } = toolMenuPair(name);
+  if (!panel.querySelector('[data-command-toolbar-scroll="left"]')) {
+    const left = document.createElement('button');
+    left.type = 'button';
+    left.className = 'command-toolbar-chevron command-toolbar-chevron-left';
+    left.dataset.commandToolbarScroll = 'left';
+    left.textContent = '‹';
+    left.setAttribute('aria-label', `Scroll ${commandToolbarLabel(name)} left`);
+    left.title = 'Scroll command lane left';
+    left.addEventListener('click', (event) => { event.stopPropagation(); scrollToolMenu(panel, -1); });
+    panel.insertBefore(left, panel.firstChild);
+  }
+  if (!panel.querySelector('[data-command-toolbar-scroll="right"]')) {
+    const right = document.createElement('button');
+    right.type = 'button';
+    right.className = 'command-toolbar-chevron command-toolbar-chevron-right';
+    right.dataset.commandToolbarScroll = 'right';
+    right.textContent = '›';
+    right.setAttribute('aria-label', `Scroll ${commandToolbarLabel(name)} right`);
+    right.title = 'Scroll command lane right';
+    right.addEventListener('click', (event) => { event.stopPropagation(); scrollToolMenu(panel, 1); });
+    panel.appendChild(right);
+  }
+  if (!panel.dataset.commandToolbarScrollBound) {
+    panel.dataset.commandToolbarScrollBound = 'true';
+    panel.addEventListener('scroll', () => updateToolMenuScrollState(panel), { passive: true });
+    window.addEventListener('resize', () => updateToolMenuScrollState(panel));
+  }
+}
+
 function ensureToolMenuBackButton(name: ToolMenuName): void {
   const { button, panel } = toolMenuPair(name);
   if (panel.querySelector('[data-command-toolbar-back]')) return;
@@ -1622,7 +1749,18 @@ function ensureToolMenuBackButton(name: ToolMenuName): void {
   back.title = 'Return to Main Toolbar (Esc)';
   back.textContent = '← Main Toolbar';
   back.addEventListener('click', () => { closeToolMenus(); button.focus(); setStatus('Main Toolbar active'); });
-  panel.insertBefore(back, panel.firstChild);
+  const anchor = panel.querySelector('[data-command-toolbar-scroll="left"]')?.nextSibling || panel.firstChild;
+  panel.insertBefore(back, anchor);
+}
+
+function enrichToolCardTooltips(panel: HTMLElement): void {
+  for (const card of Array.from(panel.querySelectorAll<HTMLButtonElement>('.tool-card'))) {
+    const title = card.querySelector('strong')?.textContent?.trim() || 'Command';
+    const shortcut = card.querySelector('kbd')?.textContent?.trim();
+    const detail = card.querySelector('span')?.textContent?.trim();
+    const base = card.getAttribute('title') || detail || title;
+    card.title = shortcut ? `${title} (${shortcut}) — ${base}` : `${title} — ${base}`;
+  }
 }
 
 function toolCards(panel: HTMLElement): HTMLButtonElement[] {
@@ -1630,21 +1768,34 @@ function toolCards(panel: HTMLElement): HTMLButtonElement[] {
 }
 
 function focusToolCard(name: ToolMenuName, direction: 'first' | 'last' = 'first'): void {
-  const cards = toolCards(toolMenuPair(name).panel);
+  const panel = toolMenuPair(name).panel;
+  const cards = toolCards(panel);
   const target = direction === 'last' ? cards.at(-1) : cards[0];
-  window.setTimeout(() => target?.focus(), 0);
+  window.setTimeout(() => {
+    target?.focus();
+    target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    updateToolMenuScrollState(panel);
+  }, 0);
 }
 
 function openToolMenu(name: ToolMenuName, direction: 'first' | 'last' = 'first'): void {
   const { button, panel } = toolMenuPair(name);
+  ensureToolMenuScrollControls(name);
   ensureToolMenuBackButton(name);
+  enrichToolCardTooltips(panel);
   closeToolMenus(name);
   panel.hidden = false;
-  panel.title = 'Press Esc to return to Main Toolbar.';
+  panel.title = `${commandToolbarLabel(name)} · ${commandToolbarShortcut(name)} · Esc returns to Main Toolbar · arrows/Home/End move · PageUp/PageDown scroll.`;
   button.setAttribute('aria-expanded', 'true');
   document.body.dataset.commandToolbar = name;
-  setStatus(`${commandToolbarLabel(name)} active · Esc returns to Main Toolbar.`);
+  rememberToolLane(name);
+  setStatus(`${commandToolbarLabel(name)} active · Esc returns to Main Toolbar · arrows move · chevrons scroll.`);
   focusToolCard(name, direction);
+  window.setTimeout(() => updateToolMenuScrollState(panel), 0);
+}
+
+function openLastToolMenu(): void {
+  openToolMenu(lastToolLane());
 }
 
 function toggleToolMenu(name: ToolMenuName): void {
@@ -1663,7 +1814,10 @@ function moveToolFocus(panel: HTMLElement, delta: number): void {
   if (!cards.length) return;
   const currentIndex = cards.findIndex((card) => card === document.activeElement);
   const nextIndex = currentIndex < 0 ? 0 : (currentIndex + delta + cards.length) % cards.length;
-  cards[nextIndex]?.focus();
+  const target = cards[nextIndex];
+  target?.focus();
+  target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  updateToolMenuScrollState(panel);
 }
 
 function handleToolMenuKeyboard(name: ToolMenuName, event: KeyboardEvent): void {
@@ -1680,12 +1834,28 @@ function handleToolMenuKeyboard(name: ToolMenuName, event: KeyboardEvent): void 
   }
   if (event.key === 'Home') {
     event.preventDefault();
-    toolCards(panel)[0]?.focus();
+    const target = toolCards(panel)[0];
+    target?.focus();
+    target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    updateToolMenuScrollState(panel);
     return;
   }
   if (event.key === 'End') {
     event.preventDefault();
-    toolCards(panel).at(-1)?.focus();
+    const target = toolCards(panel).at(-1);
+    target?.focus();
+    target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    updateToolMenuScrollState(panel);
+    return;
+  }
+  if (event.key === 'PageDown' || event.key === ']') {
+    event.preventDefault();
+    scrollToolMenu(panel, 1);
+    return;
+  }
+  if (event.key === 'PageUp' || event.key === '[') {
+    event.preventDefault();
+    scrollToolMenu(panel, -1);
     return;
   }
   if (event.key === 'Enter' || event.key === ' ') {
@@ -1700,6 +1870,7 @@ function handleToolMenuKeyboard(name: ToolMenuName, event: KeyboardEvent): void 
     event.preventDefault();
     closeToolMenus();
     button.focus();
+    setStatus('Main Toolbar active');
   }
 }
 
@@ -2829,6 +3000,9 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     { id: 'mission-make-quad', title: 'Make Quad From Open Tabs', detail: 'Assign the first four browser tabs to Mission panes and switch to Quad View.', group: 'Mission', target: 'Open tabs', phase: 'mission', run: makeQuadFromOpenTabs },
     { id: 'mission-quad', title: 'Mission Quad View', detail: 'Switch Mission Control to 4-Up Quad Ops View.', group: 'Mission View', shortcut: 'Ctrl+Alt+Q', target: 'Current mission', phase: 'mission', run: () => setMissionLayout('quad') },
     { id: 'mission-split', title: 'Mission Split View', detail: 'Switch Mission Control to 2-Up Split View.', group: 'Mission View', shortcut: 'Ctrl+Alt+S', target: 'Current mission', phase: 'mission', run: () => setMissionLayout('split-horizontal') },
+    { id: 'mission-triad', title: 'Mission 3-Up Triad', detail: 'Switch Mission Control to a 3-pane operational triad.', group: 'Mission View', shortcut: 'Ctrl+Alt+3', target: 'Current mission', phase: 'mission', run: () => setMissionLayout('triple') },
+    { id: 'mission-pane-swap-left', title: 'Swap Active Pane Left', detail: 'Quick-swap the active Mission pane with the previous visible pane.', group: 'Mission View', shortcut: 'Ctrl+Alt+Shift+←', target: 'Active pane', phase: 'mission', run: () => swapActiveMissionPane(-1) },
+    { id: 'mission-pane-swap-right', title: 'Swap Active Pane Right', detail: 'Quick-swap the active Mission pane with the next visible pane.', group: 'Mission View', shortcut: 'Ctrl+Alt+Shift+→', target: 'Active pane', phase: 'mission', run: () => swapActiveMissionPane(1) },
     { id: 'mission-rename', title: 'Rename Current Mission', detail: 'Rename the active local Mission Tab set without using a native prompt.', group: 'Mission', target: 'Current mission', phase: 'mission', run: renameCurrentMission },
     { id: 'mission-runbook', title: 'Mission Runbook Rail', detail: 'Open checklist, rollback, notes, and mission timeline.', group: 'Mission', shortcut: 'Ctrl+Alt+N', target: 'Runbook rail', phase: 'mission', run: openMissionControl },
     { id: 'mission-focus-pane', title: 'Toggle Mission Focus Pane', detail: 'Maximize the active mission pane without losing Quad/Split context.', group: 'Mission View', shortcut: 'Ctrl+Alt+F', target: 'Active pane', phase: 'mission', run: () => toggleMissionFocusPane() },
@@ -2842,6 +3016,7 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     { id: 'credentials', title: 'Credential Manager', detail: 'Open local OS-encrypted credential vault.', group: 'IT', shortcut: 'Ctrl+Alt+K', run: openCredentialVault },
     { id: 'devops-menu', title: 'DevOps Tools Menu', detail: 'Open DevOps and developer flyout.', group: 'Tools', shortcut: 'Ctrl+Alt+O', run: () => openToolMenu('devops') },
     { id: 'it-menu', title: 'IT Tools Menu', detail: 'Open IT engineering flyout.', group: 'Tools', shortcut: 'Ctrl+Alt+I', run: () => openToolMenu('it') },
+    { id: 'last-tool-menu', title: 'Reopen Last Command Toolbar', detail: 'Open whichever command lane was used last: DevOps or IT Tools.', group: 'Tools', shortcut: 'Ctrl+Alt+L', run: () => openLastToolMenu() },
     { id: 'capture', title: 'Capture DevOps Evidence', detail: 'Create Markdown evidence for tickets/runbooks.', group: 'Tools', shortcut: 'Ctrl+Shift+E', run: openDevOpsCapture },
     { id: 'ops-check', title: 'Run Ops Check', detail: 'HTTP and safe header readiness report.', group: 'Tools', shortcut: 'Ctrl+Shift+D', run: openOpsCheck },
     { id: 'deploy', title: 'Deploy Readiness', detail: 'Go/no-go, rollback, smoke checks, post-deploy matrix.', group: 'Tools', shortcut: 'Ctrl+Alt+R', run: openDeployReadiness },
@@ -5020,13 +5195,14 @@ function handleMenuCommand(command: string): void {
   if (command === 'handoff-psa') openHandoffCenter('psa');
   if (command === 'open-devops-menu') openToolMenu('devops');
   if (command === 'open-it-menu') openToolMenu('it');
+  if (command === 'open-last-tool-menu') openLastToolMenu();
   if (command === 'profiles') void openProfileManager();
   if (command === 'new-google-profile') void createProfileDraft('google');
   if (command === 'new-microsoft-profile') void createProfileDraft('microsoft');
   if (command === 'open-active-profile-folder') void openActiveProfileData();
   if (command === 'focus-address') { addressInput.focus(); addressInput.select(); }
-  if (command === 'back') { const tab = active(); if (tab?.webview.canGoBack()) tab.webview.goBack(); }
-  if (command === 'forward') { const tab = active(); if (tab?.webview.canGoForward()) tab.webview.goForward(); }
+  if (command === 'back') goBackTarget();
+  if (command === 'forward') goForwardTarget();
   if (command === 'home') navigate(settings.homeUrl || config.homeUrl);
   if (command === 'print') active()?.webview.print();
   if (command === 'reload') active()?.webview.reload();
@@ -5046,9 +5222,9 @@ function handleMenuCommand(command: string): void {
 
 
 addressForm.addEventListener('submit', (event) => { event.preventDefault(); navigate(addressInput.value); });
-backButton.addEventListener('click', () => { const tab = active(); if (tab?.webview.canGoBack()) tab.webview.goBack(); });
-forwardButton.addEventListener('click', () => { const tab = active(); if (tab?.webview.canGoForward()) tab.webview.goForward(); });
-reloadButton.addEventListener('click', () => active()?.webview.reload());
+backButton.addEventListener('click', goBackTarget);
+forwardButton.addEventListener('click', goForwardTarget);
+reloadButton.addEventListener('click', reloadTarget);
 homeButton.addEventListener('click', () => navigate(settings.homeUrl || config.homeUrl));
 launchpadButton.addEventListener('click', () => navigate(config.newTabUrl));
 onboardingButton.addEventListener('click', () => navigate(config.onboardingUrl));
@@ -5484,9 +5660,12 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'j') { event.preventDefault(); void startMissionFromRecipe('github-actions-monitor'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'v') { event.preventDefault(); void startMissionFromRecipe('vercel-firebase-release'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'i') { event.preventDefault(); openToolMenu('it'); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'l') { event.preventDefault(); openLastToolMenu(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && ['1','2','3','4'].includes(event.key)) { event.preventDefault(); setMissionActivePane('pane-' + event.key); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowLeft') { event.preventDefault(); swapActiveMissionPane(-1); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowRight') { event.preventDefault(); swapActiveMissionPane(1); }
   if (event.ctrlKey && event.key.toLowerCase() === 'l') { event.preventDefault(); addressInput.focus(); addressInput.select(); }
-  if (event.ctrlKey && event.key.toLowerCase() === 'r') { event.preventDefault(); active()?.webview.reload(); }
+  if (event.ctrlKey && event.key.toLowerCase() === 'r') { event.preventDefault(); reloadTarget(); }
   if (event.ctrlKey && event.key.toLowerCase() === 't') { event.preventDefault(); createTab(config.newTabUrl); }
   if (event.ctrlKey && event.key.toLowerCase() === 'w') { event.preventDefault(); closeTab(activeTabId); }
   if (event.ctrlKey && event.key === ',') { event.preventDefault(); openSettings(); }
@@ -5501,8 +5680,8 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'p') { event.preventDefault(); void openRouteMap(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'a') { event.preventDefault(); void openDeveloperAudit(); }
   if ((event.key === 'F12') || ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'i')) { event.preventDefault(); toggleActiveDevTools(); }
-  if (event.altKey && event.key === 'ArrowLeft') { event.preventDefault(); const tab = active(); if (tab?.webview.canGoBack()) tab.webview.goBack(); }
-  if (event.altKey && event.key === 'ArrowRight') { event.preventDefault(); const tab = active(); if (tab?.webview.canGoForward()) tab.webview.goForward(); }
+  if (event.altKey && event.key === 'ArrowLeft') { event.preventDefault(); goBackTarget(); }
+  if (event.altKey && event.key === 'ArrowRight') { event.preventDefault(); goForwardTarget(); }
 });
 
 window.tahaiBrowser.onOpenInTab((url) => createTab(url));

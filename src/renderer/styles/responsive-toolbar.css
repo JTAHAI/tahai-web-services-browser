@@ -172,3 +172,51 @@ body[data-command-toolbar="it"] .toolbar {
   .tool-menu-header { flex-basis: 150px; }
   .tool-menu-panel .tool-card { flex-basis: 202px; width: 202px; }
 }
+
+/* PASS 16 Toolbar Polish: chevron lane scrolling, stronger focus affordance, and keyboard discoverability without vertical rails. */
+.command-toolbar-chevron {
+  position: sticky;
+  z-index: 5;
+  flex: 0 0 34px;
+  width: 34px;
+  min-width: 34px;
+  border: 1px solid rgba(119,219,255,.36);
+  border-radius: 14px;
+  color: rgba(235,249,255,.94);
+  background: linear-gradient(180deg, rgba(119,219,255,.18), rgba(7,16,31,.97));
+  box-shadow: 0 12px 28px rgba(0,0,0,.35);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+.command-toolbar-chevron-left { left: 0; }
+.command-toolbar-chevron-right { right: 0; margin-left: auto; }
+.command-toolbar-chevron:disabled {
+  opacity: .34;
+  cursor: default;
+}
+.tool-menu-panel.has-overflow::before,
+.tool-menu-panel.has-overflow::after {
+  content: '';
+  position: sticky;
+  z-index: 3;
+  align-self: stretch;
+  flex: 0 0 1px;
+  pointer-events: none;
+}
+.tool-menu-panel.has-overflow::before { left: 34px; box-shadow: 12px 0 18px rgba(2,7,14,.72); }
+.tool-menu-panel.has-overflow::after { right: 34px; box-shadow: -12px 0 18px rgba(2,7,14,.72); }
+.tool-menu-panel .tool-card:focus-visible,
+.tool-menu-back:focus-visible,
+.command-toolbar-chevron:focus-visible {
+  outline: 2px solid rgba(119,219,255,.92);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(119,219,255,.16), 0 18px 34px rgba(0,0,0,.42);
+}
+.tool-menu-panel .tool-card[title],
+.tool-menu-back[title],
+.command-toolbar-chevron[title] { cursor: pointer; }
+@media (max-width: 920px) {
+  .command-toolbar-chevron { flex-basis: 30px; width: 30px; min-width: 30px; }
+  .tool-menu-back { min-width: 126px; }
+}
