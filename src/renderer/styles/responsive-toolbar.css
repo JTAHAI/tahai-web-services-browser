@@ -81,20 +81,22 @@
 
 @media (max-width: 620px) { .toolbar-overflow-items { grid-template-columns: 1fr; } }
 
-/* PASS 14 Command Toolbar: focused DevOps/IT lanes use horizontal scrolling and clear return affordances. */
+/* PASS 15 Command Toolbar RC repair: keep the primary toolbar visible and place command lanes in a fixed, unclipped horizontal rail. */
 body[data-command-toolbar="devops"] .toolbar,
 body[data-command-toolbar="it"] .toolbar {
-  overflow-x: hidden !important;
-  overflow-y: hidden !important;
+  overflow: visible !important;
 }
+.tool-flyout { position: static !important; }
 .tool-menu-panel {
-  left: 12px !important;
-  right: 12px !important;
+  position: fixed !important;
+  left: 14px !important;
+  right: 14px !important;
   top: 96px !important;
+  z-index: 220 !important;
   width: auto !important;
   max-width: none !important;
-  max-height: none !important;
-  min-height: 54px;
+  max-height: 94px !important;
+  min-height: 60px;
   display: flex;
   align-items: stretch;
   gap: 8px;
@@ -103,20 +105,22 @@ body[data-command-toolbar="it"] .toolbar {
   white-space: nowrap;
   scrollbar-width: none;
   padding: 10px 12px;
+  border-radius: 18px;
 }
 .tool-menu-panel::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .tool-menu-panel[hidden] { display: none !important; }
 .tool-menu-back {
   position: sticky;
   left: 0;
-  z-index: 3;
+  z-index: 4;
+  flex: 0 0 auto;
   min-width: 132px;
   border-color: rgba(119,219,255,.42);
   background: linear-gradient(180deg, rgba(119,219,255,.16), rgba(7,16,31,.98));
   box-shadow: 14px 0 22px rgba(2,7,14,.94);
 }
 .tool-menu-header {
-  flex: 0 0 210px;
+  flex: 0 0 178px;
   margin: 0;
   padding: 4px 10px;
   border-bottom: 0;
@@ -124,7 +128,7 @@ body[data-command-toolbar="it"] .toolbar {
   align-self: center;
 }
 .tool-menu-header span::after {
-  content: ' · Esc returns to Main Toolbar';
+  content: ' · Esc returns';
   color: rgba(119,219,255,.85);
 }
 .tool-menu-section,
@@ -144,10 +148,10 @@ body[data-command-toolbar="it"] .toolbar {
   line-height: 1.1;
 }
 .tool-menu-panel .tool-card {
-  flex: 0 0 230px;
-  width: 230px;
+  flex: 0 0 224px;
+  width: 224px;
   min-height: 58px;
-  grid-template-columns: minmax(74px, 92px) minmax(0, 1fr);
+  grid-template-columns: minmax(70px, 88px) minmax(0, 1fr);
 }
 .tool-menu-panel .tool-card span {
   white-space: normal;
@@ -157,14 +161,14 @@ body[data-command-toolbar="it"] .toolbar {
   -webkit-box-orient: vertical;
 }
 .tool-menu-footer {
-  flex: 0 0 210px;
+  flex: 0 0 184px;
   align-self: center;
   white-space: normal;
   line-height: 1.3;
   color: rgba(219,241,255,.7);
 }
 @media (max-width: 920px) {
-  .tool-menu-panel { top: 136px !important; }
-  .tool-menu-header { flex-basis: 170px; }
-  .tool-menu-panel .tool-card { flex-basis: 210px; width: 210px; }
+  .tool-menu-panel { top: 136px !important; max-height: 104px !important; }
+  .tool-menu-header { flex-basis: 150px; }
+  .tool-menu-panel .tool-card { flex-basis: 202px; width: 202px; }
 }

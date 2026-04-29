@@ -43,7 +43,7 @@
     "taskbar:inspect:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\inspect-tahai-browser-taskbar-pins.ps1",
     "taskbar:repair:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\repair-tahai-browser-taskbar-pin.ps1",
     "close:win": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\close-running-tahai-browser.ps1",
-    "verify:release-blockers": "node scripts/verify-enterprise-release.mjs && npm run verify:ui-encoding && npm run verify:browser-shell-layout && npm run verify:chevron-overflow && npm run verify:devops-mission-recipes && npm run verify:devops-cockpit-v2 && npm run verify:mission-command-center && npm run verify:mission-tabs-ux && npm run verify:mission-tabs-security && npm run verify:site-view-rail && npm run verify:fedora-linux-build && npm run verify:chromium-bookmarks && npm run verify:pass-12-runtime-git-repair && npm run verify:pass-13-toolbar-icon && npm run verify:pass-14-command-toolbar && npm run build",
+    "verify:release-blockers": "node scripts/verify-enterprise-release.mjs && npm run verify:ui-encoding && npm run verify:browser-shell-layout && npm run verify:chevron-overflow && npm run verify:devops-mission-recipes && npm run verify:devops-cockpit-v2 && npm run verify:mission-command-center && npm run verify:mission-tabs-ux && npm run verify:mission-tabs-security && npm run verify:site-view-rail && npm run verify:fedora-linux-build && npm run verify:chromium-bookmarks && npm run verify:pass-12-runtime-git-repair && npm run verify:pass-13-toolbar-icon && npm run verify:pass-14-command-toolbar && npm run verify:pass-15-command-toolbar-rc-repair && npm run build",
     "release:win:installer": "npm run verify:release-blockers && electron-builder --win nsis msi --x64",
     "release:friend:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\create-friend-feedback-release.ps1",
     "preflight:release": "node scripts/verify-enterprise-release.mjs",
@@ -63,7 +63,8 @@
     "verify:devops-cockpit-v2": "node scripts/verify-devops-cockpit-v2.mjs",
     "verify:pass-12-runtime-git-repair": "node scripts/verify-pass-12-runtime-git-repair.mjs",
     "verify:pass-13-toolbar-icon": "node scripts/verify-pass-13-toolbar-icon.mjs",
-    "verify:pass-14-command-toolbar": "node scripts/verify-pass-14-command-toolbar.mjs"
+    "verify:pass-14-command-toolbar": "node scripts/verify-pass-14-command-toolbar.mjs",
+    "verify:pass-15-command-toolbar-rc-repair": "node scripts/verify-pass-15-command-toolbar-rc-repair.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
