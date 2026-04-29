@@ -89,6 +89,7 @@ export function missionMarkdown(mission: MissionState): string {
   const notes = mission.notes.map((note) => '- ' + mdCell(note)).join('\n') || '- _No local notes._';
   const runbook = mission.runbook || { objective: '', rollback: '', steps: [] };
   const runbookSteps = runbook.steps.map((step) => '- [' + (step.state === 'done' ? 'x' : ' ') + '] ' + mdCell(step.label) + ' — ' + step.state + (step.evidenceNote ? ' — ' + mdCell(step.evidenceNote) : '')).join('\n') || '- _No runbook checklist steps._';
+  const evidenceRows = (mission.evidence || []).map((entry) => '| ' + mdCell(entry.kind) + ' | ' + mdCell(entry.title) + ' | ' + mdCell(entry.url || 'n/a') + ' | ' + mdCell(entry.paneId || 'n/a') + ' | ' + mdCell(entry.createdAt) + ' |').join('\n') || '| _No mission evidence pinned_ |  |  |  |  |';
   return '# TAHAI Mission Packet — ' + mdCell(mission.name) + '\n\n' +
     '> Local-only browser-side mission export. This packet contains URLs, titles, role labels, local notes, runbook checklist state, and timeline metadata only. It must be reviewed before sharing or syncing to TAHAI IT Docs. PSA writeback must route through IT Docs server-side connectors.\n\n' +
     '| Field | Value |\n| --- | --- |\n' +
@@ -103,6 +104,7 @@ export function missionMarkdown(mission: MissionState): string {
     'Rollback / stop condition: ' + mdCell(runbook.rollback || 'Not set') + '\n\n' +
     runbookSteps + '\n\n' +
     '## Local notes\n\n' + notes + '\n\n' +
+    '## Mission Evidence\n\n| Kind | Title | URL | Pane | Captured |\n| --- | --- | --- | --- | --- |\n' + evidenceRows + '\n\n' +
     '## Timeline\n\n' + timeline + '\n';
 }
 

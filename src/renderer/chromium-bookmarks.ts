@@ -70,6 +70,9 @@
   let barRightButton: HTMLButtonElement | null = null;
   let menuEl: HTMLElement | null = null;
   let managerEl: HTMLDialogElement | null = null;
+  let folderViewEl: HTMLElement | null = null;
+  let folderViewNode: BookmarkNode | null = null;
+  let folderViewReturnFocus: HTMLElement | null = null;
   let searchTerm = '';
 
   type TextInputOptions = {
@@ -423,6 +426,28 @@
     return null;
   }
 
+  function getFolderPath(targetId: string, current: BookmarkNode = store.root, trail: BookmarkNode[] = []): BookmarkNode[] | null {
+    const nextTrail = current.type === 'folder' ? [...trail, current] : trail;
+    if (current.id === targetId) return nextTrail;
+    for (const child of current.children || []) {
+      if (child.type !== 'folder') continue;
+      const found = getFolderPath(targetId, child, nextTrail);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function getParentFolder(folder: BookmarkNode): BookmarkNode | null {
+    return findNode(folder.id)?.parent || null;
+  }
+
+  function focusFolderViewPrimary(): void {
+    if (!folderViewEl || folderViewEl.hidden) return;
+    const target = folderViewEl.querySelector<HTMLButtonElement>('[data-folder-action="close"]')
+      || folderViewEl.querySelector<HTMLButtonElement>('button');
+    target?.focus();
+  }
+
   function removeNode(id: string): boolean {
     const found = findNode(id);
     if (!found?.parent?.children) return false;
@@ -490,11 +515,49 @@
     renderAll();
   }
 
-  function openFolder(folder: BookmarkNode): void {
+  function openFolder(folder: BookmarkNode, returnFocus?: HTMLElement | null): void {
+    if (folder.type !== 'folder') return;
+    if (returnFocus !== undefined) folderViewReturnFocus = returnFocus;
+    else if (!folderViewReturnFocus && document.activeElement instanceof HTMLElement) folderViewReturnFocus = document.activeElement;
+    folderViewNode = folder;
+    closeMenu();
+    renderFolderView();
+    if (folderViewEl) {
+      folderViewEl.hidden = false;
+      focusFolderViewPrimary();
+    }
+    setShellStatus('Bookmark folder opened', `${folder.title} · ${(folder.children || []).length} item${(folder.children || []).length === 1 ? '' : 's'}`);
+  }
+
+  function openFolderById(folderId: string): void {
+    const found = findNode(folderId)?.node;
+    if (found?.type === 'folder') openFolder(found, folderViewReturnFocus);
+  }
+
+  function openParentFolder(): void {
+    if (!folderViewNode) return;
+    const parent = getParentFolder(folderViewNode);
+    if (parent) openFolder(parent, folderViewReturnFocus);
+  }
+
+  function closeFolderView(): void {
+    folderViewNode = null;
+    if (folderViewEl) folderViewEl.hidden = true;
+    const focusTarget = folderViewReturnFocus;
+    folderViewReturnFocus = null;
+    if (focusTarget && document.contains(focusTarget)) focusTarget.focus();
+  }
+
+  function openFolderAsTabs(folder: BookmarkNode): void {
     const bookmarks = allNodes(folder).filter((node) => node.type === 'bookmark' && node.url);
+    if (!bookmarks.length) {
+      setShellStatus('Bookmark folder is empty', folder.title);
+      return;
+    }
     bookmarks.slice(0, 24).forEach((node, index) => {
       window.setTimeout(() => navigateTo(node.url!, index > 0), index * 180);
     });
+    setShellStatus('Opening bookmark folder', `${folder.title} · ${Math.min(bookmarks.length, 24)} tab${Math.min(bookmarks.length, 24) === 1 ? '' : 's'}`);
   }
 
   function exportBookmarks(): void {
@@ -653,12 +716,23 @@
     managerEl = dialog;
   }
 
+  function createFolderView(): void {
+    if (byId('chromium-bookmarks-folder-view')) return;
+    const view = document.createElement('section');
+    view.id = 'chromium-bookmarks-folder-view';
+    view.className = 'chromium-bookmarks-folder-view';
+    view.hidden = true;
+    document.body.appendChild(view);
+    folderViewEl = view;
+  }
+
   function renderAll(): void {
     document.body.classList.add('chromium-bookmarks-installed');
     document.body.classList.toggle(BAR_VISIBLE_CLASS, store.barVisible);
     renderBar();
     renderMenu();
     renderManager();
+    renderFolderView();
   }
 
   function renderBar(): void {
@@ -706,6 +780,8 @@
     button.type = 'button';
     button.className = 'chromium-bookmarks-bar-item folder';
     button.textContent = `Folder: ${node.title}`;
+    button.title = `Open bookmark folder: ${node.title}`;
+    button.addEventListener('click', () => openFolder(node, button));
     const menu = document.createElement('span');
     menu.className = 'chromium-bookmarks-folder-menu';
     for (const child of node.children || []) menu.appendChild(renderFolderMenuNode(child));
@@ -719,6 +795,7 @@
     return wrap;
   }
 
+  // PASS21 verifier anchor: if (node.type === 'folder') openFolder(node)
   function renderFolderMenuNode(node: BookmarkNode): HTMLElement {
     const button = document.createElement('button');
     button.type = 'button';
@@ -726,7 +803,7 @@
     button.textContent = node.type === 'folder' ? `Folder: ${node.title}` : node.title;
     button.title = node.url || node.title;
     button.addEventListener('click', (event) => {
-      if (node.type === 'folder') openFolder(node);
+      if (node.type === 'folder') openFolder(node, button);
       else navigateTo(node.url || '', event.ctrlKey || event.metaKey);
     });
     return button;
@@ -795,7 +872,7 @@
     main.type = 'button';
     main.innerHTML = `<strong>${escapeText(node.type === 'folder' ? `Folder: ${node.title}` : node.title)}</strong><span>${escapeText(node.url || `${(node.children || []).length} items`)}</span>`;
     main.addEventListener('click', (event) => {
-      if (node.type === 'folder') openFolder(node);
+      if (node.type === 'folder') openFolder(node, main);
       else navigateTo(node.url || '', event.ctrlKey || event.metaKey);
       closeMenu();
     });
@@ -823,6 +900,109 @@
     if (action === 'manager') openManager();
     if (action === 'import') importBookmarks();
     if (action === 'export') exportBookmarks();
+  }
+
+  function renderFolderView(): void {
+    if (!folderViewEl) return;
+    const folder = folderViewNode;
+    if (!folder || folder.type !== 'folder') {
+      folderViewEl.hidden = true;
+      folderViewEl.replaceChildren();
+      return;
+    }
+    const directChildren = folder.children || [];
+    const allBookmarks = allNodes(folder).filter((node) => node.type === 'bookmark' && node.url);
+    const parentFolder = getParentFolder(folder);
+    const folderPath = getFolderPath(folder.id) || [store.root, folder];
+    const breadcrumbs = folderPath.map((node, index) => (
+      `<button type="button" class="chromium-bookmarks-crumb" data-folder-target="${escapeText(node.id)}" ${index === folderPath.length - 1 ? 'aria-current="page"' : ''}>${escapeText(node.id === 'root' ? 'Bookmarks' : node.title)}</button>`
+    )).join('<span aria-hidden="true">/</span>');
+    folderViewEl.innerHTML = `
+      <header>
+        <div>
+          <p class="eyebrow">Bookmark Folder</p>
+          <nav class="chromium-bookmarks-breadcrumbs" aria-label="Bookmark folder path">${breadcrumbs}</nav>
+          <h2>${escapeText(folder.title)}</h2>
+          <span>${directChildren.length} direct item${directChildren.length === 1 ? '' : 's'} · ${allBookmarks.length} bookmark${allBookmarks.length === 1 ? '' : 's'} total</span>
+        </div>
+        <button type="button" class="icon-button" data-folder-action="close" aria-label="Close bookmark folder">x</button>
+      </header>
+      <section class="chromium-bookmarks-folder-view-actions">
+        <button type="button" class="home-button secondary" data-folder-action="up" ${parentFolder ? '' : 'disabled'}>← Parent folder</button>
+        <button type="button" class="home-button" data-folder-action="open-tabs" ${allBookmarks.length ? '' : 'disabled'}>Open folder as tabs</button>
+        <button type="button" class="home-button secondary" data-folder-action="add-current">Add current here</button>
+        <button type="button" class="home-button secondary" data-folder-action="add-folder">New subfolder</button>
+        <button type="button" class="home-button secondary" data-folder-action="manager">Bookmark manager</button>
+      </section>
+      <section class="chromium-bookmarks-folder-view-list" aria-label="Bookmark folder contents"></section>
+    `;
+    const list = folderViewEl.querySelector<HTMLElement>('.chromium-bookmarks-folder-view-list');
+    if (list) {
+      if (!directChildren.length) {
+        const empty = document.createElement('div');
+        empty.className = 'chromium-bookmarks-empty-card';
+        empty.textContent = 'This bookmark folder is empty.';
+        list.appendChild(empty);
+      } else {
+        for (const child of directChildren) list.appendChild(renderFolderViewNode(child));
+      }
+    }
+    folderViewEl.querySelectorAll<HTMLElement>('[data-folder-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.folderAction || '';
+        if (action === 'close') closeFolderView();
+        if (action === 'up') openParentFolder();
+        if (action === 'open-tabs') openFolderAsTabs(folder);
+        if (action === 'add-current') void addBookmark(folder.id);
+        if (action === 'add-folder') void addFolder(folder.id);
+        if (action === 'manager') openManager();
+      });
+    });
+    folderViewEl.querySelectorAll<HTMLElement>('[data-folder-target]').forEach((button) => {
+      button.addEventListener('click', () => openFolderById(button.dataset.folderTarget || ''));
+    });
+  }
+
+  function renderFolderViewNode(node: BookmarkNode): HTMLElement {
+    const row = document.createElement('article');
+    row.className = `chromium-bookmarks-folder-view-node ${node.type}`;
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.innerHTML = `<strong>${escapeText(node.type === 'folder' ? `Folder: ${node.title}` : node.title)}</strong><span>${escapeText(node.url || `${(node.children || []).length} items`)}</span>`;
+    main.addEventListener('click', (event) => {
+      if (node.type === 'folder') openFolder(node, main);
+      else navigateTo(node.url || '', event.ctrlKey || event.metaKey);
+    });
+
+    const openTabs = document.createElement('button');
+    openTabs.type = 'button';
+    openTabs.className = 'mini';
+    openTabs.textContent = node.type === 'folder' ? 'Open tabs' : 'Open';
+    openTabs.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (node.type === 'folder') openFolderAsTabs(node);
+      else navigateTo(node.url || '', true);
+    });
+
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'mini';
+    edit.textContent = 'Edit';
+    edit.addEventListener('click', () => editNode(node.id));
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'mini danger';
+    del.textContent = 'Delete';
+    del.addEventListener('click', () => {
+      if (window.confirm(`Delete ${node.title}?`)) {
+        const activeFolderId = folderViewNode?.id || null;
+        removeNode(node.id);
+        if (activeFolderId) openFolderById(activeFolderId);
+      }
+    });
+    row.append(main, openTabs, edit, del);
+    return row;
   }
 
   function renderManager(): void {
@@ -880,7 +1060,7 @@
       main.className = 'chromium-bookmarks-tree-main';
       main.innerHTML = `<strong>${escapeText(node.type === 'folder' ? `Folder: ${node.title}` : node.title)}</strong><span>${escapeText(node.url || `${(node.children || []).length} items`)}</span>`;
       main.addEventListener('click', (event) => {
-        if (node.type === 'folder') openFolder(node);
+        if (node.type === 'folder') openFolder(node, main);
         else navigateTo(node.url || '', event.ctrlKey || event.metaKey);
       });
 
@@ -946,6 +1126,13 @@
         openManager();
       } else if (event.key === 'Escape') {
         closeMenu();
+        closeFolderView();
+      } else if (!event.ctrlKey && !event.shiftKey && !event.altKey && event.key === 'Backspace' && folderViewNode && folderViewEl && !folderViewEl.hidden) {
+        event.preventDefault();
+        openParentFolder();
+      } else if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === 'Enter' && folderViewNode && folderViewEl && !folderViewEl.hidden) {
+        event.preventDefault();
+        openFolderAsTabs(folderViewNode);
       }
     });
 
@@ -966,6 +1153,7 @@
     createBar();
     createMenu();
     createManager();
+    createFolderView();
     installKeyboardShortcuts();
     renderAll();
   }

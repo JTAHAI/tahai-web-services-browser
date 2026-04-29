@@ -308,7 +308,7 @@ type LaunchRecipe = {
   missionStopCondition?: string;
   missionRunbookSteps?: string[];
   missionEvidencePrompts?: string[];
-  cockpitProvider?: 'aws' | 'cloudflare' | 'github' | 'vercel' | 'firebase' | 'incident' | 'generic';
+  cockpitProvider?: 'aws' | 'azure' | 'm365' | 'cloudflare' | 'github' | 'vercel' | 'firebase' | 'incident' | 'generic';
   operatorShortcut?: string;
 };
 
@@ -339,10 +339,13 @@ type MissionMode = 'local-only' | 'signed-in' | 'org-selected' | 'itdocs-linked'
 
 type MissionTabRef = { tabId: string; role: MissionTabRole; url: string; title: string; pinned: boolean; paneId: string };
 type MissionLayout = { type: MissionLayoutType; activePaneId: string; panes: Array<{ paneId: string; role: MissionTabRole; tabId: string }> };
-type MissionTimelineEvent = { eventId: string; kind: 'created' | 'tab-added' | 'tab-role-set' | 'layout-set' | 'saved' | 'restored' | 'mission-renamed' | 'mission-duplicated' | 'mission-deleted' | 'note' | 'exported' | 'runbook-updated' | 'checklist-added' | 'checklist-updated'; createdAt: string; title: string; detail: string };
+type MissionTimelineEvent = { eventId: string; kind: 'created' | 'tab-added' | 'tab-role-set' | 'layout-set' | 'saved' | 'restored' | 'mission-renamed' | 'mission-duplicated' | 'mission-deleted' | 'note' | 'evidence-added' | 'exported' | 'runbook-updated' | 'checklist-added' | 'checklist-updated'; createdAt: string; title: string; detail: string };
 type MissionRunbookStep = { stepId: string; label: string; state: MissionRunbookStepState; evidenceNote: string };
 type MissionRunbook = { objective: string; rollback: string; steps: MissionRunbookStep[] };
-type MissionState = { schemaVersion: number; missionId: string; name: string; missionType: MissionType; mode: MissionMode; createdAt: string; updatedAt: string; tabs: MissionTabRef[]; layout: MissionLayout; notes: string[]; runbook: MissionRunbook; timeline: MissionTimelineEvent[]; links: { itDocs: Record<string, string> | null; psa: Record<string, string> | null } };
+// PASS 18 Mission Evidence Pack v2: explicit local evidence entries for export/redaction workflows.
+type MissionEvidenceKind = 'url' | 'screenshot' | 'note' | 'header-summary' | 'tls-summary' | 'dns-summary' | 'tool-output' | 'checklist' | 'export';
+type MissionEvidenceEntry = { eventId: string; kind: MissionEvidenceKind; title: string; url: string; sourceTabId?: string; paneId?: string; createdAt: string; operatorNote: string; metadata: Record<string, string> };
+type MissionState = { schemaVersion: number; missionId: string; name: string; missionType: MissionType; mode: MissionMode; createdAt: string; updatedAt: string; tabs: MissionTabRef[]; layout: MissionLayout; notes: string[]; runbook: MissionRunbook; evidence: MissionEvidenceEntry[]; timeline: MissionTimelineEvent[]; links: { itDocs: Record<string, string> | null; psa: Record<string, string> | null } };
 
 const missionTypes: MissionType[] = ['deployment','incident','support','documentation','migration','audit','admin','development','security-review','generic'];
 const missionTabRoles: MissionTabRole[] = ['primary-console','logs','docs','runbook','ticket','monitoring','evidence','live-target','vendor-portal','tool'];
@@ -402,6 +405,9 @@ const missionList = document.getElementById('mission-list') as HTMLElement;
 const missionRecipes = document.getElementById('mission-recipes') as HTMLElement;
 const missionTabsList = document.getElementById('mission-tabs-list') as HTMLElement;
 const missionTimeline = document.getElementById('mission-timeline') as HTMLElement;
+const missionEvidenceList = document.getElementById('mission-evidence-list') as HTMLElement;
+const missionPinLatestEvidenceButton = document.getElementById('mission-pin-latest-evidence') as HTMLButtonElement;
+const missionPinActivePageButton = document.getElementById('mission-pin-active-page') as HTMLButtonElement;
 const missionRunbookObjective = document.getElementById('mission-runbook-objective') as HTMLInputElement;
 const missionRunbookRollback = document.getElementById('mission-runbook-rollback') as HTMLTextAreaElement;
 const missionRunbookStepInput = document.getElementById('mission-runbook-step-input') as HTMLInputElement;
@@ -1140,6 +1146,8 @@ function recipeProviderLabel(recipe: LaunchRecipe): string {
   if (provider === 'vercel') return 'Vercel';
   if (provider === 'firebase') return 'Firebase';
   if (provider === 'incident') return 'Incident';
+  if (provider === 'm365') return 'M365';
+  if (provider === 'azure') return 'Azure';
   return 'Ops';
 }
 
@@ -1166,6 +1174,92 @@ function ensureMissionRunbook(mission: MissionState): MissionRunbook {
   if (!Array.isArray(mission.runbook.steps)) mission.runbook.steps = [];
   return mission.runbook;
 }
+
+function ensureMissionEvidence(mission: MissionState): MissionEvidenceEntry[] {
+  if (!Array.isArray(mission.evidence)) mission.evidence = [];
+  return mission.evidence;
+}
+
+function missionEvidenceKindLabel(kind: MissionEvidenceKind): string {
+  return kind.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+}
+
+function currentMissionTabForActiveTab(): MissionTabRef | undefined {
+  const tab = active();
+  if (!tab || !currentMission) return undefined;
+  return currentMission.tabs.find((candidate) => missionRuntimeTabs.get(candidate.tabId) === tab.id || candidate.url === tab.url);
+}
+
+function addMissionEvidenceEntry(input: { kind: MissionEvidenceKind; title: string; url?: string; operatorNote?: string; metadata?: Record<string, string> }): void {
+  const mission = ensureCurrentMission();
+  const activeMissionTab = currentMissionTabForActiveTab();
+  const now = new Date().toISOString();
+  const entry: MissionEvidenceEntry = {
+    eventId: missionUuid(),
+    kind: input.kind,
+    title: input.title.trim().slice(0, 180) || 'Mission evidence',
+    url: (input.url || currentActiveUrl() || '').slice(0, 2048),
+    sourceTabId: activeMissionTab?.tabId,
+    paneId: activeMissionTab?.paneId || mission.layout.activePaneId,
+    createdAt: now,
+    operatorNote: (input.operatorNote || '').trim().slice(0, 1200),
+    metadata: input.metadata || {}
+  };
+  ensureMissionEvidence(mission).unshift(entry);
+  mission.evidence = mission.evidence.slice(0, 80);
+  missionTimelineEvent('evidence-added', entry.title, missionEvidenceKindLabel(entry.kind) + (entry.paneId ? ' · ' + entry.paneId : ''));
+  renderMissionControl();
+}
+
+function pinLatestToolOutputToMission(): void {
+  const candidate = latestEvidenceCandidate();
+  if (!candidate) {
+    setStatus('Nothing to pin to mission', 'Run or open a TAHAI tool output first.');
+    return;
+  }
+  addMissionEvidenceEntry({
+    kind: 'tool-output',
+    title: candidate.title,
+    url: candidate.sourceUrl,
+    operatorNote: candidate.markdown.slice(0, 1200),
+    metadata: { source: candidate.type, profile: activeProfileLabel() }
+  });
+  setStatus('Mission evidence pinned', candidate.title);
+}
+
+function pinActivePageToMission(): void {
+  const tab = active();
+  if (!tab) return;
+  const missionTab = currentMissionTabForActiveTab();
+  addMissionEvidenceEntry({
+    kind: 'url',
+    title: tab.title || titleFromUrl(tab.url),
+    url: tab.url,
+    operatorNote: 'Active page pinned as mission evidence.',
+    metadata: { profile: activeProfileLabel(), pane: missionTab?.paneId || currentMission?.layout.activePaneId || 'pane-1' }
+  });
+  setStatus('Active page pinned to mission', tab.title || tab.url);
+}
+
+function removeMissionEvidenceEntry(eventId: string): void {
+  if (!currentMission) return;
+  const removed = ensureMissionEvidence(currentMission).find((entry) => entry.eventId === eventId);
+  currentMission.evidence = ensureMissionEvidence(currentMission).filter((entry) => entry.eventId !== eventId);
+  if (removed) missionTimelineEvent('evidence-added', 'Mission evidence removed', removed.title);
+  renderMissionControl();
+  setStatus('Mission evidence removed', removed?.title || '');
+}
+
+async function copyMissionEvidenceEntry(eventId: string): Promise<void> {
+  if (!currentMission) return;
+  const entry = ensureMissionEvidence(currentMission).find((candidate) => candidate.eventId === eventId);
+  if (!entry) return;
+  const metadata = Object.entries(entry.metadata || {}).map(([key, value]) => `- ${md(key)}: ${md(String(value))}`).join('\n') || '- _No metadata._';
+  await window.tahaiBrowser.copyDevOpsCapture(`## ${md(entry.title)}\n\n- Kind: ${md(entry.kind)}\n- URL: ${md(entry.url || 'n/a')}\n- Pane: ${md(entry.paneId || 'n/a')}\n- Captured: ${md(entry.createdAt)}\n\n${md(entry.operatorNote || 'No note.')}\n\n### Metadata\n${metadata}\n`);
+  setStatus('Mission evidence copied', entry.title);
+}
+
+
 
 function updateMissionRunbookFromFields(): void {
   if (!currentMission) return;
@@ -1236,6 +1330,7 @@ function ensureCurrentMission(): MissionState {
     layout: { type: 'single', activePaneId: 'pane-1', panes: [] },
     notes: [],
     runbook: createMissionRunbook((missionTypes.includes(missionTypeSelect?.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType),
+    evidence: [],
     timeline: [{ eventId: missionUuid(), kind: 'created', createdAt: now, title: 'Mission created', detail: 'Local-only Mission Tabs model initialized.' }],
     links: { itDocs: null, psa: null }
   };
@@ -1266,6 +1361,7 @@ function cloneMissionForDuplicate(source: MissionState, name: string): MissionSt
     layout: { ...source.layout, panes: source.layout.panes.map((pane) => ({ ...pane, tabId: tabIdMap.get(pane.tabId) || pane.tabId })) },
     runbook: { ...ensureMissionRunbook(source), steps: ensureMissionRunbook(source).steps.map((step) => ({ ...step, stepId: missionUuid() })) },
     notes: [...source.notes],
+    evidence: (source.evidence || []).map((entry) => ({ ...entry, eventId: missionUuid(), sourceTabId: entry.sourceTabId ? tabIdMap.get(entry.sourceTabId) : undefined })),
     timeline: []
   };
   mission.timeline.unshift({ eventId: missionUuid(), kind: 'mission-duplicated', createdAt: now, title: 'Mission duplicated', detail: 'Created from ' + source.name + '.' });
@@ -1378,6 +1474,7 @@ function missionExportMarkdown(): string {
   const rows = currentMission.tabs.map((tab) => '| ' + tab.role + ' | ' + md(tab.title) + ' | ' + md(tab.url) + ' | ' + md(tab.paneId) + ' |').join('\n') || '| _No mission tabs captured._ |  |  |  |';
   const checklist = runbook.steps.map((step) => '- [' + (step.state === 'done' ? 'x' : ' ') + '] ' + md(step.label) + ' — ' + md(step.state)).join('\n') || '- _No runbook checklist steps._';
   const notes = currentMission.notes.map((note) => '- ' + md(note)).join('\n') || '- _No local notes yet._';
+  const evidenceRows = ensureMissionEvidence(currentMission).map((entry) => '| ' + md(missionEvidenceKindLabel(entry.kind)) + ' | ' + md(entry.title) + ' | ' + md(entry.url || 'n/a') + ' | ' + md(entry.paneId || 'n/a') + ' | ' + md(entry.createdAt) + ' |').join('\n') || '| _No mission evidence pinned._ |  |  |  |  |';
   const timeline = currentMission.timeline.map((event) => '- ' + md(event.createdAt) + ' — ' + md(event.kind) + ' — ' + md(event.title) + (event.detail ? ' — ' + md(event.detail) : '')).join('\n') || '- _No timeline yet._';
   return '# TAHAI Mission Packet — ' + md(currentMission.name) + '\n\n' +
     '> Local-only Mission Control export preview. Review through Ops Guard before sharing or syncing. IT Docs/PSA writeback stays disabled until an authorized server-side contract is active.\n\n' +
@@ -1389,6 +1486,7 @@ function missionExportMarkdown(): string {
     '## Tabs\n\n| Role | Title | URL | Pane |\n| --- | --- | --- | --- |\n' + rows + '\n\n' +
     '## Runbook Rail\n\nObjective: ' + md(runbook.objective || 'Not set') + '\n\nRollback / stop condition: ' + md(runbook.rollback || 'Not set') + '\n\n' + checklist + '\n\n' +
     '## Local Notes\n\n' + notes + '\n\n' +
+    '## Mission Evidence\n\n| Kind | Title | URL | Pane | Captured |\n| --- | --- | --- | --- | --- |\n' + evidenceRows + '\n\n' +
     '## Timeline\n\n' + timeline + '\n';
 }
 
@@ -1414,7 +1512,7 @@ function renderMissionControl(): void {
   missionNameInput.value = mission?.name || missionNameInput.value || '';
   missionTypeSelect.value = mission?.missionType || missionTypeSelect.value || 'generic';
   missionStatus.innerHTML = mission
-    ? '<strong>' + escapeHtml(mission.name) + '</strong><span>Local Only · ' + escapeHtml(missionLayoutLabel(mission.layout.type)) + ' · ' + mission.tabs.length + ' mission tab(s) · drag tab strip items onto panes · saved missions can be duplicated or deleted</span>'
+    ? '<strong>' + escapeHtml(mission.name) + '</strong><span>Local Only · ' + escapeHtml(missionLayoutLabel(mission.layout.type)) + ' · ' + mission.tabs.length + ' mission tab(s) · ' + ensureMissionEvidence(mission).length + ' evidence item(s) · drag tab strip items onto panes · saved missions can be duplicated or deleted</span>'
     : '<strong>No active mission</strong><span>Create a local Mission Tab set or restore one from disk.</span>';
   missionTabsList.innerHTML = mission?.tabs.length ? mission.tabs.map((tab) =>
     '<article class="mission-tab-row" draggable="true" data-drag-mission-tab="' + escapeHtml(tab.tabId) + '">' +
@@ -1441,6 +1539,7 @@ function renderMissionControl(): void {
     missionRunbookList.innerHTML = '<article class="ops-hub-empty">Create or load a mission to use the runbook rail.</article>';
     missionNotesList.innerHTML = '<article class="ops-hub-empty">No active mission notes.</article>';
   }
+  missionEvidenceList.innerHTML = mission && ensureMissionEvidence(mission).length ? ensureMissionEvidence(mission).slice(0, 12).map((entry) => '<article class="ops-hub-row split"><button type="button" data-copy-mission-evidence="' + escapeHtml(entry.eventId) + '"><strong>' + escapeHtml(missionEvidenceKindLabel(entry.kind) + ' · ' + entry.title) + '</strong><span>' + escapeHtml((entry.paneId || 'mission') + ' · ' + new Date(entry.createdAt).toLocaleString() + (entry.url ? ' · ' + entry.url : '')) + '</span></button><button type="button" class="mini-danger" data-remove-mission-evidence="' + escapeHtml(entry.eventId) + '" title="Remove mission evidence">×</button></article>').join('') : '<article class="ops-hub-empty">No mission evidence pinned yet. Pin active page or latest tool output explicitly.</article>';
   missionTimeline.innerHTML = mission?.timeline.length ? mission.timeline.slice(0, 8).map((event) => '<article class="ops-hub-row"><strong>' + escapeHtml(event.title) + '</strong><span>' + escapeHtml(event.kind + ' · ' + new Date(event.createdAt).toLocaleString() + (event.detail ? ' · ' + event.detail : '')) + '</span></article>').join('') : '<article class="ops-hub-empty">Timeline starts after mission actions.</article>';
   missionLayoutsEl.querySelectorAll<HTMLButtonElement>('[data-mission-layout]').forEach((button) => button.classList.toggle('active', button.dataset.missionLayout === (mission?.layout.type || 'single')));
   missionExportPreview.value = missionExportMarkdown();
@@ -1478,6 +1577,7 @@ function createMissionFromForm(): void {
     layout: { type: 'single', activePaneId: 'pane-1', panes: [] },
     notes: [],
     runbook: createMissionRunbook((missionTypes.includes(missionTypeSelect.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType),
+    evidence: [],
     timeline: [{ eventId: missionUuid(), kind: 'created', createdAt: now, title: 'Mission created', detail: 'Local-only browser mission started.' }],
     links: { itDocs: null, psa: null }
   };
@@ -2076,6 +2176,45 @@ const premiumLaunchRecipes: LaunchRecipe[] = [
     missionEvidencePrompts: ['Project', 'Deployment URL', 'Protection/env state', 'Production validation'],
     note: 'Vercel cockpit for production deploy, protection, provider status, and IT Docs handoff.'
   },
+
+  {
+    id: 'azure-release-cockpit',
+    label: 'Azure Release Cockpit',
+    group: 'DevOps missions',
+    missionPhase: 'devops',
+    cockpitProvider: 'azure',
+    operatorShortcut: 'Ctrl+Alt+U',
+    profileKind: 'microsoft',
+    profileName: 'Azure Release Cockpit',
+    urls: ['https://portal.azure.com', 'https://status.azure.com', 'https://learn.microsoft.com/azure/', 'https://docs.tahaiportal.com'],
+    missionType: 'deployment',
+    missionLayout: 'quad',
+    missionRoles: ['primary-console','monitoring','docs','runbook'],
+    missionPrimaryAction: 'Run Azure App Service, Static Web Apps, Functions, or infrastructure changes with portal, status, docs, and runbook visible.',
+    missionStopCondition: 'Stop if subscription, resource group, region, deployment slot, identity scope, or rollback path is unclear.',
+    missionRunbookSteps: ['Confirm subscription, resource group, region, and target service', 'Capture current app/deployment/configuration state', 'Apply the bounded Azure release or config change', 'Validate health, logs, endpoint behavior, and status', 'Pin evidence and export the change record'],
+    missionEvidencePrompts: ['Subscription/resource group display', 'Target service', 'Deployment/config validation', 'Rollback route'],
+    note: 'Azure release cockpit for portal, Azure status, Microsoft Learn, and IT Docs handoff.'
+  },
+  {
+    id: 'm365-change-cockpit',
+    label: 'M365 Change Cockpit',
+    group: 'IT admin recipes',
+    missionPhase: 'it',
+    cockpitProvider: 'm365',
+    operatorShortcut: 'Ctrl+Alt+5',
+    profileKind: 'microsoft',
+    profileName: 'M365 Change Cockpit',
+    urls: ['https://admin.microsoft.com', 'https://entra.microsoft.com', 'https://security.microsoft.com', 'https://learn.microsoft.com/microsoft-365/'],
+    missionType: 'admin',
+    missionLayout: 'quad',
+    missionRoles: ['primary-console','vendor-portal','monitoring','docs'],
+    missionPrimaryAction: 'Perform Microsoft 365, Entra, or Defender admin changes with tenant scope, security context, and docs visible.',
+    missionStopCondition: 'Stop if tenant, admin authorization, affected users/groups, conditional access impact, or rollback is unclear.',
+    missionRunbookSteps: ['Confirm tenant and authorized admin scope', 'Capture starting settings and affected users/groups', 'Apply one bounded M365/Entra/Security change', 'Validate login, policy, mail, or security behavior', 'Pin evidence and document closeout owner'],
+    missionEvidencePrompts: ['Tenant display name', 'Affected users/groups', 'Before/after setting', 'Validation result'],
+    note: 'M365 admin cockpit for admin center, Entra, Defender/Security, and Microsoft docs.'
+  },
   {
     id: 'incident-war-room',
     cockpitProvider: 'incident',
@@ -2228,6 +2367,8 @@ const shortcutRows = [
   ['Ctrl+Alt+C', 'Start Cloudflare DNS Cockpit'],
   ['Ctrl+Alt+J', 'Start GitHub Actions Cockpit'],
   ['Ctrl+Alt+V', 'Start Vercel / Firebase Cockpit'],
+  ['Ctrl+Alt+U', 'Start Azure Release Cockpit'],
+  ['Ctrl+Alt+5', 'Start M365 Change Cockpit'],
   ['Ctrl+Alt+I', 'Open IT Tools menu'],
   ['↑ ↓ / Home End', 'Move inside flyouts and command lists'],
   ['Enter / Space', 'Run selected flyout or command item'],
@@ -2934,6 +3075,7 @@ async function startMissionFromRecipe(recipeId: string): Promise<void> {
       recipeEvidenceNote(recipe)
     ].filter(Boolean),
     runbook: createMissionRunbookFromRecipe(recipe),
+    evidence: recipe.missionEvidencePrompts?.map((prompt) => ({ eventId: missionUuid(), kind: 'checklist' as MissionEvidenceKind, title: prompt, url: recipe.urls[0] || '', createdAt: now, operatorNote: 'Recipe evidence prompt. Replace with captured proof before export.', metadata: { source: 'launch-recipe' } })) || [],
     timeline: [{ eventId: missionUuid(), kind: 'created', createdAt: now, title: 'Mission recipe started', detail: recipe.note }],
     links: { itDocs: null, psa: null }
   };
@@ -5257,6 +5399,8 @@ missionCreateButton.addEventListener('click', () => createMissionFromForm());
 missionAddActiveTabButton.addEventListener('click', () => addActiveTabToMission());
 missionMakeQuadButton.addEventListener('click', () => makeQuadFromOpenTabs());
 missionSaveButton.addEventListener('click', () => { void saveCurrentMission(); });
+missionPinLatestEvidenceButton.addEventListener('click', () => pinLatestToolOutputToMission());
+missionPinActivePageButton.addEventListener('click', () => pinActivePageToMission());
 missionLayoutsEl.addEventListener('click', (event) => {
   const target = event.target as HTMLElement;
   const layoutButton = target.closest<HTMLButtonElement>('[data-mission-layout]');
@@ -5268,6 +5412,13 @@ missionLayoutsEl.addEventListener('click', (event) => {
   }
 });
 missionList.addEventListener('click', (event) => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button'); if (!button) return; if (button.dataset.loadMissionId) void loadMissionById(button.dataset.loadMissionId, false); if (button.dataset.restoreMissionId) void loadMissionById(button.dataset.restoreMissionId, true); if (button.dataset.duplicateMissionId) void duplicateMissionById(button.dataset.duplicateMissionId); if (button.dataset.deleteMissionId) void deleteMissionById(button.dataset.deleteMissionId); });
+missionEvidenceList.addEventListener('click', (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  if (!button) return;
+  if (button.dataset.copyMissionEvidence) void copyMissionEvidenceEntry(button.dataset.copyMissionEvidence);
+  if (button.dataset.removeMissionEvidence) removeMissionEvidenceEntry(button.dataset.removeMissionEvidence);
+});
+
 missionRecipes.addEventListener('click', (event) => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-start-mission-recipe-id]'); if (button?.dataset.startMissionRecipeId) void startMissionFromRecipe(button.dataset.startMissionRecipeId); });
 missionRunbookObjective.addEventListener('change', updateMissionRunbookFromFields);
 missionRunbookRollback.addEventListener('change', updateMissionRunbookFromFields);
@@ -5659,6 +5810,8 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'c') { event.preventDefault(); void startMissionFromRecipe('dns-migration-cockpit'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'j') { event.preventDefault(); void startMissionFromRecipe('github-actions-monitor'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'v') { event.preventDefault(); void startMissionFromRecipe('vercel-firebase-release'); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'u') { event.preventDefault(); void startMissionFromRecipe('azure-release-cockpit'); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key === '5') { event.preventDefault(); void startMissionFromRecipe('m365-change-cockpit'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'i') { event.preventDefault(); openToolMenu('it'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'l') { event.preventDefault(); openLastToolMenu(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && ['1','2','3','4'].includes(event.key)) { event.preventDefault(); setMissionActivePane('pane-' + event.key); }

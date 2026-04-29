@@ -495,3 +495,159 @@ body.chromium-bookmarks-bar-visible .chromium-bookmarks-bar {
   border-color: rgba(119,219,255,.56);
   background: rgba(119,219,255,.14);
 }
+
+
+/* PASS 21: bookmark folder cards open a readable folder view instead of silently opening every child tab. */
+.chromium-bookmarks-folder-view {
+  position: fixed;
+  top: 112px;
+  right: 18px;
+  z-index: 79;
+  width: min(560px, calc(100vw - 36px));
+  max-height: min(720px, calc(100vh - 136px));
+  display: grid;
+  grid-template-rows: auto auto minmax(0,1fr);
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(119,219,255,.28);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(7,16,31,.99), rgba(2,5,11,.99));
+  box-shadow: 0 24px 110px rgba(0,0,0,.72), 0 0 60px rgba(47,143,255,.16);
+}
+
+.chromium-bookmarks-folder-view[hidden] { display: none; }
+
+.chromium-bookmarks-folder-view header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(119,219,255,.14);
+}
+
+.chromium-bookmarks-folder-view h2 {
+  margin: 3px 0 2px;
+  font-size: 1.12rem;
+}
+
+.chromium-bookmarks-folder-view header span {
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.chromium-bookmarks-folder-view-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chromium-bookmarks-folder-view-actions .home-button {
+  height: 29px;
+  padding: 0 10px;
+  font-size: .75rem;
+}
+
+.chromium-bookmarks-folder-view-list {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+}
+
+.chromium-bookmarks-folder-view-node {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto auto;
+  gap: 6px;
+  align-items: stretch;
+  border: 1px solid rgba(119,219,255,.13);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+  overflow: hidden;
+}
+
+.chromium-bookmarks-folder-view-node > button:first-child {
+  min-width: 0;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.chromium-bookmarks-folder-view-node strong,
+.chromium-bookmarks-folder-view-node span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chromium-bookmarks-folder-view-node strong { font-size: .82rem; }
+
+.chromium-bookmarks-folder-view-node span {
+  color: var(--muted);
+  font-size: .72rem;
+  margin-top: 2px;
+}
+
+.chromium-bookmarks-folder-view-node .mini {
+  border: 0;
+  border-left: 1px solid rgba(119,219,255,.12);
+  color: var(--cyan);
+  background: rgba(119,219,255,.04);
+  cursor: pointer;
+  padding: 0 10px;
+}
+
+/* PASS 22: bookmark folder navigation hardening. */
+.chromium-bookmarks-breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: .70rem;
+}
+
+.chromium-bookmarks-crumb {
+  max-width: 150px;
+  border: 1px solid rgba(119,219,255,.14);
+  border-radius: 999px;
+  color: var(--cyan);
+  background: rgba(119,219,255,.045);
+  cursor: pointer;
+  padding: 3px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chromium-bookmarks-crumb[aria-current="page"] {
+  color: var(--text);
+  border-color: rgba(255,210,122,.24);
+  background: rgba(255,210,122,.06);
+  cursor: default;
+}
+
+.chromium-bookmarks-folder-view-actions .home-button:disabled,
+.chromium-bookmarks-folder-view-node .mini:disabled {
+  opacity: .42;
+  cursor: default;
+}
+
+.chromium-bookmarks-folder-view-node {
+  grid-template-columns: minmax(0,1fr) auto auto auto;
+}
+
+.chromium-bookmarks-folder-view-node .mini.danger {
+  color: #ff9a9a;
+}
+
+.chromium-bookmarks-folder-view:focus-within {
+  border-color: rgba(119,219,255,.44);
+}

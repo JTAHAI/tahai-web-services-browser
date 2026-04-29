@@ -84,7 +84,7 @@ export type MissionLayout = {
 
 export type MissionTimelineEvent = {
   eventId: string;
-  kind: 'created' | 'tab-added' | 'tab-role-set' | 'layout-set' | 'saved' | 'restored' | 'mission-renamed' | 'mission-duplicated' | 'mission-deleted' | 'note' | 'exported' | 'runbook-updated' | 'checklist-added' | 'checklist-updated';
+  kind: 'created' | 'tab-added' | 'tab-role-set' | 'layout-set' | 'saved' | 'restored' | 'mission-renamed' | 'mission-duplicated' | 'mission-deleted' | 'note' | 'evidence-added' | 'exported' | 'runbook-updated' | 'checklist-added' | 'checklist-updated';
   createdAt: string;
   title: string;
   detail: string;
@@ -126,6 +126,20 @@ export type MissionRunbook = {
   steps: MissionRunbookStep[];
 };
 
+export type MissionEvidenceKind = 'url' | 'screenshot' | 'note' | 'header-summary' | 'tls-summary' | 'dns-summary' | 'tool-output' | 'checklist' | 'export';
+
+export type MissionEvidenceEntry = {
+  eventId: string;
+  kind: MissionEvidenceKind;
+  title: string;
+  url: string;
+  sourceTabId?: string;
+  paneId?: string;
+  createdAt: string;
+  operatorNote: string;
+  metadata: Record<string, string>;
+};
+
 export type MissionState = {
   schemaVersion: number;
   missionId: string;
@@ -138,6 +152,7 @@ export type MissionState = {
   layout: MissionLayout;
   notes: string[];
   runbook: MissionRunbook;
+  evidence: MissionEvidenceEntry[];
   timeline: MissionTimelineEvent[];
   links: MissionLinks;
 };

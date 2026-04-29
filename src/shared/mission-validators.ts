@@ -5,6 +5,8 @@ import {
   MISSION_SCHEMA_VERSION,
   MISSION_TAB_ROLES,
   MISSION_TYPES,
+  type MissionEvidenceEntry,
+  type MissionEvidenceKind,
   type MissionLayout,
   type MissionLayoutType,
   type MissionMode,
@@ -23,10 +25,11 @@ const MAX_MISSION_BYTES = 512 * 1024;
 const MAX_MISSION_TABS = 32;
 const MAX_MISSION_NOTES = 80;
 const MAX_MISSION_TIMELINE = 160;
+const MAX_MISSION_EVIDENCE = 80;
 const MAX_MISSION_RUNBOOK_STEPS = 60;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PANE_RE = /^pane-[1-4]$/;
-const ALLOWED_TOP_LEVEL = new Set(['schemaVersion', 'missionId', 'name', 'missionType', 'mode', 'createdAt', 'updatedAt', 'tabs', 'layout', 'notes', 'runbook', 'timeline', 'links']);
+const ALLOWED_TOP_LEVEL = new Set(['schemaVersion', 'missionId', 'name', 'missionType', 'mode', 'createdAt', 'updatedAt', 'tabs', 'layout', 'notes', 'runbook', 'evidence', 'timeline', 'links']);
 const FORBIDDEN_KEY_RE = /(token|secret|password|authorization|cookie|refresh|accessToken|refreshToken|client_secret|api[_-]?key)/i;
 const BLOCKED_PROTOCOLS = new Set(['javascript:', 'data:', 'vbscript:', 'file:', 'ftp:']);
 
@@ -171,10 +174,45 @@ function validateRunbook(input: unknown): MissionRunbook {
   };
 }
 
+
+const MISSION_EVIDENCE_KINDS = ['url', 'screenshot', 'note', 'header-summary', 'tls-summary', 'dns-summary', 'tool-output', 'checklist', 'export'] as const;
+
+function isMissionEvidenceKind(value: unknown): value is MissionEvidenceKind {
+  return typeof value === 'string' && (MISSION_EVIDENCE_KINDS as readonly string[]).includes(value);
+}
+
+function validateEvidenceEntry(input: unknown, tabs: MissionTabRef[]): MissionEvidenceEntry | undefined {
+  if (!isRecord(input) || !isMissionUuid(input.eventId) || !isMissionEvidenceKind(input.kind)) return undefined;
+  const rawUrl = String(input.url ?? '').trim();
+  const safeUrl = rawUrl ? sanitizeMissionUrl(rawUrl) : '';
+  if (rawUrl && !safeUrl) return undefined;
+  const sourceTabId = input.sourceTabId && isMissionUuid(input.sourceTabId) && tabs.some((tab) => tab.tabId === input.sourceTabId) ? input.sourceTabId : undefined;
+  const paneId = input.paneId && isMissionPaneId(input.paneId) ? input.paneId : undefined;
+  const metadata: Record<string, string> = {};
+  if (isRecord(input.metadata)) {
+    for (const [key, value] of Object.entries(input.metadata).slice(0, 20)) {
+      const safeKey = cleanText(key, 60);
+      if (!safeKey || FORBIDDEN_KEY_RE.test(safeKey)) continue;
+      metadata[safeKey] = cleanText(value, 300);
+    }
+  }
+  return {
+    eventId: input.eventId,
+    kind: input.kind,
+    title: cleanText(input.title, 180) || 'Mission evidence',
+    url: safeUrl || '',
+    sourceTabId,
+    paneId,
+    createdAt: cleanIso(input.createdAt),
+    operatorNote: cleanText(input.operatorNote, 1200),
+    metadata
+  };
+}
+
 function validateTimelineEvent(input: unknown): MissionTimelineEvent | undefined {
   if (!isRecord(input) || !isMissionUuid(input.eventId)) return undefined;
   const kind = String(input.kind || 'note');
-  if (!['created', 'tab-added', 'tab-role-set', 'layout-set', 'saved', 'restored', 'note', 'exported', 'runbook-updated', 'checklist-added', 'checklist-updated'].includes(kind)) return undefined;
+  if (!['created', 'tab-added', 'tab-role-set', 'layout-set', 'saved', 'restored', 'mission-renamed', 'mission-duplicated', 'mission-deleted', 'note', 'evidence-added', 'exported', 'runbook-updated', 'checklist-added', 'checklist-updated'].includes(kind)) return undefined;
   return {
     eventId: input.eventId,
     kind: kind as MissionTimelineEvent['kind'],
@@ -204,6 +242,8 @@ export function validateMission(input: unknown): MissionValidationResult {
   if (!layout) return { ok: false, error: 'Mission layout is invalid.' };
   const notes = Array.isArray(input.notes) ? input.notes.slice(0, MAX_MISSION_NOTES).map((note) => cleanText(note, 4000)).filter(Boolean) : [];
   const runbook = validateRunbook(input.runbook);
+  const evidence = Array.isArray(input.evidence) ? input.evidence.slice(0, MAX_MISSION_EVIDENCE).map((entry) => validateEvidenceEntry(entry, tabs)).filter(Boolean) as MissionEvidenceEntry[] : [];
+  if (Array.isArray(input.evidence) && input.evidence.length !== evidence.length) return { ok: false, error: 'Mission evidence contains an invalid entry.' };
   const timeline = Array.isArray(input.timeline) ? input.timeline.slice(0, MAX_MISSION_TIMELINE).map(validateTimelineEvent).filter(Boolean) as MissionTimelineEvent[] : [];
   if (Array.isArray(input.timeline) && input.timeline.length !== timeline.length) return { ok: false, error: 'Mission timeline contains an invalid event.' };
   const links = isRecord(input.links) ? input.links : {};
@@ -221,6 +261,7 @@ export function validateMission(input: unknown): MissionValidationResult {
       layout,
       notes,
       runbook,
+      evidence,
       timeline,
       links: {
         itDocs: isRecord(links.itDocs) ? {
