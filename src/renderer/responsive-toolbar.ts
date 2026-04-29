@@ -2,8 +2,8 @@
   type ManagedItem = { id: string; priority: number; marker: Comment; element: HTMLElement };
   const MENU_ID = 'toolbar-overflow-menu';
   const BUTTON_ID = 'toolbar-overflow-toggle';
-  const ALWAYS_VISIBLE_IDS = new Set(['back','forward','reload','home','address-form','profile-switcher','devops-tools','it-tools','mission-control-toggle']);
-  const MANAGED_IDS = ['about','settings','site-view-rail-toggle','chromium-bookmarks-button','chromium-bookmark-star','ops-hub-toggle','onboarding','launchpad'];
+  const ALWAYS_VISIBLE_IDS = new Set(['back','forward','reload','home','address-form','profile-switcher','devops-tools','it-tools','mission-control-toggle','launchpad','onboarding']);
+  const MANAGED_IDS = ['settings','ops-hub-toggle','site-view-rail-toggle','chromium-bookmarks-button','chromium-bookmark-star','about'];
   let managed: ManagedItem[] = [];
   let menuEl: HTMLElement | null = null;
   let buttonEl: HTMLButtonElement | null = null;
@@ -20,16 +20,17 @@
     buttonEl.id = BUTTON_ID;
     buttonEl.type = 'button';
     buttonEl.className = 'home-button secondary toolbar-overflow-toggle';
-    buttonEl.title = 'More browser controls';
+    buttonEl.title = 'Open more tools and secondary browser controls';
     buttonEl.setAttribute('aria-haspopup', 'true');
     buttonEl.setAttribute('aria-expanded', 'false');
-    buttonEl.innerHTML = '<span aria-hidden="true">&gt;</span><span>More</span>';
+    buttonEl.innerHTML = '<span aria-hidden="true">☰</span><span>More Tools</span>';
     buttonEl.addEventListener('click', () => toggleMenu());
     menuEl = document.createElement('section');
     menuEl.id = MENU_ID;
     menuEl.className = 'toolbar-overflow-menu';
     menuEl.hidden = true;
-    menuEl.setAttribute('aria-label', 'More browser controls');
+    menuEl.setAttribute('aria-label', 'More tools and secondary browser controls');
+    menuEl.innerHTML = '<div class="toolbar-overflow-header"><strong>More Tools</strong><span>Secondary controls moved here only when the window is narrow.</span></div><div class="toolbar-overflow-items" id="toolbar-overflow-items"></div>';
     toolbar.appendChild(buttonEl);
     document.querySelector('.app-shell')?.appendChild(menuEl);
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeMenu(); });
@@ -63,21 +64,22 @@
     if (!menuEl || !buttonEl) return;
     menuEl.hidden = !menuEl.hidden;
     buttonEl.setAttribute('aria-expanded', String(!menuEl.hidden));
-    if (!menuEl.hidden) window.setTimeout(() => menuEl?.querySelector<HTMLElement>('button, [href], input, select, textarea')?.focus(), 0);
+    if (!menuEl.hidden) window.setTimeout(() => menuEl?.querySelector<HTMLElement>('.toolbar-overflow-items button, .toolbar-overflow-items [href], input, select, textarea')?.focus(), 0);
   }
 
   function targetCountForWidth(width: number): number {
-    if (width < 760) return 8;
-    if (width < 920) return 8;
-    if (width < 1080) return 7;
-    if (width < 1240) return 6;
-    if (width < 1400) return 5;
-    if (width < 1560) return 4;
-    return 2;
+    if (width < 760) return 6;
+    if (width < 920) return 5;
+    if (width < 1080) return 4;
+    if (width < 1180) return 3;
+    if (width < 1280) return 2;
+    return 0;
   }
 
-  function moveToMenu(item: ManagedItem): void { if (menuEl && item.element.parentElement !== menuEl) { item.element.classList.add('in-toolbar-overflow'); menuEl.appendChild(item.element); } }
-  function restoreToToolbar(item: ManagedItem): void { if (item.element.parentElement === menuEl) { item.element.classList.remove('in-toolbar-overflow'); item.marker.parentElement?.insertBefore(item.element, item.marker.nextSibling); } }
+  function overflowItemsEl(): HTMLElement | null { return document.getElementById('toolbar-overflow-items') as HTMLElement | null; }
+
+  function moveToMenu(item: ManagedItem): void { const host = overflowItemsEl(); if (host && item.element.parentElement !== host) { item.element.classList.add('in-toolbar-overflow'); host.appendChild(item.element); } }
+  function restoreToToolbar(item: ManagedItem): void { const host = overflowItemsEl(); if (item.element.parentElement === host) { item.element.classList.remove('in-toolbar-overflow'); item.marker.parentElement?.insertBefore(item.element, item.marker.nextSibling); } }
 
   function relayout(): void {
     ensureShell(); collectManagedItems();
@@ -103,7 +105,7 @@
     document.body.dataset.toolbarOverflowCount = String(target);
     document.body.classList.toggle('toolbar-no-native-scrollbars', true);
     if (target === 0) closeMenu();
-    if (target > 0) setStatus(`${target} browser controls moved to > overflow for this window size`);
+    if (target > 0) setStatus(`${target} secondary browser controls are available in More Tools`);
   }
 
   function scheduleRelayout(): void { window.clearTimeout(resizeTimer); resizeTimer = window.setTimeout(relayout, 80); }

@@ -678,9 +678,20 @@ function installApplicationMenu(window: BrowserWindow): void {
 
 function getTahaiBrowserIconPath() {
   const iconFile = process.platform === "win32" ? "icon.ico" : "icon.png";
-  return app.isPackaged
-    ? path.join(process.resourcesPath, "build", iconFile)
-    : path.join(app.getAppPath(), "build", iconFile);
+  const candidates = app.isPackaged
+    ? [
+        path.join(process.resourcesPath, iconFile),
+        path.join(process.resourcesPath, "build", iconFile),
+        path.join(process.resourcesPath, "app.asar.unpacked", "build", iconFile),
+        path.join(process.resourcesPath, "app", "build", iconFile)
+      ]
+    : [
+        path.join(app.getAppPath(), "build", iconFile),
+        path.join(process.cwd(), "build", iconFile),
+        path.join(__dirname, "..", "..", "build", iconFile),
+        path.join(__dirname, "..", "build", iconFile)
+      ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
 }
 
 function createWindow(): BrowserWindow {
@@ -828,30 +839,14 @@ const TAHAI_WINDOWS_APP_ID = "com.tahai.webservices.browser";
 const TAHAI_WINDOWS_APP_NAME = "TAHAI Web Services Browser";
 
 function tahaiResolveWindowIcon(): string {
-  const candidatePaths = [
-    path.join(process.resourcesPath, "icon.ico"),
-    path.join(process.resourcesPath, "app.asar.unpacked", "build", "icon.ico"),
-    path.join(process.resourcesPath, "app", "build", "icon.ico"),
-    path.join(process.cwd(), "build", "icon.ico"),
-    path.join(__dirname, "..", "..", "build", "icon.ico"),
-    path.join(__dirname, "..", "build", "icon.ico"),
-  ];
-
-  const found = candidatePaths.find((candidatePath: string): boolean => {
-    try {
-      return fs.existsSync(candidatePath);
-    } catch {
-      return false;
-    }
-  });
-
-  return found ?? candidatePaths[0];
+  return getTahaiBrowserIconPath();
 }
 
 app.setName(TAHAI_WINDOWS_APP_NAME);
 
 if (process.platform === "win32") {
   app.setAppUserModelId(TAHAI_WINDOWS_APP_ID);
+  app.setLoginItemSettings({ openAtLogin: false, path: process.execPath });
 }
 // PASS33_WINDOWS_TASKBAR_ICON_HELPERS_END
 

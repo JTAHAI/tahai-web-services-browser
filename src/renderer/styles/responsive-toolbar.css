@@ -1,4 +1,4 @@
-/* PASS 03 chevron-overflow shell cleanup: no native toolbar scrollbars. */
+/* PASS 13 responsive toolbar cleanup: no hidden-scroll UX; secondary controls move to a clear More Tools panel only when needed. */
 .toolbar {
   display: flex !important;
   align-items: center;
@@ -20,7 +20,7 @@
   min-width: 42px;
   padding-inline: 12px;
 }
-.toolbar-overflow-toggle > span[aria-hidden="true"] { font-size: 1.04rem; font-weight: 900; line-height: 1; }
+.toolbar-overflow-toggle > span[aria-hidden="true"] { font-size: 1rem; font-weight: 900; line-height: 1; }
 .toolbar-overflow-toggle[hidden] { display: none !important; }
 .toolbar-overflow-toggle[aria-expanded="true"] { border-color: rgba(119,219,255,.72); background: rgba(119,219,255,.14); box-shadow: 0 0 24px rgba(47,143,255,.18); }
 .toolbar-overflow-menu {
@@ -28,9 +28,9 @@
   top: 108px;
   right: 14px;
   z-index: 140;
-  width: min(320px, calc(100vw - 28px));
+  width: min(380px, calc(100vw - 28px));
   display: grid;
-  gap: 8px;
+  gap: 10px;
   padding: 12px;
   border: 1px solid rgba(119,219,255,.30);
   border-radius: 18px;
@@ -38,11 +38,27 @@
   box-shadow: 0 24px 92px rgba(0,0,0,.74), 0 0 52px rgba(47,143,255,.15);
 }
 .toolbar-overflow-menu[hidden] { display: none; }
+.toolbar-overflow-header {
+  display: grid;
+  gap: 3px;
+  padding: 2px 2px 8px;
+  border-bottom: 1px solid rgba(119,219,255,.14);
+}
+.toolbar-overflow-header strong { color: #eaf8ff; font-size: .9rem; letter-spacing: .02em; }
+.toolbar-overflow-header span { color: rgba(219,241,255,.66); font-size: .76rem; line-height: 1.35; }
+.toolbar-overflow-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
 .toolbar-overflow-menu .home-button, .toolbar-overflow-menu .icon-button {
   width: 100%;
   min-width: 0;
   justify-content: flex-start;
   text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .toolbar-overflow-menu .chromium-bookmark-star { color: #ffd27a; }
 .in-toolbar-overflow { display: inline-flex !important; }
@@ -62,3 +78,5 @@
   .toolbar-overflow-toggle span:not([aria-hidden="true"]) { display: none; }
 }
 @media (max-width: 860px) { .toolbar-overflow-menu { top: 144px; } }
+
+@media (max-width: 620px) { .toolbar-overflow-items { grid-template-columns: 1fr; } }
