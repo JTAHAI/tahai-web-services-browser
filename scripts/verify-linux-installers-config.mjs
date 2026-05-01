@@ -14,8 +14,9 @@ const lock = json('package-lock.json');
 const yml = read('electron-builder.yml');
 const bash = read('scripts/build-linux-installers.sh');
 const envAssert = exists('scripts/assert-linux-native-build-env.mjs') ? read('scripts/assert-linux-native-build-env.mjs') : '';
+const linuxVerifier = exists('scripts/verify-linux-installers.mjs') ? read('scripts/verify-linux-installers.mjs') : '';
 
-if (pkg.version !== '1.8.30') fail(`package version must be 1.8.30 for PASS56/PASS57, found ${pkg.version}`);
+if (pkg.version !== '1.8.30') fail(`package version must be 1.8.30 for Linux RC1, found ${pkg.version}`);
 if (lock.version !== pkg.version) fail(`package-lock top-level version mismatch: ${lock.version} != ${pkg.version}`);
 if (lock.packages?.['']?.version !== pkg.version) fail(`package-lock package version mismatch: ${lock.packages?.['']?.version} != ${pkg.version}`);
 
@@ -72,6 +73,9 @@ for (const token of [
   'LINUX_NODE_DEPS_OK',
   'DIST_MAIN_MISSING',
   'release/linux',
+  'TAHAI-Web-Services-Browser-${APP_VERSION}-x64.AppImage',
+  'TAHAI-Web-Services-Browser-${APP_VERSION}-x64.deb',
+  'TAHAI-Web-Services-Browser-${APP_VERSION}-x64.rpm',
 ]) {
   if (!bash.includes(token)) fail(`Linux WSL build script missing token: ${token}`);
 }
@@ -87,6 +91,17 @@ for (const token of [
   'TAHAI_LINUX_NATIVE_BUILD_ENV=OK',
 ]) {
   if (!envAssert.includes(token)) fail(`Linux native build env verifier missing token: ${token}`);
+}
+
+if (!linuxVerifier) fail('missing scripts/verify-linux-installers.mjs');
+for (const token of [
+  'x86_64\\.AppImage',
+  'amd64\\.deb',
+  'x86_64\\.rpm',
+  'TAHAI_LINUX_INSTALLER_FOUND',
+  'TAHAI_LINUX_INSTALLERS=OK',
+]) {
+  if (!linuxVerifier.includes(token)) fail(`Linux artifact verifier missing token: ${token}`);
 }
 
 if (errors.length) {

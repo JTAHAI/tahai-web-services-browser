@@ -1,12 +1,21 @@
 # Known Issues
 
-## 1.8.30 public source baseline
+## 1.8.30 Linux RC1 / public source baseline
 
+- Linux RC1 packaging now builds AppImage, `.deb`, and `.rpm` from Ubuntu 24.04 WSL using a Linux-native mirror folder under `$HOME`.
+- The Linux build script copies Electron Builder's native architecture names back into canonical release names under `release/linux/`.
+- Linux install/run validation is still manual before broad public announcement: launch AppImage, install `.deb` on Ubuntu/Debian-family, and install `.rpm` on Fedora/RHEL-family.
 - Windows installers remain unsigned until the approved signing lane is active. Windows SmartScreen may show a warning; publish SHA256 checksums with every public artifact.
-- Linux packaging must be run from a Linux-native folder. Do not reuse `/mnt/c/.../node_modules`; use `bash scripts/build-linux-installers.sh` from WSL/native Linux so the script mirrors source into `~/tahai-browser-linux-build` first.
 - macOS packages must be built on macOS. Signed/notarized public macOS releases require Apple Developer signing and notarization configuration.
 - Public release packaging must still be manually verified on the target OS before broad announcement: installed launch, shortcuts/menu entries, taskbar/dock icon, Mission Control pane routing, keyboard shortcuts, mouse Button 4/5 where applicable, Evidence Pack redaction, and local-only Mission restore/export.
 - IT Docs and PSA integration surfaces are browser-side contracts only. They intentionally do not perform server-side IT Docs writes or direct PSA API calls from this browser repo.
+
+## Linux build footguns now guarded
+
+- Running Linux packaging from `/mnt/c/.../node_modules` is blocked.
+- Windows `node.exe`, Windows `npm.cmd`, UNC paths, and Windows PATH interop are rejected by the Linux-native environment verifier.
+- `dist/main/main.js` is checked before Electron Builder packages the app.
+- Linux package verification accepts Electron Builder's native architecture suffixes: `x86_64.AppImage`, `amd64.deb`, and `x86_64.rpm`.
 
 ## 1.8.21 public release candidate
 

@@ -109,7 +109,7 @@ printf '\nTAHAI_LINUX_INSTALLER_OUTPUTS\n'
 find release -maxdepth 2 -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -printf '%p %s bytes\n' | sort
 
 if [ -n "${TAHAI_LINUX_SOURCE_ROOT:-}" ] && [ -d "$TAHAI_LINUX_SOURCE_ROOT" ]; then
-  APP_VERSION="$("$NODE_BIN" -p "require('./package.json').version")"
+  APP_VERSION="$($NODE_BIN -p "require('./package.json').version")"
   COPY_DIR="$TAHAI_LINUX_SOURCE_ROOT/release/linux"
   mkdir -p "$COPY_DIR"
 
@@ -124,5 +124,3 @@ if [ -n "${TAHAI_LINUX_SOURCE_ROOT:-}" ] && [ -d "$TAHAI_LINUX_SOURCE_ROOT" ]; t
   printf '\nTAHAI_LINUX_INSTALLERS_COPIED_TO=%s\n' "$COPY_DIR"
   ls -lh "$COPY_DIR"
 fi
-
-

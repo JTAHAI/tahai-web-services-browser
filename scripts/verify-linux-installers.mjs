@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -35,7 +35,7 @@ if (!fs.existsSync(releaseDir)) {
   errors.push('release directory does not exist');
 } else {
   const files = fs.readdirSync(releaseDir, { recursive: true })
-    .map((file) => String(file).replaceAll('\\', '/'))
+    .map((file) => String(file).replaceAll('\\\\', '/'))
     .filter((file) => fs.statSync(path.join(releaseDir, file)).isFile());
 
   for (const target of expected) {

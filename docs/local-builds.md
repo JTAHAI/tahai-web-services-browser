@@ -71,23 +71,17 @@ Do not reuse `/mnt/c/.../node_modules` for Linux packaging. The build script mir
 From Windows PowerShell:
 
 ```powershell
-wsl -d Ubuntu-24.04 --cd ~
-```
-
-Inside Ubuntu:
-
-```bash
-set -euo pipefail
+wsl -d Ubuntu-24.04 --cd /mnt/c/dev/browser/app -- bash -lc 'set -euo pipefail
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 hash -r
-
-which node
-which npm
-node -v
-npm -v
-
+cd ~
+sudo chown -R "$USER:$USER" "$HOME/tahai-browser-linux-build" 2>/dev/null || true
+sudo chmod -R u+rwX "$HOME/tahai-browser-linux-build" 2>/dev/null || true
+sudo rm -rf "$HOME/tahai-browser-linux-build"
 cd /mnt/c/dev/browser/app
+git pull --ff-only origin main
 bash scripts/build-linux-installers.sh
+'
 ```
 
 Expected copied outputs on Windows:
@@ -115,9 +109,30 @@ npm run package:linux:deb
 npm run package:linux:rpm
 ```
 
+## Linux install examples
+
+AppImage:
+
+```bash
+chmod +x TAHAI-Web-Services-Browser-1.8.30-x64.AppImage
+./TAHAI-Web-Services-Browser-1.8.30-x64.AppImage
+```
+
+Ubuntu/Debian-family:
+
+```bash
+sudo apt install ./TAHAI-Web-Services-Browser-1.8.30-x64.deb
+```
+
+Fedora/RHEL-family:
+
+```bash
+sudo dnf install ./TAHAI-Web-Services-Browser-1.8.30-x64.rpm
+```
+
 ## macOS: local developer packages
 
-macOS packaging must be run on macOS.
+macOS packaging must be run on macOS. Cross-building macOS installers from Windows or Linux is not the supported path.
 
 Intel build:
 

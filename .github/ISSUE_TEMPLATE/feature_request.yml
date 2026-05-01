@@ -1,13 +1,17 @@
 name: Feature request
-description: Suggest a browser, DevOps, or IT engineering improvement
-title: "[Feature]: "
-labels: ["enhancement", "triage"]
+description: Suggest an improvement for TAHAI Web Services Browser
+title: "Feature: "
+labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep requests focused on the browser lane. IT Docs backend work and PSA connector work belong outside this public browser repository.
   - type: textarea
     id: problem
     attributes:
-      label: Problem
-      description: What workflow problem should this solve?
+      label: Problem or workflow
+      description: What operator/developer/IT workflow should this improve?
     validations:
       required: true
   - type: textarea
@@ -17,19 +21,25 @@ body:
     validations:
       required: true
   - type: dropdown
-    id: lane
+    id: area
     attributes:
-      label: Lane
+      label: Area
       options:
-        - Browser shell
-        - Developer tools
-        - DevOps tools
-        - IT engineering tools
+        - Mission Control / Mission Tabs
+        - Multi-view / panes
+        - DevOps or IT launch recipes
+        - Evidence / export / redaction
+        - Packaging / installers
         - Documentation
-        - Packaging/installers
-        - Security
         - Other
-  - type: textarea
-    id: notes
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundaries
     attributes:
-      label: Additional context
+      label: Boundary check
+      options:
+        - label: This does not require storing provider/API/PSA secrets in the browser.
+          required: true
+        - label: This does not require direct PSA API calls from the public browser repo.
+          required: true

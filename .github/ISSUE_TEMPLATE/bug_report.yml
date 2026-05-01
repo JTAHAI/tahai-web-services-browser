@@ -1,44 +1,61 @@
 name: Bug report
-description: Report a reproducible browser issue
-title: "[Bug]: "
-labels: ["bug", "triage"]
+description: Report a reproducible issue in TAHAI Web Services Browser
+title: "Bug: "
+labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not include secrets, tokens, cookies, customer data, screenshots with sensitive information, or private mission/evidence exports.
+  - type: input
+    id: version
+    attributes:
+      label: Browser version
+      description: Example: 1.8.30
+      placeholder: "1.8.30"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - Linux AppImage
+        - Linux deb
+        - Linux rpm
+        - macOS
+        - Source/dev build
+    validations:
+      required: true
   - type: textarea
     id: summary
     attributes:
-      label: Summary
-      description: What happened?
+      label: What happened?
+      description: Describe the issue clearly.
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
       label: Steps to reproduce
-      value: |
-        1.
-        2.
-        3.
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
     validations:
       required: true
-  - type: input
-    id: version
-    attributes:
-      label: Browser version
-      placeholder: "1.8.0"
-  - type: input
-    id: windows
-    attributes:
-      label: Windows version
-      placeholder: "Windows 11 24H2"
   - type: textarea
     id: expected
     attributes:
       label: Expected behavior
+    validations:
+      required: true
   - type: textarea
-    id: actual
+    id: logs
     attributes:
-      label: Actual behavior
-  - type: textarea
-    id: screenshots
-    attributes:
-      label: Screenshots or logs
+      label: Logs or screenshots
+      description: Redact secrets and customer data before posting.
+      render: text
+    validations:
+      required: false

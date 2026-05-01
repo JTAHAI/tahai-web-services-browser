@@ -1,3 +1,7 @@
+# Cross-platform source normalization
+* text=auto
+
+# Bash / Node / source files used by WSL and Linux packaging must remain LF.
 *.sh text eol=lf
 *.mjs text eol=lf
 *.js text eol=lf
@@ -7,6 +11,23 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.md text eol=lf
+
+# Windows command files remain CRLF.
 *.ps1 text eol=crlf
 *.cmd text eol=crlf
 *.bat text eol=crlf
+
+# Binary artifacts/assets.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.zip binary
+*.exe binary
+*.msi binary
+*.AppImage binary
+*.deb binary
+*.rpm binary
+*.dmg binary
