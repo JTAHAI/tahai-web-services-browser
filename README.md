@@ -8,11 +8,11 @@ It is designed as a polished TAHAI-branded launchpad for developer workflows, De
 
 ## Current status
 
-Version: `1.8.1`
+Version: `1.8.21`
 
-This is an early friend-feedback preview.
+This is the public release candidate source baseline for the TAHAI Web Services Browser Mission Control workbench.
 
-The current Windows preview installer is unsigned. Windows SmartScreen may show a warning. Only install preview builds downloaded directly from TAHAI Web Services or from the official GitHub Releases page for this repository.
+The current Windows public release candidate installer is unsigned. Windows SmartScreen may show a warning. Only install preview builds downloaded directly from TAHAI Web Services or from the official GitHub Releases page for this repository, and compare published SHA256 checksums before installing.
 
 The source is now public on GitHub. Open-source code signing through SignPath Foundation has been submitted/in progress.
 
@@ -60,7 +60,21 @@ npm run release:friend:zip
 ```powershell
 npm run verify:public-repo
 npm run verify:release-blockers
+npm run verify:mission-tabs-security
+npm run release:public:verify
 ```
+
+
+## Public release candidate build
+
+```powershell
+$ErrorActionPreference = "Stop"
+Set-Location C:\dev\browser\app
+npm ci
+npm run release:public:win
+```
+
+Public RC outputs are generated under `release/` and include `public-release-candidate-manifest.json` and `SHA256SUMS.txt`. Generated release files remain excluded from source.
 
 ## Code signing roadmap
 

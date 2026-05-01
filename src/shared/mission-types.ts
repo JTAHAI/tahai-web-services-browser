@@ -1,3 +1,6 @@
+import type { PsaReferenceProvider } from './psa-reference-contract';
+import type { RedactionFinding } from './redaction';
+
 export const MISSION_SCHEMA_VERSION = 1;
 
 export const MISSION_TYPES = [
@@ -36,6 +39,15 @@ export const MISSION_LAYOUT_TYPES = [
   'command'
 ] as const;
 
+export const MISSION_EVIDENCE_EXPORT_PROFILES = [
+  'internal',
+  'sanitized-handoff',
+  'incident-packet',
+  'change-record',
+  'itdocs-sync',
+  'psa-ticket-note'
+] as const;
+
 export const MISSION_RUNBOOK_STEP_STATES = [
   'todo',
   'doing',
@@ -60,6 +72,7 @@ export type MissionTabRole = typeof MISSION_TAB_ROLES[number];
 export type MissionLayoutType = typeof MISSION_LAYOUT_TYPES[number];
 export type MissionRunbookStepState = typeof MISSION_RUNBOOK_STEP_STATES[number];
 export type MissionMode = typeof MISSION_MODES[number];
+export type MissionEvidenceExportProfile = typeof MISSION_EVIDENCE_EXPORT_PROFILES[number];
 
 export type MissionTabRef = {
   tabId: string;
@@ -100,7 +113,7 @@ export type MissionItDocsLinks = {
 };
 
 export type MissionPsaLinks = {
-  provider?: string;
+  provider?: PsaReferenceProvider;
   ticketId?: string;
   ticketDisplayKey?: string;
   ticketTitle?: string;
@@ -180,5 +193,15 @@ export type MissionLoadResult = MissionSaveResult;
 export type MissionDeleteResult = {
   ok: boolean;
   deletedMissionId?: string;
+  error?: string;
+};
+
+export type MissionExportResult = {
+  ok: boolean;
+  markdown?: string;
+  redactedMarkdown?: string;
+  findings?: RedactionFinding[];
+  highRiskCount?: number;
+  path?: string;
   error?: string;
 };

@@ -1,3 +1,4 @@
+/* PASS 03 chevron-overflow shell cleanup */
 /* PASS 13 responsive toolbar cleanup: no hidden-scroll UX; secondary controls move to a clear More Tools panel only when needed. */
 .toolbar {
   display: flex !important;

@@ -17,6 +17,9 @@ const requiredFiles = [
   ".github/dependabot.yml",
   "docs/known-issues.md",
   "docs/code-signing-signpath-plan.md",
+  "docs/public-release-candidate.md",
+  "docs/github-release-notes-1.8.21.md",
+  "docs/browser-download-page-copy.md",
 ];
 
 const missing = requiredFiles.filter((file) => !fs.existsSync(path.join(root, file)));
@@ -79,3 +82,5 @@ function walk(dir) {
 
 walk(root);
 console.log("TAHAI_BROWSER_PUBLIC_REPO_VERIFY=OK");
+
+process.exit(0);

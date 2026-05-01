@@ -18,6 +18,7 @@
   };
 
   const STORE_KEY = 'tahai-browser:chromium-bookmarks:v1';
+  const LAST_OPEN_FOLDER_KEY = 'tahai-browser:chromium-bookmarks:last-folder-id:v1';
   const LEGACY_KEYS = ['tahai-browser:bookmarks:v1', 'tahai:bookmarks', 'bookmarks'];
   const FEATURE_NAME = 'Chromium Bookmarks';
   const BAR_VISIBLE_CLASS = 'chromium-bookmarks-bar-visible';
@@ -37,7 +38,10 @@
     { title: 'TAHAI', bookmarks: [
       { title: 'TAHAI Portal', url: 'https://tahaiportal.com/' },
       { title: 'TAHAI Browser', url: 'https://browser.tahai.net/' },
-      { title: 'TAHAI IT Docs', url: 'https://docs.tahaiportal.com/' }
+      { title: 'TAHAI IT Docs', url: 'https://docs.tahaiportal.com/' },
+      { title: 'TAHAI OS', url: 'https://os.tahai.net/' },
+      { title: 'SENTINEL', url: 'https://sentinel.tahai.net/' },
+      { title: 'TAHAI Web Services', url: 'https://tahai.net/' }
     ]},
     { title: 'IT Admin', bookmarks: [
       { title: 'Microsoft 365 Admin', url: 'https://admin.microsoft.com/' },
@@ -74,6 +78,7 @@
   let folderViewNode: BookmarkNode | null = null;
   let folderViewReturnFocus: HTMLElement | null = null;
   let searchTerm = '';
+  let folderSearchTerm = '';
 
   type TextInputOptions = {
     title: string;
@@ -157,6 +162,11 @@
 
   function cleanTitle(raw: unknown, fallback: string): string {
     const value = typeof raw === 'string' ? raw.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '';
+    return (value || fallback).slice(0, MAX_TITLE_LENGTH);
+  }
+
+  function compactText(raw: unknown, fallback = ''): string {
+    const value = typeof raw === 'string' ? raw.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim() : '';
     return (value || fallback).slice(0, MAX_TITLE_LENGTH);
   }
 
@@ -520,6 +530,7 @@
     if (returnFocus !== undefined) folderViewReturnFocus = returnFocus;
     else if (!folderViewReturnFocus && document.activeElement instanceof HTMLElement) folderViewReturnFocus = document.activeElement;
     folderViewNode = folder;
+    localStorage.setItem(LAST_OPEN_FOLDER_KEY, folder.id);
     closeMenu();
     renderFolderView();
     if (folderViewEl) {
@@ -534,6 +545,21 @@
     if (found?.type === 'folder') openFolder(found, folderViewReturnFocus);
   }
 
+  function lastOpenFolder(): BookmarkNode | null {
+    const id = localStorage.getItem(LAST_OPEN_FOLDER_KEY) || '';
+    const found = id ? findNode(id)?.node : null;
+    return found?.type === 'folder' ? found : null;
+  }
+
+  function reopenLastFolder(): void {
+    const folder = lastOpenFolder();
+    if (!folder) {
+      setShellStatus('No recent bookmark folder', FEATURE_NAME);
+      return;
+    }
+    openFolder(folder);
+  }
+
   function openParentFolder(): void {
     if (!folderViewNode) return;
     const parent = getParentFolder(folderViewNode);
@@ -541,6 +567,7 @@
   }
 
   function closeFolderView(): void {
+    folderSearchTerm = '';
     folderViewNode = null;
     if (folderViewEl) folderViewEl.hidden = true;
     const focusTarget = folderViewReturnFocus;
@@ -548,8 +575,181 @@
     if (focusTarget && document.contains(focusTarget)) focusTarget.focus();
   }
 
+  function folderBookmarks(folder: BookmarkNode, recursive = true): BookmarkNode[] {
+    const direct = (folder.children || []).filter((node) => node.type === 'bookmark' && node.url);
+    if (!recursive) return direct;
+    return allNodes(folder).filter((node) => node.type === 'bookmark' && node.url);
+  }
+
+  function folderMarkdown(folder: BookmarkNode): string {
+    const lines = [`# ${folder.title}`, '', `Exported: ${new Date().toISOString()}`, ''];
+    const append = (node: BookmarkNode, depth: number): void => {
+      const prefix = '  '.repeat(depth);
+      if (node.type === 'bookmark' && node.url) {
+        lines.push(`${prefix}- [${node.title}](${node.url})`);
+      } else if (node.type === 'folder') {
+        if (node.id !== folder.id) lines.push(`${prefix}- ${node.title}`);
+        for (const child of node.children || []) append(child, node.id === folder.id ? depth : depth + 1);
+      }
+    };
+    append(folder, 0);
+    return `${lines.join('\n')}\n`;
+  }
+
+  function copyTextToClipboard(text: string, statusTitle: string, statusDetail: string): void {
+    navigator.clipboard?.writeText(text).then(() => {
+      setShellStatus(statusTitle, statusDetail);
+    }).catch(() => {
+      const box = document.createElement('textarea');
+      box.value = text;
+      box.setAttribute('readonly', 'true');
+      box.style.position = 'fixed';
+      box.style.left = '-9999px';
+      document.body.appendChild(box);
+      box.select();
+      try {
+        document.execCommand('copy');
+        setShellStatus(statusTitle, statusDetail);
+      } catch {
+        window.alert('Could not copy bookmark folder text.');
+      } finally {
+        box.remove();
+      }
+    });
+  }
+
+  function copyFolderUrls(folder: BookmarkNode): void {
+    const bookmarks = folderBookmarks(folder, true);
+    if (!bookmarks.length) {
+      setShellStatus('No bookmark URLs to copy', folder.title);
+      return;
+    }
+    copyTextToClipboard(bookmarks.map((node) => node.url).filter(Boolean).join('\n'), 'Bookmark URLs copied', `${folder.title} · ${bookmarks.length}`);
+  }
+
+  function copyFolderMarkdown(folder: BookmarkNode): void {
+    const bookmarks = folderBookmarks(folder, true);
+    if (!bookmarks.length) {
+      setShellStatus('No bookmark summary to copy', folder.title);
+      return;
+    }
+    copyTextToClipboard(folderMarkdown(folder), 'Bookmark folder summary copied', `${folder.title} · Markdown`);
+  }
+
+  type BookmarkMissionManifest = {
+    schemaVersion: 1;
+    title: string;
+    createdAt: string;
+    sourceKind: 'folder' | 'bookmark';
+    totalBookmarks: number;
+    safeUrlCount: number;
+    blockedUrlCount: number;
+    duplicateUrlCount: number;
+    paneUrlCount: number;
+    evidenceOnlyUrlCount: number;
+    exportProfile: 'sanitized-handoff';
+    urls: Array<{ title: string; url: string; paneOpened: boolean; exportRole: 'pane' | 'evidence' }>;
+  };
+
+  function buildBookmarkMissionManifest(folder: BookmarkNode): BookmarkMissionManifest {
+    const bookmarks = folderBookmarks(folder, true);
+    const seen = new Set<string>();
+    let blockedUrlCount = 0;
+    let duplicateUrlCount = 0;
+    const urls: Array<{ title: string; url: string; paneOpened: boolean; exportRole: 'pane' | 'evidence' }> = [];
+    bookmarks.forEach((node) => {
+      const safeUrl = parseSafeBookmarkUrl(node.url || '');
+      if (!safeUrl) { blockedUrlCount += 1; return; }
+      if (seen.has(safeUrl)) { duplicateUrlCount += 1; return; }
+      seen.add(safeUrl);
+      const paneOpened = urls.length < 4;
+      urls.push({ title: node.title, url: safeUrl, paneOpened, exportRole: paneOpened ? 'pane' : 'evidence' });
+    });
+    return { schemaVersion: 1, title: folder.title, createdAt: new Date().toISOString(), sourceKind: 'folder', totalBookmarks: bookmarks.length, safeUrlCount: urls.length, blockedUrlCount, duplicateUrlCount, paneUrlCount: Math.min(urls.length, 4), evidenceOnlyUrlCount: Math.max(urls.length - 4, 0), exportProfile: 'sanitized-handoff', urls };
+  }
+
+  function escapeManifestMarkdown(value: string): string {
+    return compactText(value || 'Untitled', 'Untitled').replace(/[\[\]()`*_{}<>#|]/g, '\\$&');
+  }
+
+  function missionManifestJson(manifest: BookmarkMissionManifest): string {
+    return `${JSON.stringify(manifest, null, 2)}\n`;
+  }
+
+  function downloadMissionManifestJson(manifest: BookmarkMissionManifest): void {
+    const safeName = compactText(manifest.title, 'bookmark-mission').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'bookmark-mission';
+    const blob = new Blob([missionManifestJson(manifest)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.download = `tahai-${safeName}-mission-manifest-${new Date().toISOString().slice(0, 10)}.json`;
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShellStatus('Bookmark Mission manifest downloaded', `${manifest.title} · sanitized JSON`);
+  }
+
+  function missionManifestMarkdown(manifest: BookmarkMissionManifest): string {
+    const lines = [
+      `# Bookmark Mission Manifest: ${escapeManifestMarkdown(manifest.title)}`, '',
+      `Created: ${manifest.createdAt}`,
+      `Source: ${manifest.sourceKind}`,
+      `Total bookmarks: ${manifest.totalBookmarks}`,
+      `Safe URLs accepted: ${manifest.safeUrlCount}`,
+      `Duplicates skipped: ${manifest.duplicateUrlCount}`,
+      `Unsafe/invalid blocked: ${manifest.blockedUrlCount}`,
+      `Mission panes opened: ${manifest.paneUrlCount}`,
+      `Evidence-only URLs: ${manifest.evidenceOnlyUrlCount}`,
+      `Export profile: ${manifest.exportProfile}`, '', '## URLs', ''
+    ];
+    manifest.urls.forEach((entry, index) => {
+      lines.push(`${index + 1}. ${entry.exportRole === 'pane' ? '[Pane]' : '[Evidence]'} [${escapeManifestMarkdown(entry.title)}](${entry.url})`);
+    });
+    if (!manifest.urls.length) lines.push('_No safe URLs available for Mission launch._');
+    return `${lines.join('\n')}\n`;
+  }
+
+  function copyFolderMissionManifest(folder: BookmarkNode): void {
+    const manifest = buildBookmarkMissionManifest(folder);
+    copyTextToClipboard(missionManifestMarkdown(manifest), 'Bookmark Mission manifest copied', `${folder.title} · ${manifest.safeUrlCount} safe URL(s)`);
+  }
+
+  function copyFolderMissionManifestJson(folder: BookmarkNode): void {
+    const manifest = buildBookmarkMissionManifest(folder);
+    copyTextToClipboard(missionManifestJson(manifest), 'Bookmark Mission manifest JSON copied', `${folder.title} · sanitized handoff JSON`);
+  }
+
+  function downloadFolderMissionManifestJson(folder: BookmarkNode): void {
+    downloadMissionManifestJson(buildBookmarkMissionManifest(folder));
+  }
+
+  function startMissionFromFolder(folder: BookmarkNode): void {
+    const manifest = buildBookmarkMissionManifest(folder);
+    if (!manifest.totalBookmarks) {
+      setShellStatus('Bookmark folder has no mission URLs', folder.title);
+      return;
+    }
+    const urls = manifest.urls.map((entry) => entry.url);
+    if (!urls.length) {
+      setShellStatus('Bookmark mission blocked', 'No safe http/https URLs found.');
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('tahai-browser:start-mission-from-bookmark-folder', {
+      detail: {
+        title: folder.title,
+        urls,
+        titles: manifest.urls.map((entry) => entry.title),
+        totalBookmarks: manifest.totalBookmarks,
+        sourceFolderId: folder.id,
+        sourceKind: 'folder',
+        launchManifest: missionManifestMarkdown(manifest)
+      }
+    }));
+    closeFolderView();
+    setShellStatus('Starting Mission from bookmarks', `${folder.title} · ${manifest.paneUrlCount} pane${manifest.paneUrlCount === 1 ? '' : 's'} · ${manifest.safeUrlCount} safe URL(s)`);
+  }
+
   function openFolderAsTabs(folder: BookmarkNode): void {
-    const bookmarks = allNodes(folder).filter((node) => node.type === 'bookmark' && node.url);
+    const bookmarks = folderBookmarks(folder, true);
     if (!bookmarks.length) {
       setShellStatus('Bookmark folder is empty', folder.title);
       return;
@@ -826,6 +1026,7 @@
         <button type="button" class="home-button secondary" data-bm-action="add-folder">New folder</button>
         <button type="button" class="home-button secondary" data-bm-action="toggle-bar">${store.barVisible ? 'Hide' : 'Show'} bar</button>
         <button type="button" class="home-button secondary" data-bm-action="manager">Bookmark manager</button>
+        <button type="button" class="home-button secondary" data-bm-action="reopen-last-folder" ${lastOpenFolder() ? '' : 'disabled'}>Last folder</button>
       </section>
       <section class="chromium-bookmarks-search">
         <input type="search" placeholder="Search bookmarks..." value="${escapeText(searchTerm)}" aria-label="Search bookmarks" />
@@ -898,6 +1099,7 @@
       setShellStatus(store.barVisible ? 'Bookmarks bar shown' : 'Bookmarks bar hidden');
     }
     if (action === 'manager') openManager();
+    if (action === 'reopen-last-folder') reopenLastFolder();
     if (action === 'import') importBookmarks();
     if (action === 'export') exportBookmarks();
   }
@@ -912,6 +1114,10 @@
     }
     const directChildren = folder.children || [];
     const allBookmarks = allNodes(folder).filter((node) => node.type === 'bookmark' && node.url);
+    const normalizedFolderSearch = folderSearchTerm.trim().toLowerCase();
+    const visibleChildren = normalizedFolderSearch
+      ? directChildren.filter((node) => `${node.title} ${node.url || ''}`.toLowerCase().includes(normalizedFolderSearch))
+      : directChildren;
     const parentFolder = getParentFolder(folder);
     const folderPath = getFolderPath(folder.id) || [store.root, folder];
     const breadcrumbs = folderPath.map((node, index) => (
@@ -927,11 +1133,20 @@
         </div>
         <button type="button" class="icon-button" data-folder-action="close" aria-label="Close bookmark folder">x</button>
       </header>
+      <section class="chromium-bookmarks-folder-search">
+        <input type="search" value="${escapeText(folderSearchTerm)}" placeholder="Filter this folder..." aria-label="Filter this bookmark folder" />
+      </section>
       <section class="chromium-bookmarks-folder-view-actions">
         <button type="button" class="home-button secondary" data-folder-action="up" ${parentFolder ? '' : 'disabled'}>← Parent folder</button>
         <button type="button" class="home-button" data-folder-action="open-tabs" ${allBookmarks.length ? '' : 'disabled'}>Open folder as tabs</button>
+        <button type="button" class="home-button secondary" data-folder-action="start-mission" ${allBookmarks.length ? '' : 'disabled'}>Start Mission</button>
         <button type="button" class="home-button secondary" data-folder-action="add-current">Add current here</button>
         <button type="button" class="home-button secondary" data-folder-action="add-folder">New subfolder</button>
+        <button type="button" class="home-button secondary" data-folder-action="copy-urls" ${allBookmarks.length ? '' : 'disabled'}>Copy URLs</button>
+        <button type="button" class="home-button secondary" data-folder-action="copy-markdown" ${allBookmarks.length ? '' : 'disabled'}>Copy summary</button>
+        <button type="button" class="home-button secondary" data-folder-action="copy-manifest" ${allBookmarks.length ? '' : 'disabled'}>Copy Mission manifest</button>
+        <button type="button" class="home-button secondary" data-folder-action="copy-manifest-json" ${allBookmarks.length ? '' : 'disabled'}>Copy manifest JSON</button>
+        <button type="button" class="home-button secondary" data-folder-action="download-manifest-json" ${allBookmarks.length ? '' : 'disabled'}>Download manifest JSON</button>
         <button type="button" class="home-button secondary" data-folder-action="manager">Bookmark manager</button>
       </section>
       <section class="chromium-bookmarks-folder-view-list" aria-label="Bookmark folder contents"></section>
@@ -943,18 +1158,35 @@
         empty.className = 'chromium-bookmarks-empty-card';
         empty.textContent = 'This bookmark folder is empty.';
         list.appendChild(empty);
+      } else if (!visibleChildren.length) {
+        const empty = document.createElement('div');
+        empty.className = 'chromium-bookmarks-empty-card';
+        empty.textContent = 'No matching bookmarks in this folder.';
+        list.appendChild(empty);
       } else {
-        for (const child of directChildren) list.appendChild(renderFolderViewNode(child));
+        for (const child of visibleChildren) list.appendChild(renderFolderViewNode(child));
       }
     }
+    folderViewEl.querySelector<HTMLInputElement>('.chromium-bookmarks-folder-search input')?.addEventListener('input', (event) => {
+      folderSearchTerm = (event.target as HTMLInputElement).value;
+      renderFolderView();
+      folderViewEl?.querySelector<HTMLInputElement>('.chromium-bookmarks-folder-search input')?.focus();
+    });
+
     folderViewEl.querySelectorAll<HTMLElement>('[data-folder-action]').forEach((button) => {
       button.addEventListener('click', () => {
         const action = button.dataset.folderAction || '';
         if (action === 'close') closeFolderView();
         if (action === 'up') openParentFolder();
         if (action === 'open-tabs') openFolderAsTabs(folder);
+        if (action === 'start-mission') startMissionFromFolder(folder);
         if (action === 'add-current') void addBookmark(folder.id);
         if (action === 'add-folder') void addFolder(folder.id);
+        if (action === 'copy-urls') copyFolderUrls(folder);
+        if (action === 'copy-markdown') copyFolderMarkdown(folder);
+        if (action === 'copy-manifest') copyFolderMissionManifest(folder);
+        if (action === 'copy-manifest-json') copyFolderMissionManifestJson(folder);
+        if (action === 'download-manifest-json') downloadFolderMissionManifestJson(folder);
         if (action === 'manager') openManager();
       });
     });
@@ -984,6 +1216,20 @@
       else navigateTo(node.url || '', true);
     });
 
+    const mission = document.createElement('button');
+    mission.type = 'button';
+    mission.className = 'mini';
+    mission.textContent = node.type === 'folder' ? 'Mission' : 'Pin URL';
+    mission.title = node.type === 'folder' ? 'Start a Mission from this folder' : 'Start a one-page Mission from this bookmark';
+    mission.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (node.type === 'folder') startMissionFromFolder(node);
+      else if (node.url) {
+        window.dispatchEvent(new CustomEvent('tahai-browser:start-mission-from-bookmark-folder', { detail: { title: node.title, urls: [node.url], titles: [node.title], totalBookmarks: 1, sourceFolderId: node.id, sourceKind: 'bookmark', launchManifest: `# Bookmark Mission Manifest: ${node.title}\n\nSource: bookmark\nTotal bookmarks: 1\nSafe URLs accepted: 1\nMission panes opened: 1\n\n## URLs\n\n1. [Pane] [${node.title}](${node.url})\n` } }));
+        closeFolderView();
+      }
+    });
+
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'mini';
@@ -1001,7 +1247,7 @@
         if (activeFolderId) openFolderById(activeFolderId);
       }
     });
-    row.append(main, openTabs, edit, del);
+    row.append(main, openTabs, mission, edit, del);
     return row;
   }
 
@@ -1124,6 +1370,9 @@
       } else if (event.ctrlKey && event.shiftKey && !event.altKey && key === 'o') {
         event.preventDefault();
         openManager();
+      } else if (event.ctrlKey && event.shiftKey && !event.altKey && key === 'l') {
+        event.preventDefault();
+        reopenLastFolder();
       } else if (event.key === 'Escape') {
         closeMenu();
         closeFolderView();
@@ -1133,6 +1382,9 @@
       } else if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === 'Enter' && folderViewNode && folderViewEl && !folderViewEl.hidden) {
         event.preventDefault();
         openFolderAsTabs(folderViewNode);
+      } else if (event.ctrlKey && event.shiftKey && !event.altKey && key === 'c' && folderViewNode && folderViewEl && !folderViewEl.hidden) {
+        event.preventDefault();
+        copyFolderMarkdown(folderViewNode);
       }
     });
 

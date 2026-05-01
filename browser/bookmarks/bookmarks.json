@@ -29,6 +29,27 @@
               "name": "TAHAI OS",
               "type": "url",
               "url": "https://os.tahai.net"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "51",
+              "name": "TAHAI Browser",
+              "type": "url",
+              "url": "https://browser.tahai.net"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "56",
+              "name": "SENTINEL",
+              "type": "url",
+              "url": "https://sentinel.tahai.net"
+            },
+            {
+              "date_added": "13300000000000000",
+              "id": "62",
+              "name": "TAHAI Web Services",
+              "type": "url",
+              "url": "https://tahai.net"
             }
           ]
         },

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { MissionDeleteResult, MissionListResult, MissionLoadResult, MissionSaveResult, MissionState } from '../shared/mission-types';
+import type { ItDocsMissionCapabilities } from '../shared/itdocs-contract';
+import type { MissionDeleteResult, MissionExportResult, MissionListResult, MissionLoadResult, MissionSaveResult, MissionState } from '../shared/mission-types';
 
 export type TahaiBrowserSettings = {
   homeUrl: string;
@@ -19,6 +20,12 @@ export type TahaiBrowserSettings = {
     showStatusBar: boolean;
     openExternalLinksInNewTab: boolean;
   };
+  privacy: {
+    sendDoNotTrack: boolean;
+    blockThirdPartyCookies: boolean;
+    reduceCrossSiteReferrers: boolean;
+    clearProfileDataOnExit: boolean;
+  };
 };
 
 export type FirstLaunchState = {
@@ -32,6 +39,7 @@ export type TahaiBrowserConfig = {
   productName: string;
   bundleName: string;
   homeUrl: string;
+  itDocsUrl: string;
   startupUrl: string;
   newTabUrl: string;
   settingsUrl: string;
@@ -46,6 +54,21 @@ export type TahaiBrowserConfig = {
   settingsPath: string;
   settings: TahaiBrowserSettings;
   profiles: BrowserProfileState;
+};
+
+export type ClearBrowsingDataScope = 'active-profile' | 'selected-profile' | 'all-profiles';
+
+export type ClearBrowsingDataOptions = {
+  scope?: ClearBrowsingDataScope;
+  profileId?: string;
+};
+
+export type ClearBrowsingDataResult = {
+  ok: boolean;
+  scope: ClearBrowsingDataScope;
+  clearedProfileIds: string[];
+  clearedPartitions: string[];
+  error: string;
 };
 
 export type BrowserProfileKind = 'local' | 'google' | 'microsoft' | 'work' | 'client';
@@ -123,54 +146,13 @@ export type DnsMxRecord = {
 };
 
 
-export type CredentialVaultRecord = {
-  id: string;
-  label: string;
-  url: string;
-  username: string;
-  notes: string;
-  createdAt: string;
-  updatedAt: string;
-  hasPassword: boolean;
-};
-
-export type CredentialVaultState = {
-  ok: boolean;
-  encryptionAvailable: boolean;
-  path: string;
-  reason: string;
-  records: CredentialVaultRecord[];
-};
-
-export type CredentialVaultSaveInput = {
-  id?: string;
-  label: string;
-  url: string;
-  username: string;
-  password?: string;
-  notes: string;
-  replacePassword?: boolean;
-};
-
-export type CredentialVaultRevealResult = {
-  ok: boolean;
-  id: string;
-  password: string;
-  reason: string;
-};
-
-export type CredentialVaultCopyResult = {
-  ok: boolean;
-  id: string;
-  field: 'username' | 'password';
-  reason: string;
-};
 
 export type MissionApiState = MissionState;
 export type MissionApiListResult = MissionListResult;
 export type MissionApiLoadResult = MissionLoadResult;
 export type MissionApiSaveResult = MissionSaveResult;
 export type MissionApiDeleteResult = MissionDeleteResult;
+export type MissionApiExportResult = MissionExportResult;
 
 export type ItServiceCardDiagnostics = {
   ok: boolean;
@@ -196,22 +178,24 @@ contextBridge.exposeInMainWorld('tahaiBrowser', {
   getSettings: (): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:get-settings'),
   updateSettings: (settings: TahaiBrowserSettings): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:update-settings', settings),
   resetSettings: (): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:reset-settings'),
-  clearBrowsingData: (): Promise<boolean> => ipcRenderer.invoke('tahai-browser:clear-browsing-data'),
+  clearBrowsingData: (options?: ClearBrowsingDataOptions): Promise<ClearBrowsingDataResult> => ipcRenderer.invoke('tahai-browser:clear-browsing-data', options),
   openUserData: (): Promise<boolean> => ipcRenderer.invoke('tahai-browser:open-user-data'),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('tahai-browser:open-external', url),
+  openItDocs: (): Promise<boolean> => ipcRenderer.invoke('tahai-browser:open-itdocs'),
+  getItDocsCapabilities: (): Promise<ItDocsMissionCapabilities> => ipcRenderer.invoke('tahai-browser:get-itdocs-capabilities'),
+  copyItDocsCapabilities: (): Promise<boolean> => ipcRenderer.invoke('tahai-browser:copy-itdocs-capabilities'),
+  copyPsaReferenceContract: (): Promise<boolean> => ipcRenderer.invoke('tahai-browser:copy-psa-reference-contract'),
   listMissions: (): Promise<MissionApiListResult> => ipcRenderer.invoke('tahai-browser:list-missions'),
   loadMission: (missionId: string): Promise<MissionApiLoadResult> => ipcRenderer.invoke('tahai-browser:load-mission', missionId),
   saveMission: (mission: MissionApiState): Promise<MissionApiSaveResult> => ipcRenderer.invoke('tahai-browser:save-mission', mission),
   deleteMission: (missionId: string): Promise<MissionApiDeleteResult> => ipcRenderer.invoke('tahai-browser:delete-mission', missionId),
+  previewMissionExport: (mission: MissionApiState): Promise<MissionApiExportResult> => ipcRenderer.invoke('tahai-browser:preview-mission-export', mission),
+  copyMissionExport: (mission: MissionApiState): Promise<MissionApiExportResult> => ipcRenderer.invoke('tahai-browser:copy-mission-export', mission),
+  saveMissionExport: (mission: MissionApiState): Promise<MissionApiExportResult> => ipcRenderer.invoke('tahai-browser:save-mission-export', mission),
   copyDevOpsCapture: (markdown: string): Promise<boolean> => ipcRenderer.invoke('tahai-browser:copy-devops-capture', markdown),
   saveDevOpsCapture: (markdown: string, sourceUrl: string): Promise<DevOpsCaptureSaveResult> => ipcRenderer.invoke('tahai-browser:save-devops-capture', markdown, sourceUrl),
   runUrlDiagnostics: (sourceUrl: string): Promise<OpsUrlDiagnostics> => ipcRenderer.invoke('tahai-browser:run-url-diagnostics', sourceUrl),
   runItServiceCardDiagnostics: (sourceUrl: string): Promise<ItServiceCardDiagnostics> => ipcRenderer.invoke('tahai-browser:run-it-service-card-diagnostics', sourceUrl),
-  listCredentials: (): Promise<CredentialVaultState> => ipcRenderer.invoke('tahai-browser:list-credentials'),
-  saveCredential: (input: CredentialVaultSaveInput): Promise<CredentialVaultRecord> => ipcRenderer.invoke('tahai-browser:save-credential', input),
-  deleteCredential: (id: string): Promise<boolean> => ipcRenderer.invoke('tahai-browser:delete-credential', id),
-  revealCredentialPassword: (id: string): Promise<CredentialVaultRevealResult> => ipcRenderer.invoke('tahai-browser:reveal-credential-password', id),
-  copyCredentialValue: (id: string, field: 'username' | 'password'): Promise<CredentialVaultCopyResult> => ipcRenderer.invoke('tahai-browser:copy-credential-value', id, field),
   listProfiles: (): Promise<BrowserProfileState> => ipcRenderer.invoke('tahai-browser:list-profiles'),
   createProfile: (input: BrowserProfileInput): Promise<BrowserProfileState> => ipcRenderer.invoke('tahai-browser:create-profile', input),
   updateProfile: (input: BrowserProfileUpdateInput): Promise<BrowserProfileState> => ipcRenderer.invoke('tahai-browser:update-profile', input),

@@ -1,12 +1,40 @@
-import { app } from 'electron';
+import { app, BrowserWindow, clipboard, dialog } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { validateMission } from '../shared/mission-validators';
 import { scanAndRedact } from '../shared/redaction';
-import type { MissionDeleteResult, MissionListResult, MissionLoadResult, MissionSaveResult, MissionState } from '../shared/mission-types';
+import { buildMissionEvidencePack } from '../shared/evidence-pack';
+import type { MissionDeleteResult, MissionExportResult, MissionListResult, MissionLoadResult, MissionSaveResult, MissionState } from '../shared/mission-types';
 
 const SAFE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_LISTED_MISSIONS = 80;
+
+function missionExportSlug(value: string): string {
+  return String(value || 'mission')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 72) || 'mission';
+}
+
+function defaultMissionExportPath(mission: MissionState): string {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  return path.join(app.getPath('documents'), `tahai-mission-packet-${missionExportSlug(mission.name)}-${stamp}.md`);
+}
+
+function missionExportResult(input: unknown): MissionExportResult {
+  const result = validateMission(input);
+  if (!result.ok || !result.mission) return { ok: false, error: result.error || 'Mission validation failed.' };
+  const packet = buildMissionEvidencePack(result.mission, { profile: 'sanitized-handoff' });
+  const scan = scanAndRedact(packet.markdown);
+  return {
+    ok: true,
+    markdown: packet.markdown,
+    redactedMarkdown: `${scan.redacted.trim()}\n`,
+    findings: scan.findings,
+    highRiskCount: scan.highRiskCount
+  };
+}
 
 function missionsDirectory(): string {
   return path.join(app.getPath('userData'), 'missions');
@@ -79,40 +107,39 @@ export function saveMission(input: unknown): MissionSaveResult {
   }
 }
 
-function mdCell(value: string): string {
-  return value.replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ').trim();
-}
-
 export function missionMarkdown(mission: MissionState): string {
-  const rows = mission.tabs.map((tab) => '| ' + tab.role + ' | ' + mdCell(tab.title) + ' | ' + mdCell(tab.url) + ' | ' + tab.paneId + ' |').join('\n') || '| _No tabs captured_ |  |  |  |';
-  const timeline = mission.timeline.map((event) => '- ' + event.createdAt + ' — ' + event.kind + ' — ' + mdCell(event.title) + (event.detail ? ' — ' + mdCell(event.detail) : '')).join('\n') || '- _No mission timeline yet._';
-  const notes = mission.notes.map((note) => '- ' + mdCell(note)).join('\n') || '- _No local notes._';
-  const runbook = mission.runbook || { objective: '', rollback: '', steps: [] };
-  const runbookSteps = runbook.steps.map((step) => '- [' + (step.state === 'done' ? 'x' : ' ') + '] ' + mdCell(step.label) + ' — ' + step.state + (step.evidenceNote ? ' — ' + mdCell(step.evidenceNote) : '')).join('\n') || '- _No runbook checklist steps._';
-  const evidenceRows = (mission.evidence || []).map((entry) => '| ' + mdCell(entry.kind) + ' | ' + mdCell(entry.title) + ' | ' + mdCell(entry.url || 'n/a') + ' | ' + mdCell(entry.paneId || 'n/a') + ' | ' + mdCell(entry.createdAt) + ' |').join('\n') || '| _No mission evidence pinned_ |  |  |  |  |';
-  return '# TAHAI Mission Packet — ' + mdCell(mission.name) + '\n\n' +
-    '> Local-only browser-side mission export. This packet contains URLs, titles, role labels, local notes, runbook checklist state, and timeline metadata only. It must be reviewed before sharing or syncing to TAHAI IT Docs. PSA writeback must route through IT Docs server-side connectors.\n\n' +
-    '| Field | Value |\n| --- | --- |\n' +
-    '| Mission ID | ' + mission.missionId + ' |\n' +
-    '| Mission type | ' + mission.missionType + ' |\n' +
-    '| Mode | ' + mission.mode + ' |\n' +
-    '| Layout | ' + mission.layout.type + ' / active ' + mission.layout.activePaneId + ' |\n' +
-    '| Updated | ' + mission.updatedAt + ' |\n\n' +
-    '## Tabs\n\n| Role | Title | URL | Pane |\n| --- | --- | --- | --- |\n' + rows + '\n\n' +
-    '## Runbook Rail\n\n' +
-    'Objective: ' + mdCell(runbook.objective || 'Not set') + '\n\n' +
-    'Rollback / stop condition: ' + mdCell(runbook.rollback || 'Not set') + '\n\n' +
-    runbookSteps + '\n\n' +
-    '## Local notes\n\n' + notes + '\n\n' +
-    '## Mission Evidence\n\n| Kind | Title | URL | Pane | Captured |\n| --- | --- | --- | --- | --- |\n' + evidenceRows + '\n\n' +
-    '## Timeline\n\n' + timeline + '\n';
+  return buildMissionEvidencePack(mission, { profile: 'sanitized-handoff' }).redactedMarkdown;
 }
 
-export function exportMissionMarkdown(input: unknown): MissionSaveResult {
-  const result = validateMission(input);
-  if (!result.ok || !result.mission) return { ok: false, error: result.error || 'Mission validation failed.' };
-  const markdown = missionMarkdown(result.mission);
-  const scan = scanAndRedact(markdown);
-  if (scan.highRiskCount > 0) return { ok: false, error: 'Mission export contains high-risk secret-like content. Run Ops Guard/redaction before export.' };
-  return { ok: true, mission: result.mission };
+export function previewMissionExport(input: unknown): MissionExportResult {
+  return missionExportResult(input);
+}
+
+export function copyMissionExport(input: unknown): MissionExportResult {
+  const result = missionExportResult(input);
+  if (!result.ok || !result.redactedMarkdown) return result;
+  clipboard.writeText(result.redactedMarkdown);
+  return result;
+}
+
+export async function saveMissionExport(input: unknown): Promise<MissionExportResult> {
+  const result = missionExportResult(input);
+  if (!result.ok || !result.redactedMarkdown) return result;
+  const missionResult = validateMission(input);
+  if (!missionResult.ok || !missionResult.mission) return { ok: false, error: missionResult.error || 'Mission validation failed.' };
+  const owner = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  const options: Electron.SaveDialogOptions = {
+    title: 'Save TAHAI Mission packet',
+    defaultPath: defaultMissionExportPath(missionResult.mission),
+    buttonLabel: 'Save Redacted Packet',
+    filters: [{ name: 'Markdown', extensions: ['md'] }, { name: 'Text', extensions: ['txt'] }]
+  };
+  const saveResult = owner ? await dialog.showSaveDialog(owner, options) : await dialog.showSaveDialog(options);
+  if (saveResult.canceled || !saveResult.filePath) return { ...result, ok: false, error: 'Mission export canceled.' };
+  fs.writeFileSync(saveResult.filePath, result.redactedMarkdown, 'utf8');
+  return { ...result, path: saveResult.filePath };
+}
+
+export function exportMissionMarkdown(input: unknown): MissionExportResult {
+  return previewMissionExport(input);
 }

@@ -20,6 +20,8 @@ import {
   type MissionTimelineEvent,
   type MissionType
 } from './mission-types';
+import { sanitizeItDocsDeepLink } from './itdocs-contract';
+import { sanitizePsaReference } from './psa-reference-contract';
 
 const MAX_MISSION_BYTES = 512 * 1024;
 const MAX_MISSION_TABS = 32;
@@ -270,16 +272,9 @@ export function validateMission(input: unknown): MissionValidationResult {
           projectId: cleanText(links.itDocs.projectId, 120) || undefined,
           runbookId: cleanText(links.itDocs.runbookId, 120) || undefined,
           evidencePackId: cleanText(links.itDocs.evidencePackId, 120) || undefined,
-          deepLink: sanitizeMissionUrl(links.itDocs.deepLink) || undefined
+          deepLink: sanitizeItDocsDeepLink(links.itDocs.deepLink) || undefined
         } : null,
-        psa: isRecord(links.psa) ? {
-          provider: cleanText(links.psa.provider, 40) || undefined,
-          ticketId: cleanText(links.psa.ticketId, 120) || undefined,
-          ticketDisplayKey: cleanText(links.psa.ticketDisplayKey, 80) || undefined,
-          ticketTitle: cleanText(links.psa.ticketTitle, 180) || undefined,
-          ticketDeepLink: sanitizeMissionUrl(links.psa.ticketDeepLink) || undefined,
-          status: cleanText(links.psa.status, 80) || undefined
-        } : null
+        psa: sanitizePsaReference(links.psa)
       }
     }
   };

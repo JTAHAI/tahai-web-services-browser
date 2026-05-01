@@ -181,25 +181,8 @@ body { background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,
 #dev-audit-markdown:focus-visible { outline:2px solid rgba(119,219,255,.58); outline-offset:2px; }
 @media (max-width:1360px) { .home-button { white-space:nowrap; } }
 @media (max-width:640px) { #dev-audit-markdown { min-height:300px; } }
-.tool-card.credentials { border-color:rgba(255,116,186,.36); }
-.home-button.danger { color:#ffe8ef; border-color:rgba(255,116,146,.42); background:linear-gradient(180deg,rgba(255,116,146,.18),rgba(7,16,31,.96)); }
-.credential-dialog .ops-panel { width:min(1120px,calc(100vw - 40px)); }
-.credential-panel { max-height:min(860px,calc(100vh - 40px)); }
-.credential-body { display:grid; grid-template-columns:minmax(250px,340px) minmax(0,1fr); gap:16px; min-height:520px; }
-.credential-list-pane,.credential-form { border:1px solid rgba(119,219,255,.14); border-radius:22px; background:rgba(255,255,255,.035); padding:14px; }
-.credential-toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
-.credential-list { display:grid; gap:8px; max-height:460px; overflow:auto; padding-right:3px; }
-.credential-row { width:100%; display:grid; gap:5px; text-align:left; border:1px solid rgba(119,219,255,.16); border-radius:16px; padding:12px; color:var(--text); background:rgba(2,7,14,.62); cursor:pointer; }
-.credential-row strong { font-size:.86rem; }
-.credential-row span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:.76rem; }
-.credential-row:hover,.credential-row:focus-visible,.credential-row.selected { border-color:rgba(119,219,255,.62); background:rgba(119,219,255,.10); outline:none; }
-.credential-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-content:start; }
-.credential-form .wide { grid-column:1 / -1; }
-.credential-form textarea { min-height:112px; resize:vertical; }
-.secret-input { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
-.credential-actions { grid-column:1 / -1; display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap; padding-top:4px; }
-.credential-actions .settings-result { margin-right:auto; }
-@media (max-width:860px) { .credential-body { grid-template-columns:1fr; } .credential-list { max-height:230px; } .credential-form { grid-template-columns:1fr; } }
+/* PASS55: public browser lane removed the local credential vault. Secret Boundary uses Ops Guard styling. */
+.tool-card.guard { border-color:rgba(255,116,186,.38); }
 .profile-switcher { display:inline-flex; align-items:center; gap:8px; min-width:126px; max-width:190px; justify-content:flex-start; }
 .profile-switcher #profile-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .profile-dot { width:10px; height:10px; flex:0 0 auto; border-radius:50%; background:var(--cyan); box-shadow:0 0 12px currentColor; border:1px solid rgba(255,255,255,.34); }
@@ -511,4 +494,903 @@ body.mission-tab-dragging .webview-stage.mission-layout .mission-pane-drop-zones
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* PASS 32: Mission Control readability repair. Keep Mission Control expansive, legible, and free of cramped micro-scroll panels. */
+.mission-dialog {
+  width: min(1580px, calc(100vw - 36px));
+  height: min(940px, calc(100vh - 34px));
+}
+
+.mission-panel {
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+}
+
+.mission-form {
+  grid-template-columns: minmax(360px, 1fr) minmax(200px, 240px) repeat(4, auto);
+  gap: 12px;
+  padding: 16px 22px;
+}
+
+.mission-status,
+.mission-layouts {
+  padding-inline: 22px;
+}
+
+.mission-grid {
+  grid-template-columns: minmax(360px, 1.12fr) minmax(390px, 1.08fr) minmax(360px, 1fr);
+  grid-template-rows: minmax(150px, .68fr) minmax(185px, .82fr) minmax(220px, 1fr);
+  grid-template-areas:
+    "tabs runbook export"
+    "recipes runbook export"
+    "saved evidence timeline";
+  gap: 16px;
+  padding: 16px 22px 20px;
+  overflow: auto;
+  align-items: stretch;
+}
+
+.mission-grid > .mission-section:nth-of-type(1) { grid-area: tabs; }
+.mission-grid > .mission-section:nth-of-type(2) { grid-area: runbook; }
+.mission-grid > .mission-section:nth-of-type(3) { grid-area: recipes; }
+.mission-grid > .mission-section:nth-of-type(4) { grid-area: saved; }
+.mission-grid > .mission-section:nth-of-type(5) { grid-area: evidence; }
+.mission-grid > .mission-section:nth-of-type(6) { grid-area: timeline; }
+.mission-grid > .mission-section:nth-of-type(7) { grid-area: export; }
+
+.mission-section,
+.mission-section.runbook,
+.mission-section.export {
+  min-height: 0;
+  grid-column: auto;
+  grid-row: auto;
+  padding: 0 14px 14px;
+  background: linear-gradient(180deg, rgba(7,22,18,.94), rgba(3,10,15,.94));
+  border-color: rgba(109,255,183,.22);
+}
+
+.mission-section .ops-hub-section-title {
+  min-height: 48px;
+  padding: 14px 0 10px;
+  align-items: center;
+}
+
+.mission-section .ops-hub-section-title strong {
+  color: #8fffd2;
+  font-size: .72rem;
+  letter-spacing: .12em;
+}
+
+.mission-section .ops-hub-section-title span {
+  color: #b6cad8;
+  font-size: .70rem;
+  white-space: nowrap;
+}
+
+.mission-section .ops-hub-list {
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  gap: 10px;
+}
+
+.mission-section .ops-hub-empty {
+  min-height: 62px;
+  display: grid;
+  align-content: center;
+  color: #c7d7e6;
+  font-size: .82rem;
+  line-height: 1.45;
+}
+
+.mission-tab-row {
+  grid-template-columns: minmax(0, 1fr) minmax(148px, 180px) auto auto auto;
+  gap: 10px;
+}
+
+.mission-tab-row strong,
+.mission-recipe-card strong,
+.mission-section .ops-hub-row strong {
+  color: #ffffff;
+  font-size: .86rem;
+}
+
+.mission-tab-row span,
+.mission-recipe-card span,
+.mission-section .ops-hub-row span {
+  color: #bdd0e0;
+  font-size: .76rem;
+  line-height: 1.35;
+}
+
+.mission-runbook-editor {
+  grid-template-rows: auto auto auto minmax(150px, 1fr) auto auto minmax(100px, .72fr);
+  gap: 12px;
+}
+
+.mission-runbook-editor .field span,
+.mission-form .field span {
+  color: #d9f4ff;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+
+.mission-runbook-editor input,
+.mission-runbook-editor textarea,
+.mission-form input,
+.mission-form select,
+#mission-export-preview {
+  background: #07111f;
+  border-color: rgba(119,219,255,.28);
+  color: #f7fbff;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.025);
+}
+
+.mission-runbook-editor input,
+.mission-runbook-editor textarea,
+.mission-form input,
+.mission-form select {
+  min-height: 42px;
+  font-size: .88rem;
+}
+
+.mission-runbook-editor textarea {
+  min-height: 86px;
+}
+
+.mission-runbook-editor input::placeholder,
+.mission-runbook-editor textarea::placeholder,
+.mission-form input::placeholder,
+#mission-export-preview::placeholder {
+  color: #91a8bc;
+  opacity: 1;
+}
+
+.mission-runbook-editor input:focus,
+.mission-runbook-editor textarea:focus,
+.mission-form input:focus,
+.mission-form select:focus,
+#mission-export-preview:focus {
+  border-color: rgba(119,219,255,.70);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(119,219,255,.12), inset 0 0 0 1px rgba(255,255,255,.03);
+}
+
+.mission-evidence-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.mission-evidence-actions .home-button {
+  width: 100%;
+  min-height: 36px;
+  white-space: normal;
+}
+
+#mission-export-preview {
+  min-height: 100%;
+  font-size: 12.8px;
+  line-height: 1.55;
+}
+
+@media (max-width: 1320px) {
+  .mission-grid {
+    grid-template-columns: minmax(340px, 1fr) minmax(360px, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas:
+      "tabs runbook"
+      "recipes runbook"
+      "saved evidence"
+      "export timeline";
+  }
+}
+
+@media (max-width: 980px) {
+  .mission-dialog { width: calc(100vw - 22px); height: calc(100vh - 22px); }
+  .mission-form { grid-template-columns: 1fr; align-items: stretch; }
+  .mission-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "tabs"
+      "recipes"
+      "saved"
+      "runbook"
+      "evidence"
+      "timeline"
+      "export";
+  }
+  .mission-tab-row { grid-template-columns: 1fr; }
+}
+
+
+/* PASS 33: Mission Control workbench refactor. Removes cramped micro-panels, upgrades Mission Recipes, and replaces harsh native scrollbars with dark operator scrollbars. */
+.mission-dialog,
+.mission-dialog * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(119,219,255,.38) rgba(1,8,14,.55);
+}
+
+.mission-dialog ::-webkit-scrollbar { width: 9px; height: 9px; }
+.mission-dialog ::-webkit-scrollbar-track { background: linear-gradient(180deg, rgba(3,12,17,.72), rgba(1,6,11,.82)); border-radius: 999px; }
+.mission-dialog ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(119,219,255,.46), rgba(109,255,183,.30)); border: 2px solid rgba(1,8,14,.88); border-radius: 999px; }
+.mission-dialog ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(119,219,255,.70), rgba(109,255,183,.52)); }
+
+.mission-dialog {
+  width: min(1680px, calc(100vw - 28px));
+  height: min(965px, calc(100vh - 28px));
+  background: radial-gradient(circle at 20% 0%, rgba(109,255,183,.11), transparent 40%), linear-gradient(180deg, #071711, #02080c 74%);
+}
+
+.mission-panel { grid-template-rows: auto auto auto auto minmax(0, 1fr) auto; }
+.mission-panel > header { padding: 16px 22px; }
+.mission-form { grid-template-columns: minmax(380px, 1fr) minmax(180px, 230px) repeat(4, max-content); gap: 12px; padding: 14px 22px 12px; }
+.mission-form .home-button { min-width: 132px; }
+.mission-status { min-height: 42px; padding: 9px 22px; }
+.mission-layouts { min-height: 48px; padding: 9px 22px; }
+
+.mission-workbench {
+  min-height: 0;
+  grid-template-columns: minmax(470px, 1.08fr) minmax(470px, 1.08fr) minmax(390px, .92fr);
+  grid-template-rows: minmax(138px, .46fr) minmax(286px, 1fr) minmax(178px, .62fr);
+  grid-template-areas:
+    "tabs runbook export"
+    "recipes runbook evidence"
+    "recipes saved timeline";
+  gap: 16px;
+  padding: 16px 22px 18px;
+  overflow: hidden;
+}
+
+.mission-tabs-section { grid-area: tabs !important; }
+.mission-recipes-section { grid-area: recipes !important; }
+.mission-runbook-section { grid-area: runbook !important; }
+.mission-saved-section { grid-area: saved !important; }
+.mission-evidence-section { grid-area: evidence !important; }
+.mission-timeline-section { grid-area: timeline !important; }
+.mission-export-section { grid-area: export !important; }
+
+.mission-section,
+.mission-section.runbook,
+.mission-section.export {
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(8,27,22,.96), rgba(3,10,15,.96));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.026), 0 18px 44px rgba(0,0,0,.18);
+  overflow: hidden;
+}
+
+.mission-section .ops-hub-section-title {
+  min-height: 44px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid rgba(109,255,183,.12);
+  background: linear-gradient(180deg, rgba(109,255,183,.065), rgba(255,255,255,.015));
+}
+
+.mission-section .ops-hub-section-title strong { color: #92ffd4; font-size: .76rem; letter-spacing: .13em; }
+.mission-section .ops-hub-section-title span { color: #c5d7e4; font-size: .72rem; }
+.mission-section > .ops-hub-list,
+.mission-runbook-editor,
+.mission-evidence-actions + .ops-hub-list,
+#mission-export-preview { margin: 12px 14px 14px; }
+.mission-section .ops-hub-list { min-height: 0; max-height: none; overflow: auto; padding-right: 3px; }
+#mission-tabs-list, #mission-timeline, #mission-evidence-list { overflow: auto; }
+
+#mission-recipes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
+  gap: 10px;
+  align-content: start;
+  overflow: auto;
+  padding: 0 4px 4px 0;
+}
+
+#mission-recipes .mission-recipe-card { min-height: 86px; align-content: start; padding: 12px 13px 12px 14px; border-radius: 16px; gap: 7px; }
+#mission-recipes .mission-recipe-card strong { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-left: 0; white-space: normal; line-height: 1.24; }
+#mission-recipes .mission-recipe-card span { display: block; padding-left: 0; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
+#mission-recipes .recipe-chip { margin-left: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+.mission-runbook-editor { min-height: 0; grid-template-rows: auto auto auto minmax(118px, 1fr) auto auto minmax(82px, .55fr); gap: 11px; overflow: hidden; }
+.mission-runbook-editor .ops-hub-list { overflow: auto; padding-right: 3px; }
+.mission-runbook-editor textarea { min-height: 72px; }
+.mission-runbook-step { grid-template-columns: 76px minmax(0,1fr) 34px; min-height: 48px; }
+.mission-runbook-step span { white-space: normal; line-height: 1.25; }
+#mission-export-preview { width: calc(100% - 28px); height: calc(100% - 26px); min-height: 0; box-sizing: border-box; }
+.mission-evidence-actions { margin: 12px 14px 0; }
+.mission-saved-actions { min-width: 86px; }
+.mission-section .ops-hub-row,
+.mission-tab-row { min-height: 62px; }
+.mission-section .ops-hub-row strong,
+.mission-tab-row strong { white-space: normal; line-height: 1.25; }
+.mission-section .ops-hub-row span,
+.mission-tab-row span { white-space: normal; line-height: 1.32; }
+
+@media (max-width: 1420px) {
+  .mission-workbench {
+    grid-template-columns: minmax(390px, 1fr) minmax(410px, 1fr);
+    grid-template-rows: minmax(138px, auto) minmax(310px, 1fr) minmax(240px, .78fr) minmax(210px, .72fr);
+    grid-template-areas:
+      "tabs runbook"
+      "recipes runbook"
+      "recipes evidence"
+      "saved timeline";
+    overflow: auto;
+  }
+  .mission-export-section { display: none; }
+}
+
+@media (max-width: 980px) {
+  .mission-dialog { width: calc(100vw - 18px); height: calc(100vh - 18px); }
+  .mission-form { grid-template-columns: 1fr; }
+  .mission-workbench {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    grid-template-areas:
+      "tabs"
+      "recipes"
+      "runbook"
+      "evidence"
+      "saved"
+      "timeline"
+      "export";
+    overflow: auto;
+  }
+  .mission-export-section { display: grid; }
+  #mission-recipes { grid-template-columns: 1fr; }
+}
+
+/* PASS 34: Mission Control enterprise UX repair. The workbench is a focused operator surface: no outer white scrollbars, readable recipes, stronger inputs, and sane large-monitor density. */
+.mission-dialog {
+  width: min(1760px, calc(100vw - 22px));
+  height: min(1010px, calc(100vh - 18px));
+  overflow: hidden !important;
+  background:
+    radial-gradient(circle at 16% -8%, rgba(109,255,183,.13), transparent 35%),
+    radial-gradient(circle at 88% 8%, rgba(119,219,255,.10), transparent 34%),
+    linear-gradient(180deg, #071712, #02070b 76%);
+}
+
+.mission-panel {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden !important;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto !important;
+}
+
+.mission-panel > header {
+  min-height: 62px;
+  padding: 13px 22px !important;
+}
+
+.mission-form {
+  grid-template-columns: minmax(520px, 1fr) minmax(220px, 280px) repeat(4, max-content) !important;
+  align-items: end;
+  gap: 10px !important;
+  padding: 12px 22px 10px !important;
+}
+
+.mission-form .field.wide { grid-column: span 1; }
+.mission-form .home-button { min-height: 36px; min-width: 128px; }
+.mission-status { min-height: 38px !important; padding: 8px 22px !important; }
+.mission-layouts { min-height: 42px !important; padding: 7px 22px !important; gap: 9px; }
+.mission-layouts .home-button { min-height: 34px; }
+
+.mission-dialog,
+.mission-dialog * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.mission-dialog ::-webkit-scrollbar,
+.mission-dialog::-webkit-scrollbar,
+.mission-panel::-webkit-scrollbar,
+.mission-workbench::-webkit-scrollbar,
+.mission-section .ops-hub-list::-webkit-scrollbar,
+#mission-recipes::-webkit-scrollbar,
+#mission-list::-webkit-scrollbar,
+#mission-tabs-list::-webkit-scrollbar,
+#mission-timeline::-webkit-scrollbar,
+#mission-evidence-list::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+.mission-workbench {
+  grid-template-columns: minmax(560px, 1.16fr) minmax(500px, 1fr) minmax(390px, .82fr) !important;
+  grid-template-rows: minmax(360px, 1fr) minmax(214px, .58fr) minmax(154px, .42fr) !important;
+  grid-template-areas:
+    "recipes runbook export"
+    "recipes evidence timeline"
+    "tabs saved timeline" !important;
+  gap: 14px !important;
+  padding: 14px 22px 12px !important;
+  overflow: hidden !important;
+}
+
+.mission-section,
+.mission-section.runbook,
+.mission-section.export {
+  border-radius: 22px !important;
+  border-color: rgba(109,255,183,.25) !important;
+  background:
+    linear-gradient(180deg, rgba(12,36,29,.96), rgba(3,10,15,.98)) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.035),
+    inset 0 0 34px rgba(109,255,183,.035),
+    0 16px 44px rgba(0,0,0,.24) !important;
+}
+
+.mission-section .ops-hub-section-title {
+  min-height: 42px !important;
+  padding: 11px 14px 9px !important;
+  background: linear-gradient(180deg, rgba(109,255,183,.095), rgba(119,219,255,.025)) !important;
+}
+.mission-section .ops-hub-section-title strong {
+  color: #9fffdc !important;
+  font-size: .78rem !important;
+  letter-spacing: .14em !important;
+}
+.mission-section .ops-hub-section-title span {
+  color: #d7e7f1 !important;
+  font-size: .73rem !important;
+}
+
+.mission-section > .ops-hub-list,
+.mission-runbook-editor,
+.mission-evidence-actions + .ops-hub-list,
+#mission-export-preview {
+  margin: 12px 14px 14px !important;
+}
+
+.mission-section .ops-hub-list {
+  overflow: auto !important;
+  overscroll-behavior: contain;
+  padding-right: 0 !important;
+}
+
+#mission-recipes {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 11px !important;
+  align-content: start !important;
+  overflow: auto !important;
+  padding: 0 !important;
+}
+
+#mission-recipes .mission-recipe-card {
+  min-height: 104px !important;
+  padding: 14px 16px 13px 18px !important;
+  border-radius: 18px !important;
+  border-color: rgba(255,210,122,.33) !important;
+  background:
+    radial-gradient(circle at 0% 50%, rgba(255,210,122,.12), transparent 42%),
+    linear-gradient(180deg, rgba(255,255,255,.060), rgba(255,255,255,.030)) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.025), 0 10px 24px rgba(0,0,0,.16);
+}
+
+#mission-recipes .mission-recipe-card strong {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 10px;
+  color: #ffffff !important;
+  font-size: .93rem !important;
+  line-height: 1.28 !important;
+  letter-spacing: .01em;
+}
+
+#mission-recipes .mission-recipe-card span {
+  color: #d6e4ef !important;
+  font-size: .80rem !important;
+  line-height: 1.44 !important;
+  margin-top: 4px;
+}
+
+#mission-recipes .recipe-chip {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  max-width: 190px !important;
+  min-height: 24px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(119,219,255,.20);
+  background: rgba(3,12,20,.76);
+  color: #b8d5e8;
+  font-size: .67rem;
+  white-space: nowrap;
+}
+
+.mission-runbook-editor {
+  grid-template-rows: auto minmax(92px, .52fr) auto minmax(124px, .78fr) minmax(92px, .55fr) auto minmax(84px, .45fr) !important;
+  gap: 10px !important;
+  overflow: hidden !important;
+}
+
+.mission-runbook-editor input,
+.mission-runbook-editor textarea,
+.mission-form input,
+.mission-form select,
+#mission-export-preview {
+  color: #f7fbff !important;
+  background: rgba(4,14,25,.98) !important;
+  border-color: rgba(119,219,255,.34) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.020), 0 0 0 0 rgba(119,219,255,0);
+}
+
+.mission-runbook-editor input::placeholder,
+.mission-runbook-editor textarea::placeholder,
+.mission-form input::placeholder,
+#mission-export-preview::placeholder {
+  color: #9fb4c5 !important;
+  opacity: 1 !important;
+}
+
+.mission-runbook-editor input:focus,
+.mission-runbook-editor textarea:focus,
+.mission-form input:focus,
+.mission-form select:focus,
+#mission-export-preview:focus {
+  border-color: rgba(109,255,183,.74) !important;
+  box-shadow: 0 0 0 3px rgba(109,255,183,.12), inset 0 0 0 1px rgba(255,255,255,.045) !important;
+}
+
+.mission-evidence-actions {
+  grid-template-columns: 1fr 1fr;
+  gap: 10px !important;
+}
+.mission-evidence-actions .home-button {
+  min-height: 38px;
+  justify-content: center;
+}
+
+.mission-saved-section .ops-hub-row,
+.mission-tabs-section .mission-tab-row,
+.mission-evidence-section .ops-hub-row,
+.mission-timeline-section .ops-hub-row {
+  min-height: 70px !important;
+  background: rgba(3,12,17,.72) !important;
+}
+
+.mission-tab-row strong,
+.mission-section .ops-hub-row strong {
+  color: #ffffff !important;
+  font-size: .84rem !important;
+}
+.mission-tab-row span,
+.mission-section .ops-hub-row span,
+.mission-section .ops-hub-empty {
+  color: #d1e0ec !important;
+  font-size: .77rem !important;
+}
+
+@media (max-width: 1560px) {
+  .mission-dialog { width: calc(100vw - 18px); height: calc(100vh - 18px); }
+  .mission-form { grid-template-columns: minmax(420px,1fr) minmax(210px,260px) repeat(4, max-content) !important; }
+  .mission-workbench {
+    grid-template-columns: minmax(500px, 1.05fr) minmax(470px, 1fr) minmax(360px, .78fr) !important;
+    grid-template-rows: minmax(330px, 1fr) minmax(205px, .62fr) minmax(150px, .42fr) !important;
+  }
+  #mission-recipes .mission-recipe-card { min-height: 96px !important; }
+}
+
+@media (max-width: 1180px) {
+  .mission-panel { overflow: auto !important; }
+  .mission-workbench {
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: auto !important;
+    grid-template-areas:
+      "recipes recipes"
+      "runbook runbook"
+      "tabs evidence"
+      "saved timeline"
+      "export export" !important;
+    overflow: visible !important;
+  }
+  #mission-recipes { grid-template-columns: 1fr 1fr !important; }
+}
+
+@media (max-width: 760px) {
+  .mission-form { grid-template-columns: 1fr !important; }
+  .mission-workbench { grid-template-columns: 1fr !important; grid-template-areas: "recipes" "runbook" "tabs" "evidence" "saved" "timeline" "export" !important; }
+  #mission-recipes { grid-template-columns: 1fr !important; }
+}
+
+
+/* PASS 35: Mission Control accessibility + scroll repair. Keep outer shell clean, but restore usable inner scrolling and rebalance the workbench so lower panels are reachable. */
+.mission-dialog,
+.mission-panel,
+.mission-workbench {
+  overscroll-behavior: contain;
+}
+
+.mission-dialog,
+.mission-panel {
+  overflow: hidden !important;
+}
+
+.mission-workbench {
+  grid-template-columns: minmax(540px, 1.12fr) minmax(500px, 1fr) minmax(400px, .86fr) !important;
+  grid-template-rows: minmax(300px, .84fr) minmax(220px, .68fr) minmax(220px, .68fr) !important;
+  padding: 14px 22px 16px !important;
+  gap: 14px !important;
+  overflow: hidden !important;
+}
+
+.mission-section > .ops-hub-list,
+#mission-tabs-list,
+#mission-recipes,
+#mission-list,
+#mission-runbook-list,
+#mission-notes-list,
+#mission-evidence-list,
+#mission-timeline,
+#mission-export-preview,
+.mission-runbook-editor .ops-hub-list {
+  scrollbar-width: thin !important;
+  -ms-overflow-style: auto !important;
+}
+
+.mission-section > .ops-hub-list::-webkit-scrollbar,
+#mission-tabs-list::-webkit-scrollbar,
+#mission-recipes::-webkit-scrollbar,
+#mission-list::-webkit-scrollbar,
+#mission-runbook-list::-webkit-scrollbar,
+#mission-notes-list::-webkit-scrollbar,
+#mission-evidence-list::-webkit-scrollbar,
+#mission-timeline::-webkit-scrollbar,
+#mission-export-preview::-webkit-scrollbar,
+.mission-runbook-editor .ops-hub-list::-webkit-scrollbar {
+  width: 9px !important;
+  height: 9px !important;
+  display: block !important;
+}
+
+.mission-section > .ops-hub-list::-webkit-scrollbar-track,
+#mission-tabs-list::-webkit-scrollbar-track,
+#mission-recipes::-webkit-scrollbar-track,
+#mission-list::-webkit-scrollbar-track,
+#mission-runbook-list::-webkit-scrollbar-track,
+#mission-notes-list::-webkit-scrollbar-track,
+#mission-evidence-list::-webkit-scrollbar-track,
+#mission-timeline::-webkit-scrollbar-track,
+#mission-export-preview::-webkit-scrollbar-track,
+.mission-runbook-editor .ops-hub-list::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, rgba(3,10,15,.88), rgba(4,14,20,.94)) !important;
+  border-radius: 999px !important;
+}
+
+.mission-section > .ops-hub-list::-webkit-scrollbar-thumb,
+#mission-tabs-list::-webkit-scrollbar-thumb,
+#mission-recipes::-webkit-scrollbar-thumb,
+#mission-list::-webkit-scrollbar-thumb,
+#mission-runbook-list::-webkit-scrollbar-thumb,
+#mission-notes-list::-webkit-scrollbar-thumb,
+#mission-evidence-list::-webkit-scrollbar-thumb,
+#mission-timeline::-webkit-scrollbar-thumb,
+#mission-export-preview::-webkit-scrollbar-thumb,
+.mission-runbook-editor .ops-hub-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(119,219,255,.60), rgba(109,255,183,.42)) !important;
+  border: 2px solid rgba(4,12,18,.95) !important;
+  border-radius: 999px !important;
+}
+
+.mission-runbook-editor {
+  grid-template-rows: auto minmax(88px, .48fr) auto minmax(0, 1fr) minmax(90px, .52fr) auto minmax(0, .72fr) !important;
+  min-height: 0 !important;
+}
+
+#mission-runbook-list,
+#mission-notes-list,
+#mission-evidence-list,
+#mission-timeline,
+#mission-list,
+#mission-tabs-list,
+#mission-recipes {
+  min-height: 0 !important;
+  padding-right: 4px !important;
+}
+
+#mission-recipes .mission-recipe-card {
+  min-height: 96px !important;
+}
+
+.mission-evidence-section .ops-hub-row,
+.mission-timeline-section .ops-hub-row,
+.mission-saved-section .ops-hub-row {
+  min-height: 64px !important;
+}
+
+#mission-export-preview {
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+
+.settings-note {
+  padding: 0 22px 16px;
+}
+
+@media (max-width: 1560px) {
+  .mission-workbench {
+    grid-template-columns: minmax(480px, 1.02fr) minmax(450px, .98fr) minmax(360px, .82fr) !important;
+    grid-template-rows: minmax(280px, .82fr) minmax(210px, .68fr) minmax(200px, .68fr) !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  .mission-panel {
+    overflow: auto !important;
+  }
+  .mission-workbench {
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: auto !important;
+    overflow: visible !important;
+  }
+}
+
+/* PASS 43: Mission Views hardening. Persistent pane HUD keeps active target obvious in 2/3/4-up and Focus views without relying on hidden scrollbars or hover state. */
+.webview-stage.mission-layout {
+  position: relative;
+  isolation: isolate;
+}
+
+.mission-pane-heads {
+  position: absolute;
+  inset: 14px;
+  z-index: 35;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.mission-pane-heads[hidden] { display: none !important; }
+.mission-pane-heads[data-layout="quad"] { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.mission-pane-heads[data-layout="triple"] { grid-template-columns: 1.15fr .85fr; grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.mission-pane-heads[data-layout="triple"] .mission-pane-head-cell[data-pane-id="pane-1"] { grid-row: span 2; }
+.mission-pane-heads[data-layout="split-horizontal"] { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
+.mission-pane-heads[data-layout="split-vertical"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+.mission-pane-heads[data-layout="focus"],
+.mission-pane-heads[data-layout="single"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+
+.mission-pane-head-cell {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.mission-pane-head {
+  pointer-events: auto;
+  max-width: min(420px, calc(100% - 18px));
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  margin: 8px;
+  padding: 6px 10px;
+  border: 1px solid rgba(119,219,255,.26);
+  border-radius: 999px;
+  color: #eafaff;
+  background: rgba(2,8,19,.72);
+  box-shadow: 0 12px 28px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.03);
+  backdrop-filter: blur(7px);
+  cursor: pointer;
+}
+
+.mission-pane-head strong {
+  color: #92ffd4;
+  font-size: .68rem;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mission-pane-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #d6e8f4;
+  font-size: .68rem;
+}
+
+.mission-pane-head.active {
+  border-color: rgba(109,255,183,.72);
+  background: linear-gradient(180deg, rgba(3,30,22,.86), rgba(2,8,19,.78));
+  box-shadow: 0 0 0 1px rgba(109,255,183,.24), 0 0 32px rgba(109,255,183,.16), 0 12px 28px rgba(0,0,0,.32);
+}
+
+.mission-pane-head:focus-visible {
+  outline: 2px solid rgba(109,255,183,.82);
+  outline-offset: 2px;
+}
+
+.webview-stage.mission-layout .browser-view.mission-active-pane {
+  outline: 3px solid rgba(109,255,183,.74);
+  outline-offset: -3px;
+}
+
+@media (max-width: 980px) {
+  .mission-pane-heads { grid-template-columns: 1fr !important; grid-template-rows: repeat(4, minmax(260px, 1fr)) !important; }
+  .mission-pane-head { max-width: calc(100% - 16px); }
+}
+
+/* PASS 54: Ops Panel recipe chip containment. The right rail is narrow enough that recipe badges must flow below titles, never overlap or crush launch rows. */
+#ops-hub-recipes {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+  align-content: start !important;
+  padding-right: 4px !important;
+}
+
+#ops-hub-recipes .mission-recipe-card {
+  display: grid !important;
+  min-height: 76px !important;
+  height: auto !important;
+  align-content: start !important;
+  gap: 6px !important;
+  padding: 11px 12px 11px 14px !important;
+  overflow: hidden !important;
+}
+
+#ops-hub-recipes .mission-recipe-card strong {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 5px !important;
+  min-width: 0 !important;
+  padding-left: 4px !important;
+  line-height: 1.22 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+}
+
+#ops-hub-recipes .mission-recipe-card span {
+  display: block !important;
+  min-width: 0 !important;
+  padding-left: 4px !important;
+  line-height: 1.35 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+#ops-hub-recipes .recipe-chip {
+  justify-self: start !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  width: max-content !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  min-height: 22px !important;
+  padding: 4px 8px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+#ops-hub-recipes .mission-recipe-card strong em {
+  margin-left: 0 !important;
+}
+
+/* PASS55: explicit recipe text spans protect against title/pill overlap in both Ops Panel and Mission Control. */
+.ops-hub-recipe-title,
+.ops-hub-recipe-meta,
+.ops-hub-recipe-detail {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ops-hub-recipe-title {
+  display: block;
+}
+.ops-hub-recipe-meta {
+  display: inline-flex;
 }

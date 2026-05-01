@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+const fail = (m) => { console.error(`PASS39_EVIDENCE_PACK_V3_FAIL=${m}`); process.exit(1); };
+const types = fs.readFileSync('src/shared/mission-types.ts','utf8');
+const pack = fs.readFileSync('src/shared/evidence-pack.ts','utf8');
+const store = fs.readFileSync('src/main/mission-store.ts','utf8');
+const html = fs.readFileSync('src/renderer/index.html','utf8');
+const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
+for (const s of ['MISSION_EVIDENCE_EXPORT_PROFILES','MissionEvidenceExportProfile',"'sanitized-handoff'","'incident-packet'","'change-record'","'itdocs-sync'","'psa-ticket-note'"]) if (!types.includes(s)) fail(`missing-type-${s}`);
+for (const s of ['buildMissionEvidencePack','scanAndRedact','PSA writeback routed only through IT Docs server-side connector','No cookies, authorization headers, tokens']) if (!pack.includes(s)) fail(`missing-pack-${s}`);
+if (!store.includes("buildMissionEvidencePack(mission, { profile: 'sanitized-handoff' }).redactedMarkdown")) fail('store-not-wired');
+if (!html.includes('Evidence Pack v3')) fail('ui-copy-missing');
+if (!pkg.scripts?.['verify:pass-39-evidence-pack-v3']) fail('package-script-missing');
+if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-39-evidence-pack-v3')) fail('release-blockers-not-wired');
+console.log('PASS39_EVIDENCE_PACK_V3_OK=1');

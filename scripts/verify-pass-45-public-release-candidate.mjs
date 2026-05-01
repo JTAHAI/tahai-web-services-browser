@@ -1,0 +1,67 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+const root = process.cwd();
+const fail = (message) => { console.error(`PASS45_PUBLIC_RELEASE_CANDIDATE_FAIL=${message}`); process.exit(1); };
+const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+const exists = (rel) => fs.existsSync(path.join(root, rel));
+const pkg = JSON.parse(read('package.json'));
+function versionAtLeast(actual, minimum) {
+  const a = actual.split('.').map((part) => Number.parseInt(part, 10));
+  const b = minimum.split('.').map((part) => Number.parseInt(part, 10));
+  for (let i = 0; i < 3; i += 1) {
+    if ((a[i] || 0) > (b[i] || 0)) return true;
+    if ((a[i] || 0) < (b[i] || 0)) return false;
+  }
+  return true;
+}
+const lock = JSON.parse(read('package-lock.json'));
+const requiredFiles = ['PASS_45_PUBLIC_RELEASE_CANDIDATE_SUMMARY.md','docs/public-release-candidate.md','docs/github-release-notes-1.8.21.md','docs/browser-download-page-copy.md','docs/enterprise-qa-installer-rc.md','packaging/windows/build-public-release-candidate.ps1','scripts/write-public-release-candidate-manifest.mjs','scripts/verify-pass-45-public-release-candidate.mjs','.github/workflows/public-release-candidate.yml','README.md','docs/known-issues.md','docs/privacy-policy.md','docs/code-signing-policy.md','LICENSE','NOTICE','TRADEMARKS.md','SECURITY.md'];
+for (const rel of requiredFiles) if (!exists(rel)) fail(`missing-required-file:${rel}`);
+if (!versionAtLeast(pkg.version, '1.8.21')) fail(`expected-version-at-least-1.8.21-got-${pkg.version}`);
+if (lock.version !== pkg.version || lock.packages?.['']?.version !== pkg.version) fail('package-lock-version-mismatch');
+if (pkg.devDependencies?.electron !== '41.3.0') fail('electron-version-must-be-41.3.0');
+if (pkg.devDependencies?.['electron-builder'] !== '26.8.1') fail('electron-builder-version-must-be-26.8.1');
+if (pkg.license !== 'Apache-2.0') fail('package-license-must-be-apache-2');
+if (pkg.homepage !== 'https://browser.tahai.net') fail('homepage-must-be-browser-tahai-net');
+if (pkg.build?.appId !== 'com.tahai.webservices.browser') fail('appId-mismatch');
+if (pkg.build?.productName !== 'TAHAI Web Services Browser') fail('productName-mismatch');
+if (pkg.build?.publish !== null) fail('publish-must-remain-null');
+if (pkg.build?.removePackageScripts !== true) fail('removePackageScripts-must-remain-true');
+if (pkg.build?.nodeGypRebuild !== false) fail('nodeGypRebuild-must-remain-false');
+if (pkg.build?.compression !== 'maximum') fail('compression-must-remain-maximum');
+for (const scriptName of ['verify:public-repo','verify:release-blockers','verify:mission-tabs-security','verify:pass-45-public-release-candidate','release:public:verify','release:public:win','release:public:manifest','release:rc:win','package:win:release','release:friend:zip']) if (!pkg.scripts?.[scriptName]) fail(`missing-package-script:${scriptName}`);
+if (!pkg.scripts['verify:release-blockers'].includes('verify:pass-45-public-release-candidate')) fail('release-blockers-not-wired-to-pass45');
+if (!pkg.scripts['release:public:verify'].includes('verify:release-blockers')) fail('release-public-verify-must-run-release-blockers');
+if (!pkg.scripts['release:public:verify'].includes('audit:runtime')) fail('release-public-verify-must-run-runtime-audit');
+if (!pkg.scripts['release:public:verify'].includes('audit:buildchain')) fail('release-public-verify-must-run-buildchain-audit');
+if (!pkg.scripts['release:public:win'].includes('packaging\\windows\\build-public-release-candidate.ps1')) fail('release-public-win-must-call-public-builder');
+if (!pkg.scripts['release:public:manifest'].includes('write-public-release-candidate-manifest.mjs')) fail('release-public-manifest-script-missing');
+const publicDoc = read('docs/public-release-candidate.md');
+const releaseNotes = read('docs/github-release-notes-1.8.21.md');
+const downloadCopy = read('docs/browser-download-page-copy.md');
+const builder = read('packaging/windows/build-public-release-candidate.ps1');
+const manifest = read('scripts/write-public-release-candidate-manifest.mjs');
+const workflow = read('.github/workflows/public-release-candidate.yml');
+const summary = read('PASS_45_PUBLIC_RELEASE_CANDIDATE_SUMMARY.md');
+const readme = read('README.md');
+const known = read('docs/known-issues.md');
+const gitignore = read('.gitignore');
+const publicRepoVerifier = read('scripts/verify-public-repo.mjs');
+const pass44Verifier = read('scripts/verify-pass-44-enterprise-qa-installer-rc.mjs');
+for (const token of ['Public release candidate','1.8.21','release:public:verify','release:public:win','SHA256SUMS.txt','GitHub Releases','browser.tahai.net','No generated artifacts','No PSA/API/provider secrets']) if (!publicDoc.includes(token)) fail(`public-doc-missing:${token}`);
+for (const token of ['TAHAI Web Services Browser v1.8.21','Mission Control','Evidence Pack v3','OpsTools Pack 1','IT Docs','PSA','unsigned']) if (!releaseNotes.includes(token)) fail(`release-notes-missing:${token}`);
+for (const token of ['Quad View','Mission Control','Evidence Pack','SHA256','Windows x64','unsigned preview']) if (!downloadCopy.includes(token)) fail(`download-copy-missing:${token}`);
+for (const token of ['release:public:verify','package:win:release','release:friend:zip','release:public:manifest','public-release-candidate-manifest.json','public-rc-truth.json','CSC_IDENTITY_AUTO_DISCOVERY','Stop-Process','Get-FileHash']) if (!builder.includes(token)) fail(`public-builder-missing:${token}`);
+for (const token of ['public-release-candidate-manifest.json','public-release-candidate','docs/github-release-notes-1.8.21.md','docs/browser-download-page-copy.md','manualWindowsGates','stopConditions','SHA256SUMS.txt','sha256']) if (!manifest.includes(token)) fail(`public-manifest-missing:${token}`);
+for (const token of ['release:public:verify','release:public:win','actions/upload-artifact@v4','CSC_IDENTITY_AUTO_DISCOVERY']) if (!workflow.includes(token)) fail(`workflow-missing:${token}`);
+for (const token of ['Version: 1.8.21','public release candidate','release:public:win']) if (!summary.includes(token)) fail(`summary-missing:${token}`);
+if (!readme.includes('Version: `1.8.21`')) fail('readme-version-not-updated');
+if (!readme.includes('public release candidate')) fail('readme-public-rc-copy-missing');
+if (!known.includes('## 1.8.21 public release candidate')) fail('known-issues-public-rc-section-missing');
+for (const pattern of ['node_modules/','dist/','release/','artifacts/','.env','*.pfx','*.p12','*.pem','*.key']) if (!gitignore.includes(pattern)) fail(`gitignore-missing:${pattern}`);
+if (!publicRepoVerifier.includes('docs/public-release-candidate.md')) fail('public-repo-verifier-not-updated-for-public-rc-doc');
+if (!pass44Verifier.includes("versionAtLeast(pkg.version, '1.8.20')")) fail('pass44-verifier-must-allow-newer-versions');
+for (const rel of ['release/public-release-candidate-manifest.json','release/public-rc-truth.json','release/SHA256SUMS.txt','release/release-candidate-manifest.json','release/installer-rc-truth.json','release/release-build-truth.json','artifacts/sbom/tahai-browser-sbom.json','testwrite']) if (exists(rel)) fail(`generated-artifact-should-not-be-in-source:${rel}`);
+console.log('PASS45_PUBLIC_RELEASE_CANDIDATE_OK=1');

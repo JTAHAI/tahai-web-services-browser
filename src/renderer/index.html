@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="./styles/site-view-mission-rail.css" />
   <link rel="stylesheet" href="./styles/chromium-bookmarks.css" />
   <link rel="stylesheet" href="./styles/responsive-toolbar.css" />
+  <link rel="stylesheet" href="./styles/mission-control.css" />
 </head>
 <body>
   <section id="boot-diagnostic" class="boot-diagnostic" aria-live="assertive">
@@ -77,7 +78,7 @@
             <button id="it-card" class="tool-card it" type="button" role="menuitem" title="Create a documentation-ready IT Service Card for this URL"><strong>IT Card</strong><kbd>Ctrl+Shift+M</kbd><span>DNS, HTTP, ownership, and CMDB-ready service card.</span></button>
             <button id="endpoint" class="tool-card endpoint" type="button" role="menuitem" title="Create a safe workstation and browser client snapshot for IT troubleshooting"><strong>Endpoint</strong><kbd>Ctrl+Alt+E</kbd><span>Safe client/browser snapshot for workstation triage.</span></button>
             <button id="triage" class="tool-card triage" type="button" role="menuitem" title="Create a helpdesk-ready support triage packet for this active page"><strong>Triage</strong><kbd>Ctrl+Alt+T</kbd><span>Impact, repro, escalation, and IT Docs handoff packet.</span></button>
-            <button id="credentials" class="tool-card credentials" type="button" role="menuitem" title="Open the encrypted local credential vault"><strong>Credentials</strong><kbd>Ctrl+Alt+K</kbd><span>Encrypted local vault for service logins and recovery notes.</span></button>
+            <button id="secret-boundary" class="tool-card guard" type="button" role="menuitem" title="Open Ops Guard and the browser-side secret boundary"><strong>Secret Boundary</strong><kbd>Ctrl+Alt+K</kbd><span>Ops Guard, redaction rules, and IT Docs-routed secret handling. No browser-side vault.</span></button>
           </div>
           <footer class="tool-menu-footer">&uarr;&darr; Move &middot; Enter Run &middot; Esc Close &middot; Ctrl+K Command Palette</footer>
         </section>
@@ -158,6 +159,12 @@
         <button id="mission-save" type="button" class="home-button secondary">Save Local</button>
       </form>
       <section id="mission-status" class="mission-status" aria-live="polite"><strong>No active mission</strong><span>Create a local Mission Tab set or restore one from disk.</span></section>
+      <section class="mission-ops-strip" aria-label="Mission guardrails and workflow state">
+        <article><strong>Local-first</strong><span>No IT Docs or PSA writes unless explicitly authorized server-side.</span></article>
+        <article><strong>Recovery-safe</strong><span>Mission setup stays local, readable, and explicitly saved.</span></article>
+        <article><strong>Redaction-aware</strong><span>Evidence and exports route through Ops Guard before sharing.</span></article>
+        <article><strong>Pane-safe</strong><span>Address, back, forward, reload, and shortcuts target the active pane.</span></article>
+      </section>
       <section id="mission-layouts" class="mission-layouts" aria-label="Mission layout controls">
         <button type="button" data-mission-layout="single" class="home-button secondary">1-Up</button>
         <button type="button" data-mission-layout="split-horizontal" class="home-button secondary">2-Up</button>
@@ -171,12 +178,12 @@
           <button type="button" data-send-active-pane="pane-4" class="home-button secondary">Pane 4</button>
         </span>
       </section>
-      <div class="mission-grid">
-        <section class="mission-section">
+      <div class="mission-grid mission-workbench">
+        <section class="mission-section mission-tabs-section">
           <div class="ops-hub-section-title"><strong>Mission tabs</strong><span>Role + pane routing</span></div>
           <div id="mission-tabs-list" class="ops-hub-list"></div>
         </section>
-        <section class="mission-section runbook">
+        <section class="mission-section runbook mission-runbook-section">
           <div class="ops-hub-section-title"><strong>Runbook rail</strong><span>Checklist + local notes</span></div>
           <div class="mission-runbook-editor">
             <label class="field wide"><span>Objective</span><input id="mission-runbook-objective" type="text" maxlength="500" placeholder="What must be accomplished before this mission closes?" /></label>
@@ -191,15 +198,15 @@
             <div id="mission-notes-list" class="ops-hub-list compact"></div>
           </div>
         </section>
-        <section class="mission-section">
+        <section class="mission-section mission-recipes-section">
           <div class="ops-hub-section-title"><strong>Mission recipes</strong><span>Admin console profiles</span></div>
           <div id="mission-recipes" class="ops-hub-list"></div>
         </section>
-        <section class="mission-section">
+        <section class="mission-section mission-saved-section">
           <div class="ops-hub-section-title"><strong>Saved missions</strong><span>Validated local JSON</span></div>
           <div id="mission-list" class="ops-hub-list"></div>
         </section>
-        <section class="mission-section">
+        <section class="mission-section mission-evidence-section">
           <div class="ops-hub-section-title"><strong>Mission Evidence</strong><span>Explicit local packet items</span></div>
           <div class="mission-evidence-actions">
             <button id="mission-pin-latest-evidence" type="button" class="home-button secondary">Pin Latest Tool Output</button>
@@ -207,12 +214,16 @@
           </div>
           <div id="mission-evidence-list" class="ops-hub-list compact"></div>
         </section>
-        <section class="mission-section">
+        <section class="mission-section mission-timeline-section">
           <div class="ops-hub-section-title"><strong>Timeline</strong><span>Local activity</span></div>
           <div id="mission-timeline" class="ops-hub-list"></div>
         </section>
-        <section class="mission-section export">
-          <div class="ops-hub-section-title"><strong>Export preview</strong><span>Run Ops Guard before sharing</span></div>
+        <section class="mission-section export mission-export-section">
+          <div class="ops-hub-section-title"><strong>Export preview</strong><span>Validated redacted packet</span></div>
+          <div class="mission-export-actions">
+            <button id="mission-copy-export" type="button" class="home-button secondary">Copy Redacted Packet</button>
+            <button id="mission-save-export" type="button" class="home-button secondary">Save Redacted Packet</button>
+          </div>
           <textarea id="mission-export-preview" readonly spellcheck="false"></textarea>
         </section>
       </div>
@@ -265,12 +276,17 @@
         <label class="check"><input id="setting-clipboard" type="checkbox" /> Allow clipboard-read prompts</label>
         <label class="check"><input id="setting-geolocation" type="checkbox" /> Allow geolocation prompts</label>
         <label class="check"><input id="setting-notifications" type="checkbox" /> Allow notification prompts</label>
+        <label class="check"><input id="setting-dnt" type="checkbox" /> Send Do Not Track / GPC headers</label>
+        <label class="check"><input id="setting-third-party-cookies" type="checkbox" /> Block third-party Cookie headers</label>
+        <label class="check"><input id="setting-referrer" type="checkbox" /> Reduce cross-site referrers</label>
+        <label class="check"><input id="setting-clear-on-exit" type="checkbox" /> Clear profile data on exit</label>
         <label class="check"><input id="setting-downloads" type="checkbox" /> Ask where to save each download</label>
         <label class="check"><input id="setting-statusbar" type="checkbox" /> Show status bar</label>
       </section>
       <p class="settings-note">Settings are written under the local app data profile, never into this source repo. Defaults reset to <strong>https://tahaiportal.com</strong>.</p>
       <footer class="settings-actions">
-        <button id="clear-data" type="button" class="home-button secondary">Clear browser data</button>
+        <button id="clear-data" type="button" class="home-button secondary">Clear active profile data</button>
+        <button id="clear-all-data" type="button" class="home-button danger">Clear all profile data</button>
         <button id="open-profile" type="button" class="home-button secondary">Open profile folder</button>
         <span id="settings-result" class="settings-result" aria-live="polite"></span>
         <button id="reset-settings" type="button" class="home-button secondary">Reset</button>
@@ -290,7 +306,7 @@
       </header>
       <div class="profile-body">
         <aside class="profile-list-pane">
-          <div class="credential-toolbar">
+          <div class="profile-toolbar">
             <button id="new-local-profile" type="button" class="home-button secondary">Local</button>
             <button id="new-google-profile" type="button" class="home-button secondary">Google</button>
             <button id="new-microsoft-profile" type="button" class="home-button secondary">Microsoft</button>
@@ -303,9 +319,10 @@
           <label class="field wide"><span>Profile name</span><input id="profile-label" type="text" maxlength="72" placeholder="Work, Personal, Client, Google, Microsoft&hellip;" /></label>
           <label class="field"><span>Profile lane</span><select id="profile-kind"><option value="local">Local</option><option value="google">Google-labeled</option><option value="microsoft">Microsoft-labeled</option><option value="work">Work</option><option value="client">Client</option></select></label>
           <label class="field"><span>Accent color</span><input id="profile-color" type="color" value="#77dbff" /></label>
-          <p class="profile-note wide">This pass creates Chromium-style local profiles using separate Electron session partitions. Google/Microsoft labels are ready for account-centered workflows, but cloud account sync is intentionally not enabled yet.</p>
+          <p class="profile-note wide">Profiles use separate Electron session partitions. Account labels are local-only; no Chrome Sync, browser cloud sync, PSA tokens, provider API keys, cookies, or OAuth refresh tokens are stored in TAHAI mission/profile metadata.</p>
           <footer class="profile-actions">
             <span id="profile-result" class="settings-result" aria-live="polite"></span>
+            <button id="clear-selected-profile-data" type="button" class="home-button secondary">Clear Selected Data</button>
             <button id="open-active-profile-data" type="button" class="home-button secondary">Open Data</button>
             <button id="delete-profile" type="button" class="home-button danger">Delete</button>
             <button id="switch-profile" type="button" class="home-button secondary">Switch</button>
@@ -452,54 +469,15 @@
   </dialog>
 
 
-  <dialog id="credential-dialog" class="credential-dialog" aria-labelledby="credential-title">
-    <section class="ops-panel credential-panel">
-      <header>
-        <div>
-          <p class="eyebrow">TAHAI IT Engineering Vault</p>
-          <h2 id="credential-title">Credential Manager</h2>
-        </div>
-        <button id="close-credential" class="icon-button" type="button" title="Close Credential Manager">&times;</button>
-      </header>
-      <div class="credential-body">
-        <aside class="credential-list-pane">
-          <div class="credential-toolbar">
-            <button id="new-credential" type="button" class="home-button secondary">New</button>
-            <button id="refresh-credentials" type="button" class="home-button secondary">Refresh</button>
-          </div>
-          <p id="credential-vault-status" class="capture-note">Credentials are encrypted with OS-backed Electron safeStorage and stored in the local app data profile.</p>
-          <div id="credential-list" class="credential-list" aria-live="polite"></div>
-        </aside>
-        <form id="credential-form" class="credential-form">
-          <input id="credential-id" type="hidden" />
-          <label class="field wide"><span>Label</span><input id="credential-label" autocomplete="off" maxlength="180" placeholder="Example: TAHAI Portal admin" /></label>
-          <label class="field wide"><span>URL / service</span><input id="credential-url" autocomplete="off" maxlength="520" placeholder="https://example.com/login" /></label>
-          <label class="field"><span>Username</span><input id="credential-username" autocomplete="username" maxlength="320" /></label>
-          <label class="field"><span>Password / secret</span><input id="credential-password" class="secret-input" type="password" autocomplete="new-password" maxlength="4000" placeholder="Blank keeps existing password" /></label>
-          <label class="field wide"><span>Notes</span><textarea id="credential-notes" maxlength="1200" spellcheck="true" placeholder="Recovery owner, MFA note, tenant, vendor, or runbook pointer. Do not paste tokens unless you intend to store them locally."></textarea></label>
-          <p class="capture-note">This is a first-party local vault. It does not use Chrome Sync or a Chromium cloud password manager. Secrets are encrypted through Electron safeStorage before writing to disk.</p>
-          <footer class="credential-actions">
-            <span id="credential-result" class="settings-result" aria-live="polite"></span>
-            <button id="credential-use-active" type="button" class="home-button secondary">Use Active Site</button>
-            <button id="copy-credential-username" type="button" class="home-button secondary">Copy User</button>
-            <button id="copy-credential-password" type="button" class="home-button secondary">Copy Password</button>
-            <button id="reveal-credential-password" type="button" class="home-button secondary">Reveal</button>
-            <button id="delete-credential" type="button" class="home-button danger">Delete</button>
-            <button id="save-credential" type="submit" class="home-button">Save</button>
-          </footer>
-        </form>
-      </div>
-    </section>
-  </dialog>
 
   <dialog id="bundle-dialog" class="bundle-dialog" aria-labelledby="bundle-title">
     <section class="ops-panel">
       <header>
         <div>
           <p class="eyebrow">TAHAI Evidence / Change Control</p>
-          <h2 id="bundle-title">Bundle Composer</h2>
+          <h2 id="bundle-title">Evidence Pack v3 Composer</h2>
         </div>
-        <button id="close-bundle" class="icon-button" type="button" title="Close Bundle Composer">&times;</button>
+        <button id="close-bundle" class="icon-button" type="button" title="Close Evidence Pack v3 Composer">&times;</button>
       </header>
       <div class="ops-body">
         <p class="capture-note">Builds a local Markdown bundle from pinned Evidence Timeline items, saved workspace snapshots, active profile context, and IT Docs / PSA handoff fields. It only includes evidence that was explicitly generated or pinned by the user. It does not collect cookies, storage values, credentials, tokens, request bodies, response bodies, clipboard contents, local files, or form values.</p>
@@ -526,10 +504,23 @@
         <button id="close-handoff" class="icon-button" type="button" title="Close Handoff Center">&times;</button>
       </header>
       <div class="ops-body handoff-body">
-        <p class="capture-note">Creates a focused operational handoff for TAHAI IT Docs today and TAHAI PSA ticket/change workflows when the PSA lane ships. It uses active profile context, current tabs, saved workspaces, and explicitly pinned evidence only.</p>
+        <p class="capture-note">Creates a focused operational handoff for TAHAI IT Docs today and TAHAI PSA ticket/change workflows when IT Docs authorizes a server-side PSA connector. It uses active profile context, current tabs, saved workspaces, and explicitly pinned evidence only.</p>
         <div class="handoff-tabs" role="group" aria-label="Handoff target">
           <button type="button" class="home-button secondary active" data-handoff-target="it-docs" aria-pressed="true">TAHAI IT Docs</button>
-          <button type="button" class="home-button secondary" data-handoff-target="psa" aria-pressed="false">TAHAI PSA &mdash; coming soon</button>
+          <button type="button" class="home-button secondary" data-handoff-target="psa" aria-pressed="false">TAHAI PSA &mdash; IT Docs-routed</button>
+        </div>
+        <div class="itdocs-contract-panel" aria-label="IT Docs browser contract">
+          <div id="itdocs-capability-summary" class="ops-summary" aria-live="polite"></div>
+          <div class="inline-actions">
+            <button id="refresh-itdocs-capabilities" type="button" class="home-button secondary">Refresh IT Docs Contract</button>
+            <button id="copy-itdocs-capabilities" type="button" class="home-button secondary">Copy Contract State</button>
+          </div>
+        </div>
+        <div class="itdocs-contract-panel" aria-label="PSA browser reference contract">
+          <div id="psa-reference-summary" class="ops-summary" aria-live="polite"></div>
+          <div class="inline-actions">
+            <button id="copy-psa-reference-contract" type="button" class="home-button secondary">Copy PSA Reference Contract</button>
+          </div>
         </div>
         <div id="handoff-summary" class="ops-summary" aria-live="polite"></div>
         <textarea id="handoff-markdown" spellcheck="true" aria-label="TAHAI operational handoff markdown"></textarea>
@@ -614,6 +605,7 @@
     </section>
   </dialog>
 
+  <script src="./boot.js"></script>
   <script src="./app.js"></script>
   <script src="./site-view-mission-rail.js"></script>
   <script src="./chromium-bookmarks.js"></script>

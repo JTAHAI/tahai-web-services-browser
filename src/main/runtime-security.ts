@@ -16,26 +16,67 @@ function ownerWindowFrom(webContents: WebContents): BrowserWindow | undefined {
   return BrowserWindow.fromWebContents(webContents) || BrowserWindow.getFocusedWindow() || undefined;
 }
 
+function allowedPermission(permission: string): boolean {
+  const settings = readBrowserSettings();
+  const allowed = new Set<string>();
+  if (settings.permissions.allowClipboardRead) allowed.add('clipboard-read');
+  if (settings.permissions.allowMedia) allowed.add('media');
+  if (settings.permissions.allowGeolocation) allowed.add('geolocation');
+  if (settings.permissions.allowNotifications) allowed.add('notifications');
+  allowed.add('fullscreen');
+  return allowed.has(permission);
+}
+
+function originHostname(value: unknown): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try { return new URL(raw).hostname.toLowerCase(); } catch { return ''; }
+}
+
+function requestHostname(value: unknown): string {
+  try { return new URL(String(value || '')).hostname.toLowerCase(); } catch { return ''; }
+}
+
+function isThirdPartyRequest(details: Electron.OnBeforeSendHeadersListenerDetails): boolean {
+  const targetHost = requestHostname(details.url);
+  const firstPartyHost = originHostname((details as any).firstPartyUrl || (details as any).initiator || (details as any).referrer || '');
+  if (!targetHost || !firstPartyHost) return false;
+  return targetHost !== firstPartyHost && !targetHost.endsWith(`.${firstPartyHost}`) && !firstPartyHost.endsWith(`.${targetHost}`);
+}
+
 export async function hardenSession(ses: Session): Promise<void> {
   ses.setPermissionRequestHandler((_webContents, permission, callback) => {
-    const settings = readBrowserSettings();
-    const allowed = new Set<string>();
-    if (settings.permissions.allowClipboardRead) allowed.add('clipboard-read');
-    if (settings.permissions.allowMedia) allowed.add('media');
-    if (settings.permissions.allowGeolocation) allowed.add('geolocation');
-    if (settings.permissions.allowNotifications) allowed.add('notifications');
-    allowed.add('fullscreen');
-    callback(allowed.has(permission));
+    callback(allowedPermission(permission));
   });
 
+  ses.setPermissionCheckHandler((_webContents, permission) => allowedPermission(permission));
+
   ses.webRequest.onBeforeRequest((details, callback) => {
-    const blockedProtocols = ['ftp:', 'gopher:', 'javascript:', 'data:'];
+    const blockedProtocols = ['ftp:', 'gopher:', 'javascript:', 'data:', 'vbscript:'];
     try {
       const protocol = new URL(details.url).protocol;
       callback({ cancel: blockedProtocols.includes(protocol) });
     } catch {
       callback({ cancel: true });
     }
+  });
+
+  ses.webRequest.onBeforeSendHeaders((details, callback) => {
+    const settings = readBrowserSettings();
+    const requestHeaders = { ...(details.requestHeaders || {}) };
+    if (settings.privacy.sendDoNotTrack) {
+      requestHeaders.DNT = '1';
+      requestHeaders['Sec-GPC'] = '1';
+    }
+    if (settings.privacy.reduceCrossSiteReferrers && isThirdPartyRequest(details)) {
+      delete requestHeaders.Referer;
+      delete requestHeaders.referer;
+    }
+    if (settings.privacy.blockThirdPartyCookies && isThirdPartyRequest(details)) {
+      delete requestHeaders.Cookie;
+      delete requestHeaders.cookie;
+    }
+    callback({ requestHeaders });
   });
 
   ses.webRequest.onHeadersReceived((details, callback) => {

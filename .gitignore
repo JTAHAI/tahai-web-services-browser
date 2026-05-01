@@ -1,64 +1,47 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-out/
 release/
+out/
+build-output/
 artifacts/
 coverage/
-*.msi
-*.exe
-*.blockmap
-*.AppImage
-*.deb
-*.rpm
-*.snap
-*.flatpak
-*.dmg
-*.pkg
-*.iso
-*.zip
-*.7z
-*.tar
-*.tar.gz
-*.tgz
-runtime/
+
+# Runtime/user data
 profiles/
-tmp/
-temp/
-logs/
+user-data/
+.local-data/
+mission-data/
+evidence-data/
 *.log
-*.tmp
-*.cache
-*.sqlite
-*.sqlite3
-*.db
-SingletonCookie
-SingletonLock
-SingletonSocket
-Crashpad/
-GPUCache/
-ShaderCache/
-Code Cache/
-Service Worker/
+npm-debug.log*
+
+# Environment and secrets
 .env
 .env.*
 !.env.example
-*.pem
-*.key
 *.pfx
 *.p12
-*.crt
-*.cer
-secrets/
-credentials/
-User Data/
-Default/
-Local State
-Preferences
+*.pem
+*.key
+id_rsa
+id_ed25519
+
+# OS/editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-__pycache__/
-*.pyc
+
+# Temporary files
 *.bak
 *.orig
+*.tmp
+
+# Local credential vault/user secrets
+credential-vault.json
+credential-vault*.json
+**/credential-vault.json
+**/credential-vault*.json

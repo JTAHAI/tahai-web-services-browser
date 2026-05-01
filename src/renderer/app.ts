@@ -1,3 +1,47 @@
+import type { ItDocsMissionCapabilities } from '../shared/itdocs-contract';
+import { localOnlyPsaReferenceContractState, psaReferenceMarkdown } from '../shared/psa-reference-contract';
+import { scanAndRedact } from '../shared/redaction';
+import type {
+  MissionEvidenceEntry,
+  MissionEvidenceKind,
+  MissionLayout,
+  MissionLayoutType,
+  MissionRunbookStepState,
+  MissionState,
+  MissionTabRef,
+  MissionTimelineEvent,
+  MissionType,
+  MissionTabRole
+} from '../shared/mission-types';
+import {
+  appendMissionTimelineEvent,
+  cloneMissionForDuplicate as cloneMissionForDuplicateModel,
+  createEmptyMission,
+  createMissionRunbook,
+  createMissionRunbookFromRecipe,
+  defaultRunbookStepLabels,
+  ensureMissionEvidence,
+  ensureMissionRunbook,
+  missionDefaultRole,
+  missionEvidenceKindLabel,
+  missionExportMarkdown as buildMissionExportMarkdown,
+  missionLayoutLabel,
+  missionLayouts,
+  missionPaneIds,
+  missionRoleLabel,
+  missionRunbookStepStates,
+  missionTabRoles,
+  missionTypes,
+  missionUuid,
+  normalizeMissionName,
+  recipeBlueprintMarkdown,
+  recipeEvidenceNote,
+  recipePhaseLabel,
+  recipeProviderLabel,
+  syncMissionLayoutPanesForMission,
+  visibleMissionPaneIds
+} from './mission-model';
+
 type BrowserConfig = Awaited<ReturnType<typeof window.tahaiBrowser.getConfig>>;
 type BrowserSettings = Awaited<ReturnType<typeof window.tahaiBrowser.getSettings>>;
 
@@ -94,8 +138,6 @@ type DevAuditPage = {
 type OpsCheckStatus = 'pass' | 'warn' | 'fail' | 'info';
 type OpsUrlDiagnostics = Awaited<ReturnType<typeof window.tahaiBrowser.runUrlDiagnostics>>;
 type ItServiceCardDiagnostics = Awaited<ReturnType<typeof window.tahaiBrowser.runItServiceCardDiagnostics>>;
-type CredentialVaultState = Awaited<ReturnType<typeof window.tahaiBrowser.listCredentials>>;
-type CredentialVaultRecord = CredentialVaultState['records'][number];
 type BrowserProfileState = Awaited<ReturnType<typeof window.tahaiBrowser.listProfiles>>;
 type BrowserProfileRecord = BrowserProfileState['profiles'][number];
 type BrowserProfileKind = BrowserProfileRecord['kind'];
@@ -331,28 +373,7 @@ type CommandPaletteAction = {
   run: () => void | Promise<void>;
 };
 
-type MissionType = 'deployment' | 'incident' | 'support' | 'documentation' | 'migration' | 'audit' | 'admin' | 'development' | 'security-review' | 'generic';
-type MissionTabRole = 'primary-console' | 'logs' | 'docs' | 'runbook' | 'ticket' | 'monitoring' | 'evidence' | 'live-target' | 'vendor-portal' | 'tool';
-type MissionLayoutType = 'single' | 'split-horizontal' | 'split-vertical' | 'triple' | 'quad' | 'focus' | 'command';
-type MissionRunbookStepState = 'todo' | 'doing' | 'done' | 'blocked';
-type MissionMode = 'local-only' | 'signed-in' | 'org-selected' | 'itdocs-linked' | 'psa-available' | 'psa-linked' | 'offline' | 'session-expired' | 'permission-denied';
-
-type MissionTabRef = { tabId: string; role: MissionTabRole; url: string; title: string; pinned: boolean; paneId: string };
-type MissionLayout = { type: MissionLayoutType; activePaneId: string; panes: Array<{ paneId: string; role: MissionTabRole; tabId: string }> };
-type MissionTimelineEvent = { eventId: string; kind: 'created' | 'tab-added' | 'tab-role-set' | 'layout-set' | 'saved' | 'restored' | 'mission-renamed' | 'mission-duplicated' | 'mission-deleted' | 'note' | 'evidence-added' | 'exported' | 'runbook-updated' | 'checklist-added' | 'checklist-updated'; createdAt: string; title: string; detail: string };
-type MissionRunbookStep = { stepId: string; label: string; state: MissionRunbookStepState; evidenceNote: string };
-type MissionRunbook = { objective: string; rollback: string; steps: MissionRunbookStep[] };
-// PASS 18 Mission Evidence Pack v2: explicit local evidence entries for export/redaction workflows.
-type MissionEvidenceKind = 'url' | 'screenshot' | 'note' | 'header-summary' | 'tls-summary' | 'dns-summary' | 'tool-output' | 'checklist' | 'export';
-type MissionEvidenceEntry = { eventId: string; kind: MissionEvidenceKind; title: string; url: string; sourceTabId?: string; paneId?: string; createdAt: string; operatorNote: string; metadata: Record<string, string> };
-type MissionState = { schemaVersion: number; missionId: string; name: string; missionType: MissionType; mode: MissionMode; createdAt: string; updatedAt: string; tabs: MissionTabRef[]; layout: MissionLayout; notes: string[]; runbook: MissionRunbook; evidence: MissionEvidenceEntry[]; timeline: MissionTimelineEvent[]; links: { itDocs: Record<string, string> | null; psa: Record<string, string> | null } };
-
-const missionTypes: MissionType[] = ['deployment','incident','support','documentation','migration','audit','admin','development','security-review','generic'];
-const missionTabRoles: MissionTabRole[] = ['primary-console','logs','docs','runbook','ticket','monitoring','evidence','live-target','vendor-portal','tool'];
-const missionLayouts: MissionLayoutType[] = ['single','split-horizontal','split-vertical','triple','quad','focus'];
-const missionRunbookStepStates: MissionRunbookStepState[] = ['todo','doing','done','blocked'];
-const missionPaneIds = ['pane-1','pane-2','pane-3','pane-4'] as const;
-
+window.dispatchEvent(new CustomEvent('tahai-renderer-app-script'));
 
 function showBootDiagnostic(detail: string): void {
   const panel = document.getElementById('boot-diagnostic');
@@ -363,8 +384,63 @@ function showBootDiagnostic(detail: string): void {
 
 function markRendererShellReady(): void {
   document.documentElement.dataset.tahaiShellReady = '1';
+  window.dispatchEvent(new CustomEvent('tahai-renderer-ready'));
   const panel = document.getElementById('boot-diagnostic');
   if (panel) panel.setAttribute('hidden', 'true');
+}
+
+function fallbackBrowserConfig(): BrowserConfig {
+  const fallbackSettings: BrowserSettings = {
+    homeUrl: 'https://tahaiportal.com',
+    startup: 'home',
+    searchProvider: 'google',
+    permissions: { allowClipboardRead: false, allowMedia: true, allowGeolocation: false, allowNotifications: false },
+    downloads: { askEveryTime: true, defaultDirectory: '' },
+    ui: { showStatusBar: true, openExternalLinksInNewTab: true },
+    privacy: { sendDoNotTrack: true, blockThirdPartyCookies: true, reduceCrossSiteReferrers: true, clearProfileDataOnExit: false },
+  };
+  return {
+    productName: 'TAHAI Web Services Browser',
+    bundleName: 'TAHAI—SENTINEL Browser',
+    homeUrl: 'https://tahaiportal.com',
+    itDocsUrl: 'https://docs.tahaiportal.com',
+    startupUrl: 'https://tahaiportal.com',
+    newTabUrl: 'about:blank',
+    settingsUrl: 'about:blank',
+    aboutUrl: 'about:blank',
+    errorPageUrl: 'about:blank',
+    onboardingUrl: 'about:blank',
+    bookmarksUrl: '',
+    version: '0.0.0',
+    releaseChannel: 'fallback',
+    firstLaunch: { product: 'TAHAI Web Services Browser', defaultHome: 'https://tahaiportal.com', initializedAt: '', sourceGuardrails: [] },
+    userDataPath: '',
+    settingsPath: '',
+    settings: fallbackSettings,
+    profiles: {
+      activeProfileId: 'default',
+      activeProfile: { id: 'default', name: 'Default', kind: 'local', color: '#77dbff', partition: 'persist:tahai-profile-default', createdAt: '', updatedAt: '', lastUsedAt: '', isDefault: true },
+      profiles: [{ id: 'default', name: 'Default', kind: 'local', color: '#77dbff', partition: 'persist:tahai-profile-default', createdAt: '', updatedAt: '', lastUsedAt: '', isDefault: true }],
+      path: ''
+    }
+  };
+}
+
+function loadBrowserConfigWithRuntimeFallback(timeoutMs = 4500): Promise<BrowserConfig> {
+  const bridge = window.tahaiBrowser;
+  if (!bridge || typeof bridge.getConfig !== 'function') {
+    return Promise.reject(new Error('Preload bridge did not expose tahaiBrowser.getConfig.'));
+  }
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error(`Preload/config bridge timed out after ${timeoutMs}ms.`)), timeoutMs);
+    bridge.getConfig().then((loaded) => {
+      window.clearTimeout(timeout);
+      resolve(loaded);
+    }).catch((error) => {
+      window.clearTimeout(timeout);
+      reject(error);
+    });
+  });
 }
 
 window.addEventListener('error', (event) => {
@@ -374,6 +450,11 @@ window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason instanceof Error ? event.reason.message : String(event.reason || 'unknown rejection');
   showBootDiagnostic(`Renderer promise rejection: ${reason}`);
 });
+
+// Report shell HTML readiness as soon as the first-party renderer script is executing.
+// Full browser configuration still has its own guarded fallback below. This prevents a
+// functional but slow/blocked preload bridge from replacing the app with a false black-screen diagnostic.
+markRendererShellReady();
 
 const tabsEl = document.getElementById('tabs') as HTMLElement;
 const stageEl = document.getElementById('webview-stage') as HTMLElement;
@@ -422,6 +503,8 @@ const missionMakeQuadButton = document.getElementById('mission-make-quad') as HT
 const missionSaveButton = document.getElementById('mission-save') as HTMLButtonElement;
 const missionLayoutsEl = document.getElementById('mission-layouts') as HTMLElement;
 const missionExportPreview = document.getElementById('mission-export-preview') as HTMLTextAreaElement;
+const missionCopyExportButton = document.getElementById('mission-copy-export') as HTMLButtonElement;
+const missionSaveExportButton = document.getElementById('mission-save-export') as HTMLButtonElement;
 type TextInputOptions = {
   title: string;
   label?: string;
@@ -503,7 +586,7 @@ const deployButton = document.getElementById('deploy') as HTMLButtonElement;
 const itCardButton = document.getElementById('it-card') as HTMLButtonElement;
 const endpointButton = document.getElementById('endpoint') as HTMLButtonElement;
 const triageButton = document.getElementById('triage') as HTMLButtonElement;
-const credentialsButton = document.getElementById('credentials') as HTMLButtonElement;
+const secretBoundaryButton = document.getElementById('secret-boundary') as HTMLButtonElement;
 const routeMapButton = document.getElementById('route-map') as HTMLButtonElement;
 const devAuditButton = document.getElementById('dev-audit') as HTMLButtonElement;
 const opsGuardButton = document.getElementById('ops-guard') as HTMLButtonElement;
@@ -522,12 +605,17 @@ const settingMedia = document.getElementById('setting-media') as HTMLInputElemen
 const settingClipboard = document.getElementById('setting-clipboard') as HTMLInputElement;
 const settingGeolocation = document.getElementById('setting-geolocation') as HTMLInputElement;
 const settingNotifications = document.getElementById('setting-notifications') as HTMLInputElement;
+const settingDoNotTrack = document.getElementById('setting-dnt') as HTMLInputElement;
+const settingThirdPartyCookies = document.getElementById('setting-third-party-cookies') as HTMLInputElement;
+const settingReduceReferrers = document.getElementById('setting-referrer') as HTMLInputElement;
+const settingClearOnExit = document.getElementById('setting-clear-on-exit') as HTMLInputElement;
 const settingDownloads = document.getElementById('setting-downloads') as HTMLInputElement;
 const settingStatusBar = document.getElementById('setting-statusbar') as HTMLInputElement;
 const settingsResult = document.getElementById('settings-result') as HTMLElement;
 const closeSettingsButton = document.getElementById('close-settings') as HTMLButtonElement;
 const resetSettingsButton = document.getElementById('reset-settings') as HTMLButtonElement;
 const clearDataButton = document.getElementById('clear-data') as HTMLButtonElement;
+const clearAllDataButton = document.getElementById('clear-all-data') as HTMLButtonElement;
 const openProfileButton = document.getElementById('open-profile') as HTMLButtonElement;
 const profileDialog = document.getElementById('profile-dialog') as HTMLDialogElement;
 const profileStatus = document.getElementById('profile-status') as HTMLElement;
@@ -542,6 +630,7 @@ const closeProfileButton = document.getElementById('close-profile') as HTMLButto
 const newLocalProfileButton = document.getElementById('new-local-profile') as HTMLButtonElement;
 const newGoogleProfileButton = document.getElementById('new-google-profile') as HTMLButtonElement;
 const newMicrosoftProfileButton = document.getElementById('new-microsoft-profile') as HTMLButtonElement;
+const clearSelectedProfileDataButton = document.getElementById('clear-selected-profile-data') as HTMLButtonElement;
 const openActiveProfileDataButton = document.getElementById('open-active-profile-data') as HTMLButtonElement;
 const deleteProfileButton = document.getElementById('delete-profile') as HTMLButtonElement;
 const switchProfileButton = document.getElementById('switch-profile') as HTMLButtonElement;
@@ -584,25 +673,7 @@ const triageSummary = document.getElementById('triage-summary') as HTMLElement;
 const triageMarkdown = document.getElementById('triage-markdown') as HTMLTextAreaElement;
 const triageResult = document.getElementById('triage-result') as HTMLElement;
 const closeTriageButton = document.getElementById('close-triage') as HTMLButtonElement;
-const credentialDialog = document.getElementById('credential-dialog') as HTMLDialogElement;
-const credentialVaultStatus = document.getElementById('credential-vault-status') as HTMLElement;
-const credentialList = document.getElementById('credential-list') as HTMLElement;
-const credentialForm = document.getElementById('credential-form') as HTMLFormElement;
-const credentialId = document.getElementById('credential-id') as HTMLInputElement;
-const credentialLabel = document.getElementById('credential-label') as HTMLInputElement;
-const credentialUrl = document.getElementById('credential-url') as HTMLInputElement;
-const credentialUsername = document.getElementById('credential-username') as HTMLInputElement;
-const credentialPassword = document.getElementById('credential-password') as HTMLInputElement;
-const credentialNotes = document.getElementById('credential-notes') as HTMLTextAreaElement;
-const credentialResult = document.getElementById('credential-result') as HTMLElement;
-const closeCredentialButton = document.getElementById('close-credential') as HTMLButtonElement;
-const newCredentialButton = document.getElementById('new-credential') as HTMLButtonElement;
-const refreshCredentialsButton = document.getElementById('refresh-credentials') as HTMLButtonElement;
-const useActiveCredentialButton = document.getElementById('credential-use-active') as HTMLButtonElement;
-const copyCredentialUsernameButton = document.getElementById('copy-credential-username') as HTMLButtonElement;
-const copyCredentialPasswordButton = document.getElementById('copy-credential-password') as HTMLButtonElement;
-const revealCredentialPasswordButton = document.getElementById('reveal-credential-password') as HTMLButtonElement;
-const deleteCredentialButton = document.getElementById('delete-credential') as HTMLButtonElement;
+
 const copyTriageButton = document.getElementById('copy-triage') as HTMLButtonElement;
 const saveTriageButton = document.getElementById('save-triage') as HTMLButtonElement;
 const routeMapDialog = document.getElementById('route-map-dialog') as HTMLDialogElement;
@@ -636,6 +707,11 @@ const saveHandoffButton = document.getElementById('save-handoff') as HTMLButtonE
 const openItDocsFromHandoffButton = document.getElementById('open-it-docs-from-handoff') as HTMLButtonElement;
 const openPsaFromHandoffButton = document.getElementById('open-psa-from-handoff') as HTMLButtonElement;
 const handoffTargetButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-handoff-target]'));
+const itDocsCapabilitySummary = document.getElementById('itdocs-capability-summary') as HTMLElement;
+const refreshItDocsCapabilitiesButton = document.getElementById('refresh-itdocs-capabilities') as HTMLButtonElement;
+const copyItDocsCapabilitiesButton = document.getElementById('copy-itdocs-capabilities') as HTMLButtonElement;
+const copyPsaReferenceContractButton = document.getElementById('copy-psa-reference-contract') as HTMLButtonElement;
+const psaReferenceSummary = document.getElementById('psa-reference-summary') as HTMLElement;
 const opsGuardDialog = document.getElementById('ops-guard-dialog') as HTMLDialogElement;
 const opsGuardSummary = document.getElementById('ops-guard-summary') as HTMLElement;
 const opsGuardMarkdown = document.getElementById('ops-guard-markdown') as HTMLTextAreaElement;
@@ -659,8 +735,7 @@ let latestRouteMap: RouteMapState | undefined;
 let latestDevAudit: DevAuditState | undefined;
 let latestChangeBundle: ChangeBundleState | undefined;
 let latestOperationalHandoff: OperationalHandoffState | undefined;
-let credentialVaultRecords: CredentialVaultRecord[] = [];
-let editingCredentialId = '';
+let latestItDocsCapabilities: ItDocsMissionCapabilities | undefined;
 let browserProfileState: BrowserProfileState | undefined;
 let editingProfileId = '';
 let commandPaletteActions: CommandPaletteAction[] = [];
@@ -668,6 +743,7 @@ let commandPaletteIndex = 0;
 let currentMission: MissionState | undefined;
 let missionStore: MissionState[] = [];
 let missionPaneDropZones: HTMLElement | undefined;
+let missionPaneHeads: HTMLElement | undefined;
 const missionRuntimeTabs = new Map<string, string>();
 let missionTabsListDragTabId = '';
 let lastMissionLayoutBeforeFocus: MissionLayoutType = 'quad';
@@ -853,6 +929,204 @@ function createTab(url: string): string {
 
 function active(): TabState | undefined { return tabs.get(activeTabId); }
 
+// PASS 43 Mission Views hardening: central pane visibility, HUD labels, drag/drop, and active-pane routing.
+function missionVisiblePaneIds(layout: MissionLayoutType): string[] {
+  return visibleMissionPaneIds(layout, currentMission?.layout.activePaneId || 'pane-1');
+}
+
+function normalizeMissionPaneId(paneId: string | undefined): string {
+  return missionPaneIds.includes(paneId as typeof missionPaneIds[number]) ? String(paneId) : 'pane-1';
+}
+
+function layoutForPaneCount(count: number): MissionLayoutType {
+  if (count >= 4) return 'quad';
+  if (count === 3) return 'triple';
+  if (count === 2) return 'split-horizontal';
+  return 'single';
+}
+
+function paneCountForLayout(layout: MissionLayoutType): number {
+  return missionVisiblePaneIds(layout).length;
+}
+
+function visibleLayoutForPane(paneId: string, requested: MissionLayoutType | undefined): MissionLayoutType {
+  const paneIndex = missionPaneIds.indexOf(normalizeMissionPaneId(paneId) as typeof missionPaneIds[number]);
+  const minimumLayout = layoutForPaneCount(paneIndex + 1);
+  if (!requested || requested === 'single' || requested === 'focus' || paneCountForLayout(requested) < paneIndex + 1) return minimumLayout;
+  return requested;
+}
+
+function missionPaneTab(paneId: string): MissionTabRef | undefined {
+  return currentMission?.tabs.find((candidate) => candidate.paneId === paneId);
+}
+
+function missionPaneRuntimeTab(paneId: string): TabState | undefined {
+  const missionTab = missionPaneTab(paneId);
+  const runtimeTabId = missionTab ? missionRuntimeTabs.get(missionTab.tabId) : undefined;
+  return runtimeTabId ? tabs.get(runtimeTabId) : undefined;
+}
+
+function missionPaneLabel(paneId: string): string {
+  return paneId.replace('pane-', 'Pane ');
+}
+
+function renderMissionPaneHeads(layout: MissionLayoutType, enabled: boolean): void {
+  if (!stageEl) return;
+  if (!missionPaneHeads) {
+    missionPaneHeads = document.createElement('div');
+    missionPaneHeads.className = 'mission-pane-heads';
+    missionPaneHeads.setAttribute('aria-label', 'Mission pane focus controls');
+    missionPaneHeads.addEventListener('click', (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-focus-mission-pane]');
+      if (!button?.dataset.focusMissionPane) return;
+      event.preventDefault();
+      setMissionActivePane(button.dataset.focusMissionPane);
+    });
+    stageEl.appendChild(missionPaneHeads);
+  }
+  if (!enabled || !currentMission) {
+    missionPaneHeads.hidden = true;
+    missionPaneHeads.innerHTML = '';
+    return;
+  }
+  const visiblePanes = missionVisiblePaneIds(layout);
+  missionPaneHeads.hidden = false;
+  missionPaneHeads.dataset.layout = layout;
+  const activePane = normalizeMissionPaneId(currentMission.layout.activePaneId);
+  missionPaneHeads.innerHTML = visiblePanes.map((paneId) => {
+    const missionTab = missionPaneTab(paneId);
+    const runtimeTab = missionPaneRuntimeTab(paneId);
+    const title = runtimeTab?.title || missionTab?.title || 'Empty pane';
+    const role = missionTab ? missionRoleLabel(missionTab.role) : 'Drop or send a tab';
+    const activeClass = paneId === activePane ? ' active' : '';
+    return '<div class="mission-pane-head-cell" data-pane-id="' + escapeHtml(paneId) + '">' +
+      '<button type="button" class="mission-pane-head' + activeClass + '" data-focus-mission-pane="' + escapeHtml(paneId) + '" title="Focus ' + escapeHtml(missionPaneLabel(paneId)) + '">' +
+      '<strong>' + escapeHtml(missionPaneLabel(paneId)) + '</strong>' +
+      '<span>' + escapeHtml(role + ' · ' + title) + '</span>' +
+      '</button>' +
+      '</div>';
+  }).join('');
+}
+
+function renderMissionPaneDropZones(layout: MissionLayoutType, enabled: boolean): void {
+  if (!stageEl) return;
+  if (!missionPaneDropZones) {
+    missionPaneDropZones = document.createElement('div');
+    missionPaneDropZones.className = 'mission-pane-drop-zones';
+    missionPaneDropZones.setAttribute('aria-label', 'Mission pane drop targets');
+    missionPaneDropZones.ondragover = (event) => {
+      const zone = (event.target as HTMLElement).closest<HTMLElement>('[data-pane-id]');
+      if (!zone) return;
+      event.preventDefault();
+      zone.classList.add('drag-over');
+    };
+    missionPaneDropZones.ondragleave = (event) => {
+      (event.target as HTMLElement).closest<HTMLElement>('[data-pane-id]')?.classList.remove('drag-over');
+    };
+    missionPaneDropZones.ondrop = (event) => {
+      const zone = (event.target as HTMLElement).closest<HTMLElement>('[data-pane-id]');
+      if (!zone) return;
+      event.preventDefault();
+      zone.classList.remove('drag-over');
+      const paneId = normalizeMissionPaneId(zone.dataset.paneId);
+      const browserTabId = event.dataTransfer?.getData('application/x-tahai-browser-tab-id') || '';
+      const missionTabId = event.dataTransfer?.getData('application/x-tahai-mission-tab-id') || '';
+      if (browserTabId && tabs.has(browserTabId)) {
+        upsertBrowserTabIntoMissionPane(browserTabId, paneId, { activateLayout: true });
+        return;
+      }
+      if (missionTabId) moveMissionTabToPane(missionTabId, paneId);
+    };
+    stageEl.appendChild(missionPaneDropZones);
+  }
+  if (!enabled || !currentMission) {
+    missionPaneDropZones.hidden = true;
+    missionPaneDropZones.innerHTML = '';
+    return;
+  }
+  const visiblePanes = missionVisiblePaneIds(layout);
+  missionPaneDropZones.hidden = false;
+  missionPaneDropZones.dataset.layout = layout;
+  const activePane = normalizeMissionPaneId(currentMission.layout.activePaneId);
+  missionPaneDropZones.innerHTML = visiblePanes.map((paneId) => {
+    const tab = missionPaneTab(paneId);
+    return '<div class="mission-pane-drop-zone' + (paneId === activePane ? ' active-pane' : '') + '" data-pane-id="' + escapeHtml(paneId) + '">' +
+      '<strong>' + escapeHtml(missionPaneLabel(paneId)) + '</strong>' +
+      '<span>' + escapeHtml(tab ? missionRoleLabel(tab.role) + ' · ' + tab.title : 'Drop a tab here or use Ctrl+Alt+' + paneId.slice(-1)) + '</span>' +
+      '</div>';
+  }).join('');
+}
+
+function startMissionTabDrag(tabId: string, event: DragEvent): void {
+  if (!event.dataTransfer) return;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('application/x-tahai-browser-tab-id', tabId);
+  const tab = tabs.get(tabId);
+  if (tab) event.dataTransfer.setData('text/plain', tab.url);
+  document.body.classList.add('mission-tab-dragging');
+}
+
+function endMissionTabDrag(): void {
+  document.body.classList.remove('mission-tab-dragging');
+  missionPaneDropZones?.querySelectorAll('.drag-over').forEach((element) => element.classList.remove('drag-over'));
+}
+
+function upsertBrowserTabIntoMissionPane(tabId: string, paneIdInput: string, options: { activateLayout?: boolean } = {}): void {
+  const tab = tabs.get(tabId);
+  if (!tab) return;
+  const mission = ensureCurrentMission();
+  const paneId = normalizeMissionPaneId(paneIdInput);
+  let missionTab = mission.tabs.find((candidate) => missionRuntimeTabs.get(candidate.tabId) === tabId || candidate.url === tab.url);
+  if (!missionTab) {
+    missionTab = { tabId: missionUuid(), role: missionDefaultRole(tab.url), url: tab.url, title: tab.title, pinned: false, paneId };
+    mission.tabs.push(missionTab);
+    missionRuntimeTabs.set(missionTab.tabId, tabId);
+    missionTimelineEvent('tab-added', tab.title, missionTab.role + ' · ' + tab.url);
+  } else {
+    missionRuntimeTabs.set(missionTab.tabId, tabId);
+    missionTab.url = tab.url;
+    missionTab.title = tab.title;
+    missionTab.paneId = paneId;
+    missionTimelineEvent('layout-set', 'Pane assignment changed', tab.title + ' → ' + missionPaneLabel(paneId));
+  }
+  tab.missionPaneId = paneId;
+  mission.layout.activePaneId = paneId;
+  if (options.activateLayout) mission.layout.type = visibleLayoutForPane(paneId, mission.layout.type);
+  syncMissionLayoutPanes();
+  renderMissionControl();
+  renderMissionLayout();
+}
+
+function makeQuadFromOpenTabs(): void {
+  const openTabs = Array.from(tabs.values()).slice(0, 4);
+  if (!openTabs.length) {
+    setStatus('No open tabs for Quad View', 'Open tabs first, then build a Mission View.');
+    return;
+  }
+  const mission = ensureCurrentMission();
+  mission.layout.type = openTabs.length >= 4 ? 'quad' : layoutForPaneCount(openTabs.length);
+  mission.layout.activePaneId = 'pane-1';
+  openTabs.forEach((tab, index) => upsertBrowserTabIntoMissionPane(tab.id, missionPaneIds[index] || 'pane-1', { activateLayout: false }));
+  mission.layout.type = openTabs.length >= 4 ? 'quad' : layoutForPaneCount(openTabs.length);
+  syncMissionLayoutPanes();
+  missionTimelineEvent('layout-set', 'Mission View seeded from open tabs', `${openTabs.length} open tab(s) assigned to panes.`);
+  renderMissionControl();
+  renderMissionLayout();
+  setStatus('Mission View ready', missionLayoutLabel(mission.layout.type));
+}
+
+function openTabPaneQuickAssign(tabId: string, event: MouseEvent): void {
+  event.preventDefault();
+  const tab = tabs.get(tabId);
+  if (!tab) return;
+  const mission = ensureCurrentMission();
+  const existing = mission.tabs.find((candidate) => missionRuntimeTabs.get(candidate.tabId) === tabId || candidate.url === tab.url);
+  const currentIndex = existing ? missionPaneIds.indexOf(existing.paneId as typeof missionPaneIds[number]) : -1;
+  const nextPane = missionPaneIds[(currentIndex + 1) % missionPaneIds.length] || 'pane-1';
+  upsertBrowserTabIntoMissionPane(tabId, nextPane, { activateLayout: true });
+  setStatus('Mission pane assigned', `${tab.title} → ${missionPaneLabel(nextPane)}`);
+}
+
 // PASS 17 Mission Control layout routing: toolbar/navigation commands target the active Mission pane.
 function activeMissionPaneId(): string | undefined {
   if (!currentMission || currentMission.layout.type === 'single') return undefined;
@@ -913,275 +1187,6 @@ function swapActiveMissionPane(direction: -1 | 1): void {
   renderMissionControl();
   renderMissionLayout();
   setStatus('Mission pane swapped', activePane.replace('pane-', 'Pane ') + ' ⇄ ' + otherPane.replace('pane-', 'Pane '));
-}
-
-function missionUuid(): string {
-  const cryptoRef = window.crypto as Crypto | undefined;
-  if (cryptoRef?.randomUUID) return cryptoRef.randomUUID();
-  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (char) => (Number(char) ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(char) / 4).toString(16));
-}
-
-function missionRoleLabel(role: MissionTabRole): string {
-  return role.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
-}
-
-function missionLayoutLabel(layout: MissionLayoutType): string {
-  if (layout === 'split-horizontal') return '2-Up Split';
-  if (layout === 'split-vertical') return '2-Up Stack';
-  if (layout === 'triple') return '3-Up Triad';
-  if (layout === 'quad') return '4-Up Quad Ops';
-  if (layout === 'focus') return 'Focus Pane';
-  return '1-Up Normal';
-}
-
-function missionDefaultRole(url: string): MissionTabRole {
-  const lower = url.toLowerCase();
-  if (lower.includes('github') || lower.includes('actions') || lower.includes('log')) return 'logs';
-  if (lower.includes('docs') || lower.includes('learn.microsoft') || lower.includes('developer.mozilla')) return 'docs';
-  if (lower.includes('status') || lower.includes('monitor')) return 'monitoring';
-  if (lower.includes('ticket') || lower.includes('jira') || lower.includes('zendesk')) return 'ticket';
-  if (lower.includes('cloudflare') || lower.includes('console') || lower.includes('portal.azure') || lower.includes('admin.microsoft')) return 'primary-console';
-  return 'live-target';
-}
-
-function missionVisiblePaneIds(layout: MissionLayoutType): string[] {
-  if (layout === 'quad') return ['pane-1','pane-2','pane-3','pane-4'];
-  if (layout === 'triple') return ['pane-1','pane-2','pane-3'];
-  if (layout === 'split-horizontal' || layout === 'split-vertical') return ['pane-1','pane-2'];
-  if (layout === 'focus') return [currentMission?.layout.activePaneId || 'pane-1'];
-  return ['pane-1'];
-}
-
-function orderedBrowserTabs(): TabState[] {
-  const orderedIds = Array.from(tabsEl.querySelectorAll<HTMLElement>('.tab'))
-    .map((button) => button.dataset.browserTabId)
-    .filter((tabId): tabId is string => Boolean(tabId));
-  const ordered = orderedIds.map((tabId) => tabs.get(tabId)).filter((tab): tab is TabState => Boolean(tab));
-  const missing = Array.from(tabs.values()).filter((tab) => !ordered.includes(tab));
-  return [...ordered, ...missing];
-}
-
-function firstOpenMissionPane(excludingPaneId?: string): string {
-  const occupied = new Set((currentMission?.tabs || []).map((tab) => tab.paneId));
-  return missionPaneIds.find((paneId) => paneId !== excludingPaneId && !occupied.has(paneId)) || missionPaneIds.find((paneId) => paneId !== excludingPaneId) || 'pane-4';
-}
-
-function upsertBrowserTabIntoMissionPane(browserTabId: string, paneId: string, options: { activateLayout?: boolean } = {}): boolean {
-  if (!missionPaneIds.includes(paneId as typeof missionPaneIds[number])) return false;
-  const browserTab = tabs.get(browserTabId);
-  if (!browserTab) return false;
-  const mission = ensureCurrentMission();
-  const existing = mission.tabs.find((candidate) => missionRuntimeTabs.get(candidate.tabId) === browserTab.id || candidate.url === browserTab.url);
-  const previousPane = existing?.paneId;
-  const occupying = mission.tabs.find((candidate) => candidate.paneId === paneId && candidate.tabId !== existing?.tabId);
-  if (occupying) occupying.paneId = previousPane && previousPane !== paneId ? previousPane : firstOpenMissionPane(paneId);
-  if (existing) {
-    existing.url = browserTab.url;
-    existing.title = browserTab.title;
-    existing.paneId = paneId;
-    existing.role = missionDefaultRole(browserTab.url);
-    missionRuntimeTabs.set(existing.tabId, browserTab.id);
-  } else {
-    const missionTabId = missionUuid();
-    mission.tabs.push({ tabId: missionTabId, role: missionDefaultRole(browserTab.url), url: browserTab.url, title: browserTab.title, pinned: false, paneId });
-    missionRuntimeTabs.set(missionTabId, browserTab.id);
-  }
-  browserTab.missionPaneId = paneId;
-  mission.layout.activePaneId = paneId;
-  if (options.activateLayout && mission.layout.type === 'single') mission.layout.type = 'quad';
-  syncMissionLayoutPanes();
-  missionTimelineEvent('tab-added', browserTab.title, 'Assigned to ' + paneId.replace('pane-', 'Pane ') + ' · ' + browserTab.url);
-  renderMissionControl();
-  renderMissionLayout();
-  setStatus('Tab sent to ' + paneId.replace('pane-', 'Pane '), browserTab.title);
-  return true;
-}
-
-function makeQuadFromOpenTabs(): void {
-  const openTabs = orderedBrowserTabs().slice(0, 4);
-  if (!openTabs.length) {
-    setStatus('No open tabs for Quad View', 'Open up to four tabs first.');
-    return;
-  }
-  const mission = ensureCurrentMission();
-  missionRuntimeTabs.clear();
-  mission.tabs = openTabs.map((tab, index) => {
-    const paneId = missionPaneIds[index] || 'pane-1';
-    const missionTabId = missionUuid();
-    tab.missionPaneId = paneId;
-    missionRuntimeTabs.set(missionTabId, tab.id);
-    return { tabId: missionTabId, role: missionDefaultRole(tab.url), url: tab.url, title: tab.title, pinned: false, paneId };
-  });
-  mission.layout.type = 'quad';
-  mission.layout.activePaneId = 'pane-1';
-  syncMissionLayoutPanes();
-  missionTimelineEvent('layout-set', 'Quad built from open tabs', openTabs.length + ' browser tab(s) assigned to Mission panes.');
-  renderMissionControl();
-  renderMissionLayout();
-  if (openTabs[0]) setActive(openTabs[0].id);
-  setStatus('Quad View ready', openTabs.length + ' open tab(s) assigned to panes.');
-}
-
-function startMissionTabDrag(tabId: string, event: DragEvent): void {
-  const tab = tabs.get(tabId);
-  if (!tab || !event.dataTransfer) return;
-  event.dataTransfer.effectAllowed = 'move';
-  event.dataTransfer.setData('application/x-tahai-browser-tab-id', tabId);
-  event.dataTransfer.setData('text/plain', tab.title || tab.url);
-  document.body.classList.add('mission-tab-dragging');
-  if (!currentMission) ensureCurrentMission();
-  if (currentMission?.layout.type === 'single') currentMission.layout.type = 'quad';
-  renderMissionLayout();
-  setStatus('Drag tab to Mission pane', 'Drop on Pane 1, 2, 3, or 4.');
-}
-
-function endMissionTabDrag(): void {
-  document.body.classList.remove('mission-tab-dragging');
-  missionPaneDropZones?.querySelectorAll('.drag-over').forEach((element) => element.classList.remove('drag-over'));
-}
-
-async function openTabPaneQuickAssign(tabId: string, event: MouseEvent): Promise<void> {
-  event.preventDefault();
-  const pane = await requestTextInput({
-    title: 'Send tab to Mission pane',
-    label: 'Choose pane 1, 2, 3, or 4. Cancel leaves the tab where it is.',
-    defaultValue: currentMission?.layout.activePaneId?.replace('pane-', '') || '1',
-    maxLength: 1
-  });
-  if (!pane) return;
-  const paneId = 'pane-' + pane.trim();
-  if (!missionPaneIds.includes(paneId as typeof missionPaneIds[number])) {
-    setStatus('Pane assignment blocked', 'Use pane 1, 2, 3, or 4.');
-    return;
-  }
-  upsertBrowserTabIntoMissionPane(tabId, paneId, { activateLayout: true });
-}
-
-function ensureMissionPaneDropZones(): HTMLElement {
-  if (missionPaneDropZones) return missionPaneDropZones;
-  const container = document.createElement('div');
-  container.className = 'mission-pane-drop-zones';
-  container.setAttribute('aria-hidden', 'true');
-  for (const paneId of missionPaneIds) {
-    const zone = document.createElement('div');
-    zone.className = 'mission-pane-drop-zone';
-    zone.dataset.dropMissionPane = paneId;
-    zone.dataset.paneId = paneId;
-    zone.innerHTML = '<strong>' + paneId.replace('pane-', 'Pane ') + '</strong><span>Drop tab here</span>';
-    zone.addEventListener('dragover', (event) => {
-      event.preventDefault();
-      zone.classList.add('drag-over');
-      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-    });
-    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', (event) => {
-      event.preventDefault();
-      zone.classList.remove('drag-over');
-      const tabId = event.dataTransfer?.getData('application/x-tahai-browser-tab-id');
-      if (tabId) upsertBrowserTabIntoMissionPane(tabId, paneId, { activateLayout: true });
-      endMissionTabDrag();
-    });
-    container.appendChild(zone);
-  }
-  stageEl.appendChild(container);
-  missionPaneDropZones = container;
-  return container;
-}
-
-function renderMissionPaneDropZones(layout: MissionLayoutType, active: boolean): void {
-  const container = ensureMissionPaneDropZones();
-  const visiblePaneIds = missionVisiblePaneIds(layout);
-  container.dataset.layout = layout;
-  container.hidden = !active;
-  container.querySelectorAll<HTMLElement>('.mission-pane-drop-zone').forEach((zone) => {
-    const paneId = zone.dataset.dropMissionPane || 'pane-1';
-    zone.hidden = !visiblePaneIds.includes(paneId);
-    zone.classList.toggle('active-pane', currentMission?.layout.activePaneId === paneId);
-  });
-}
-
-function defaultRunbookStepLabels(type: MissionType): string[] {
-  if (type === 'deployment') return ['Confirm change scope and owner', 'Capture pre-change state', 'Execute deployment step', 'Run smoke validation', 'Record rollback result or closure note'];
-  if (type === 'incident') return ['Declare impact and severity', 'Capture current symptoms', 'Assign mitigation owner', 'Validate recovery signal', 'Record customer/internal update'];
-  if (type === 'migration') return ['Confirm source and target state', 'Capture backup/export evidence', 'Apply migration change', 'Validate live target and DNS/TLS', 'Record rollback path and closeout'];
-  if (type === 'admin') return ['Confirm authorized admin scope', 'Capture starting configuration', 'Apply requested change', 'Validate affected service', 'Document final state'];
-  if (type === 'documentation') return ['Collect source references', 'Draft/update runbook', 'Review security-sensitive terms', 'Publish or stage handoff', 'Log next documentation owner'];
-  return ['Define mission objective', 'Capture starting context', 'Perform work step', 'Validate result', 'Document closeout'];
-}
-
-function createMissionRunbook(type: MissionType, objectiveSeed = ''): MissionRunbook {
-  return {
-    objective: objectiveSeed || 'Define the operational outcome before closing this mission.',
-    rollback: 'Stop, roll back, or escalate if validation fails, permissions are unclear, or secret-bearing material appears.',
-    steps: defaultRunbookStepLabels(type).map((label) => ({ stepId: missionUuid(), label, state: 'todo' as MissionRunbookStepState, evidenceNote: '' }))
-  };
-}
-
-function createMissionRunbookFromRecipe(recipe: LaunchRecipe): MissionRunbook {
-  const type = recipe.missionType || 'generic';
-  const labels = recipe.missionRunbookSteps?.length ? recipe.missionRunbookSteps : defaultRunbookStepLabels(type);
-  return {
-    objective: recipe.missionPrimaryAction || recipe.note || 'Define the operational outcome before closing this mission.',
-    rollback: recipe.missionStopCondition || 'Stop, roll back, or escalate if validation fails, permissions are unclear, or secret-bearing material appears.',
-    steps: labels.slice(0, 12).map((label) => ({ stepId: missionUuid(), label: label.slice(0, 220), state: 'todo' as MissionRunbookStepState, evidenceNote: '' }))
-  };
-}
-
-function recipePhaseLabel(recipe: LaunchRecipe): string {
-  if (recipe.missionPhase === 'devops') return 'DevOps';
-  if (recipe.missionPhase === 'it') return 'IT';
-  return 'General';
-}
-
-function recipeEvidenceNote(recipe: LaunchRecipe): string {
-  if (!recipe.missionEvidencePrompts?.length) return '';
-  return 'Evidence prompts: ' + recipe.missionEvidencePrompts.slice(0, 6).join('; ');
-}
-
-function recipeProviderLabel(recipe: LaunchRecipe): string {
-  const provider = recipe.cockpitProvider || 'generic';
-  if (provider === 'aws') return 'AWS';
-  if (provider === 'cloudflare') return 'Cloudflare';
-  if (provider === 'github') return 'GitHub';
-  if (provider === 'vercel') return 'Vercel';
-  if (provider === 'firebase') return 'Firebase';
-  if (provider === 'incident') return 'Incident';
-  if (provider === 'm365') return 'M365';
-  if (provider === 'azure') return 'Azure';
-  return 'Ops';
-}
-
-function recipeBlueprintMarkdown(recipe: LaunchRecipe): string {
-  const urls = recipe.urls.map((url) => '- ' + md(url)).join('\n');
-  const runbook = (recipe.missionRunbookSteps || defaultRunbookStepLabels(recipe.missionType || 'generic')).map((step, index) => `${index + 1}. ${md(step)}`).join('\n');
-  const evidence = (recipe.missionEvidencePrompts || []).map((item) => '- ' + md(item)).join('\n') || '- _No recipe evidence prompts._';
-  return `# ${md(recipe.label)} Blueprint\n\n` +
-    `| Field | Value |\n| --- | --- |\n` +
-    `| Provider | ${md(recipeProviderLabel(recipe))} |\n` +
-    `| Phase | ${md(recipePhaseLabel(recipe))} |\n` +
-    `| Layout | ${md(missionLayoutLabel(recipe.missionLayout || 'single'))} |\n` +
-    `| Profile | ${md(recipe.profileName)} |\n` +
-    `| Primary action | ${md(recipe.missionPrimaryAction || recipe.note)} |\n` +
-    `| Stop condition | ${md(recipe.missionStopCondition || 'Stop if ownership, scope, permission, or rollback is unclear.')} |\n\n` +
-    `## Launch surfaces\n\n${urls}\n\n` +
-    `## Runbook\n\n${runbook}\n\n` +
-    `## Evidence prompts\n\n${evidence}\n`;
-}
-
-
-function ensureMissionRunbook(mission: MissionState): MissionRunbook {
-  if (!mission.runbook) mission.runbook = createMissionRunbook(mission.missionType);
-  if (!Array.isArray(mission.runbook.steps)) mission.runbook.steps = [];
-  return mission.runbook;
-}
-
-function ensureMissionEvidence(mission: MissionState): MissionEvidenceEntry[] {
-  if (!Array.isArray(mission.evidence)) mission.evidence = [];
-  return mission.evidence;
-}
-
-function missionEvidenceKindLabel(kind: MissionEvidenceKind): string {
-  return kind.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 }
 
 function currentMissionTabForActiveTab(): MissionTabRef | undefined {
@@ -1317,76 +1322,18 @@ function addMissionNote(): void {
 
 function ensureCurrentMission(): MissionState {
   if (currentMission) return currentMission;
-  const now = new Date().toISOString();
-  const mission: MissionState = {
-    schemaVersion: 1,
-    missionId: missionUuid(),
-    name: normalizeMissionName(missionNameInput?.value || ''),
-    missionType: (missionTypes.includes(missionTypeSelect?.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType,
-    mode: 'local-only',
-    createdAt: now,
-    updatedAt: now,
-    tabs: [],
-    layout: { type: 'single', activePaneId: 'pane-1', panes: [] },
-    notes: [],
-    runbook: createMissionRunbook((missionTypes.includes(missionTypeSelect?.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType),
-    evidence: [],
-    timeline: [{ eventId: missionUuid(), kind: 'created', createdAt: now, title: 'Mission created', detail: 'Local-only Mission Tabs model initialized.' }],
-    links: { itDocs: null, psa: null }
-  };
-  currentMission = mission;
-  return mission;
-}
-
-function normalizeMissionName(value: string, fallback = 'Untitled mission'): string {
-  const cleaned = value.trim().replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').slice(0, 96);
-  return cleaned || fallback;
-}
-
-function cloneMissionForDuplicate(source: MissionState, name: string): MissionState {
-  const now = new Date().toISOString();
-  const tabIdMap = new Map<string, string>();
-  const tabs = source.tabs.map((tab) => {
-    const nextId = missionUuid();
-    tabIdMap.set(tab.tabId, nextId);
-    return { ...tab, tabId: nextId };
-  });
-  const mission: MissionState = {
-    ...source,
-    missionId: missionUuid(),
-    name: normalizeMissionName(name, source.name + ' copy'),
-    createdAt: now,
-    updatedAt: now,
-    tabs,
-    layout: { ...source.layout, panes: source.layout.panes.map((pane) => ({ ...pane, tabId: tabIdMap.get(pane.tabId) || pane.tabId })) },
-    runbook: { ...ensureMissionRunbook(source), steps: ensureMissionRunbook(source).steps.map((step) => ({ ...step, stepId: missionUuid() })) },
-    notes: [...source.notes],
-    evidence: (source.evidence || []).map((entry) => ({ ...entry, eventId: missionUuid(), sourceTabId: entry.sourceTabId ? tabIdMap.get(entry.sourceTabId) : undefined })),
-    timeline: []
-  };
-  mission.timeline.unshift({ eventId: missionUuid(), kind: 'mission-duplicated', createdAt: now, title: 'Mission duplicated', detail: 'Created from ' + source.name + '.' });
-  return mission;
+  const missionType = (missionTypes.includes(missionTypeSelect?.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType;
+  currentMission = createEmptyMission({ name: missionNameInput?.value || '', missionType });
+  return currentMission;
 }
 
 function missionTimelineEvent(kind: MissionTimelineEvent['kind'], title: string, detail: string): void {
-  const mission = ensureCurrentMission();
-  mission.timeline.unshift({ eventId: missionUuid(), kind, createdAt: new Date().toISOString(), title, detail });
-  mission.timeline = mission.timeline.slice(0, 160);
-  mission.updatedAt = new Date().toISOString();
+  appendMissionTimelineEvent(ensureCurrentMission(), kind, title, detail);
 }
 
 function syncMissionLayoutPanes(): void {
   if (!currentMission) return;
-  const usedTabIds = new Set<string>();
-  const panes: MissionLayout['panes'] = [];
-  for (const paneId of missionPaneIds) {
-    const tab = currentMission.tabs.find((candidate) => candidate.paneId === paneId && !usedTabIds.has(candidate.tabId));
-    if (!tab) continue;
-    usedTabIds.add(tab.tabId);
-    panes.push({ paneId, role: tab.role, tabId: tab.tabId });
-  }
-  currentMission.layout.panes = panes;
-  if (!currentMission.layout.activePaneId || !missionPaneIds.includes(currentMission.layout.activePaneId as typeof missionPaneIds[number])) currentMission.layout.activePaneId = 'pane-1';
+  syncMissionLayoutPanesForMission(currentMission);
 }
 
 function updateMissionTabRuntimeFromBrowser(tab: TabState): void {
@@ -1402,11 +1349,13 @@ function updateMissionTabRuntimeFromBrowser(tab: TabState): void {
 function renderMissionLayout(): void {
   if (!stageEl || !tabs.size) return;
   const layout = currentMission?.layout.type || 'single';
+  stageEl.dataset.missionLayout = layout;
   const missionModeActive = Boolean(currentMission && layout !== 'single');
   stageEl.classList.toggle('mission-layout', missionModeActive);
   for (const name of missionLayouts) stageEl.classList.toggle('mission-layout-' + name, missionModeActive && layout === name);
   if (!missionModeActive) {
     renderMissionPaneDropZones(layout, false);
+    renderMissionPaneHeads(layout, false);
     for (const tab of tabs.values()) {
       tab.webview.classList.toggle('active', tab.id === activeTabId);
       tab.webview.classList.remove('mission-active-pane');
@@ -1422,7 +1371,8 @@ function renderMissionLayout(): void {
     const runtimeTabId = missionRuntimeTabs.get(missionTab.tabId);
     if (runtimeTabId && visiblePanes.includes(missionTab.paneId) && !runtimeByPane.has(missionTab.paneId)) runtimeByPane.set(missionTab.paneId, runtimeTabId);
   }
-  const activePaneId = currentMission?.layout.activePaneId || 'pane-1';
+  const activePaneId = normalizeMissionPaneId(currentMission?.layout.activePaneId);
+  renderMissionPaneHeads(layout, true);
   for (const tab of tabs.values()) {
     const paneId = Array.from(runtimeByPane.entries()).find(([, runtimeTabId]) => runtimeTabId === tab.id)?.[0];
     const visible = Boolean(paneId);
@@ -1469,25 +1419,34 @@ function setMissionActivePane(paneId: string): void {
 }
 
 function missionExportMarkdown(): string {
-  if (!currentMission) return '';
-  const runbook = ensureMissionRunbook(currentMission);
-  const rows = currentMission.tabs.map((tab) => '| ' + tab.role + ' | ' + md(tab.title) + ' | ' + md(tab.url) + ' | ' + md(tab.paneId) + ' |').join('\n') || '| _No mission tabs captured._ |  |  |  |';
-  const checklist = runbook.steps.map((step) => '- [' + (step.state === 'done' ? 'x' : ' ') + '] ' + md(step.label) + ' — ' + md(step.state)).join('\n') || '- _No runbook checklist steps._';
-  const notes = currentMission.notes.map((note) => '- ' + md(note)).join('\n') || '- _No local notes yet._';
-  const evidenceRows = ensureMissionEvidence(currentMission).map((entry) => '| ' + md(missionEvidenceKindLabel(entry.kind)) + ' | ' + md(entry.title) + ' | ' + md(entry.url || 'n/a') + ' | ' + md(entry.paneId || 'n/a') + ' | ' + md(entry.createdAt) + ' |').join('\n') || '| _No mission evidence pinned._ |  |  |  |  |';
-  const timeline = currentMission.timeline.map((event) => '- ' + md(event.createdAt) + ' — ' + md(event.kind) + ' — ' + md(event.title) + (event.detail ? ' — ' + md(event.detail) : '')).join('\n') || '- _No timeline yet._';
-  return '# TAHAI Mission Packet — ' + md(currentMission.name) + '\n\n' +
-    '> Local-only Mission Control export preview. Review through Ops Guard before sharing or syncing. IT Docs/PSA writeback stays disabled until an authorized server-side contract is active.\n\n' +
-    '| Field | Value |\n| --- | --- |\n' +
-    '| Mission type | ' + md(currentMission.missionType) + ' |\n' +
-    '| Mode | ' + md(currentMission.mode) + ' |\n' +
-    '| Layout | ' + md(currentMission.layout.type) + ' |\n' +
-    '| Active pane | ' + md(currentMission.layout.activePaneId) + ' |\n\n' +
-    '## Tabs\n\n| Role | Title | URL | Pane |\n| --- | --- | --- | --- |\n' + rows + '\n\n' +
-    '## Runbook Rail\n\nObjective: ' + md(runbook.objective || 'Not set') + '\n\nRollback / stop condition: ' + md(runbook.rollback || 'Not set') + '\n\n' + checklist + '\n\n' +
-    '## Local Notes\n\n' + notes + '\n\n' +
-    '## Mission Evidence\n\n| Kind | Title | URL | Pane | Captured |\n| --- | --- | --- | --- | --- |\n' + evidenceRows + '\n\n' +
-    '## Timeline\n\n' + timeline + '\n';
+  const rawMarkdown = buildMissionExportMarkdown(currentMission, md);
+  return scanAndRedact(rawMarkdown).redacted;
+}
+
+function missionExportStatusDetail(result: Awaited<ReturnType<typeof window.tahaiBrowser.copyMissionExport>>): string {
+  const findingCount = result.findings?.reduce((sum, finding) => sum + finding.count, 0) || 0;
+  const findingClasses = result.findings?.length || 0;
+  return `${findingCount} secret-like value(s) across ${findingClasses} class(es) redacted before copy/save.`;
+}
+
+async function copyMissionExportPacket(): Promise<void> {
+  if (!currentMission) { setStatus('No mission packet to copy'); return; }
+  const result = await window.tahaiBrowser.copyMissionExport(currentMission);
+  if (!result.ok) { setStatus('Mission export blocked', result.error || 'Validation failed.'); return; }
+  if (result.redactedMarkdown) missionExportPreview.value = result.redactedMarkdown;
+  missionTimelineEvent('exported', 'Mission packet copied', missionExportStatusDetail(result));
+  renderMissionControl();
+  setStatus('Mission packet copied', missionExportStatusDetail(result));
+}
+
+async function saveMissionExportPacket(): Promise<void> {
+  if (!currentMission) { setStatus('No mission packet to save'); return; }
+  const result = await window.tahaiBrowser.saveMissionExport(currentMission);
+  if (!result.ok) { setStatus('Mission export not saved', result.error || 'Validation failed or canceled.'); return; }
+  if (result.redactedMarkdown) missionExportPreview.value = result.redactedMarkdown;
+  missionTimelineEvent('exported', 'Mission packet saved', result.path || missionExportStatusDetail(result));
+  renderMissionControl();
+  setStatus('Mission packet saved', result.path || missionExportStatusDetail(result));
 }
 
 function renderMissionList(): void {
@@ -1496,11 +1455,11 @@ function renderMissionList(): void {
     missionList.innerHTML = '<article class="ops-hub-empty">No local missions saved yet.</article>';
     return;
   }
-  missionList.innerHTML = missionStore.map((mission) => '<article class="ops-hub-row split">' +
-    '<button type="button" data-load-mission-id="' + escapeHtml(mission.missionId) + '"><strong>' + escapeHtml(mission.name) + '</strong><span>' + escapeHtml(mission.missionType + ' · ' + mission.tabs.length + ' tab(s) · ' + new Date(mission.updatedAt).toLocaleString()) + '</span></button>' +
+  missionList.innerHTML = missionStore.map((mission) => '<article class="ops-hub-row split mission-saved-mission-card">' +
+    '<button type="button" data-load-mission-id="' + escapeHtml(mission.missionId) + '" title="Preview saved mission without opening tabs"><strong>' + escapeHtml(mission.name) + '</strong><span>' + escapeHtml(mission.missionType + ' · ' + mission.tabs.length + ' tab(s) · ' + new Date(mission.updatedAt).toLocaleString()) + '</span></button>' +
     '<span class="mission-saved-actions">' +
     '<button type="button" class="home-button secondary" data-duplicate-mission-id="' + escapeHtml(mission.missionId) + '" title="Duplicate mission">Copy</button>' +
-    '<button type="button" class="home-button secondary" data-restore-mission-id="' + escapeHtml(mission.missionId) + '" title="Restore mission tabs">↗</button>' +
+    '<button type="button" class="home-button secondary mission-restore-button" data-restore-mission-id="' + escapeHtml(mission.missionId) + '" title="Choose how to restore this mission">Restore…</button>' +
     '<button type="button" class="mini-danger" data-delete-mission-id="' + escapeHtml(mission.missionId) + '" title="Delete local mission">×</button>' +
     '</span>' +
     '</article>').join('');
@@ -1564,23 +1523,12 @@ async function openMissionControl(): Promise<void> {
 }
 
 function createMissionFromForm(): void {
-  const now = new Date().toISOString();
-  currentMission = {
-    schemaVersion: 1,
-    missionId: missionUuid(),
-    name: normalizeMissionName(missionNameInput.value),
-    missionType: (missionTypes.includes(missionTypeSelect.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType,
-    mode: 'local-only',
-    createdAt: now,
-    updatedAt: now,
-    tabs: [],
-    layout: { type: 'single', activePaneId: 'pane-1', panes: [] },
-    notes: [],
-    runbook: createMissionRunbook((missionTypes.includes(missionTypeSelect.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType),
-    evidence: [],
-    timeline: [{ eventId: missionUuid(), kind: 'created', createdAt: now, title: 'Mission created', detail: 'Local-only browser mission started.' }],
-    links: { itDocs: null, psa: null }
-  };
+  const missionType = (missionTypes.includes(missionTypeSelect.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType;
+  currentMission = createEmptyMission({
+    name: missionNameInput.value,
+    missionType,
+    createdDetail: 'Local-only browser mission started.'
+  });
   missionRuntimeTabs.clear();
   renderMissionControl();
   renderMissionLayout();
@@ -1695,7 +1643,7 @@ async function duplicateMissionById(missionId: string): Promise<void> {
   }
   const name = await requestTextInput({ title: 'Duplicate Mission', label: 'New mission name', defaultValue: result.mission.name + ' copy', confirmLabel: 'Duplicate', maxLength: 96 });
   if (!name) return;
-  const duplicate = cloneMissionForDuplicate(result.mission, name);
+  const duplicate = cloneMissionForDuplicateModel(result.mission, name);
   const saveResult = await window.tahaiBrowser.saveMission(duplicate);
   if (saveResult.ok && saveResult.mission) {
     currentMission = saveResult.mission;
@@ -1724,7 +1672,78 @@ async function deleteMissionById(missionId: string): Promise<void> {
   }
 }
 
-async function loadMissionById(missionId: string, restoreTabs = false): Promise<void> {
+type MissionRestoreMode = 'preview' | 'append' | 'replace';
+
+function requestMissionRestoreMode(mission: MissionState): Promise<MissionRestoreMode | null> {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'mission-restore-dialog';
+    dialog.setAttribute('aria-label', 'Restore Mission safely');
+    const openTabCount = tabs.size;
+    dialog.innerHTML =
+      '<section class="mission-restore-panel">' +
+      '<header><div><p class="eyebrow">Recovery-safe restore</p><h2>Restore Mission</h2></div></header>' +
+      '<div class="mission-restore-summary"><strong>' + escapeHtml(mission.name) + '</strong><span>' + escapeHtml(mission.missionType + ' · ' + mission.tabs.length + ' saved tab(s) · ' + openTabCount + ' currently open') + '</span></div>' +
+      '<p class="mission-restore-copy">Choose exactly how this local mission should open. The default is non-destructive and keeps your current browsing context intact.</p>' +
+      '<div class="mission-restore-options" role="group" aria-label="Mission restore options">' +
+      '<button type="button" data-restore-mode="preview"><strong>Preview only</strong><span>Load the mission panel and layout metadata without opening any saved tabs.</span></button>' +
+      '<button type="button" data-restore-mode="append" class="recommended"><strong>Open alongside current tabs</strong><span>Safest restore. Adds mission tabs without closing anything already open.</span></button>' +
+      '<button type="button" data-restore-mode="replace" class="danger"><strong>Replace current tabs</strong><span>Closes current browser tabs first. Requires a second confirmation.</span></button>' +
+      '</div>' +
+      '<footer><button type="button" data-restore-cancel class="home-button secondary">Cancel</button></footer>' +
+      '</section>';
+    document.body.appendChild(dialog);
+    let settled = false;
+    const finish = (mode: MissionRestoreMode | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(mode);
+      dialog.close();
+      dialog.remove();
+    };
+    dialog.addEventListener('click', (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+      if (!button) return;
+      const mode = button.dataset.restoreMode as MissionRestoreMode | undefined;
+      if (mode === 'replace') {
+        const ok = window.confirm('Replace current tabs with this saved mission? Current tabs will be closed first.');
+        if (!ok) return;
+      }
+      if (mode === 'preview' || mode === 'append' || mode === 'replace') finish(mode);
+      if (button.dataset.restoreCancel !== undefined) finish(null);
+    });
+    dialog.addEventListener('cancel', (event) => { event.preventDefault(); finish(null); });
+    dialog.addEventListener('close', () => { if (!settled) finish(null); });
+    dialog.showModal();
+  });
+}
+
+async function restoreMissionTabsIntoBrowser(loadedMission: MissionState, mode: MissionRestoreMode): Promise<void> {
+  if (mode === 'preview') return;
+  if (mode === 'replace') closeAllTabsForProfileSwitch();
+
+  for (const missionTab of loadedMission.tabs) {
+    if (mode === 'append') {
+      const existingRuntime = Array.from(tabs.values()).find((tab) => tab.url === missionTab.url);
+      if (existingRuntime) {
+        existingRuntime.missionPaneId = missionTab.paneId;
+        missionRuntimeTabs.set(missionTab.tabId, existingRuntime.id);
+        continue;
+      }
+    }
+    const runtimeTabId = createTab(missionTab.url);
+    const runtimeTab = tabs.get(runtimeTabId);
+    if (runtimeTab) runtimeTab.missionPaneId = missionTab.paneId;
+    missionRuntimeTabs.set(missionTab.tabId, runtimeTabId);
+  }
+
+  const detail = mode === 'append'
+    ? 'Mission tabs opened alongside the current browsing context.'
+    : 'Mission tabs replaced the current browser window after explicit confirmation.';
+  missionTimelineEvent('restored', 'Mission restored', detail);
+}
+
+async function loadMissionById(missionId: string, restoreMode: MissionRestoreMode = 'preview'): Promise<void> {
   const result = await window.tahaiBrowser.loadMission(missionId);
   if (!result.ok || !result.mission) {
     setStatus('Mission load failed', result.error || 'Mission not available.');
@@ -1733,19 +1752,28 @@ async function loadMissionById(missionId: string, restoreTabs = false): Promise<
   const loadedMission = result.mission;
   currentMission = loadedMission;
   missionRuntimeTabs.clear();
-  if (restoreTabs) {
-    closeAllTabsForProfileSwitch();
-    for (const missionTab of loadedMission.tabs) {
-      const runtimeTabId = createTab(missionTab.url);
-      const runtimeTab = tabs.get(runtimeTabId);
-      if (runtimeTab) runtimeTab.missionPaneId = missionTab.paneId;
-      missionRuntimeTabs.set(missionTab.tabId, runtimeTabId);
-    }
-    missionTimelineEvent('restored', 'Mission restored', 'Mission tabs opened into the active browser window.');
-  }
+  await restoreMissionTabsIntoBrowser(loadedMission, restoreMode);
   renderMissionControl();
   renderMissionLayout();
-  setStatus(restoreTabs ? 'Mission restored' : 'Mission loaded', loadedMission.name);
+  if (restoreMode === 'preview') setStatus('Mission preview loaded', loadedMission.name);
+  else setStatus(restoreMode === 'append' ? 'Mission opened alongside current tabs' : 'Mission replaced current tabs', loadedMission.name);
+}
+
+async function chooseAndRestoreMissionById(missionId: string): Promise<void> {
+  const result = await window.tahaiBrowser.loadMission(missionId);
+  if (!result.ok || !result.mission) {
+    setStatus('Mission load failed', result.error || 'Mission not available.');
+    return;
+  }
+  const mode = await requestMissionRestoreMode(result.mission);
+  if (!mode) return;
+  currentMission = result.mission;
+  missionRuntimeTabs.clear();
+  await restoreMissionTabsIntoBrowser(result.mission, mode);
+  renderMissionControl();
+  renderMissionLayout();
+  openMissionControl();
+  setStatus(mode === 'preview' ? 'Mission preview loaded' : mode === 'append' ? 'Mission opened alongside current tabs' : 'Mission replaced current tabs', result.mission.name);
 }
 
 type ToolMenuName = 'devops' | 'it';
@@ -2351,7 +2379,7 @@ const premiumLaunchRecipes: LaunchRecipe[] = [
     missionStopCondition: 'No browser-side PSA API calls or secrets. Use IT Docs server-side connector only when available.',
     missionRunbookSteps: ['Open local support context', 'Draft PSA-safe summary', 'Run Ops Guard', 'Wait for authorized IT Docs PSA connector', 'Export local handoff'],
     missionEvidencePrompts: ['Ticket display key', 'Summary', 'Evidence redaction', 'Writeback status'],
-    note: 'Coming soon: PSA workspace lane, linked here so it is already part of the browser workflow.'
+    note: 'IT Docs-routed PSA workspace lane; reference-only until server-side connector authorization exists.'
   }
 ];
 
@@ -2379,7 +2407,7 @@ const shortcutRows = [
   ['Ctrl+Shift+M', 'Create IT Service Card'],
   ['Ctrl+Alt+E', 'Create Endpoint Snapshot'],
   ['Ctrl+Alt+T', 'Create Support Triage Packet'],
-  ['Ctrl+Alt+K', 'Open Credential Manager'],
+  ['Ctrl+Alt+K', 'Open Secret Boundary / Ops Guard'],
   ['Ctrl+Alt+P', 'Create Route Map'],
   ['Ctrl+Alt+A', 'Run Developer Audit'],
   ['F12 / Ctrl+Shift+I', 'Open Chromium DevTools'],
@@ -2432,14 +2460,14 @@ function toggleOpsHub(open = opsHub.hidden): void {
 
 function renderLaunchRecipes(container: HTMLElement): void {
   container.innerHTML = premiumLaunchRecipes.map((recipe) => {
-    const soon = recipe.comingSoon ? '<em>Coming soon</em>' : '';
+    const soon = recipe.comingSoon ? '<em>Requires connector</em>' : '';
     const missionBadge = recipe.missionLayout ? ' · ' + missionLayoutLabel(recipe.missionLayout) : '';
     const phaseClass = recipe.missionPhase ? ' ' + recipe.missionPhase : '';
     const detail = recipePhaseLabel(recipe) + ' · ' + recipe.group + missionBadge + ' · ' + (recipe.missionPrimaryAction || recipe.note);
     const shortcut = recipe.operatorShortcut ? ' · ' + recipe.operatorShortcut : '';
     return '<button class="ops-hub-row mission-recipe-card provider-' + escapeHtml(recipe.cockpitProvider || 'generic') + phaseClass + '" type="button" data-recipe-id="' + escapeHtml(recipe.id) + '">' +
-      '<strong>' + escapeHtml(recipe.label) + soon + '<small class="recipe-chip">' + escapeHtml(recipeProviderLabel(recipe) + shortcut) + '</small></strong>' +
-      '<span>' + escapeHtml(detail) + '</span>' +
+      '<strong><span class="ops-hub-recipe-title">' + escapeHtml(recipe.label) + soon + '</span><small class="recipe-chip ops-hub-recipe-meta">' + escapeHtml(recipeProviderLabel(recipe) + shortcut) + '</small></strong>' +
+      '<span class="ops-hub-recipe-detail">' + escapeHtml(detail) + '</span>' +
       '</button>';
   }).join('');
 }
@@ -2449,13 +2477,13 @@ function renderMissionRecipes(): void {
   missionRecipes.innerHTML = premiumLaunchRecipes.map((recipe) => {
     const layout = recipe.missionLayout ? missionLayoutLabel(recipe.missionLayout) : '1-Up Normal';
     const disabled = recipe.comingSoon ? ' aria-disabled="true"' : '';
-    const soon = recipe.comingSoon ? '<em>Coming soon</em>' : '';
+    const soon = recipe.comingSoon ? '<em>Requires connector</em>' : '';
     const phaseClass = recipe.missionPhase ? ' ' + recipe.missionPhase : '';
     const stepCount = recipe.missionRunbookSteps?.length || defaultRunbookStepLabels(recipe.missionType || 'generic').length;
     const shortcut = recipe.operatorShortcut ? ' · ' + recipe.operatorShortcut : '';
     return '<button class="ops-hub-row mission-recipe-card provider-' + escapeHtml(recipe.cockpitProvider || 'generic') + phaseClass + '" type="button" data-start-mission-recipe-id="' + escapeHtml(recipe.id) + '"' + disabled + '>' +
-      '<strong>' + escapeHtml(recipe.label) + soon + '<small class="recipe-chip">' + escapeHtml(recipeProviderLabel(recipe) + shortcut) + '</small></strong>' +
-      '<span>' + escapeHtml(recipePhaseLabel(recipe) + ' · ' + layout + ' · ' + recipe.profileName + ' · ' + stepCount + '-step runbook') + '</span>' +
+      '<strong><span class="ops-hub-recipe-title">' + escapeHtml(recipe.label) + soon + '</span><small class="recipe-chip ops-hub-recipe-meta">' + escapeHtml(recipeProviderLabel(recipe) + shortcut) + '</small></strong>' +
+      '<span class="ops-hub-recipe-detail">' + escapeHtml(recipePhaseLabel(recipe) + ' · ' + layout + ' · ' + recipe.profileName + ' · ' + stepCount + '-step runbook') + '</span>' +
       '</button>';
   }).join('');
 }
@@ -2577,7 +2605,7 @@ async function pinRecipeEvidenceBlueprint(recipeId: string): Promise<void> {
   const recipe = premiumLaunchRecipes.find((candidate) => candidate.id === recipeId);
   if (!recipe) return;
   const items = readJsonArray<EvidenceTimelineItem>(evidenceStorageKey);
-  items.unshift({ id: id(), type: 'Cockpit Blueprint', title: recipe.label, sourceUrl: recipe.urls[0] || currentActiveUrl(), markdown: recipeBlueprintMarkdown(recipe), profileName: recipe.profileName, createdAt: new Date().toISOString() });
+  items.unshift({ id: id(), type: 'Cockpit Blueprint', title: recipe.label, sourceUrl: recipe.urls[0] || currentActiveUrl(), markdown: recipeBlueprintMarkdown(recipe, md), profileName: recipe.profileName, createdAt: new Date().toISOString() });
   writeJsonArray(evidenceStorageKey, items);
   renderOpsHub();
   setStatus('Cockpit blueprint pinned', `${recipe.label} added to the evidence timeline.`);
@@ -2627,7 +2655,7 @@ function buildChangeBundleMarkdown(): ChangeBundleState {
     ? evidence.map((item, index) => `---\n\n## ${evidenceAnchor(item, index)}\n\n| Field | Value |\n| --- | --- |\n| Source URL | ${md(item.sourceUrl)} |\n| Profile | ${md(item.profileName)} |\n| Pinned at | ${md(item.createdAt)} |\n\n${item.markdown.trim() || '_No markdown body captured._'}\n`).join('\n')
     : '## Evidence attachments\n\n_No pinned evidence yet. Run a tool and choose Pin Evidence from the Ops Panel or Command Palette._\n';
   const markdown = `# TAHAI Evidence / Change Bundle\n\n` +
-`> Local-only bundle generated by TAHAI Web Services Browser. Designed for TAHAI IT Docs records today and TAHAI PSA change/support tickets when the PSA lane ships. This bundle only includes evidence that was explicitly generated or pinned in the browser shell. It does not collect cookies, storage values, credentials, tokens, request bodies, response bodies, clipboard contents, local files, or form values.\n\n` +
+`> Local-only bundle generated by TAHAI Web Services Browser. Designed for TAHAI IT Docs records today and TAHAI PSA change/support tickets when IT Docs authorizes a server-side PSA connector. This bundle only includes evidence that was explicitly generated or pinned in the browser shell. It does not collect cookies, storage values, credentials, tokens, request bodies, response bodies, clipboard contents, local files, or form values.\n\n` +
 `## Bundle control\n\n` +
 `| Field | Value |\n| --- | --- |\n` +
 `| Generated at | ${md(generatedAt)} |\n` +
@@ -2656,8 +2684,8 @@ function buildChangeBundleMarkdown(): ChangeBundleState {
 `| Related workspace | ${md(latestWorkspace?.name || 'none')} |\n` +
 `| Related profile | ${md(profile?.name || 'Default')} |\n` +
 `| Evidence references | ${md(evidenceRefs)} |\n` +
-`| Follow-up docs needed | owners, credentials location, monitoring, recovery, renewal, support path |\n\n` +
-`## TAHAI PSA handoff — coming soon\n\n` +
+`| Follow-up docs needed | owners, secret-reference location, monitoring, recovery, renewal, support path |\n\n` +
+`## TAHAI PSA handoff — IT Docs-routed\n\n` +
 `| PSA field | Value |\n| --- | --- |\n` +
 `| Ticket / change type | Change / Incident / Service Request / Problem |\n` +
 `| Priority | P1 / P2 / P3 / P4 |\n` +
@@ -2676,7 +2704,7 @@ function buildChangeBundleMarkdown(): ChangeBundleState {
 `- [ ] Scope and affected users confirmed\n` +
 `- [ ] Rollback or recovery path documented\n` +
 `- [ ] Monitoring / alert path checked\n` +
-`- [ ] Credentials referenced by vault/location only; secrets not pasted into this bundle\n` +
+`- [ ] Secret locations referenced only by IT Docs/server-authorized systems; secrets not pasted into this bundle\n` +
 `- [ ] TAHAI IT Docs record created or updated\n` +
 `- [ ] TAHAI PSA ticket/change can be created when PSA lane is available\n\n` +
 `## Decision log\n\n` +
@@ -2702,7 +2730,7 @@ function renderBundleSummary(bundle: ChangeBundleState): void {
     </article>
     <article class="ops-card warn">
       <strong>PSA lane</strong>
-      <span>Ticket/change fields staged as coming soon.</span>
+      <span>Ticket/change fields staged for IT Docs-routed PSA writeback.</span>
     </article>
   `;
 }
@@ -2721,12 +2749,92 @@ function openChangeBundleComposer(): void {
   bundleMarkdown.focus();
   bundleMarkdown.setSelectionRange(0, 0);
   renderOpsHub();
-  setStatus('Evidence / Change Bundle ready', 'Copy or save for TAHAI IT Docs now; PSA handoff fields are staged for the coming PSA lane.');
+  setStatus('Evidence / Change Bundle ready', 'Copy or save for TAHAI IT Docs now; PSA handoff fields are staged for IT Docs-routed writeback.');
 }
 
 
+function renderPsaReferenceContract(capabilities: ItDocsMissionCapabilities | undefined): void {
+  if (!psaReferenceSummary) return;
+  const contract = localOnlyPsaReferenceContractState();
+  const providerCount = capabilities?.psaProvidersAvailable?.length || 0;
+  const providerText = providerCount ? capabilities!.psaProvidersAvailable.map((provider) => provider.label).join(', ') : 'No IT Docs PSA providers authorized yet';
+  psaReferenceSummary.innerHTML = `
+    <article class="ops-card info"><strong>PSA reference contract</strong><span>Reference-only display model; no browser-side PSA API calls.</span></article>
+    <article class="ops-card warn"><strong>Writeback route</strong><span>Only through IT Docs server-side connector after authorization.</span></article>
+    <article class="ops-card ${providerCount ? 'pass' : 'warn'}"><strong>Provider capabilities</strong><span>${escapeHtml(providerText)}</span></article>
+    <article class="ops-card pass"><strong>Secret boundary</strong><span>${escapeHtml(contract.disabledReason)}</span></article>
+  `;
+}
+
+function itDocsCapabilityClass(capabilities: ItDocsMissionCapabilities | undefined): string {
+  if (!capabilities) return 'info';
+  if (capabilities.signedIn && capabilities.canCreateMissionReference) return 'pass';
+  if (capabilities.ok && capabilities.state === 'not-signed-in') return 'warn';
+  return capabilities.ok ? 'warn' : 'fail';
+}
+
+function renderItDocsCapabilities(capabilities: ItDocsMissionCapabilities | undefined): void {
+  if (!itDocsCapabilitySummary) return;
+  const display = capabilities || {
+    ok: true,
+    checkedAt: '',
+    origin: config?.itDocsUrl || 'https://docs.tahaiportal.com',
+    signedIn: false,
+    state: 'not-signed-in',
+    activeOrgs: [],
+    canCreateMissionReference: false,
+    canAppendEvidence: false,
+    canAppendRunbookNote: false,
+    psaProvidersAvailable: [],
+    message: 'IT Docs capabilities have not been checked yet.',
+    disabledReason: 'Refresh the IT Docs contract state before attempting writeback.'
+  } as ItDocsMissionCapabilities;
+  const orgLabel = display.activeOrgs.length ? `${display.activeOrgs.length} authorized org(s)` : 'No authorized orgs';
+  const writeCaps = [
+    display.canCreateMissionReference ? 'mission ref' : '',
+    display.canAppendEvidence ? 'evidence' : '',
+    display.canAppendRunbookNote ? 'runbook note' : ''
+  ].filter(Boolean).join(', ') || 'local-only';
+  itDocsCapabilitySummary.innerHTML = `
+    <article class="ops-card ${itDocsCapabilityClass(display)}"><strong>IT Docs contract</strong><span>${escapeHtml(display.message)}</span></article>
+    <article class="ops-card ${display.signedIn ? 'pass' : 'warn'}"><strong>Sign-in state</strong><span>${escapeHtml(display.signedIn ? 'Signed in through IT Docs session' : 'Not signed in / local-only')}</span></article>
+    <article class="ops-card ${display.activeOrgs.length ? 'pass' : 'warn'}"><strong>Authorized orgs</strong><span>${escapeHtml(orgLabel)}</span></article>
+    <article class="ops-card ${writeCaps === 'local-only' ? 'warn' : 'pass'}"><strong>Write capabilities</strong><span>${escapeHtml(writeCaps)}</span></article>
+  `;
+  renderPsaReferenceContract(display);
+  openPsaFromHandoffButton.disabled = !display.psaProvidersAvailable.length;
+  openPsaFromHandoffButton.title = display.psaProvidersAvailable.length ? 'Open future PSA reference lane.' : 'PSA controls require IT Docs provider capabilities; no direct browser-side PSA API calls.';
+}
+
+async function refreshItDocsCapabilityState(): Promise<ItDocsMissionCapabilities | undefined> {
+  try {
+    const capabilities = await window.tahaiBrowser.getItDocsCapabilities();
+    latestItDocsCapabilities = capabilities;
+    renderItDocsCapabilities(capabilities);
+    return capabilities;
+  } catch (error) {
+    const fallback = {
+      ok: false,
+      checkedAt: new Date().toISOString(),
+      origin: config?.itDocsUrl || 'https://docs.tahaiportal.com',
+      signedIn: false,
+      state: 'offline',
+      activeOrgs: [],
+      canCreateMissionReference: false,
+      canAppendEvidence: false,
+      canAppendRunbookNote: false,
+      psaProvidersAvailable: [],
+      message: 'IT Docs capability check failed. Local-only mission work remains available.',
+      disabledReason: error instanceof Error ? error.message : String(error || 'Unknown IT Docs contract error')
+    } as ItDocsMissionCapabilities;
+    latestItDocsCapabilities = fallback;
+    renderItDocsCapabilities(fallback);
+    return fallback;
+  }
+}
+
 function handoffTargetLabel(target: OperationalHandoffTarget): string {
-  return target === 'psa' ? 'TAHAI PSA — coming soon' : 'TAHAI IT Docs';
+  return target === 'psa' ? 'TAHAI PSA — IT Docs-routed' : 'TAHAI IT Docs';
 }
 
 function buildOperationalHandoffMarkdown(target: OperationalHandoffTarget): OperationalHandoffState {
@@ -2746,8 +2854,9 @@ function buildOperationalHandoffMarkdown(target: OperationalHandoffTarget): Oper
   const workspaceTable = workspaces.length
     ? workspaces.slice(0, 12).map((snapshot) => `| ${md(snapshot.name)} | ${md(snapshot.profileName)} | ${md(snapshot.urls.length)} | ${md(snapshot.activeUrl)} |`).join('\n')
     : '| _No saved workspace snapshots yet_ |  |  |  |';
+  const psaReferenceContract = psaReferenceMarkdown(null, localOnlyPsaReferenceContractState());
   const psaSection = target === 'psa'
-    ? `## TAHAI PSA ticket/change draft — coming soon
+    ? `## TAHAI PSA ticket/change draft — IT Docs-routed
 
 | PSA field | Draft value |
 | --- | --- |
@@ -2763,7 +2872,7 @@ function buildOperationalHandoffMarkdown(target: OperationalHandoffTarget): Oper
 `
     : `## TAHAI PSA readiness note
 
-- PSA lane: coming soon.
+- PSA lane: IT Docs-routed when authorized server-side connector support exists.
 - This handoff is structured so the same evidence can become a PSA ticket/change later.
 - Keep ticket-sensitive details in this file and link to the IT Docs record when created.
 
@@ -2782,6 +2891,12 @@ function buildOperationalHandoffMarkdown(target: OperationalHandoffTarget): Oper
 `| Generated at | ${md(generatedAt)} |
 ` +
 `| Target system | ${md(targetLabel)} |
+` +
+`| IT Docs origin | ${md(latestItDocsCapabilities?.origin || config.itDocsUrl || 'https://docs.tahaiportal.com')} |
+` +
+`| IT Docs contract state | ${md(latestItDocsCapabilities?.state || 'not-checked')} |
+` +
+`| IT Docs write capability | ${md(latestItDocsCapabilities?.canCreateMissionReference ? 'server-authorized available' : 'local-only / disabled')} |
 ` +
 `| Browser | ${md(config.productName)} ${md(config.version)} |
 ` +
@@ -2835,12 +2950,14 @@ function buildOperationalHandoffMarkdown(target: OperationalHandoffTarget): Oper
 ` +
 `| Recovery / rollback path |  |
 ` +
-`| Credential location reference | Credential vault / IT Docs secret reference only; do not paste secrets here |
+`| Secret-location reference | Secret boundary / IT Docs secret reference only; do not paste secrets here |
 ` +
 `| Evidence references | ${md(evidenceRefs)} |
 
 ` +
 `${psaSection}` +
+`${psaReferenceContract}
+` +
 `## Workspace context
 
 ### Current tabs
@@ -2898,6 +3015,7 @@ function showHandoffResult(message: string): void {
 }
 
 function setHandoffTarget(target: OperationalHandoffTarget): void {
+  renderItDocsCapabilities(latestItDocsCapabilities);
   latestOperationalHandoff = buildOperationalHandoffMarkdown(target);
   renderHandoffSummary(latestOperationalHandoff);
   handoffMarkdown.value = latestOperationalHandoff.markdown;
@@ -2915,6 +3033,7 @@ function openHandoffCenter(target: OperationalHandoffTarget = 'it-docs'): void {
   handoffMarkdown.focus();
   handoffMarkdown.setSelectionRange(0, 0);
   setStatus('TAHAI handoff ready', handoffTargetLabel(target));
+  void refreshItDocsCapabilityState().then(() => { if (handoffDialog.open) setHandoffTarget(target); });
 }
 
 
@@ -2943,9 +3062,9 @@ ${item.markdown}`).join('\n\n---\n\n'), sourceUrl: evidence[0].sourceUrl || curr
 
 const guardPatterns: Array<{ label: string; severity: OpsGuardSeverity; detail: string; pattern: RegExp }> = [
   { label: 'Private key block', severity: 'fail', detail: 'Private key material should never be pasted into tickets, handoffs, or documentation.', pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g },
-  { label: 'AWS access key id', severity: 'fail', detail: 'AWS access keys must be rotated if exposed outside the credential vault.', pattern: /\bAKIA[0-9A-Z]{16}\b/g },
+  { label: 'AWS access key id', severity: 'fail', detail: 'AWS access keys must be rotated if exposed outside a server-side secret manager.', pattern: /\bAKIA[0-9A-Z]{16}\b/g },
   { label: 'GitHub token', severity: 'fail', detail: 'GitHub personal/access tokens should be removed and rotated if shared.', pattern: /\bgh[pousr]_[0-9A-Za-z]{30,}\b/g },
-  { label: 'OpenAI-style API key', severity: 'fail', detail: 'Provider API keys should stay in a secret manager or credential vault only.', pattern: /\bsk-[A-Za-z0-9][A-Za-z0-9_-]{18,}\b/g },
+  { label: 'OpenAI-style API key', severity: 'fail', detail: 'Provider API keys should stay in a server-side secret manager only.', pattern: /\bsk-[A-Za-z0-9][A-Za-z0-9_-]{18,}\b/g },
   { label: 'Google API key', severity: 'fail', detail: 'Google API keys should not appear in external evidence bundles.', pattern: /\bAIza[0-9A-Za-z\-_]{25,}\b/g },
   { label: 'Slack token', severity: 'fail', detail: 'Slack tokens grant workspace access and must be redacted.', pattern: /\bxox[baprs]-[0-9A-Za-z-]{20,}\b/g },
   { label: 'Authorization or bearer value', severity: 'fail', detail: 'Authorization headers and bearer values should be excluded from handoffs.', pattern: /\b(?:authorization|bearer)\s*[:=]\s*["']?[^\s"'`|]{12,}/gi },
@@ -2993,7 +3112,7 @@ function buildOpsGuardReview(): OpsGuardState {
 `- [ ] Confirm customer/client names are appropriate for the destination.\n` +
 `- [ ] Confirm screenshots or attachments are separately reviewed.\n` +
 `- [ ] Store authoritative internal version in TAHAI IT Docs.\n` +
-`- [ ] Create or link TAHAI PSA ticket/change when the PSA lane ships.\n\n` +
+`- [ ] Create or link TAHAI PSA ticket/change when IT Docs authorizes a server-side PSA connector.\n\n` +
 `## Redacted sharing copy\n\n\`\`\`markdown\n${redactedMarkdown.trim()}\n\`\`\`\n`;
   return { markdown, redactedMarkdown, sourceLabel: candidate.label, findingCount: findings.length, highRiskCount, warningCount };
 }
@@ -3046,14 +3165,14 @@ async function openLaunchRecipe(recipeId: string): Promise<void> {
   closeAllTabsForProfileSwitch();
   for (const url of recipe.urls) createTab(url);
   renderOpsHub();
-  setStatus(recipe.comingSoon ? `${recipe.label} is coming soon` : `${recipe.label} opened`, recipe.note);
+  setStatus(recipe.comingSoon ? `${recipe.label} requires IT Docs connector support` : `${recipe.label} opened`, recipe.note);
 }
 
 async function startMissionFromRecipe(recipeId: string): Promise<void> {
   const recipe = premiumLaunchRecipes.find((candidate) => candidate.id === recipeId);
   if (!recipe) return;
   if (recipe.comingSoon) {
-    setStatus(`${recipe.label} is coming soon`, recipe.note);
+    setStatus(`${recipe.label} requires IT Docs connector support`, recipe.note);
     return;
   }
   await ensureRecipeProfile(recipe);
@@ -3099,6 +3218,131 @@ async function startMissionFromRecipe(recipeId: string): Promise<void> {
   renderOpsHub();
   renderMissionLayout();
   setStatus('Mission recipe started', `${recipe.label} · ${missionLayoutLabel(recipe.missionLayout || 'single')}`);
+}
+
+
+type BookmarkFolderMissionDetail = { title?: string; urls?: string[]; titles?: string[]; totalBookmarks?: number; sourceFolderId?: string; sourceKind?: 'folder' | 'bookmark'; launchManifest?: string };
+
+type BookmarkMissionSafetySummary = {
+  requestedCount: number;
+  acceptedCount: number;
+  duplicateCount: number;
+  blockedCount: number;
+  openedPaneCount: number;
+};
+
+function bookmarkMissionRole(url: string, title: string, index: number): MissionTabRole {
+  const haystack = `${title} ${url}`.toLowerCase();
+  if (/log|logs|monitor|status|uptime|cloudwatch|observability/.test(haystack)) return 'logs';
+  if (/ticket|case|issue|jira|linear|zendesk|freshservice|halo|autotask|connectwise/.test(haystack)) return 'ticket';
+  if (/doc|docs|runbook|wiki|guide|readme|learn\.microsoft|developer/.test(haystack)) return 'docs';
+  if (/live|prod|production|staging|preview|app\./.test(haystack)) return 'live-target';
+  if (/github|actions|vercel|cloudflare|aws|azure|entra|admin\.microsoft|console|dashboard|portal/.test(haystack)) return index === 0 ? 'primary-console' : 'vendor-portal';
+  return index === 0 ? 'primary-console' : 'docs';
+}
+
+function bookmarkMissionLayoutForCount(count: number): MissionLayoutType {
+  if (count >= 4) return 'quad';
+  if (count === 3) return 'triple';
+  if (count === 2) return 'split-horizontal';
+  return 'single';
+}
+
+async function startMissionFromBookmarkFolder(detail: BookmarkFolderMissionDetail): Promise<void> {
+  const seen = new Set<string>();
+  const suppliedUrls = detail.urls || [];
+  const suppliedTitles = detail.titles || [];
+  let duplicateCount = 0;
+  let blockedCount = 0;
+  const safeEntries = suppliedUrls
+    .map((url, index) => {
+      const normalized = normalizeTarget(url);
+      if (!/^https?:\/\//i.test(normalized)) {
+        blockedCount += 1;
+        return null;
+      }
+      return { url: normalized, title: compactText(suppliedTitles[index] || titleFromUrl(normalized), titleFromUrl(normalized)).slice(0, 160) };
+    })
+    .filter((entry): entry is { url: string; title: string } => {
+      if (!entry) return false;
+      if (seen.has(entry.url)) {
+        duplicateCount += 1;
+        return false;
+      }
+      seen.add(entry.url);
+      return true;
+    });
+  const paneEntries = safeEntries.slice(0, 4);
+  const safetySummary: BookmarkMissionSafetySummary = {
+    requestedCount: detail.totalBookmarks || suppliedUrls.length,
+    acceptedCount: safeEntries.length,
+    duplicateCount,
+    blockedCount: Math.max(blockedCount, (detail.totalBookmarks || suppliedUrls.length) - suppliedUrls.length + blockedCount),
+    openedPaneCount: paneEntries.length
+  };
+  if (!paneEntries.length) {
+    setStatus('Bookmark Mission blocked', `${safetySummary.blockedCount || suppliedUrls.length} unsafe or invalid URL(s) rejected.`);
+    return;
+  }
+  const now = new Date().toISOString();
+  const missionName = compactText(detail.title || 'Bookmark Mission', 'Bookmark Mission').slice(0, 120);
+  closeAllTabsForProfileSwitch();
+  const mission: MissionState = {
+    schemaVersion: 1,
+    missionId: missionUuid(),
+    name: missionName,
+    missionType: 'documentation',
+    mode: 'local-only',
+    createdAt: now,
+    updatedAt: now,
+    tabs: [],
+    layout: { type: bookmarkMissionLayoutForCount(paneEntries.length), activePaneId: 'pane-1', panes: [] },
+    notes: [
+      `Started from bookmark ${detail.sourceKind === 'bookmark' ? 'URL' : 'folder'}: ${missionName}.`,
+      `Bookmark source supplied ${safetySummary.requestedCount} item(s); ${safetySummary.acceptedCount} safe URL(s) accepted, ${safetySummary.duplicateCount} duplicate(s) skipped, ${safetySummary.blockedCount} unsafe/invalid item(s) blocked.`,
+      `First ${safetySummary.openedPaneCount} safe URL(s) opened into Mission panes; remaining safe bookmarks are preserved as Mission Evidence metadata for handoff/export.`,
+      ...(detail.launchManifest ? [`Launch manifest copied into Mission notes for handoff/export.\n\n${detail.launchManifest}`] : [])
+    ],
+    runbook: {
+      objective: 'Use this bookmarked workspace as a local-only Mission Control workspace.',
+      rollback: 'Close the mission or return to normal browsing if any URL is unexpected or out of scope.',
+      steps: paneEntries.map((entry, index) => ({ stepId: missionUuid(), label: `Review pane ${index + 1}: ${entry.title}`, state: 'todo' as MissionRunbookStepState, evidenceNote: 'Bookmark Mission pane seeded from safe bookmark URL.' }))
+    },
+    evidence: safeEntries.map((entry, index) => ({
+      eventId: missionUuid(),
+      kind: 'url' as MissionEvidenceKind,
+      title: entry.title || `Bookmark mission URL ${index + 1}`,
+      url: entry.url,
+      createdAt: now,
+      operatorNote: index < 4 ? 'Opened into a Mission pane from bookmarks. Add notes or evidence before export.' : 'Included as supporting bookmark evidence; not opened because Mission panes are capped at four.',
+      metadata: { source: 'bookmark-folder', sourceFolderId: detail.sourceFolderId || '', sourceKind: detail.sourceKind || 'folder', paneOpened: String(index < 4), requestedCount: String(safetySummary.requestedCount), acceptedCount: String(safetySummary.acceptedCount), duplicateCount: String(safetySummary.duplicateCount), blockedCount: String(safetySummary.blockedCount) }
+    })),
+    timeline: [
+      { eventId: missionUuid(), kind: 'created', createdAt: now, title: 'Bookmark Mission started', detail: `${missionName} · ${paneEntries.length} pane(s) · ${safeEntries.length} evidence URL(s)` },
+      { eventId: missionUuid(), kind: 'note', createdAt: now, title: 'Bookmark Mission safety summary', detail: `${safetySummary.acceptedCount} accepted · ${safetySummary.duplicateCount} duplicate(s) skipped · ${safetySummary.blockedCount} blocked` }
+    ],
+    links: { itDocs: null, psa: null }
+  };
+  currentMission = mission;
+  missionRuntimeTabs.clear();
+  paneEntries.forEach((entry, index) => {
+    const runtimeTabId = createTab(entry.url);
+    const paneId = missionPaneIds[index] || 'pane-1';
+    const runtimeTab = tabs.get(runtimeTabId);
+    if (runtimeTab) runtimeTab.missionPaneId = paneId;
+    const missionTabId = missionUuid();
+    mission.tabs.push({ tabId: missionTabId, role: bookmarkMissionRole(entry.url, entry.title, index), url: entry.url, title: entry.title || titleFromUrl(entry.url), pinned: false, paneId });
+    missionRuntimeTabs.set(missionTabId, runtimeTabId);
+  });
+  syncMissionLayoutPanes();
+  const saveResult = await window.tahaiBrowser.saveMission(mission);
+  if (saveResult.ok && saveResult.mission) currentMission = saveResult.mission;
+  await refreshMissionStore();
+  renderOpsHub();
+  renderMissionControl();
+  renderMissionLayout();
+  openMissionControl();
+  setStatus('Bookmark Mission started', `${missionName} · ${missionLayoutLabel(currentMission?.layout.type || mission.layout.type)} · ${safeEntries.length} evidence URL(s) · ${safetySummary.blockedCount} blocked`);
 }
 
 function openKeyboardShortcuts(): void {
@@ -3155,7 +3399,7 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     { id: 'handoff-psa', title: 'TAHAI PSA Handoff Draft', detail: 'Stage a PSA ticket/change draft with pinned evidence and workspace context.', group: 'TAHAI', run: () => openHandoffCenter('psa') },
     { id: 'shortcuts', title: 'Keyboard Shortcuts', detail: 'Show the TAHAI keyboard map.', group: 'Help', shortcut: 'Ctrl+/', run: openKeyboardShortcuts },
     { id: 'profiles', title: 'Profiles', detail: 'Manage isolated browser profiles.', group: 'Profiles', shortcut: 'Ctrl+Shift+P', run: openProfileManager },
-    { id: 'credentials', title: 'Credential Manager', detail: 'Open local OS-encrypted credential vault.', group: 'IT', shortcut: 'Ctrl+Alt+K', run: openCredentialVault },
+    { id: 'secret-boundary', title: 'Secret Boundary', detail: 'Open Ops Guard and integration-secret boundary. No browser-side vault.', group: 'IT', shortcut: 'Ctrl+Alt+K', run: openSecretBoundary },
     { id: 'devops-menu', title: 'DevOps Tools Menu', detail: 'Open DevOps and developer flyout.', group: 'Tools', shortcut: 'Ctrl+Alt+O', run: () => openToolMenu('devops') },
     { id: 'it-menu', title: 'IT Tools Menu', detail: 'Open IT engineering flyout.', group: 'Tools', shortcut: 'Ctrl+Alt+I', run: () => openToolMenu('it') },
     { id: 'last-tool-menu', title: 'Reopen Last Command Toolbar', detail: 'Open whichever command lane was used last: DevOps or IT Tools.', group: 'Tools', shortcut: 'Ctrl+Alt+L', run: () => openLastToolMenu() },
@@ -3169,7 +3413,7 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     { id: 'dev-audit', title: 'Developer Audit', detail: 'Console signal, timings, resources, page quality.', group: 'Tools', shortcut: 'Ctrl+Alt+A', run: openDeveloperAudit },
     { id: 'devtools', title: 'Chromium DevTools', detail: 'Open active tab Chromium DevTools.', group: 'Developer', shortcut: 'F12', run: toggleActiveDevTools },
     { id: 'it-docs', title: 'TAHAI IT Docs', detail: 'Open production TAHAI IT Docs.', group: 'TAHAI', run: () => openLaunchRecipe('tahai-it-docs') },
-    { id: 'psa', title: 'TAHAI PSA Coming Soon', detail: 'Reserved PSA launch lane.', group: 'TAHAI', run: () => openLaunchRecipe('tahai-psa') }
+    { id: 'psa', title: 'TAHAI PSA Reference Lane', detail: 'IT Docs-routed PSA reference lane; no direct browser connector.', group: 'TAHAI', run: () => openLaunchRecipe('tahai-psa') }
   ];
   for (const paneId of missionPaneIds) {
     const paneLabel = paneId.replace('pane-', 'Pane ');
@@ -3231,6 +3475,10 @@ function populateSettingsForm(): void {
   settingClipboard.checked = settings.permissions.allowClipboardRead;
   settingGeolocation.checked = settings.permissions.allowGeolocation;
   settingNotifications.checked = settings.permissions.allowNotifications;
+  settingDoNotTrack.checked = settings.privacy?.sendDoNotTrack !== false;
+  settingThirdPartyCookies.checked = settings.privacy?.blockThirdPartyCookies === true;
+  settingReduceReferrers.checked = settings.privacy?.reduceCrossSiteReferrers !== false;
+  settingClearOnExit.checked = settings.privacy?.clearProfileDataOnExit === true;
   settingDownloads.checked = settings.downloads.askEveryTime;
   settingStatusBar.checked = settings.ui.showStatusBar;
 }
@@ -3255,6 +3503,13 @@ function settingsFromForm(): BrowserSettings {
     ui: {
       ...settings.ui,
       showStatusBar: settingStatusBar.checked
+    },
+    privacy: {
+      ...settings.privacy,
+      sendDoNotTrack: settingDoNotTrack.checked,
+      blockThirdPartyCookies: settingThirdPartyCookies.checked,
+      reduceCrossSiteReferrers: settingReduceReferrers.checked,
+      clearProfileDataOnExit: settingClearOnExit.checked
     }
   };
 }
@@ -3433,7 +3688,7 @@ function buildDevOpsCaptureMarkdown(page: PageCapture, tab: TabState): string {
 `| Load complete | ${page.timing.loadMs} ms |\n` +
 `| Response timing | ${page.timing.responseMs} ms |\n` +
 `| Transfer size | ${page.timing.transferKb} KB |\n\n` +
-`## Runbook / ticket stub\n\n` +
+`## Runbook / ticket draft\n\n` +
 `### Context\n- System / application:\n- Environment: production / staging / local / customer tenant\n- Owner:\n- Related change, incident, or ticket:\n\n` +
 `### Observed behavior\n- \n\n` +
 `### Expected behavior\n- \n\n` +
@@ -4122,7 +4377,7 @@ function buildEndpointSnapshotMarkdown(snapshot: EndpointSnapshot, ops: OpsUrlDi
 `- [ ] Check proxy/VPN/DNS/security tooling outside this browser if HTTP reachability differs from the user report\n` +
 `- [ ] Attach screenshot, ticket ID, and reproduction steps if this becomes a support or implementation record\n` +
 `- [ ] Store final notes in TAHAI IT Docs / endpoint runbook / CMDB record\n\n` +
-`## Ticket stub\n\n` +
+`## Ticket draft\n\n` +
 `- User / device:\n` +
 `- Environment: production / staging / customer tenant / internal\n` +
 `- Reported issue:\n` +
@@ -4380,102 +4635,10 @@ function showTriageResult(message: string): void {
   window.setTimeout(() => { triageResult.textContent = ''; }, 3400);
 }
 
-function credentialFromActiveTab(): { label: string; url: string } {
-  const tab = active();
-  const url = tab?.url || config?.homeUrl || '';
-  try {
-    const parsed = new URL(url);
-    return { label: parsed.hostname.replace(/^www\./, '') || tab?.title || 'Credential', url: parsed.href };
-  } catch {
-    return { label: tab?.title || 'Credential', url };
-  }
-}
-
-function showCredentialResult(message: string): void {
-  credentialResult.textContent = message;
-  window.setTimeout(() => { credentialResult.textContent = ''; }, 3800);
-}
-
-function setCredentialFormDisabled(disabled: boolean): void {
-  for (const control of Array.from(credentialForm.elements)) {
-    if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement || control instanceof HTMLButtonElement) {
-      control.disabled = disabled;
-    }
-  }
-  closeCredentialButton.disabled = false;
-  refreshCredentialsButton.disabled = false;
-}
-
-function fillCredentialForm(record?: CredentialVaultRecord): void {
-  editingCredentialId = record?.id || '';
-  credentialId.value = editingCredentialId;
-  credentialLabel.value = record?.label || '';
-  credentialUrl.value = record?.url || '';
-  credentialUsername.value = record?.username || '';
-  credentialPassword.type = 'password';
-  credentialPassword.value = '';
-  credentialPassword.placeholder = record ? 'Blank keeps existing password' : 'Required for new credential';
-  credentialNotes.value = record?.notes || '';
-}
-
-function startNewCredential(useActive = true): void {
-  fillCredentialForm(undefined);
-  if (useActive) {
-    const activeSite = credentialFromActiveTab();
-    credentialLabel.value = activeSite.label;
-    credentialUrl.value = activeSite.url;
-  }
-  credentialLabel.focus();
-}
-
-function renderCredentialList(state: CredentialVaultState): void {
-  credentialVaultStatus.textContent = state.encryptionAvailable
-    ? 'Encrypted local vault: ' + state.records.length + ' record(s). Stored under the app data profile.'
-    : state.reason || 'Credential storage is unavailable.';
-  credentialList.innerHTML = '';
-  if (!state.encryptionAvailable) {
-    credentialList.innerHTML = '<article class=\"ops-card warn\"><strong>Vault disabled</strong><span>OS-backed safeStorage encryption is unavailable, so TAHAI will not write plaintext secrets.</span></article>';
-    setCredentialFormDisabled(true);
-    return;
-  }
-  setCredentialFormDisabled(false);
-  if (!state.records.length) {
-    credentialList.innerHTML = '<article class=\"ops-card info\"><strong>No credentials yet</strong><span>Create a local encrypted record for this site or service.</span></article>';
-    return;
-  }
-  credentialList.innerHTML = state.records.map((record) => {
-    const selected = record.id === editingCredentialId ? ' selected' : '';
-    return '<button class=\"credential-row' + selected + '\" type=\"button\" data-credential-id=\"' + escapeHtml(record.id) + '\">' +
-      '<strong>' + escapeHtml(record.label || 'Credential') + '</strong>' +
-      '<span>' + escapeHtml(record.username || 'No username') + ' · ' + escapeHtml(record.url || 'No URL') + '</span>' +
-      '</button>';
-  }).join('');
-}
-
-async function refreshCredentialVault(selectId = editingCredentialId): Promise<void> {
-  const state = await window.tahaiBrowser.listCredentials();
-  credentialVaultRecords = state.records;
-  const selected = selectId ? credentialVaultRecords.find((record) => record.id === selectId) : undefined;
-  if (selected) fillCredentialForm(selected);
-  renderCredentialList(state);
-}
-
-async function openCredentialVault(): Promise<void> {
-  if (!credentialDialog.open) credentialDialog.showModal();
-  credentialVaultStatus.textContent = 'Loading encrypted credential vault…';
-  try {
-    await refreshCredentialVault();
-    if (!editingCredentialId && credentialVaultRecords.length === 0) startNewCredential(true);
-    setStatus('Credential Manager ready', 'Local OS-encrypted vault. No Chromium Sync or cloud password store is used.');
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : 'Unknown credential vault error';
-    credentialVaultStatus.textContent = detail;
-    setStatus('Credential Manager failed', detail);
-  }
-}
-
-function selectedCredential(): CredentialVaultRecord | undefined {
-  return editingCredentialId ? credentialVaultRecords.find((record) => record.id === editingCredentialId) : undefined;
+function openSecretBoundary(): void {
+  closeToolMenus();
+  openOpsGuardReview();
+  setStatus('Secret Boundary active', 'TAHAI Browser does not include a public-lane IT Docs secret reference. Use IT Docs/server-authorized secret handling and Ops Guard redaction before sharing.');
 }
 
 async function openSupportTriage(): Promise<void> {
@@ -4798,7 +4961,7 @@ function buildRouteMapMarkdown(map: RouteMapPage, tab: TabState): string {
 `- [ ] Review form actions for cross-origin submission, password/file upload, and CSRF expectations\n` +
 `- [ ] Verify API paths against gateway/provider routes and deployment environment variables\n` +
 `- [ ] Attach this map to the PR, release ticket, or TAHAI IT Docs app/runbook record\n\n` +
-`## Route ownership stub\n\n` +
+`## Route ownership draft\n\n` +
 `- App / component owner:\n` +
 `- Environment: production / staging / local / customer tenant\n` +
 `- Critical routes:\n` +
@@ -5135,7 +5298,7 @@ function buildDeveloperAuditMarkdown(page: DevAuditPage, messages: ConsoleEntry[
 `- [ ] Run Lighthouse or framework-specific profiling outside this source capture if needed\n` +
 `- [ ] Attach build/deployment SHA, environment, and reproduction steps\n` +
 `- [ ] Link this audit to the change ticket, bug report, or TAHAI IT Docs runbook\n\n` +
-`## Developer ticket stub\n\n` +
+`## Developer ticket draft\n\n` +
 `- Component / route:\n` +
 `- Environment: production / staging / local / customer tenant\n` +
 `- Observed issue:\n` +
@@ -5215,7 +5378,7 @@ function fillProfileForm(profile?: BrowserProfileRecord): void {
 }
 
 function renderProfileList(state: BrowserProfileState): void {
-  profileStatus.textContent = `Active profile: ${state.activeProfile.name}. ${state.profiles.length} profile(s). Each profile uses a separate Chromium session partition.`;
+  profileStatus.textContent = `Active profile: ${state.activeProfile.name}. ${state.profiles.length} profile(s). Cookies, cache, auth cache, permissions, service workers, and local storage are partitioned per profile.`;
   profileList.innerHTML = state.profiles.map((profile) => {
     const selected = profile.id === editingProfileId ? ' selected' : '';
     const active = profile.id === state.activeProfileId ? ' active' : '';
@@ -5223,7 +5386,7 @@ function renderProfileList(state: BrowserProfileState): void {
     return '<button class="profile-row' + selected + active + '" type="button" data-profile-id="' + escapeHtml(profile.id) + '">' +
       '<span class="profile-swatch" style="background:' + escapeHtml(profile.color) + '"></span>' +
       '<strong>' + escapeHtml(profile.name) + '</strong>' +
-      '<small>' + escapeHtml(profileKindLabel(profile.kind)) + defaultText + '</small>' +
+      '<small>' + escapeHtml(profileKindLabel(profile.kind)) + defaultText + ' · isolated storage' + '</small>' +
       '</button>';
   }).join('');
   renderProfileBadge();
@@ -5310,6 +5473,14 @@ async function deleteSelectedProfile(): Promise<void> {
   showProfileResult('Profile deleted from the list.');
 }
 
+async function clearSelectedProfileData(): Promise<void> {
+  const profile = browserProfileState?.profiles.find((candidate) => candidate.id === editingProfileId) || browserProfileState?.activeProfile;
+  if (!profile) return;
+  if (!window.confirm(`Clear cookies, cache, auth cache, service workers, IndexedDB, localStorage, and other site data for profile "${profile.name}"?`)) return;
+  const result = await window.tahaiBrowser.clearBrowsingData({ scope: 'selected-profile', profileId: profile.id });
+  showProfileResult(result.ok ? `Cleared local browsing data for ${profile.name}.` : `Clear failed: ${result.error}`);
+}
+
 async function openActiveProfileData(): Promise<void> {
   const profile = browserProfileState?.profiles.find((candidate) => candidate.id === editingProfileId) || browserProfileState?.activeProfile;
   if (!profile) return;
@@ -5357,7 +5528,7 @@ function handleMenuCommand(command: string): void {
   if (command === 'it-card') void openItServiceCard();
   if (command === 'endpoint') void openEndpointSnapshot();
   if (command === 'triage') void openSupportTriage();
-  if (command === 'credentials') void openCredentialVault();
+  if (command === 'secret-boundary') openSecretBoundary();
   if (command === 'route-map') void openRouteMap();
   if (command === 'dev-audit') void openDeveloperAudit();
 }
@@ -5399,6 +5570,8 @@ missionCreateButton.addEventListener('click', () => createMissionFromForm());
 missionAddActiveTabButton.addEventListener('click', () => addActiveTabToMission());
 missionMakeQuadButton.addEventListener('click', () => makeQuadFromOpenTabs());
 missionSaveButton.addEventListener('click', () => { void saveCurrentMission(); });
+missionCopyExportButton.addEventListener('click', () => { void copyMissionExportPacket(); });
+missionSaveExportButton.addEventListener('click', () => { void saveMissionExportPacket(); });
 missionPinLatestEvidenceButton.addEventListener('click', () => pinLatestToolOutputToMission());
 missionPinActivePageButton.addEventListener('click', () => pinActivePageToMission());
 missionLayoutsEl.addEventListener('click', (event) => {
@@ -5411,7 +5584,7 @@ missionLayoutsEl.addEventListener('click', (event) => {
     if (tab) upsertBrowserTabIntoMissionPane(tab.id, paneButton.dataset.sendActivePane, { activateLayout: true });
   }
 });
-missionList.addEventListener('click', (event) => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button'); if (!button) return; if (button.dataset.loadMissionId) void loadMissionById(button.dataset.loadMissionId, false); if (button.dataset.restoreMissionId) void loadMissionById(button.dataset.restoreMissionId, true); if (button.dataset.duplicateMissionId) void duplicateMissionById(button.dataset.duplicateMissionId); if (button.dataset.deleteMissionId) void deleteMissionById(button.dataset.deleteMissionId); });
+missionList.addEventListener('click', (event) => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button'); if (!button) return; if (button.dataset.loadMissionId) void loadMissionById(button.dataset.loadMissionId, 'preview'); if (button.dataset.restoreMissionId) void chooseAndRestoreMissionById(button.dataset.restoreMissionId); if (button.dataset.duplicateMissionId) void duplicateMissionById(button.dataset.duplicateMissionId); if (button.dataset.deleteMissionId) void deleteMissionById(button.dataset.deleteMissionId); });
 missionEvidenceList.addEventListener('click', (event) => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
   if (!button) return;
@@ -5498,7 +5671,7 @@ deployButton.addEventListener('click', () => runToolFromMenu(openDeployReadiness
 itCardButton.addEventListener('click', () => runToolFromMenu(openItServiceCard));
 endpointButton.addEventListener('click', () => runToolFromMenu(openEndpointSnapshot));
 triageButton.addEventListener('click', () => runToolFromMenu(openSupportTriage));
-credentialsButton.addEventListener('click', () => runToolFromMenu(openCredentialVault));
+secretBoundaryButton.addEventListener('click', () => runToolFromMenu(openSecretBoundary));
 routeMapButton.addEventListener('click', () => runToolFromMenu(openRouteMap));
 devAuditButton.addEventListener('click', () => runToolFromMenu(openDeveloperAudit));
 opsGuardButton.addEventListener('click', () => runToolFromMenu(openOpsGuardReview));
@@ -5506,6 +5679,11 @@ devtoolsButton.addEventListener('click', () => runToolFromMenu(toggleActiveDevTo
 aboutButton.addEventListener('click', () => { closeToolMenus(); navigate(config.aboutUrl); });
 newTabButton.addEventListener('click', () => { closeToolMenus(); createTab(config.newTabUrl); });
 document.addEventListener('click', () => closeToolMenus());
+window.addEventListener('tahai-browser:start-mission-from-bookmark-folder', (event) => {
+  const detail = (event as CustomEvent<BookmarkFolderMissionDetail>).detail || {};
+  void startMissionFromBookmarkFolder(detail);
+});
+
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeToolMenus();
 });
@@ -5524,6 +5702,7 @@ profileList.addEventListener('click', (event) => {
 profileForm.addEventListener('submit', (event) => { event.preventDefault(); void saveProfileFromForm(); });
 switchProfileButton.addEventListener('click', () => { void switchSelectedProfile(); });
 deleteProfileButton.addEventListener('click', () => { void deleteSelectedProfile(); });
+clearSelectedProfileDataButton.addEventListener('click', () => { void clearSelectedProfileData(); });
 openActiveProfileDataButton.addEventListener('click', () => { void openActiveProfileData(); });
 openProfileButton.addEventListener('click', async () => { await window.tahaiBrowser.openUserData(); showSettingsResult('Opened app profile folder.'); });
 closeCaptureButton.addEventListener('click', () => captureDialog.close());
@@ -5532,83 +5711,6 @@ closeDeployButton.addEventListener('click', () => deployDialog.close());
 closeItCardButton.addEventListener('click', () => itCardDialog.close());
 closeEndpointButton.addEventListener('click', () => endpointDialog.close());
 closeTriageButton.addEventListener('click', () => triageDialog.close());
-closeCredentialButton.addEventListener('click', () => credentialDialog.close());
-closeRouteMapButton.addEventListener('click', () => routeMapDialog.close());
-closeDevAuditButton.addEventListener('click', () => devAuditDialog.close());
-newCredentialButton.addEventListener('click', () => startNewCredential(true));
-refreshCredentialsButton.addEventListener('click', () => { void refreshCredentialVault(); });
-useActiveCredentialButton.addEventListener('click', () => {
-  const activeSite = credentialFromActiveTab();
-  credentialUrl.value = activeSite.url;
-  if (!credentialLabel.value.trim()) credentialLabel.value = activeSite.label;
-  showCredentialResult('Filled from active tab.');
-});
-credentialList.addEventListener('click', (event) => {
-  const target = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-credential-id]') : null;
-  if (!target) return;
-  const record = credentialVaultRecords.find((item) => item.id === target.dataset.credentialId);
-  if (record) {
-    fillCredentialForm(record);
-    void refreshCredentialVault(record.id);
-  }
-});
-credentialForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  try {
-    const record = await window.tahaiBrowser.saveCredential({
-      id: editingCredentialId || undefined,
-      label: credentialLabel.value,
-      url: credentialUrl.value,
-      username: credentialUsername.value,
-      ['password']: credentialPassword.value,
-      notes: credentialNotes.value,
-      replacePassword: Boolean(credentialPassword.value || !editingCredentialId)
-    });
-    credentialPassword.value = '';
-    credentialPassword.type = 'password';
-    showCredentialResult('Credential saved.');
-    setStatus('Credential saved', record.label || record.url || record.username);
-    await refreshCredentialVault(record.id);
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : 'Save failed.';
-    showCredentialResult(detail);
-    setStatus('Credential save failed', detail);
-  }
-});
-copyCredentialUsernameButton.addEventListener('click', async () => {
-  const record = selectedCredential();
-  if (!record) { showCredentialResult('Select a credential first.'); return; }
-  const result = await window.tahaiBrowser.copyCredentialValue(record.id, 'username');
-  showCredentialResult(result.ok ? 'Username copied.' : result.reason || 'Copy failed.');
-});
-copyCredentialPasswordButton.addEventListener('click', async () => {
-  const record = selectedCredential();
-  if (!record) { showCredentialResult('Select a credential first.'); return; }
-  const result = await window.tahaiBrowser.copyCredentialValue(record.id, 'password');
-  showCredentialResult(result.ok ? 'Password copied.' : result.reason || 'Copy failed.');
-});
-revealCredentialPasswordButton.addEventListener('click', async () => {
-  const record = selectedCredential();
-  if (!record) { showCredentialResult('Select a credential first.'); return; }
-  const result = await window.tahaiBrowser.revealCredentialPassword(record.id);
-  if (result.ok) {
-    credentialPassword.type = 'text';
-    credentialPassword.value = result.password;
-    showCredentialResult('Password revealed in the form.');
-  } else {
-    showCredentialResult(result.reason || 'Reveal failed.');
-  }
-});
-deleteCredentialButton.addEventListener('click', async () => {
-  const record = selectedCredential();
-  if (!record) { showCredentialResult('Select a credential first.'); return; }
-  if (!window.confirm('Delete credential \"' + (record.label || record.username || record.url) + '\"?')) return;
-  const deleted = await window.tahaiBrowser.deleteCredential(record.id);
-  showCredentialResult(deleted ? 'Credential deleted.' : 'Credential not found.');
-  fillCredentialForm(undefined);
-  await refreshCredentialVault('');
-});
-
 copyCaptureButton.addEventListener('click', async () => {
   const markdown = captureMarkdown.value.trim() || latestCapture?.markdown || '';
   if (!markdown) { showCaptureResult('Nothing to copy.'); return; }
@@ -5754,7 +5856,22 @@ saveHandoffButton.addEventListener('click', async () => {
   else if (result.canceled) showHandoffResult('Save cancelled.');
   else showHandoffResult('Save failed.');
 });
-openItDocsFromHandoffButton.addEventListener('click', () => { void openLaunchRecipe('tahai-it-docs'); });
+refreshItDocsCapabilitiesButton.addEventListener('click', async () => {
+  const capabilities = await refreshItDocsCapabilityState();
+  showHandoffResult(capabilities?.signedIn ? 'IT Docs contract refreshed.' : capabilities?.message || 'IT Docs local-only.');
+});
+copyItDocsCapabilitiesButton.addEventListener('click', async () => {
+  const copied = await window.tahaiBrowser.copyItDocsCapabilities();
+  showHandoffResult(copied ? 'Copied IT Docs contract state.' : 'Copy failed.');
+});
+copyPsaReferenceContractButton.addEventListener('click', async () => {
+  const copied = await window.tahaiBrowser.copyPsaReferenceContract();
+  showHandoffResult(copied ? 'Copied PSA reference contract.' : 'Copy failed.');
+});
+openItDocsFromHandoffButton.addEventListener('click', async () => {
+  const opened = await window.tahaiBrowser.openItDocs();
+  if (!opened) void openLaunchRecipe('tahai-it-docs');
+});
 openPsaFromHandoffButton.addEventListener('click', () => { void openLaunchRecipe('tahai-psa'); });
 closeOpsGuardButton.addEventListener('click', () => opsGuardDialog.close());
 copyOpsGuardButton.addEventListener('click', async () => {
@@ -5777,7 +5894,17 @@ saveOpsGuardButton.addEventListener('click', async () => {
   else if (result.canceled) showOpsGuardResult('Save cancelled.');
   else showOpsGuardResult('Save failed.');
 });
-clearDataButton.addEventListener('click', async () => { await window.tahaiBrowser.clearBrowsingData(); showSettingsResult('Browser data cleared.'); });
+clearDataButton.addEventListener('click', async () => {
+  const profile = browserProfileState?.activeProfile || (await window.tahaiBrowser.listProfiles()).activeProfile;
+  if (!window.confirm(`Clear cookies, cache, auth cache, service workers, IndexedDB, localStorage, and other site data for active profile "${profile.name}"?`)) return;
+  const result = await window.tahaiBrowser.clearBrowsingData({ scope: 'active-profile' });
+  showSettingsResult(result.ok ? `Cleared ${profile.name} profile data.` : `Clear failed: ${result.error}`);
+});
+clearAllDataButton.addEventListener('click', async () => {
+  if (!window.confirm('Clear cookies, cache, auth cache, service workers, IndexedDB, localStorage, and other site data for ALL TAHAI browser profiles?')) return;
+  const result = await window.tahaiBrowser.clearBrowsingData({ scope: 'all-profiles' });
+  showSettingsResult(result.ok ? `Cleared ${result.clearedProfileIds.length} profile(s).` : `Clear failed: ${result.error}`);
+});
 resetSettingsButton.addEventListener('click', async () => {
   settings = await window.tahaiBrowser.resetSettings();
   populateSettingsForm();
@@ -5800,7 +5927,7 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'n') { event.preventDefault(); void openMissionControl(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'q') { event.preventDefault(); setMissionLayout('quad'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 's') { event.preventDefault(); setMissionLayout('split-horizontal'); }
-  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'f') { event.preventDefault(); setMissionLayout(currentMission?.layout.type === 'focus' ? 'quad' : 'focus'); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'f') { event.preventDefault(); toggleMissionFocusPane(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'b') { event.preventDefault(); openChangeBundleComposer(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'y') { event.preventDefault(); openHandoffCenter('it-docs'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'g') { event.preventDefault(); openOpsGuardReview(); }
@@ -5829,7 +5956,7 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'm') { event.preventDefault(); void openItServiceCard(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'e') { event.preventDefault(); void openEndpointSnapshot(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 't') { event.preventDefault(); void openSupportTriage(); }
-  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'k') { event.preventDefault(); void openCredentialVault(); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'k') { event.preventDefault(); openSecretBoundary(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'p') { event.preventDefault(); void openRouteMap(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'a') { event.preventDefault(); void openDeveloperAudit(); }
   if ((event.key === 'F12') || ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'i')) { event.preventDefault(); toggleActiveDevTools(); }
@@ -5837,15 +5964,19 @@ window.addEventListener('keydown', (event) => {
   if (event.altKey && event.key === 'ArrowRight') { event.preventDefault(); goForwardTarget(); }
 });
 
-window.tahaiBrowser.onOpenInTab((url) => createTab(url));
-window.tahaiBrowser.onMenuCommand((command) => handleMenuCommand(command));
-window.tahaiBrowser.onToggleDevTools(() => toggleActiveDevTools());
-window.tahaiBrowser.onDownloadState((state) => {
-  const detail = state.path ? `${state.filename} → ${state.path}` : state.filename;
-  setStatus(`Download ${state.state}`, detail);
-});
+if (window.tahaiBrowser) {
+  window.tahaiBrowser.onOpenInTab((url) => createTab(url));
+  window.tahaiBrowser.onMenuCommand((command) => handleMenuCommand(command));
+  window.tahaiBrowser.onToggleDevTools(() => toggleActiveDevTools());
+  window.tahaiBrowser.onDownloadState((state) => {
+    const detail = state.path ? `${state.filename} → ${state.path}` : state.filename;
+    setStatus(`Download ${state.state}`, detail);
+  });
+} else {
+  showBootDiagnostic('Preload bridge missing. Browser shell loaded in fallback mode; rebuild after npm run build and confirm dist/preload/preload.js exists.');
+}
 
-window.tahaiBrowser.getConfig().then((loaded) => {
+loadBrowserConfigWithRuntimeFallback().then((loaded) => {
   config = loaded;
   settings = loaded.settings;
   browserProfileState = loaded.profiles;
@@ -5858,39 +5989,11 @@ window.tahaiBrowser.getConfig().then((loaded) => {
   markRendererShellReady();
 }).catch((error) => {
   showBootDiagnostic(`Preload/config bridge failed; using fallback config. ${error instanceof Error ? error.message : String(error || '')}`);
-  settings = {
-    homeUrl: 'https://tahaiportal.com',
-    startup: 'home',
-    searchProvider: 'google',
-    permissions: { allowClipboardRead: false, allowMedia: true, allowGeolocation: false, allowNotifications: false },
-    downloads: { askEveryTime: true, defaultDirectory: '' },
-    ui: { showStatusBar: true, openExternalLinksInNewTab: true }
-  };
-  config = {
-    productName: 'TAHAI Web Services Browser',
-    bundleName: 'TAHAI—SENTINEL Browser',
-    homeUrl: 'https://tahaiportal.com',
-    startupUrl: 'https://tahaiportal.com',
-    newTabUrl: 'about:blank',
-    settingsUrl: 'about:blank',
-    aboutUrl: 'about:blank',
-    errorPageUrl: 'about:blank',
-    onboardingUrl: 'about:blank',
-    bookmarksUrl: '',
-    version: '0.0.0',
-    releaseChannel: 'fallback',
-    firstLaunch: { product: 'TAHAI Web Services Browser', defaultHome: 'https://tahaiportal.com', initializedAt: '', sourceGuardrails: [] },
-    userDataPath: '',
-    settingsPath: '',
-    settings,
-    profiles: {
-      activeProfileId: 'default',
-      activeProfile: { id: 'default', name: 'Default', kind: 'local', color: '#77dbff', partition: 'persist:tahai-profile-default', createdAt: '', updatedAt: '', lastUsedAt: '', isDefault: true },
-      profiles: [{ id: 'default', name: 'Default', kind: 'local', color: '#77dbff', partition: 'persist:tahai-profile-default', createdAt: '', updatedAt: '', lastUsedAt: '', isDefault: true }],
-      path: ''
-    }
-  };
+  config = fallbackBrowserConfig();
+  settings = config.settings;
   browserProfileState = config.profiles;
+  document.title = config.productName;
+  applyUiSettings();
   renderProfileBadge();
   renderOpsHub();
   createTab(config.homeUrl);

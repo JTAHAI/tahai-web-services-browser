@@ -25,6 +25,12 @@ export type TahaiBrowserSettings = {
     showStatusBar: boolean;
     openExternalLinksInNewTab: boolean;
   };
+  privacy: {
+    sendDoNotTrack: boolean;
+    blockThirdPartyCookies: boolean;
+    reduceCrossSiteReferrers: boolean;
+    clearProfileDataOnExit: boolean;
+  };
 };
 
 export const DEFAULT_BROWSER_SETTINGS: TahaiBrowserSettings = {
@@ -44,6 +50,12 @@ export const DEFAULT_BROWSER_SETTINGS: TahaiBrowserSettings = {
   ui: {
     showStatusBar: true,
     openExternalLinksInNewTab: true
+  },
+  privacy: {
+    sendDoNotTrack: true,
+    blockThirdPartyCookies: false,
+    reduceCrossSiteReferrers: true,
+    clearProfileDataOnExit: false
   }
 };
 
@@ -90,6 +102,7 @@ export function sanitizeSettings(value: unknown): TahaiBrowserSettings {
   const rawPermissions = plainRecord(raw.permissions);
   const rawDownloads = plainRecord(raw.downloads);
   const rawUi = plainRecord(raw.ui);
+  const rawPrivacy = plainRecord(raw.privacy);
 
   return {
     homeUrl: isHttpUrl(raw.homeUrl) ? raw.homeUrl.trim() : DEFAULT_BROWSER_SETTINGS.homeUrl,
@@ -108,6 +121,12 @@ export function sanitizeSettings(value: unknown): TahaiBrowserSettings {
     ui: {
       showStatusBar: cleanBoolean(rawUi.showStatusBar, DEFAULT_BROWSER_SETTINGS.ui.showStatusBar),
       openExternalLinksInNewTab: cleanBoolean(rawUi.openExternalLinksInNewTab, DEFAULT_BROWSER_SETTINGS.ui.openExternalLinksInNewTab)
+    },
+    privacy: {
+      sendDoNotTrack: cleanBoolean(rawPrivacy.sendDoNotTrack, DEFAULT_BROWSER_SETTINGS.privacy.sendDoNotTrack),
+      blockThirdPartyCookies: cleanBoolean(rawPrivacy.blockThirdPartyCookies, DEFAULT_BROWSER_SETTINGS.privacy.blockThirdPartyCookies),
+      reduceCrossSiteReferrers: cleanBoolean(rawPrivacy.reduceCrossSiteReferrers, DEFAULT_BROWSER_SETTINGS.privacy.reduceCrossSiteReferrers),
+      clearProfileDataOnExit: cleanBoolean(rawPrivacy.clearProfileDataOnExit, DEFAULT_BROWSER_SETTINGS.privacy.clearProfileDataOnExit)
     }
   };
 }

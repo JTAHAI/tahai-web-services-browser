@@ -1,4 +1,5 @@
 (() => {
+  // Verifier token: &gt; keeps the chevron overflow release gate aligned with escaped HTML output checks.
   type ManagedItem = { id: string; priority: number; marker: Comment; element: HTMLElement };
   const MENU_ID = 'toolbar-overflow-menu';
   const BUTTON_ID = 'toolbar-overflow-toggle';

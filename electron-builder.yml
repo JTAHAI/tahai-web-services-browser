@@ -1,32 +1,37 @@
-appId: net.tahai.browser
+appId: com.tahai.webservices.browser
 productName: TAHAI Web Services Browser
-buildVersion: 1.1.0
 copyright: Copyright (c) 2026 TAHAI Web Services
-artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+artifactName: TAHAI-Web-Services-Browser-${version}-${arch}.${ext}
 directories:
   output: release
   buildResources: build
 files:
-  - dist/**
+  - dist/**/*
+  - assets/**/*
+  - build/**/*
+  - browser/**/*
   - package.json
 extraResources:
-  - from: ../browser/new-tab
-    to: browser/new-tab
-  - from: ../browser/bookmarks
-    to: browser/bookmarks
-  - from: ../browser/preferences
-    to: browser/preferences
-  - from: ../browser/policies
-    to: browser/policies
+  - from: browser
+    to: browser
+  - from: build/icon.ico
+    to: icon.ico
+  - from: build/icon.png
+    to: icon.png
+  - from: assets/brand/tahai-spider-icon.ico
+    to: assets/brand/tahai-spider-icon.ico
+  - from: assets/brand/tahai-spider-icon.png
+    to: assets/brand/tahai-spider-icon.png
 win:
   icon: build/icon.ico
+  publisherName: TAHAI Web Services
   target:
-    - target: portable
     - target: nsis
+    - target: msi
 linux:
   maintainer: TAHAI Web Services
   synopsis: TAHAI Web Services Browser
-  description: Chromium-compatible TAHAI browser launchpad for AI, developer, cloud, provider-console, and BYOK workflows.
+  description: Chromium-compatible TAHAI browser workbench for AI, developer, DevOps, IT engineering, provider-console, and BYOK workflows.
   icon: build/icon.png
   category: Network
   target:
@@ -36,18 +41,27 @@ linux:
 nsis:
   oneClick: false
   perMachine: false
+  allowElevation: true
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: TAHAI Web Services Browser
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+msi:
+  oneClick: false
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: TAHAI Web Services Browser
 publish: null
-
 protocols:
   name: TAHAI Browser Link
   schemes:
     - tahai-browser
-
-# Enterprise packaging defaults. Signing is intentionally injected at release time, not stored in source.
 asar: true
 compression: maximum
 removePackageScripts: true

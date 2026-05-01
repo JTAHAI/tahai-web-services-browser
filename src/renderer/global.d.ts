@@ -1,4 +1,5 @@
-import type { BrowserProfileInput, BrowserProfileState, BrowserProfileUpdateInput, CredentialVaultCopyResult, CredentialVaultRecord, CredentialVaultRevealResult, CredentialVaultSaveInput, CredentialVaultState, DevOpsCaptureSaveResult, DownloadState, ItServiceCardDiagnostics, MissionApiDeleteResult, MissionApiListResult, MissionApiLoadResult, MissionApiSaveResult, MissionApiState, OpsUrlDiagnostics, TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
+import type { ItDocsMissionCapabilities } from '../shared/itdocs-contract';
+import type { BrowserProfileInput, BrowserProfileState, BrowserProfileUpdateInput, ClearBrowsingDataOptions, ClearBrowsingDataResult, DevOpsCaptureSaveResult, DownloadState, ItServiceCardDiagnostics, MissionApiDeleteResult, MissionApiExportResult, MissionApiListResult, MissionApiLoadResult, MissionApiSaveResult, MissionApiState, OpsUrlDiagnostics, TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
 
 declare global {
   interface Window {
@@ -7,22 +8,24 @@ declare global {
       getSettings: () => Promise<TahaiBrowserSettings>;
       updateSettings: (settings: TahaiBrowserSettings) => Promise<TahaiBrowserSettings>;
       resetSettings: () => Promise<TahaiBrowserSettings>;
-      clearBrowsingData: () => Promise<boolean>;
+      clearBrowsingData: (options?: ClearBrowsingDataOptions) => Promise<ClearBrowsingDataResult>;
       openUserData: () => Promise<boolean>;
       openExternal: (url: string) => Promise<boolean>;
+      openItDocs: () => Promise<boolean>;
+      getItDocsCapabilities: () => Promise<ItDocsMissionCapabilities>;
+      copyItDocsCapabilities: () => Promise<boolean>;
+      copyPsaReferenceContract: () => Promise<boolean>;
       listMissions: () => Promise<MissionApiListResult>;
       loadMission: (missionId: string) => Promise<MissionApiLoadResult>;
       saveMission: (mission: MissionApiState) => Promise<MissionApiSaveResult>;
       deleteMission: (missionId: string) => Promise<MissionApiDeleteResult>;
+      previewMissionExport: (mission: MissionApiState) => Promise<MissionApiExportResult>;
+      copyMissionExport: (mission: MissionApiState) => Promise<MissionApiExportResult>;
+      saveMissionExport: (mission: MissionApiState) => Promise<MissionApiExportResult>;
       copyDevOpsCapture: (markdown: string) => Promise<boolean>;
       saveDevOpsCapture: (markdown: string, sourceUrl: string) => Promise<DevOpsCaptureSaveResult>;
       runUrlDiagnostics: (sourceUrl: string) => Promise<OpsUrlDiagnostics>;
       runItServiceCardDiagnostics: (sourceUrl: string) => Promise<ItServiceCardDiagnostics>;
-      listCredentials: () => Promise<CredentialVaultState>;
-      saveCredential: (input: CredentialVaultSaveInput) => Promise<CredentialVaultRecord>;
-      deleteCredential: (id: string) => Promise<boolean>;
-      revealCredentialPassword: (id: string) => Promise<CredentialVaultRevealResult>;
-      copyCredentialValue: (id: string, field: 'username' | 'password') => Promise<CredentialVaultCopyResult>;
       listProfiles: () => Promise<BrowserProfileState>;
       createProfile: (input: BrowserProfileInput) => Promise<BrowserProfileState>;
       updateProfile: (input: BrowserProfileUpdateInput) => Promise<BrowserProfileState>;
