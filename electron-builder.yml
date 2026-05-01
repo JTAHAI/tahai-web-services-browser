@@ -24,7 +24,6 @@ extraResources:
     to: assets/brand/tahai-spider-icon.png
 win:
   icon: build/icon.ico
-  publisherName: TAHAI Web Services
   target:
     - target: nsis
     - target: msi

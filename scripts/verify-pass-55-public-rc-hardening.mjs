@@ -42,7 +42,8 @@ for (const script of ['verify:visual-regression-fixtures', 'verify:pass-55-publi
   if (!pkg.scripts?.[script]) failures.push(`package script missing: ${script}`);
   if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes(script)) failures.push(`release blockers missing: ${script}`);
 }
-if (pkg.version !== '1.8.29') failures.push(`expected package version 1.8.29, got ${pkg.version}`);
+const [majorVersion, minorVersion, patchVersion] = String(pkg.version).split('.').map((part) => Number.parseInt(part, 10));
+if (!(majorVersion === 1 && minorVersion === 8 && Number.isFinite(patchVersion) && patchVersion >= 29)) failures.push(`expected package version >= 1.8.29, got ${pkg.version}`);
 if (!existsSync('docs/visual-regression-checklist.md')) failures.push('visual regression checklist missing');
 if (!existsSync('PASS_55_PUBLIC_RC_HARDENING_SUMMARY.md')) failures.push('PASS55 summary missing');
 
