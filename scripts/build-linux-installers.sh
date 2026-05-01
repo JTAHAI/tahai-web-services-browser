@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 set -euo pipefail
 
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -109,9 +109,19 @@ printf '\nTAHAI_LINUX_INSTALLER_OUTPUTS\n'
 find release -maxdepth 2 -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -printf '%p %s bytes\n' | sort
 
 if [ -n "${TAHAI_LINUX_SOURCE_ROOT:-}" ] && [ -d "$TAHAI_LINUX_SOURCE_ROOT" ]; then
-  mkdir -p "$TAHAI_LINUX_SOURCE_ROOT/release/linux"
-  find release -maxdepth 2 -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) \
-    -exec cp -v {} "$TAHAI_LINUX_SOURCE_ROOT/release/linux/" \;
-  printf '\nTAHAI_LINUX_INSTALLERS_COPIED_TO=%s\n' "$TAHAI_LINUX_SOURCE_ROOT/release/linux"
-  ls -lh "$TAHAI_LINUX_SOURCE_ROOT/release/linux"
+  APP_VERSION="$("$NODE_BIN" -p "require('./package.json').version")"
+  COPY_DIR="$TAHAI_LINUX_SOURCE_ROOT/release/linux"
+  mkdir -p "$COPY_DIR"
+
+  appimage_src="$(find release -maxdepth 2 -type f -name "TAHAI-Web-Services-Browser-${APP_VERSION}-*.AppImage" | head -n 1)"
+  deb_src="$(find release -maxdepth 2 -type f -name "TAHAI-Web-Services-Browser-${APP_VERSION}-*.deb" | head -n 1)"
+  rpm_src="$(find release -maxdepth 2 -type f -name "TAHAI-Web-Services-Browser-${APP_VERSION}-*.rpm" | head -n 1)"
+
+  test -n "$appimage_src" && cp -v "$appimage_src" "$COPY_DIR/TAHAI-Web-Services-Browser-${APP_VERSION}-x64.AppImage"
+  test -n "$deb_src" && cp -v "$deb_src" "$COPY_DIR/TAHAI-Web-Services-Browser-${APP_VERSION}-x64.deb"
+  test -n "$rpm_src" && cp -v "$rpm_src" "$COPY_DIR/TAHAI-Web-Services-Browser-${APP_VERSION}-x64.rpm"
+
+  printf '\nTAHAI_LINUX_INSTALLERS_COPIED_TO=%s\n' "$COPY_DIR"
+  ls -lh "$COPY_DIR"
 fi
+
