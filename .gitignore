@@ -1,13 +1,49 @@
-﻿node_modules/
+# Dependencies
+node_modules/
+
+# Build output
 dist/
 release/
+out/
+build-output/
 artifacts/
-.pass-runs/
+coverage/
+
+# Runtime/user data
+profiles/
+user-data/
+.local-data/
+mission-data/
+evidence-data/
+*.log
+npm-debug.log*
+
+# Environment and secrets
 .env
 .env.*
+!.env.example
+*.pfx
+*.p12
 *.pem
 *.key
-*.p12
-*.pfx
 id_rsa
 id_ed25519
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Temporary files
+*.bak
+*.orig
+*.tmp
+
+# Local credential vault/user secrets
+credential-vault.json
+credential-vault*.json
+**/credential-vault.json
+**/credential-vault*.json
+
+.pass-runs/
