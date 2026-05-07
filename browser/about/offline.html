@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self' https://browser.tahai.net; connect-src https://browser.tahai.net; style-src 'self'; script-src 'self'; img-src 'self' data: https://browser.tahai.net;"
+  />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TAHAI Web Services Browser — Offline Fallback</title>
+  <link rel="stylesheet" href="./offline.css" />
+</head>
+<body>
+  <main>
+    <section>
+      <p class="eyebrow">TAHAI Web Services Browser</p>
+      <h1>TAHAI Web Services Browser</h1>
+      <p>
+        This local page is an offline-safe bridge. When an internet connection is available,
+        the About button opens the public browser page. If the page cannot be reached, this
+        local fallback remains available.
+      </p>
+
+      <div class="actions">
+        <a id="openOnline" href="https://browser.tahai.net/">Open browser.tahai.net</a>
+        <button id="stayLocal" class="secondary" type="button">Stay on local fallback</button>
+      </div>
+
+      <div class="status" id="status">
+        Local offline fallback loaded.
+      </div>
+
+      <div class="grid" aria-label="Local fallback overview">
+        <div class="card">
+          <strong>Purpose-built browser shell</strong>
+          <p>AI, DevOps, developer, IT engineering, profile, and operational workflow lanes.</p>
+        </div>
+        <div class="card">
+          <strong>TAHAI workflow launchpad</strong>
+          <p>Command palette, profiles, Ops Panel, DevTools access, and documentation-oriented tooling.</p>
+        </div>
+        <div class="card">
+          <strong>Offline-safe about page</strong>
+          <p>This page ships locally with the installer and remains available without internet access.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="./offline.js"></script>
+</body>
+</html>

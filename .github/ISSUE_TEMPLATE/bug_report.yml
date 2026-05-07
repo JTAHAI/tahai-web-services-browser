@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible issue in TAHAI Web Services Browser
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not include secrets, tokens, cookies, customer data, screenshots with sensitive information, or private mission/evidence exports.
+  - type: input
+    id: version
+    attributes:
+      label: Browser version
+      description: Example: 1.8.30
+      placeholder: "1.8.30"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - Linux AppImage
+        - Linux deb
+        - Linux rpm
+        - macOS
+        - Source/dev build
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the issue clearly.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Redact secrets and customer data before posting.
+      render: text
+    validations:
+      required: false

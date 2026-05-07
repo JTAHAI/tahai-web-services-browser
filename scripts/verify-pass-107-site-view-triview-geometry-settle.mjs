@@ -1,0 +1,34 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+const read = (p) => fs.readFileSync(p, 'utf8');
+const pkg = JSON.parse(read('package.json'));
+const app = read('src/renderer/app.ts');
+const rail = read('src/renderer/site-view-mission-rail.ts');
+const css = read('src/renderer/styles/browser.css');
+const doc = read('docs/pass-107-site-view-triview-geometry-settle.md');
+const failures = [];
+const need = (ok, msg) => { if (!ok) failures.push(msg); };
+const rb = String(pkg.scripts?.['verify:release-blockers'] || '');
+need(pkg.scripts?.['verify:pass-107-site-view-triview-geometry-settle'] === 'node scripts/verify-pass-107-site-view-triview-geometry-settle.mjs', 'package-script-missing');
+need(rb.includes('verify:pass-107-site-view-triview-geometry-settle'), 'release-blockers-not-wired');
+need(app.includes('function pass107MeasureSiteViewRailReservation'), 'pass107-rail-reservation-helper-missing');
+need(app.includes('function pass107RunMissionViewportSettle'), 'pass107-run-settle-helper-missing');
+need(app.includes('function pass107ScheduleMissionViewportSettle'), 'pass107-schedule-settle-helper-missing');
+need(app.includes('stageEl.dataset.pass107MissionViewportSettle = reason'), 'stage-settle-marker-missing');
+need(app.includes('stageEl.dataset.pass107SiteViewReservedSide = reservation.side'), 'reserved-side-marker-missing');
+need(app.includes('stageEl.dataset.pass107SiteViewReservedWidth = String(reservation.width)'), 'reserved-width-marker-missing');
+need(app.includes("document.body.style.setProperty('--pass107-site-view-reserved-width'"), 'reserved-width-css-var-missing');
+need(app.includes('pass107ScheduleMissionViewportSettle(reason)'), 'pass106-not-forwarding-to-pass107-settle');
+need(app.includes("pass107ScheduleMissionViewportSettle('tri-view-layout-variant')"), 'triview-settle-missing');
+need(app.includes("pass107ScheduleMissionViewportSettle('mission-layout-set')"), 'mission-layout-settle-missing');
+need(app.includes("pass107ScheduleMissionViewportSettle('mission-send-active-pane')"), 'send-active-pane-settle-missing');
+need(app.includes("pass106RepaintMissionViewAfterSiteRail('site-view-rail-' + reason)"), 'site-view-reason-bridge-missing');
+need(app.includes('mission.layout.type = pass63CanonicalMissionLayoutType(layoutType)'), 'pass63-canonicalization-missing');
+need(app.includes('renderMissionControl();\n  renderMissionLayout();\n  pass64ScheduleMissionPaneRefresh();\n  pass107ScheduleMissionViewportSettle'), 'triview-full-render-commit-missing');
+need(app.includes("if (!visiblePaneIds.includes(mission.layout.activePaneId)) mission.layout.activePaneId = visiblePaneIds[0] || 'pane-1'"), 'active-pane-repair-missing');
+need(rail.includes("document.dispatchEvent(new CustomEvent('tahai-site-view-rail-layout-change', { detail: { reason } }))"), 'rail-layout-change-reason-missing');
+need(css.includes('PASS107 Mission View / Site View geometry settle'), 'pass107-css-marker-missing');
+need(css.includes('[data-pass107-site-view-reserved-side="left"]'), 'pass107-css-side-selector-missing');
+need(doc.includes('PASS107 — Site View / 3-Up Geometry Settle'), 'pass107-doc-title-missing');
+if (failures.length) { console.error('PASS107 verifier failed:'); failures.forEach(f => console.error(' - ' + f)); process.exit(1); }
+console.log('PASS107 Site View / 3-Up Geometry Settle verification passed.');

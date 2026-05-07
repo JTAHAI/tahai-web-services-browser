@@ -1,0 +1,14 @@
+{
+  "HomepageLocation": "https://tahaiportal.com",
+  "HomepageIsNewTabPage": false,
+  "RestoreOnStartup": 4,
+  "RestoreOnStartupURLs": [
+    "https://tahaiportal.com"
+  ],
+  "ShowHomeButton": true,
+  "BookmarkBarEnabled": true,
+  "DefaultBrowserSettingEnabled": false,
+  "MetricsReportingEnabled": false,
+  "PasswordManagerEnabled": true,
+  "BrowserSignin": 1
+}

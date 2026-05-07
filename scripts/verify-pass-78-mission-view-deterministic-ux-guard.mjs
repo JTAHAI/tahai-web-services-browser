@@ -1,0 +1,33 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+const read = (path) => fs.readFileSync(path, 'utf8');
+const app = read('src/renderer/app.ts');
+const css = read('src/renderer/styles/browser.css');
+const pkg = JSON.parse(read('package.json'));
+const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const errors = [];
+const need = (condition, message) => { if (!condition) errors.push(message); };
+need(pkg.scripts?.['verify:pass-78-mission-view-deterministic-ux-guard'] === 'node scripts/verify-pass-78-mission-view-deterministic-ux-guard.mjs', 'package-script-missing');
+need(releaseBlockers.includes('verify:pass-78-mission-view-deterministic-ux-guard'), 'release-blockers-not-wired');
+need(app.includes('pass78-pane-selector'), 'selected-pane-mover-markup-missing');
+need(app.includes('data-pass78-move-from'), 'move-from-select-missing');
+need(app.includes('data-pass78-move-to'), 'move-to-select-missing');
+need(app.includes('data-pass78-swap-selected'), 'swap-selected-button-missing');
+need(app.includes('data-pass78-doctor'), 'doctor-button-missing');
+need(app.includes('function pass78RunMissionViewDoctor'), 'doctor-function-missing');
+need(app.includes('function pass78RepaintMissionView'), 'repaint-function-missing');
+need(app.includes("event.altKey && event.shiftKey && event.key.toLowerCase() === 'd'"), 'ctrl-alt-shift-d-shortcut-missing');
+need(app.includes("event.altKey && event.shiftKey && event.key.toLowerCase() === 'r'"), 'ctrl-alt-shift-r-shortcut-missing');
+need(app.includes("webview.setAttribute('autosize', 'off')"), 'autosize-off-guard-missing');
+need(!app.includes("webview.setAttribute('autosize', 'on')"), 'autosize-on-regression');
+need(app.includes("webview.removeAttribute('minwidth')"), 'minwidth-removal-missing');
+need(app.includes('pass78AuditMissionPaneSurface'), 'bounds-audit-function-missing');
+need(app.includes('shortSurface'), 'short-surface-audit-missing');
+need(app.includes('staleAutosize'), 'stale-autosize-audit-missing');
+need(app.includes('pass78ClearStaleMissionPaneMoveState'), 'stale-overlay-repair-missing');
+need(app.includes('pass73-mission-direct-webviews'), 'direct-webview-class-preserved');
+need(css.includes('PASS78 Mission View deterministic UX guard'), 'pass78-css-comment-missing');
+need(css.includes('.pass78-pane-selector'), 'pass78-selector-css-missing');
+need(css.includes('.pass78-doctor-actions'), 'pass78-doctor-css-missing');
+if (errors.length) { console.error('PASS78 Mission View deterministic UX guard verifier failed:'); for (const error of errors) console.error(' - ' + error); process.exit(1); }
+console.log('PASS78 Mission View deterministic UX guard verifier passed.');

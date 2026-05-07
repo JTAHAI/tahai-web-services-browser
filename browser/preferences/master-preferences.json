@@ -1,0 +1,26 @@
+{
+  "homepage": "https://tahaiportal.com",
+  "homepage_is_newtabpage": false,
+  "browser": {
+    "show_home_button": true,
+    "check_default_browser": false
+  },
+  "session": {
+    "restore_on_startup": 4,
+    "startup_urls": [
+      "https://tahaiportal.com"
+    ]
+  },
+  "bookmark_bar": {
+    "show_on_all_tabs": true
+  },
+  "profile": {
+    "name": "TAHAI Web Services Browser"
+  },
+  "distribution": {
+    "import_bookmarks": false,
+    "import_history": false,
+    "make_chrome_default": false,
+    "skip_first_run_ui": true
+  }
+}

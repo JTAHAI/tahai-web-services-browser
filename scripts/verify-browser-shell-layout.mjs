@@ -1,0 +1,21 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+const root = process.cwd();
+const fail = (message) => { console.error(`TAHAI_BROWSER_SHELL_LAYOUT_VERIFY_FAIL=${message}`); process.exit(1); };
+const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+const exists = (rel) => fs.existsSync(path.join(root, rel));
+for (const rel of ['browser/new-tab/assets/tws/tws-square-logo.png','browser/new-tab/assets/tws/tws-logo-motion.mp4','browser/new-tab/assets/tws/tws-browser-motion-bg.mp4','src/renderer/responsive-toolbar.ts','src/renderer/styles/responsive-toolbar.css','scripts/copy-static.mjs']) if (!exists(rel)) fail(`missing ${rel}`);
+const copyStatic = read('scripts/copy-static.mjs');
+for (const token of ['firstExisting', "path.join(appRoot, 'browser')", "path.join(repoRoot, 'browser')", "'assets'", "'build'"]) if (!copyStatic.includes(token)) fail(`copy-static missing self-contained asset fallback: ${token}`);
+const html = read('src/renderer/index.html');
+for (const token of ['./styles/responsive-toolbar.css', './responsive-toolbar.js']) if (!html.includes(token)) fail(`index.html missing responsive toolbar asset: ${token}`);
+const siteCss = read('src/renderer/styles/site-view-mission-rail.css');
+for (const token of ['PASS 01 shell-layout repair', 'pointer-events: none', 'visibility: hidden', 'body.site-view-rail-enabled .site-view-mission-rail', 'margin-left: 0', 'scrollbar-color']) if (!siteCss.includes(token)) fail(`site-view rail CSS missing drawer/scrollbar repair token: ${token}`);
+const toolbarTs = read('src/renderer/responsive-toolbar.ts');
+for (const token of ['toolbar-overflow-menu', 'targetCountForWidth', 'moveToMenu', 'restoreToToolbar', 'site-view-rail-toggle']) if (!toolbarTs.includes(token)) fail(`responsive toolbar missing token: ${token}`);
+const pkg = JSON.parse(read('package.json').replace(/^\uFEFF/, ''));
+if (pkg.scripts?.['verify:browser-shell-layout'] !== 'node scripts/verify-browser-shell-layout.mjs') fail('package.json missing verify:browser-shell-layout script');
+if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:browser-shell-layout')) fail('verify:release-blockers does not include verify:browser-shell-layout');
+console.log('TAHAI_BROWSER_SHELL_LAYOUT_VERIFY=OK');
+process.exit(0);

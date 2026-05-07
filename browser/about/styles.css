@@ -1,0 +1,189 @@
+.about-browser-page {
+  overflow-x: hidden;
+}
+
+.about-browser-page main {
+  width: min(1180px, calc(100% - 36px));
+}
+
+.about-hero {
+  overflow: hidden;
+  position: relative;
+}
+
+.about-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -12% -45% 34%;
+  height: 220px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(119, 219, 255, .16), transparent 66%);
+}
+
+.hero-copy {
+  max-width: 820px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: clamp(1rem, 1.8vw, 1.18rem);
+  line-height: 1.5;
+}
+
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.about-panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.about-panel p {
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.about-product-card .row,
+.about-panel .row {
+  align-items: flex-start;
+}
+
+.about-product-card .row a,
+.about-links-card a {
+  overflow-wrap: anywhere;
+}
+
+.about-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.about-card-heading h2,
+.about-card-heading .eyebrow {
+  margin-left: 0;
+}
+
+.about-status-pill {
+  flex: 0 0 auto;
+  border: 1px solid rgba(119, 219, 255, .22);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #cceeff;
+  background: rgba(119, 219, 255, .07);
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sentinel-edition-card {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.sentinel-logo-frame {
+  margin: 18px 0 0;
+  min-height: 0;
+  height: clamp(170px, 22vw, 270px);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid rgba(119, 219, 255, .18);
+  background:
+    radial-gradient(circle at 50% 40%, rgba(47, 143, 255, .18), transparent 38%),
+    linear-gradient(180deg, rgba(255,255,255,.035), rgba(0,0,0,.16));
+}
+
+.sentinel-logo-frame img {
+  display: block;
+  width: min(72%, 300px);
+  height: min(72%, 225px);
+  max-width: 300px;
+  max-height: 225px;
+  object-fit: contain;
+  object-position: center;
+  border: 0;
+  border-radius: 0;
+  filter: drop-shadow(0 0 24px rgba(119, 219, 255, .24));
+}
+
+.about-pill-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: start;
+}
+
+.about-pill-grid .pill {
+  margin: 0;
+}
+
+.about-callout {
+  margin-top: 16px;
+  padding: 14px 15px;
+  border: 1px solid rgba(109, 255, 183, .22);
+  border-radius: 18px;
+  color: #dfffee;
+  background: linear-gradient(180deg, rgba(109, 255, 183, .08), rgba(255,255,255,.025));
+  line-height: 1.5;
+}
+
+.about-link-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.about-link-list a {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  min-height: 78px;
+  padding: 12px;
+  border: 1px solid rgba(119, 219, 255, .16);
+  border-radius: 18px;
+  background: rgba(255,255,255,.035);
+}
+
+.about-link-list a:hover,
+.about-link-list a:focus-visible {
+  border-color: rgba(119, 219, 255, .52);
+  background: rgba(119, 219, 255, .08);
+}
+
+.about-link-list strong {
+  color: #f7fbff;
+  font-size: .92rem;
+}
+
+.about-link-list span {
+  color: var(--muted);
+  font-size: .80rem;
+  line-height: 1.35;
+}
+
+.release-note {
+  color: var(--muted) !important;
+}
+
+@media (max-width: 920px) {
+  .about-grid,
+  .about-link-list {
+    grid-template-columns: 1fr;
+  }
+
+  .about-card-heading {
+    display: grid;
+  }
+
+  .about-status-pill {
+    width: max-content;
+  }
+}

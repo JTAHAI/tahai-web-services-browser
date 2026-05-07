@@ -1,0 +1,41 @@
+name: Windows preview package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-preview-package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify release blockers
+        run: npm run verify:release-blockers
+
+      - name: Package unsigned Windows preview
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run package:win:release
+
+      - name: Upload release directory
+        uses: actions/upload-artifact@v4
+        with:
+          name: tahai-browser-windows-preview-unsigned
+          path: release/**
+          if-no-files-found: error

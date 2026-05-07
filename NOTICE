@@ -1,0 +1,17 @@
+TAHAI Web Services Browser
+Copyright 2026 TAHAI Web Services
+
+This project is licensed under the Apache License, Version 2.0.
+
+TAHAI, TAHAI Web Services, TAHAI Web Services Browser, TAHAI OS—SENTINEL,
+SENTINEL, associated logos, spider marks, product names, and related brand
+assets are trademarks or service marks of TAHAI Web Services or their
+respective owners.
+
+The Apache-2.0 license grants copyright and patent permissions for the
+software source code. It does not grant trademark rights or permission to
+misrepresent modified versions as official TAHAI releases.
+
+This project includes or depends on open-source software including Electron,
+Chromium, Node.js, TypeScript, and related npm packages. Third-party
+components remain governed by their own licenses.

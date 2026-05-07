@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">TAHAI Spider Mark</title>
+  <desc id="desc">Geometric spider mark for TAHAI Web Services Browser.</desc>
+  <defs><radialGradient id="g" cx="50%" cy="38%" r="70%"><stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="0.5" stop-color="#7f8792" stop-opacity="0.85"/><stop offset="1" stop-color="#171a20" stop-opacity="1"/></radialGradient></defs>
+  <rect width="256" height="256" rx="56" fill="#05070b"/>
+  <path d="M128 30 207 75v91l-79 60-79-60V75z" fill="none" stroke="#5e6570" stroke-width="4" opacity=".9"/>
+  <circle cx="128" cy="118" r="34" fill="url(#g)" stroke="#d7dbe2" stroke-width="3"/>
+  <circle cx="128" cy="169" r="23" fill="#11161d" stroke="#aeb5c0" stroke-width="3"/>
+  <path d="M93 111 39 80M94 126 32 128M98 142 44 180M163 111l54-31M162 126l62 2M158 142l54 38" fill="none" stroke="#c4cad3" stroke-width="7" stroke-linecap="round"/>
+  <path d="M106 90 77 47M150 90l29-43M107 190 79 221M149 190l28 31" fill="none" stroke="#88919e" stroke-width="6" stroke-linecap="round"/>
+  <path d="M113 107h30M111 128h34M117 149h22" stroke="#05070b" stroke-width="5" stroke-linecap="round" opacity=".85"/>
+</svg>

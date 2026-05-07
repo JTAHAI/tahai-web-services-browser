@@ -1,0 +1,35 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+const root = process.cwd();
+const app = fs.readFileSync(path.join(root, 'src/renderer/app.ts'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'src/renderer/styles/browser.css'), 'utf8');
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const errors = [];
+const must = (haystack, needle, label) => { if (!haystack.includes(needle)) errors.push(label); };
+must(app, 'PASS72 Mission View native compositor sizing', 'pass72-code-comment-missing');
+must(app, 'type Pass72PaneBounds', 'pass72-bounds-type-missing');
+must(app, 'pass72PaneBoundsForLayout', 'pass72-layout-function-missing');
+must(app, 'pass72ApplyMissionPanePixelLayoutNow', 'pass72-apply-function-missing');
+must(app, "stageEl.classList.add('pass72-mission-pixel-layout')", 'pass72-stage-class-add-missing');
+must(app, "stageEl.classList.remove('pass72-mission-pixel-layout')", 'pass72-stage-class-remove-missing');
+must(app, "runtimeTab.webview.style.width = width + 'px'", 'pass72-webview-pixel-width-missing');
+must(app, "runtimeTab.webview.style.height = height + 'px'", 'pass72-webview-pixel-height-missing');
+must(app, 'runtimeTab.webview.setZoomFactor?.(1)', 'pass72-webview-zoom-reset-missing');
+must(app, 'pass72MountMissionPanePixelResizeObserver', 'pass72-resize-observer-missing');
+must(app, 'pass72ScheduleMissionPanePixelLayout();', 'pass72-render-hook-missing');
+must(css, '.webview-stage.mission-layout.pass72-mission-pixel-layout', 'pass72-css-stage-class-missing');
+must(css, 'display: block !important;', 'pass72-block-layout-missing');
+must(css, 'position: absolute !important;', 'pass72-absolute-shell-missing');
+must(css, 'z-index: 1 !important;', 'pass72-webview-zindex-missing');
+must(css, '.mission-pane-heads { display: none !important;', 'pass72-head-overlay-hide-missing');
+must(css, 'backdrop-filter: none !important;', 'pass72-backdrop-filter-cleared-missing');
+must(pkg.scripts['verify:pass-72-mission-view-pixel-compositor-layout'] || '', 'verify-pass-72-mission-view-pixel-compositor-layout.mjs', 'pass72-script-not-registered');
+must(pkg.scripts['verify:release-blockers'] || '', 'verify:pass-72-mission-view-pixel-compositor-layout', 'pass72-not-in-release-blockers');
+const pixelBlock = css.slice(css.indexOf('PASS72 Mission View native compositor sizing'));
+if (/webview\.browser-view[\s\S]{0,700}display:\s*inline-flex/i.test(pixelBlock)) errors.push('pass72-webview-inline-flex-forbidden');
+if (/webview\.browser-view[\s\S]{0,700}transform:\s*(?!\s*none)/i.test(pixelBlock)) errors.push('pass72-webview-transform-forbidden');
+if (/webview\.browser-view[\s\S]{0,700}filter:\s*(?!\s*none)/i.test(pixelBlock)) errors.push('pass72-webview-filter-forbidden');
+if (/webview\.browser-view[\s\S]{0,700}opacity:\s*(?!\s*1)/i.test(pixelBlock)) errors.push('pass72-webview-opacity-forbidden');
+if (errors.length) { console.error('PASS72_MISSION_VIEW_PIXEL_COMPOSITOR_LAYOUT_FAIL=' + errors.join(',')); process.exit(1); }
+console.log('PASS72_MISSION_VIEW_PIXEL_COMPOSITOR_LAYOUT=OK');
