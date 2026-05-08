@@ -36,7 +36,7 @@ if (pkg.license !== "Apache-2.0") {
 }
 
 const gitignore = fs.readFileSync(path.join(root, ".gitignore"), "utf8");
-for (const pattern of ["node_modules/", "dist/", "release/", ".env", "*.pfx", "*.p12", "*.pem"]) {
+for (const pattern of ["node_modules/", "dist/", "release/", "out/", "artifacts/", ".pass-runs/", "profiles/", "user-data/", ".local-data/", "mission-data/", "evidence-data/", "*.zip", "*.exe", "*.msi", "*.dmg", "*.AppImage", "*.deb", "*.rpm", "*.blockmap", ".env", "*.pfx", "*.p12", "*.pem"]) {
   if (!gitignore.includes(pattern)) {
     console.error(`.gitignore missing required pattern: ${pattern}`);
     process.exit(1);

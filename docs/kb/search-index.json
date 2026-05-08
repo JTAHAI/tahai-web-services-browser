@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 1,
+  "sourcePass": "PASS131",
+  "title": "TAHAI Browser KB Search Index",
+  "policy": "The in-app KB may use only the self-hosted browser/onboarding/kb-search.js script. No inline script, remote script, telemetry, network search, or external KB dependency is allowed.",
+  "entries": [
+    {
+      "id": "getting-started",
+      "title": "Getting started",
+      "screenshot": "01-main-browser-normal-mode.png",
+      "priority": "required",
+      "screenOrder": 1,
+      "captureTitle": "Main browser window / normal mode",
+      "keywords": [
+        "normal mode",
+        "tabs",
+        "address bar",
+        "toolbar",
+        "home",
+        "launchpad",
+        "profile",
+        "getting started",
+        "basics"
+      ]
+    },
+    {
+      "id": "guide-kb",
+      "title": "Guide / Knowledge Base",
+      "screenshot": "02-guide-kb-entry.png",
+      "priority": "required",
+      "screenOrder": 2,
+      "captureTitle": "Guide / Knowledge Base entry point",
+      "keywords": [
+        "guide",
+        "knowledge base",
+        "kb",
+        "help",
+        "more tools",
+        "compact guide",
+        "documentation"
+      ]
+    },
+    {
+      "id": "mission-control",
+      "title": "Mission Control",
+      "screenshot": "03-mission-control-open.png",
+      "priority": "required",
+      "screenOrder": 3,
+      "captureTitle": "Mission Control open",
+      "keywords": [
+        "mission control",
+        "ops mode",
+        "workspace",
+        "mission panel",
+        "ctrl alt m",
+        "small window",
+        "compact"
+      ]
+    },
+    {
+      "id": "mission-tabs",
+      "title": "Mission Tabs",
+      "screenshot": "04-mission-tabs.png",
+      "priority": "required",
+      "screenOrder": 4,
+      "captureTitle": "Mission Tabs",
+      "keywords": [
+        "mission tabs",
+        "roles",
+        "save mission",
+        "local mission",
+        "workspace tabs"
+      ]
+    },
+    {
+      "id": "two-up-split-view",
+      "title": "2-Up Split View",
+      "screenshot": "05-two-up-split-view.png",
+      "priority": "required",
+      "screenOrder": 5,
+      "captureTitle": "2-Up Split View",
+      "keywords": [
+        "2-up",
+        "split view",
+        "two panes",
+        "console docs",
+        "logs target"
+      ]
+    },
+    {
+      "id": "three-up-top",
+      "title": "3-Up Top",
+      "screenshot": "06-three-up-top.png",
+      "priority": "required",
+      "screenOrder": 6,
+      "captureTitle": "3-Up Top",
+      "keywords": [
+        "3-up top",
+        "tri-view top",
+        "triview top",
+        "wide top",
+        "triple top"
+      ]
+    },
+    {
+      "id": "three-up-bottom",
+      "title": "3-Up Bottom",
+      "screenshot": "07-three-up-bottom.png",
+      "priority": "required",
+      "screenOrder": 7,
+      "captureTitle": "3-Up Bottom",
+      "keywords": [
+        "3-up bottom",
+        "tri-view bottom",
+        "triview bottom",
+        "wide bottom",
+        "triple bottom"
+      ]
+    },
+    {
+      "id": "quad-view",
+      "title": "Quad View",
+      "screenshot": "08-quad-view.png",
+      "priority": "required",
+      "screenOrder": 8,
+      "captureTitle": "Quad View",
+      "keywords": [
+        "quad view",
+        "4-up",
+        "four panes",
+        "deployment cockpit",
+        "dns migration"
+      ]
+    },
+    {
+      "id": "active-pane-routing",
+      "title": "Active pane routing",
+      "screenshot": "09-active-pane-focus.png",
+      "priority": "required",
+      "screenOrder": 9,
+      "captureTitle": "Active pane focus state",
+      "keywords": [
+        "active pane",
+        "focus state",
+        "routing",
+        "back forward reload",
+        "address bar target"
+      ]
+    },
+    {
+      "id": "runbook-rail",
+      "title": "Runbook Rail",
+      "screenshot": "10-runbook-rail.png",
+      "priority": "recommended",
+      "screenOrder": 10,
+      "captureTitle": "Runbook Rail",
+      "keywords": [
+        "runbook rail",
+        "checklist",
+        "notes",
+        "rollback",
+        "timeline"
+      ]
+    },
+    {
+      "id": "command-center",
+      "title": "Operator Command Center",
+      "screenshot": "11-command-center.png",
+      "priority": "recommended",
+      "screenOrder": 11,
+      "captureTitle": "Operator Command Center",
+      "keywords": [
+        "command center",
+        "ctrl k",
+        "command palette",
+        "keyboard",
+        "operator commands"
+      ]
+    },
+    {
+      "id": "devops-tools",
+      "title": "DevOps tools",
+      "screenshot": "12-devops-tools.png",
+      "priority": "recommended",
+      "screenOrder": 12,
+      "captureTitle": "DevOps tools lane",
+      "keywords": [
+        "devops tools",
+        "capture",
+        "ops check",
+        "deploy",
+        "routes",
+        "dev audit",
+        "devtools"
+      ]
+    },
+    {
+      "id": "it-tools",
+      "title": "IT tools",
+      "screenshot": "13-it-tools.png",
+      "priority": "recommended",
+      "screenOrder": 13,
+      "captureTitle": "IT tools lane",
+      "keywords": [
+        "it tools",
+        "it card",
+        "endpoint",
+        "triage",
+        "secret boundary",
+        "helpdesk"
+      ]
+    },
+    {
+      "id": "site-view-rail",
+      "title": "Site View rail",
+      "screenshot": "14-site-view-rail.png",
+      "priority": "recommended",
+      "screenOrder": 14,
+      "captureTitle": "Site View rail",
+      "keywords": [
+        "site view",
+        "site rail",
+        "context rail",
+        "page context"
+      ]
+    },
+    {
+      "id": "evidence-export",
+      "title": "Evidence and export",
+      "screenshot": "15-evidence-export.png",
+      "priority": "recommended",
+      "screenOrder": 15,
+      "captureTitle": "Evidence and export",
+      "keywords": [
+        "evidence",
+        "export",
+        "redaction",
+        "handoff",
+        "capture",
+        "markdown"
+      ]
+    },
+    {
+      "id": "downloads-installers",
+      "title": "Downloads and installers",
+      "screenshot": "16-downloads-installers.png",
+      "priority": "recommended",
+      "screenOrder": 16,
+      "captureTitle": "Downloads and installers",
+      "keywords": [
+        "downloads",
+        "installers",
+        "windows",
+        "linux",
+        "rpm",
+        "appimage",
+        "deb",
+        "checksum"
+      ]
+    },
+    {
+      "id": "settings-security",
+      "title": "Settings, profiles, and safety",
+      "screenshot": "17-settings-security.png",
+      "priority": "recommended",
+      "screenOrder": 17,
+      "captureTitle": "Settings, profiles, and safety",
+      "keywords": [
+        "settings",
+        "profiles",
+        "security",
+        "privacy",
+        "safe operation"
+      ]
+    },
+    {
+      "id": "troubleshooting-states",
+      "title": "Troubleshooting states",
+      "screenshot": "18-error-empty-blocked-state.png",
+      "priority": "recommended",
+      "screenOrder": 18,
+      "captureTitle": "Empty/error/blocked state",
+      "keywords": [
+        "troubleshooting",
+        "error",
+        "empty state",
+        "blocked url",
+        "offline",
+        "disabled integration",
+        "redaction warning"
+      ]
+    }
+  ]
+}

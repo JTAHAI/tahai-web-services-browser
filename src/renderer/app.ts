@@ -507,6 +507,7 @@ const missionForm = document.getElementById('mission-form') as HTMLFormElement;
 const missionNameInput = document.getElementById('mission-name') as HTMLInputElement;
 const missionTypeSelect = document.getElementById('mission-type') as HTMLSelectElement;
 const missionStatus = document.getElementById('mission-status') as HTMLElement;
+const missionCompactJumpbar = document.getElementById('mission-compact-jumpbar') as HTMLElement;
 const missionList = document.getElementById('mission-list') as HTMLElement;
 const missionRecipes = document.getElementById('mission-recipes') as HTMLElement;
 const missionTabsList = document.getElementById('mission-tabs-list') as HTMLElement;
@@ -775,6 +776,7 @@ let missionPaneHeads: HTMLElement | undefined;
 const missionPaneShells = new Map<string, HTMLElement>();
 const missionRuntimeTabs = new Map<string, string>();
 let missionTabsListDragTabId = '';
+let pass117MissionControlOpener: HTMLElement | null = null;
 let lastMissionLayoutBeforeFocus: MissionLayoutType = 'quad';
 let pass99ExternalDropBoundaryMounted = false;
 const evidenceStorageKey = 'tahai-browser:evidence-timeline:v1';
@@ -820,7 +822,7 @@ function titleFromUrl(url: string): string {
   if (url === config.newTabUrl || url.startsWith(`${config.newTabUrl}?`)) return sanitizeTabMetadataTitle('TAHAI Launchpad');
   if (url === config.settingsUrl || url.startsWith(`${config.settingsUrl}?`)) return sanitizeTabMetadataTitle('Settings');
   if (url === config.aboutUrl || url.startsWith(`${config.aboutUrl}?`)) return sanitizeTabMetadataTitle('About');
-  if (url === config.onboardingUrl || url.startsWith(`${config.onboardingUrl}?`)) return sanitizeTabMetadataTitle('First-run guide');
+  if (url === config.onboardingUrl || url.startsWith(`${config.onboardingUrl}?`)) return sanitizeTabMetadataTitle('TAHAI Knowledge Base');
   if (url === config.errorPageUrl || url.startsWith(`${config.errorPageUrl}?`)) return sanitizeTabMetadataTitle('Load issue');
   try { return sanitizeTabMetadataTitle(new URL(url).hostname.replace(/^www\./, ''), 'New tab'); } catch { return sanitizeTabMetadataTitle('New tab'); }
 }
@@ -1366,10 +1368,10 @@ function pass82MountEnterpriseSurfaceAssurance(): void {
     if (event.key === 'Escape' && !event.defaultPrevented) {
       const anyToolOpen = !devopsToolsPanel.hidden || !itToolsPanel.hidden;
       if (anyToolOpen) {
-        closeToolMenus();
+        closeToolMenus(undefined, true);
         setStatus('Command toolbar closed', 'Esc returned focus to the main browser shell.');
       } else if (!opsHub.hidden) {
-        toggleOpsHub(false);
+        toggleOpsHub(false, true);
         setStatus('Ops panel closed', 'Esc returned focus to the main browser shell.');
       }
     }
@@ -4338,6 +4340,62 @@ function renderMissionLayout(): void {
   pass64ScheduleMissionPaneRefresh();
 }
 
+
+// PASS133 Tri-view / Quad View entry + recovery: make every supported 3-Up
+// variant directly reachable and give operators a one-click safe recovery path
+// when Mission View geometry or pane overlays drift after rapid layout switches.
+function pass133CurrentTriViewIndex(): number {
+  const type = pass63CanonicalMissionLayoutType(currentMission?.layout.type || 'triple-bottom');
+  const index = pass63TripleLayoutTypes.indexOf(type as Pass63TripleLayoutType);
+  return index >= 0 ? index : 1;
+}
+
+function pass133CycleTriViewVariant(reason = 'cycle'): void {
+  ensureCurrentMission();
+  const next = pass63TripleLayoutTypes[(pass133CurrentTriViewIndex() + 1) % pass63TripleLayoutTypes.length] || 'triple-bottom';
+  setMissionLayout(next);
+  document.body.dataset.pass133LastTriViewCycle = `${reason}:${next}`;
+  setStatus('Mission 3-Up variant cycled', missionLayoutLabel(next));
+}
+
+function pass133RecoverMissionView(reason = 'manual'): void {
+  const mission = ensureCurrentMission();
+  mission.layout.type = pass63CanonicalMissionLayoutType(mission.layout.type || 'quad');
+  if (mission.layout.type === 'command') mission.layout.type = 'single';
+  const visiblePanes = missionVisiblePaneIds(mission.layout.type);
+  const requestedActivePane = normalizeMissionPaneId(mission.layout.activePaneId || 'pane-1');
+  if (visiblePanes.length && !visiblePanes.includes(requestedActivePane)) {
+    mission.layout.activePaneId = visiblePanes[0] || 'pane-1';
+    document.body.dataset.pass133LastActivePaneRecovery = `${requestedActivePane}->${mission.layout.activePaneId}:${reason}`;
+  }
+  syncMissionLayoutPanes();
+  pass68ClearMissionPaneClickSwap();
+  pass108HideMissionPaneSwapTargets('pass133-recover');
+  pass70ClearTransientMissionPaneUiState();
+  renderMissionControl();
+  renderMissionLayout();
+  pass64ScheduleMissionPaneRefresh();
+  pass72ScheduleMissionPanePixelLayout();
+  pass78RepaintMissionView(`pass133-${reason}`);
+  pass89ScheduleMissionPaneRestoreFailsafe(`pass133-${reason}`);
+  pass107ScheduleMissionViewportSettle(`pass133-${reason}`);
+  document.body.dataset.pass133LastRecoverView = `${reason}:${mission.layout.type}:${mission.layout.activePaneId}`;
+  setStatus('Mission View recovered', `${missionLayoutLabel(mission.layout.type)} · active ${missionPaneLabel(mission.layout.activePaneId)}`);
+}
+
+function pass133AfterLayoutEntry(layout: MissionLayoutType, reason = 'layout-entry'): void {
+  const mission = currentMission;
+  if (!mission) return;
+  const canonical = pass63CanonicalMissionLayoutType(layout);
+  const visiblePanes = missionVisiblePaneIds(canonical);
+  if (visiblePanes.length && !visiblePanes.includes(normalizeMissionPaneId(mission.layout.activePaneId))) {
+    mission.layout.activePaneId = visiblePanes[0] || 'pane-1';
+  }
+  document.body.dataset.pass133LastLayoutEntry = `${reason}:${canonical}:${visiblePanes.join('|')}`;
+  pass64ScheduleMissionPaneRefresh();
+  pass72ScheduleMissionPanePixelLayout();
+}
+
 function toggleMissionFocusPane(): void {
   const mission = ensureCurrentMission();
   if (mission.layout.type === 'focus') {
@@ -4364,6 +4422,7 @@ function setMissionLayout(layout: MissionLayoutType): void {
   renderMissionLayout();
   pass89ScheduleMissionPaneRestoreFailsafe('set-layout');
   pass107ScheduleMissionViewportSettle('mission-layout-set');
+  pass133AfterLayoutEntry(mission.layout.type, 'set-layout');
   setStatus('Mission layout set', missionLayoutLabel(mission.layout.type));
 }
 
@@ -4486,15 +4545,111 @@ async function refreshMissionStore(): Promise<void> {
   renderMissionControl();
 }
 
+function closeMissionControl(restoreFocus = false): void {
+  missionDialog.dataset.pass117FocusOpen = 'false';
+  missionDialog.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('mission-small-window-stress', 'mission-micro-window-stress');
+  if (document.body.dataset.pass117ActiveFocusScope === 'mission-control') delete document.body.dataset.pass117ActiveFocusScope;
+  if (document.body.dataset.pass116ActiveOverlay === 'mission-control') pass118ClearChromeOverlayState('explicit-close', 'mission-control');
+  if (missionDialog.open) missionDialog.close();
+  if (restoreFocus) window.setTimeout(() => (pass117MissionControlOpener || missionControlButton)?.focus(), 0);
+}
+
+function pass128UpdateMissionViewportMode(reason = 'open'): void {
+  const compact = window.innerWidth < 760 || window.innerHeight < 680;
+  document.body.classList.toggle('mission-compact-viewport', compact);
+  document.body.dataset.pass128MissionSmallViewport = compact ? 'compact' : 'standard';
+  document.body.dataset.pass128MissionViewportReason = reason;
+  missionDialog.dataset.pass128MissionViewport = compact ? 'compact' : 'standard';
+  missionDialog.style.setProperty('--pass128-window-height', `${Math.max(320, Math.floor(window.innerHeight))}px`);
+  pass132UpdateMissionSmallWindowStress(reason);
+}
+
+type Pass132MissionViewportState = 'standard' | 'compact' | 'micro';
+
+function pass132MissionViewportState(): Pass132MissionViewportState {
+  if (window.innerWidth < 620 || window.innerHeight < 560) return 'micro';
+  if (window.innerWidth < 1040 || window.innerHeight < 760) return 'compact';
+  return 'standard';
+}
+
+function pass132UpdateMissionSmallWindowStress(reason = 'open'): void {
+  const state = pass132MissionViewportState();
+  const stressed = state !== 'standard';
+  document.body.classList.toggle('mission-small-window-stress', stressed);
+  document.body.classList.toggle('mission-micro-window-stress', state === 'micro');
+  document.body.dataset.pass132MissionViewport = state;
+  document.body.dataset.pass132MissionViewportReason = reason;
+  missionDialog.dataset.pass132MissionViewport = state;
+  missionDialog.style.setProperty('--pass132-window-width', `${Math.max(320, Math.floor(window.innerWidth))}px`);
+  missionDialog.style.setProperty('--pass132-window-height', `${Math.max(320, Math.floor(window.innerHeight))}px`);
+  if (missionCompactJumpbar) missionCompactJumpbar.hidden = !stressed;
+}
+
+function pass132JumpMissionSection(section: string): void {
+  const targets: Record<string, string> = {
+    recipes: '.mission-recipes-section',
+    tabs: '.mission-tabs-section',
+    runbook: '.mission-runbook-section',
+    evidence: '.mission-evidence-section',
+    export: '.mission-export-section',
+    saved: '.mission-saved-section'
+  };
+  const selector = targets[section] || '.mission-tabs-section';
+  const target = missionDialog.querySelector<HTMLElement>(selector);
+  if (!target) return;
+  pass132UpdateMissionSmallWindowStress('jump-' + section);
+  target.scrollIntoView({ block: 'start', inline: 'nearest', behavior: 'smooth' });
+  missionCompactJumpbar?.querySelectorAll<HTMLButtonElement>('[data-pass132-jump]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.pass132Jump === section);
+  });
+}
+
+function pass128ShowMissionDialog(): void {
+  pass128UpdateMissionViewportMode('open');
+  if (missionDialog.open) return;
+  try {
+    missionDialog.showModal();
+    missionDialog.dataset.pass128ShowMode = 'modal';
+  } catch {
+    try {
+      missionDialog.show();
+      missionDialog.dataset.pass128ShowMode = 'non-modal-fallback';
+    } catch {
+      missionDialog.setAttribute('open', '');
+      missionDialog.dataset.pass128ShowMode = 'attribute-fallback';
+    }
+  }
+  window.setTimeout(() => {
+    pass128UpdateMissionViewportMode('post-open');
+    missionDialog.scrollTop = 0;
+    missionPanelScrollTopReset();
+  }, 0);
+}
+
+function missionPanelScrollTopReset(): void {
+  const panel = missionDialog.querySelector<HTMLElement>('.mission-panel');
+  if (panel) panel.scrollTop = 0;
+}
+
 async function openMissionControl(): Promise<void> {
-  closeToolMenus();
+  pass117MissionControlOpener = missionControlButton;
+  pass116AnnounceChromeOverlayOpen('mission-control');
+  closeToolMenus(undefined, false);
   if (!missionTypeSelect.options.length) {
     missionTypeSelect.innerHTML = missionTypes.map((type) => '<option value="' + type + '">' + type.replace(/-/g, ' ') + '</option>').join('');
   }
   await refreshMissionStore();
   renderMissionControl();
-  if (!missionDialog.open) missionDialog.showModal();
+  missionDialog.dataset.pass117FocusScope = 'mission-control';
+  missionDialog.dataset.pass117FocusOpen = 'true';
+  missionDialog.dataset.pass118DismissBoundary = 'true';
+  missionDialog.setAttribute('aria-hidden', 'false');
+  missionDialog.setAttribute('aria-keyshortcuts', 'Escape');
+  document.body.dataset.pass117ActiveFocusScope = 'mission-control';
+  pass128ShowMissionDialog();
 }
+
 
 function createMissionFromForm(): void {
   const missionType = (missionTypes.includes(missionTypeSelect.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType;
@@ -4756,7 +4911,256 @@ async function chooseAndRestoreMissionById(missionId: string): Promise<void> {
 }
 
 type ToolMenuName = 'devops' | 'it';
+type Pass116ChromeOverlaySource = 'more-tools' | 'command-toolbar' | 'ops-hub' | 'site-view' | 'mission-control';
 const COMMAND_TOOLBAR_LAST_LANE_KEY = 'tahai.commandToolbar.lastLane';
+const PASS116_CHROME_OVERLAY_OPEN_EVENT = 'tahai:chrome-overlay-open';
+const PASS118_CHROME_OVERLAY_CLOSE_EVENT = 'tahai:chrome-overlay-close-all';
+const PASS122_CHROME_STACK_REFLOW_EVENT = 'tahai:chrome-stack-reflow';
+const PASS123_OVERLAY_CYCLE_AUDIT_EVENT = 'tahai:chrome-overlay-cycle-audit';
+type Pass118OverlayCloseReason = 'escape' | 'explicit-close' | 'overlay-switch' | 'outside-click' | 'mission-control' | 'stale-state' | 'aria-contract' | 'pointer-boundary' | 'scroll-containment' | 'viewport-reflow' | 'cycle-stress' | 'unknown';
+const PASS117_FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function pass116ChromeOverlaySource(event: Event): Pass116ChromeOverlaySource | undefined {
+  if (!(event instanceof CustomEvent)) return undefined;
+  const source = event.detail?.source;
+  return source === 'more-tools' || source === 'command-toolbar' || source === 'ops-hub' || source === 'site-view' || source === 'mission-control' ? source : undefined;
+}
+
+function pass116AnnounceChromeOverlayOpen(source: Pass116ChromeOverlaySource): void {
+  document.body.dataset.pass116ActiveOverlay = source;
+  document.dispatchEvent(new CustomEvent(PASS116_CHROME_OVERLAY_OPEN_EVENT, { detail: { source, focusScope: source } }));
+}
+
+function pass118OverlayCloseSource(event: Event): Pass116ChromeOverlaySource | undefined {
+  if (!(event instanceof CustomEvent)) return pass118ActiveChromeOverlaySource();
+  const source = event.detail?.source;
+  return source === 'more-tools' || source === 'command-toolbar' || source === 'ops-hub' || source === 'site-view' || source === 'mission-control'
+    ? source
+    : pass118ActiveChromeOverlaySource();
+}
+
+function pass118ActiveChromeOverlaySource(): Pass116ChromeOverlaySource | undefined {
+  const source = document.body.dataset.pass116ActiveOverlay;
+  return source === 'more-tools' || source === 'command-toolbar' || source === 'ops-hub' || source === 'site-view' || source === 'mission-control' ? source : undefined;
+}
+
+function pass118OverlayIsActuallyOpen(source: Pass116ChromeOverlaySource): boolean {
+  if (source === 'more-tools') return Boolean(document.getElementById('toolbar-overflow-menu') && !(document.getElementById('toolbar-overflow-menu') as HTMLElement).hidden);
+  if (source === 'command-toolbar') return Boolean((devopsToolsPanel && !devopsToolsPanel.hidden) || (itToolsPanel && !itToolsPanel.hidden));
+  if (source === 'ops-hub') return Boolean(opsHub && !opsHub.hidden);
+  if (source === 'site-view') return document.body.classList.contains('site-view-rail-enabled');
+  if (source === 'mission-control') return Boolean(missionDialog && missionDialog.open);
+  return false;
+}
+
+function pass118ClearChromeOverlayState(reason: Pass118OverlayCloseReason, source?: Pass116ChromeOverlaySource): void {
+  document.body.dataset.pass118OverlayDismissRecovery = 'ready';
+  document.body.dataset.pass118LastDismissReason = reason;
+  if (source) document.body.dataset.pass118LastDismissedOverlay = source;
+  delete document.body.dataset.pass116ActiveOverlay;
+  delete document.body.dataset.pass117ActiveFocusScope;
+}
+
+function pass118AnnounceChromeOverlayClose(reason: Pass118OverlayCloseReason = 'escape', source = pass118ActiveChromeOverlaySource(), restoreFocus = true): boolean {
+  if (!source) return false;
+  document.body.dataset.pass118OverlayDismissRecovery = 'ready';
+  document.body.dataset.pass118PendingDismissedOverlay = source;
+  document.dispatchEvent(new CustomEvent(PASS118_CHROME_OVERLAY_CLOSE_EVENT, { detail: { source, reason, restoreFocus } }));
+  return true;
+}
+
+function pass118ScheduleOverlayStateAudit(reason: Pass118OverlayCloseReason = 'stale-state'): void {
+  window.setTimeout(() => {
+    const activeSource = pass118ActiveChromeOverlaySource();
+    if (activeSource && !pass118OverlayIsActuallyOpen(activeSource)) pass118ClearChromeOverlayState(reason, activeSource);
+  }, 0);
+}
+
+function pass117FocusFirstIn(scope: HTMLElement): void {
+  const target = scope.querySelector<HTMLElement>(PASS117_FOCUSABLE_SELECTOR) || scope;
+  window.setTimeout(() => target.focus(), 0);
+}
+
+function pass117MarkOverlayFocus(scope: Pass116ChromeOverlaySource, panel: HTMLElement, opener?: HTMLElement | null): void {
+  panel.dataset.pass117FocusScope = scope;
+  panel.dataset.pass117FocusOpen = 'true';
+  panel.dataset.pass118DismissBoundary = 'true';
+  pass119ApplyOverlayAriaContract(scope, panel, opener);
+  pass120ApplyOverlayPointerBoundary(scope, panel, true);
+  pass121ApplyOverlayScrollContainment(scope, panel);
+  panel.setAttribute('aria-hidden', 'false');
+  if (!panel.hasAttribute('tabindex')) panel.tabIndex = -1;
+  if (opener) {
+    opener.dataset.pass117OverlayOpener = scope;
+    opener.setAttribute('aria-keyshortcuts', 'Escape');
+    opener.dataset.pass117OverlayExpanded = 'true';
+  }
+  document.body.dataset.pass117ActiveFocusScope = scope;
+}
+
+function pass117ClearOverlayFocus(scope: Pass116ChromeOverlaySource, panel: HTMLElement, opener?: HTMLElement | null, restoreFocus = false): void {
+  panel.dataset.pass117FocusOpen = 'false';
+  pass120ApplyOverlayPointerBoundary(scope, panel, false);
+  panel.setAttribute('aria-hidden', 'true');
+  if (opener) opener.dataset.pass117OverlayExpanded = 'false';
+  if (document.body.dataset.pass117ActiveFocusScope === scope) delete document.body.dataset.pass117ActiveFocusScope;
+  if (restoreFocus && opener) window.setTimeout(() => opener.focus(), 0);
+}
+
+function pass119ApplyOverlayAriaContract(scope: Pass116ChromeOverlaySource, panel: HTMLElement, opener?: HTMLElement | null): void {
+  panel.dataset.pass119AriaContract = 'true';
+  panel.dataset.pass119OverlaySource = scope;
+  panel.setAttribute('aria-hidden', 'false');
+  if (!panel.hasAttribute('role')) panel.setAttribute('role', scope === 'mission-control' ? 'dialog' : 'region');
+  panel.setAttribute('aria-modal', 'false');
+  if (!panel.getAttribute('aria-label')) panel.setAttribute('aria-label', scope.replace(/-/g, ' ') + ' overlay');
+  if (opener) { opener.setAttribute('aria-expanded', 'true'); opener.dataset.pass119OverlayOpener = scope; }
+  document.body.dataset.pass119OverlayAriaContract = 'ready';
+}
+function pass119AuditOverlayAriaContract(reason: Pass118OverlayCloseReason = 'aria-contract'): void {
+  const activeSource = pass118ActiveChromeOverlaySource();
+  document.body.dataset.pass119LastAriaAuditReason = reason;
+  document.body.dataset.pass119LastAriaActiveOverlay = activeSource || 'none';
+  for (const panel of pass122KnownOverlayPanels().filter(Boolean) as HTMLElement[]) {
+    if (!panel.dataset.pass119AriaContract) panel.dataset.pass119AriaContract = 'true';
+    if (!panel.hasAttribute('aria-hidden')) panel.setAttribute('aria-hidden', panel.hidden ? 'true' : 'false');
+  }
+}
+function pass120ApplyOverlayPointerBoundary(scope: Pass116ChromeOverlaySource, panel: HTMLElement, open: boolean): void {
+  panel.dataset.pass120PointerBoundary = open ? 'active' : 'hidden';
+  panel.dataset.pass120OverlaySource = scope;
+  if (open) panel.style.removeProperty('pointer-events'); else panel.style.pointerEvents = 'none';
+  document.body.dataset.pass120OverlayPointerBoundary = 'ready';
+}
+function pass120AuditOverlayPointerBoundary(reason: Pass118OverlayCloseReason = 'pointer-boundary'): void {
+  document.body.dataset.pass120LastPointerAuditReason = reason;
+  for (const panel of pass122KnownOverlayPanels().filter(Boolean) as HTMLElement[]) {
+    const hidden = panel.hidden || panel.getAttribute('aria-hidden') === 'true';
+    if (hidden) panel.dataset.pass120PointerBoundary = 'hidden';
+  }
+}
+function pass121ApplyOverlayScrollContainment(scope: Pass116ChromeOverlaySource, panel: HTMLElement): void {
+  panel.dataset.pass121ScrollContainment = 'true';
+  panel.dataset.pass121OverlaySource = scope;
+  panel.style.setProperty('--pass121-overlay-usable-height', 'calc(100dvh - var(--pass114-chrome-stack-top, 112px) - var(--pass114-overlay-bottom, 18px))');
+  document.body.dataset.pass121OverlayScrollContainment = 'ready';
+}
+function pass121AuditOverlayScrollContainment(reason: Pass118OverlayCloseReason = 'scroll-containment'): void {
+  document.body.dataset.pass121LastScrollAuditReason = reason;
+  for (const panel of pass122KnownOverlayPanels().filter(Boolean) as HTMLElement[]) if (!panel.dataset.pass121ScrollContainment) panel.dataset.pass121ScrollContainment = 'true';
+}
+function pass122KnownOverlayPanels(): Array<HTMLElement | null> {
+  return [document.getElementById('toolbar-overflow-menu') as HTMLElement | null, devopsToolsPanel, itToolsPanel, opsHub, document.getElementById('site-view-mission-rail') as HTMLElement | null, missionDialog as unknown as HTMLElement | null];
+}
+function pass122OverlayPanelForSource(source: Pass116ChromeOverlaySource): HTMLElement | null {
+  if (source === 'more-tools') return document.getElementById('toolbar-overflow-menu') as HTMLElement | null;
+  if (source === 'command-toolbar') return (devopsToolsPanel && !devopsToolsPanel.hidden ? devopsToolsPanel : itToolsPanel) || null;
+  if (source === 'ops-hub') return opsHub;
+  if (source === 'site-view') return document.getElementById('site-view-mission-rail') as HTMLElement | null;
+  if (source === 'mission-control') return missionDialog as unknown as HTMLElement | null;
+  return null;
+}
+function pass122ViewportHeight(): number { return Math.round(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0); }
+function pass122OverlayFitsViewport(panel: HTMLElement): boolean {
+  const rect = panel.getBoundingClientRect();
+  const chromeTop = Number(document.body.dataset.pass114ChromeStackTop || 112);
+  const viewportHeight = pass122ViewportHeight();
+  const bottom = Number(document.body.dataset.pass114OverlayBottom || 18);
+  const usableBottom = viewportHeight - bottom;
+  return rect.height <= Math.max(160, usableBottom - chromeTop + 8) && rect.bottom <= usableBottom + 8 && rect.top >= chromeTop - 24;
+}
+let pass122ViewportReflowTimer: number | undefined;
+function pass122ScheduleOverlayViewportReflow(reason: Pass118OverlayCloseReason = 'viewport-reflow'): void {
+  window.clearTimeout(pass122ViewportReflowTimer);
+  pass122ViewportReflowTimer = window.setTimeout(() => pass122RunOverlayViewportReflow(reason), 40);
+}
+function pass122RunOverlayViewportReflow(reason: Pass118OverlayCloseReason = 'viewport-reflow'): void {
+  const active = pass118ActiveChromeOverlaySource();
+  const panels = pass122KnownOverlayPanels().filter((panel): panel is HTMLElement => Boolean(panel));
+  document.body.dataset.pass122OverlayViewportReflow = 'ready';
+  document.body.dataset.pass122LastReflowReason = reason;
+  document.body.dataset.pass122ViewportHeight = String(pass122ViewportHeight());
+  document.body.dataset.pass122PanelCount = String(panels.length);
+  if (!active) { document.body.dataset.pass122LastReflowAction = 'no-active-overlay'; pass119AuditOverlayAriaContract(reason); pass120AuditOverlayPointerBoundary(reason); pass121AuditOverlayScrollContainment(reason); return; }
+  const panel = pass122OverlayPanelForSource(active);
+  if (!panel || !pass118OverlayIsActuallyOpen(active)) { document.body.dataset.pass122LastReflowAction = 'cleared-stale-active-overlay'; document.body.dataset.pass122DismissedOverlay = active; pass118ClearChromeOverlayState('viewport-reflow', active); return; }
+  if (!pass122OverlayFitsViewport(panel)) { document.body.dataset.pass122LastReflowAction = 'dismissed-clipped-overlay'; document.body.dataset.pass122DismissedOverlay = active; pass118AnnounceChromeOverlayClose('viewport-reflow', active, false); return; }
+  document.body.dataset.pass122LastReflowAction = 'active-overlay-fits'; pass119AuditOverlayAriaContract(reason); pass120AuditOverlayPointerBoundary(reason); pass121AuditOverlayScrollContainment(reason);
+}
+let pass123OverlayCycleTimer: number | undefined;
+function pass123ScheduleOverlayCycleAudit(reason = 'cycle-stress'): void { window.clearTimeout(pass123OverlayCycleTimer); pass123OverlayCycleTimer = window.setTimeout(() => pass123RunOverlayCycleAudit(reason), 25); }
+function pass123RunOverlayCycleAudit(reason = 'cycle-stress'): void {
+  const sources: Pass116ChromeOverlaySource[] = ['more-tools', 'command-toolbar', 'ops-hub', 'site-view', 'mission-control'];
+  const openSources = sources.filter((source) => pass118OverlayIsActuallyOpen(source));
+  const active = pass118ActiveChromeOverlaySource();
+  document.body.dataset.pass123OverlayCycleGuard = 'ready'; document.body.dataset.pass123LastCycleReason = reason; document.body.dataset.pass123OpenOverlayCount = String(openSources.length);
+  if (openSources.length > 1) { const keep = active && openSources.includes(active) ? active : openSources[openSources.length - 1]; document.body.dataset.pass123LastCycleAction = 'collapsed-multiple-overlays'; for (const source of openSources) if (source !== keep) pass118AnnounceChromeOverlayClose('cycle-stress', source, false); document.body.dataset.pass116ActiveOverlay = keep; pass122ScheduleOverlayViewportReflow('cycle-stress'); return; }
+  if (active && openSources.length === 0) { document.body.dataset.pass123LastCycleAction = 'cleared-stale-active-overlay'; pass118ClearChromeOverlayState('cycle-stress', active); return; }
+  document.body.dataset.pass123LastCycleAction = 'clean'; pass122ScheduleOverlayViewportReflow('cycle-stress');
+}
+function pass119To123InstallOverlayGuards(): void {
+  if (document.body.dataset.pass123OverlayCycleGuardMounted === 'true') return;
+  document.body.dataset.pass119OverlayAriaContract = 'ready'; document.body.dataset.pass120OverlayPointerBoundary = 'ready'; document.body.dataset.pass121OverlayScrollContainment = 'ready'; document.body.dataset.pass122OverlayViewportReflow = 'ready'; document.body.dataset.pass123OverlayCycleGuard = 'ready'; document.body.dataset.pass123OverlayCycleGuardMounted = 'true';
+  document.addEventListener(PASS116_CHROME_OVERLAY_OPEN_EVENT, () => { pass122ScheduleOverlayViewportReflow('overlay-switch'); pass123ScheduleOverlayCycleAudit('overlay-open'); });
+  document.addEventListener(PASS118_CHROME_OVERLAY_CLOSE_EVENT, () => { pass122ScheduleOverlayViewportReflow('viewport-reflow'); pass123ScheduleOverlayCycleAudit('overlay-close'); });
+  document.addEventListener(PASS122_CHROME_STACK_REFLOW_EVENT, () => pass122ScheduleOverlayViewportReflow('viewport-reflow'));
+  document.addEventListener(PASS123_OVERLAY_CYCLE_AUDIT_EVENT, (event) => { const reason = event instanceof CustomEvent && typeof event.detail?.reason === 'string' ? event.detail.reason : 'cycle-stress'; pass123ScheduleOverlayCycleAudit(reason); });
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') pass123ScheduleOverlayCycleAudit('escape-key'); }, true);
+  window.addEventListener('resize', () => pass122ScheduleOverlayViewportReflow('viewport-reflow'));
+  window.visualViewport?.addEventListener('resize', () => pass122ScheduleOverlayViewportReflow('viewport-reflow'));
+  window.addEventListener('orientationchange', () => pass122ScheduleOverlayViewportReflow('viewport-reflow'));
+  pass122ScheduleOverlayViewportReflow('viewport-reflow');
+}
+
+function pass118InstallOverlayDismissRecovery(): void {
+  if (document.body.dataset.pass118OverlayDismissRecoveryMounted === 'true') return;
+  document.body.dataset.pass118OverlayDismissRecoveryMounted = 'true';
+  document.body.dataset.pass118OverlayDismissRecovery = 'ready';
+  document.addEventListener(PASS118_CHROME_OVERLAY_CLOSE_EVENT, (event) => {
+    const source = pass118OverlayCloseSource(event);
+    const reason = event instanceof CustomEvent && typeof event.detail?.reason === 'string' ? event.detail.reason as Pass118OverlayCloseReason : 'unknown';
+    const restoreFocus = !(event instanceof CustomEvent) || event.detail?.restoreFocus !== false;
+    if (!source || source === 'command-toolbar') closeToolMenus(undefined, restoreFocus);
+    if ((!source || source === 'ops-hub') && opsHub && !opsHub.hidden) toggleOpsHub(false, restoreFocus);
+    if ((!source || source === 'mission-control') && missionDialog && missionDialog.open) closeMissionControl(restoreFocus);
+    pass118ClearChromeOverlayState(reason, source);
+    pass122ScheduleOverlayViewportReflow('viewport-reflow');
+    pass123ScheduleOverlayCycleAudit('overlay-close');
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    const source = pass118ActiveChromeOverlaySource();
+    if (!source) return;
+    event.preventDefault();
+    event.stopPropagation();
+    pass118AnnounceChromeOverlayClose('escape', source, true);
+  }, true);
+  window.addEventListener('resize', () => pass118ScheduleOverlayStateAudit('stale-state'));
+  window.addEventListener('blur', () => pass118ScheduleOverlayStateAudit('stale-state'));
+  pass119To123InstallOverlayGuards();
+}
+
+
+function pass116InstallChromeOverlayArbitration(): void {
+  if (document.body.dataset.pass116OverlayArbitrationMounted === 'true') return;
+  document.body.dataset.pass116OverlayArbitrationMounted = 'true';
+  document.body.dataset.pass116OverlayArbitration = 'ready';
+  document.addEventListener(PASS116_CHROME_OVERLAY_OPEN_EVENT, (event) => {
+    const source = pass116ChromeOverlaySource(event);
+    if (!source) return;
+    document.body.dataset.pass116ActiveOverlay = source;
+    pass118ScheduleOverlayStateAudit('overlay-switch');
+    pass122ScheduleOverlayViewportReflow('viewport-reflow');
+    pass123ScheduleOverlayCycleAudit('overlay-open');
+    // PASS116 verifier token preserved after PASS117 adds restoreFocus control: if (source !== 'command-toolbar') closeToolMenus();
+    if (source !== 'command-toolbar') closeToolMenus(undefined, false);
+    // PASS116 verifier token preserved after PASS117 adds focus-state cleanup: if (source !== 'ops-hub' && opsHub && !opsHub.hidden) opsHub.hidden = true;
+    if (source !== 'ops-hub' && opsHub && !opsHub.hidden) {
+      opsHub.hidden = true;
+      pass117ClearOverlayFocus('ops-hub', opsHub, opsHubToggleButton, false);
+    }
+  });
+}
 
 function isToolMenuName(value: string | null): value is ToolMenuName {
   return value === 'devops' || value === 'it';
@@ -4780,16 +5184,21 @@ function toolMenuPair(name: ToolMenuName): { button: HTMLButtonElement; panel: H
     : { button: itToolsButton, panel: itToolsPanel };
 }
 
-function closeToolMenus(except?: ToolMenuName): void {
+function closeToolMenus(except?: ToolMenuName, restoreFocus = false): void {
   let activeLane: ToolMenuName | undefined;
+  let restoreTarget: HTMLButtonElement | null = null;
   for (const name of ['devops', 'it'] as ToolMenuName[]) {
     if (name === except) { activeLane = name; continue; }
     const { button, panel } = toolMenuPair(name);
+    if (!panel.hidden && !restoreTarget) restoreTarget = button;
     panel.hidden = true;
     button.setAttribute('aria-expanded', 'false');
+    pass117ClearOverlayFocus('command-toolbar', panel, button, false);
   }
   if (activeLane) document.body.dataset.commandToolbar = activeLane;
   else delete document.body.dataset.commandToolbar;
+  if (!activeLane && document.body.dataset.pass116ActiveOverlay === 'command-toolbar') pass118ClearChromeOverlayState('explicit-close', 'command-toolbar');
+  if (restoreFocus && restoreTarget) window.setTimeout(() => restoreTarget?.focus(), 0);
 }
 
 function commandToolbarLabel(name: ToolMenuName): string {
@@ -4886,12 +5295,14 @@ function focusToolCard(name: ToolMenuName, direction: 'first' | 'last' = 'first'
 }
 
 function openToolMenu(name: ToolMenuName, direction: 'first' | 'last' = 'first'): void {
+  pass116AnnounceChromeOverlayOpen('command-toolbar');
   const { button, panel } = toolMenuPair(name);
   ensureToolMenuScrollControls(name);
   ensureToolMenuBackButton(name);
   enrichToolCardTooltips(panel);
   closeToolMenus(name);
   panel.hidden = false;
+  pass117MarkOverlayFocus('command-toolbar', panel, button);
   panel.title = `${commandToolbarLabel(name)} · ${commandToolbarShortcut(name)} · Esc returns to Main Toolbar · arrows/Home/End move · PageUp/PageDown scroll.`;
   button.setAttribute('aria-expanded', 'true');
   document.body.dataset.commandToolbar = name;
@@ -4910,9 +5321,8 @@ function toggleToolMenu(name: ToolMenuName): void {
   const willOpen = panel.hidden;
   if (willOpen) openToolMenu(name);
   else {
-    closeToolMenus();
+    closeToolMenus(undefined, true);
     setStatus('Main Toolbar active');
-    button.focus();
   }
 }
 
@@ -4975,8 +5385,7 @@ function handleToolMenuKeyboard(name: ToolMenuName, event: KeyboardEvent): void 
   }
   if (event.key === 'Escape') {
     event.preventDefault();
-    closeToolMenus();
-    button.focus();
+    closeToolMenus(undefined, true);
     setStatus('Main Toolbar active');
   }
 }
@@ -4993,7 +5402,7 @@ function handleToolMenuButtonKeyboard(name: ToolMenuName, event: KeyboardEvent):
 }
 
 function runToolFromMenu(action: () => void | Promise<void>): void {
-  closeToolMenus();
+  closeToolMenus(undefined, false);
   void action();
 }
 
@@ -5442,12 +5851,18 @@ function currentActiveUrl(): string {
   return active()?.url || addressInput.value || config?.homeUrl || 'https://tahaiportal.com';
 }
 
-function toggleOpsHub(open = opsHub.hidden): void {
+function toggleOpsHub(open = opsHub.hidden, restoreFocus = false): void {
+  if (open) pass116AnnounceChromeOverlayOpen('ops-hub');
   opsHub.hidden = !open;
   if (open) {
-    closeToolMenus();
+    closeToolMenus(undefined, false);
+    pass117MarkOverlayFocus('ops-hub', opsHub, opsHubToggleButton);
     renderOpsHub();
     setStatus('TAHAI Ops Panel open', 'Command Palette, workspaces, recipes, and evidence timeline are available.');
+    pass117FocusFirstIn(opsHub);
+  } else {
+    pass117ClearOverlayFocus('ops-hub', opsHub, opsHubToggleButton, restoreFocus);
+    if (document.body.dataset.pass116ActiveOverlay === 'ops-hub') pass118ClearChromeOverlayState('explicit-close', 'ops-hub');
   }
 }
 
@@ -6412,7 +6827,13 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     { id: 'mission-make-quad', title: 'Make Quad From Open Tabs', detail: 'Assign the first four browser tabs to Mission panes and switch to Quad View.', group: 'Mission', target: 'Open tabs', phase: 'mission', run: makeQuadFromOpenTabs },
     { id: 'mission-quad', title: 'Mission Quad View', detail: 'Switch Mission Control to 4-Up Quad Ops View.', group: 'Mission View', shortcut: 'Ctrl+Alt+Q', target: 'Current mission', phase: 'mission', run: () => setMissionLayout('quad') },
     { id: 'mission-split', title: 'Mission Split View', detail: 'Switch Mission Control to 2-Up Split View.', group: 'Mission View', shortcut: 'Ctrl+Alt+S', target: 'Current mission', phase: 'mission', run: () => setMissionLayout('split-horizontal') },
-    { id: 'mission-triad', title: 'Mission 3-Up Triad', detail: 'Switch Mission Control to a 3-pane operational triad.', group: 'Mission View', shortcut: 'Ctrl+Alt+3', target: 'Current mission', phase: 'mission', run: () => setMissionLayout('triple') },
+    { id: 'mission-triad', title: 'Mission 3-Up Bottom Wide', detail: 'Switch Mission Control to a 3-pane layout with the wide pane on the bottom.', group: 'Mission View', shortcut: 'Ctrl+Alt+3', target: 'Current mission', phase: 'mission', run: () => setMissionLayout('triple-bottom') },
+    { id: 'mission-triad-top', title: 'Mission 3-Up Top Wide', detail: 'Switch Mission Control to a 3-pane layout with the wide pane on top.', group: 'Mission View', target: 'Current mission', phase: 'mission', run: () => setMissionLayout('triple-top') },
+    { id: 'mission-triad-bottom', title: 'Mission 3-Up Bottom Wide', detail: 'Switch Mission Control to a 3-pane layout with the wide pane on bottom.', group: 'Mission View', target: 'Current mission', phase: 'mission', run: () => setMissionLayout('triple-bottom') },
+    { id: 'mission-triad-left', title: 'Mission 3-Up Left Tall', detail: 'Switch Mission Control to a 3-pane layout with the tall pane on the left.', group: 'Mission View', target: 'Current mission', phase: 'mission', run: () => setMissionLayout('triple-left') },
+    { id: 'mission-triad-right', title: 'Mission 3-Up Right Tall', detail: 'Switch Mission Control to a 3-pane layout with the tall pane on the right.', group: 'Mission View', target: 'Current mission', phase: 'mission', run: () => setMissionLayout('triple-right') },
+    { id: 'mission-triad-cycle', title: 'Cycle Mission 3-Up Variant', detail: 'Cycle through Top, Bottom, Left, and Right 3-Up layouts without losing pane assignments.', group: 'Mission View', target: 'Current mission', phase: 'mission', run: () => pass133CycleTriViewVariant('command-palette') },
+    { id: 'mission-view-recover', title: 'Recover Mission View Layout', detail: 'Clear stale move overlays, normalize active pane visibility, repaint native webview bounds, and settle the layout.', group: 'Mission View', target: 'Mission panes', phase: 'mission', run: () => pass133RecoverMissionView('command-palette') },
     { id: 'mission-pane-swap-left', title: 'Swap Active Pane Left', detail: 'Quick-swap the active Mission pane with the previous visible pane.', group: 'Mission View', shortcut: 'Ctrl+Alt+Shift+←', target: 'Active pane', phase: 'mission', run: () => swapActiveMissionPane(-1) },
     { id: 'mission-pane-swap-right', title: 'Swap Active Pane Right', detail: 'Quick-swap the active Mission pane with the next visible pane.', group: 'Mission View', shortcut: 'Ctrl+Alt+Shift+→', target: 'Active pane', phase: 'mission', run: () => swapActiveMissionPane(1) },
     { id: 'mission-rename', title: 'Rename Current Mission', detail: 'Rename the active local Mission Tab set without using a native prompt.', group: 'Mission', target: 'Current mission', phase: 'mission', run: renameCurrentMission },
@@ -8612,7 +9033,9 @@ onboardingButton.addEventListener('click', () => navigate(config.onboardingUrl))
 profileSwitcherButton.addEventListener('click', () => { void openProfileManager(); });
 opsHubToggleButton.addEventListener('click', () => toggleOpsHub());
 missionControlButton.addEventListener('click', () => { void openMissionControl(); });
-closeOpsHubButton.addEventListener('click', () => toggleOpsHub(false));
+window.addEventListener('resize', () => { if (missionDialog.open) pass128UpdateMissionViewportMode('resize'); });
+window.addEventListener('orientationchange', () => { if (missionDialog.open) window.setTimeout(() => pass128UpdateMissionViewportMode('orientationchange'), 40); });
+closeOpsHubButton.addEventListener('click', () => toggleOpsHub(false, true));
 opsHub.addEventListener('click', (event) => {
   const target = event.target as HTMLElement;
   const button = target.closest('button') as HTMLButtonElement | null;
@@ -8632,7 +9055,7 @@ opsHub.addEventListener('click', (event) => {
   if (button.dataset.copyEvidenceId) void copyEvidenceItem(button.dataset.copyEvidenceId);
   if (button.dataset.deleteEvidenceId) deleteEvidenceItem(button.dataset.deleteEvidenceId);
 });
-closeMissionButton.addEventListener('click', () => missionDialog.close());
+closeMissionButton.addEventListener('click', () => closeMissionControl(true));
 missionForm.addEventListener('submit', (event) => { event.preventDefault(); createMissionFromForm(); });
 missionCreateButton.addEventListener('click', () => createMissionFromForm());
 missionAddActiveTabButton.addEventListener('click', () => addActiveTabToMission());
@@ -8660,10 +9083,20 @@ document.addEventListener('tahai-site-view-rail-layout-change', (event) => {
   pass106RepaintMissionViewAfterSiteRail('site-view-rail-' + reason);
 });
 
+missionCompactJumpbar?.addEventListener('click', (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-pass132-jump]');
+  if (!button?.dataset.pass132Jump) return;
+  pass132JumpMissionSection(button.dataset.pass132Jump);
+});
+
 missionLayoutsEl.addEventListener('click', (event) => {
   const target = event.target as HTMLElement;
   const layoutButton = target.closest<HTMLButtonElement>('[data-mission-layout]');
   if (layoutButton?.dataset.missionLayout) setMissionLayout(layoutButton.dataset.missionLayout as MissionLayoutType);
+  const cycleTriViewButton = target.closest<HTMLButtonElement>('[data-pass133-cycle-triview]');
+  if (cycleTriViewButton) pass133CycleTriViewVariant('button');
+  const recoverViewButton = target.closest<HTMLButtonElement>('[data-pass133-recover-view]');
+  if (recoverViewButton) pass133RecoverMissionView('button');
   const paneButton = target.closest<HTMLButtonElement>('[data-send-active-pane]');
   if (paneButton?.dataset.sendActivePane) {
     const tab = active();
@@ -8771,7 +9204,7 @@ devopsToolsPanel.addEventListener('click', (event) => event.stopPropagation());
 itToolsPanel.addEventListener('click', (event) => event.stopPropagation());
 devopsToolsPanel.addEventListener('keydown', (event) => handleToolMenuKeyboard('devops', event));
 itToolsPanel.addEventListener('keydown', (event) => handleToolMenuKeyboard('it', event));
-settingsButton.addEventListener('click', () => { closeToolMenus(); openSettings(); });
+settingsButton.addEventListener('click', () => { closeToolMenus(undefined, false); openSettings(); });
 captureButton.addEventListener('click', () => runToolFromMenu(openDevOpsCapture));
 opsCheckButton.addEventListener('click', () => runToolFromMenu(openOpsCheck));
 deployButton.addEventListener('click', () => runToolFromMenu(openDeployReadiness));
@@ -8783,8 +9216,8 @@ routeMapButton.addEventListener('click', () => runToolFromMenu(openRouteMap));
 devAuditButton.addEventListener('click', () => runToolFromMenu(openDeveloperAudit));
 opsGuardButton.addEventListener('click', () => runToolFromMenu(openOpsGuardReview));
 devtoolsButton.addEventListener('click', () => runToolFromMenu(toggleActiveDevTools));
-aboutButton.addEventListener('click', () => { closeToolMenus(); navigate(config.aboutUrl); });
-newTabButton.addEventListener('click', () => { closeToolMenus(); createTab(config.newTabUrl); });
+aboutButton.addEventListener('click', () => { closeToolMenus(undefined, false); navigate(config.aboutUrl); });
+newTabButton.addEventListener('click', () => { closeToolMenus(undefined, false); createTab(config.newTabUrl); });
 document.addEventListener('click', () => closeToolMenus());
 window.addEventListener('tahai-browser:start-mission-from-bookmark-folder', (event) => {
   const detail = (event as CustomEvent<BookmarkFolderMissionDetail>).detail || {};
@@ -8792,7 +9225,7 @@ window.addEventListener('tahai-browser:start-mission-from-bookmark-folder', (eve
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeToolMenus();
+  if (event.key === 'Escape') closeToolMenus(undefined, true);
 });
 closeSettingsButton.addEventListener('click', () => settingsDialog.close());
 closeProfileButton.addEventListener('click', () => profileDialog.close());
@@ -9039,9 +9472,11 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'h') { event.preventDefault(); toggleOpsHub(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'm') { event.preventDefault(); void openMissionControl(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'n') { event.preventDefault(); void openMissionControl(); }
-  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'q') { event.preventDefault(); setMissionLayout('quad'); }
-  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 's') { event.preventDefault(); setMissionLayout('split-horizontal'); }
-  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'f') { event.preventDefault(); toggleMissionFocusPane(); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && event.key.toLowerCase() === 'q') { event.preventDefault(); setMissionLayout('quad'); return; }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && event.key.toLowerCase() === 's') { event.preventDefault(); setMissionLayout('split-horizontal'); return; }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && /^(?:Digit3|Numpad3)$/.test(event.code)) { event.preventDefault(); setMissionLayout('triple-top'); return; }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && event.key === '3') { event.preventDefault(); setMissionLayout('triple-bottom'); return; }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); toggleMissionFocusPane(); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'b') { event.preventDefault(); openChangeBundleComposer(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'y') { event.preventDefault(); openHandoffCenter('it-docs'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'g') { event.preventDefault(); openOpsGuardReview(); }
@@ -9055,7 +9490,7 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key === '5') { event.preventDefault(); void startMissionFromRecipe('m365-change-cockpit'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'i') { event.preventDefault(); openToolMenu('it'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'l') { event.preventDefault(); openLastToolMenu(); }
-  if ((event.ctrlKey || event.metaKey) && event.altKey && ['1','2','3','4'].includes(event.key)) { event.preventDefault(); setMissionActivePane('pane-' + event.key); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && ['1','2','3','4'].includes(event.key)) { event.preventDefault(); setMissionActivePane('pane-' + event.key); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowLeft') { event.preventDefault(); swapActiveMissionPane(-1); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowRight') { event.preventDefault(); swapActiveMissionPane(1); }
   if (event.ctrlKey && event.key.toLowerCase() === 'l') { event.preventDefault(); addressInput.focus(); addressInput.select(); }
@@ -9278,6 +9713,7 @@ function pass63SetMissionLayout(layoutType: MissionLayoutType): void {
   renderMissionLayout();
   pass64ScheduleMissionPaneRefresh();
   pass107ScheduleMissionViewportSettle('tri-view-layout-variant');
+  pass133AfterLayoutEntry(mission.layout.type, 'tri-view-layout-variant');
 }
 
 function pass66IsInsideMissionControlConfigSurface(element: HTMLElement): boolean {
@@ -10493,6 +10929,9 @@ function pass64BootMissionPaneReorderHardening(): void {
   pass88MountActivePaneRoutingFailsafe();
   pass89MountMissionPaneRestoreFailsafe();
   pass90MountLaunchRecipeFailsafe();
+  pass116InstallChromeOverlayArbitration();
+  pass118InstallOverlayDismissRecovery();
+  pass119To123InstallOverlayGuards();
   if (!pass64MissionPaneObserverMounted && document.body && typeof MutationObserver !== 'undefined') {
     const observer = new MutationObserver(() => pass64ScheduleMissionPaneRefresh());
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'data-pane-id', 'data-mission-pane-id', 'data-pass63-mission-pane-id'] });

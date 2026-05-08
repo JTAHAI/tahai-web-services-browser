@@ -26,12 +26,18 @@ const requiredCssTokens = [
   'opacity: 1 !important',
   'cursor: grab !important'
 ];
-const releaseChainToken = 'npm run verify:pass-73-mission-view-direct-webview-bounds && npm run build';
+const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const pass73Token = 'npm run verify:pass-73-mission-view-direct-webview-bounds';
+const finalBuildToken = 'npm run build';
 const missing = [];
 for (const token of requiredAppTokens) if (!app.includes(token)) missing.push('app:' + token);
 for (const token of requiredCssTokens) if (!css.includes(token)) missing.push('css:' + token);
 if (!pkg.scripts?.['verify:pass-73-mission-view-direct-webview-bounds']) missing.push('script:verify:pass-73-mission-view-direct-webview-bounds');
-if (!pkg.scripts?.['verify:release-blockers']?.includes(releaseChainToken)) missing.push('release-chain:' + releaseChainToken);
+const pass73Index = releaseBlockers.indexOf(pass73Token);
+const buildIndex = releaseBlockers.lastIndexOf(finalBuildToken);
+if (pass73Index < 0) missing.push('release-chain:' + pass73Token);
+if (buildIndex < 0) missing.push('release-chain:' + finalBuildToken);
+if (pass73Index >= 0 && buildIndex >= 0 && pass73Index > buildIndex) missing.push('release-chain:PASS73 must run before final build');
 if (missing.length) {
   console.error('PASS73_MISSION_VIEW_DIRECT_WEBVIEW_BOUNDS_FAIL=' + missing.join('|'));
   process.exit(1);

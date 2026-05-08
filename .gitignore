@@ -9,6 +9,17 @@ build-output/
 artifacts/
 coverage/
 
+
+# Generated installers / release packages
+*.zip
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.blockmap
+
 # Runtime/user data
 profiles/
 user-data/

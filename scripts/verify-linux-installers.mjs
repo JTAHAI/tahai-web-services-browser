@@ -7,7 +7,24 @@ const releaseDir = path.join(root, 'release');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const errors = [];
 
+const normalizeTarget = (value) => {
+  const token = String(value || '').trim().toLowerCase();
+  if (!token) return null;
+  if (token === 'appimage' || token === 'app-image') return 'AppImage';
+  if (token === 'deb' || token === 'debian') return 'deb';
+  if (token === 'rpm' || token === 'fedora') return 'rpm';
+  errors.push(`unknown Linux package verifier target: ${value}`);
+  return null;
+};
+
+const requestedTargets = process.argv.slice(2)
+  .map(normalizeTarget)
+  .filter(Boolean);
+
+const targetSet = new Set(requestedTargets.length ? requestedTargets : ['AppImage', 'deb', 'rpm']);
+
 // PASS68 artifact-token guard: x86_64\.AppImage amd64\.deb x86_64\.rpm
+// PASS125 target-aware verifier: package:linux:rpm validates rpm-only builds without requiring AppImage/deb.
 const expected = [
   {
     label: 'AppImage',
@@ -30,7 +47,11 @@ const expected = [
       new RegExp(`TAHAI-Web-Services-Browser-${pkg.version}-x86_64\\.rpm$`),
     ],
   },
-];
+].filter((target) => targetSet.has(target.label));
+
+if (!expected.length) {
+  errors.push('no Linux package targets selected for verification');
+}
 
 if (!fs.existsSync(releaseDir)) {
   errors.push('release directory does not exist');
@@ -60,4 +81,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`TAHAI_LINUX_INSTALLERS=OK version=${pkg.version}`);
+console.log(`TAHAI_LINUX_INSTALLERS=OK version=${pkg.version} targets=${[...targetSet].join(',')}`);

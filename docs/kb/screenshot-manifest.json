@@ -1,0 +1,416 @@
+{
+  "schemaVersion": 1,
+  "sourcePass": "PASS130",
+  "title": "TAHAI Browser KB Screenshot Intake Manifest",
+  "policy": "Sanitized user-facing PNG screenshots only. No runtime browser profiles, customer data, secrets, tokens, cloud credentials, generated installers, dist, release, node_modules, or local data.",
+  "screenshots": [
+    {
+      "order": 1,
+      "id": "getting-started",
+      "title": "Getting started",
+      "captureTitle": "Main browser window / normal mode",
+      "fileName": "01-main-browser-normal-mode.png",
+      "docsTarget": "docs/kb/screenshots/01-main-browser-normal-mode.png",
+      "appTarget": "browser/onboarding/screenshots/01-main-browser-normal-mode.png",
+      "article": "docs/kb/articles/getting-started.md",
+      "priority": "required",
+      "capturePrompt": "Capture the full browser window in normal mode with the tab strip, address bar, toolbar controls, and page area visible.",
+      "mustShow": [
+        "Tabs and address bar",
+        "Back/forward/reload controls",
+        "Guide / KB or its compact Guide anchor",
+        "No modal dialogs covering the page"
+      ],
+      "avoid": [
+        "Personal bookmarks with sensitive names",
+        "Signed-in account details",
+        "Private URLs or customer data"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 2,
+      "id": "guide-kb",
+      "title": "Guide / Knowledge Base",
+      "captureTitle": "Guide / Knowledge Base entry point",
+      "fileName": "02-guide-kb-entry.png",
+      "docsTarget": "docs/kb/screenshots/02-guide-kb-entry.png",
+      "appTarget": "browser/onboarding/screenshots/02-guide-kb-entry.png",
+      "article": "docs/kb/articles/guide-kb.md",
+      "priority": "required",
+      "capturePrompt": "Capture the Guide / KB entry point. At a narrow width, include the compact Guide anchor next to More Tools if possible.",
+      "mustShow": [
+        "Guide / KB button or compact Guide anchor",
+        "More Tools state if the window is narrow",
+        "Enough toolbar context to show where the user clicks"
+      ],
+      "avoid": [
+        "Private profile details",
+        "Unneeded page content"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 3,
+      "id": "mission-control",
+      "title": "Mission Control",
+      "captureTitle": "Mission Control open",
+      "fileName": "03-mission-control-open.png",
+      "docsTarget": "docs/kb/screenshots/03-mission-control-open.png",
+      "appTarget": "browser/onboarding/screenshots/03-mission-control-open.png",
+      "article": "docs/kb/articles/mission-control.md",
+      "priority": "required",
+      "capturePrompt": "Open Mission Control and capture the full window with the Mission panel, layout controls, and workbench area visible.",
+      "mustShow": [
+        "Mission Control modal or panel open",
+        "Mission layout controls",
+        "Workbench/content area",
+        "Small-window compact behavior if testing a narrow window"
+      ],
+      "avoid": [
+        "Real customer mission names",
+        "Private ticket/project details"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 4,
+      "id": "mission-tabs",
+      "title": "Mission Tabs",
+      "captureTitle": "Mission Tabs",
+      "fileName": "04-mission-tabs.png",
+      "docsTarget": "docs/kb/screenshots/04-mission-tabs.png",
+      "appTarget": "browser/onboarding/screenshots/04-mission-tabs.png",
+      "article": "docs/kb/articles/mission-tabs.md",
+      "priority": "required",
+      "capturePrompt": "Capture a mission with tabs added and at least one role label visible.",
+      "mustShow": [
+        "Selected mission name",
+        "Mission tab list or chips",
+        "Role selector or role labels",
+        "Local save/restore context if visible"
+      ],
+      "avoid": [
+        "Production credentials",
+        "Customer-specific admin console data"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 5,
+      "id": "two-up-split-view",
+      "title": "2-Up Split View",
+      "captureTitle": "2-Up Split View",
+      "fileName": "05-two-up-split-view.png",
+      "docsTarget": "docs/kb/screenshots/05-two-up-split-view.png",
+      "appTarget": "browser/onboarding/screenshots/05-two-up-split-view.png",
+      "article": "docs/kb/articles/two-up-split-view.md",
+      "priority": "required",
+      "capturePrompt": "Capture two panes with visibly different safe pages, such as docs plus a launch page.",
+      "mustShow": [
+        "Two visible panes",
+        "Active pane marker",
+        "Pane labels or controls",
+        "Address/navigation context"
+      ],
+      "avoid": [
+        "Sites with private sessions",
+        "Any secret-bearing console pages"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 6,
+      "id": "three-up-top",
+      "title": "3-Up Top",
+      "captureTitle": "3-Up Top",
+      "fileName": "06-three-up-top.png",
+      "docsTarget": "docs/kb/screenshots/06-three-up-top.png",
+      "appTarget": "browser/onboarding/screenshots/06-three-up-top.png",
+      "article": "docs/kb/articles/three-up-top.md",
+      "priority": "required",
+      "capturePrompt": "Capture the tri-view variant with one wide pane on top and two smaller panes beneath it.",
+      "mustShow": [
+        "One wide top pane",
+        "Two lower panes",
+        "3-Up Top control or command result if visible",
+        "Active pane marker"
+      ],
+      "avoid": [
+        "Confusing 3-Up Bottom layout",
+        "Overlapping pane chrome"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 7,
+      "id": "three-up-bottom",
+      "title": "3-Up Bottom",
+      "captureTitle": "3-Up Bottom",
+      "fileName": "07-three-up-bottom.png",
+      "docsTarget": "docs/kb/screenshots/07-three-up-bottom.png",
+      "appTarget": "browser/onboarding/screenshots/07-three-up-bottom.png",
+      "article": "docs/kb/articles/three-up-bottom.md",
+      "priority": "required",
+      "capturePrompt": "Capture the tri-view variant with two smaller panes above and one wide pane on the bottom.",
+      "mustShow": [
+        "Two upper panes",
+        "One wide bottom pane",
+        "3-Up Bottom control or command result if visible",
+        "Active pane marker"
+      ],
+      "avoid": [
+        "Confusing 3-Up Top layout",
+        "Overlapping pane chrome"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 8,
+      "id": "quad-view",
+      "title": "Quad View",
+      "captureTitle": "Quad View",
+      "fileName": "08-quad-view.png",
+      "docsTarget": "docs/kb/screenshots/08-quad-view.png",
+      "appTarget": "browser/onboarding/screenshots/08-quad-view.png",
+      "article": "docs/kb/articles/quad-view.md",
+      "priority": "required",
+      "capturePrompt": "Capture four panes in the 2x2 operator layout with the active pane clearly visible.",
+      "mustShow": [
+        "Four panes",
+        "Pane dividers",
+        "Active pane marker",
+        "No clipped critical controls"
+      ],
+      "avoid": [
+        "Tiny unreadable panes",
+        "Private operational dashboards"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 9,
+      "id": "active-pane-routing",
+      "title": "Active pane routing",
+      "captureTitle": "Active pane focus state",
+      "fileName": "09-active-pane-focus.png",
+      "docsTarget": "docs/kb/screenshots/09-active-pane-focus.png",
+      "appTarget": "browser/onboarding/screenshots/09-active-pane-focus.png",
+      "article": "docs/kb/articles/active-pane-routing.md",
+      "priority": "required",
+      "capturePrompt": "Capture a Mission View where the focused pane is visibly marked before navigation.",
+      "mustShow": [
+        "Focused pane marker",
+        "At least one other non-focused pane",
+        "Browser navigation controls",
+        "Pane title or URL context"
+      ],
+      "avoid": [
+        "Ambiguous active pane state",
+        "Console noise or errors"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 10,
+      "id": "runbook-rail",
+      "title": "Runbook Rail",
+      "captureTitle": "Runbook Rail",
+      "fileName": "10-runbook-rail.png",
+      "docsTarget": "docs/kb/screenshots/10-runbook-rail.png",
+      "appTarget": "browser/onboarding/screenshots/10-runbook-rail.png",
+      "article": "docs/kb/articles/runbook-rail.md",
+      "priority": "recommended",
+      "capturePrompt": "Open the Runbook Rail and capture checklist, notes, or rollback fields with safe placeholder text.",
+      "mustShow": [
+        "Runbook Rail open",
+        "Checklist or notes area",
+        "Mission context",
+        "No secrets in sample notes"
+      ],
+      "avoid": [
+        "Real incident notes",
+        "Names, phone numbers, or ticket details"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 11,
+      "id": "command-center",
+      "title": "Operator Command Center",
+      "captureTitle": "Operator Command Center",
+      "fileName": "11-command-center.png",
+      "docsTarget": "docs/kb/screenshots/11-command-center.png",
+      "appTarget": "browser/onboarding/screenshots/11-command-center.png",
+      "article": "docs/kb/articles/command-center.md",
+      "priority": "recommended",
+      "capturePrompt": "Open Ctrl+K / Operator Command Center and capture layout, mission, and tool commands.",
+      "mustShow": [
+        "Command search or palette",
+        "At least several commands",
+        "Mission or view commands",
+        "Keyboard-first context"
+      ],
+      "avoid": [
+        "Commands exposing private paths",
+        "Debug-only internals"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 12,
+      "id": "devops-tools",
+      "title": "DevOps tools",
+      "captureTitle": "DevOps tools lane",
+      "fileName": "12-devops-tools.png",
+      "docsTarget": "docs/kb/screenshots/12-devops-tools.png",
+      "appTarget": "browser/onboarding/screenshots/12-devops-tools.png",
+      "article": "docs/kb/articles/devops-tools.md",
+      "priority": "recommended",
+      "capturePrompt": "Open the DevOps tools lane and capture the visible tool cards.",
+      "mustShow": [
+        "DevOps lane open",
+        "Capture/Ops Check/Deploy/Routes/Dev Audit/Ops Guard/DevTools if visible",
+        "No vertical clipping"
+      ],
+      "avoid": [
+        "Private repository or deployment data",
+        "Unreviewed private operational data"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 13,
+      "id": "it-tools",
+      "title": "IT tools",
+      "captureTitle": "IT tools lane",
+      "fileName": "13-it-tools.png",
+      "docsTarget": "docs/kb/screenshots/13-it-tools.png",
+      "appTarget": "browser/onboarding/screenshots/13-it-tools.png",
+      "article": "docs/kb/articles/it-tools.md",
+      "priority": "recommended",
+      "capturePrompt": "Open the IT tools lane and capture IT Card, Endpoint, Triage, or Secret Boundary cards.",
+      "mustShow": [
+        "IT lane open",
+        "Visible IT/admin cards",
+        "Safe placeholder data only"
+      ],
+      "avoid": [
+        "Device serials, private IPs, user data",
+        "Unreviewed private operational data"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 14,
+      "id": "site-view-rail",
+      "title": "Site View rail",
+      "captureTitle": "Site View rail",
+      "fileName": "14-site-view-rail.png",
+      "docsTarget": "docs/kb/screenshots/14-site-view-rail.png",
+      "appTarget": "browser/onboarding/screenshots/14-site-view-rail.png",
+      "article": "docs/kb/articles/site-view-rail.md",
+      "priority": "recommended",
+      "capturePrompt": "Open Site View beside a safe page or Mission View and capture how site context is shown.",
+      "mustShow": [
+        "Site View rail open",
+        "Page/site context",
+        "Pane or tab context if applicable"
+      ],
+      "avoid": [
+        "Private site names or admin portals",
+        "Unreviewed private operational data"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 15,
+      "id": "evidence-export",
+      "title": "Evidence and export",
+      "captureTitle": "Evidence and export",
+      "fileName": "15-evidence-export.png",
+      "docsTarget": "docs/kb/screenshots/15-evidence-export.png",
+      "appTarget": "browser/onboarding/screenshots/15-evidence-export.png",
+      "article": "docs/kb/articles/evidence-export.md",
+      "priority": "recommended",
+      "capturePrompt": "Capture the evidence/export UI using safe demo content and the redaction/preview flow if available.",
+      "mustShow": [
+        "Evidence or export panel",
+        "Preview/export action",
+        "Redaction/safety language if visible",
+        "Safe demo notes"
+      ],
+      "avoid": [
+        "Tokens, cookies, auth headers, private keys, customer screenshots",
+        "Unreviewed private operational data"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 16,
+      "id": "downloads-installers",
+      "title": "Downloads and installers",
+      "captureTitle": "Downloads and installers",
+      "fileName": "16-downloads-installers.png",
+      "docsTarget": "docs/kb/screenshots/16-downloads-installers.png",
+      "appTarget": "browser/onboarding/screenshots/16-downloads-installers.png",
+      "article": "docs/kb/articles/downloads-installers.md",
+      "priority": "recommended",
+      "capturePrompt": "Capture the downloads or installer surface showing package choices and checksum context.",
+      "mustShow": [
+        "Windows/Linux package options if visible",
+        "Checksum or verification language",
+        "Signing/preview posture if visible"
+      ],
+      "avoid": [
+        "Local filesystem paths",
+        "Unsigned installer warning screens unless intentionally documenting them"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 17,
+      "id": "settings-security",
+      "title": "Settings, profiles, and safety",
+      "captureTitle": "Settings, profiles, and safety",
+      "fileName": "17-settings-security.png",
+      "docsTarget": "docs/kb/screenshots/17-settings-security.png",
+      "appTarget": "browser/onboarding/screenshots/17-settings-security.png",
+      "article": "docs/kb/articles/settings-security.md",
+      "priority": "recommended",
+      "capturePrompt": "Capture settings or profile safety controls without showing private profile data.",
+      "mustShow": [
+        "Settings panel/page",
+        "Profile or safety/privacy controls",
+        "Clear non-secret sample values"
+      ],
+      "avoid": [
+        "Real profile names, synced accounts, cookies, local paths",
+        "Unreviewed private operational data"
+      ],
+      "status": "awaiting-user-screenshot"
+    },
+    {
+      "order": 18,
+      "id": "troubleshooting-states",
+      "title": "Troubleshooting states",
+      "captureTitle": "Empty/error/blocked state",
+      "fileName": "18-error-empty-blocked-state.png",
+      "docsTarget": "docs/kb/screenshots/18-error-empty-blocked-state.png",
+      "appTarget": "browser/onboarding/screenshots/18-error-empty-blocked-state.png",
+      "article": "docs/kb/articles/troubleshooting-states.md",
+      "priority": "recommended",
+      "capturePrompt": "Capture one useful troubleshooting state such as disabled integration, offline state, blocked unsafe URL, redaction warning, or empty state.",
+      "mustShow": [
+        "The warning/empty/blocked message",
+        "Suggested user action",
+        "No stack trace unless it is an intentional dev-only screenshot"
+      ],
+      "avoid": [
+        "Raw errors containing paths or secrets",
+        "Sensitive URLs or tenant IDs"
+      ],
+      "status": "awaiting-user-screenshot"
+    }
+  ]
+}

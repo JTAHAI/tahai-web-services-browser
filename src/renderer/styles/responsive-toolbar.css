@@ -221,3 +221,225 @@ body[data-command-toolbar="it"] .toolbar {
   .command-toolbar-chevron { flex-basis: 30px; width: 30px; min-width: 30px; }
   .tool-menu-back { min-width: 126px; }
 }
+
+
+/* PASS114 chrome stack guard: all fixed browser overlays anchor below measured titlebar + toolbar height. */
+:root {
+  --pass114-chrome-stack-top: 104px;
+  --pass114-overlay-bottom: 38px;
+}
+body[data-pass114-chrome-stack-guard="true"] .toolbar-overflow-menu,
+body[data-pass114-chrome-stack-guard="true"] .tool-menu-panel,
+body[data-pass114-chrome-stack-guard="true"] .site-view-mission-rail,
+body[data-pass114-chrome-stack-guard="true"] .ops-hub {
+  top: var(--pass114-chrome-stack-top) !important;
+}
+body[data-pass114-chrome-stack-guard="true"] .site-view-mission-rail,
+body[data-pass114-chrome-stack-guard="true"] .ops-hub {
+  bottom: var(--pass114-overlay-bottom) !important;
+}
+body[data-pass114-chrome-stack-guard="true"] .tool-menu-panel {
+  max-height: calc(100vh - var(--pass114-chrome-stack-top) - var(--pass114-overlay-bottom)) !important;
+}
+body[data-pass114-chrome-stack-guard="true"] .toolbar-overflow-menu {
+  max-height: calc(100vh - var(--pass114-chrome-stack-top) - var(--pass114-overlay-bottom)) !important;
+  overflow: auto;
+}
+body[data-pass114-chrome-stack-guard="true"].site-view-rail-enabled .site-view-mission-rail {
+  max-height: calc(100vh - var(--pass114-chrome-stack-top) - var(--pass114-overlay-bottom)) !important;
+}
+body[data-pass114-chrome-stack-guard="true"] .ops-hub {
+  max-height: calc(100vh - var(--pass114-chrome-stack-top) - var(--pass114-overlay-bottom)) !important;
+}
+@media (max-width: 760px) {
+  body[data-pass114-chrome-stack-guard="true"] .toolbar-overflow-menu,
+  body[data-pass114-chrome-stack-guard="true"] .tool-menu-panel,
+  body[data-pass114-chrome-stack-guard="true"] .site-view-mission-rail,
+  body[data-pass114-chrome-stack-guard="true"] .ops-hub {
+    top: var(--pass114-chrome-stack-top) !important;
+  }
+}
+
+
+/* PASS115 overflow visibility guard: legacy narrow-width hide rules must not hide controls after PASS113 moves them into More Tools. */
+body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > .in-toolbar-overflow,
+body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > button.in-toolbar-overflow,
+body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > .home-button.in-toolbar-overflow,
+body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > .profile-switcher.in-toolbar-overflow {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 34px;
+  -webkit-app-region: no-drag;
+}
+body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > .profile-switcher.in-toolbar-overflow {
+  max-width: none !important;
+}
+body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > .tool-flyout.in-toolbar-overflow {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative;
+  width: 100%;
+  -webkit-app-region: no-drag;
+}
+body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > .tool-flyout.in-toolbar-overflow .tool-menu-button {
+  width: 100%;
+}
+body[data-pass115-overflow-visibility-guard="true"] .toolbar-overflow-menu .in-toolbar-overflow[hidden],
+body[data-pass115-overflow-visibility-guard="true"] .toolbar-overflow-menu [hidden].in-toolbar-overflow {
+  display: none !important;
+}
+body[data-pass115-overflow-visibility-guard="true"] .toolbar-overflow-menu .in-toolbar-overflow:focus-visible {
+  outline: 2px solid rgba(109,255,183,.62);
+  outline-offset: 2px;
+}
+@media (max-width: 1220px) {
+  body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > #settings.in-toolbar-overflow,
+  body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > #about.in-toolbar-overflow {
+    display: inline-flex !important;
+  }
+}
+@media (max-width: 900px) {
+  body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > #launchpad.in-toolbar-overflow,
+  body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > #onboarding.in-toolbar-overflow,
+  body[data-pass115-overflow-visibility-guard="true"] #toolbar-overflow-items > #profile-switcher.in-toolbar-overflow {
+    display: inline-flex !important;
+  }
+}
+
+/* PASS116 overlay arbitration: chrome overlays are one-at-a-time surfaces, not stacked panels. */
+body[data-pass116-overlay-arbitration="true"] .toolbar-overflow-menu,
+body[data-pass116-overlay-arbitration="true"] .tool-menu-panel,
+body[data-pass116-overlay-arbitration="true"] .ops-hub,
+body[data-pass116-overlay-arbitration="true"] .site-view-mission-rail {
+  -webkit-app-region: no-drag;
+}
+body[data-pass116-overlay-arbitration="true"] .toolbar-overflow-menu[hidden],
+body[data-pass116-overlay-arbitration="true"] .tool-menu-panel[hidden],
+body[data-pass116-overlay-arbitration="true"] .ops-hub[hidden] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+body[data-pass116-overlay-arbitration="true"][data-pass116-active-overlay="more-tools"] .toolbar-overflow-toggle,
+body[data-pass116-overlay-arbitration="true"][data-pass116-active-overlay="command-toolbar"] .tool-menu-button[aria-expanded="true"],
+body[data-pass116-overlay-arbitration="true"][data-pass116-active-overlay="ops-hub"] #ops-hub-toggle,
+body[data-pass116-overlay-arbitration="true"][data-pass116-active-overlay="site-view"] #site-view-rail-toggle {
+  border-color: rgba(109,255,183,.68) !important;
+  box-shadow: 0 0 0 2px rgba(109,255,183,.12), 0 0 26px rgba(109,255,183,.13) !important;
+}
+
+
+/* PASS117 overlay focus recovery: active overlay scopes expose focus state and never become draggable chrome. */
+body[data-pass117-overlay-focus-recovery="true"] [data-pass117-focus-scope] {
+  -webkit-app-region: no-drag;
+}
+body[data-pass117-overlay-focus-recovery="true"] [data-pass117-focus-open="true"] {
+  outline: 1px solid rgba(109,255,183,.18);
+  outline-offset: -1px;
+}
+body[data-pass117-overlay-focus-recovery="true"] [data-pass117-overlay-expanded="true"] {
+  border-color: rgba(109,255,183,.72) !important;
+  box-shadow: 0 0 0 2px rgba(109,255,183,.14), 0 0 28px rgba(109,255,183,.14) !important;
+}
+body[data-pass117-overlay-focus-recovery="true"] .toolbar-overflow-menu:focus-visible,
+body[data-pass117-overlay-focus-recovery="true"] .tool-menu-panel:focus-visible,
+body[data-pass117-overlay-focus-recovery="true"] .ops-hub:focus-visible,
+body[data-pass117-overlay-focus-recovery="true"] .site-view-mission-rail:focus-visible {
+  outline: 2px solid rgba(109,255,183,.72);
+  outline-offset: 3px;
+}
+body[data-pass117-active-focus-scope="more-tools"] .toolbar-overflow-toggle,
+body[data-pass117-active-focus-scope="command-toolbar"] .tool-menu-button[aria-expanded="true"],
+body[data-pass117-active-focus-scope="ops-hub"] #ops-hub-toggle,
+body[data-pass117-active-focus-scope="site-view"] #site-view-rail-toggle {
+  border-color: rgba(109,255,183,.76) !important;
+}
+
+
+/* PASS118 overlay dismiss recovery: shared Escape/close-all dismissal keeps chrome overlays recoverable. */
+body[data-pass118-overlay-dismiss-recovery="true"] [data-pass118-dismiss-boundary="true"] {
+  -webkit-app-region: no-drag;
+}
+body[data-pass118-overlay-dismiss-recovery="true"] [aria-keyshortcuts~="Escape"] {
+  scroll-margin-top: var(--pass114-chrome-stack-top, 112px);
+}
+body[data-pass118-overlay-dismiss-recovery="true"][data-pass118-last-dismissed-overlay] .toolbar-overflow-toggle,
+body[data-pass118-overlay-dismiss-recovery="true"][data-pass118-last-dismissed-overlay] .tool-menu-button,
+body[data-pass118-overlay-dismiss-recovery="true"][data-pass118-last-dismissed-overlay] #ops-hub-toggle,
+body[data-pass118-overlay-dismiss-recovery="true"][data-pass118-last-dismissed-overlay] #site-view-rail-toggle,
+body[data-pass118-overlay-dismiss-recovery="true"][data-pass118-last-dismissed-overlay] #mission-control-toggle {
+  -webkit-app-region: no-drag;
+}
+body[data-pass118-overlay-dismiss-recovery="true"] .toolbar-overflow-menu[aria-hidden="true"],
+body[data-pass118-overlay-dismiss-recovery="true"] .tool-menu-panel[aria-hidden="true"],
+body[data-pass118-overlay-dismiss-recovery="true"] .ops-hub[aria-hidden="true"],
+body[data-pass118-overlay-dismiss-recovery="true"] .site-view-mission-rail[aria-hidden="true"] {
+  pointer-events: none;
+}
+
+/* PASS119 overlay ARIA contract: overlays expose stable hidden/open state for assistive tech. */
+body[data-pass119-overlay-aria-contract="true"] [data-pass119-aria-contract="true"] { -webkit-app-region: no-drag; }
+body[data-pass119-overlay-aria-contract="true"] [aria-hidden="true"][data-pass119-aria-contract="true"] { visibility: hidden; }
+
+/* PASS120 overlay pointer boundary: hidden panels cannot intercept clicks after rapid close/reopen cycles. */
+body[data-pass120-overlay-pointer-boundary="true"] [data-pass120-pointer-boundary="hidden"],
+body[data-pass120-overlay-pointer-boundary="true"] .toolbar-overflow-menu[aria-hidden="true"],
+body[data-pass120-overlay-pointer-boundary="true"] .tool-menu-panel[aria-hidden="true"],
+body[data-pass120-overlay-pointer-boundary="true"] .ops-hub[aria-hidden="true"],
+body[data-pass120-overlay-pointer-boundary="true"] .site-view-mission-rail[aria-hidden="true"] { pointer-events: none !important; -webkit-app-region: no-drag; }
+body[data-pass120-overlay-pointer-boundary="true"] [data-pass120-pointer-boundary="active"] { pointer-events: auto; -webkit-app-region: no-drag; }
+
+/* PASS121 overlay scroll containment: overlay interiors stay inside measured chrome stack and do not bleed page scroll. */
+body[data-pass121-overlay-scroll-containment="true"] .toolbar-overflow-menu,
+body[data-pass121-overlay-scroll-containment="true"] .tool-menu-panel,
+body[data-pass121-overlay-scroll-containment="true"] .ops-hub,
+body[data-pass121-overlay-scroll-containment="true"] .site-view-mission-rail,
+body[data-pass121-overlay-scroll-containment="true"] .mission-dialog { max-height: var(--pass121-overlay-usable-height, calc(100dvh - var(--pass114-chrome-stack-top, 112px) - var(--pass114-overlay-bottom, 18px))); overflow: auto; overscroll-behavior: contain; contain: layout paint; }
+@supports not (height: 100dvh) { body[data-pass121-overlay-scroll-containment="true"] .toolbar-overflow-menu, body[data-pass121-overlay-scroll-containment="true"] .tool-menu-panel, body[data-pass121-overlay-scroll-containment="true"] .ops-hub, body[data-pass121-overlay-scroll-containment="true"] .site-view-mission-rail, body[data-pass121-overlay-scroll-containment="true"] .mission-dialog { max-height: calc(100vh - var(--pass114-chrome-stack-top, 112px) - var(--pass114-overlay-bottom, 18px)); } }
+
+/* PASS122 overlay viewport reflow: stale/clipped overlays are dismissed when viewport or chrome-stack geometry changes. */
+body[data-pass122-overlay-viewport-reflow="true"] [data-pass121-scroll-containment="true"] { max-block-size: var(--pass121-overlay-usable-height, calc(100dvh - var(--pass114-chrome-stack-top, 112px) - var(--pass114-overlay-bottom, 18px))); }
+body[data-pass122-overlay-viewport-reflow="true"][data-pass122-last-reflow-action="dismissed-clipped-overlay"] .toolbar,
+body[data-pass122-overlay-viewport-reflow="true"][data-pass122-last-reflow-action="cleared-stale-active-overlay"] .toolbar { box-shadow: 0 1px 0 rgba(109,255,183,.28); }
+
+/* PASS123 overlay cycle guard: rapid overlay open/close/resize cycles leave a single clean active overlay state. */
+body[data-pass123-overlay-cycle-guard="true"][data-pass123-last-cycle-action="collapsed-multiple-overlays"] .toolbar,
+body[data-pass123-overlay-cycle-guard="true"][data-pass123-last-cycle-action="cleared-stale-active-overlay"] .toolbar { outline: 1px solid rgba(109,255,183,.22); }
+body[data-pass123-overlay-cycle-guard="true"] [data-pass120-pointer-boundary="hidden"] { pointer-events: none !important; }
+
+
+
+/* PASS128: when Guide / KB moves into More Tools, keep a compact Guide anchor visible beside More Tools. */
+.toolbar-guide-quick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 70px;
+  padding-inline: 10px;
+  border-color: rgba(255,210,122,.40);
+  color: #fff1c2;
+  background: linear-gradient(180deg, rgba(255,210,122,.13), rgba(7,16,31,.96));
+}
+
+.toolbar-guide-quick > span[aria-hidden="true"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,210,122,.45);
+  font-size: .72rem;
+  font-weight: 900;
+}
+
+.toolbar-guide-quick[hidden] { display: none !important; }
+
+@media (max-width: 720px) {
+  .toolbar-guide-quick { min-width: 42px; padding-inline: 8px; }
+  .toolbar-guide-quick span:not([aria-hidden="true"]) { display: none; }
+  .toolbar .address-form { min-width: 132px; }
+}

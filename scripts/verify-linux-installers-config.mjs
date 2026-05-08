@@ -64,7 +64,7 @@ for (const token of [
   'AppImage',
   'deb',
   'rpm',
-  'verify:package:linux',
+  'scripts/verify-linux-installers.mjs "${TARGETS[@]}"',
   'TAHAI_LINUX_NATIVE_BUILD_DIR',
   'rsync -a --delete',
   '--exclude node_modules',

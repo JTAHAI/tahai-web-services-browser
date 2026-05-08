@@ -826,3 +826,310 @@
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
 }
+
+
+/* PASS128 — Guide/KBE anchor, small-window Mission open resilience, and direct 3-Up entries. */
+.mission-layouts .mission-triview-entry {
+  border-color: rgba(255,210,122,.34) !important;
+  background: linear-gradient(180deg, rgba(255,210,122,.105), rgba(4,14,23,.94)) !important;
+}
+
+.mission-layouts .mission-triview-entry.active {
+  border-color: rgba(255,210,122,.72) !important;
+  background: linear-gradient(180deg, rgba(255,210,122,.24), rgba(24,16,5,.98)) !important;
+  color: #fff9e8 !important;
+}
+
+body.mission-compact-viewport .mission-dialog,
+.mission-dialog[data-pass128-mission-viewport="compact"] {
+  width: 100vw !important;
+  height: min(100dvh, var(--pass128-window-height, 100vh)) !important;
+  max-width: 100vw !important;
+  max-height: min(100dvh, var(--pass128-window-height, 100vh)) !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+}
+
+body.mission-compact-viewport .mission-panel,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-panel {
+  overflow: auto !important;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto !important;
+}
+
+body.mission-compact-viewport .mission-panel > header,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-panel > header {
+  min-height: 52px !important;
+  padding: 10px 14px !important;
+}
+
+body.mission-compact-viewport .mission-form,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-form {
+  grid-template-columns: 1fr 1fr !important;
+  gap: 8px !important;
+  padding: 10px 14px !important;
+}
+
+body.mission-compact-viewport .mission-form .field,
+body.mission-compact-viewport .mission-form .field.wide,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-form .field,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-form .field.wide {
+  grid-column: 1 / -1 !important;
+}
+
+body.mission-compact-viewport .mission-form .home-button,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-form .home-button {
+  min-width: 0 !important;
+  min-height: 34px !important;
+  white-space: normal !important;
+}
+
+body.mission-compact-viewport .mission-status,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-status {
+  grid-template-columns: 1fr !important;
+  min-height: 0 !important;
+  padding: 8px 14px !important;
+}
+
+body.mission-compact-viewport .mission-ops-strip,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-ops-strip {
+  display: none !important;
+}
+
+body.mission-compact-viewport .mission-layouts,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-layouts {
+  min-height: 0 !important;
+  padding: 8px 14px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  flex-wrap: nowrap !important;
+  scrollbar-width: thin !important;
+}
+
+body.mission-compact-viewport .mission-layouts::before,
+body.mission-compact-viewport .mission-pane-actions::before,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-layouts::before,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-pane-actions::before {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  white-space: nowrap !important;
+}
+
+body.mission-compact-viewport .mission-pane-actions,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-pane-actions {
+  flex: 0 0 auto !important;
+  margin-left: 8px !important;
+  flex-wrap: nowrap !important;
+}
+
+body.mission-compact-viewport .mission-layouts .home-button,
+body.mission-compact-viewport .mission-pane-actions .home-button,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-layouts .home-button,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-pane-actions .home-button {
+  flex: 0 0 auto !important;
+  min-width: 92px !important;
+}
+
+body.mission-compact-viewport .mission-workbench,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-workbench {
+  grid-template-columns: 1fr !important;
+  grid-template-rows: auto !important;
+  grid-template-areas:
+    "recipes"
+    "tabs"
+    "runbook"
+    "evidence"
+    "export"
+    "saved"
+    "timeline" !important;
+  gap: 10px !important;
+  padding: 10px 14px 14px !important;
+  overflow: visible !important;
+}
+
+body.mission-compact-viewport .mission-section,
+.mission-dialog[data-pass128-mission-viewport="compact"] .mission-section {
+  min-height: 220px !important;
+  border-radius: 18px !important;
+}
+
+body.mission-compact-viewport #mission-recipes .mission-recipe-card,
+.mission-dialog[data-pass128-mission-viewport="compact"] #mission-recipes .mission-recipe-card {
+  min-height: 86px !important;
+  padding-bottom: 38px !important;
+}
+
+@media (max-width: 760px), (max-height: 680px) {
+  .mission-dialog {
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+}
+
+
+/* PASS132 — Mission Control small-window stress hardening. */
+.mission-compact-jumpbar {
+  display: none;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(109,255,183,.12);
+  background: linear-gradient(90deg, rgba(119,219,255,.075), rgba(109,255,183,.055));
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(119,219,255,.52) rgba(2,8,13,.82);
+}
+.mission-compact-jumpbar::before {
+  content: "Jump";
+  align-self: center;
+  flex: 0 0 auto;
+  color: var(--mission-cyan);
+  font-size: .66rem;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.mission-compact-jumpbar .home-button {
+  flex: 0 0 auto;
+  min-height: 32px !important;
+  min-width: 78px !important;
+  border-radius: 999px !important;
+  font-size: .70rem !important;
+  padding-inline: 10px !important;
+  white-space: nowrap !important;
+}
+.mission-compact-jumpbar .home-button.active {
+  border-color: rgba(109,255,183,.72) !important;
+  color: #effff6 !important;
+  background: linear-gradient(180deg, rgba(109,255,183,.20), rgba(4,20,17,.98)) !important;
+}
+body.mission-small-window-stress .mission-dialog,
+.mission-dialog[data-pass132-mission-viewport="compact"],
+.mission-dialog[data-pass132-mission-viewport="micro"] {
+  width: 100vw !important;
+  height: min(100dvh, var(--pass132-window-height, 100vh)) !important;
+  max-width: 100vw !important;
+  max-height: min(100dvh, var(--pass132-window-height, 100vh)) !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+}
+body.mission-small-window-stress .mission-panel,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-panel,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-panel {
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto !important;
+  overflow: auto !important;
+  overscroll-behavior: contain !important;
+}
+body.mission-small-window-stress .mission-panel > header,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-panel > header,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-panel > header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 5 !important;
+  min-height: 48px !important;
+  padding: 9px 12px !important;
+  background: linear-gradient(90deg, rgba(7,21,16,.98), rgba(2,8,13,.98)) !important;
+}
+body.mission-small-window-stress .mission-compact-jumpbar,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-compact-jumpbar,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-compact-jumpbar {
+  display: flex !important;
+  position: sticky !important;
+  top: 48px !important;
+  z-index: 4 !important;
+}
+body.mission-small-window-stress .mission-form,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-form,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-form {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 7px !important;
+  padding: 8px 12px !important;
+}
+body.mission-small-window-stress .mission-form .field,
+body.mission-small-window-stress .mission-form .field.wide,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-form .field,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-form .field.wide,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-form .field,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-form .field.wide {
+  grid-column: 1 / -1 !important;
+}
+body.mission-small-window-stress .mission-status,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-status,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-status {
+  grid-template-columns: 1fr !important;
+  gap: 3px !important;
+  min-height: 0 !important;
+  padding: 7px 12px !important;
+}
+body.mission-small-window-stress .mission-status strong,
+body.mission-small-window-stress .mission-status span,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-status strong,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-status span,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-status strong,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-status span { white-space: normal !important; }
+body.mission-small-window-stress .mission-layouts,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-layouts,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-layouts {
+  position: sticky !important;
+  top: 89px !important;
+  z-index: 3 !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  min-height: 0 !important;
+  padding: 7px 12px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  background: rgba(2, 8, 13, .96) !important;
+}
+body.mission-small-window-stress .mission-ops-strip,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-ops-strip,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-ops-strip { display: none !important; }
+body.mission-small-window-stress .mission-workbench,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-workbench,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-workbench {
+  grid-template-columns: 1fr !important;
+  grid-template-rows: auto !important;
+  grid-template-areas:
+    "recipes"
+    "tabs"
+    "runbook"
+    "evidence"
+    "export"
+    "saved"
+    "timeline" !important;
+  gap: 10px !important;
+  padding: 10px 12px 12px !important;
+  overflow: visible !important;
+}
+body.mission-small-window-stress .mission-section,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-section,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-section {
+  min-height: clamp(178px, 42dvh, 320px) !important;
+  border-radius: 16px !important;
+}
+body.mission-small-window-stress .mission-tab-row,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-tab-row,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-tab-row {
+  grid-template-columns: minmax(0, 1fr) !important;
+  min-height: 0 !important;
+}
+body.mission-small-window-stress #mission-export-preview,
+.mission-dialog[data-pass132-mission-viewport="compact"] #mission-export-preview,
+.mission-dialog[data-pass132-mission-viewport="micro"] #mission-export-preview { min-height: 178px !important; }
+body.mission-micro-window-stress .mission-form,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-form { grid-template-columns: 1fr !important; }
+body.mission-micro-window-stress .mission-panel h2,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-panel h2 { font-size: 1.02rem !important; }
+body.mission-micro-window-stress .mission-layouts .home-button,
+body.mission-micro-window-stress .mission-pane-actions .home-button,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-layouts .home-button,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-pane-actions .home-button {
+  min-width: 82px !important;
+  min-height: 30px !important;
+  font-size: .68rem !important;
+}

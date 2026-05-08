@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./styles/responsive-toolbar.css" />
   <link rel="stylesheet" href="./styles/mission-control.css" />
 </head>
-<body data-pass98-shell-origin-boundary="true" data-pass99-drop-boundary="true" data-pass100-active-capture-boundary="true" data-pass101-settings-boundary="true">
+<body data-pass98-shell-origin-boundary="true" data-pass99-drop-boundary="true" data-pass100-active-capture-boundary="true" data-pass101-settings-boundary="true" data-pass113-adaptive-chrome-density="true" data-pass114-chrome-stack-guard="true" data-pass115-overflow-visibility-guard="true" data-pass116-overlay-arbitration="true" data-pass117-overlay-focus-recovery="true" data-pass118-overlay-dismiss-recovery="true" data-pass119-overlay-aria-contract="true" data-pass120-overlay-pointer-boundary="true" data-pass121-overlay-scroll-containment="true" data-pass122-overlay-viewport-reflow="true" data-pass123-overlay-cycle-guard="true" data-pass128-guide-mission-triview-hardening="true">
   <section id="boot-diagnostic" class="boot-diagnostic" aria-live="assertive">
     <div>
       <p class="eyebrow">TAHAI Browser Runtime Diagnostic</p>
@@ -20,7 +20,7 @@
     </div>
   </section>
   <div class="app-shell">
-    <header class="topbar">
+    <header class="topbar" data-pass112-tabs-titlebar="true" aria-label="Window tab strip">
       <div class="brand">
         <img src="../browser/new-tab/assets/tws/tws-square-logo.png" alt="" />
         <div><strong>TAHAI</strong><span>Web Services Browser</span></div>
@@ -37,7 +37,7 @@
         <input id="address" autocomplete="off" spellcheck="false" aria-label="Address" />
       </form>
       <button id="launchpad" class="home-button" type="button" title="TAHAI launchpad">Launchpad</button>
-      <button id="onboarding" class="home-button secondary" type="button" title="First-run guide">Guide</button>
+      <button id="onboarding" class="home-button secondary" type="button" title="Guide / Knowledge Base">Guide</button>
       <button id="profile-switcher" class="home-button profile-switcher" type="button" title="Manage browser profiles"><span id="profile-dot" class="profile-dot" aria-hidden="true"></span><span id="profile-name">Default</span></button>
       <div class="tool-flyout" data-tool-menu="devops">
         <button id="devops-tools" class="home-button tool-menu-button devops" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="devops-tools-panel" title="Open DevOps and developer tool panel (Ctrl+Alt+O)"><span aria-hidden="true">&#9776;</span><span>DevOps</span></button>
@@ -159,6 +159,14 @@
         <button id="mission-save" type="button" class="home-button secondary">Save Local</button>
       </form>
       <section id="mission-status" class="mission-status" aria-live="polite"><strong>No active mission</strong><span>Create a local Mission Tab set or restore one from disk.</span></section>
+      <section id="mission-compact-jumpbar" class="mission-compact-jumpbar" aria-label="Compact Mission Control section jumps" data-pass132-small-window-stress="true">
+        <button type="button" class="home-button secondary" data-pass132-jump="recipes">Recipes</button>
+        <button type="button" class="home-button secondary" data-pass132-jump="tabs">Tabs</button>
+        <button type="button" class="home-button secondary" data-pass132-jump="runbook">Runbook</button>
+        <button type="button" class="home-button secondary" data-pass132-jump="evidence">Evidence</button>
+        <button type="button" class="home-button secondary" data-pass132-jump="export">Export</button>
+        <button type="button" class="home-button secondary" data-pass132-jump="saved">Saved</button>
+      </section>
       <section class="mission-ops-strip" aria-label="Mission guardrails and workflow state">
         <article><strong>Local-first</strong><span>No IT Docs or PSA writes unless explicitly authorized server-side.</span></article>
         <article><strong>Recovery-safe</strong><span>Mission setup stays local, readable, and explicitly saved.</span></article>
@@ -168,9 +176,14 @@
       <section id="mission-layouts" class="mission-layouts" aria-label="Mission layout controls">
         <button type="button" data-mission-layout="single" class="home-button secondary">1-Up</button>
         <button type="button" data-mission-layout="split-horizontal" class="home-button secondary">2-Up</button>
-        <button type="button" data-mission-layout="triple" class="home-button secondary">3-Up</button>
+        <button type="button" data-mission-layout="triple-top" class="home-button secondary mission-triview-entry" title="3-pane layout with one wide pane across the top">3-Up Top</button>
+        <button type="button" data-mission-layout="triple-bottom" class="home-button secondary mission-triview-entry" title="3-pane layout with one wide pane across the bottom">3-Up Bottom</button>
+        <button type="button" data-mission-layout="triple-left" class="home-button secondary mission-triview-entry" title="3-pane layout with one tall pane on the left">3-Up Left</button>
+        <button type="button" data-mission-layout="triple-right" class="home-button secondary mission-triview-entry" title="3-pane layout with one tall pane on the right">3-Up Right</button>
+        <button type="button" data-pass133-cycle-triview="true" class="home-button secondary mission-triview-entry" title="Cycle through Top, Bottom, Left, and Right 3-Up variants">Cycle 3-Up</button>
         <button type="button" data-mission-layout="quad" class="home-button secondary">4-Up Quad</button>
         <button type="button" data-mission-layout="focus" class="home-button secondary">Focus</button>
+        <button type="button" data-pass133-recover-view="true" class="home-button secondary mission-view-recover" title="Recover Mission View layout, clear stale pane move overlays, and repaint pane bounds">Recover View</button>
         <span class="mission-pane-actions" aria-label="Send active tab to pane">
           <button type="button" data-send-active-pane="pane-1" class="home-button secondary">Active &rarr; Pane 1</button>
           <button type="button" data-send-active-pane="pane-2" class="home-button secondary">Pane 2</button>
@@ -288,7 +301,7 @@
       <p class="settings-note download-boundary-note" data-pass96-download-boundary="true" data-pass97-local-path-boundary="true">PASS96: download events are routed back to the trusted shell with sanitized filenames only. Local filesystem paths are hidden from renderer status updates, and executable/installer downloads are flagged before handoff. PASS97: mission, profile, and evidence-save handoffs return saved labels instead of local paths.</p>
       <p class="settings-note drop-boundary-note" data-pass99-drop-boundary="true">PASS99: Mission pane drops and Mission tab reorders accept only TAHAI internal drag payloads. External files, URLs, HTML, and text drops are blocked at the renderer shell boundary.</p>
       <p class="settings-note" data-pass100-active-capture-boundary="true">PASS100: active-page capture output from remote webviews is redacted, URL-normalized, size-capped, and origin-sanitized before preview, pinning, copy, save, or diagnostics handoff.</p>
-      <p class="settings-note settings-boundary-note" data-pass101-settings-boundary="true">PASS101: runtime settings are size-capped and sanitized in the main process. Saved home pages must be HTTPS or localhost HTTP, and renderer settings never carry local download paths.</p>
+      <p class="settings-note settings-boundary-note" data-pass101-settings-boundary="true" data-pass113-adaptive-chrome-density="true">PASS101: runtime settings are size-capped and sanitized in the main process. Saved home pages must be HTTPS or localhost HTTP, and renderer settings never carry local download paths.</p>
       <p class="settings-note diagnostics-boundary-note" data-pass102-diagnostics-boundary="true" data-pass103-diagnostics-ssrf-boundary="true">PASS103: Ops diagnostics use a cookie-free Node request boundary and are SSRF-guarded. Localhost, private/link-local ranges, metadata endpoints, single-label internal hosts, unsafe DNS results, and redirect targets are blocked or withheld automatically; diagnostic output never include Cookie or Authorization output.</p>
       <p class="settings-note tab-metadata-boundary-note" data-pass104-tab-metadata-boundary="true">PASS104: Remote page titles, status text, Mission timeline entries, and Mission metadata URLs are sanitized before renderer display or local Mission handoff, so hostile tab metadata cannot carry control characters, bidi spoofing, embedded credentials, or tokenized query strings into evidence.</p>
       <footer class="settings-actions">

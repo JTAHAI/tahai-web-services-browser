@@ -26,6 +26,8 @@ const BUNDLE_NAME = 'TAHAI—SENTINEL Browser';
 const RELEASE_CHANNEL = 'public-rc';
 const SAFE_HTTP_PROTOCOLS = new Set(['http:', 'https:']);
 const MAX_MAIN_PROCESS_CAPTURE_CHARS = 120000;
+const WINDOWS_TITLEBAR_CHROME_HEIGHT_PX = 44;
+const WINDOWS_TITLEBAR_CAPTION_RESERVE_PX = 168;
 
 type OpsCheckStatus = 'pass' | 'warn' | 'fail' | 'info';
 
@@ -685,7 +687,7 @@ function installApplicationMenu(window: BrowserWindow): void {
       submenu: [
         { label: 'TAHAI Launchpad', click: () => sendMenuCommand(window, 'launchpad') },
         { label: 'TAHAI Portal', click: () => sendMenuCommand(window, 'home') },
-        { label: 'First-run Guide', click: () => sendMenuCommand(window, 'guide') }
+        { label: 'Guide / Knowledge Base', click: () => sendMenuCommand(window, 'guide') }
       ]
     },
     {
@@ -748,7 +750,7 @@ function installApplicationMenu(window: BrowserWindow): void {
       label: 'Help',
       submenu: [
         { label: 'TAHAI Launchpad', click: () => sendMenuCommand(window, 'launchpad') },
-        { label: 'First-run Guide', click: () => sendMenuCommand(window, 'guide') },
+        { label: 'Guide / Knowledge Base', click: () => sendMenuCommand(window, 'guide') },
         { label: 'Runtime Settings', click: () => sendMenuCommand(window, 'settings') },
         { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+/', click: () => sendMenuCommand(window, 'shortcuts') },
         { type: 'separator' },
@@ -779,6 +781,30 @@ function getTahaiBrowserIconPath() {
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
 }
 
+function titleBarChromeOptions() {
+  if (process.platform === 'darwin') {
+    return {
+      titleBarStyle: 'hiddenInset' as const,
+      trafficLightPosition: { x: 16, y: 14 }
+    };
+  }
+
+  if (process.platform === 'win32') {
+    return {
+      titleBarStyle: 'hidden' as const,
+      titleBarOverlay: {
+        color: '#06101d',
+        symbolColor: '#dff7ff',
+        height: WINDOWS_TITLEBAR_CHROME_HEIGHT_PX // height: 44
+      }
+    };
+  }
+
+  return {
+    titleBarStyle: 'default' as const
+  };
+}
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     icon: getTahaiBrowserIconPath(),
@@ -788,6 +814,7 @@ function createWindow(): BrowserWindow {
     minHeight: 700,
     title: PRODUCT_NAME,
     backgroundColor: '#02050b',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'preload.js'),
       contextIsolation: true,
@@ -797,11 +824,15 @@ function createWindow(): BrowserWindow {
       spellcheck: true,
       devTools: true
     },
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default'
+    ...titleBarChromeOptions()
   });
 
   loadRendererShell(window);
   installApplicationMenu(window);
+  if (process.platform !== 'darwin') {
+    window.setAutoHideMenuBar(true);
+    window.setMenuBarVisibility(false);
+  }
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     const safeUrl = normalizeSafeExternalWindowUrl(url);
