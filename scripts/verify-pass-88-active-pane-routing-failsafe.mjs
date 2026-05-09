@@ -59,8 +59,14 @@ for (const command of ['operator-recovery-mesh', 'active-pane-routing-failsafe',
   need(app.includes(`'${command}'`), `missing PASS88 command coverage ${command}`);
 }
 
-for (const token of ['mouseup', 'auxclick', 'goBackTarget()', 'goForwardTarget()', 'mission-layout-change', 'visible-pane-safe']) {
+for (const token of ['mouseup', 'auxclick', 'mission-layout-change', 'visible-pane-safe']) {
   need(app.includes(token), `missing active-pane routing token ${token}`);
+}
+for (const family of [
+  ['goBackTarget()', "goBackTarget('mouse')", "goBackTarget('shortcut')", "goBackTarget('menu')"],
+  ['goForwardTarget()', "goForwardTarget('mouse')", "goForwardTarget('shortcut')", "goForwardTarget('menu')"]
+]) {
+  need(family.some((token) => app.includes(token)), `missing active-pane routing token ${family[0]}`);
 }
 
 const controlList = app.match(/const pass88RoutingControlIds = \[([^\]]+)\];/);

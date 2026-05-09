@@ -175,3 +175,13 @@ PASS130 defines the screenshot contract for the Knowledge Base. Add screenshots 
 - **Capture:** Capture one useful troubleshooting state such as disabled integration, offline state, blocked unsafe URL, redaction warning, or empty state.
 - **Must show:** The warning/empty/blocked message; Suggested user action; No stack trace unless it is an intentional dev-only screenshot
 - **Avoid:** Raw errors containing paths or secrets; Sensitive URLs or tenant IDs
+
+## PASS135 ingestion workflow
+
+1. Capture sanitized PNG screenshots only.
+2. Save them under `docs/kb/screenshots/` with the exact file names listed in `docs/kb/screenshot-manifest.json`.
+3. Run `npm run kb:screenshots:ingest -- --apply`.
+4. Run `npm run verify:pass-135-kb-screenshot-ingestion`.
+5. Confirm the in-app KB shows “Screenshot ready” for supplied captures and “Awaiting screenshot” for missing captures.
+
+The ingestion command rejects unlisted files, non-PNG files, over-size files, and path traversal attempts. Missing screenshots are not a build blocker.

@@ -3,7 +3,7 @@
   "sourcePass": "PASS129",
   "title": "TAHAI Browser Knowledge Base",
   "description": "Local-first user knowledge base for the main TAHAI Web Services Browser features.",
-  "screenshotStatus": "awaiting-user-screenshots",
+  "screenshotStatus": "awaiting-or-ingestable",
   "articles": [
     {
       "id": "getting-started",
@@ -25,7 +25,8 @@
         "basics"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "guide-kb",
@@ -45,7 +46,8 @@
         "documentation"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "mission-control",
@@ -65,7 +67,8 @@
         "compact"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "mission-tabs",
@@ -83,7 +86,8 @@
         "workspace tabs"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "two-up-split-view",
@@ -101,7 +105,8 @@
         "logs target"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "three-up-top",
@@ -119,7 +124,8 @@
         "triple top"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "three-up-bottom",
@@ -137,7 +143,8 @@
         "triple bottom"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "quad-view",
@@ -155,7 +162,8 @@
         "dns migration"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "active-pane-routing",
@@ -173,7 +181,8 @@
         "address bar target"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "runbook-rail",
@@ -191,7 +200,8 @@
         "timeline"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "command-center",
@@ -209,7 +219,8 @@
         "operator commands"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "devops-tools",
@@ -229,7 +240,8 @@
         "devtools"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "it-tools",
@@ -248,7 +260,8 @@
         "helpdesk"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "site-view-rail",
@@ -265,7 +278,8 @@
         "page context"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "evidence-export",
@@ -284,7 +298,8 @@
         "markdown"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "downloads-installers",
@@ -305,7 +320,8 @@
         "checksum"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "settings-security",
@@ -323,7 +339,8 @@
         "safe operation"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     },
     {
       "id": "troubleshooting-states",
@@ -343,12 +360,35 @@
         "redaction warning"
       ],
       "kbSection": "core",
-      "status": "draft-ready-for-screenshots"
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     }
   ],
-  "lastHardenedPass": "PASS131",
+  "lastHardenedPass": "PASS136",
   "screenshotManifest": "docs/kb/screenshot-manifest.json",
   "screenshotPolicy": "Use sanitized PNG screenshots only after review; do not add runtime profiles, customer data, secrets, tokens, cloud credentials, generated installers, or local browser data.",
   "searchIndex": "docs/kb/search-index.json",
-  "searchPolicy": "The in-app KB may use only the self-hosted browser/onboarding/kb-search.js script. No inline script, remote script, telemetry, network search, or external KB dependency is allowed."
+  "searchPolicy": "The in-app KB may use only the self-hosted browser/onboarding/kb-search.js script. No inline script, remote script, telemetry, network search, or external KB dependency is allowed.",
+  "screenshotIngestion": {
+    "sourceManifest": "docs/kb/screenshot-manifest.json",
+    "canonicalSource": "docs/kb/screenshots",
+    "appMirror": "browser/onboarding/screenshots",
+    "runtimePath": "./screenshots/",
+    "acceptedType": "image/png",
+    "maxBytes": 8388608,
+    "missingScreenshotsAreAllowed": true,
+    "ingestCommand": "npm run kb:screenshots:ingest -- --apply",
+    "verifyCommand": "npm run verify:pass-135-kb-screenshot-ingestion"
+  },
+  "screenshotNavigationPolicy": {
+    "statusPanel": true,
+    "filters": [
+      "needs-screenshot",
+      "screenshot-ready"
+    ],
+    "allScreenshotsOptionalForSourceBuilds": true,
+    "missingScreenshotsMustRemainNavigable": true,
+    "noRemoteScreenshotFetch": true,
+    "implementedIn": "browser/onboarding/kb-search.js"
+  }
 }

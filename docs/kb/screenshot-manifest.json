@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "sourcePass": "PASS130",
+  "schemaVersion": 2,
+  "sourcePass": "PASS135",
   "title": "TAHAI Browser KB Screenshot Intake Manifest",
   "policy": "Sanitized user-facing PNG screenshots only. No runtime browser profiles, customer data, secrets, tokens, cloud credentials, generated installers, dist, release, node_modules, or local data.",
   "screenshots": [
@@ -26,7 +26,8 @@
         "Signed-in account details",
         "Private URLs or customer data"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 2,
@@ -48,7 +49,8 @@
         "Private profile details",
         "Unneeded page content"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 3,
@@ -71,7 +73,8 @@
         "Real customer mission names",
         "Private ticket/project details"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 4,
@@ -94,7 +97,8 @@
         "Production credentials",
         "Customer-specific admin console data"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 5,
@@ -117,7 +121,8 @@
         "Sites with private sessions",
         "Any secret-bearing console pages"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 6,
@@ -140,7 +145,8 @@
         "Confusing 3-Up Bottom layout",
         "Overlapping pane chrome"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 7,
@@ -163,7 +169,8 @@
         "Confusing 3-Up Top layout",
         "Overlapping pane chrome"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 8,
@@ -186,7 +193,8 @@
         "Tiny unreadable panes",
         "Private operational dashboards"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 9,
@@ -209,7 +217,8 @@
         "Ambiguous active pane state",
         "Console noise or errors"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 10,
@@ -232,7 +241,8 @@
         "Real incident notes",
         "Names, phone numbers, or ticket details"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 11,
@@ -255,7 +265,8 @@
         "Commands exposing private paths",
         "Debug-only internals"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 12,
@@ -277,7 +288,8 @@
         "Private repository or deployment data",
         "Unreviewed private operational data"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 13,
@@ -299,7 +311,8 @@
         "Device serials, private IPs, user data",
         "Unreviewed private operational data"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 14,
@@ -321,7 +334,8 @@
         "Private site names or admin portals",
         "Unreviewed private operational data"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 15,
@@ -344,7 +358,8 @@
         "Tokens, cookies, auth headers, private keys, customer screenshots",
         "Unreviewed private operational data"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 16,
@@ -366,7 +381,8 @@
         "Local filesystem paths",
         "Unsigned installer warning screens unless intentionally documenting them"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 17,
@@ -388,7 +404,8 @@
         "Real profile names, synced accounts, cookies, local paths",
         "Unreviewed private operational data"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     },
     {
       "order": 18,
@@ -410,7 +427,21 @@
         "Raw errors containing paths or secrets",
         "Sensitive URLs or tenant IDs"
       ],
-      "status": "awaiting-user-screenshot"
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     }
-  ]
+  ],
+  "lastHardenedPass": "PASS135",
+  "ingestionPolicy": {
+    "canonicalSource": "docs/kb/screenshots",
+    "appMirror": "browser/onboarding/screenshots",
+    "acceptedTypes": [
+      "image/png"
+    ],
+    "maxBytes": 8388608,
+    "defaultCommand": "npm run kb:screenshots:ingest -- --apply",
+    "checkCommand": "npm run verify:pass-135-kb-screenshot-ingestion",
+    "missingScreenshotsAreAllowed": true,
+    "rule": "Only sanitized user-facing PNG screenshots with names listed in this manifest may be ingested. Missing screenshots keep awaiting-screenshot placeholders."
+  }
 }

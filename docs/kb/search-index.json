@@ -290,5 +290,7 @@
         "redaction warning"
       ]
     }
-  ]
+  ],
+  "lastHardenedPass": "PASS135",
+  "screenshotIngestion": "Screenshots are optional sanitized PNGs loaded from browser/onboarding/screenshots after manifest validation."
 }

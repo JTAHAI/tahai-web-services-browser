@@ -18,10 +18,10 @@ if (!failures.length) {
   const intake = read('docs/kb/screenshot-intake.md');
   const contract = read('docs/kb/article-authoring-contract.md');
   need(kbManifest.sourcePass === 'PASS129', 'KB manifest sourcePass must remain PASS129 for continuity');
-  need(['PASS130','PASS131'].includes(kbManifest.lastHardenedPass), 'KB manifest must record PASS130 or later hardening');
+  need(['PASS130','PASS131','PASS135','PASS136'].includes(kbManifest.lastHardenedPass), 'KB manifest must record PASS130 or later hardening');
   need(kbManifest.screenshotManifest === 'docs/kb/screenshot-manifest.json', 'KB manifest must point to docs screenshot manifest');
-  need(screenshotManifest.schemaVersion === 1, 'screenshot manifest schemaVersion must be 1');
-  need(screenshotManifest.sourcePass === 'PASS130', 'screenshot manifest sourcePass must be PASS130');
+  need([1,2].includes(screenshotManifest.schemaVersion), 'screenshot manifest schemaVersion must be 1 or PASS135 schemaVersion 2');
+  need(['PASS130','PASS135'].includes(screenshotManifest.sourcePass), 'screenshot manifest sourcePass must be PASS130 or PASS135');
   need(Array.isArray(screenshotManifest.screenshots), 'screenshot manifest screenshots must be an array');
   need(Array.isArray(kbManifest.articles), 'KB manifest articles must be an array');
   need(screenshotManifest.screenshots.length === kbManifest.articles.length, 'screenshot manifest and KB manifest article counts must match');
@@ -43,7 +43,7 @@ if (!failures.length) {
     need(typeof shot.capturePrompt === 'string' && shot.capturePrompt.length > 24, `missing useful capture prompt for ${shot.id}`);
     need(Array.isArray(shot.mustShow) && shot.mustShow.length >= 3, `mustShow checklist too thin for ${shot.id}`);
     need(Array.isArray(shot.avoid) && shot.avoid.length >= 2, `avoid checklist too thin for ${shot.id}`);
-    need(shot.status === 'awaiting-user-screenshot', `screenshot ${shot.id} should still await user screenshot`);
+    need(['awaiting-user-screenshot','awaiting-or-ingestable'].includes(shot.status), `screenshot ${shot.id} should still await or be ingestable`);
     if (article) {
       need(article.screenshot === shot.fileName, `manifest screenshot mismatch for ${shot.id}`);
       need(article.screenOrder === shot.order, `manifest order mismatch for ${shot.id}`);
@@ -72,8 +72,17 @@ if (!failures.length) {
   need(readme.includes('PASS130 screenshot intake hardening'), 'README missing PASS130 hardening section');
   need(intake.includes('Global capture rules') && intake.includes('Screenshot list'), 'screenshot intake doc missing required sections');
   need(contract.includes('Required article shape') && contract.includes('Sync rule'), 'authoring contract missing required rules');
-  const realScreenshots = [...files].filter((file) => exists(`browser/onboarding/screenshots/${file}`) || exists(`docs/kb/screenshots/${file}`));
-  need(realScreenshots.length === 0, `real screenshots should not be committed until supplied/reviewed: ${realScreenshots.join(', ')}`);
+  const allowlistedScreenshots = new Set(files);
+  const screenshotDirs = ['browser/onboarding/screenshots', 'docs/kb/screenshots'];
+  const committedScreenshots = [];
+  for (const dir of screenshotDirs) {
+    if (!exists(dir)) continue;
+    for (const entry of fs.readdirSync(rel(dir))) {
+      if (entry === '.gitkeep' || entry === 'README.md') continue;
+      if (!allowlistedScreenshots.has(entry)) committedScreenshots.push(`${dir}/${entry}`);
+    }
+  }
+  need(committedScreenshots.length === 0, `PASS135 permits only allowlisted KB screenshots; unlisted files found: ${committedScreenshots.join(', ')}`);
   for (const forbidden of ['node_modules', 'dist', 'release', '.git', '.pass-runs', 'artifacts']) need(!Array.from(files).some((file) => file.includes(forbidden)), `screenshot manifest must not reference ${forbidden}`);
   need(pkg.scripts?.['verify:pass-130-kb-screenshot-intake'] === 'node scripts/verify-pass-130-kb-screenshot-intake.mjs', 'missing package script for PASS130');
   need(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-130-kb-screenshot-intake'), 'release blockers missing PASS130');

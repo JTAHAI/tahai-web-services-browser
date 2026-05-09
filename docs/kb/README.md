@@ -50,3 +50,19 @@ Update the Markdown article first, then mirror the user-facing copy into `browse
 ## PASS131 search/navigation polish
 
 PASS131 adds a local-only KB search panel, quick filters, source `docs/kb/search-index.json`, and a self-hosted `browser/onboarding/kb-search.js` controller. The KB search does not use remote scripts, telemetry, network requests, cookies, localStorage, or external services.
+
+## PASS135 screenshot ingestion
+
+PASS135 adds a source-side screenshot ingestion workflow. Put sanitized PNG files in `docs/kb/screenshots/` using the exact names from `docs/kb/screenshot-manifest.json`, then run:
+
+```powershell
+npm run kb:screenshots:ingest -- --apply
+npm run verify:pass-135-kb-screenshot-ingestion
+```
+
+The workflow validates file names, PNG signatures, size limits, and manifest targets before mirroring approved screenshots into `browser/onboarding/screenshots/` for the in-app KB. Missing screenshots are allowed and keep the awaiting-screenshot placeholders active.
+
+
+## PASS136 screenshot-aware navigation
+
+The shipped KB now includes screenshot readiness counts plus filters for articles that still need screenshots and articles with screenshots already ingested. Screenshots remain optional for source builds.

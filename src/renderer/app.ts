@@ -3062,8 +3062,8 @@ function pass88RouteMouseNavigation(event: MouseEvent): void {
   pass88LastMouseNavigationAt = now;
   event.preventDefault();
   event.stopPropagation();
-  if (event.button === 3) goBackTarget();
-  if (event.button === 4) goForwardTarget();
+  if (event.button === 3) goBackTarget('mouse');
+  if (event.button === 4) goForwardTarget('mouse');
   document.body.dataset.pass88LastMouseRoute = event.button === 3 ? 'back' : 'forward';
   pass88ScheduleActivePaneRoutingFailsafe('mouse-button');
 }
@@ -3071,7 +3071,7 @@ function pass88RouteMouseNavigation(event: MouseEvent): void {
 function pass88NavigateAddressInput(): void {
   const issues = pass88RepairActivePane('address-submit');
   if (issues.length) renderMissionLayout();
-  navigate(addressInput.value);
+  navigate(addressInput.value, 'address');
   pass88ScheduleActivePaneRoutingFailsafe('address-submit');
 }
 
@@ -4048,32 +4048,114 @@ function tabForMissionPane(paneId: string | undefined): TabState | undefined {
   return runtimeTabId ? tabs.get(runtimeTabId) : undefined;
 }
 
-function activeNavigationTarget(): TabState | undefined {
-  return tabForMissionPane(activeMissionPaneId()) || active();
+// PASS134 brutal active-pane routing regression closeout: every browser command that can
+// navigate, reload, go back/forward, print, or target DevTools must ask this single
+// route resolver first. It repairs hidden Mission panes, synchronizes activeTabId to
+// the visible active pane, records telemetry for verifier/manual QA, and fails closed
+// with a safe no-op status instead of silently affecting the wrong pane.
+type Pass134RouteIntent = 'address' | 'toolbar' | 'menu' | 'shortcut' | 'command' | 'mouse' | 'home' | 'launchpad' | 'guide' | 'about' | 'print' | 'devtools' | 'reload' | 'back' | 'forward';
+
+function pass134RouteIntentLabel(intent: Pass134RouteIntent): string {
+  return intent.replace(/-/g, ' ');
 }
 
-function navigateTarget(tab: TabState | undefined, url: string): void {
-  if (!tab) return;
+function pass134VisibleActivePane(reason: string): string | undefined {
+  if (!currentMission || currentMission.layout.type === 'single') return undefined;
+  const repairs = pass88RepairActivePane(`pass134-${reason}`);
+  if (repairs.length) {
+    syncMissionLayoutPanes();
+    renderMissionLayout();
+  }
+  return activeMissionPaneId();
+}
+
+function activeNavigationTarget(intent: Pass134RouteIntent = 'toolbar'): TabState | undefined {
+  const paneId = pass134VisibleActivePane(intent);
+  const paneTab = tabForMissionPane(paneId);
+  const target = paneTab || active();
+  const routeMode = paneId && paneTab ? 'mission-pane' : 'active-tab';
+  if (paneId && paneTab && activeTabId !== paneTab.id) {
+    activeTabId = paneTab.id;
+    document.body.dataset.pass134LastActiveTabSync = `${paneId}:${paneTab.id}:${intent}`;
+  }
+  document.body.dataset.pass134LastRouteIntent = intent;
+  document.body.dataset.pass134LastRouteMode = routeMode;
+  document.body.dataset.pass134LastRoutePane = paneId || 'none';
+  document.body.dataset.pass134LastRouteTab = target?.id || 'none';
+  document.body.dataset.pass134LastRouteTitle = target?.title || 'none';
+  if (addressInput) addressInput.dataset.pass134RouteTarget = paneId || 'active-tab';
+  return target;
+}
+
+function pass134TargetLabel(tab: TabState | undefined, paneId = activeMissionPaneId()): string {
+  if (paneId) return `${missionPaneLabel(paneId)} · ${tab?.title || 'empty pane'}`;
+  return `Active tab · ${tab?.title || 'none'}`;
+}
+
+function pass134Noop(intent: Pass134RouteIntent, detail: string): void {
+  document.body.dataset.pass134LastNoop = `${intent}:${detail}`;
+  setStatus(`No ${pass134RouteIntentLabel(intent)} target`, detail);
+  pass88ScheduleActivePaneRoutingFailsafe(`pass134-${intent}-noop`);
+}
+
+function navigateTarget(tab: TabState | undefined, url: string, intent: Pass134RouteIntent = 'address'): void {
+  if (!tab) {
+    pass134Noop(intent, 'No active tab or visible Mission pane is available.');
+    return;
+  }
   const target = normalizeTarget(url);
   tab.webview.loadURL(target);
   updateTab(tab, { url: target, title: titleFromUrl(target) });
+  document.body.dataset.pass134LastNavigationUrl = target;
+  document.body.dataset.pass134LastNavigationIntent = intent;
 }
 
-function navigate(url: string): void {
-  navigateTarget(activeNavigationTarget(), url);
+function navigate(url: string, intent: Pass134RouteIntent = 'address'): void {
+  navigateTarget(activeNavigationTarget(intent), url, intent);
 }
 
-function goBackTarget(): void {
-  const tab = activeNavigationTarget();
-  if (tab?.webview.canGoBack()) tab.webview.goBack();
+function goBackTarget(intent: Pass134RouteIntent = 'back'): void {
+  const tab = activeNavigationTarget(intent);
+  if (!tab) return pass134Noop('back', 'No active tab or visible Mission pane is available.');
+  if (tab.webview.canGoBack()) {
+    tab.webview.goBack();
+    document.body.dataset.pass134LastHistoryCommand = `back:${tab.id}`;
+  } else {
+    pass134Noop('back', `${pass134TargetLabel(tab)} cannot go back.`);
+  }
 }
 
-function goForwardTarget(): void {
-  const tab = activeNavigationTarget();
-  if (tab?.webview.canGoForward()) tab.webview.goForward();
+function goForwardTarget(intent: Pass134RouteIntent = 'forward'): void {
+  const tab = activeNavigationTarget(intent);
+  if (!tab) return pass134Noop('forward', 'No active tab or visible Mission pane is available.');
+  if (tab.webview.canGoForward()) {
+    tab.webview.goForward();
+    document.body.dataset.pass134LastHistoryCommand = `forward:${tab.id}`;
+  } else {
+    pass134Noop('forward', `${pass134TargetLabel(tab)} cannot go forward.`);
+  }
 }
 
-function reloadTarget(): void { activeNavigationTarget()?.webview.reload(); }
+function reloadTarget(intent: Pass134RouteIntent = 'reload'): void {
+  const tab = activeNavigationTarget(intent);
+  if (!tab) return pass134Noop('reload', 'No active tab or visible Mission pane is available.');
+  tab.webview.reload();
+  document.body.dataset.pass134LastReloadTarget = tab.id;
+}
+
+function printTarget(intent: Pass134RouteIntent = 'print'): void {
+  const tab = activeNavigationTarget(intent);
+  if (!tab) return pass134Noop('print', 'No active tab or visible Mission pane is available.');
+  tab.webview.print();
+  document.body.dataset.pass134LastPrintTarget = tab.id;
+}
+
+function toggleTargetDevTools(intent: Pass134RouteIntent = 'devtools'): void {
+  const tab = activeNavigationTarget(intent);
+  if (tab && activeTabId !== tab.id) activeTabId = tab.id;
+  toggleActiveDevTools();
+  document.body.dataset.pass134LastDevToolsTarget = tab?.id || 'active-tab';
+}
 
 function swapActiveMissionPane(direction: -1 | 1): void {
   if (!currentMission || currentMission.layout.type === 'single') return;
@@ -9003,14 +9085,14 @@ function handleMenuCommand(command: string): void {
   if (command === 'new-microsoft-profile') void createProfileDraft('microsoft');
   if (command === 'open-active-profile-folder') void openActiveProfileData();
   if (command === 'focus-address') { addressInput.focus(); addressInput.select(); }
-  if (command === 'back') goBackTarget();
-  if (command === 'forward') goForwardTarget();
-  if (command === 'home') navigate(settings.homeUrl || config.homeUrl);
-  if (command === 'print') active()?.webview.print();
-  if (command === 'reload') active()?.webview.reload();
-  if (command === 'launchpad') navigate(config.newTabUrl);
-  if (command === 'guide') navigate(config.onboardingUrl);
-  if (command === 'about') navigate(config.aboutUrl);
+  if (command === 'back') goBackTarget('menu');
+  if (command === 'forward') goForwardTarget('menu');
+  if (command === 'home') navigate(settings.homeUrl || config.homeUrl, 'home');
+  if (command === 'print') printTarget('print');
+  if (command === 'reload') reloadTarget('reload');
+  if (command === 'launchpad') navigate(config.newTabUrl, 'launchpad');
+  if (command === 'guide') navigate(config.onboardingUrl, 'guide');
+  if (command === 'about') navigate(config.aboutUrl, 'about');
   if (command === 'capture') void openDevOpsCapture();
   if (command === 'ops-check') void openOpsCheck();
   if (command === 'deploy') void openDeployReadiness();
@@ -9024,12 +9106,12 @@ function handleMenuCommand(command: string): void {
 
 
 addressForm.addEventListener('submit', (event) => { event.preventDefault(); pass88NavigateAddressInput(); });
-backButton.addEventListener('click', goBackTarget);
-forwardButton.addEventListener('click', goForwardTarget);
-reloadButton.addEventListener('click', reloadTarget);
-homeButton.addEventListener('click', () => navigate(settings.homeUrl || config.homeUrl));
-launchpadButton.addEventListener('click', () => navigate(config.newTabUrl));
-onboardingButton.addEventListener('click', () => navigate(config.onboardingUrl));
+backButton.addEventListener('click', () => goBackTarget('toolbar'));
+forwardButton.addEventListener('click', () => goForwardTarget('toolbar'));
+reloadButton.addEventListener('click', () => reloadTarget('toolbar'));
+homeButton.addEventListener('click', () => navigate(settings.homeUrl || config.homeUrl, 'home'));
+launchpadButton.addEventListener('click', () => navigate(config.newTabUrl, 'launchpad'));
+onboardingButton.addEventListener('click', () => navigate(config.onboardingUrl, 'guide'));
 profileSwitcherButton.addEventListener('click', () => { void openProfileManager(); });
 opsHubToggleButton.addEventListener('click', () => toggleOpsHub());
 missionControlButton.addEventListener('click', () => { void openMissionControl(); });
@@ -9494,7 +9576,7 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowLeft') { event.preventDefault(); swapActiveMissionPane(-1); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowRight') { event.preventDefault(); swapActiveMissionPane(1); }
   if (event.ctrlKey && event.key.toLowerCase() === 'l') { event.preventDefault(); addressInput.focus(); addressInput.select(); }
-  if (event.ctrlKey && event.key.toLowerCase() === 'r') { event.preventDefault(); reloadTarget(); }
+  if (event.ctrlKey && event.key.toLowerCase() === 'r') { event.preventDefault(); reloadTarget('shortcut'); }
   if (event.ctrlKey && event.key.toLowerCase() === 't') { event.preventDefault(); createTab(config.newTabUrl); }
   if (event.ctrlKey && event.key.toLowerCase() === 'w') { event.preventDefault(); closeTab(activeTabId); }
   if (event.ctrlKey && event.key === ',') { event.preventDefault(); openSettings(); }
@@ -9508,9 +9590,9 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'k') { event.preventDefault(); openSecretBoundary(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'p') { event.preventDefault(); void openRouteMap(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'a') { event.preventDefault(); void openDeveloperAudit(); }
-  if ((event.key === 'F12') || ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'i')) { event.preventDefault(); toggleActiveDevTools(); }
-  if (event.altKey && event.key === 'ArrowLeft') { event.preventDefault(); goBackTarget(); }
-  if (event.altKey && event.key === 'ArrowRight') { event.preventDefault(); goForwardTarget(); }
+  if ((event.key === 'F12') || ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'i')) { event.preventDefault(); toggleTargetDevTools('devtools'); }
+  if (event.altKey && event.key === 'ArrowLeft') { event.preventDefault(); goBackTarget('shortcut'); }
+  if (event.altKey && event.key === 'ArrowRight') { event.preventDefault(); goForwardTarget('shortcut'); }
 });
 
 if (window.tahaiBrowser) {

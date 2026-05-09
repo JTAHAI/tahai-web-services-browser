@@ -38,7 +38,7 @@ if (!failures.length) {
   const verify130 = read('scripts/verify-pass-130-kb-screenshot-intake.mjs');
   const pkg = readJson('package.json');
 
-  need(manifest.lastHardenedPass === 'PASS131', 'KB manifest must record PASS131 hardening');
+  need(['PASS131','PASS135','PASS136'].includes(manifest.lastHardenedPass), 'KB manifest must record PASS131 or later hardening');
   need(manifest.searchIndex === 'docs/kb/search-index.json', 'KB manifest must point to search index');
   need(typeof manifest.searchPolicy === 'string' && manifest.searchPolicy.includes('No inline script') && manifest.searchPolicy.includes('remote script'), 'KB manifest must document strict search policy');
   need(index.schemaVersion === 1, 'KB search index schemaVersion must be 1');
@@ -85,9 +85,17 @@ if (!failures.length) {
   need(contract.includes('PASS131 search metadata rule'), 'KB authoring contract missing PASS131 metadata rule');
   need(summary.includes('Version') && summary.includes('1.8.30 unchanged'), 'PASS131 summary must preserve version truth');
 
-  const screenshotFiles = new Set((manifest.articles || []).map((article) => article.screenshot));
-  const committedScreenshots = [...screenshotFiles].filter((file) => exists(`browser/onboarding/screenshots/${file}`) || exists(`docs/kb/screenshots/${file}`));
-  need(committedScreenshots.length === 0, `real screenshots should not be committed in PASS131: ${committedScreenshots.join(', ')}`);
+  const allowlistedScreenshots = new Set((manifest.articles || []).map((article) => article.screenshot).filter(Boolean));
+  const screenshotDirs = ['browser/onboarding/screenshots', 'docs/kb/screenshots'];
+  const unlistedScreenshots = [];
+  for (const dir of screenshotDirs) {
+    if (!exists(dir)) continue;
+    for (const entry of fs.readdirSync(rel(dir))) {
+      if (entry === '.gitkeep' || entry === 'README.md') continue;
+      if (!allowlistedScreenshots.has(entry)) unlistedScreenshots.push(`${dir}/${entry}`);
+    }
+  }
+  need(unlistedScreenshots.length === 0, `PASS135 permits only allowlisted KB screenshots; unlisted files found: ${unlistedScreenshots.join(', ')}`);
 
   need(pkg.scripts?.['verify:pass-131-kb-search-navigation-polish'] === 'node scripts/verify-pass-131-kb-search-navigation-polish.mjs', 'missing package script for PASS131');
   need(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-131-kb-search-navigation-polish'), 'release blockers missing PASS131');

@@ -12,15 +12,21 @@ for (const token of [
   'function goForwardTarget',
   'function reloadTarget',
   'function swapActiveMissionPane',
-  "backButton.addEventListener('click', goBackTarget)",
-  "forwardButton.addEventListener('click', goForwardTarget)",
-  "reloadButton.addEventListener('click', reloadTarget)",
   'mission-pane-swap-left',
   'mission-pane-swap-right',
   'Ctrl+Alt+Shift+←',
   'Ctrl+Alt+Shift+→'
 ]) {
   if (!app.includes(token)) fail(`missing-app-token:${token}`);
+}
+
+const listenerFamilies = [
+  ["backButton.addEventListener('click', goBackTarget)", "backButton.addEventListener('click', () => goBackTarget('toolbar'))"],
+  ["forwardButton.addEventListener('click', goForwardTarget)", "forwardButton.addEventListener('click', () => goForwardTarget('toolbar'))"],
+  ["reloadButton.addEventListener('click', reloadTarget)", "reloadButton.addEventListener('click', () => reloadTarget('toolbar'))"]
+];
+for (const family of listenerFamilies) {
+  if (!family.some((token) => app.includes(token))) fail(`missing-app-token:${family[0]}`);
 }
 for (const token of [
   'PASS 17 Mission Control layout polish',

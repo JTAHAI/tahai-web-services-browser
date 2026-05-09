@@ -9,11 +9,11 @@
   <link rel="icon" href="../new-tab/assets/tws/tws-square-logo.png" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
-<body data-pass129-kb-repo-foundation="true" data-pass130-kb-screenshot-intake="true" data-pass131-kb-search-navigation="true">
+<body data-pass129-kb-repo-foundation="true" data-pass130-kb-screenshot-intake="true" data-pass131-kb-search-navigation="true" data-pass135-kb-screenshot-ingestion="true" data-pass136-kb-screenshot-navigation="true">
   <main>
     <section class="hero kb-hero" id="top">
       <img src="../new-tab/assets/tws/tws-square-logo.png" alt="TAHAI Web Services" />
-      <div><p class="eyebrow">Guide / Knowledge Base</p><h1>TAHAI Browser KB</h1><p>This local-first knowledge base explains the main TAHAI Web Services Browser features: normal browsing, Guide / KB access, Mission Control, Mission Tabs, Mission Views, Runbook Rail, command workflows, DevOps tools, IT tools, Site View, evidence/export, installers, settings, and troubleshooting states.</p><div class="links"><a href="#mission-control" data-kb-nav-link data-kb-target="mission-control">Mission Control</a><a href="#mission-views">Mission Views</a><a href="#devops-tools">Tools</a><a href="#evidence-export">Evidence</a><a href="#screenshots-needed">Screenshots needed</a><a href="#capture-checklist">Capture checklist</a><a href="#kb-search-panel">Search KB</a></div></div>
+      <div><p class="eyebrow">Guide / Knowledge Base</p><h1>TAHAI Browser KB</h1><p>This local-first knowledge base explains the main TAHAI Web Services Browser features: normal browsing, Guide / KB access, Mission Control, Mission Tabs, Mission Views, Runbook Rail, command workflows, DevOps tools, IT tools, Site View, evidence/export, installers, settings, and troubleshooting states.</p><div class="links"><a href="#mission-control" data-kb-nav-link data-kb-target="mission-control">Mission Control</a><a href="#mission-views">Mission Views</a><a href="#devops-tools">Tools</a><a href="#evidence-export">Evidence</a><a href="#screenshots-needed">Screenshots needed</a><a href="#capture-checklist">Capture checklist</a><a href="#screenshot-ingestion">Add screenshots</a><a href="#kb-search-panel">Search KB</a></div></div>
     </section>
 
     <section class="kb-search-panel" id="kb-search-panel" aria-label="Search Knowledge Base" data-pass131-kb-search-navigation="true">
@@ -34,9 +34,31 @@
         <button type="button" data-kb-filter="evidence">Evidence</button>
         <button type="button" data-kb-filter="installers">Installers</button>
         <button type="button" data-kb-filter="troubleshooting">Troubleshooting</button>
+        <button type="button" data-kb-screenshot-filter="needs-screenshot">Needs screenshots</button>
+        <button type="button" data-kb-screenshot-filter="screenshot-ready">Screenshot ready</button>
       </div>
       <p class="kb-search-status" id="kb-search-status" aria-live="polite">Showing all 18 KB articles.</p>
       <p class="kb-search-empty" data-kb-search-empty hidden>No matching KB articles. Try Mission, Guide, 3-Up, Quad, Ctrl+K, Evidence, Downloads, Settings, or Troubleshooting.</p>
+    </section>
+
+
+    <section class="kb-screenshot-status-panel" id="kb-screenshot-status-panel" aria-label="Knowledge Base screenshot status" data-pass136-kb-screenshot-navigation="true">
+      <div>
+        <p class="eyebrow">Screenshot readiness</p>
+        <h2>KB screenshot status</h2>
+        <p id="kb-screenshot-status-summary">Checking screenshot slots…</p>
+      </div>
+      <div class="kb-screenshot-counts" id="kb-screenshot-counts" aria-label="Screenshot readiness counts">
+        <span data-kb-screenshot-count="total">0 slots</span>
+        <span data-kb-screenshot-count="loaded">0 ready</span>
+        <span data-kb-screenshot-count="awaiting">0 awaiting</span>
+      </div>
+      <div class="kb-screenshot-actions" aria-label="Screenshot navigation actions">
+        <a href="#screenshots-needed" id="kb-first-missing-link" data-kb-first-missing>Review missing screenshots</a>
+        <button type="button" data-kb-screenshot-filter="needs-screenshot">Show needs screenshots</button>
+        <button type="button" data-kb-screenshot-filter="screenshot-ready">Show screenshot ready</button>
+      </div>
+      <p class="kb-screenshot-ready-list" id="kb-screenshot-ready-list">Screenshots are optional during source builds. Drop approved PNGs into docs/kb/screenshots and run the ingestion command when ready.</p>
     </section>
     <section class="kb-layout" aria-label="TAHAI Browser Knowledge Base"><nav class="kb-nav" aria-label="Knowledge Base contents"><strong>KB contents</strong><a href="#getting-started" data-kb-nav-link data-kb-target="getting-started">Getting started</a>
 <a href="#guide-kb" data-kb-nav-link data-kb-target="guide-kb">Guide / Knowledge Base</a>
@@ -93,6 +115,8 @@
 <li>16-downloads-installers.png</li>
 <li>17-settings-security.png</li>
 <li>18-error-empty-blocked-state.png</li></ol></article>
+
+<article class="kb-card wide screenshot-ingestion" id="screenshot-ingestion" data-kb-article data-kb-title="Add screenshots" data-kb-search="screenshot ingestion add screenshots png manifest docs kb screenshots browser onboarding screenshots npm run kb screenshots ingest apply validate mirror"><p class="eyebrow">PASS135</p><h2>Add screenshots to the KB</h2><p>When sanitized PNG screenshots are ready, place them in <code>docs/kb/screenshots/</code> using the exact file names from the capture checklist, then run <code>npm run kb:screenshots:ingest -- --apply</code>. The ingestion command validates the manifest, file names, PNG signatures, size limits, and mirrors approved images into the in-app KB screenshot folder.</p><p>Missing screenshots are allowed. Missing files keep the “Awaiting screenshot” placeholders active so the KB can ship before every screen capture is available.</p></article>
 <article class="kb-card wide capture-checklist" id="capture-checklist"><p class="eyebrow">PASS130</p><h2>Screenshot capture checklist</h2><p>Use these exact screenshot slots when adding images to the KB. Keep captures sanitized and user-facing before committing them.</p><ol><li><strong>01. Main browser window / normal mode</strong><code>01-main-browser-normal-mode.png</code><span>Capture the full browser window in normal mode with the tab strip, address bar, toolbar controls, and page area visible.</span></li>
 <li><strong>02. Guide / Knowledge Base entry point</strong><code>02-guide-kb-entry.png</code><span>Capture the Guide / KB entry point. At a narrow width, include the compact Guide anchor next to More Tools if possible.</span></li>
 <li><strong>03. Mission Control open</strong><code>03-mission-control-open.png</code><span>Open Mission Control and capture the full window with the Mission panel, layout controls, and workbench area visible.</span></li>

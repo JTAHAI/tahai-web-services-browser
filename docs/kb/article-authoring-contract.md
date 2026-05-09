@@ -36,3 +36,12 @@ When an article is renamed or added, update all of these together:
 ## PASS131 search metadata rule
 
 Every KB article must have matching keyword/search metadata in `browser/onboarding/kb-manifest.json`, `docs/kb/search-index.json`, and the in-app article `data-kb-search` attribute. Search metadata must remain generic and must not include customer names, tokens, secrets, tenant IDs, runtime profile paths, or local workstation data.
+
+## PASS135 screenshot ingestion rule
+
+Every article screenshot reference must stay manifest-driven. The canonical capture lives in `docs/kb/screenshots/`; the in-app mirror lives in `browser/onboarding/screenshots/` and must be populated by `npm run kb:screenshots:ingest -- --apply`, not by ad-hoc file drops. Article HTML must continue to use `data-screenshot-id` placeholders so missing screenshots remain valid.
+
+
+## PASS136 navigation rule
+
+Each article with a screenshot slot must remain discoverable by normal text search and by screenshot status filters. Missing screenshots must never hide the article or fail the build.
