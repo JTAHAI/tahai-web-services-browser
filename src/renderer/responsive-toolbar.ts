@@ -13,9 +13,19 @@
   // PASS163 More Tools action dispatch: moved controls must activate and then close the overflow panel at every window size.
   // PASS164 first-click action broker: More Tools delegates compact-menu actions before any overlay close/reflow cleanup can swallow them.
   // PASS165 action-settle hardening: known cross-module More Tools actions keep a settle window even when native fallback is used.
+  // PASS167 source-safe overlay close: non-active close events must not clear another overlay's active state.
+  // PASS168 overlay open-age stamp: More Tools must refresh viewport-settle timing before compact reflow checks.
+  // PASS169 delayed overlay focus guard: stale post-close focus timers must not focus hidden overflow controls.
+  // PASS170 restore-focus target guard: opener restore must not refocus hidden/moved/replaced controls.
+  // PASS171 focus epoch guard: delayed focus timers must belong to the current overlay open generation.
+  // PASS174 iconified utility hardening: fixed-position tooltip, menu roles, keyboard roving, and runtime state alignment.
+  // PASS175 icon/screen-size UX hardening: clearer icon-only states, tiny-width overflow, Tab roving, and stale tooltip cleanup.
+  // PASS176 compact icon viewport hardening: keep open-menu focus stable during relayout and expose compact hit-target states.
+  // PASS177 website pane viewport recovery: hard-cap chrome growth so the webview cannot collapse into a bottom sliver.
+  // PASS178 live viewport budget observer + enterprise button geometry: re-audit chrome after bookmarks/overlays/resize and de-pill utility controls.
   // Verifier token: &gt; keeps the chevron overflow release gate aligned with escaped HTML output checks.
   type ChromeOverflowItem = { id: string; priority: number; label: string };
-  type ManagedItem = { id: string; priority: number; marker: Comment; element: HTMLElement };
+  type ManagedItem = { id: string; priority: number; marker: Comment; element: HTMLElement; toolbarRole: string | null };
 
   const MENU_ID = 'toolbar-overflow-menu';
   const BUTTON_ID = 'toolbar-overflow-toggle';
@@ -30,6 +40,11 @@
   const PASS123_OVERLAY_CYCLE_AUDIT_EVENT = 'tahai:chrome-overlay-cycle-audit';
   const PASS164_MORE_TOOLS_ACTION_EVENT = 'tahai:more-tools-action-request';
   const PASS164_MORE_TOOLS_ACTION_SETTLE_MS = 180;
+  const PASS174_TOOLTIP_ID = 'pass174-utility-tooltip';
+  const PASS177_MIN_WEBVIEW_HEIGHT_PX = 220;
+  const PASS177_MAX_CHROME_VIEWPORT_SHARE = 0.38;
+  const PASS178_VIEWPORT_BUDGET_AUDIT_DELAYS_MS = [0, 90, 260, 760];
+  const PASS178_VIEWPORT_OBSERVER_RELAYOUT_COOLDOWN_MS = 180;
   const PASS165_MORE_TOOLS_KNOWN_ACTION_IDS = new Set([
     'about',
     'settings',
@@ -44,6 +59,9 @@
   const PASS117_FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
   const PASS163_MORE_TOOLS_ACTION_CLOSE_DELAY_MS = 0;
   let pass164MoreToolsActionInFlight = false;
+  let pass174TooltipEl: HTMLElement | null = null;
+  let pass174TooltipSource: HTMLElement | null = null;
+  let pass174TooltipInstalled = false;
 
   const PASS113_ALWAYS_VISIBLE_IDS = new Set([
     'back', 'forward', 'reload', 'home', 'address-form',
@@ -69,9 +87,238 @@
   let resizeTimer = 0;
   let mutationObserver: MutationObserver | null = null;
   let pass117MoreToolsOpener: HTMLElement | null = null;
+  let pass171MoreToolsFocusEpoch = 0;
+  let pass178ViewportBudgetObserver: ResizeObserver | null = null;
+  let pass178ViewportMutationObserver: MutationObserver | null = null;
+  let pass178ViewportAuditTimer = 0;
+  let pass178ViewportRelayoutUntil = 0;
 
   function byId<T extends HTMLElement>(id: string): T | null { return document.getElementById(id) as T | null; }
   function setStatus(message: string): void { const status = byId<HTMLElement>('status-text'); if (status) status.textContent = message; }
+
+  function pass174Clamp(value: number, min: number, max: number): number { return Math.min(max, Math.max(min, value)); }
+  function pass174EnsureTooltip(): HTMLElement {
+    if (pass174TooltipEl && document.contains(pass174TooltipEl)) return pass174TooltipEl;
+    const existing = byId<HTMLElement>(PASS174_TOOLTIP_ID);
+    if (existing) { pass174TooltipEl = existing; return existing; }
+    const tooltip = document.createElement('div');
+    tooltip.id = PASS174_TOOLTIP_ID;
+    tooltip.className = 'pass174-utility-tooltip';
+    tooltip.setAttribute('role', 'tooltip');
+    tooltip.setAttribute('aria-hidden', 'true');
+    tooltip.dataset.pass174FixedTooltip = 'true';
+    document.body.appendChild(tooltip);
+    pass174TooltipEl = tooltip;
+    return tooltip;
+  }
+  function pass175IsVisibleUtilityControl(element: HTMLElement): boolean {
+    if (!document.contains(element)) return false;
+    if (element.hidden || element.getAttribute('aria-hidden') === 'true') return false;
+    if (element instanceof HTMLButtonElement && element.disabled) return false;
+    if (element.closest('[hidden], [aria-hidden="true"]')) return false;
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) return false;
+    return Boolean(element.getClientRects().length);
+  }
+  function pass174TooltipCandidate(target: EventTarget | null): HTMLElement | null {
+    const element = target instanceof Element ? target.closest<HTMLElement>('.utility-chrome-button[data-pass173-tooltip], #toolbar-overflow-toggle[data-pass173-tooltip], .toolbar-guide-quick[data-pass173-tooltip]') : null;
+    if (!element || !pass175IsVisibleUtilityControl(element)) return null;
+    return element;
+  }
+  function pass174TooltipText(element: HTMLElement): string {
+    const raw = element.dataset.pass173Tooltip || element.getAttribute('aria-label') || element.getAttribute('title') || element.textContent || '';
+    return raw.replace(/\s+/g, ' ').trim().slice(0, 96);
+  }
+  function pass174PositionTooltip(source: HTMLElement, tooltip: HTMLElement): void {
+    const rect = source.getBoundingClientRect();
+    tooltip.style.left = '0px';
+    tooltip.style.top = '0px';
+    tooltip.style.maxWidth = `${Math.max(160, Math.min(240, window.innerWidth - 16))}px`;
+    const tipRect = tooltip.getBoundingClientRect();
+    const left = pass174Clamp(rect.left + rect.width / 2 - tipRect.width / 2, 8, Math.max(8, window.innerWidth - tipRect.width - 8));
+    let top = rect.top - tipRect.height - 8;
+    if (top < 8) top = rect.bottom + 8;
+    if (top + tipRect.height > window.innerHeight - 8) top = pass174Clamp(rect.top, 8, Math.max(8, window.innerHeight - tipRect.height - 8));
+    tooltip.style.left = `${Math.round(left)}px`;
+    tooltip.style.top = `${Math.round(top)}px`;
+  }
+  function pass174ShowUtilityTooltip(source: HTMLElement): void {
+    const text = pass174TooltipText(source);
+    if (!text) return;
+    const tooltip = pass174EnsureTooltip();
+    pass174TooltipSource?.removeAttribute('aria-describedby');
+    pass174TooltipSource = source;
+    tooltip.textContent = text;
+    tooltip.dataset.pass174TooltipVisible = 'true';
+    tooltip.setAttribute('aria-hidden', 'false');
+    source.setAttribute('aria-describedby', PASS174_TOOLTIP_ID);
+    document.body.dataset.pass174UtilityTooltipState = 'visible';
+    document.body.dataset.pass174UtilityTooltipSource = source.id || source.dataset.pass173Iconified || 'utility-control';
+    requestAnimationFrame(() => pass174PositionTooltip(source, tooltip));
+  }
+  function pass174HideUtilityTooltip(source?: HTMLElement | null): void {
+    if (source && pass174TooltipSource && source !== pass174TooltipSource) return;
+    pass174TooltipSource?.removeAttribute('aria-describedby');
+    pass174TooltipSource = null;
+    if (!pass174TooltipEl) return;
+    pass174TooltipEl.dataset.pass174TooltipVisible = 'false';
+    pass174TooltipEl.setAttribute('aria-hidden', 'true');
+    document.body.dataset.pass174UtilityTooltipState = 'hidden';
+  }
+  function pass174InstallUtilityTooltipController(): void {
+    if (pass174TooltipInstalled) return;
+    pass174TooltipInstalled = true;
+    document.body.dataset.pass174UtilityTooltipController = 'ready';
+    document.addEventListener('pointerover', (event) => { const source = pass174TooltipCandidate(event.target); if (source) pass174ShowUtilityTooltip(source); });
+    document.addEventListener('pointerout', (event) => {
+      const source = pass174TooltipCandidate(event.target);
+      if (!source) return;
+      const related = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+      if (related && source.contains(related)) return;
+      pass174HideUtilityTooltip(source);
+    });
+    document.addEventListener('focusin', (event) => { const source = pass174TooltipCandidate(event.target); if (source) pass174ShowUtilityTooltip(source); });
+    document.addEventListener('focusout', (event) => { const source = pass174TooltipCandidate(event.target); if (source) pass174HideUtilityTooltip(source); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') pass174HideUtilityTooltip(); });
+    document.addEventListener('click', (event) => { if (pass174TooltipCandidate(event.target)) pass174HideUtilityTooltip(); }, true);
+    window.addEventListener('resize', () => pass174HideUtilityTooltip());
+    window.addEventListener('scroll', () => pass174HideUtilityTooltip(), true);
+  }
+  function pass174MenuFocusableItems(): HTMLElement[] {
+    if (!menuEl) return [];
+    return Array.from(menuEl.querySelectorAll<HTMLElement>(PASS117_FOCUSABLE_SELECTOR)).filter((element) => {
+      if (element.hidden || element.getAttribute('aria-hidden') === 'true') return false;
+      if (element instanceof HTMLButtonElement && element.disabled) return false;
+      return Boolean(element.getClientRects().length);
+    });
+  }
+  function pass174MoveMenuFocus(direction: 1 | -1 | 'first' | 'last'): void {
+    const items = pass174MenuFocusableItems();
+    if (!items.length) return;
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const currentIndex = active ? items.indexOf(active) : -1;
+    let nextIndex = 0;
+    if (direction === 'first') nextIndex = 0;
+    else if (direction === 'last') nextIndex = items.length - 1;
+    else nextIndex = currentIndex < 0 ? 0 : (currentIndex + direction + items.length) % items.length;
+    items[nextIndex]?.focus();
+    document.body.dataset.pass174MoreToolsKeyboardNav = 'roving-focus';
+  }
+
+  function pass176UpdateCompactIconViewportState(target: number): void {
+    const width = Math.round(window.innerWidth || 0);
+    const density = target >= CHROME_OVERFLOW_ITEMS.length ? 'all-utility-in-more-tools'
+      : target > 0 ? 'mixed-toolbar-and-more-tools'
+      : 'full-toolbar';
+    document.body.dataset.pass176CompactIconViewportHardening = 'true';
+    document.body.dataset.pass177SiteViewportRecovery = 'true';
+    document.body.dataset.pass176ResponsiveIconDensity = density;
+    document.body.dataset.pass176ResponsiveViewportWidth = String(width);
+    if (buttonEl) {
+      buttonEl.dataset.pass176MoreToolsVisibility = target > 0 ? 'visible' : 'hidden';
+      buttonEl.dataset.pass176MoreToolsTargetCount = String(target);
+    }
+  }
+
+  function pass176StabilizeOpenMoreToolsFocus(reason: string): void {
+    if (!menuEl || menuEl.hidden || menuEl.getAttribute('aria-hidden') === 'true') return;
+    const items = pass174MenuFocusableItems();
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const activeStillVisible = Boolean(active && menuEl.contains(active) && items.includes(active) && pass175IsVisibleUtilityControl(active));
+    document.body.dataset.pass176MoreToolsFocusStabilizer = reason;
+    document.body.dataset.pass176MoreToolsVisibleItems = String(items.length);
+    if (activeStillVisible) {
+      document.body.dataset.pass176MoreToolsFocusState = 'stable';
+      return;
+    }
+    const next = items[0] || menuEl;
+    window.setTimeout(() => {
+      if (!menuEl || menuEl.hidden || menuEl.getAttribute('aria-hidden') === 'true') return;
+      if (document.body.dataset.pass116ActiveOverlay !== 'more-tools') return;
+      next.focus();
+      document.body.dataset.pass176MoreToolsFocusState = 'repaired-after-' + reason;
+    }, 0);
+  }
+
+  function pass177MeasureWebsitePaneBudget(): { available: number; chrome: number; share: number; forced: boolean } {
+    const topbar = document.querySelector<HTMLElement>('.topbar');
+    const toolbar = document.querySelector<HTMLElement>('.toolbar');
+    const bookmarks = document.querySelector<HTMLElement>('.chromium-bookmarks-bar:not([hidden])');
+    const statusbar = document.querySelector<HTMLElement>('.statusbar');
+    const topbarHeight = Math.ceil(topbar?.getBoundingClientRect().height || 0);
+    const toolbarHeight = Math.ceil(toolbar?.getBoundingClientRect().height || 0);
+    const bookmarksHeight = Math.ceil(bookmarks?.getBoundingClientRect().height || 0);
+    const statusbarHeight = Math.ceil(statusbar?.getBoundingClientRect().height || 0);
+    const viewport = Math.max(1, Math.round(window.innerHeight || 1));
+    const chrome = topbarHeight + toolbarHeight + bookmarksHeight + statusbarHeight;
+    const available = viewport - chrome;
+    const share = chrome / viewport;
+    const forced = available < PASS177_MIN_WEBVIEW_HEIGHT_PX || share > PASS177_MAX_CHROME_VIEWPORT_SHARE;
+    document.body.dataset.pass177SiteViewportRecovery = 'true';
+    document.body.dataset.pass177MeasuredChromeHeight = String(chrome);
+    document.body.dataset.pass177MeasuredWebviewHeight = String(available);
+    document.body.dataset.pass177MeasuredChromeShare = share.toFixed(3);
+    document.body.dataset.pass177ViewportBudgetState = forced ? 'forced-overflow' : 'healthy';
+    return { available, chrome, share, forced };
+  }
+
+  function pass178ViewportBudgetNodes(): HTMLElement[] {
+    return [
+      document.body,
+      document.querySelector<HTMLElement>('.app-shell'),
+      document.querySelector<HTMLElement>('.topbar'),
+      document.querySelector<HTMLElement>('.toolbar'),
+      document.querySelector<HTMLElement>('.chromium-bookmarks-bar'),
+      document.querySelector<HTMLElement>('.statusbar'),
+      document.querySelector<HTMLElement>('.webview-stage')
+    ].filter((node): node is HTMLElement => Boolean(node));
+  }
+
+  function pass178AuditViewportBudget(reason: string): void {
+    const budget = pass177MeasureWebsitePaneBudget();
+    const overflowCount = Number(document.body.dataset.toolbarOverflowCount || '0');
+    const itemCount = sortedItems().length;
+    document.body.dataset.pass178ViewportBudgetObserver = 'true';
+    document.body.dataset.pass178LastViewportBudgetReason = reason;
+    document.body.dataset.pass178LastViewportBudgetState = budget.forced ? 'forced-overflow' : 'healthy';
+    document.body.dataset.pass178LastOverflowCount = String(overflowCount);
+    document.body.dataset.pass178LastManagedUtilityCount = String(itemCount);
+    if (!budget.forced) return;
+    if (overflowCount >= itemCount) return;
+    const now = Date.now();
+    if (now < pass178ViewportRelayoutUntil) return;
+    pass178ViewportRelayoutUntil = now + PASS178_VIEWPORT_OBSERVER_RELAYOUT_COOLDOWN_MS;
+    document.body.dataset.pass178ViewportObserverRelayout = 'forced';
+    document.body.dataset.pass178ViewportObserverRelayoutReason = reason;
+    scheduleRelayout(0);
+  }
+
+  function pass178ScheduleViewportBudgetAudit(reason: string, delay = 90): void {
+    window.clearTimeout(pass178ViewportAuditTimer);
+    pass178ViewportAuditTimer = window.setTimeout(() => pass178AuditViewportBudget(reason), delay);
+  }
+
+  function pass178InstallViewportBudgetObserver(): void {
+    if (document.body.dataset.pass178ViewportBudgetObserver === 'true') return;
+    document.body.dataset.pass178ViewportBudgetObserver = 'true';
+    document.body.dataset.pass178EnterpriseButtonGeometry = 'true';
+    if (typeof ResizeObserver !== 'undefined') {
+      pass178ViewportBudgetObserver = new ResizeObserver(() => pass178ScheduleViewportBudgetAudit('resize-observer', 60));
+      for (const node of pass178ViewportBudgetNodes()) pass178ViewportBudgetObserver.observe(node);
+    } else {
+      document.body.dataset.pass178ViewportBudgetObserverFallback = 'window-resize-only';
+    }
+    pass178ViewportMutationObserver = new MutationObserver(() => {
+      for (const node of pass178ViewportBudgetNodes()) pass178ViewportBudgetObserver?.observe(node);
+      pass178ScheduleViewportBudgetAudit('chrome-mutation', 80);
+    });
+    pass178ViewportMutationObserver.observe(document.body, { attributes: true, childList: true, subtree: false, attributeFilter: ['class', 'style', 'hidden', 'data-command-toolbar'] });
+    const appShell = document.querySelector<HTMLElement>('.app-shell');
+    if (appShell) pass178ViewportMutationObserver.observe(appShell, { childList: true, subtree: false });
+    document.addEventListener(PASS122_CHROME_STACK_REFLOW_EVENT, () => pass178ScheduleViewportBudgetAudit('chrome-stack-reflow', 120));
+    for (const delay of PASS178_VIEWPORT_BUDGET_AUDIT_DELAYS_MS) window.setTimeout(() => pass178AuditViewportBudget(`startup-${delay}`), delay);
+  }
+
 
   function ensureShell(): void {
     if (buttonEl && menuEl) return;
@@ -80,22 +327,29 @@
     buttonEl = document.createElement('button');
     buttonEl.id = BUTTON_ID;
     buttonEl.type = 'button';
-    buttonEl.className = 'home-button secondary toolbar-overflow-toggle';
+    buttonEl.className = 'home-button secondary toolbar-overflow-toggle utility-chrome-button';
     buttonEl.title = 'Open more tools and secondary browser controls';
     buttonEl.setAttribute('aria-haspopup', 'true');
     buttonEl.setAttribute('aria-expanded', 'false');
+    buttonEl.setAttribute('aria-controls', MENU_ID);
+    buttonEl.dataset.pass176ControlsOverflowMenu = MENU_ID;
     buttonEl.dataset.pass117OverlayOpener = 'more-tools';
     buttonEl.setAttribute('aria-keyshortcuts', 'Escape');
-    buttonEl.innerHTML = '<span aria-hidden="true">☰</span><span>More Tools</span>';
+    buttonEl.setAttribute('aria-label', 'Open More Tools');
+    buttonEl.dataset.pass173Iconified = 'more-tools';
+    buttonEl.dataset.pass173Tooltip = 'More Tools';
+    buttonEl.innerHTML = '<span class="chrome-action-icon" aria-hidden="true">☰</span><span class="chrome-action-label">More Tools</span>';
     buttonEl.addEventListener('click', () => toggleMenu());
     guideQuickEl = document.createElement('button');
     guideQuickEl.id = GUIDE_QUICK_ID;
     guideQuickEl.type = 'button';
-    guideQuickEl.className = 'home-button secondary toolbar-guide-quick';
+    guideQuickEl.className = 'home-button secondary toolbar-guide-quick utility-chrome-button';
     guideQuickEl.title = 'Open Guide / Knowledge Base';
     guideQuickEl.dataset.pass128GuideKbAnchor = 'true';
     guideQuickEl.setAttribute('aria-label', 'Open Guide / Knowledge Base');
-    guideQuickEl.innerHTML = '<span aria-hidden="true">?</span><span>Guide</span>';
+    guideQuickEl.dataset.pass173Iconified = 'guide-quick';
+    guideQuickEl.dataset.pass173Tooltip = 'Guide / KB';
+    guideQuickEl.innerHTML = '<span class="chrome-action-icon" aria-hidden="true">?</span><span class="chrome-action-label">Guide</span>';
     guideQuickEl.hidden = true;
     guideQuickEl.addEventListener('click', () => byId<HTMLButtonElement>('onboarding')?.click());
     menuEl = document.createElement('section');
@@ -163,6 +417,13 @@
         closeMenu({ restoreFocus: false });
       }, closeDelay);
     }, true);
+    menuEl.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') { event.preventDefault(); pass174MoveMenuFocus(1); }
+      else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') { event.preventDefault(); pass174MoveMenuFocus(-1); }
+      else if (event.key === 'Home') { event.preventDefault(); pass174MoveMenuFocus('first'); }
+      else if (event.key === 'End') { event.preventDefault(); pass174MoveMenuFocus('last'); }
+      else if (event.key === 'Tab') { event.preventDefault(); pass174MoveMenuFocus(event.shiftKey ? -1 : 1); document.body.dataset.pass175MoreToolsTabRoving = 'true'; }
+    });
   }
 
   function collectManagedItems(): void {
@@ -177,16 +438,35 @@
       element.parentElement.insertBefore(marker, element);
       element.dataset.pass113ChromeOverflowCandidate = definition.label;
       element.dataset.pass115OverflowVisibilityGuard = 'candidate';
-      managed.push({ id: definition.id, priority: definition.priority, marker, element });
+      element.dataset.pass173Iconified = element.dataset.pass173Iconified || definition.id;
+      element.dataset.pass173Tooltip = element.dataset.pass173Tooltip || definition.label;
+      if (element instanceof HTMLButtonElement && !element.getAttribute('aria-label')) element.setAttribute('aria-label', definition.label);
+      managed.push({ id: definition.id, priority: definition.priority, marker, element, toolbarRole: element.getAttribute('role') });
     }
+  }
+
+
+  function pass171BumpMoreToolsFocusEpoch(reason: string): number {
+    pass171MoreToolsFocusEpoch += 1;
+    document.body.dataset.pass171OverlayFocusEpochGuard = 'true';
+    document.body.dataset.pass171MoreToolsFocusEpoch = String(pass171MoreToolsFocusEpoch);
+    document.body.dataset.pass171MoreToolsFocusEpochReason = reason;
+    return pass171MoreToolsFocusEpoch;
   }
 
   function pass117FocusFirstMenuItem(): void {
     if (!menuEl) return;
     const target = menuEl.querySelector<HTMLElement>(PASS117_FOCUSABLE_SELECTOR) || menuEl;
+    const focusEpoch = pass171MoreToolsFocusEpoch;
     window.setTimeout(() => {
-      if (pass164MoreToolsActionInFlight) return;
-      if (document.activeElement && menuEl?.contains(document.activeElement)) return;
+      if (focusEpoch !== pass171MoreToolsFocusEpoch) { document.body.dataset.pass171MoreToolsFocusSkipped = 'stale-epoch'; return; }
+      if (document.body.dataset.pass116ActiveOverlay !== 'more-tools') { document.body.dataset.pass171MoreToolsFocusSkipped = 'inactive-overlay'; return; }
+      if (!menuEl || menuEl.hidden || menuEl.getAttribute('aria-hidden') === 'true') return;
+      if (!document.contains(menuEl) || !document.contains(target)) return;
+      if (pass164MoreToolsActionInFlight) { document.body.dataset.pass171MoreToolsFocusSkipped = 'action-in-flight'; return; }
+      if (document.activeElement && menuEl.contains(document.activeElement)) return;
+      document.body.dataset.pass169DelayedOverlayFocusGuard = 'more-tools';
+      document.body.dataset.pass171MoreToolsFocusAppliedEpoch = String(focusEpoch);
       target.focus();
     }, 0);
   }
@@ -201,9 +481,35 @@
     if (open) document.body.dataset.pass117ActiveFocusScope = 'more-tools';
     else if (document.body.dataset.pass117ActiveFocusScope === 'more-tools') delete document.body.dataset.pass117ActiveFocusScope;
   }
+  function pass170ElementCanRestoreFocus(target: HTMLElement | null): target is HTMLElement {
+    if (!target || !document.contains(target)) return false;
+    if (target instanceof HTMLButtonElement && target.disabled) return false;
+    if (target.getAttribute('aria-disabled') === 'true' || target.getAttribute('aria-hidden') === 'true') return false;
+    if (target.hidden) return false;
+    if (!target.getClientRects().length) return false;
+    return true;
+  }
+  function pass170RestoreFocusToMoreToolsOpener(target: HTMLElement | null): void {
+    window.setTimeout(() => {
+      document.body.dataset.pass170RestoreFocusTargetGuard = 'more-tools';
+      const activeOverlay = document.body.dataset.pass116ActiveOverlay || 'none';
+      if (activeOverlay !== 'none' && activeOverlay !== 'more-tools') {
+        document.body.dataset.pass170RestoreFocusSkipped = `more-tools:${activeOverlay}`;
+        return;
+      }
+      if (!pass170ElementCanRestoreFocus(target)) {
+        document.body.dataset.pass170RestoreFocusSkipped = 'more-tools:invalid-target';
+        return;
+      }
+      target.focus();
+      document.body.dataset.pass170RestoreFocusApplied = 'more-tools';
+    }, 0);
+  }
   function closeMenu(options: { restoreFocus?: boolean } = {}): void {
     if (!menuEl || !buttonEl) return;
     const wasOpen = !menuEl.hidden;
+    pass171BumpMoreToolsFocusEpoch('close');
+    pass174HideUtilityTooltip();
     menuEl.hidden = true;
     buttonEl.setAttribute('aria-expanded', 'false');
     pass117SetMenuFocusOpen(false);
@@ -212,12 +518,16 @@
       document.body.dataset.pass118LastDismissReason = options.restoreFocus ? 'explicit-close' : 'outside-click';
       delete document.body.dataset.pass116ActiveOverlay;
     }
-    if (wasOpen && options.restoreFocus) (pass117MoreToolsOpener || buttonEl).focus();
+    if (wasOpen && options.restoreFocus) pass170RestoreFocusToMoreToolsOpener(pass117MoreToolsOpener || buttonEl);
     document.dispatchEvent(new CustomEvent(PASS123_OVERLAY_CYCLE_AUDIT_EVENT, { detail: { source: 'more-tools', reason: 'more-tools-close' } }));
   }
   // PASS116 verifier token preserved after PASS117 focus-scope detail expansion: detail: { source: 'more-tools', overlay: 'toolbar-overflow-menu' }
   function pass116AnnounceMoreToolsOpen(): void {
     document.body.dataset.pass116ActiveOverlay = 'more-tools';
+    document.body.dataset.pass122ActiveOverlayOpenedAt = String(Date.now());
+    document.body.dataset.pass122ActiveOverlayOpenedSource = 'more-tools';
+    document.body.dataset.pass168OverlayOpenAgeStamp = 'true';
+    pass171BumpMoreToolsFocusEpoch('open');
     document.dispatchEvent(new CustomEvent(PASS116_CHROME_OVERLAY_OPEN_EVENT, {
       detail: { source: 'more-tools', overlay: 'toolbar-overflow-menu', focusScope: 'more-tools', openerId: BUTTON_ID }
     }));
@@ -232,7 +542,7 @@
     });
   }
   function pass118InstallDismissRecovery(): void {
-    document.body.dataset.pass118MoreToolsDismissRecovery = 'ready';
+    document.body.dataset.pass118MoreToolsDismissRecovery = 'true';
     document.addEventListener(PASS118_CHROME_OVERLAY_CLOSE_EVENT, (event) => {
       const source = pass116ChromeOverlaySource(event);
       if (source && source !== 'more-tools') return;
@@ -270,6 +580,8 @@
     if (!host || item.element.parentElement === host) return;
     item.element.classList.add('in-toolbar-overflow');
     item.element.dataset.pass113ChromeOverflowState = 'menu';
+    item.element.dataset.pass174MoreToolsMenuRole = 'menuitem';
+    item.element.setAttribute('role', 'menuitem');
     host.appendChild(item.element);
   }
   function restoreToToolbar(item: ManagedItem): void {
@@ -277,12 +589,15 @@
     if (item.element.parentElement !== host) return;
     item.element.classList.remove('in-toolbar-overflow');
     item.element.dataset.pass113ChromeOverflowState = 'toolbar';
+    delete item.element.dataset.pass174MoreToolsMenuRole;
+    if (item.toolbarRole) item.element.setAttribute('role', item.toolbarRole);
+    else item.element.removeAttribute('role');
     item.marker.parentElement?.insertBefore(item.element, item.marker.nextSibling);
   }
   function sortedItems(): ManagedItem[] { return [...managed].sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id)); }
   // PASS13 legacy verifier token preserved after PASS113 changes: if (width < 1280) return 2;
   function targetCountForWidth(width: number): number {
-    if (width < 720) return 8;
+    if (width < 720) return 9;
     if (width < 860) return 7;
     if (width < 980) return 6;
     if (width < 1100) return 5;
@@ -317,13 +632,14 @@
     const bottom = PASS114_OVERLAY_BOTTOM_PX;
     document.body.style.setProperty('--pass114-chrome-stack-top', `${top}px`);
     document.body.style.setProperty('--pass114-overlay-bottom', `${bottom}px`);
-    document.body.dataset.pass114ChromeStackGuard = 'ready';
+    document.body.dataset.pass114ChromeStackGuard = 'true';
     document.body.dataset.pass114ChromeStackTop = String(top);
     document.body.dataset.pass114OverlayBottom = String(bottom);
     document.dispatchEvent(new CustomEvent(PASS122_CHROME_STACK_REFLOW_EVENT, { detail: { source: 'responsive-toolbar', reason: 'chrome-stack-vars-republished', top, bottom } }));
     document.dispatchEvent(new CustomEvent(PASS123_OVERLAY_CYCLE_AUDIT_EVENT, { detail: { source: 'responsive-toolbar', reason: 'chrome-stack-vars-republished' } }));
   }
   function relayout(): void {
+    pass174HideUtilityTooltip();
     ensureShell(); collectManagedItems(); updateChromeStackVars();
     if (!menuEl || !buttonEl) return;
     const toolbar = document.querySelector<HTMLElement>('.toolbar');
@@ -336,15 +652,30 @@
         target += 1; applyMenuTarget(target); guard += 1;
       }
     }
+    const pass177Budget = pass177MeasureWebsitePaneBudget();
+    if (pass177Budget.forced && target < sorted.length) {
+      target = sorted.length;
+      applyMenuTarget(target);
+      document.body.dataset.pass177ForcedOverflow = 'true';
+      document.body.dataset.pass177ForcedOverflowReason = pass177Budget.available < PASS177_MIN_WEBVIEW_HEIGHT_PX ? 'webview-height-below-floor' : 'chrome-share-above-budget';
+    } else {
+      document.body.dataset.pass177ForcedOverflow = 'false';
+      document.body.dataset.pass177ForcedOverflowReason = 'not-needed';
+    }
+    pass177MeasureWebsitePaneBudget();
     buttonEl.hidden = target === 0;
     document.body.classList.toggle('toolbar-overflow-active', target > 0);
     document.body.dataset.toolbarOverflowCount = String(target);
     document.body.dataset.pass113ChromeAddressWidth = String(Math.round(addressWidth()));
+    pass176UpdateCompactIconViewportState(target);
     updateChromeStackVars();
     updateGuideQuickAnchor();
     document.body.classList.toggle('toolbar-no-native-scrollbars', true);
     if (target === 0) closeMenu({ restoreFocus: false });
-    if (target > 0) setStatus(`${target} secondary browser controls are available in More Tools`);
+    if (target > 0) {
+      pass176StabilizeOpenMoreToolsFocus('relayout');
+      setStatus(`${target} secondary browser controls are available in More Tools`);
+    }
   }
   function scheduleRelayout(delay = 80): void { window.clearTimeout(resizeTimer); resizeTimer = window.setTimeout(relayout, delay); }
   function watchDynamicChromeControls(): void {
@@ -357,25 +688,39 @@
   function init(): void {
     if (document.body.dataset.responsiveToolbarReady === '1') return;
     document.body.dataset.responsiveToolbarReady = '1';
-    document.body.dataset.pass113AdaptiveChromeDensity = 'ready';
-    document.body.dataset.pass114ChromeStackGuard = 'initializing';
-    document.body.dataset.pass115OverflowVisibilityGuard = 'ready';
-    document.body.dataset.pass116OverlayArbitration = 'ready';
-    document.body.dataset.pass117OverlayFocusRecovery = 'ready';
-    document.body.dataset.pass118OverlayDismissRecovery = 'ready';
-    document.body.dataset.pass119OverlayAriaContract = 'ready';
-    document.body.dataset.pass120OverlayPointerBoundary = 'ready';
-    document.body.dataset.pass121OverlayScrollContainment = 'ready';
-    document.body.dataset.pass122OverlayViewportReflow = 'ready';
-    document.body.dataset.pass123OverlayCycleGuard = 'ready';
-    document.body.dataset.pass128GuideMissionTriviewHardening = 'ready';
-    document.body.dataset.pass163MoreToolsActionDispatch = 'ready';
-    document.body.dataset.pass164MoreToolsFirstClickBroker = 'ready';
-    document.body.dataset.pass165MoreToolsKnownActionSettle = 'ready';
+    document.body.dataset.pass113AdaptiveChromeDensity = 'true';
+    document.body.dataset.pass114ChromeStackGuard = 'true';
+    document.body.dataset.pass115OverflowVisibilityGuard = 'true';
+    document.body.dataset.pass116OverlayArbitration = 'true';
+    document.body.dataset.pass117OverlayFocusRecovery = 'true';
+    document.body.dataset.pass118OverlayDismissRecovery = 'true';
+    document.body.dataset.pass119OverlayAriaContract = 'true';
+    document.body.dataset.pass120OverlayPointerBoundary = 'true';
+    document.body.dataset.pass121OverlayScrollContainment = 'true';
+    document.body.dataset.pass122OverlayViewportReflow = 'true';
+    document.body.dataset.pass123OverlayCycleGuard = 'true';
+    document.body.dataset.pass128GuideMissionTriviewHardening = 'true';
+    document.body.dataset.pass163MoreToolsActionDispatch = 'true';
+    document.body.dataset.pass164MoreToolsFirstClickBroker = 'true';
+    document.body.dataset.pass165MoreToolsKnownActionSettle = 'true';
+    document.body.dataset.pass166RuntimeCssStateAlignment = 'true';
+    document.body.dataset.pass167OverlaySourceSafeClose = 'true';
+      document.body.dataset.pass168OverlayOpenAgeStamp = 'true';
+    document.body.dataset.pass169DelayedOverlayFocusGuard = 'true';
+    document.body.dataset.pass170RestoreFocusTargetGuard = 'true';
+    document.body.dataset.pass171OverlayFocusEpochGuard = 'true';
+    document.body.dataset.pass173IconifiedUtilityChrome = 'true';
+    document.body.dataset.pass174IconifiedUtilityChromeHardening = 'true';
+    document.body.dataset.pass175IconScreenSizeUxHardening = 'true';
+    document.body.dataset.pass176CompactIconViewportHardening = 'true';
+    document.body.dataset.pass177SiteViewportRecovery = 'true';
+    document.body.dataset.pass178ViewportBudgetObserver = 'true';
+    document.body.dataset.pass178EnterpriseButtonGeometry = 'true';
+    pass174InstallUtilityTooltipController();
     pass116InstallOverlayArbitration();
     pass118InstallDismissRecovery();
-    ensureShell(); watchDynamicChromeControls(); relayout();
-    window.addEventListener('resize', () => scheduleRelayout(80));
+    ensureShell(); watchDynamicChromeControls(); pass178InstallViewportBudgetObserver(); relayout();
+    window.addEventListener('resize', () => { scheduleRelayout(80); pass178ScheduleViewportBudgetAudit('window-resize', 140); });
     for (const delay of PASS113_RELAYOUT_DELAYS_MS) window.setTimeout(relayout, delay);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();

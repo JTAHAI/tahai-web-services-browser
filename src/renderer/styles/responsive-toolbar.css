@@ -459,7 +459,7 @@ body[data-pass163-more-tools-action-dispatch="activated"] .toolbar-overflow-togg
   border-color: rgba(109,255,183,.72) !important;
 }
 
-body[data-pass164-more-tools-first-click-broker="ready"] #toolbar-overflow-items > .in-toolbar-overflow {
+body[data-pass164-more-tools-first-click-broker] #toolbar-overflow-items > .in-toolbar-overflow {
   pointer-events: auto !important;
   user-select: none;
 }
@@ -475,6 +475,410 @@ body[data-pass165-responsive-mission-recipe-hardening="true"] .mission-recipe-fi
   border-color: rgba(255, 210, 122, .30);
   background: linear-gradient(180deg, rgba(255, 210, 122, .075), rgba(255, 255, 255, .035));
 }
-body[data-pass165-more-tools-known-action-settle="ready"] .toolbar-overflow-menu {
+body[data-pass165-more-tools-known-action-settle] .toolbar-overflow-menu {
   scroll-margin-top: var(--pass114-chrome-stack-top, 112px);
+}
+
+
+/* PASS166: runtime CSS state alignment keeps data-pass* flags CSS-active after renderer initialization. */
+body[data-pass166-runtime-css-state-alignment="true"] .toolbar-overflow-menu { contain: layout paint; }
+
+
+/* PASS169: delayed overlay focus guard prevents stale post-close focus timers from reviving hidden overlays. */
+body[data-pass169-delayed-overlay-focus-guard="true"] [aria-hidden="true"][data-pass117-focus-scope],
+body[data-pass169-delayed-overlay-focus-guard="true"] [hidden][data-pass117-focus-scope] {
+  pointer-events: none !important;
+}
+
+/* PASS170: restore-focus timers only target visible, still-mounted overlay openers. */
+body[data-pass170-restore-focus-target-guard="true"] [data-pass117-overlay-opener][aria-hidden="true"],
+body[data-pass170-restore-focus-target-guard="true"] [data-pass117-overlay-opener][hidden] {
+  pointer-events: none !important;
+}
+
+/* PASS173 Iconified Utility Chrome + accessible tooltip hooks. */
+body[data-pass173-iconified-utility-chrome="true"] .utility-chrome-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 34px;
+}
+body[data-pass173-iconified-utility-chrome="true"] .utility-chrome-button .chrome-action-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  min-width: 16px;
+  height: 16px;
+  font-size: .95rem;
+  line-height: 1;
+  font-weight: 900;
+  color: var(--cyan);
+  text-shadow: 0 0 10px rgba(119,219,255,.45);
+}
+body[data-pass173-iconified-utility-chrome="true"] .utility-chrome-button .chrome-action-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body[data-pass173-iconified-utility-chrome="true"] .utility-chrome-button .profile-action-icon {
+  min-width: 12px;
+  width: 14px;
+}
+body[data-pass173-iconified-utility-chrome="true"] .utility-chrome-button .profile-action-icon .profile-dot {
+  display: block;
+  width: 11px;
+  height: 11px;
+}
+body[data-pass173-iconified-utility-chrome="true"] .toolbar > .utility-chrome-button:not(.in-toolbar-overflow),
+body[data-pass173-iconified-utility-chrome="true"] .toolbar > .toolbar-guide-quick:not([hidden]),
+body[data-pass173-iconified-utility-chrome="true"] .toolbar > .toolbar-overflow-toggle:not([hidden]) {
+  min-width: 38px;
+}
+body[data-pass173-iconified-utility-chrome="true"] .toolbar-overflow-menu .utility-chrome-button .chrome-action-label,
+body[data-pass173-iconified-utility-chrome="true"] #toolbar-overflow-items .utility-chrome-button .chrome-action-label {
+  display: inline;
+}
+body[data-pass173-iconified-utility-chrome="true"] #toolbar-overflow-items .utility-chrome-button {
+  justify-content: flex-start;
+  gap: 8px;
+}
+@media (max-width: 1380px) {
+  body[data-pass173-iconified-utility-chrome="true"] .toolbar > .utility-chrome-button:not(.in-toolbar-overflow) .chrome-action-label,
+  body[data-pass173-iconified-utility-chrome="true"] .toolbar > .toolbar-overflow-toggle:not([hidden]) .chrome-action-label,
+  body[data-pass173-iconified-utility-chrome="true"] .toolbar > .toolbar-guide-quick:not([hidden]) .chrome-action-label {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0,0,0,0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+  body[data-pass173-iconified-utility-chrome="true"] .toolbar > .utility-chrome-button:not(.in-toolbar-overflow),
+  body[data-pass173-iconified-utility-chrome="true"] .toolbar > .toolbar-overflow-toggle:not([hidden]),
+  body[data-pass173-iconified-utility-chrome="true"] .toolbar > .toolbar-guide-quick:not([hidden]) {
+    width: 36px;
+    min-width: 36px;
+    max-width: 36px;
+    padding-inline: 0;
+  }
+}
+@media (min-width: 1381px) {
+  body[data-pass173-iconified-utility-chrome="true"] .toolbar > .utility-chrome-button:not(.in-toolbar-overflow) {
+    max-width: 142px;
+  }
+  body[data-pass173-iconified-utility-chrome="true"] #profile-switcher.utility-chrome-button:not(.in-toolbar-overflow) {
+    max-width: 168px;
+  }
+}
+@media (hover: hover) {
+  body[data-pass173-iconified-utility-chrome="true"] .toolbar-overflow-menu .utility-chrome-button[data-pass173-tooltip]::after,
+  body[data-pass173-iconified-utility-chrome="true"] #toolbar-overflow-toggle[data-pass173-tooltip]::after {
+    content: attr(data-pass173-tooltip);
+    position: absolute;
+    z-index: 420;
+    right: 0;
+    bottom: calc(100% + 8px);
+    max-width: 220px;
+    padding: 6px 9px;
+    border: 1px solid rgba(119,219,255,.34);
+    border-radius: 10px;
+    background: rgba(2,7,14,.98);
+    color: #edfaff;
+    box-shadow: 0 12px 38px rgba(0,0,0,.52), 0 0 20px rgba(47,143,255,.18);
+    font-size: .72rem;
+    font-weight: 800;
+    line-height: 1.2;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(3px);
+    pointer-events: none;
+    transition: opacity .12s ease, transform .12s ease;
+  }
+  body[data-pass173-iconified-utility-chrome="true"] .toolbar-overflow-menu .utility-chrome-button[data-pass173-tooltip]:hover::after,
+  body[data-pass173-iconified-utility-chrome="true"] .toolbar-overflow-menu .utility-chrome-button[data-pass173-tooltip]:focus-visible::after,
+  body[data-pass173-iconified-utility-chrome="true"] #toolbar-overflow-toggle[data-pass173-tooltip]:hover::after,
+  body[data-pass173-iconified-utility-chrome="true"] #toolbar-overflow-toggle[data-pass173-tooltip]:focus-visible::after {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* PASS174 Iconified Utility Chrome Hardening: fixed-position tooltip avoids toolbar clipping and works for keyboard focus. */
+body[data-pass174-iconified-utility-chrome-hardening="true"] [data-pass173-tooltip]::after {
+  display: none !important;
+}
+.pass174-utility-tooltip {
+  position: fixed;
+  z-index: 900;
+  max-width: min(240px, calc(100vw - 16px));
+  padding: 7px 10px;
+  border: 1px solid rgba(119,219,255,.38);
+  border-radius: 11px;
+  background: rgba(2,7,14,.98);
+  color: #edfaff;
+  box-shadow: 0 14px 42px rgba(0,0,0,.58), 0 0 24px rgba(47,143,255,.18);
+  font-size: .74rem;
+  font-weight: 850;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(3px);
+  pointer-events: none;
+  transition: opacity .12s ease, transform .12s ease;
+}
+.pass174-utility-tooltip[data-pass174-tooltip-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+body[data-pass174-iconified-utility-chrome-hardening="true"] .toolbar > .utility-chrome-button:not(.in-toolbar-overflow):focus-visible,
+body[data-pass174-iconified-utility-chrome-hardening="true"] #toolbar-overflow-toggle:focus-visible,
+body[data-pass174-iconified-utility-chrome-hardening="true"] #toolbar-guide-quick:focus-visible,
+body[data-pass174-iconified-utility-chrome-hardening="true"] #toolbar-overflow-items .utility-chrome-button:focus-visible {
+  outline: 2px solid rgba(119,219,255,.88);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(119,219,255,.13), 0 0 24px rgba(47,143,255,.18);
+}
+body[data-pass174-iconified-utility-chrome-hardening="true"] #toolbar-overflow-items .utility-chrome-button[role="menuitem"] {
+  min-height: 36px;
+}
+body[data-pass174-iconified-utility-chrome-hardening="true"] .toolbar-overflow-menu:focus-within {
+  border-color: rgba(119,219,255,.40);
+}
+@media (max-width: 760px) {
+  .pass174-utility-tooltip {
+    max-width: calc(100vw - 18px);
+    white-space: normal;
+  }
+}
+
+/* PASS175 Icon/Screen-Size UX Hardening: profile is no longer a lone status dot and tiny widths route every utility into More Tools. */
+body[data-pass175-icon-screen-size-ux-hardening="true"] .utility-chrome-button .profile-action-icon {
+  position: relative;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+}
+body[data-pass175-icon-screen-size-ux-hardening="true"] .utility-chrome-button .profile-action-icon .profile-glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  font-size: .94rem;
+  line-height: 1;
+  color: var(--cyan);
+  text-shadow: 0 0 12px rgba(119,219,255,.48);
+}
+body[data-pass175-icon-screen-size-ux-hardening="true"] .utility-chrome-button .profile-action-icon .profile-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 7px;
+  height: 7px;
+  border-width: 1px;
+}
+body[data-pass175-icon-screen-size-ux-hardening="true"] #chromium-bookmarks-button .chrome-action-icon {
+  font-size: .9rem;
+  letter-spacing: -.08em;
+}
+body[data-pass175-icon-screen-size-ux-hardening="true"] .toolbar > .utility-chrome-button:not(.in-toolbar-overflow):focus-visible::before,
+body[data-pass175-icon-screen-size-ux-hardening="true"] #toolbar-overflow-toggle:focus-visible::before,
+body[data-pass175-icon-screen-size-ux-hardening="true"] #toolbar-guide-quick:focus-visible::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 13px;
+  border: 1px solid rgba(119,219,255,.28);
+  pointer-events: none;
+}
+@media (max-width: 720px) {
+  body[data-pass175-icon-screen-size-ux-hardening="true"] .toolbar-overflow-menu {
+    right: 8px;
+    width: min(360px, calc(100vw - 16px));
+  }
+  body[data-pass175-icon-screen-size-ux-hardening="true"] #toolbar-overflow-items {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* PASS176 Compact Icon Viewport Hardening: preserve reliable hit targets and visible focus while utility controls collapse. */
+body[data-pass176-compact-icon-viewport-hardening="true"] .toolbar > .utility-chrome-button:not(.in-toolbar-overflow),
+body[data-pass176-compact-icon-viewport-hardening="true"] .toolbar > .toolbar-overflow-toggle:not([hidden]),
+body[data-pass176-compact-icon-viewport-hardening="true"] .toolbar > .toolbar-guide-quick:not([hidden]) {
+  min-height: 40px;
+  touch-action: manipulation;
+}
+body[data-pass176-compact-icon-viewport-hardening="true"] #toolbar-overflow-toggle[aria-controls="toolbar-overflow-menu"] {
+  scroll-margin-top: var(--pass114-chrome-stack-top, 112px);
+}
+body[data-pass176-compact-icon-viewport-hardening="true"] #toolbar-overflow-items .utility-chrome-button[role="menuitem"] {
+  min-height: 42px;
+  padding-block: 8px;
+  touch-action: manipulation;
+}
+body[data-pass176-compact-icon-viewport-hardening="true"] #toolbar-overflow-items .utility-chrome-button[role="menuitem"] .chrome-action-icon {
+  min-width: 20px;
+}
+body[data-pass176-compact-icon-viewport-hardening="true"] .toolbar-overflow-menu {
+  overscroll-behavior: contain;
+}
+body[data-pass176-compact-icon-viewport-hardening="true"] .toolbar-overflow-menu:focus-within #toolbar-overflow-items .utility-chrome-button:focus-visible {
+  outline-offset: 3px;
+}
+@media (pointer: coarse) {
+  body[data-pass176-compact-icon-viewport-hardening="true"] .toolbar > .utility-chrome-button:not(.in-toolbar-overflow),
+  body[data-pass176-compact-icon-viewport-hardening="true"] .toolbar > .toolbar-overflow-toggle:not([hidden]),
+  body[data-pass176-compact-icon-viewport-hardening="true"] .toolbar > .toolbar-guide-quick:not([hidden]),
+  body[data-pass176-compact-icon-viewport-hardening="true"] #toolbar-overflow-items .utility-chrome-button[role="menuitem"] {
+    min-height: 44px;
+  }
+}
+@media (max-width: 520px) {
+  body[data-pass176-compact-icon-viewport-hardening="true"] .toolbar-overflow-menu {
+    left: 8px;
+    right: 8px;
+    width: auto;
+  }
+}
+
+
+/* PASS177 Website Pane Viewport Recovery: the browser chrome can never consume the viewport and leave the website as a bottom sliver. */
+:root {
+  --pass177-titlebar-height: 44px;
+  --pass177-toolbar-height: 48px;
+  --pass177-statusbar-height: 28px;
+  --pass177-min-webview-height: 220px;
+}
+body[data-pass177-site-viewport-recovery="true"] .app-shell {
+  grid-template-rows: var(--pass177-titlebar-height) var(--pass177-toolbar-height) minmax(0, 1fr) var(--pass177-statusbar-height) !important;
+  min-height: 0 !important;
+}
+body.chromium-bookmarks-installed[data-pass177-site-viewport-recovery="true"] .app-shell {
+  grid-template-rows: var(--pass177-titlebar-height) var(--pass177-toolbar-height) auto minmax(0, 1fr) var(--pass177-statusbar-height) !important;
+}
+body[data-pass177-site-viewport-recovery="true"] .topbar {
+  height: var(--pass177-titlebar-height) !important;
+  min-height: 0 !important;
+  max-height: var(--pass177-titlebar-height) !important;
+  overflow: hidden !important;
+}
+body[data-pass177-site-viewport-recovery="true"] .toolbar {
+  height: var(--pass177-toolbar-height) !important;
+  min-height: 0 !important;
+  max-height: var(--pass177-toolbar-height) !important;
+  flex-wrap: nowrap !important;
+  align-content: center !important;
+  overflow: hidden !important;
+}
+body[data-pass177-site-viewport-recovery="true"] .toolbar > * {
+  min-height: 0;
+}
+body[data-pass177-site-viewport-recovery="true"] .toolbar .address-form {
+  min-width: clamp(180px, 36vw, 420px) !important;
+  flex: 1 1 auto !important;
+}
+body[data-pass177-site-viewport-recovery="true"] .statusbar {
+  height: var(--pass177-statusbar-height) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+body[data-pass177-site-viewport-recovery="true"] .webview-stage {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+body[data-pass177-site-viewport-recovery="true"] .browser-view,
+body[data-pass177-site-viewport-recovery="true"] .webview-stage.mission-layout .browser-view {
+  min-height: 0 !important;
+}
+body[data-pass177-site-viewport-recovery="true"] .toolbar-overflow-menu,
+body[data-pass177-site-viewport-recovery="true"] .tool-menu-panel,
+body[data-pass177-site-viewport-recovery="true"] .ops-hub,
+body[data-pass177-site-viewport-recovery="true"] .site-view-mission-rail {
+  max-height: max(180px, calc(100dvh - var(--pass114-chrome-stack-top, 112px) - var(--pass114-overlay-bottom, 28px))) !important;
+}
+@media (max-height: 720px), (max-width: 760px) {
+  :root {
+    --pass177-titlebar-height: 40px;
+    --pass177-toolbar-height: 44px;
+    --pass177-statusbar-height: 24px;
+  }
+  body[data-pass177-site-viewport-recovery="true"] .topbar {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+  body[data-pass177-site-viewport-recovery="true"] .toolbar {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+  body[data-pass177-site-viewport-recovery="true"] .toolbar .address-form {
+    min-width: clamp(150px, 34vw, 320px) !important;
+    flex-basis: auto !important;
+  }
+}
+@media (max-width: 560px) {
+  body[data-pass177-site-viewport-recovery="true"] .brand {
+    min-width: 34px !important;
+  }
+  body[data-pass177-site-viewport-recovery="true"] .tab {
+    min-width: 88px !important;
+    max-width: 124px !important;
+  }
+  body[data-pass177-site-viewport-recovery="true"] .toolbar .address-form {
+    min-width: 128px !important;
+  }
+}
+
+/* PASS178 Persistent Viewport Budget + Enterprise Button Geometry: keep PASS177 live after chrome changes and de-pill utility controls. */
+:root {
+  --pass178-enterprise-control-radius: 8px;
+  --pass178-enterprise-menu-radius: 14px;
+  --pass178-enterprise-address-radius: 10px;
+}
+body[data-pass178-enterprise-button-geometry="true"] .toolbar .home-button,
+body[data-pass178-enterprise-button-geometry="true"] .toolbar .icon-button,
+body[data-pass178-enterprise-button-geometry="true"] .toolbar > .utility-chrome-button:not(.in-toolbar-overflow),
+body[data-pass178-enterprise-button-geometry="true"] .toolbar > .toolbar-guide-quick:not([hidden]),
+body[data-pass178-enterprise-button-geometry="true"] .toolbar > .toolbar-overflow-toggle:not([hidden]) {
+  border-radius: var(--pass178-enterprise-control-radius) !important;
+  min-height: 31px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.025), 0 0 12px rgba(47,143,255,.08);
+}
+body[data-pass178-enterprise-button-geometry="true"] #address {
+  border-radius: var(--pass178-enterprise-address-radius) !important;
+}
+body[data-pass178-enterprise-button-geometry="true"] .toolbar-overflow-menu,
+body[data-pass178-enterprise-button-geometry="true"] .tool-menu-panel {
+  border-radius: var(--pass178-enterprise-menu-radius) !important;
+}
+body[data-pass178-enterprise-button-geometry="true"] #toolbar-overflow-items .utility-chrome-button,
+body[data-pass178-enterprise-button-geometry="true"] .toolbar-overflow-menu .home-button,
+body[data-pass178-enterprise-button-geometry="true"] .toolbar-overflow-menu .icon-button {
+  border-radius: 9px !important;
+}
+body[data-pass178-enterprise-button-geometry="true"] .pass174-utility-tooltip {
+  border-radius: 8px !important;
+}
+@media (max-width: 1380px) {
+  body[data-pass178-enterprise-button-geometry="true"] .toolbar > .utility-chrome-button:not(.in-toolbar-overflow),
+  body[data-pass178-enterprise-button-geometry="true"] .toolbar > .toolbar-overflow-toggle:not([hidden]),
+  body[data-pass178-enterprise-button-geometry="true"] .toolbar > .toolbar-guide-quick:not([hidden]) {
+    width: 34px;
+    min-width: 34px;
+    max-width: 34px;
+    border-radius: 8px !important;
+  }
+}
+@media (pointer: coarse) {
+  body[data-pass178-enterprise-button-geometry="true"] .toolbar > .utility-chrome-button:not(.in-toolbar-overflow),
+  body[data-pass178-enterprise-button-geometry="true"] .toolbar > .toolbar-overflow-toggle:not([hidden]),
+  body[data-pass178-enterprise-button-geometry="true"] .toolbar > .toolbar-guide-quick:not([hidden]),
+  body[data-pass178-enterprise-button-geometry="true"] #toolbar-overflow-items .utility-chrome-button[role="menuitem"] {
+    border-radius: 10px !important;
+  }
 }
