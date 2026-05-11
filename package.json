@@ -258,7 +258,7 @@
     "verify:pass-185-mouse-history-button-parity": "node scripts/verify-pass-185-mouse-history-button-parity.mjs"
   },
   "devDependencies": {
-    "@types/node": "20.19.39",
+    "@types/node": "25.7.0",
     "electron": "41.3.0",
     "electron-builder": "26.8.1",
     "typescript": "5.9.3"
