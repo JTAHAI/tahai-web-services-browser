@@ -5,6 +5,7 @@ import { readBrowserSettings } from './settings';
 import { evaluateBrowserPermissionRequest } from '../shared/permission-boundary';
 import type { BrowserDownloadState } from '../shared/download-boundary';
 import { createDownloadStatePayload, downloadRiskWarning, sanitizeDownloadFilename } from '../shared/download-boundary';
+import { TAHAI_BLOCKED_RUNTIME_PROTOCOLS, isTrustedTahaiRendererEventChannel } from '../shared/electron-security-contract';
 
 function safeDownloadDirectory(value: unknown): string {
   const fallback = app.getPath('downloads');
@@ -37,9 +38,11 @@ function sanitizeSelectedDownloadPath(selectedPath: string, fallbackFilename: st
 function sendDownloadState(target: WebContents, payload: BrowserDownloadState): void {
   const ownerWindow = ownerWindowFrom(target);
   const windows = ownerWindow ? [ownerWindow] : BrowserWindow.getAllWindows();
+  const channel = 'tahai-browser:download-state';
+  if (!isTrustedTahaiRendererEventChannel(channel)) return;
   for (const window of windows) {
     if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
-      window.webContents.send('tahai-browser:download-state', payload);
+      window.webContents.send(channel, payload);
     }
   }
 }
@@ -108,10 +111,9 @@ export async function hardenSession(ses: Session): Promise<void> {
   });
 
   ses.webRequest.onBeforeRequest((details, callback) => {
-    const blockedProtocols = ['ftp:', 'gopher:', 'javascript:', 'data:', 'vbscript:'];
     try {
       const protocol = new URL(details.url).protocol;
-      callback({ cancel: blockedProtocols.includes(protocol) });
+      callback({ cancel: (TAHAI_BLOCKED_RUNTIME_PROTOCOLS as readonly string[]).includes(protocol) });
     } catch {
       callback({ cancel: true });
     }

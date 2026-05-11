@@ -25,12 +25,14 @@ const renderer=includes('src/renderer/app.ts',[
   'return normalizeBrowserNavigationTarget(raw, {',
   'const updateFromNavigationEvent = (eventUrl: unknown): void => {',
   "setStatus('Blocked unsafe navigation', navigationBoundaryReason(event.url, trustedLocalUrls()))",
-  "setStatus('Blocked popup navigation', navigationBoundaryReason(event.url, trustedLocalUrls()))"
+  "setStatus('Blocked popup navigation', navigationBoundaryReason(popupUrl || event.url, trustedLocalUrls()))"
 ]);
 need(!/new-window'\, \(event: any\) => \{[\s\S]{0,260}\^https\?:\\\/\\\//.test(renderer),'webview new-window handler must not rely on a raw /^https?:\/\// regex');
 need((renderer.match(/browserNavigationSafeUrl\(event\.url\)/g)||[]).length >= 2,'webview will-navigate and new-window paths must both use browserNavigationSafeUrl');
 need(renderer.includes('const popupUrl = typeof event.url === \'string\' ? browserNavigationSafeUrl(event.url) : \'\';'),'popup URL must be sanitized before createTab');
-need(renderer.includes('createTab(popupUrl);'),'popup handler must open only sanitized popupUrl');
+const newWindowBlock = renderer.match(/webview\.addEventListener\('new-window',[\s\S]*?\n  \}\);/);
+need(Boolean(newWindowBlock), 'webview new-window handler missing');
+need(!newWindowBlock[0].includes('createTab('), 'PASS153: popup handler must not create tabs from remote popup attempts');
 const safeOpen=includes('src/main/safe-open-external.ts',[
   "import { isAllowedExternalNavigationUrl, sanitizeExternalNavigationUrl } from '../shared/navigation-boundary'",
   'return isAllowedExternalNavigationUrl(value)',
@@ -40,8 +42,13 @@ const safeOpen=includes('src/main/safe-open-external.ts',[
 const main=includes('src/main/main.ts',[
   'safeExternalUrl as normalizeSafeExternalWindowUrl',
   'const safeUrl = normalizeSafeExternalWindowUrl(url);',
-  "if (safeUrl) window.webContents.send('tahai-browser:open-in-tab', safeUrl)"
+  "if (safeUrl)"
 ]);
+need(
+  main.includes("sendTrustedRendererEvent(window, 'tahai-browser:open-in-tab', safeUrl)") ||
+  main.includes("window.webContents.send('tahai-browser:open-in-tab', safeUrl)"),
+  'BrowserWindow popup handler must send only sanitized safeUrl through the trusted renderer event channel'
+);
 need(!main.includes("window.webContents.send('tahai-browser:open-in-tab', url)"),'BrowserWindow popup handler must not send raw URL to renderer');
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-94-navigation-popup-boundary']==='node scripts/verify-pass-94-navigation-popup-boundary.mjs','package.json missing PASS94 verifier script');

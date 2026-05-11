@@ -56,8 +56,8 @@ for (const token of [
   "menuEl.dataset.pass118DismissBoundary = 'true'",
   'pass118InstallDismissRecovery()',
   "document.addEventListener(PASS118_CHROME_OVERLAY_CLOSE_EVENT",
-  "document.body.dataset.pass118MoreToolsDismissRecovery = 'ready'",
-  "document.body.dataset.pass118OverlayDismissRecovery = 'ready'"
+  "document.body.dataset.pass118MoreToolsDismissRecovery = 'true'",
+  "document.body.dataset.pass118OverlayDismissRecovery = 'true'"
 ]) need(responsiveTs.includes(token), `responsive toolbar missing PASS118 token: ${token}`);
 
 for (const token of [
@@ -66,7 +66,7 @@ for (const token of [
   "rail.dataset.pass118DismissBoundary = 'true'",
   'installPass118DismissRecovery()',
   "document.addEventListener(PASS118_CHROME_OVERLAY_CLOSE_EVENT",
-  "document.body.dataset.pass118SiteViewDismissRecovery = 'ready'",
+  "document.body.dataset.pass118SiteViewDismissRecovery = 'true'",
   "document.body.dataset.pass118LastDismissedOverlay = 'site-view'",
   'installPass118DismissRecovery();'
 ]) need(siteViewTs.includes(token), `Site View missing PASS118 token: ${token}`);

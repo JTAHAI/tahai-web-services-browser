@@ -10,7 +10,9 @@ body { background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,
 .boot-diagnostic code { color:var(--text); background:rgba(255,255,255,.06); border:1px solid rgba(119,219,255,.16); border-radius:8px; padding:2px 6px; }
 .app-shell { display:grid; grid-template-rows:44px 52px minmax(0,1fr) 28px; border-top:0; }
 .topbar { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:10px; padding:6px 150px 6px 10px; background:linear-gradient(180deg,#0b1728,#06101d); border-bottom:1px solid var(--line); -webkit-app-region:drag; user-select:none; }
-.topbar .tabs, .topbar .tab, .topbar .tab *, .topbar .new-tab-control { -webkit-app-region:no-drag; user-select:auto; }
+/* PASS150: keep the whole empty titlebar/tab-strip track draggable; opt only actual controls out. */
+.topbar .tabs { -webkit-app-region:drag; user-select:none; }
+.topbar .tab, .topbar .tab *, .topbar .new-tab-control { -webkit-app-region:no-drag; user-select:auto; }
 .brand { display:flex; align-items:center; gap:9px; min-width:230px; }
 .brand img { width:28px; height:28px; object-fit:contain; border-radius:8px; filter:drop-shadow(0 0 12px rgba(119,219,255,.35)); }
 .brand div { display:grid; line-height:1; }

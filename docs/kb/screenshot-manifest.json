@@ -429,9 +429,34 @@
       ],
       "status": "awaiting-or-ingestable",
       "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
+    },
+    {
+      "order": 19,
+      "id": "first-run-walkthrough",
+      "title": "First-run walkthrough",
+      "captureTitle": "First-run walkthrough",
+      "fileName": "19-first-run-walkthrough.png",
+      "docsTarget": "docs/kb/screenshots/19-first-run-walkthrough.png",
+      "appTarget": "browser/onboarding/screenshots/19-first-run-walkthrough.png",
+      "article": "docs/kb/articles/first-run-walkthrough.md",
+      "priority": "recommended",
+      "capturePrompt": "Open the Guide / KB and capture the guided first-run walkthrough panel with the Start walkthrough control and the main step list visible.",
+      "mustShow": [
+        "Guide / KB walkthrough panel",
+        "Start walkthrough control",
+        "Mission Control, Mission Views, Tools, Evidence, and Troubleshooting steps",
+        "No private page content or account details"
+      ],
+      "avoid": [
+        "Signed-in account details",
+        "Private URLs, customer names, local filesystem paths, or runtime profile data",
+        "Any secret-bearing console content"
+      ],
+      "status": "awaiting-or-ingestable",
+      "contentPolicy": "Sanitized UI only; no customer data, secrets, tokens, cookies, credentials, private URLs, runtime profiles, or local filesystem paths."
     }
   ],
-  "lastHardenedPass": "PASS135",
+  "lastHardenedPass": "PASS137",
   "ingestionPolicy": {
     "canonicalSource": "docs/kb/screenshots",
     "appMirror": "browser/onboarding/screenshots",
@@ -443,5 +468,11 @@
     "checkCommand": "npm run verify:pass-135-kb-screenshot-ingestion",
     "missingScreenshotsAreAllowed": true,
     "rule": "Only sanitized user-facing PNG screenshots with names listed in this manifest may be ingested. Missing screenshots keep awaiting-screenshot placeholders."
+  },
+  "walkthroughScreenshotPolicy": {
+    "sourcePass": "PASS137",
+    "fileName": "19-first-run-walkthrough.png",
+    "missingScreenshotsAreAllowed": true,
+    "purpose": "Document the local first-run walkthrough panel after sanitized screenshots are available."
   }
 }

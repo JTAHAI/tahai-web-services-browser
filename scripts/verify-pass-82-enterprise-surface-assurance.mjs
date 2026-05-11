@@ -25,7 +25,7 @@ includes('src/renderer/app.ts', "commandPaletteList.setAttribute('role', 'listbo
 includes('src/renderer/app.ts', 'Duplicate command id');
 includes('src/renderer/app.ts', 'Shortcut collision found');
 includes('src/renderer/app.ts', 'pass81ProtectMissionNonDropSurfaces');
-includes('src/renderer/app.ts', "view.setAttribute('allowpopups', 'false')");
+includes('src/renderer/app.ts', 'pass153PopupBoundary');
 includes('src/renderer/app.ts', "view.setAttribute('autosize', 'off')");
 includes('src/renderer/app.ts', 'copyDevOpsCapture(pass82LastSurfaceAssuranceReport)');
 includes('src/renderer/app.ts', 'Escape');

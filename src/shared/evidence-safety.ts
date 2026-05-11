@@ -1,11 +1,16 @@
 import type { MissionEvidenceExportProfile } from './mission-types';
-import { scanAndRedact } from './redaction';
+import { MISSION_REDACTION_EXPORT_PROFILES, MISSION_REDACTION_STORAGE_POLICY, TAHAI_MISSION_REDACTION_PASS } from './mission-redaction-contract';
+import { redactForMissionExport, scanAndRedact } from './redaction';
+import { isSensitiveEvidenceCaptureUrl, sanitizeSensitiveEvidencePath } from './evidence-capture-privacy-contract';
 
 const SENSITIVE_QUERY_KEYS = /^(?:access_token|auth|authorization|bearer|client_secret|code|cookie|id_token|key|password|refresh_token|secret|session|sig|signature|state|token|x-api-key|api_key)$/i;
 const REDACT_QUERY_KEYS_FOR_SANITIZED = /^(?:account|accountid|acct|email|login|org|orgid|tenant|tenantid|user|userid)$/i;
 const MAX_EXPORT_TEXT = 20000;
 
 export type EvidenceSafetyProfile = MissionEvidenceExportProfile | 'change-bundle' | 'operational-handoff';
+
+export const EVIDENCE_REDACTION_CLOSEOUT_PASS = TAHAI_MISSION_REDACTION_PASS;
+export const SHAREABLE_MISSION_EXPORT_PROFILES = MISSION_REDACTION_EXPORT_PROFILES;
 
 function profileRedactsIdentifiers(profile: EvidenceSafetyProfile): boolean {
   return profile !== 'internal';
@@ -23,7 +28,10 @@ export function sanitizeEvidenceUrl(value: unknown, profile: EvidenceSafetyProfi
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return '';
   parsed.username = '';
   parsed.password = '';
-  parsed.hash = '';
+  if (MISSION_REDACTION_STORAGE_POLICY.stripUrlFragments) parsed.hash = '';
+  if (profileRedactsIdentifiers(profile) && isSensitiveEvidenceCaptureUrl(parsed.toString())) {
+    parsed.pathname = sanitizeSensitiveEvidencePath(parsed.pathname);
+  }
   for (const key of Array.from(parsed.searchParams.keys())) {
     if (SENSITIVE_QUERY_KEYS.test(key)) {
       parsed.searchParams.set(key, '[REDACTED]');
@@ -54,10 +62,10 @@ export function evidenceMarkdownCell(value: unknown, profile: EvidenceSafetyProf
     .replace(/\n{3,}/g, '\n\n');
 }
 
-export function sanitizeEvidenceMarkdown(markdown: unknown, profile: EvidenceSafetyProfile = 'sanitized-handoff'): { markdown: string; findingCount: number; highRiskCount: number } {
+export function sanitizeEvidenceMarkdown(markdown: unknown, profile: EvidenceSafetyProfile = 'sanitized-handoff'): { markdown: string; findingCount: number; highRiskCount: number; findings: ReturnType<typeof scanAndRedact>['findings'] } {
   const normalized = normalizeEvidenceText(markdown, MAX_EXPORT_TEXT * 4);
   const scan = scanAndRedact(normalized);
-  let safe = scan.redacted.replace(/\u0000/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  let safe = redactForMissionExport(scan.redacted).replace(/\u0000/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
   safe = safe.replace(/\bhttps?:\/\/[^\s<>)\]]+/gi, (match) => sanitizeEvidenceUrl(match, profile) || '[REDACTED_URL]');
 
@@ -68,5 +76,6 @@ export function sanitizeEvidenceMarkdown(markdown: unknown, profile: EvidenceSaf
       .replace(/\b\d{12}\b/g, '[REDACTED_ACCOUNT_ID]');
   }
 
-  return { markdown: safe.trim(), findingCount: scan.findings.reduce((sum, finding) => sum + finding.count, 0), highRiskCount: scan.highRiskCount };
+  const finalScan = scanAndRedact(safe);
+  return { markdown: finalScan.redacted.trim(), findingCount: Math.max(scan.findingCount, finalScan.findingCount), highRiskCount: Math.max(scan.highRiskCount, finalScan.highRiskCount), findings: scan.findings.length ? scan.findings : finalScan.findings };
 }

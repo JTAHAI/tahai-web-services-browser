@@ -41,6 +41,7 @@ Use PNG screenshots. Prefer full-window captures unless a focused crop is specif
 | 16 | `16-downloads-installers.png` | Downloads and installers |
 | 17 | `17-settings-security.png` | Settings, profiles, and safety |
 | 18 | `18-error-empty-blocked-state.png` | Troubleshooting states |
+| 19 | `19-first-run-walkthrough.png` | First-run walkthrough |
 
 ## Editing rule
 
@@ -66,3 +67,8 @@ The workflow validates file names, PNG signatures, size limits, and manifest tar
 ## PASS136 screenshot-aware navigation
 
 The shipped KB now includes screenshot readiness counts plus filters for articles that still need screenshots and articles with screenshots already ingested. Screenshots remain optional for source builds.
+
+
+## PASS137 first-run walkthrough
+
+PASS137 adds a local-first guided walkthrough to the in-app Guide / Knowledge Base. It gives new users a safe order for learning normal browsing, Guide access, Mission Control, Mission Tabs, Mission Views, active-pane routing, Runbook Rail, Command Center, tools, evidence/export, settings, and troubleshooting states. The walkthrough uses static source, a self-hosted KB script only, no telemetry, no remote KB service, no cookies, and no browser storage.

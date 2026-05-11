@@ -27,13 +27,13 @@ function missionExportResult(input: unknown): MissionExportResult {
   const result = validateMission(input);
   if (!result.ok || !result.mission) return { ok: false, error: result.error || 'Mission validation failed.' };
   const packet = buildMissionEvidencePack(result.mission, { profile: 'sanitized-handoff' });
-  const scan = scanAndRedact(packet.redactedMarkdown);
+  const exportScan = scanAndRedact(packet.redactedMarkdown);
   return {
     ok: true,
     markdown: packet.markdown,
     redactedMarkdown: `${packet.redactedMarkdown.trim()}\n`,
-    findings: scan.findings,
-    highRiskCount: Math.max(packet.highRiskCount, scan.highRiskCount)
+    findings: packet.findings.length ? packet.findings : exportScan.findings,
+    highRiskCount: Math.max(packet.highRiskCount, exportScan.highRiskCount)
   };
 }
 

@@ -51,7 +51,7 @@ if (!failures.length) {
     'PASS165_MORE_TOOLS_KNOWN_ACTION_IDS',
     'known-native-fallback-settle',
     'const closeDelay = (!unhandled || knownPass165Action) ? PASS164_MORE_TOOLS_ACTION_SETTLE_MS : PASS163_MORE_TOOLS_ACTION_CLOSE_DELAY_MS',
-    "document.body.dataset.pass165MoreToolsKnownActionSettle = 'ready'"
+    "document.body.dataset.pass165MoreToolsKnownActionSettle = 'true'"
   ]) need(responsiveTs.includes(token), `responsive toolbar missing PASS165 settle token: ${token}`);
 
   for (const token of [

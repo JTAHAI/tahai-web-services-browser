@@ -38,7 +38,7 @@ if (!failures.length) {
   const verify130 = read('scripts/verify-pass-130-kb-screenshot-intake.mjs');
   const pkg = readJson('package.json');
 
-  need(['PASS131','PASS135','PASS136'].includes(manifest.lastHardenedPass), 'KB manifest must record PASS131 or later hardening');
+  need(['PASS131','PASS135','PASS136','PASS137'].includes(manifest.lastHardenedPass), 'KB manifest must record PASS131 or later hardening');
   need(manifest.searchIndex === 'docs/kb/search-index.json', 'KB manifest must point to search index');
   need(typeof manifest.searchPolicy === 'string' && manifest.searchPolicy.includes('No inline script') && manifest.searchPolicy.includes('remote script'), 'KB manifest must document strict search policy');
   need(index.schemaVersion === 1, 'KB search index schemaVersion must be 1');

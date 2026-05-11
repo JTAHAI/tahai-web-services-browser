@@ -9,11 +9,11 @@
   <link rel="icon" href="../new-tab/assets/tws/tws-square-logo.png" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
-<body data-pass129-kb-repo-foundation="true" data-pass130-kb-screenshot-intake="true" data-pass131-kb-search-navigation="true" data-pass135-kb-screenshot-ingestion="true" data-pass136-kb-screenshot-navigation="true">
+<body data-pass129-kb-repo-foundation="true" data-pass130-kb-screenshot-intake="true" data-pass131-kb-search-navigation="true" data-pass135-kb-screenshot-ingestion="true" data-pass136-kb-screenshot-navigation="true" data-pass137-first-run-walkthrough="true">
   <main>
     <section class="hero kb-hero" id="top">
       <img src="../new-tab/assets/tws/tws-square-logo.png" alt="TAHAI Web Services" />
-      <div><p class="eyebrow">Guide / Knowledge Base</p><h1>TAHAI Browser KB</h1><p>This local-first knowledge base explains the main TAHAI Web Services Browser features: normal browsing, Guide / KB access, Mission Control, Mission Tabs, Mission Views, Runbook Rail, command workflows, DevOps tools, IT tools, Site View, evidence/export, installers, settings, and troubleshooting states.</p><div class="links"><a href="#mission-control" data-kb-nav-link data-kb-target="mission-control">Mission Control</a><a href="#mission-views">Mission Views</a><a href="#devops-tools">Tools</a><a href="#evidence-export">Evidence</a><a href="#screenshots-needed">Screenshots needed</a><a href="#capture-checklist">Capture checklist</a><a href="#screenshot-ingestion">Add screenshots</a><a href="#kb-search-panel">Search KB</a></div></div>
+      <div><p class="eyebrow">Guide / Knowledge Base</p><h1>TAHAI Browser KB</h1><p>This local-first knowledge base explains the main TAHAI Web Services Browser features: normal browsing, Guide / KB access, Mission Control, Mission Tabs, Mission Views, Runbook Rail, command workflows, DevOps tools, IT tools, Site View, evidence/export, installers, settings, and troubleshooting states.</p><div class="links"><a href="#first-run-walkthrough" data-kb-nav-link data-kb-target="first-run-walkthrough">Start walkthrough</a><a href="#mission-control" data-kb-nav-link data-kb-target="mission-control">Mission Control</a><a href="#mission-views">Mission Views</a><a href="#devops-tools">Tools</a><a href="#evidence-export">Evidence</a><a href="#screenshots-needed">Screenshots needed</a><a href="#capture-checklist">Capture checklist</a><a href="#screenshot-ingestion">Add screenshots</a><a href="#kb-search-panel">Search KB</a></div></div>
     </section>
 
     <section class="kb-search-panel" id="kb-search-panel" aria-label="Search Knowledge Base" data-pass131-kb-search-navigation="true">
@@ -34,6 +34,7 @@
         <button type="button" data-kb-filter="evidence">Evidence</button>
         <button type="button" data-kb-filter="installers">Installers</button>
         <button type="button" data-kb-filter="troubleshooting">Troubleshooting</button>
+        <button type="button" data-kb-filter="walkthrough">Walkthrough</button>
         <button type="button" data-kb-screenshot-filter="needs-screenshot">Needs screenshots</button>
         <button type="button" data-kb-screenshot-filter="screenshot-ready">Screenshot ready</button>
       </div>
@@ -42,7 +43,7 @@
     </section>
 
 
-    <section class="kb-screenshot-status-panel" id="kb-screenshot-status-panel" aria-label="Knowledge Base screenshot status" data-pass136-kb-screenshot-navigation="true">
+    <section class="kb-screenshot-status-panel" id="kb-screenshot-status-panel" aria-label="Knowledge Base screenshot status" data-pass136-kb-screenshot-navigation="true" data-pass137-first-run-walkthrough="true">
       <div>
         <p class="eyebrow">Screenshot readiness</p>
         <h2>KB screenshot status</h2>
@@ -60,8 +61,33 @@
       </div>
       <p class="kb-screenshot-ready-list" id="kb-screenshot-ready-list">Screenshots are optional during source builds. Drop approved PNGs into docs/kb/screenshots and run the ingestion command when ready.</p>
     </section>
+
+
+    <section class="kb-walkthrough-panel" id="first-run-walkthrough-panel" aria-label="First-run walkthrough" data-pass137-first-run-walkthrough="true">
+      <div>
+        <p class="eyebrow">Start here</p>
+        <h2>First-run walkthrough</h2>
+        <p>New users should move through the browser in this order: normal mode, Guide / KB, Mission Control, Mission Tabs, Mission Views, active-pane routing, Runbook Rail, Command Center, tools, evidence/export, settings, and troubleshooting. This guide is local-only and does not send telemetry.</p>
+      </div>
+      <button type="button" class="kb-walkthrough-start" data-kb-walkthrough-start data-kb-walkthrough-target="getting-started">Start walkthrough</button>
+      <ol class="kb-walkthrough-steps" data-kb-walkthrough-steps>
+        <li><a href="#getting-started" data-kb-walkthrough-step data-kb-walkthrough-target="getting-started">Normal browser mode</a></li>
+        <li><a href="#guide-kb" data-kb-walkthrough-step data-kb-walkthrough-target="guide-kb">Guide / Knowledge Base access</a></li>
+        <li><a href="#mission-control" data-kb-walkthrough-step data-kb-walkthrough-target="mission-control">Open Mission Control</a></li>
+        <li><a href="#mission-tabs" data-kb-walkthrough-step data-kb-walkthrough-target="mission-tabs">Create and save Mission Tabs</a></li>
+        <li><a href="#mission-views" data-kb-walkthrough-step data-kb-walkthrough-target="mission-views">Use 2-Up, 3-Up, and Quad layouts</a></li>
+        <li><a href="#active-pane-routing" data-kb-walkthrough-step data-kb-walkthrough-target="active-pane-routing">Understand active-pane routing</a></li>
+        <li><a href="#runbook-rail" data-kb-walkthrough-step data-kb-walkthrough-target="runbook-rail">Use Runbook Rail</a></li>
+        <li><a href="#command-center" data-kb-walkthrough-step data-kb-walkthrough-target="command-center">Use Ctrl+K / Command Center</a></li>
+        <li><a href="#devops-tools" data-kb-walkthrough-step data-kb-walkthrough-target="devops-tools">Open DevOps and IT tools</a></li>
+        <li><a href="#evidence-export" data-kb-walkthrough-step data-kb-walkthrough-target="evidence-export">Capture evidence and export safely</a></li>
+        <li><a href="#settings-security" data-kb-walkthrough-step data-kb-walkthrough-target="settings-security">Review settings and safety</a></li>
+        <li><a href="#troubleshooting-states" data-kb-walkthrough-step data-kb-walkthrough-target="troubleshooting-states">Recognize troubleshooting states</a></li>
+      </ol>
+    </section>
     <section class="kb-layout" aria-label="TAHAI Browser Knowledge Base"><nav class="kb-nav" aria-label="Knowledge Base contents"><strong>KB contents</strong><a href="#getting-started" data-kb-nav-link data-kb-target="getting-started">Getting started</a>
 <a href="#guide-kb" data-kb-nav-link data-kb-target="guide-kb">Guide / Knowledge Base</a>
+<a href="#first-run-walkthrough" data-kb-nav-link data-kb-target="first-run-walkthrough">First-run walkthrough</a>
 <a href="#mission-control" data-kb-nav-link data-kb-target="mission-control">Mission Control</a>
 <a href="#mission-tabs" data-kb-nav-link data-kb-target="mission-tabs">Mission Tabs</a>
 <a href="#two-up-split-view" data-kb-nav-link data-kb-target="two-up-split-view">2-Up Split View</a>
@@ -97,6 +123,7 @@
 <article class="kb-card" id="downloads-installers" data-kb-article data-kb-title="Downloads and installers" data-kb-search="Downloads and installers downloads installers 16-downloads-installers.png Downloads and installers Capture the downloads or installer surface showing package choices and checksum context. downloads installers windows linux rpm appimage deb checksum"><p class="eyebrow">16</p><h2>Downloads and installers</h2><p>The downloads/installers surface should make Windows and Linux package choices clear, including checksums and known signing status.</p><div class="screenshot-slot" data-screenshot-id="16-downloads-installers.png" data-capture-priority="recommended"><strong>Awaiting screenshot</strong><span>Downloads and installers</span><small>Capture the downloads or installer surface showing package choices and checksum context.</small></div><p>Use checksums for package verification. Linux RPM/AppImage/DEB handoff manifests are build outputs, not source files.</p></article>
 <article class="kb-card" id="settings-security" data-kb-article data-kb-title="Settings, profiles, and safety" data-kb-search="Settings, profiles, and safety settings security 17-settings-security.png Settings, profiles, and safety Capture settings or profile safety controls without showing private profile data. settings profiles security privacy safe operation"><p class="eyebrow">17</p><h2>Settings, profiles, and safety</h2><p>Settings and Profiles control runtime browser preferences, privacy posture, downloads, and profile-local data behavior.</p><div class="screenshot-slot" data-screenshot-id="17-settings-security.png" data-capture-priority="recommended"><strong>Awaiting screenshot</strong><span>Settings, profiles, and safety</span><small>Capture settings or profile safety controls without showing private profile data.</small></div><p>Profile data and runtime settings live outside source. Do not commit runtime profiles, cookies, caches, generated installers, or local data.</p></article>
 <article class="kb-card" id="troubleshooting-states" data-kb-article data-kb-title="Troubleshooting states" data-kb-search="Troubleshooting states troubleshooting states 18-error-empty-blocked-state.png Empty/error/blocked state Capture one useful troubleshooting state such as disabled integration, offline state, blocked unsafe URL, redaction warning, or empty state. troubleshooting error empty state blocked url offline disabled integration redaction warning"><p class="eyebrow">18</p><h2>Troubleshooting states</h2><p>Disabled, empty, blocked, and warning states should explain what happened and what the user can do next.</p><div class="screenshot-slot" data-screenshot-id="18-error-empty-blocked-state.png" data-capture-priority="recommended"><strong>Awaiting screenshot</strong><span>Empty/error/blocked state</span><small>Capture one useful troubleshooting state such as disabled integration, offline state, blocked unsafe URL, redaction warning, or empty state.</small></div><p>Use these screenshots to document offline state, session-expired state, blocked unsafe URL/protocol, redaction warning, or unavailable integration states.</p></article>
+      <article class="kb-card" id="first-run-walkthrough" data-kb-article data-kb-title="First-run walkthrough" data-kb-search="First-run walkthrough first run walkthrough how to use start here guided tour onboarding guide kb mission control tools evidence 19-first-run-walkthrough.png"><p class="eyebrow">19</p><h2>First-run walkthrough</h2><p>The first-run walkthrough gives new users a safe learning order for the browser: normal mode, Guide / KB, Mission Control, Mission Tabs, Mission Views, active-pane routing, Runbook Rail, Command Center, tools, evidence/export, settings, and troubleshooting states.</p><div class="screenshot-slot" data-screenshot-id="19-first-run-walkthrough.png" data-capture-priority="recommended"><strong>Awaiting screenshot</strong><span>First-run walkthrough</span><small>Open the Guide / KB and capture the guided first-run walkthrough panel with the Start walkthrough control and the main step list visible.</small></div><p>Use Start walkthrough at the top of the KB, then follow the step list. The walkthrough is local-only and does not call an online KB service.</p></article>
       <article class="kb-card wide screenshot-list" id="screenshots-needed"><p class="eyebrow">Screenshot intake</p><h2>Screenshots still needed</h2><p>Add PNGs later using these names. These are intentionally not bundled until real screenshots are supplied.</p><ol><li>01-main-browser-normal-mode.png</li>
 <li>02-guide-kb-entry.png</li>
 <li>03-mission-control-open.png</li>
@@ -114,7 +141,8 @@
 <li>15-evidence-export.png</li>
 <li>16-downloads-installers.png</li>
 <li>17-settings-security.png</li>
-<li>18-error-empty-blocked-state.png</li></ol></article>
+<li>18-error-empty-blocked-state.png</li>
+<li>19-first-run-walkthrough.png</li></ol></article>
 
 <article class="kb-card wide screenshot-ingestion" id="screenshot-ingestion" data-kb-article data-kb-title="Add screenshots" data-kb-search="screenshot ingestion add screenshots png manifest docs kb screenshots browser onboarding screenshots npm run kb screenshots ingest apply validate mirror"><p class="eyebrow">PASS135</p><h2>Add screenshots to the KB</h2><p>When sanitized PNG screenshots are ready, place them in <code>docs/kb/screenshots/</code> using the exact file names from the capture checklist, then run <code>npm run kb:screenshots:ingest -- --apply</code>. The ingestion command validates the manifest, file names, PNG signatures, size limits, and mirrors approved images into the in-app KB screenshot folder.</p><p>Missing screenshots are allowed. Missing files keep the “Awaiting screenshot” placeholders active so the KB can ship before every screen capture is available.</p></article>
 <article class="kb-card wide capture-checklist" id="capture-checklist"><p class="eyebrow">PASS130</p><h2>Screenshot capture checklist</h2><p>Use these exact screenshot slots when adding images to the KB. Keep captures sanitized and user-facing before committing them.</p><ol><li><strong>01. Main browser window / normal mode</strong><code>01-main-browser-normal-mode.png</code><span>Capture the full browser window in normal mode with the tab strip, address bar, toolbar controls, and page area visible.</span></li>
@@ -134,7 +162,8 @@
 <li><strong>15. Evidence and export</strong><code>15-evidence-export.png</code><span>Capture the evidence/export UI using safe demo content and the redaction/preview flow if available.</span></li>
 <li><strong>16. Downloads and installers</strong><code>16-downloads-installers.png</code><span>Capture the downloads or installer surface showing package choices and checksum context.</span></li>
 <li><strong>17. Settings, profiles, and safety</strong><code>17-settings-security.png</code><span>Capture settings or profile safety controls without showing private profile data.</span></li>
-<li><strong>18. Empty/error/blocked state</strong><code>18-error-empty-blocked-state.png</code><span>Capture one useful troubleshooting state such as disabled integration, offline state, blocked unsafe URL, redaction warning, or empty state.</span></li></ol></article>
+<li><strong>18. Empty/error/blocked state</strong><code>18-error-empty-blocked-state.png</code><span>Capture one useful troubleshooting state such as disabled integration, offline state, blocked unsafe URL, redaction warning, or empty state.</span></li>
+<li><strong>19. First-run walkthrough</strong><code>19-first-run-walkthrough.png</code><span>Open the Guide / KB and capture the guided first-run walkthrough panel with the Start walkthrough control and the main step list visible.</span></li></ol></article>
     </section></section>
   </main>
   <script src="./kb-search.js" defer></script>

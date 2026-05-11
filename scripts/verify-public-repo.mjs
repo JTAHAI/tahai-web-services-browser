@@ -13,10 +13,18 @@ const requiredFiles = [
   "SUPPORT.md",
   "README.md",
   ".github/workflows/validate-source.yml",
+  ".github/workflows/supply-chain-guard.yml",
   ".github/workflows/windows-preview-package.yml",
+  ".github/CODEOWNERS",
   ".github/dependabot.yml",
   "docs/known-issues.md",
+  "docs/code-signing-policy.md",
   "docs/code-signing-signpath-plan.md",
+  "docs/privacy-policy.md",
+  "docs/public-repo-supply-chain-policy.md",
+  "docs/public-repo-supply-chain-pass144.md",
+  "docs/privacy-support-known-issues-pass145.md",
+  "src/shared/privacy-support-known-issues-contract.ts",
   "docs/public-release-candidate.md",
   "docs/github-release-notes-1.8.21.md",
   "docs/browser-download-page-copy.md",
@@ -68,7 +76,7 @@ function walk(dir) {
       console.error(`Forbidden public repo file: ${rel}`);
       process.exit(1);
     }
-    if ([".ts", ".tsx", ".js", ".mjs", ".json", ".md", ".yml", ".yaml", ".html", ".css", ".ps1"].includes(ext)) {
+    if ([".ts", ".tsx", ".js", ".mjs", ".json", ".md", ".yml", ".yaml", ".html", ".css", ".ps1", ".sh", ".txt"].includes(ext)) {
       const text = fs.readFileSync(full, "utf8");
       for (const pattern of secretPatterns) {
         if (pattern.test(text)) {

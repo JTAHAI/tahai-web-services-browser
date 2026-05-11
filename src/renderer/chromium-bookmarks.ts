@@ -1,4 +1,5 @@
 (() => {
+  const PASS164_MORE_TOOLS_ACTION_EVENT = 'tahai:more-tools-action-request';
   type BookmarkNodeType = 'folder' | 'bookmark';
 
   type BookmarkNode = {
@@ -810,17 +811,23 @@
     const star = document.createElement('button');
     star.id = 'chromium-bookmark-star';
     star.type = 'button';
-    star.className = 'home-button secondary chromium-bookmark-star';
+    star.className = 'home-button secondary chromium-bookmark-star utility-chrome-button';
     star.title = 'Bookmark current page (Ctrl+D)';
-    star.textContent = 'Star';
+    star.setAttribute('aria-label', 'Bookmark current page');
+    star.dataset.pass173Iconified = 'bookmark-star';
+    star.dataset.pass173Tooltip = 'Bookmark page';
+    star.innerHTML = '<span class="chrome-action-icon" aria-hidden="true">★</span><span class="chrome-action-label">Star</span>';
     star.addEventListener('click', () => addBookmark());
 
     const button = document.createElement('button');
     button.id = 'chromium-bookmarks-button';
     button.type = 'button';
-    button.className = 'home-button secondary chromium-bookmarks-button';
+    button.className = 'home-button secondary chromium-bookmarks-button utility-chrome-button';
     button.title = 'Open Bookmarks menu';
-    button.textContent = 'Bookmarks';
+    button.setAttribute('aria-label', 'Open Bookmarks menu');
+    button.dataset.pass173Iconified = 'bookmarks';
+    button.dataset.pass173Tooltip = 'Bookmarks';
+    button.innerHTML = '<span class="chrome-action-icon" aria-hidden="true">▤</span><span class="chrome-action-label">Bookmarks</span>';
     button.addEventListener('click', () => toggleMenu());
 
     const mission = byId<HTMLButtonElement>('mission-control-toggle');
@@ -1397,6 +1404,22 @@
     });
   }
 
+  function installPass164MoreToolsActionBridge(): void {
+    document.addEventListener(PASS164_MORE_TOOLS_ACTION_EVENT, (event) => {
+      if (!(event instanceof CustomEvent)) return;
+      if (event.detail?.actionId === 'chromium-bookmark-star') {
+        event.preventDefault();
+        addBookmark();
+        document.body.dataset.pass164MoreToolsActionHandled = 'chromium-bookmark-star';
+      }
+      if (event.detail?.actionId === 'chromium-bookmarks-button') {
+        event.preventDefault();
+        toggleMenu();
+        document.body.dataset.pass164MoreToolsActionHandled = 'chromium-bookmarks-button';
+      }
+    });
+  }
+
   function initChromiumBookmarks(): void {
     if (document.body.dataset.chromiumBookmarksReady === '1') return;
     document.body.dataset.chromiumBookmarksReady = '1';
@@ -1407,6 +1430,7 @@
     createManager();
     createFolderView();
     installKeyboardShortcuts();
+    installPass164MoreToolsActionBridge();
     renderAll();
   }
 

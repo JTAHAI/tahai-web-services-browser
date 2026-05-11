@@ -362,9 +362,34 @@
       "kbSection": "core",
       "status": "draft-ready-for-screenshots",
       "screenshotStatus": "awaiting-or-ingestable"
+    },
+    {
+      "id": "first-run-walkthrough",
+      "title": "First-run walkthrough",
+      "screenshot": "19-first-run-walkthrough.png",
+      "priority": "recommended",
+      "screenOrder": 19,
+      "captureTitle": "First-run walkthrough",
+      "capturePrompt": "Open the Guide / KB and capture the guided first-run walkthrough panel with the Start walkthrough control and the main step list visible.",
+      "keywords": [
+        "first run",
+        "walkthrough",
+        "how to use",
+        "start here",
+        "guided tour",
+        "onboarding",
+        "guide",
+        "kb",
+        "mission control",
+        "tools",
+        "evidence"
+      ],
+      "kbSection": "onboarding",
+      "status": "draft-ready-for-screenshots",
+      "screenshotStatus": "awaiting-or-ingestable"
     }
   ],
-  "lastHardenedPass": "PASS136",
+  "lastHardenedPass": "PASS137",
   "screenshotManifest": "docs/kb/screenshot-manifest.json",
   "screenshotPolicy": "Use sanitized PNG screenshots only after review; do not add runtime profiles, customer data, secrets, tokens, cloud credentials, generated installers, or local browser data.",
   "searchIndex": "docs/kb/search-index.json",
@@ -390,5 +415,28 @@
     "missingScreenshotsMustRemainNavigable": true,
     "noRemoteScreenshotFetch": true,
     "implementedIn": "browser/onboarding/kb-search.js"
+  },
+  "walkthroughPolicy": {
+    "sourcePass": "PASS137",
+    "localOnly": true,
+    "noTelemetry": true,
+    "noStorage": true,
+    "startAnchor": "first-run-walkthrough",
+    "stepAnchors": [
+      "getting-started",
+      "guide-kb",
+      "mission-control",
+      "mission-tabs",
+      "mission-views",
+      "active-pane-routing",
+      "runbook-rail",
+      "command-center",
+      "devops-tools",
+      "it-tools",
+      "evidence-export",
+      "settings-security",
+      "troubleshooting-states"
+    ],
+    "screenshotSlot": "19-first-run-walkthrough.png"
   }
 }

@@ -23,6 +23,12 @@
   // PASS176 compact icon viewport hardening: keep open-menu focus stable during relayout and expose compact hit-target states.
   // PASS177 website pane viewport recovery: hard-cap chrome growth so the webview cannot collapse into a bottom sliver.
   // PASS178 live viewport budget observer + enterprise button geometry: re-audit chrome after bookmarks/overlays/resize and de-pill utility controls.
+  // PASS179 More Tools overflow clarity: badge/count/forced-overflow state makes compact chrome explain where controls went.
+  // PASS180 primary chrome compact recovery: always-visible Home/DevOps/IT/Mission controls condense before they can starve the address bar.
+  // PASS181 compact primary UX clarity: compact primary controls keep unique glyphs, hover titles, and More Tools explains why labels moved.
+  // PASS182 compact hit-target focus: condensed primary controls keep usable hit targets and anchored focus/tooltips.
+  // PASS183 overlay collision recovery: More Tools closes immediately when dialogs or command panels open so focus cannot fight the active surface.
+  // PASS184 hidden-menu focus recovery: closing More Tools during relayout/collision cannot leave keyboard focus trapped in a hidden menu.
   // Verifier token: &gt; keeps the chevron overflow release gate aligned with escaped HTML output checks.
   type ChromeOverflowItem = { id: string; priority: number; label: string };
   type ManagedItem = { id: string; priority: number; marker: Comment; element: HTMLElement; toolbarRole: string | null };
@@ -45,6 +51,18 @@
   const PASS177_MAX_CHROME_VIEWPORT_SHARE = 0.38;
   const PASS178_VIEWPORT_BUDGET_AUDIT_DELAYS_MS = [0, 90, 260, 760];
   const PASS178_VIEWPORT_OBSERVER_RELAYOUT_COOLDOWN_MS = 180;
+  const PASS179_OVERFLOW_COUNT_BADGE_ID = 'toolbar-overflow-count';
+  const PASS180_PRIMARY_COMPACT_WIDTH_PX = 980;
+  const PASS181_COMPACT_UX_SUMMARY_ID = 'toolbar-compact-ux-summary';
+  const PASS182_COMPACT_HIT_TARGET_CONTROLS = new Set(['home', 'devops-tools', 'it-tools', 'mission-control-toggle']);
+  const PASS183_OVERLAY_COLLISION_AUDIT_DELAYS_MS = [0, 80, 240];
+  const PASS184_HIDDEN_MENU_FOCUS_REPAIR_DELAY_MS = 28;
+  const PASS181_PRIMARY_COMPACT_CONTROLS = [
+    { id: 'home', compactGlyph: '⌂', label: 'Home', compactTitle: 'Go Home' },
+    { id: 'devops-tools', compactGlyph: 'D', label: 'DevOps', compactTitle: 'Open DevOps tools' },
+    { id: 'it-tools', compactGlyph: 'IT', label: 'IT Tools', compactTitle: 'Open IT engineering tools' },
+    { id: 'mission-control-toggle', compactGlyph: 'M', label: 'Mission', compactTitle: 'Open Mission Control' }
+  ];
   const PASS165_MORE_TOOLS_KNOWN_ACTION_IDS = new Set([
     'about',
     'settings',
@@ -92,6 +110,9 @@
   let pass178ViewportMutationObserver: MutationObserver | null = null;
   let pass178ViewportAuditTimer = 0;
   let pass178ViewportRelayoutUntil = 0;
+  let pass183OverlayCollisionObserver: MutationObserver | null = null;
+  let pass183OverlayCollisionTimer = 0;
+  let pass184HiddenMenuFocusRepairTimer = 0;
 
   function byId<T extends HTMLElement>(id: string): T | null { return document.getElementById(id) as T | null; }
   function setStatus(message: string): void { const status = byId<HTMLElement>('status-text'); if (status) status.textContent = message; }
@@ -121,13 +142,14 @@
     return Boolean(element.getClientRects().length);
   }
   function pass174TooltipCandidate(target: EventTarget | null): HTMLElement | null {
-    const element = target instanceof Element ? target.closest<HTMLElement>('.utility-chrome-button[data-pass173-tooltip], #toolbar-overflow-toggle[data-pass173-tooltip], .toolbar-guide-quick[data-pass173-tooltip]') : null;
+    const element = target instanceof Element ? target.closest<HTMLElement>('.utility-chrome-button[data-pass173-tooltip], #toolbar-overflow-toggle[data-pass173-tooltip], .toolbar-guide-quick[data-pass173-tooltip], [data-pass182-compact-tooltip="true"]') : null;
     if (!element || !pass175IsVisibleUtilityControl(element)) return null;
+    if (element.dataset.pass182CompactTooltip === 'true' && document.body.dataset.pass180PrimaryChromeCompactMode !== 'condensed') return null;
     return element;
   }
   function pass174TooltipText(element: HTMLElement): string {
-    const raw = element.dataset.pass173Tooltip || element.getAttribute('aria-label') || element.getAttribute('title') || element.textContent || '';
-    return raw.replace(/\s+/g, ' ').trim().slice(0, 96);
+    const raw = element.dataset.pass182Tooltip || element.dataset.pass173Tooltip || element.getAttribute('aria-label') || element.getAttribute('title') || element.textContent || '';
+    return raw.replace(/\s+/g, ' ').trim().slice(0, 120);
   }
   function pass174PositionTooltip(source: HTMLElement, tooltip: HTMLElement): void {
     const rect = source.getBoundingClientRect();
@@ -302,6 +324,10 @@
     if (document.body.dataset.pass178ViewportBudgetObserver === 'true') return;
     document.body.dataset.pass178ViewportBudgetObserver = 'true';
     document.body.dataset.pass178EnterpriseButtonGeometry = 'true';
+    document.body.dataset.pass180PrimaryChromeCompactRecovery = 'true';
+    document.body.dataset.pass179MoreToolsOverflowClarity = 'true';
+    document.body.dataset.pass181CompactPrimaryUxClarity = 'true';
+    document.body.dataset.pass182CompactHitTargetFocus = 'true';
     if (typeof ResizeObserver !== 'undefined') {
       pass178ViewportBudgetObserver = new ResizeObserver(() => pass178ScheduleViewportBudgetAudit('resize-observer', 60));
       for (const node of pass178ViewportBudgetNodes()) pass178ViewportBudgetObserver.observe(node);
@@ -319,6 +345,249 @@
     for (const delay of PASS178_VIEWPORT_BUDGET_AUDIT_DELAYS_MS) window.setTimeout(() => pass178AuditViewportBudget(`startup-${delay}`), delay);
   }
 
+  function pass181PreparePrimaryCompactControls(): void {
+    document.body.dataset.pass181CompactPrimaryUxClarity = 'true';
+    for (const control of PASS181_PRIMARY_COMPACT_CONTROLS) {
+      const element = byId<HTMLElement>(control.id);
+      if (!element) continue;
+      element.dataset.pass181CompactPrimaryControl = control.label;
+      element.dataset.pass181CompactGlyph = control.compactGlyph;
+      element.dataset.pass181CompactTitle = control.compactTitle;
+      element.dataset.pass182CompactTooltip = 'true';
+      element.dataset.pass182CompactHitTarget = 'true';
+      element.dataset.pass182Tooltip = `${control.label} — ${control.compactTitle}. Compact toolbar glyph: ${control.compactGlyph}.`;
+      const icon = element.querySelector<HTMLElement>('span[aria-hidden="true"]');
+      if (icon) {
+        icon.dataset.pass181CompactGlyph = control.compactGlyph;
+        icon.dataset.pass181CompactRole = control.label;
+      }
+      if (!element.getAttribute('aria-label')) element.setAttribute('aria-label', control.compactTitle);
+    }
+  }
+
+  function pass181UpdateCompactUxHints(target: number, forcedReason: string): void {
+    const compact = document.body.dataset.pass180PrimaryChromeCompactMode === 'condensed';
+    const summary = byId<HTMLElement>(PASS181_COMPACT_UX_SUMMARY_ID);
+    const countCopy = target === 0
+      ? 'All secondary controls are still on the toolbar.'
+      : `${target} secondary control${target === 1 ? '' : 's'} moved into More Tools.`;
+    const compactCopy = compact
+      ? 'Primary controls are compact: D=DevOps, IT=IT Tools, M=Mission.'
+      : 'Primary control labels are visible.';
+    const reasonCopy = forcedReason === 'webview-height-below-floor'
+      ? 'Moved to protect the website pane height.'
+      : forcedReason === 'chrome-share-above-budget'
+        ? 'Moved because browser chrome exceeded the viewport budget.'
+        : target > 0
+          ? 'Moved before the address bar was crowded.'
+          : 'No compact recovery is active.';
+    const addressCopy = `Address bar ${Math.round(addressWidth())}px.`;
+    const message = `${countCopy} ${compactCopy} ${reasonCopy} ${addressCopy}`;
+    if (summary) summary.textContent = message;
+    document.body.dataset.pass181CompactPrimaryUxClarity = 'true';
+    document.body.dataset.pass181CompactPrimaryGlyphs = compact ? 'active' : 'ready';
+    document.body.dataset.pass181CompactOverflowExplanation = target > 0 ? 'visible' : 'standby';
+    document.body.dataset.pass181CompactSummary = message.slice(0, 180);
+    if (buttonEl && target > 0) {
+      buttonEl.dataset.pass181CompactUxSummary = message;
+      buttonEl.setAttribute('aria-describedby', PASS181_COMPACT_UX_SUMMARY_ID);
+    } else {
+      buttonEl?.removeAttribute('aria-describedby');
+    }
+    for (const control of PASS181_PRIMARY_COMPACT_CONTROLS) {
+      const element = byId<HTMLElement>(control.id);
+      if (!element) continue;
+      const baseTitle = control.compactTitle;
+      element.title = compact ? `${baseTitle} (${control.compactGlyph} in compact toolbar)` : baseTitle;
+      element.setAttribute('aria-label', compact ? `${baseTitle}; compact toolbar glyph ${control.compactGlyph}` : baseTitle);
+      element.dataset.pass181CompactMode = compact ? 'glyph' : 'label';
+      element.dataset.pass182Tooltip = compact
+        ? `${control.label}: ${baseTitle}. Compact glyph ${control.compactGlyph}.`
+        : `${control.label}: ${baseTitle}.`;
+    }
+  }
+
+
+  function pass182CompactPrimaryTarget(target: EventTarget | null): HTMLElement | null {
+    if (!(target instanceof Element)) return null;
+    const element = target.closest<HTMLElement>('[data-pass182-compact-tooltip="true"]');
+    if (!element || !PASS182_COMPACT_HIT_TARGET_CONTROLS.has(element.id)) return null;
+    if (document.body.dataset.pass180PrimaryChromeCompactMode !== 'condensed') return null;
+    if (!pass175IsVisibleUtilityControl(element)) return null;
+    return element;
+  }
+
+  function pass182AnnounceCompactPrimaryFocus(element: HTMLElement, reason: string): void {
+    const label = element.dataset.pass181CompactPrimaryControl || element.getAttribute('aria-label') || element.id;
+    const glyph = element.dataset.pass181CompactGlyph || '';
+    const copy = glyph ? `${label} compact control (${glyph}).` : `${label} compact control.`;
+    document.body.dataset.pass182CompactHitTargetFocus = 'true';
+    document.body.dataset.pass182CompactFocusedControl = element.id || label;
+    document.body.dataset.pass182CompactFocusReason = reason;
+    setStatus(copy);
+  }
+
+  function pass182InstallCompactPrimaryFocusController(): void {
+    if (document.body.dataset.pass182CompactFocusController === 'ready') return;
+    document.body.dataset.pass182CompactFocusController = 'ready';
+    document.body.dataset.pass182CompactHitTargetFocus = 'true';
+    document.addEventListener('focusin', (event) => {
+      const target = pass182CompactPrimaryTarget(event.target);
+      if (target) pass182AnnounceCompactPrimaryFocus(target, 'focus');
+    });
+    document.addEventListener('pointerover', (event) => {
+      const target = pass182CompactPrimaryTarget(event.target);
+      if (target) pass182AnnounceCompactPrimaryFocus(target, 'hover');
+    });
+    document.addEventListener('pointerdown', (event) => {
+      const target = pass182CompactPrimaryTarget(event.target);
+      if (target) {
+        document.body.dataset.pass182CompactLastActivatedControl = target.id || 'unknown';
+        document.body.dataset.pass182CompactLastActivation = 'pointer';
+      }
+    }, true);
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const active = pass182CompactPrimaryTarget(document.activeElement);
+      if (!active) return;
+      document.body.dataset.pass182CompactLastActivatedControl = active.id || 'unknown';
+      document.body.dataset.pass182CompactLastActivation = 'keyboard';
+    }, true);
+  }
+
+  function pass183OpenDialogIds(): string[] {
+    return Array.from(document.querySelectorAll<HTMLDialogElement>('dialog[open]'))
+      .filter((dialog) => document.contains(dialog) && dialog.open)
+      .map((dialog) => dialog.id || 'dialog')
+      .slice(0, 6);
+  }
+
+  function pass183OpenCommandPanelIds(): string[] {
+    return Array.from(document.querySelectorAll<HTMLElement>('.tool-menu-panel:not([hidden])'))
+      .filter((panel) => document.contains(panel) && panel.getAttribute('aria-hidden') !== 'true' && Boolean(panel.getClientRects().length))
+      .map((panel) => panel.id || 'tool-menu-panel')
+      .slice(0, 6);
+  }
+
+  function pass183MoreToolsIsOpen(): boolean {
+    return Boolean(menuEl && !menuEl.hidden && menuEl.getAttribute('aria-hidden') !== 'true');
+  }
+
+  function pass183AuditMoreToolsOverlayCollision(reason: string): void {
+    const dialogs = pass183OpenDialogIds();
+    const panels = pass183OpenCommandPanelIds();
+    const collisionId = dialogs[0] || panels[0] || 'none';
+    const collisionState = dialogs.length ? 'dialog-open' : panels.length ? 'command-panel-open' : 'clear';
+    document.body.dataset.pass183MoreToolsOverlayCollisionRecovery = 'true';
+    document.body.dataset.pass184HiddenMoreToolsFocusRecovery = 'true';
+    document.body.dataset.pass183MoreToolsOverlayCollisionAuditReason = reason;
+    document.body.dataset.pass183MoreToolsOverlayCollisionState = collisionState;
+    document.body.dataset.pass183OpenDialogCount = String(dialogs.length);
+    document.body.dataset.pass183OpenCommandPanelCount = String(panels.length);
+    document.body.dataset.pass183OverlayCollisionSurface = collisionId;
+    if (!pass183MoreToolsIsOpen() || collisionState === 'clear') return;
+    document.body.dataset.pass183MoreToolsCollisionAction = 'closed-more-tools';
+    document.body.dataset.pass183MoreToolsCollisionClosedFor = collisionId;
+    closeMenu({ restoreFocus: false });
+    pass174HideUtilityTooltip();
+    setStatus(`More Tools closed so ${collisionId.replace(/-/g, ' ')} stays in focus.`);
+  }
+
+  function pass183ScheduleMoreToolsOverlayCollisionAudit(reason: string, delay = 40): void {
+    window.clearTimeout(pass183OverlayCollisionTimer);
+    pass183OverlayCollisionTimer = window.setTimeout(() => pass183AuditMoreToolsOverlayCollision(reason), delay);
+  }
+
+  function pass183InstallMoreToolsOverlayCollisionRecovery(): void {
+    if (document.body.dataset.pass183MoreToolsOverlayCollisionController === 'ready') return;
+    document.body.dataset.pass183MoreToolsOverlayCollisionController = 'ready';
+    document.body.dataset.pass183MoreToolsOverlayCollisionRecovery = 'true';
+    document.body.dataset.pass184HiddenMoreToolsFocusRecovery = 'true';
+    pass183OverlayCollisionObserver = new MutationObserver((records) => {
+      const relevant = records.some((record) => {
+        const target = record.target instanceof HTMLElement ? record.target : null;
+        return Boolean(target && (target.matches('dialog, .tool-menu-panel') || target.closest('dialog, .tool-menu-panel')));
+      });
+      if (relevant) pass183ScheduleMoreToolsOverlayCollisionAudit('surface-mutation', 20);
+    });
+    pass183OverlayCollisionObserver.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['open', 'hidden', 'aria-hidden', 'aria-expanded', 'class']
+    });
+    document.addEventListener(PASS116_CHROME_OVERLAY_OPEN_EVENT, () => pass183ScheduleMoreToolsOverlayCollisionAudit('chrome-overlay-open', 0));
+    document.addEventListener(PASS118_CHROME_OVERLAY_CLOSE_EVENT, () => pass183ScheduleMoreToolsOverlayCollisionAudit('chrome-overlay-close', 80));
+    document.addEventListener('toggle', (event) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target?.matches('dialog')) pass183ScheduleMoreToolsOverlayCollisionAudit('dialog-toggle', 0);
+    }, true);
+    for (const delay of PASS183_OVERLAY_COLLISION_AUDIT_DELAYS_MS) {
+      window.setTimeout(() => pass183AuditMoreToolsOverlayCollision(`startup-${delay}`), delay);
+    }
+  }
+
+
+
+  function pass184ActiveElementInsideMoreTools(): HTMLElement | null {
+    if (!menuEl) return null;
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (!active || !menuEl.contains(active)) return null;
+    return active;
+  }
+
+  function pass184PreferredFocusRecoveryTarget(): HTMLElement | null {
+    const address = byId<HTMLInputElement>('address');
+    if (address && pass170ElementCanRestoreFocus(address)) return address;
+    if (buttonEl && pass170ElementCanRestoreFocus(buttonEl)) return buttonEl;
+    const toolbarFocus = document.querySelector<HTMLElement>('.toolbar button:not([hidden]):not([disabled]), .toolbar input:not([hidden]):not([disabled])');
+    if (toolbarFocus && pass170ElementCanRestoreFocus(toolbarFocus)) return toolbarFocus;
+    const stage = byId<HTMLElement>('webview-stage');
+    if (stage && pass170ElementCanRestoreFocus(stage)) return stage;
+    return null;
+  }
+
+  function pass184RepairHiddenMoreToolsFocus(reason: string): void {
+    document.body.dataset.pass184HiddenMoreToolsFocusRecovery = 'true';
+    document.body.dataset.pass184HiddenMoreToolsFocusReason = reason;
+    const trapped = pass184ActiveElementInsideMoreTools();
+    const hidden = Boolean(menuEl && (menuEl.hidden || menuEl.getAttribute('aria-hidden') === 'true'));
+    if (!trapped || !hidden) {
+      document.body.dataset.pass184HiddenMoreToolsFocusState = 'clear';
+      return;
+    }
+    if (pass164MoreToolsActionInFlight) {
+      document.body.dataset.pass184HiddenMoreToolsFocusState = 'deferred-action-in-flight';
+      return;
+    }
+    const target = pass184PreferredFocusRecoveryTarget();
+    if (!target) {
+      document.body.dataset.pass184HiddenMoreToolsFocusState = 'no-safe-target';
+      return;
+    }
+    target.focus();
+    document.body.dataset.pass184HiddenMoreToolsFocusState = 'repaired';
+    document.body.dataset.pass184HiddenMoreToolsFocusFrom = trapped.id || trapped.dataset.pass113ChromeOverflowCandidate || 'more-tools-item';
+    document.body.dataset.pass184HiddenMoreToolsFocusTo = target.id || target.tagName.toLowerCase();
+    setStatus('Focus restored after More Tools closed.');
+  }
+
+  function pass184ScheduleHiddenMoreToolsFocusRepair(reason: string, delay = PASS184_HIDDEN_MENU_FOCUS_REPAIR_DELAY_MS): void {
+    window.clearTimeout(pass184HiddenMenuFocusRepairTimer);
+    pass184HiddenMenuFocusRepairTimer = window.setTimeout(() => pass184RepairHiddenMoreToolsFocus(reason), delay);
+  }
+
+  function pass184InstallHiddenMoreToolsFocusRecovery(): void {
+    if (document.body.dataset.pass184HiddenMoreToolsFocusController === 'ready') return;
+    document.body.dataset.pass184HiddenMoreToolsFocusController = 'ready';
+    document.body.dataset.pass184HiddenMoreToolsFocusRecovery = 'true';
+    document.addEventListener('focusin', () => {
+      if (!menuEl) return;
+      if (!menuEl.hidden && menuEl.getAttribute('aria-hidden') !== 'true') return;
+      if (pass184ActiveElementInsideMoreTools()) pass184ScheduleHiddenMoreToolsFocusRepair('focus-entered-hidden-menu', 0);
+    }, true);
+    document.addEventListener(PASS122_CHROME_STACK_REFLOW_EVENT, () => pass184ScheduleHiddenMoreToolsFocusRepair('chrome-stack-reflow', 48));
+    document.addEventListener(PASS118_CHROME_OVERLAY_CLOSE_EVENT, () => pass184ScheduleHiddenMoreToolsFocusRepair('chrome-overlay-close', 48));
+  }
 
   function ensureShell(): void {
     if (buttonEl && menuEl) return;
@@ -338,7 +607,8 @@
     buttonEl.setAttribute('aria-label', 'Open More Tools');
     buttonEl.dataset.pass173Iconified = 'more-tools';
     buttonEl.dataset.pass173Tooltip = 'More Tools';
-    buttonEl.innerHTML = '<span class="chrome-action-icon" aria-hidden="true">☰</span><span class="chrome-action-label">More Tools</span>';
+    buttonEl.dataset.pass179OverflowClarity = 'true';
+    buttonEl.innerHTML = '<span class="chrome-action-icon" aria-hidden="true">☰</span><span class="chrome-action-label">More Tools</span><span id="toolbar-overflow-count" class="toolbar-overflow-count-badge" aria-hidden="true">0</span>';
     buttonEl.addEventListener('click', () => toggleMenu());
     guideQuickEl = document.createElement('button');
     guideQuickEl.id = GUIDE_QUICK_ID;
@@ -365,7 +635,7 @@
     menuEl.setAttribute('aria-keyshortcuts', 'Escape');
     menuEl.setAttribute('data-pass113-adaptive-chrome-density', 'true');
     menuEl.dataset.pass163MoreToolsActionDispatch = 'true';
-    menuEl.innerHTML = '<div class="toolbar-overflow-header"><strong>More Tools</strong><span>Secondary controls move here before they crowd the active address/pane routing row.</span></div><div class="toolbar-overflow-items" id="toolbar-overflow-items"></div>';
+    menuEl.innerHTML = `<div class="toolbar-overflow-header"><strong>More Tools</strong><span id="${PASS181_COMPACT_UX_SUMMARY_ID}" data-pass181-compact-overflow-summary="true">Secondary controls move here before they crowd the active address/pane routing row.</span></div><div class="toolbar-overflow-items" id="toolbar-overflow-items"></div>`;
     toolbar.appendChild(guideQuickEl);
     toolbar.appendChild(buttonEl);
     document.querySelector('.app-shell')?.appendChild(menuEl);
@@ -519,6 +789,7 @@
       delete document.body.dataset.pass116ActiveOverlay;
     }
     if (wasOpen && options.restoreFocus) pass170RestoreFocusToMoreToolsOpener(pass117MoreToolsOpener || buttonEl);
+    if (wasOpen) pass184ScheduleHiddenMoreToolsFocusRepair(options.restoreFocus ? 'close-with-restore' : 'close-without-restore');
     document.dispatchEvent(new CustomEvent(PASS123_OVERLAY_CYCLE_AUDIT_EVENT, { detail: { source: 'more-tools', reason: 'more-tools-close' } }));
   }
   // PASS116 verifier token preserved after PASS117 focus-scope detail expansion: detail: { source: 'more-tools', overlay: 'toolbar-overflow-menu' }
@@ -559,8 +830,10 @@
     menuEl.hidden = !willOpen;
     buttonEl.setAttribute('aria-expanded', String(!menuEl.hidden));
     pass117SetMenuFocusOpen(!menuEl.hidden);
-    if (!menuEl.hidden) pass117FocusFirstMenuItem();
-    else closeMenu({ restoreFocus: true });
+    if (!menuEl.hidden) {
+      pass117FocusFirstMenuItem();
+      pass183ScheduleMoreToolsOverlayCollisionAudit('more-tools-open', 0);
+    } else closeMenu({ restoreFocus: true });
   }
   function overflowItemsEl(): HTMLElement | null { return document.getElementById('toolbar-overflow-items') as HTMLElement | null; }
   function pass163OverflowActionElement(target: EventTarget | null): HTMLElement | null {
@@ -611,6 +884,32 @@
     const menuIds = new Set(sorted.slice(0, target).map((item) => item.id));
     for (const item of managed) menuIds.has(item.id) ? moveToMenu(item) : restoreToToolbar(item);
   }
+  function pass179UpdateMoreToolsOverflowClarity(target: number, forcedReason: string): void {
+    if (!buttonEl) return;
+    const count = Math.max(0, target);
+    const badge = document.getElementById(PASS179_OVERFLOW_COUNT_BADGE_ID) as HTMLElement | null;
+    const hidden = count === 0;
+    const forced = forcedReason !== 'not-needed';
+    const label = hidden
+      ? 'Open More Tools'
+      : `Open More Tools, ${count} secondary control${count === 1 ? '' : 's'} moved out of the toolbar`;
+    if (badge) {
+      badge.textContent = String(count);
+      badge.hidden = hidden;
+      badge.dataset.pass179OverflowCount = String(count);
+      badge.dataset.pass179ForcedOverflow = String(forced);
+    }
+    buttonEl.setAttribute('aria-label', label);
+    buttonEl.title = hidden ? 'Open more tools and secondary browser controls' : label;
+    buttonEl.dataset.pass173Tooltip = hidden ? 'More Tools' : `More Tools · ${count} moved`;
+    buttonEl.dataset.pass179OverflowCount = String(count);
+    buttonEl.dataset.pass179ForcedOverflow = String(forced);
+    buttonEl.dataset.pass179ForcedOverflowReason = forcedReason;
+    document.body.dataset.pass179MoreToolsOverflowClarity = 'true';
+    document.body.dataset.pass179MoreToolsOverflowCount = String(count);
+    document.body.dataset.pass179MoreToolsOverflowMode = hidden ? 'toolbar-clear' : forced ? 'viewport-forced' : 'responsive';
+    document.body.dataset.pass179MoreToolsForcedReason = forcedReason;
+  }
   function addressWidth(): number { return byId<HTMLElement>('address-form')?.getBoundingClientRect().width || 0; }
   function updateGuideQuickAnchor(): void {
     if (!guideQuickEl) return;
@@ -640,7 +939,7 @@
   }
   function relayout(): void {
     pass174HideUtilityTooltip();
-    ensureShell(); collectManagedItems(); updateChromeStackVars();
+    ensureShell(); pass181PreparePrimaryCompactControls(); collectManagedItems(); updateChromeStackVars();
     if (!menuEl || !buttonEl) return;
     const toolbar = document.querySelector<HTMLElement>('.toolbar');
     const sorted = sortedItems();
@@ -663,10 +962,14 @@
       document.body.dataset.pass177ForcedOverflowReason = 'not-needed';
     }
     pass177MeasureWebsitePaneBudget();
+    pass179UpdateMoreToolsOverflowClarity(target, document.body.dataset.pass177ForcedOverflowReason || 'not-needed');
     buttonEl.hidden = target === 0;
     document.body.classList.toggle('toolbar-overflow-active', target > 0);
     document.body.dataset.toolbarOverflowCount = String(target);
     document.body.dataset.pass113ChromeAddressWidth = String(Math.round(addressWidth()));
+    const pass180PrimaryCompact = window.innerWidth <= PASS180_PRIMARY_COMPACT_WIDTH_PX || addressWidth() < PASS113_MIN_ADDRESS_WIDTH;
+    document.body.dataset.pass180PrimaryChromeCompactMode = pass180PrimaryCompact ? 'condensed' : 'full';
+    pass181UpdateCompactUxHints(target, document.body.dataset.pass177ForcedOverflowReason || 'not-needed');
     pass176UpdateCompactIconViewportState(target);
     updateChromeStackVars();
     updateGuideQuickAnchor();
@@ -716,10 +1019,15 @@
     document.body.dataset.pass177SiteViewportRecovery = 'true';
     document.body.dataset.pass178ViewportBudgetObserver = 'true';
     document.body.dataset.pass178EnterpriseButtonGeometry = 'true';
+    document.body.dataset.pass180PrimaryChromeCompactRecovery = 'true';
+    document.body.dataset.pass181CompactPrimaryUxClarity = 'true';
+    document.body.dataset.pass182CompactHitTargetFocus = 'true';
+    document.body.dataset.pass183MoreToolsOverlayCollisionRecovery = 'true';
+    document.body.dataset.pass184HiddenMoreToolsFocusRecovery = 'true';
     pass174InstallUtilityTooltipController();
     pass116InstallOverlayArbitration();
     pass118InstallDismissRecovery();
-    ensureShell(); watchDynamicChromeControls(); pass178InstallViewportBudgetObserver(); relayout();
+    ensureShell(); pass181PreparePrimaryCompactControls(); pass182InstallCompactPrimaryFocusController(); pass183InstallMoreToolsOverlayCollisionRecovery(); pass184InstallHiddenMoreToolsFocusRecovery(); watchDynamicChromeControls(); pass178InstallViewportBudgetObserver(); relayout();
     window.addEventListener('resize', () => { scheduleRelayout(80); pass178ScheduleViewportBudgetAudit('window-resize', 140); });
     for (const delay of PASS113_RELAYOUT_DELAYS_MS) window.setTimeout(relayout, delay);
   }

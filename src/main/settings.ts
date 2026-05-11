@@ -2,6 +2,8 @@ import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { rendererSafeDownloadSettings, sanitizeSettingsDirectoryValue, sanitizeSettingsHomeUrl, shouldRejectSettingsFileSize } from '../shared/settings-boundary';
+import { applyEnterpriseAdminPolicyToSettings } from '../shared/enterprise-admin-policy-contract';
+import { readEnterpriseAdminPolicy } from './enterprise-admin-policy';
 
 export const DEFAULT_HOME_URL = 'https://tahaiportal.com';
 
@@ -119,15 +121,19 @@ export function sanitizeSettings(value: unknown): TahaiBrowserSettings {
   };
 }
 
+function applyManagedSettingsPolicy(settings: TahaiBrowserSettings): TahaiBrowserSettings {
+  return sanitizeSettings(applyEnterpriseAdminPolicyToSettings(settings, readEnterpriseAdminPolicy().policy));
+}
+
 export function readBrowserSettings(): TahaiBrowserSettings {
   const file = settingsFile();
-  if (!fs.existsSync(file)) return { ...DEFAULT_BROWSER_SETTINGS };
+  if (!fs.existsSync(file)) return applyManagedSettingsPolicy({ ...DEFAULT_BROWSER_SETTINGS });
   try {
     const stat = fs.statSync(file);
-    if (shouldRejectSettingsFileSize(stat.size)) return { ...DEFAULT_BROWSER_SETTINGS };
-    return sanitizeSettings(JSON.parse(fs.readFileSync(file, 'utf8')));
+    if (shouldRejectSettingsFileSize(stat.size)) return applyManagedSettingsPolicy({ ...DEFAULT_BROWSER_SETTINGS });
+    return applyManagedSettingsPolicy(sanitizeSettings(JSON.parse(fs.readFileSync(file, 'utf8'))));
   } catch {
-    return { ...DEFAULT_BROWSER_SETTINGS };
+    return applyManagedSettingsPolicy({ ...DEFAULT_BROWSER_SETTINGS });
   }
 }
 
@@ -139,13 +145,13 @@ function persistBrowserSettings(cleaned: TahaiBrowserSettings): TahaiBrowserSett
 
 export function writeBrowserSettings(next: unknown): TahaiBrowserSettings {
   const current = readBrowserSettings();
-  const cleaned = sanitizeSettings(next);
-  cleaned.downloads.defaultDirectory = current.downloads.defaultDirectory;
+  const cleaned = applyManagedSettingsPolicy(sanitizeSettings(next));
+  if (!readEnterpriseAdminPolicy().policy.lockedSettings.downloads?.defaultDirectory) cleaned.downloads.defaultDirectory = current.downloads.defaultDirectory;
   return persistBrowserSettings(cleaned);
 }
 
 export function resetBrowserSettings(): TahaiBrowserSettings {
-  return persistBrowserSettings({ ...DEFAULT_BROWSER_SETTINGS, downloads: { ...DEFAULT_BROWSER_SETTINGS.downloads } });
+  return persistBrowserSettings(applyManagedSettingsPolicy({ ...DEFAULT_BROWSER_SETTINGS, downloads: { ...DEFAULT_BROWSER_SETTINGS.downloads } }));
 }
 
 export function settingsForRenderer(settings: TahaiBrowserSettings): TahaiBrowserSettings {

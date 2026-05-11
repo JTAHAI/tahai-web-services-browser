@@ -882,3 +882,323 @@ body[data-pass178-enterprise-button-geometry="true"] .pass174-utility-tooltip {
     border-radius: 10px !important;
   }
 }
+
+/* PASS179 More Tools Overflow Clarity: compact chrome must explain where controls moved instead of leaving a mystery icon. */
+body[data-pass179-more-tools-overflow-clarity="true"] .toolbar-overflow-toggle {
+  position: relative;
+}
+body[data-pass179-more-tools-overflow-clarity="true"] .toolbar-overflow-count-badge {
+  position: absolute;
+  top: -6px;
+  right: -7px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border: 1px solid rgba(119,219,255,.58);
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .62rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #f2fffb;
+  background: linear-gradient(180deg, rgba(18,41,67,.98), rgba(5,12,22,.98));
+  box-shadow: 0 0 0 1px rgba(2,7,14,.92), 0 6px 18px rgba(0,0,0,.36), 0 0 18px rgba(47,143,255,.18);
+  pointer-events: none;
+}
+body[data-pass179-more-tools-overflow-clarity="true"] .toolbar-overflow-count-badge[hidden] {
+  display: none !important;
+}
+body[data-pass179-more-tools-overflow-mode="viewport-forced"] .toolbar-overflow-toggle {
+  border-color: rgba(255,199,95,.68) !important;
+  background: linear-gradient(180deg, rgba(255,199,95,.13), rgba(7,16,31,.98)) !important;
+}
+body[data-pass179-more-tools-overflow-mode="viewport-forced"] .toolbar-overflow-count-badge {
+  border-color: rgba(255,199,95,.76);
+  color: #fff5d9;
+  background: linear-gradient(180deg, rgba(90,59,12,.96), rgba(18,14,5,.98));
+  box-shadow: 0 0 0 1px rgba(2,7,14,.92), 0 8px 20px rgba(0,0,0,.40), 0 0 18px rgba(255,199,95,.22);
+}
+body[data-pass179-more-tools-overflow-clarity="true"] .toolbar-overflow-menu .toolbar-overflow-header span::after {
+  content: ' Controls may move here automatically to preserve website pane height.';
+}
+@media (max-width: 980px) {
+  body[data-pass179-more-tools-overflow-clarity="true"] .toolbar-overflow-toggle .toolbar-overflow-count-badge {
+    top: -5px;
+    right: -6px;
+  }
+}
+
+/* PASS180 Primary Chrome Compact Recovery: always-visible controls condense before the website pane or address bar gets squeezed. */
+body[data-pass180-primary-chrome-compact-recovery="true"] .pass180-primary-icon {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  line-height: 1;
+}
+body[data-pass180-primary-chrome-compact-recovery="true"] .pass180-primary-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body[data-pass180-primary-chrome-compact-recovery="true"] .toolbar .tool-menu-button,
+body[data-pass180-primary-chrome-compact-recovery="true"] .toolbar .mission-control-button,
+body[data-pass180-primary-chrome-compact-recovery="true"] .toolbar #home {
+  transition: width .12s ease, min-width .12s ease, padding-inline .12s ease, border-radius .12s ease;
+}
+body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar .tool-menu-button,
+body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar .mission-control-button,
+body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #home {
+  min-width: 38px !important;
+  width: 38px !important;
+  max-width: 38px !important;
+  padding-inline: 0 !important;
+  border-radius: 8px !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+}
+body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #home .pass180-primary-icon,
+body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar .mission-control-button .pass180-primary-icon {
+  display: inline-flex;
+}
+body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #home .pass180-primary-label,
+body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar .mission-control-button .pass180-primary-label,
+body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar .tool-menu-button span:not([aria-hidden="true"]) {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar .tool-menu-button span[aria-hidden="true"] {
+  margin: 0 !important;
+  font-weight: 900;
+}
+@media (max-width: 760px) {
+  body[data-pass180-primary-chrome-compact-recovery="true"] .toolbar {
+    gap: 4px !important;
+    padding-inline: 6px !important;
+  }
+  body[data-pass180-primary-chrome-compact-recovery="true"] .toolbar .address-form {
+    flex-basis: 136px !important;
+    min-width: 112px !important;
+  }
+  body[data-pass180-primary-chrome-compact-recovery="true"] .toolbar .icon-button,
+  body[data-pass180-primary-chrome-compact-recovery="true"] .toolbar .home-button,
+  body[data-pass180-primary-chrome-compact-recovery="true"] .toolbar .tool-menu-button,
+  body[data-pass180-primary-chrome-compact-recovery="true"] .toolbar .mission-control-button {
+    min-height: 34px !important;
+    height: 34px !important;
+  }
+}
+@media (max-width: 620px) {
+  body[data-pass180-primary-chrome-compact-recovery="true"] .toolbar .address-form {
+    flex-basis: 110px !important;
+    min-width: 96px !important;
+  }
+  body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar .tool-menu-button,
+  body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar .mission-control-button,
+  body[data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #home {
+    min-width: 34px !important;
+    width: 34px !important;
+    max-width: 34px !important;
+  }
+}
+
+
+
+/* PASS181 Compact Primary UX Clarity: condensed controls keep meaningful glyphs and More Tools explains why controls moved. */
+body[data-pass181-compact-primary-ux-clarity="true"] [data-pass181-compact-primary-control] {
+  position: relative;
+}
+body[data-pass181-compact-primary-ux-clarity="true"] .toolbar-overflow-header #toolbar-compact-ux-summary {
+  display: block;
+  color: rgba(219,241,255,.72);
+  font-size: .75rem;
+  line-height: 1.35;
+}
+body[data-pass181-compact-primary-ux-clarity="true"] .toolbar-overflow-header #toolbar-compact-ux-summary::before {
+  content: 'UX: ';
+  color: rgba(109,255,183,.82);
+  font-weight: 850;
+  letter-spacing: .02em;
+}
+body[data-pass181-compact-primary-glyphs="active"] .toolbar .tool-menu-button > span[aria-hidden="true"] {
+  font-size: 0 !important;
+  letter-spacing: 0 !important;
+  min-width: 20px;
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+}
+body[data-pass181-compact-primary-glyphs="active"] .toolbar .tool-menu-button > span[aria-hidden="true"]::before {
+  content: attr(data-pass181-compact-glyph);
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border: 1px solid rgba(119,219,255,.30);
+  border-radius: 6px;
+  color: #edfaff;
+  background: rgba(119,219,255,.08);
+  font-size: .64rem;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: -.02em;
+  text-shadow: 0 0 10px rgba(119,219,255,.34);
+}
+body[data-pass181-compact-primary-glyphs="active"] .toolbar #devops-tools > span[aria-hidden="true"]::before {
+  content: 'D';
+}
+body[data-pass181-compact-primary-glyphs="active"] .toolbar #it-tools > span[aria-hidden="true"]::before {
+  content: 'IT';
+}
+body[data-pass181-compact-primary-glyphs="active"] .toolbar #home .pass180-primary-icon,
+body[data-pass181-compact-primary-glyphs="active"] .toolbar .mission-control-button .pass180-primary-icon {
+  min-width: 20px;
+  height: 20px;
+  border: 1px solid rgba(119,219,255,.28);
+  border-radius: 6px;
+  background: rgba(119,219,255,.07);
+  color: #edfaff;
+  font-size: .72rem;
+}
+body[data-pass181-compact-primary-glyphs="active"] .toolbar #home:focus-visible::after,
+body[data-pass181-compact-primary-glyphs="active"] .toolbar #devops-tools:focus-visible::after,
+body[data-pass181-compact-primary-glyphs="active"] .toolbar #it-tools:focus-visible::after,
+body[data-pass181-compact-primary-glyphs="active"] .toolbar #mission-control-toggle:focus-visible::after,
+body[data-pass181-compact-primary-glyphs="active"] .toolbar #home:hover::after,
+body[data-pass181-compact-primary-glyphs="active"] .toolbar #devops-tools:hover::after,
+body[data-pass181-compact-primary-glyphs="active"] .toolbar #it-tools:hover::after,
+body[data-pass181-compact-primary-glyphs="active"] .toolbar #mission-control-toggle:hover::after {
+  content: attr(data-pass181-compact-primary-control);
+  position: fixed;
+  z-index: 910;
+  top: calc(var(--pass114-chrome-stack-top, 112px) - 36px);
+  right: 12px;
+  max-width: min(220px, calc(100vw - 24px));
+  padding: 6px 9px;
+  border: 1px solid rgba(119,219,255,.34);
+  border-radius: 8px;
+  background: rgba(2,7,14,.98);
+  color: #edfaff;
+  box-shadow: 0 12px 34px rgba(0,0,0,.50), 0 0 18px rgba(47,143,255,.16);
+  font-size: .72rem;
+  font-weight: 850;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+body[data-pass181-compact-overflow-explanation="visible"] .toolbar-overflow-menu .toolbar-overflow-header {
+  border-bottom-color: rgba(109,255,183,.18);
+}
+@media (max-width: 620px) {
+  body[data-pass181-compact-primary-glyphs="active"] .toolbar .tool-menu-button > span[aria-hidden="true"]::before,
+  body[data-pass181-compact-primary-glyphs="active"] .toolbar #home .pass180-primary-icon,
+  body[data-pass181-compact-primary-glyphs="active"] .toolbar .mission-control-button .pass180-primary-icon {
+    min-width: 18px;
+    width: 18px;
+    height: 18px;
+    font-size: .58rem;
+  }
+}
+
+/* PASS182 Compact Hit-Target + Focus Hardening: compact primary controls must stay clickable, keyboard-obvious, and locally explained. */
+body[data-pass182-compact-hit-target-focus="true"] [data-pass182-compact-hit-target="true"] {
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar [data-pass182-compact-hit-target="true"] {
+  min-width: 40px !important;
+  width: 40px !important;
+  max-width: 40px !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  border-radius: 7px !important;
+  touch-action: manipulation;
+}
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar [data-pass182-compact-hit-target="true"]:hover,
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar [data-pass182-compact-hit-target="true"]:focus-visible {
+  border-color: rgba(119,219,255,.68) !important;
+  background: linear-gradient(180deg, rgba(119,219,255,.13), rgba(7,16,31,.98)) !important;
+  box-shadow: 0 0 0 3px rgba(119,219,255,.13), 0 12px 28px rgba(0,0,0,.38) !important;
+  outline: 2px solid rgba(119,219,255,.72);
+  outline-offset: 2px;
+}
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar [data-pass182-compact-hit-target="true"]:active {
+  transform: translateY(1px);
+}
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #devops-tools > span[aria-hidden="true"]::before,
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #it-tools > span[aria-hidden="true"]::before,
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #home .pass180-primary-icon,
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar .mission-control-button .pass180-primary-icon {
+  min-width: 22px;
+  width: 22px;
+  height: 22px;
+}
+body[data-pass182-compact-hit-target-focus="true"] .pass174-utility-tooltip[data-pass174-tooltip-visible="true"] {
+  border-radius: 8px;
+  font-weight: 800;
+}
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #home:focus-visible::after,
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #devops-tools:focus-visible::after,
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #it-tools:focus-visible::after,
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #mission-control-toggle:focus-visible::after,
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #home:hover::after,
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #devops-tools:hover::after,
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #it-tools:hover::after,
+body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #mission-control-toggle:hover::after {
+  content: none !important;
+  display: none !important;
+}
+@media (max-width: 620px) {
+  body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar [data-pass182-compact-hit-target="true"] {
+    min-width: 38px !important;
+    width: 38px !important;
+    max-width: 38px !important;
+    min-height: 36px !important;
+    height: 36px !important;
+  }
+  body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #devops-tools > span[aria-hidden="true"]::before,
+  body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #it-tools > span[aria-hidden="true"]::before,
+  body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar #home .pass180-primary-icon,
+  body[data-pass182-compact-hit-target-focus="true"][data-pass180-primary-chrome-compact-mode="condensed"] .toolbar .mission-control-button .pass180-primary-icon {
+    min-width: 20px;
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* PASS183 More Tools Overlay Collision Recovery: stale More Tools state must not fight newly opened dialogs or command panels. */
+body[data-pass183-more-tools-overlay-collision-recovery="true"] .toolbar-overflow-menu {
+  isolation: isolate;
+}
+body[data-pass183-more-tools-overlay-collision-state="dialog-open"] .toolbar-overflow-toggle,
+body[data-pass183-more-tools-overlay-collision-state="command-panel-open"] .toolbar-overflow-toggle {
+  box-shadow: inset 0 0 0 1px rgba(109,255,183,.16), 0 0 14px rgba(109,255,183,.08);
+}
+body[data-pass183-more-tools-overlay-collision-recovery="true"] .toolbar-overflow-menu[aria-hidden="true"] {
+  pointer-events: none !important;
+}
+
+/* PASS184 Hidden More Tools Focus Recovery: closing/reflowing More Tools must not leave keyboard focus inside a hidden menu. */
+body[data-pass184-hidden-more-tools-focus-recovery="true"] .toolbar-overflow-menu[hidden],
+body[data-pass184-hidden-more-tools-focus-recovery="true"] .toolbar-overflow-menu[aria-hidden="true"] {
+  pointer-events: none !important;
+}
+body[data-pass184-hidden-more-tools-focus-state="repaired"] #address:focus-visible,
+body[data-pass184-hidden-more-tools-focus-state="repaired"] #toolbar-overflow-toggle:focus-visible {
+  outline: 2px solid rgba(109,255,183,.76);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(109,255,183,.13), 0 0 22px rgba(109,255,183,.16);
+}
+body[data-pass184-hidden-more-tools-focus-state="repaired"] .statusbar {
+  box-shadow: inset 0 1px 0 rgba(109,255,183,.12);
+}

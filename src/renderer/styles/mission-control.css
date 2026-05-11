@@ -1133,3 +1133,42 @@ body.mission-micro-window-stress .mission-pane-actions .home-button,
   min-height: 30px !important;
   font-size: .68rem !important;
 }
+
+
+/* PASS163: Mission Control is a top-layer dialog, so small-window fit guards must not treat fullscreen compact mode as clipped chrome. */
+body[data-pass163-more-tools-mission-reflow="true"] .mission-dialog[data-pass132-mission-viewport="compact"],
+body[data-pass163-more-tools-mission-reflow="true"] .mission-dialog[data-pass132-mission-viewport="micro"] {
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+body[data-pass163-more-tools-mission-reflow="true"] .mission-dialog[data-pass117-focus-open="true"] {
+  pointer-events: auto !important;
+}
+
+
+/* PASS176 Compact Icon Viewport Hardening: compact Mission layout controls keep active state visible and touchable. */
+body[data-pass176-compact-icon-viewport-hardening="true"] .mission-layouts .home-button:focus-visible,
+body[data-pass176-compact-icon-viewport-hardening="true"] .mission-pane-actions .home-button:focus-visible {
+  outline: 2px solid rgba(119,219,255,.92);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(119,219,255,.14), 0 0 26px rgba(47,143,255,.18) !important;
+}
+body[data-pass176-compact-icon-viewport-hardening="true"] .mission-layouts .home-button.active {
+  scroll-margin-inline: 42px;
+}
+body[data-pass176-compact-icon-viewport-hardening="true"] .mission-dialog[data-pass132-mission-viewport="compact"] .mission-layouts .home-button,
+body[data-pass176-compact-icon-viewport-hardening="true"] .mission-dialog[data-pass132-mission-viewport="micro"] .mission-layouts .home-button,
+body[data-pass176-compact-icon-viewport-hardening="true"].mission-small-window-stress .mission-layouts .home-button,
+body[data-pass176-compact-icon-viewport-hardening="true"].mission-micro-window-stress .mission-layouts .home-button {
+  min-height: 36px !important;
+  touch-action: manipulation;
+}
+@media (pointer: coarse) {
+  body[data-pass176-compact-icon-viewport-hardening="true"] .mission-dialog[data-pass132-mission-viewport="compact"] .mission-layouts .home-button,
+  body[data-pass176-compact-icon-viewport-hardening="true"] .mission-dialog[data-pass132-mission-viewport="micro"] .mission-layouts .home-button,
+  body[data-pass176-compact-icon-viewport-hardening="true"].mission-small-window-stress .mission-layouts .home-button,
+  body[data-pass176-compact-icon-viewport-hardening="true"].mission-micro-window-stress .mission-layouts .home-button {
+    min-height: 42px !important;
+  }
+}

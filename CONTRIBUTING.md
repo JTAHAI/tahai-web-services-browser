@@ -25,3 +25,12 @@ npm run verify:public-repo
 ## Pull requests
 
 A good PR should include what changed, why it changed, screenshots for UI changes, verification commands run, and known limitations.
+
+
+## Supply-chain rules
+
+- Use `npm ci`, not ad-hoc dependency installs, when validating release or security work.
+- Keep `package-lock.json` in sync with `package.json`.
+- Do not add root lifecycle install scripts.
+- Keep dependency changes small and reviewable.
+- Run `npm run verify:pass-144-public-repo-supply-chain` for dependency, workflow, public repo, or release-script changes.

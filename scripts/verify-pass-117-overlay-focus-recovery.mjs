@@ -36,12 +36,12 @@ for (const token of [
   'closeMenu({ restoreFocus: false })',
   'pass117FocusFirstMenuItem()',
   "focusScope: 'more-tools'",
-  "document.body.dataset.pass117OverlayFocusRecovery = 'ready'"
+  "document.body.dataset.pass117OverlayFocusRecovery = 'true'"
 ]) need(responsiveTs.includes(token), `responsive toolbar missing PASS117 token: ${token}`);
 
 for (const token of [
   'PASS117_FOCUSABLE_SELECTOR',
-  'pass117FocusFirstIn(scope: HTMLElement)',
+  'pass117FocusFirstIn(scope: HTMLElement, overlaySource: Pass116ChromeOverlaySource)',
   'pass117MarkOverlayFocus(scope: Pass116ChromeOverlaySource, panel: HTMLElement, opener?: HTMLElement | null)',
   'pass117ClearOverlayFocus(scope: Pass116ChromeOverlaySource, panel: HTMLElement, opener?: HTMLElement | null, restoreFocus = false)',
   "panel.dataset.pass117FocusScope = scope",
@@ -63,7 +63,7 @@ for (const token of [
   'pass117SetRailFocusOpen(open: boolean, restoreFocus = false)',
   'setRailOpen(false, true, true)',
   'setRailOpen(false, true, false)',
-  "document.body.dataset.pass117SiteViewFocusRecovery = 'ready'"
+  "document.body.dataset.pass117SiteViewFocusRecovery = 'true'"
 ]) need(siteViewTs.includes(token), `Site View renderer missing PASS117 token: ${token}`);
 
 for (const token of [

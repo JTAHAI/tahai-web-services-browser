@@ -53,9 +53,11 @@
   const CAPTURE_MIN_AGE_MS = 12_000;
   const CAPTURE_DELAY_MS = 450;
   const PASS116_CHROME_OVERLAY_OPEN_EVENT = 'tahai:chrome-overlay-open';
+  const PASS164_MORE_TOOLS_ACTION_EVENT = 'tahai:more-tools-action-request';
   const PASS118_CHROME_OVERLAY_CLOSE_EVENT = 'tahai:chrome-overlay-close-all';
   const PASS122_CHROME_STACK_REFLOW_EVENT = 'tahai:chrome-stack-reflow';
   const PASS123_OVERLAY_CYCLE_AUDIT_EVENT = 'tahai:chrome-overlay-cycle-audit';
+  // PASS169 delayed overlay focus guard: stale Site View focus timers must not refocus a hidden rail.
   const PASS117_FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
   const thumbnailCache = new WeakMap<CaptureCapableWebview, ThumbnailCacheEntry>();
@@ -68,6 +70,7 @@
   let privacyModeButton: HTMLButtonElement | null = null;
   let toggleButton: HTMLButtonElement | null = null;
   let pass117SiteViewOpener: HTMLElement | null = null;
+  let pass171SiteViewFocusEpoch = 0;
   let renderTimer = 0;
   let selectedIndex = 0;
   let draggedIndex: number | null = null;
@@ -245,9 +248,12 @@
     const button = document.createElement('button');
     button.id = 'site-view-rail-toggle';
     button.type = 'button';
-    button.className = 'home-button secondary site-view-rail-toggle';
+    button.className = 'home-button secondary site-view-rail-toggle utility-chrome-button';
     button.title = 'Toggle Site View Mission Rail (Ctrl+Alt+V)';
-    button.textContent = 'Site View';
+    button.setAttribute('aria-label', 'Toggle Site View Mission Rail');
+    button.dataset.pass173Iconified = 'site-view';
+    button.dataset.pass173Tooltip = 'Site View';
+    button.innerHTML = '<span class="chrome-action-icon" aria-hidden="true">◫</span><span class="chrome-action-label">Site View</span>';
     button.dataset.pass117OverlayOpener = 'site-view';
     button.setAttribute('aria-keyshortcuts', 'Escape');
     button.addEventListener('click', () => setRailOpen(!isRailOpen(), true, true));
@@ -411,6 +417,9 @@
   // PASS116 verifier token preserved after PASS117 focus-scope detail expansion: detail: { source: 'site-view', overlay: RAIL_ID }
   function pass116AnnounceSiteViewOpen(): void {
     document.body.dataset.pass116ActiveOverlay = 'site-view';
+    document.body.dataset.pass122ActiveOverlayOpenedAt = String(Date.now());
+    document.body.dataset.pass122ActiveOverlayOpenedSource = 'site-view';
+    document.body.dataset.pass168OverlayOpenAgeStamp = 'true';
     document.dispatchEvent(new CustomEvent(PASS116_CHROME_OVERLAY_OPEN_EVENT, {
       detail: { source: 'site-view', overlay: RAIL_ID, focusScope: 'site-view', openerId: 'site-view-rail-toggle' }
     }));
@@ -421,20 +430,26 @@
   }
 
   function pass122AnnounceSiteViewOverlayReflow(reason: string): void {
-    document.body.dataset.pass122OverlayViewportReflow = 'ready';
+    document.body.dataset.pass122OverlayViewportReflow = 'true';
+    document.body.dataset.pass166RuntimeCssStateAlignment = 'true';
+    document.body.dataset.pass167OverlaySourceSafeClose = 'true';
+    document.body.dataset.pass168OverlayOpenAgeStamp = 'true';
+    document.body.dataset.pass169DelayedOverlayFocusGuard = 'true';
+    document.body.dataset.pass170RestoreFocusTargetGuard = 'true';
+    document.body.dataset.pass171OverlayFocusEpochGuard = 'true';
     document.dispatchEvent(new CustomEvent(PASS122_CHROME_STACK_REFLOW_EVENT, { detail: { source: 'site-view', reason } }));
     document.dispatchEvent(new CustomEvent(PASS123_OVERLAY_CYCLE_AUDIT_EVENT, { detail: { source: 'site-view', reason } }));
   }
 
   function installPass116OverlayArbitration(): void {
-    document.body.dataset.pass116SiteViewOverlayArbitration = 'ready';
+    document.body.dataset.pass116SiteViewOverlayArbitration = 'true';
     document.addEventListener(PASS116_CHROME_OVERLAY_OPEN_EVENT, (event) => {
       if (pass116ChromeOverlaySource(event) !== 'site-view' && isRailOpen()) setRailOpen(false, true, false);
     });
   }
 
   function installPass118DismissRecovery(): void {
-    document.body.dataset.pass118SiteViewDismissRecovery = 'ready';
+    document.body.dataset.pass118SiteViewDismissRecovery = 'true';
     document.addEventListener(PASS118_CHROME_OVERLAY_CLOSE_EVENT, (event) => {
       const source = pass116ChromeOverlaySource(event);
       if (source && source !== 'site-view') return;
@@ -442,9 +457,54 @@
     });
   }
 
+
+  function pass171BumpSiteViewFocusEpoch(reason: string): number {
+    pass171SiteViewFocusEpoch += 1;
+    document.body.dataset.pass171OverlayFocusEpochGuard = 'true';
+    document.body.dataset.pass171SiteViewFocusEpoch = String(pass171SiteViewFocusEpoch);
+    document.body.dataset.pass171SiteViewFocusEpochReason = reason;
+    return pass171SiteViewFocusEpoch;
+  }
+
   function pass117FocusFirstRailControl(rail: HTMLElement): void {
     const target = rail.querySelector<HTMLElement>(PASS117_FOCUSABLE_SELECTOR) || rail;
-    window.setTimeout(() => target.focus(), 80);
+    const focusEpoch = pass171SiteViewFocusEpoch;
+    window.setTimeout(() => {
+      if (focusEpoch !== pass171SiteViewFocusEpoch) { document.body.dataset.pass171SiteViewFocusSkipped = 'stale-epoch'; return; }
+      if (document.body.dataset.pass116ActiveOverlay !== 'site-view') { document.body.dataset.pass171SiteViewFocusSkipped = 'inactive-overlay'; return; }
+      if (!isRailOpen()) return;
+      if (!document.contains(rail) || !document.contains(target)) return;
+      if (rail.getAttribute('aria-hidden') === 'true') return;
+      document.body.dataset.pass169DelayedOverlayFocusGuard = 'site-view';
+      document.body.dataset.pass171SiteViewFocusAppliedEpoch = String(focusEpoch);
+      target.focus();
+    }, 80);
+  }
+
+  function pass170ElementCanRestoreFocus(target: HTMLElement | null): target is HTMLElement {
+    if (!target || !document.contains(target)) return false;
+    if (target instanceof HTMLButtonElement && target.disabled) return false;
+    if (target.getAttribute('aria-disabled') === 'true' || target.getAttribute('aria-hidden') === 'true') return false;
+    if (target.hidden) return false;
+    if (!target.getClientRects().length) return false;
+    return true;
+  }
+
+  function pass170RestoreFocusToSiteViewOpener(target: HTMLElement | null): void {
+    window.setTimeout(() => {
+      document.body.dataset.pass170RestoreFocusTargetGuard = 'site-view';
+      const activeOverlay = document.body.dataset.pass116ActiveOverlay || 'none';
+      if (activeOverlay !== 'none' && activeOverlay !== 'site-view') {
+        document.body.dataset.pass170RestoreFocusSkipped = `site-view:${activeOverlay}`;
+        return;
+      }
+      if (!pass170ElementCanRestoreFocus(target)) {
+        document.body.dataset.pass170RestoreFocusSkipped = 'site-view:invalid-target';
+        return;
+      }
+      target.focus();
+      document.body.dataset.pass170RestoreFocusApplied = 'site-view';
+    }, 0);
   }
 
   function pass117SetRailFocusOpen(open: boolean, restoreFocus = false): void {
@@ -458,7 +518,7 @@
     if (toggleButton) toggleButton.dataset.pass117OverlayExpanded = String(open);
     if (open) document.body.dataset.pass117ActiveFocusScope = 'site-view';
     else if (document.body.dataset.pass117ActiveFocusScope === 'site-view') delete document.body.dataset.pass117ActiveFocusScope;
-    if (restoreFocus && pass117SiteViewOpener) window.setTimeout(() => pass117SiteViewOpener?.focus(), 0);
+    if (restoreFocus && pass117SiteViewOpener) pass170RestoreFocusToSiteViewOpener(pass117SiteViewOpener);
   }
 
   // PASS116 verifier token preserved after PASS117 wraps opener/focus recovery: if (open) pass116AnnounceSiteViewOpen()
@@ -466,6 +526,7 @@
     if (open) {
       pass117SiteViewOpener = toggleButton;
       pass116AnnounceSiteViewOpen();
+      pass171BumpSiteViewFocusEpoch('open');
     }
     document.body.classList.toggle(RAIL_OPEN_CLASS, open);
     toggleButton?.classList.toggle('active', open);
@@ -482,6 +543,7 @@
       if (rail) pass117FocusFirstRailControl(rail);
       pass117SetRailFocusOpen(true);
     } else {
+      pass171BumpSiteViewFocusEpoch('close');
       pass117SetRailFocusOpen(false, restoreFocus);
       if (document.body.dataset.pass116ActiveOverlay === 'site-view') {
         document.body.dataset.pass118LastDismissedOverlay = 'site-view';
@@ -1006,6 +1068,15 @@
     });
   }
 
+  function installPass164MoreToolsActionBridge(): void {
+    document.addEventListener(PASS164_MORE_TOOLS_ACTION_EVENT, (event) => {
+      if (!(event instanceof CustomEvent) || event.detail?.actionId !== 'site-view-rail-toggle') return;
+      event.preventDefault();
+      setRailOpen(true, true, true);
+      document.body.dataset.pass164MoreToolsActionHandled = 'site-view-rail-toggle';
+    });
+  }
+
   function initSiteViewMissionRail(): void {
     injectStylesheet();
     toggleButton = createToggleButton();
@@ -1014,11 +1085,15 @@
     toggleButton.setAttribute('aria-pressed', 'false');
     installPass116OverlayArbitration();
     installPass118DismissRecovery();
+    installPass164MoreToolsActionBridge();
     installObservers();
     wireWebviewEvents();
     applyRailPresentationState();
     const shouldOpen = localStorage.getItem(RAIL_STORAGE_KEY) === '1';
-    document.body.dataset.pass117SiteViewFocusRecovery = 'ready';
+    document.body.dataset.pass117SiteViewFocusRecovery = 'true';
+    document.body.dataset.pass169DelayedOverlayFocusGuard = 'true';
+    document.body.dataset.pass170RestoreFocusTargetGuard = 'true';
+    document.body.dataset.pass171OverlayFocusEpochGuard = 'true';
     setRailOpen(shouldOpen, false, false);
     scheduleRender(0);
     window.setInterval(() => {

@@ -6,21 +6,59 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 hash -r
 
 SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-TARGETS=("$@")
-if [ "${#TARGETS[@]}" -eq 0 ]; then
-  TARGETS=(AppImage deb rpm)
+REQUESTED_TARGETS=("$@")
+TARGETS=()
+if [ "${#REQUESTED_TARGETS[@]}" -eq 0 ]; then
+  REQUESTED_TARGETS=(all)
 fi
+
+add_target() {
+  local target="$1"
+  for existing in "${TARGETS[@]:-}"; do
+    if [ "$existing" = "$target" ]; then
+      return 0
+    fi
+  done
+  TARGETS+=("$target")
+}
+
+# PASS139 target-mode normalization: package:linux, AppImage-only, deb-only, rpm-only, and all
+# handoff builds must not accidentally require or ask electron-builder for unrelated target names.
+for requested_target in "${REQUESTED_TARGETS[@]}"; do
+  token="$(printf '%s' "$requested_target" | tr '[:upper:]' '[:lower:]')"
+  case "$token" in
+    all|release|linux)
+      add_target AppImage
+      add_target deb
+      add_target rpm
+      ;;
+    appimage|app-image)
+      add_target AppImage
+      ;;
+    deb|debian)
+      add_target deb
+      ;;
+    rpm|fedora)
+      add_target rpm
+      ;;
+    *)
+      echo "TAHAI_LINUX_BUILD_ERROR=unknown Linux package target: $requested_target" >&2
+      echo "TAHAI_LINUX_BUILD_ALLOWED_TARGETS=all AppImage deb rpm" >&2
+      exit 1
+      ;;
+  esac
+done
 
 NATIVE_BUILD_DIR="${TAHAI_LINUX_NATIVE_BUILD_DIR:-$HOME/tahai-browser-linux-build}"
 
 # PASS124 Linux RPM toolchain recovery guard: split-brain WSL installs can leave npm present while node is missing.
 print_node_toolchain_repair() {
-  cat >&2 <<'EOF'
+  cat >&2 <<'EOF_REPAIR'
 TAHAI_LINUX_BUILD_REPAIR=Install Linux-native Node.js 22+ inside Fedora WSL, then rerun npm run package:linux:rpm.
 TAHAI_LINUX_BUILD_REPAIR_FEDORA=sudo dnf install -y nodejs npm rpm-build libarchive libxcrypt-compat tar gzip python3 make gcc gcc-c++
 TAHAI_LINUX_BUILD_REPAIR_VERIFY=node -v && npm -v && command -v node && command -v npm
 TAHAI_LINUX_BUILD_REPAIR_NOTE=Do not use Windows node.exe/npm.cmd for Linux RPM packaging; the guarded builder mirrors source into a Linux-native folder before electron-builder runs.
-EOF
+EOF_REPAIR
 }
 
 fail_node_toolchain() {
@@ -153,79 +191,16 @@ test -f dist/main/main.js || {
 
 ./node_modules/.bin/electron-builder --linux "${TARGETS[@]}" --x64 --config electron-builder.yml
 "$NODE_BIN" scripts/verify-linux-installers.mjs "${TARGETS[@]}"
+# PASS139 handoff writer emits TAHAI-Linux-installers-manifest.txt into release/linux.
+"$NODE_BIN" scripts/write-linux-installer-handoff.mjs "${TARGETS[@]}"
 
 printf '\nTAHAI_LINUX_INSTALLER_OUTPUTS\n'
 find release -maxdepth 2 -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -printf '%p %s bytes\n' | sort
 
 if [ -n "${TAHAI_LINUX_SOURCE_ROOT:-}" ] && [ -d "$TAHAI_LINUX_SOURCE_ROOT" ]; then
-  APP_VERSION="$($NODE_BIN -p "require('./package.json').version")"
-  COPY_DIR="$TAHAI_LINUX_SOURCE_ROOT/release/linux"
-  mkdir -p "$COPY_DIR"
-
-  appimage_src="$(find release -maxdepth 2 -type f \( -name "TAHAI-Web-Services-Browser-${APP_VERSION}-*.AppImage" -o -name "*.AppImage" \) | head -n 1)"
-  deb_src="$(find release -maxdepth 2 -type f \( -name "TAHAI-Web-Services-Browser-${APP_VERSION}-*.deb" -o -name "*.deb" \) | head -n 1)"
-  rpm_src="$(find release -maxdepth 2 -type f \( -name "TAHAI-Web-Services-Browser-${APP_VERSION}-*.rpm" -o -name "*.rpm" \) | head -n 1)"
-
-  test -n "$appimage_src" && cp -v "$appimage_src" "$COPY_DIR/TAHAI-Web-Services-Browser-${APP_VERSION}-x64.AppImage"
-  test -n "$deb_src" && cp -v "$deb_src" "$COPY_DIR/TAHAI-Web-Services-Browser-${APP_VERSION}-x64.deb"
-  test -n "$rpm_src" && cp -v "$rpm_src" "$COPY_DIR/TAHAI-Web-Services-Browser-${APP_VERSION}-x64.rpm"
-
-  # PASS126 Linux RPM handoff manifest guard: every mirrored Linux package gets a checksum
-  # and a machine-readable manifest for downstream OS/import pipelines.
-  "$NODE_BIN" - "$COPY_DIR" "$APP_VERSION" "${TARGETS[@]}" <<'NODE'
-const fs = require('node:fs');
-const path = require('node:path');
-const crypto = require('node:crypto');
-
-const [copyDir, appVersion, ...targets] = process.argv.slice(2);
-const artifactPattern = /\.(AppImage|deb|rpm)$/;
-const files = fs.readdirSync(copyDir)
-  .filter((name) => artifactPattern.test(name))
-  .sort();
-
-const shaLines = [];
-const artifacts = [];
-for (const file of files) {
-  const abs = path.join(copyDir, file);
-  const data = fs.readFileSync(abs);
-  const sha256 = crypto.createHash('sha256').update(data).digest('hex');
-  const ext = path.extname(file).replace(/^\./, '');
-  const kind = ext === 'AppImage' ? 'AppImage' : ext;
-  shaLines.push(`${sha256}  ${file}`);
-  artifacts.push({ file, kind, bytes: data.length, sha256 });
-}
-
-fs.writeFileSync(
-  path.join(copyDir, 'TAHAI-Linux-installers-SHA256SUMS.txt'),
-  `${shaLines.join('\n')}\n`,
-);
-fs.writeFileSync(
-  path.join(copyDir, 'TAHAI-Linux-installers-manifest.json'),
-  `${JSON.stringify({
-    schemaVersion: 1,
-    pass: 'PASS126',
-    product: 'TAHAI Web Services Browser',
-    version: appVersion,
-    builtAt: new Date().toISOString(),
-    requestedTargets: targets.length ? targets : ['AppImage', 'deb', 'rpm'],
-    artifacts,
-  }, null, 2)}\n`,
-);
-NODE
-
-  {
-    echo "TAHAI Linux installer mirror"
-    date -u +"builtAt=%Y-%m-%dT%H:%M:%SZ"
-    echo "sourceRoot=$TAHAI_LINUX_SOURCE_ROOT"
-    echo "nativeBuildDir=$PWD"
-    echo "node=$($NODE_BIN -v) at $NODE_BIN"
-    echo "npm=$($NPM_BIN -v) at $NPM_BIN"
-    echo "targets=${TARGETS[*]}"
-    find "$COPY_DIR" -maxdepth 1 -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -printf '%f %s bytes\n' | sort
-    echo "sha256Sums=TAHAI-Linux-installers-SHA256SUMS.txt"
-    echo "jsonManifest=TAHAI-Linux-installers-manifest.json"
-  } > "$COPY_DIR/TAHAI-Linux-installers-manifest.txt"
-
-  printf '\nTAHAI_LINUX_INSTALLERS_COPIED_TO=%s\n' "$COPY_DIR"
-  ls -lh "$COPY_DIR"
+  printf '\nTAHAI_LINUX_INSTALLERS_COPIED_TO=%s\n' "$TAHAI_LINUX_SOURCE_ROOT/release/linux"
+  ls -lh "$TAHAI_LINUX_SOURCE_ROOT/release/linux"
+else
+  printf '\nTAHAI_LINUX_INSTALLERS_COPIED_TO=%s\n' "$SOURCE_ROOT/release/linux"
+  ls -lh "$SOURCE_ROOT/release/linux"
 fi

@@ -31,7 +31,7 @@ for (const token of [
   'pass116AnnounceMoreToolsOpen()',
   "detail: { source: 'more-tools', overlay: 'toolbar-overflow-menu' }",
   "pass116ChromeOverlaySource(event) !== 'more-tools'",
-  "document.body.dataset.pass116OverlayArbitration = 'ready'"
+  "document.body.dataset.pass116OverlayArbitration = 'true'"
 ]) need(responsiveTs.includes(token), `responsive toolbar missing PASS116 token: ${token}`);
 
 for (const token of [

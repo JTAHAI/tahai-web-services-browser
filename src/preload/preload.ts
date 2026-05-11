@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { ItDocsMissionCapabilities } from '../shared/itdocs-contract';
 import type { BrowserDownloadState } from '../shared/download-boundary';
 import type { MissionDeleteResult, MissionExportResult, MissionListResult, MissionLoadResult, MissionSaveResult, MissionState } from '../shared/mission-types';
+import type { EnterpriseAdminPolicyState } from '../shared/enterprise-admin-policy-contract';
+import type { EnterpriseSupportBundleResult } from '../shared/enterprise-support-bundle-contract';
 
 export type TahaiBrowserSettings = {
   homeUrl: string;
@@ -36,6 +38,22 @@ export type FirstLaunchState = {
   sourceGuardrails: string[];
 };
 
+
+export type TahaiReleaseTruth = {
+  productName: string;
+  bundleName: string;
+  version: string;
+  releasePass: string;
+  releaseChannel: string;
+  releasePhase: string;
+  updateChannel: string;
+  updatePolicy: string;
+  signingStatus: string;
+  downloadOrigin: string;
+  downloadAliasOrigin: string;
+  publicRepoUrl: string;
+};
+
 export type TahaiBrowserConfig = {
   productName: string;
   bundleName: string;
@@ -50,11 +68,19 @@ export type TahaiBrowserConfig = {
   bookmarksUrl: string;
   version: string;
   releaseChannel: string;
+  releasePass: string;
+  updateChannel: string;
+  updatePolicy: string;
+  signingStatus: string;
+  releaseTruth: TahaiReleaseTruth;
   firstLaunch: FirstLaunchState;
   userDataLabel: string;
   settingsLabel: string;
   settings: TahaiBrowserSettings;
   profiles: BrowserProfileState;
+  adminPolicy: EnterpriseAdminPolicyState;
+  adminPolicySummary: string;
+  enterpriseSupportBundlePass: string;
 };
 
 export type ClearBrowsingDataScope = 'active-profile' | 'selected-profile' | 'all-profiles';
@@ -174,6 +200,10 @@ export type ItServiceCardDiagnostics = {
 contextBridge.exposeInMainWorld('tahaiBrowser', {
   getConfig: (): Promise<TahaiBrowserConfig> => ipcRenderer.invoke('tahai-browser:get-config'),
   getSettings: (): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:get-settings'),
+  getAdminPolicy: (): Promise<EnterpriseAdminPolicyState> => ipcRenderer.invoke('tahai-browser:get-admin-policy'),
+  previewEnterpriseSupportBundle: (): Promise<EnterpriseSupportBundleResult> => ipcRenderer.invoke('tahai-browser:preview-enterprise-support-bundle'),
+  copyEnterpriseSupportBundle: (): Promise<EnterpriseSupportBundleResult> => ipcRenderer.invoke('tahai-browser:copy-enterprise-support-bundle'),
+  saveEnterpriseSupportBundle: (): Promise<EnterpriseSupportBundleResult> => ipcRenderer.invoke('tahai-browser:save-enterprise-support-bundle'),
   updateSettings: (settings: TahaiBrowserSettings): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:update-settings', settings),
   resetSettings: (): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:reset-settings'),
   clearBrowsingData: (options?: ClearBrowsingDataOptions): Promise<ClearBrowsingDataResult> => ipcRenderer.invoke('tahai-browser:clear-browsing-data', options),

@@ -11,15 +11,21 @@ const need = (ok, msg) => { if (!ok) errors.push(msg); };
 
 const normalizeTarget = (value) => {
   const token = String(value || '').trim().toLowerCase();
-  if (!token) return null;
-  if (token === 'appimage' || token === 'app-image') return 'AppImage';
-  if (token === 'deb' || token === 'debian') return 'deb';
-  if (token === 'rpm' || token === 'fedora') return 'rpm';
+  if (!token) return [];
+  if (token === 'all' || token === 'release' || token === 'linux') return ['AppImage', 'deb', 'rpm'];
+  if (token === 'appimage' || token === 'app-image') return ['AppImage'];
+  if (token === 'deb' || token === 'debian') return ['deb'];
+  if (token === 'rpm' || token === 'fedora') return ['rpm'];
   errors.push(`unknown Linux handoff target: ${value}`);
-  return null;
+  return [];
 };
 
-const requestedTargets = process.argv.slice(2).map(normalizeTarget).filter(Boolean);
+const requestedTargets = [];
+for (const arg of process.argv.slice(2)) {
+  for (const target of normalizeTarget(arg)) {
+    if (!requestedTargets.includes(target)) requestedTargets.push(target);
+  }
+}
 const targets = requestedTargets.length ? requestedTargets : ['AppImage', 'deb', 'rpm'];
 const expectedByTarget = {
   AppImage: `TAHAI-Web-Services-Browser-${pkg.version}-x64.AppImage`,
@@ -58,10 +64,21 @@ if (fs.existsSync(jsonFile)) {
 }
 
 if (manifest) {
-  need(manifest.schemaVersion === 1, 'JSON manifest schemaVersion must be 1');
-  need(manifest.pass === 'PASS126', 'JSON manifest pass marker must be PASS126');
+  need(manifest.schemaVersion === 2, 'JSON manifest schemaVersion must be 2');
+  need(manifest.pass === 'PASS139', 'JSON manifest pass marker must be PASS139');
+  need(manifest.supersedesPass === 'PASS126', 'JSON manifest supersedesPass marker must be PASS126');
   need(manifest.version === pkg.version, `JSON manifest version mismatch: ${manifest.version}`);
+  need(['all', 'AppImage', 'deb', 'rpm'].includes(manifest.targetMode), `JSON manifest targetMode invalid: ${manifest.targetMode}`);
+  need(Array.isArray(manifest.requestedTargets), 'JSON manifest requestedTargets must be an array');
   need(Array.isArray(manifest.artifacts), 'JSON manifest artifacts must be an array');
+}
+
+const selectedFileNames = new Set(targets.map((target) => expectedByTarget[target]));
+const packageFiles = fs.existsSync(handoffDir)
+  ? fs.readdirSync(handoffDir).filter((name) => /\.(AppImage|deb|rpm)$/.test(name)).sort()
+  : [];
+for (const file of packageFiles) {
+  need(selectedFileNames.has(file), `handoff contains stale or unrelated artifact for selected target set: ${file}`);
 }
 
 for (const target of targets) {
@@ -79,12 +96,27 @@ for (const target of targets) {
     const entry = manifest.artifacts.find((item) => item.file === file);
     need(Boolean(entry), `JSON manifest missing artifact entry: ${file}`);
     if (entry) {
+      need(entry.target === target || entry.kind === target, `JSON manifest target mismatch for ${file}`);
       need(entry.bytes === size, `JSON manifest byte count mismatch for ${file}`);
       need(entry.sha256 === sha, `JSON manifest sha256 mismatch for ${file}`);
     }
   }
 
   console.log(`TAHAI_LINUX_HANDOFF_FOUND=${target}:${file}:${size}:${sha}`);
+}
+
+if (manifest?.artifacts) {
+  need(manifest.artifacts.length === targets.length, `JSON manifest artifact count should match selected targets: ${manifest.artifacts.length} != ${targets.length}`);
+}
+
+if (fs.existsSync(txtFile)) {
+  const txt = fs.readFileSync(txtFile, 'utf8');
+  for (const token of [
+    'pass=PASS139',
+    'supersedesPass=PASS126',
+    'sha256Sums=TAHAI-Linux-installers-SHA256SUMS.txt',
+    'jsonManifest=TAHAI-Linux-installers-manifest.json',
+  ]) need(txt.includes(token), `text handoff manifest missing ${token}`);
 }
 
 if (errors.length) {

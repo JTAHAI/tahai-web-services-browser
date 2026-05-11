@@ -44,7 +44,7 @@ for (const needle of ['kb-screenshot-status-panel', 'kb-screenshot-counts', 'kb-
 
 const manifest = requireJson('browser/onboarding/kb-manifest.json');
 if (manifest.sourcePass !== 'PASS129') failures.push('browser/onboarding/kb-manifest.json sourcePass must remain PASS129');
-if (manifest.lastHardenedPass !== 'PASS136') failures.push('browser/onboarding/kb-manifest.json lastHardenedPass must be PASS136');
+if (!['PASS136','PASS137'].includes(manifest.lastHardenedPass)) failures.push('browser/onboarding/kb-manifest.json lastHardenedPass must be PASS136 or PASS137');
 if (!manifest.screenshotNavigationPolicy?.statusPanel) failures.push('kb manifest missing screenshotNavigationPolicy.statusPanel');
 if (!manifest.screenshotNavigationPolicy?.allScreenshotsOptionalForSourceBuilds) failures.push('kb manifest must keep screenshots optional for source builds');
 

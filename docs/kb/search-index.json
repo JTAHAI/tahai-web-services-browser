@@ -289,8 +289,34 @@
         "disabled integration",
         "redaction warning"
       ]
+    },
+    {
+      "id": "first-run-walkthrough",
+      "title": "First-run walkthrough",
+      "screenshot": "19-first-run-walkthrough.png",
+      "priority": "recommended",
+      "screenOrder": 19,
+      "captureTitle": "First-run walkthrough",
+      "keywords": [
+        "first run",
+        "walkthrough",
+        "how to use",
+        "start here",
+        "guided tour",
+        "onboarding",
+        "guide",
+        "kb",
+        "mission control",
+        "tools",
+        "evidence"
+      ]
     }
   ],
-  "lastHardenedPass": "PASS135",
-  "screenshotIngestion": "Screenshots are optional sanitized PNGs loaded from browser/onboarding/screenshots after manifest validation."
+  "lastHardenedPass": "PASS137",
+  "screenshotIngestion": "Screenshots are optional sanitized PNGs loaded from browser/onboarding/screenshots after manifest validation.",
+  "walkthroughSearchPolicy": {
+    "sourcePass": "PASS137",
+    "entryId": "first-run-walkthrough",
+    "localOnly": true
+  }
 }

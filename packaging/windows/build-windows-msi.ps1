@@ -8,4 +8,7 @@ npm run build
 $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
 electron-builder --win msi --x64 --config electron-builder.yml
 
+npm run release:win:manifest -- msi
+npm run verify:windows-installer-handoff -- msi
+
 Write-Host "TAHAI_BROWSER_WINDOWS_MSI_PACKAGE=OK"

@@ -1,4 +1,4 @@
-﻿# Code signing policy
+# Code signing policy
 
 TAHAI Web Services Browser intends to use open-source code signing for Windows releases.
 
@@ -38,4 +38,10 @@ Third-party websites, provider consoles, AI services, cloud services, and browse
 ## Release integrity
 
 Official release artifacts should be published with checksums and tied to a public repository commit, tag, or GitHub release.
+
+## PASS159 — signing, provenance, and SBOM truth
+
+PASS159 adds a No false signing claim rule. A release may only be called signed when the artifact was actually signed by the approved signing lane and the signing evidence is published with the release materials. Until that lane is active, Windows packages must remain clearly labeled as unsigned preview artifacts.
+
+Every public enterprise release must publish a release provenance manifest and SBOM beside the artifacts. The provenance manifest must record the public commit or tag, version, package-lock SHA-256, artifact filenames, SHA256 checksums, and signing status. The SBOM must be generated from the exact `package-lock.json` used for the release build and must include the package-lock SHA-256.
 

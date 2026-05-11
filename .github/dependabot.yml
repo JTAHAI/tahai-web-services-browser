@@ -8,3 +8,26 @@ updates:
     labels:
       - "dependencies"
       - "browser"
+      - "supply-chain"
+    groups:
+      npm-dev-tooling:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "supply-chain"
+    commit-message:
+      prefix: "deps"
+      include: "scope"

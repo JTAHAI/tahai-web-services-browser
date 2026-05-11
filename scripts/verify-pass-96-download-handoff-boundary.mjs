@@ -28,7 +28,8 @@ const runtime=includes('src/main/runtime-security.ts',[
   'function sanitizeSelectedDownloadPath',
   'function sendDownloadState',
   'BrowserWindow.getAllWindows()',
-  "window.webContents.send('tahai-browser:download-state', payload)",
+  "isTrustedTahaiRendererEventChannel",
+  "window.webContents.send(channel, payload)",
   'const filename = sanitizeDownloadFilename(item.getFilename())',
   'const sourceUrl = item.getURL()',
   'const warning = downloadRiskWarning(filename, item.getMimeType())',
@@ -38,6 +39,7 @@ const runtime=includes('src/main/runtime-security.ts',[
 need(!/path:\s*result\.filePath/.test(runtime),'download state must not send result.filePath to renderer');
 need(!/path:\s*item\.getSavePath\(\)/.test(runtime),'download state must not send item.getSavePath() to renderer');
 need(!/[^.]webContents\.send\('tahai-browser:download-state'/.test(runtime),'runtime must not send download state directly to initiating webContents');
+need(runtime.includes("const channel = 'tahai-browser:download-state'"),'runtime must declare the trusted download-state event channel before sending');
 need(/item\.setSavePath\(sanitizeSelectedDownloadPath\(result\.filePath, filename\)\)/.test(runtime),'selected download path must be normalized through sanitizeSelectedDownloadPath');
 const preload=includes('src/preload/preload.ts',[
   "import type { BrowserDownloadState } from '../shared/download-boundary'",

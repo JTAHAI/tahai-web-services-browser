@@ -22,7 +22,7 @@ assertIncludes(about, 'https://browser.tahai.net', 'about browser site link');
 assertIncludes(about, 'https://docs.tahaiportal.com', 'about IT Docs link');
 assertIncludes(about, 'https://sentinel.tahai.net', 'about SENTINEL link');
 assertIncludes(about, 'https://os.tahai.net', 'about OS link');
-assertIncludes(about, '1.8.28 / PASS54 polish', 'about release lane');
+if (!about.includes('1.8.28 / PASS54 polish') && !about.includes('v1.8.30 / PASS141 enterprise hardening') && !about.includes('v1.8.30 / PASS149 RC1 freeze') && !about.includes('v1.8.30 / PASS150 RC2 final ship candidate')) failures.push('about release lane: missing PASS54 legacy marker or current PASS141/PASS149 release truth');
 
 assertIncludes(aboutCss, '.sentinel-logo-frame', 'about sentinel frame');
 assertIncludes(aboutCss, 'overflow: hidden;', 'about sentinel containment');

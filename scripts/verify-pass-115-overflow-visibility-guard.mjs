@@ -24,7 +24,7 @@ need(releaseBlockers.indexOf('verify:pass-115-overflow-visibility-guard') < rele
 
 need(html.includes('data-pass115-overflow-visibility-guard="true"'), 'renderer body missing PASS115 overflow visibility marker');
 need(responsiveTs.includes('PASS115 overflow visibility guard'), 'responsive toolbar missing PASS115 rationale comment');
-need(responsiveTs.includes("dataset.pass115OverflowVisibilityGuard = 'ready'"), 'renderer must stamp PASS115 readiness dataset');
+need(responsiveTs.includes("dataset.pass115OverflowVisibilityGuard = 'true'") || responsiveTs.includes("dataset.pass115OverflowVisibilityGuard = 'ready'"), 'renderer must stamp PASS115 CSS-active readiness dataset');
 need(responsiveTs.includes("element.dataset.pass115OverflowVisibilityGuard = 'candidate'"), 'managed overflow candidates must be stamped for PASS115');
 
 for (const token of [

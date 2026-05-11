@@ -49,6 +49,8 @@ Linux Builder may emit native architecture names internally, such as `x86_64.App
 | Verify checksums | See [Downloads and Checksums](docs/downloads-and-checksums.md). |
 | Troubleshoot WSL/build issues | See [Build Troubleshooting](docs/troubleshooting-builds.md). |
 | Review known issues | See [Known Issues](docs/known-issues.md). |
+| Review privacy posture | See [Privacy Policy](docs/privacy-policy.md). |
+| Get support / report bugs | See [Support](SUPPORT.md) and [Security Policy](SECURITY.md). |
 
 ## What this browser is
 
@@ -84,6 +86,10 @@ The source code is open source. TAHAI trademarks and official release identity r
 Generated installers, `.exe`, `.msi`, `.AppImage`, `.deb`, `.rpm`, `.dmg`, generated zips, `release/`, `dist/`, `node_modules/`, local runtime profiles, caches, cookies, secrets, certificates, and private mission/evidence data are intentionally not committed to the source repository.
 
 The public browser lane must not include credential-vault or provider-secret storage code. If stale files reappear after a ZIP overlay, clean mirror the source rather than expanding over the repo in place.
+
+## Supply-chain posture
+
+The source lane uses `npm ci` from the committed lockfile, Node 22 for local and GitHub Actions validation, Dependabot for npm and GitHub Actions updates, CODEOWNERS review for security-sensitive paths, and `npm run verify:pass-144-public-repo-supply-chain` for public repo supply-chain checks. See `docs/public-repo-supply-chain-policy.md`.
 
 ## Prerequisites
 
@@ -204,6 +210,40 @@ npm run release:public:verify
 
 See [docs/code-signing-policy.md](docs/code-signing-policy.md).
 
-## Privacy policy
 
-See [docs/privacy-policy.md](docs/privacy-policy.md).
+## RC1 freeze
+
+PASS149 places the `1.8.30` `public-rc` lane under RC1 freeze / no-new-features rules. Only release blockers, security blockers, build or packaging repairs, installer handoff truth fixes, documentation truth fixes, manual QA evidence fixes, critical regressions, and checksum/manifest repairs should be accepted before PASS150 final ship candidate / GA manifest. See `docs/rc1-freeze-pass149.md`.
+
+## PASS151 enterprise all-surfaces gate
+
+PASS150 is the RC2 final ship candidate / GA manifest lane. PASS151 adds the enterprise release grade gate across all surfaces. Do not call a build enterprise release grade until the source gates, Windows package handoff, Linux package handoff, installed-app Windows smoke, installed-package Linux smoke, cross-size responsive regression, and titlebar drag smoke are all captured.
+
+Local enterprise evidence aggregation:
+
+```bash
+npm run evidence:enterprise-all-surfaces -- --strict
+```
+
+See `docs/enterprise-all-surfaces-release-grade-pass151.md` and `docs/enterprise-release-grade-checklist-pass151.md`.
+
+## Privacy, support, and known issues
+
+- Privacy: see [docs/privacy-policy.md](docs/privacy-policy.md).
+- Support: see [SUPPORT.md](SUPPORT.md).
+- Security reporting: see [SECURITY.md](SECURITY.md).
+- Known issues: see [docs/known-issues.md](docs/known-issues.md).
+- Download/checksum guidance: see [docs/downloads-and-checksums.md](docs/downloads-and-checksums.md).
+
+Current public-RC truth is closed out through PASS145. Manual release downloads are used; no silent auto-update channel is enabled in this source lane.
+
+
+## PASS150 final ship candidate / GA manifest
+
+PASS150 is the RC2 final ship-candidate manifest pass. It does not add product features. It records final release truth, preserves the RC1 no-new-features freeze, requires PASS138-PASS149 continuity, and fixes the release-blocking titlebar drag-region regression by making the empty tab-strip track draggable while keeping tabs/buttons clickable.
+
+Version: `1.8.30`
+Release pass: `PASS150`
+Release phase: `rc2-final-ship-candidate-ga-manifest`
+Update channel: `manual-release`
+

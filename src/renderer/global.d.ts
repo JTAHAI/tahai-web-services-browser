@@ -1,11 +1,21 @@
 import type { ItDocsMissionCapabilities } from '../shared/itdocs-contract';
+import type { EnterpriseAdminPolicyState } from '../shared/enterprise-admin-policy-contract';
+import type { EnterpriseSupportBundleResult } from '../shared/enterprise-support-bundle-contract';
 import type { BrowserProfileInput, BrowserProfileState, BrowserProfileUpdateInput, ClearBrowsingDataOptions, ClearBrowsingDataResult, DevOpsCaptureSaveResult, DownloadState, ItServiceCardDiagnostics, MissionApiDeleteResult, MissionApiExportResult, MissionApiListResult, MissionApiLoadResult, MissionApiSaveResult, MissionApiState, OpsUrlDiagnostics, TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
 
 declare global {
   interface Window {
+
+    __TAHAI_RUNTIME_E2E__?: {
+      run: () => Promise<{ ok: boolean; pass: 'PASS158'; contractId: string; scenarioCount: number; results: Array<{ id: string; ok: boolean; detail: string }> }>;
+    };
     tahaiBrowser: {
       getConfig: () => Promise<TahaiBrowserConfig>;
       getSettings: () => Promise<TahaiBrowserSettings>;
+      getAdminPolicy: () => Promise<EnterpriseAdminPolicyState>;
+      previewEnterpriseSupportBundle: () => Promise<EnterpriseSupportBundleResult>;
+      copyEnterpriseSupportBundle: () => Promise<EnterpriseSupportBundleResult>;
+      saveEnterpriseSupportBundle: () => Promise<EnterpriseSupportBundleResult>;
       updateSettings: (settings: TahaiBrowserSettings) => Promise<TahaiBrowserSettings>;
       resetSettings: () => Promise<TahaiBrowserSettings>;
       clearBrowsingData: (options?: ClearBrowsingDataOptions) => Promise<ClearBrowsingDataResult>;

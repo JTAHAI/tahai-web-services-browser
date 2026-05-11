@@ -2993,17 +2993,53 @@ function pass88ScheduleActivePaneRoutingFailsafe(reason = 'scheduled'): void {
   }, 220);
 }
 
-function pass88RouteMouseNavigation(event: MouseEvent): void {
-  if (event.defaultPrevented || event.button < 3 || event.button > 4) return;
-  const now = Date.now();
-  if (now - pass88LastMouseNavigationAt < 80) return;
-  pass88LastMouseNavigationAt = now;
+type Pass185MouseHistorySource = 'window-mouseup' | 'window-auxclick' | 'webview-mousedown' | 'webview-mouseup' | 'webview-auxclick';
+
+function pass185MouseHistoryDirection(event: MouseEvent): 'back' | 'forward' | undefined {
+  if (event.button === 3) return 'back';
+  if (event.button === 4) return 'forward';
+  return undefined;
+}
+
+function pass185RouteMouseHistoryButton(event: MouseEvent, source: Pass185MouseHistorySource, tabId?: string): boolean {
+  const direction = pass185MouseHistoryDirection(event);
+  if (!direction || event.defaultPrevented) return false;
   event.preventDefault();
   event.stopPropagation();
-  if (event.button === 3) goBackTarget('mouse');
-  if (event.button === 4) goForwardTarget('mouse');
-  document.body.dataset.pass88LastMouseRoute = event.button === 3 ? 'back' : 'forward';
-  pass88ScheduleActivePaneRoutingFailsafe('mouse-button');
+  if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+
+  const now = Date.now();
+  if (now - pass88LastMouseNavigationAt < 80) {
+    document.body.dataset.pass185MouseHistoryDeduped = `${direction}:${source}`;
+    return true;
+  }
+
+  pass88LastMouseNavigationAt = now;
+  if (tabId && tabs.has(tabId)) setActive(tabId);
+  if (direction === 'back') goBackTarget('mouse');
+  else goForwardTarget('mouse');
+
+  document.body.dataset.pass88LastMouseRoute = direction;
+  document.body.dataset.pass185LastMouseHistorySource = source;
+  document.body.dataset.pass185LastMouseHistoryButton = String(event.button);
+  document.body.dataset.pass185LastMouseHistoryTargetTab = tabId || activeTabId || 'none';
+  pass88ScheduleActivePaneRoutingFailsafe(`mouse-button-${source}`);
+  return true;
+}
+
+function pass88RouteMouseNavigation(event: MouseEvent): void {
+  const source = event.type === 'auxclick' ? 'window-auxclick' : 'window-mouseup';
+  pass185RouteMouseHistoryButton(event, source);
+}
+
+function pass185BindWebviewMouseHistoryRouting(webview: Electron.WebviewTag, tabId: string): void {
+  webview.dataset.pass185MouseHistoryRouting = 'true';
+  const route = (source: Pass185MouseHistorySource) => (event: MouseEvent) => {
+    pass185RouteMouseHistoryButton(event, source, tabId);
+  };
+  webview.addEventListener('mousedown', route('webview-mousedown'), true);
+  webview.addEventListener('mouseup', route('webview-mouseup'), true);
+  webview.addEventListener('auxclick', route('webview-auxclick'), true);
 }
 
 function pass88NavigateAddressInput(): void {
@@ -3017,6 +3053,7 @@ function pass88MountActivePaneRoutingFailsafe(): void {
   if (pass88ActivePaneRoutingMounted) return;
   pass88ActivePaneRoutingMounted = true;
   document.body.dataset.pass88ActivePaneRoutingMounted = 'true';
+  document.body.dataset.pass185MouseHistoryParity = 'shell-and-webview';
   window.addEventListener('mouseup', pass88RouteMouseNavigation, true);
   window.addEventListener('auxclick', pass88RouteMouseNavigation, true);
   document.addEventListener('keydown', (event) => {
@@ -3591,6 +3628,7 @@ function createTab(url: string): string {
   webview.dataset.testid = 'runtime-webview';
   webview.dataset.browserTabId = tabId;
   webview.dataset.pass106SiteViewTabId = tabId;
+  pass185BindWebviewMouseHistoryRouting(webview, tabId);
   stageEl.appendChild(webview);
 
   const tab: TabState = { id: tabId, title: titleFromUrl(safeUrl), url: safeUrl, button, webview, consoleMessages: [] };
@@ -4555,11 +4593,41 @@ function renderMissionControl(): void {
   }
   missionEvidenceList.innerHTML = mission && ensureMissionEvidence(mission).length ? ensureMissionEvidence(mission).slice(0, 12).map((entry) => '<article class="ops-hub-row split"><button type="button" data-copy-mission-evidence="' + escapeHtml(entry.eventId) + '"><strong>' + escapeHtml(missionEvidenceKindLabel(entry.kind) + ' · ' + entry.title) + '</strong><span>' + escapeHtml((entry.paneId || 'mission') + ' · ' + new Date(entry.createdAt).toLocaleString() + (entry.url ? ' · ' + entry.url : '')) + '</span></button><button type="button" class="mini-danger" data-remove-mission-evidence="' + escapeHtml(entry.eventId) + '" title="Remove mission evidence">×</button></article>').join('') : '<article class="ops-hub-empty">No mission evidence pinned yet. Pin active page or latest tool output explicitly.</article>';
   missionTimeline.innerHTML = mission?.timeline.length ? mission.timeline.slice(0, 8).map((event) => '<article class="ops-hub-row"><strong>' + escapeHtml(event.title) + '</strong><span>' + escapeHtml(event.kind + ' · ' + new Date(event.createdAt).toLocaleString() + (event.detail ? ' · ' + event.detail : '')) + '</span></article>').join('') : '<article class="ops-hub-empty">Timeline starts after mission actions.</article>';
-  missionLayoutsEl.querySelectorAll<HTMLButtonElement>('[data-mission-layout]').forEach((button) => button.classList.toggle('active', button.dataset.missionLayout === (mission?.layout.type || 'single')));
+  missionLayoutsEl.querySelectorAll<HTMLButtonElement>('[data-mission-layout]').forEach((button) => {
+    const activeLayout = button.dataset.missionLayout === (mission?.layout.type || 'single');
+    button.classList.toggle('active', activeLayout);
+    button.setAttribute('aria-pressed', String(activeLayout));
+    button.dataset.pass175LayoutAriaState = activeLayout ? 'active' : 'inactive';
+  });
+  pass176KeepActiveMissionLayoutVisible('render');
   pass77RefreshMissionPaneCommandDock('render');
   missionExportPreview.value = missionExportMarkdown();
   renderMissionList();
   renderMissionRecipes();
+}
+
+function pass176KeepActiveMissionLayoutVisible(reason: string): void {
+  const activeButton = missionLayoutsEl.querySelector<HTMLButtonElement>('[data-mission-layout].active');
+  document.body.dataset.pass176CompactMissionLayoutScroll = 'ready';
+  document.body.dataset.pass176CompactMissionLayoutReason = reason;
+  if (!activeButton) {
+    document.body.dataset.pass176CompactMissionLayoutState = 'no-active-layout';
+    return;
+  }
+  activeButton.dataset.pass176ActiveLayoutVisible = 'true';
+  const compactMissionViewport = document.body.classList.contains('mission-small-window-stress')
+    || document.body.classList.contains('mission-micro-window-stress')
+    || missionDialog.dataset.pass132MissionViewport === 'compact'
+    || missionDialog.dataset.pass132MissionViewport === 'micro'
+    || missionDialog.dataset.pass128MissionViewport === 'compact'
+    || window.innerWidth < 980
+    || window.innerHeight < 720;
+  if (!compactMissionViewport) {
+    document.body.dataset.pass176CompactMissionLayoutState = 'wide-no-scroll-needed';
+    return;
+  }
+  activeButton.scrollIntoView({ block: 'nearest', inline: 'center' });
+  document.body.dataset.pass176CompactMissionLayoutState = 'active-layout-scrolled';
 }
 
 async function refreshMissionStore(): Promise<void> {
@@ -4576,7 +4644,7 @@ function closeMissionControl(restoreFocus = false): void {
   if (document.body.dataset.pass117ActiveFocusScope === 'mission-control') delete document.body.dataset.pass117ActiveFocusScope;
   if (document.body.dataset.pass116ActiveOverlay === 'mission-control') pass118ClearChromeOverlayState('explicit-close', 'mission-control');
   if (missionDialog.open) missionDialog.close();
-  if (restoreFocus) window.setTimeout(() => (pass117MissionControlOpener || missionControlButton)?.focus(), 0);
+  if (restoreFocus) pass170RestoreFocusToOpener('mission-control', pass117MissionControlOpener || missionControlButton);
 }
 
 function pass128UpdateMissionViewportMode(reason = 'open'): void {
@@ -4956,9 +5024,14 @@ type Pass164MoreToolsActionId = 'about' | 'settings' | 'onboarding' | 'launchpad
 const PASS165_MORE_TOOLS_ACTION_IDS: readonly Pass164MoreToolsActionId[] = ['about', 'settings', 'onboarding', 'launchpad', 'ops-hub-toggle', 'site-view-rail-toggle', 'chromium-bookmark-star', 'chromium-bookmarks-button', 'profile-switcher'];
 const PASS165_MORE_TOOLS_SHELL_ACTION_IDS = new Set<Pass164MoreToolsActionId>(['about', 'settings', 'onboarding', 'launchpad', 'ops-hub-toggle', 'profile-switcher']);
 const PASS122_OVERLAY_OPEN_SETTLE_MS = 260;
+// PASS168 overlay open-age stamp: every overlay open path must refresh viewport-settle timing.
+// PASS169 delayed overlay focus guard: stale focus timers must not refocus hidden/replaced overlays.
+// PASS170 restore-focus target guard: close-time restore timers must not jump focus into hidden/replaced controls.
+// PASS171 focus epoch guard: delayed overlay focus timers must belong to the current overlay open generation.
 type Pass118OverlayCloseReason = 'escape' | 'explicit-close' | 'overlay-switch' | 'outside-click' | 'mission-control' | 'stale-state' | 'aria-contract' | 'pointer-boundary' | 'scroll-containment' | 'viewport-reflow' | 'cycle-stress' | 'unknown';
 const PASS117_FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 let pass164MissionControlOpenRun = 0;
+let pass171AppOverlayFocusEpoch = 0;
 
 function pass164MissionControlIsOpening(): boolean {
   return document.body.dataset.pass164MissionControlOpenState === 'opening' || missionDialog.dataset.pass164MissionControlOpenState === 'opening';
@@ -4996,10 +5069,27 @@ function pass116ChromeOverlaySource(event: Event): Pass116ChromeOverlaySource | 
   return source === 'more-tools' || source === 'command-toolbar' || source === 'ops-hub' || source === 'site-view' || source === 'mission-control' ? source : undefined;
 }
 
-function pass116AnnounceChromeOverlayOpen(source: Pass116ChromeOverlaySource): void {
+
+function pass171BumpAppOverlayFocusEpoch(scope: Pass116ChromeOverlaySource, reason: string): number {
+  pass171AppOverlayFocusEpoch += 1;
+  document.body.dataset.pass171OverlayFocusEpochGuard = 'true';
+  document.body.dataset.pass171AppOverlayFocusEpoch = String(pass171AppOverlayFocusEpoch);
+  document.body.dataset.pass171AppOverlayFocusScope = scope;
+  document.body.dataset.pass171AppOverlayFocusEpochReason = reason;
+  return pass171AppOverlayFocusEpoch;
+}
+
+function pass116MarkActiveChromeOverlay(source: Pass116ChromeOverlaySource, reason = 'overlay-open'): void {
   document.body.dataset.pass116ActiveOverlay = source;
   document.body.dataset.pass122ActiveOverlayOpenedAt = String(Date.now());
   document.body.dataset.pass122ActiveOverlayOpenedSource = source;
+  document.body.dataset.pass168OverlayOpenAgeStamp = 'true';
+  document.body.dataset.pass168LastOverlayOpenSource = source;
+  document.body.dataset.pass168LastOverlayOpenReason = reason;
+}
+
+function pass116AnnounceChromeOverlayOpen(source: Pass116ChromeOverlaySource): void {
+  pass116MarkActiveChromeOverlay(source, 'local-open');
   document.dispatchEvent(new CustomEvent(PASS116_CHROME_OVERLAY_OPEN_EVENT, { detail: { source, focusScope: source } }));
 }
 
@@ -5026,16 +5116,22 @@ function pass118OverlayIsActuallyOpen(source: Pass116ChromeOverlaySource): boole
 }
 
 function pass118ClearChromeOverlayState(reason: Pass118OverlayCloseReason, source?: Pass116ChromeOverlaySource): void {
-  document.body.dataset.pass118OverlayDismissRecovery = 'ready';
+  document.body.dataset.pass118OverlayDismissRecovery = 'true';
+  document.body.dataset.pass167OverlaySourceSafeClose = 'true'; document.body.dataset.pass168OverlayOpenAgeStamp = 'true';
   document.body.dataset.pass118LastDismissReason = reason;
   if (source) document.body.dataset.pass118LastDismissedOverlay = source;
-  delete document.body.dataset.pass116ActiveOverlay;
-  delete document.body.dataset.pass117ActiveFocusScope;
+  const activeSource = pass118ActiveChromeOverlaySource();
+  const shouldClearActiveOverlay = !source || !activeSource || source === activeSource;
+  document.body.dataset.pass167LastOverlayClearMode = shouldClearActiveOverlay ? 'active-source-cleared' : 'non-active-source-preserved';
+  if (shouldClearActiveOverlay) {
+    delete document.body.dataset.pass116ActiveOverlay;
+    if (!source || document.body.dataset.pass117ActiveFocusScope === source) delete document.body.dataset.pass117ActiveFocusScope;
+  }
 }
 
 function pass118AnnounceChromeOverlayClose(reason: Pass118OverlayCloseReason = 'escape', source = pass118ActiveChromeOverlaySource(), restoreFocus = true): boolean {
   if (!source) return false;
-  document.body.dataset.pass118OverlayDismissRecovery = 'ready';
+  document.body.dataset.pass118OverlayDismissRecovery = 'true';
   document.body.dataset.pass118PendingDismissedOverlay = source;
   document.dispatchEvent(new CustomEvent(PASS118_CHROME_OVERLAY_CLOSE_EVENT, { detail: { source, reason, restoreFocus } }));
   return true;
@@ -5048,9 +5144,20 @@ function pass118ScheduleOverlayStateAudit(reason: Pass118OverlayCloseReason = 's
   }, 0);
 }
 
-function pass117FocusFirstIn(scope: HTMLElement): void {
+function pass117FocusFirstIn(scope: HTMLElement, overlaySource: Pass116ChromeOverlaySource): void {
   const target = scope.querySelector<HTMLElement>(PASS117_FOCUSABLE_SELECTOR) || scope;
-  window.setTimeout(() => target.focus(), 0);
+  const focusEpoch = pass171AppOverlayFocusEpoch;
+  window.setTimeout(() => {
+    if (focusEpoch !== pass171AppOverlayFocusEpoch) { document.body.dataset.pass171AppOverlayFocusSkipped = 'stale-epoch'; return; }
+    if (pass118ActiveChromeOverlaySource() !== overlaySource) { document.body.dataset.pass171AppOverlayFocusSkipped = `${overlaySource}:inactive-overlay`; return; }
+    if (!document.contains(scope) || !document.contains(target)) return;
+    if (scope instanceof HTMLDialogElement && !scope.open) return;
+    if (scope.hidden || scope.getAttribute('aria-hidden') === 'true') return;
+    if (!scope.getClientRects().length) return;
+    document.body.dataset.pass169DelayedOverlayFocusGuard = 'app-overlay';
+    document.body.dataset.pass171AppOverlayFocusAppliedEpoch = String(focusEpoch);
+    target.focus();
+  }, 0);
 }
 
 function pass117MarkOverlayFocus(scope: Pass116ChromeOverlaySource, panel: HTMLElement, opener?: HTMLElement | null): void {
@@ -5076,7 +5183,34 @@ function pass117ClearOverlayFocus(scope: Pass116ChromeOverlaySource, panel: HTML
   panel.setAttribute('aria-hidden', 'true');
   if (opener) opener.dataset.pass117OverlayExpanded = 'false';
   if (document.body.dataset.pass117ActiveFocusScope === scope) delete document.body.dataset.pass117ActiveFocusScope;
-  if (restoreFocus && opener) window.setTimeout(() => opener.focus(), 0);
+  pass171BumpAppOverlayFocusEpoch(scope, 'clear-focus');
+  if (restoreFocus && opener) pass170RestoreFocusToOpener(scope, opener);
+}
+
+function pass170ElementCanRestoreFocus(target: HTMLElement | null): target is HTMLElement {
+  if (!target || !document.contains(target)) return false;
+  if (target instanceof HTMLButtonElement && target.disabled) return false;
+  if (target.getAttribute('aria-disabled') === 'true' || target.getAttribute('aria-hidden') === 'true') return false;
+  if (target.hidden) return false;
+  if (!target.getClientRects().length) return false;
+  return true;
+}
+
+function pass170RestoreFocusToOpener(scope: Pass116ChromeOverlaySource, target: HTMLElement | null): void {
+  window.setTimeout(() => {
+    document.body.dataset.pass170RestoreFocusTargetGuard = scope;
+    const activeOverlay = pass118ActiveChromeOverlaySource();
+    if (activeOverlay && activeOverlay !== scope) {
+      document.body.dataset.pass170RestoreFocusSkipped = `${scope}:${activeOverlay}`;
+      return;
+    }
+    if (!pass170ElementCanRestoreFocus(target)) {
+      document.body.dataset.pass170RestoreFocusSkipped = `${scope}:invalid-target`;
+      return;
+    }
+    target.focus();
+    document.body.dataset.pass170RestoreFocusApplied = scope;
+  }, 0);
 }
 
 function pass119ApplyOverlayAriaContract(scope: Pass116ChromeOverlaySource, panel: HTMLElement, opener?: HTMLElement | null): void {
@@ -5087,7 +5221,7 @@ function pass119ApplyOverlayAriaContract(scope: Pass116ChromeOverlaySource, pane
   panel.setAttribute('aria-modal', 'false');
   if (!panel.getAttribute('aria-label')) panel.setAttribute('aria-label', scope.replace(/-/g, ' ') + ' overlay');
   if (opener) { opener.setAttribute('aria-expanded', 'true'); opener.dataset.pass119OverlayOpener = scope; }
-  document.body.dataset.pass119OverlayAriaContract = 'ready';
+  document.body.dataset.pass119OverlayAriaContract = 'true';
 }
 function pass119AuditOverlayAriaContract(reason: Pass118OverlayCloseReason = 'aria-contract'): void {
   const activeSource = pass118ActiveChromeOverlaySource();
@@ -5102,7 +5236,7 @@ function pass120ApplyOverlayPointerBoundary(scope: Pass116ChromeOverlaySource, p
   panel.dataset.pass120PointerBoundary = open ? 'active' : 'hidden';
   panel.dataset.pass120OverlaySource = scope;
   if (open) panel.style.removeProperty('pointer-events'); else panel.style.pointerEvents = 'none';
-  document.body.dataset.pass120OverlayPointerBoundary = 'ready';
+  document.body.dataset.pass120OverlayPointerBoundary = 'true';
 }
 function pass120AuditOverlayPointerBoundary(reason: Pass118OverlayCloseReason = 'pointer-boundary'): void {
   document.body.dataset.pass120LastPointerAuditReason = reason;
@@ -5115,7 +5249,7 @@ function pass121ApplyOverlayScrollContainment(scope: Pass116ChromeOverlaySource,
   panel.dataset.pass121ScrollContainment = 'true';
   panel.dataset.pass121OverlaySource = scope;
   panel.style.setProperty('--pass121-overlay-usable-height', 'calc(100dvh - var(--pass114-chrome-stack-top, 112px) - var(--pass114-overlay-bottom, 18px))');
-  document.body.dataset.pass121OverlayScrollContainment = 'ready';
+  document.body.dataset.pass121OverlayScrollContainment = 'true';
 }
 function pass121AuditOverlayScrollContainment(reason: Pass118OverlayCloseReason = 'scroll-containment'): void {
   document.body.dataset.pass121LastScrollAuditReason = reason;
@@ -5167,7 +5301,7 @@ function pass122ScheduleOverlayViewportReflow(reason: Pass118OverlayCloseReason 
 function pass122RunOverlayViewportReflow(reason: Pass118OverlayCloseReason = 'viewport-reflow'): void {
   const active = pass118ActiveChromeOverlaySource();
   const panels = pass122KnownOverlayPanels().filter((panel): panel is HTMLElement => Boolean(panel));
-  document.body.dataset.pass122OverlayViewportReflow = 'ready';
+  document.body.dataset.pass122OverlayViewportReflow = 'true';
   document.body.dataset.pass122LastReflowReason = reason;
   document.body.dataset.pass122ViewportHeight = String(pass122ViewportHeight());
   document.body.dataset.pass122PanelCount = String(panels.length);
@@ -5197,14 +5331,14 @@ function pass123RunOverlayCycleAudit(reason = 'cycle-stress'): void {
   const sources: Pass116ChromeOverlaySource[] = ['more-tools', 'command-toolbar', 'ops-hub', 'site-view', 'mission-control'];
   const openSources = sources.filter((source) => pass118OverlayIsActuallyOpen(source));
   const active = pass118ActiveChromeOverlaySource();
-  document.body.dataset.pass123OverlayCycleGuard = 'ready'; document.body.dataset.pass123LastCycleReason = reason; document.body.dataset.pass123OpenOverlayCount = String(openSources.length);
-  if (openSources.length > 1) { const keep = active && openSources.includes(active) ? active : openSources[openSources.length - 1]; document.body.dataset.pass123LastCycleAction = 'collapsed-multiple-overlays'; for (const source of openSources) if (source !== keep) pass118AnnounceChromeOverlayClose('cycle-stress', source, false); document.body.dataset.pass116ActiveOverlay = keep; pass122ScheduleOverlayViewportReflow('cycle-stress'); return; }
+  document.body.dataset.pass123OverlayCycleGuard = 'true'; document.body.dataset.pass123LastCycleReason = reason; document.body.dataset.pass123OpenOverlayCount = String(openSources.length);
+  if (openSources.length > 1) { const keep = active && openSources.includes(active) ? active : openSources[openSources.length - 1]; document.body.dataset.pass123LastCycleAction = 'collapsed-multiple-overlays'; for (const source of openSources) if (source !== keep) pass118AnnounceChromeOverlayClose('cycle-stress', source, false); pass116MarkActiveChromeOverlay(keep, 'cycle-keep'); pass122ScheduleOverlayViewportReflow('cycle-stress'); return; }
   if (active && openSources.length === 0) { document.body.dataset.pass123LastCycleAction = 'cleared-stale-active-overlay'; pass118ClearChromeOverlayState('cycle-stress', active); return; }
   document.body.dataset.pass123LastCycleAction = 'clean'; pass122ScheduleOverlayViewportReflow('cycle-stress');
 }
 function pass119To123InstallOverlayGuards(): void {
   if (document.body.dataset.pass123OverlayCycleGuardMounted === 'true') return;
-  document.body.dataset.pass119OverlayAriaContract = 'ready'; document.body.dataset.pass120OverlayPointerBoundary = 'ready'; document.body.dataset.pass121OverlayScrollContainment = 'ready'; document.body.dataset.pass122OverlayViewportReflow = 'ready'; document.body.dataset.pass123OverlayCycleGuard = 'ready'; document.body.dataset.pass123OverlayCycleGuardMounted = 'true';
+  document.body.dataset.pass119OverlayAriaContract = 'true'; document.body.dataset.pass120OverlayPointerBoundary = 'true'; document.body.dataset.pass121OverlayScrollContainment = 'true'; document.body.dataset.pass122OverlayViewportReflow = 'true'; document.body.dataset.pass123OverlayCycleGuard = 'true'; document.body.dataset.pass123OverlayCycleGuardMounted = 'true'; document.body.dataset.pass167OverlaySourceSafeClose = 'true'; document.body.dataset.pass168OverlayOpenAgeStamp = 'true'; document.body.dataset.pass169DelayedOverlayFocusGuard = 'true'; document.body.dataset.pass170RestoreFocusTargetGuard = 'true'; document.body.dataset.pass171OverlayFocusEpochGuard = 'true';
   document.addEventListener(PASS116_CHROME_OVERLAY_OPEN_EVENT, () => { pass122ScheduleOverlayViewportReflow('overlay-switch'); pass123ScheduleOverlayCycleAudit('overlay-open'); });
   document.addEventListener(PASS118_CHROME_OVERLAY_CLOSE_EVENT, () => { pass122ScheduleOverlayViewportReflow('viewport-reflow'); pass123ScheduleOverlayCycleAudit('overlay-close'); });
   document.addEventListener(PASS122_CHROME_STACK_REFLOW_EVENT, () => pass122ScheduleOverlayViewportReflow('viewport-reflow'));
@@ -5219,7 +5353,7 @@ function pass119To123InstallOverlayGuards(): void {
 function pass118InstallOverlayDismissRecovery(): void {
   if (document.body.dataset.pass118OverlayDismissRecoveryMounted === 'true') return;
   document.body.dataset.pass118OverlayDismissRecoveryMounted = 'true';
-  document.body.dataset.pass118OverlayDismissRecovery = 'ready';
+  document.body.dataset.pass118OverlayDismissRecovery = 'true';
   document.addEventListener(PASS118_CHROME_OVERLAY_CLOSE_EVENT, (event) => {
     const source = pass118OverlayCloseSource(event);
     const reason = event instanceof CustomEvent && typeof event.detail?.reason === 'string' ? event.detail.reason as Pass118OverlayCloseReason : 'unknown';
@@ -5248,11 +5382,12 @@ function pass118InstallOverlayDismissRecovery(): void {
 function pass116InstallChromeOverlayArbitration(): void {
   if (document.body.dataset.pass116OverlayArbitrationMounted === 'true') return;
   document.body.dataset.pass116OverlayArbitrationMounted = 'true';
-  document.body.dataset.pass116OverlayArbitration = 'ready';
+  document.body.dataset.pass116OverlayArbitration = 'true';
+  document.body.dataset.pass166RuntimeCssStateAlignment = 'true';
   document.addEventListener(PASS116_CHROME_OVERLAY_OPEN_EVENT, (event) => {
     const source = pass116ChromeOverlaySource(event);
     if (!source) return;
-    document.body.dataset.pass116ActiveOverlay = source;
+    pass116MarkActiveChromeOverlay(source, 'event-open');
     pass118ScheduleOverlayStateAudit('overlay-switch');
     pass122ScheduleOverlayViewportReflow('viewport-reflow');
     pass123ScheduleOverlayCycleAudit('overlay-open');
@@ -5302,7 +5437,7 @@ function closeToolMenus(except?: ToolMenuName, restoreFocus = false): void {
   if (activeLane) document.body.dataset.commandToolbar = activeLane;
   else delete document.body.dataset.commandToolbar;
   if (!activeLane && document.body.dataset.pass116ActiveOverlay === 'command-toolbar') pass118ClearChromeOverlayState('explicit-close', 'command-toolbar');
-  if (restoreFocus && restoreTarget) window.setTimeout(() => restoreTarget?.focus(), 0);
+  if (restoreFocus && restoreTarget) pass170RestoreFocusToOpener('command-toolbar', restoreTarget);
 }
 
 function commandToolbarLabel(name: ToolMenuName): string {
@@ -5961,14 +6096,17 @@ function currentActiveUrl(): string {
 }
 
 function toggleOpsHub(open = opsHub.hidden, restoreFocus = false): void {
-  if (open) pass116AnnounceChromeOverlayOpen('ops-hub');
+  if (open) {
+    pass116AnnounceChromeOverlayOpen('ops-hub');
+    pass171BumpAppOverlayFocusEpoch('ops-hub', 'open');
+  }
   opsHub.hidden = !open;
   if (open) {
     closeToolMenus(undefined, false);
     pass117MarkOverlayFocus('ops-hub', opsHub, opsHubToggleButton);
     renderOpsHub();
     setStatus('TAHAI Ops Panel open', 'Command Palette, workspaces, recipes, and evidence timeline are available.');
-    pass117FocusFirstIn(opsHub);
+    pass117FocusFirstIn(opsHub, 'ops-hub');
   } else {
     pass117ClearOverlayFocus('ops-hub', opsHub, opsHubToggleButton, restoreFocus);
     if (document.body.dataset.pass116ActiveOverlay === 'ops-hub') pass118ClearChromeOverlayState('explicit-close', 'ops-hub');
@@ -9304,7 +9442,10 @@ missionCompactJumpbar?.addEventListener('click', (event) => {
 missionLayoutsEl.addEventListener('click', (event) => {
   const target = event.target as HTMLElement;
   const layoutButton = target.closest<HTMLButtonElement>('[data-mission-layout]');
-  if (layoutButton?.dataset.missionLayout) setMissionLayout(layoutButton.dataset.missionLayout as MissionLayoutType);
+  if (layoutButton?.dataset.missionLayout) {
+    setMissionLayout(layoutButton.dataset.missionLayout as MissionLayoutType);
+    pass176KeepActiveMissionLayoutVisible('layout-click');
+  }
   const cycleTriViewButton = target.closest<HTMLButtonElement>('[data-pass133-cycle-triview]');
   if (cycleTriViewButton) pass133CycleTriViewVariant('button');
   const recoverViewButton = target.closest<HTMLButtonElement>('[data-pass133-recover-view]');

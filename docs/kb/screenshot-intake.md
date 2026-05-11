@@ -185,3 +185,10 @@ PASS130 defines the screenshot contract for the Knowledge Base. Add screenshots 
 5. Confirm the in-app KB shows “Screenshot ready” for supplied captures and “Awaiting screenshot” for missing captures.
 
 The ingestion command rejects unlisted files, non-PNG files, over-size files, and path traversal attempts. Missing screenshots are not a build blocker.
+
+
+## PASS137 walkthrough capture
+
+19. `19-first-run-walkthrough.png` — First-run walkthrough
+   - Open the Guide / KB and capture the guided first-run walkthrough panel with the Start walkthrough control and the main step list visible.
+   - Do not include signed-in account details, private URLs, customer names, local filesystem paths, or runtime profile data.

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell, session, IpcMainInvokeEvent } from 'electron';
+import type { WebContents } from 'electron';
 import { createBrowserProfile, deleteBrowserProfile, listBrowserProfiles, profileDataPath, profileSessionPartitions, setActiveBrowserProfile, updateBrowserProfile } from './profile-manager';
 import * as dns from 'node:dns/promises';
 import http from 'node:http';
@@ -18,12 +19,20 @@ import { localFilesystemHandoffLabel } from '../shared/local-path-boundary';
 import { assertTrustedShellOrigin, isTrustedShellOrigin } from '../shared/shell-origin-boundary';
 import { sanitizeActiveCaptureUrl } from '../shared/active-capture-boundary';
 import { DIAGNOSTIC_TIMEOUT_MS, evaluateDiagnosticsHostScope, evaluateDiagnosticsRequestUrl, safeDiagnosticText, safeDiagnosticsRequestUrl, sanitizeDiagnosticHeaderMap } from '../shared/diagnostics-boundary';
+import { TAHAI_BUNDLE_NAME, TAHAI_DEFAULT_HOME_URL, TAHAI_PRODUCT_NAME, TAHAI_RELEASE_CHANNEL, TAHAI_RELEASE_PASS, TAHAI_RELEASE_VERSION, releaseTruthForRenderer } from '../shared/release-truth';
+import { TAHAI_REQUIRED_BROWSER_WINDOW_WEB_PREFERENCES, isTrustedTahaiIpcChannel, isTrustedTahaiRendererEventChannel, type TahaiTrustedRendererEventChannel } from '../shared/electron-security-contract';
+import { hardenWebviewAttachOptions, TAHAI_WEBVIEW_ATTACH_SECURITY_PASS, webviewAttachSecuritySummary, type TahaiWebviewAttachRecord } from '../shared/webview-attach-security-contract';
+import { ENTERPRISE_ADMIN_POLICY_PASS, enterpriseAdminPolicySummary } from '../shared/enterprise-admin-policy-contract';
+import { RUNTIME_E2E_HARNESS_PASS } from '../shared/runtime-e2e-harness-contract';
+import { ENTERPRISE_SUPPORT_BUNDLE_PASS } from '../shared/enterprise-support-bundle-contract';
+import { getEnterpriseAdminPolicyForRenderer, getEnterpriseAdminPolicySummary } from './enterprise-admin-policy';
+import { copyEnterpriseSupportBundle, previewEnterpriseSupportBundle, saveEnterpriseSupportBundle } from './enterprise-support-bundle';
 
-const PRODUCT_NAME = 'TAHAI Web Services Browser';
-const SOURCE_DEFAULT_HOME_URL = 'https://tahaiportal.com';
+const PRODUCT_NAME = TAHAI_PRODUCT_NAME;
+const SOURCE_DEFAULT_HOME_URL = TAHAI_DEFAULT_HOME_URL;
 const ITDOCS_HOME_URL = itDocsHomeUrl();
-const BUNDLE_NAME = 'TAHAI—SENTINEL Browser';
-const RELEASE_CHANNEL = 'public-rc';
+const BUNDLE_NAME = TAHAI_BUNDLE_NAME;
+const RELEASE_CHANNEL = TAHAI_RELEASE_CHANNEL;
 const SAFE_HTTP_PROTOCOLS = new Set(['http:', 'https:']);
 const MAX_MAIN_PROCESS_CAPTURE_CHARS = 120000;
 const WINDOWS_TITLEBAR_CHROME_HEIGHT_PX = 44;
@@ -216,7 +225,7 @@ async function runUrlDiagnostics(inputUrl: string): Promise<OpsUrlDiagnostics> {
       method: 'HEAD',
       timeout: DIAGNOSTIC_TIMEOUT_MS,
       headers: {
-        'user-agent': `${PRODUCT_NAME} OpsDiagnostics/1.8.30`,
+        'user-agent': `${PRODUCT_NAME} OpsDiagnostics/${TAHAI_RELEASE_VERSION}`,
         'accept': '*/*',
         'cache-control': 'no-cache'
       }
@@ -444,6 +453,49 @@ function assertTrustedBrowserShellIpc(event: IpcMainInvokeEvent): void {
   assertTrustedShellOrigin(senderUrl, trustedShellUrls());
 }
 
+function assertTrustedIpcChannel(channel: string): void {
+  if (!isTrustedTahaiIpcChannel(channel)) {
+    throw new Error(`Blocked unregistered TAHAI Browser IPC channel: ${channel}`);
+  }
+}
+
+function sendTrustedRendererEvent(window: BrowserWindow, channel: TahaiTrustedRendererEventChannel, ...args: unknown[]): void {
+  if (!isTrustedTahaiRendererEventChannel(channel)) return;
+  window.webContents.send(channel, ...args);
+}
+
+let pass153WebContentsPopupBoundaryInstalled = false;
+
+function installPass153WebContentsPopupBoundary(): void {
+  if (pass153WebContentsPopupBoundaryInstalled) return;
+  pass153WebContentsPopupBoundaryInstalled = true;
+  app.on('web-contents-created', (_event, contents) => {
+    contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    // PASS185: hardware mouse Button 4/5 can surface as an app-command on
+    // guest webContents when focus lives inside an Electron <webview>. Route it
+    // through the trusted renderer command bridge so active Mission pane targeting
+    // remains identical to Alt+Left/Alt+Right and toolbar Back/Forward.
+    (contents as unknown as { on(channel: 'app-command', listener: (event: { preventDefault?: () => void }, command: string) => void): void }).on('app-command', (event, command) => {
+      pass185RouteBrowserHistoryAppCommand(event, command, undefined, contents);
+    });
+  });
+}
+
+function enforcePass153WebviewAttachBoundary(window: BrowserWindow): void {
+  window.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    const decision = hardenWebviewAttachOptions(
+      webPreferences as TahaiWebviewAttachRecord,
+      params as TahaiWebviewAttachRecord,
+      trustedShellUrls()
+    );
+    if (!decision.ok) {
+      event.preventDefault();
+      console.warn(`[${TAHAI_WEBVIEW_ATTACH_SECURITY_PASS}] blocked webview attach: ${decision.blockedReasons.join(',') || 'unknown-reason'}`);
+    }
+  });
+}
+
+
 function localPages() {
   return {
     newTabUrl: localFileUrl('browser', 'new-tab', 'index.html'),
@@ -529,6 +581,32 @@ function rendererAssetPreflight(rendererPath: string): RendererAssetPreflight {
   };
 }
 
+
+let pass158RuntimeE2eStarted = false;
+
+async function maybeRunPass158RuntimeE2e(window: BrowserWindow, reason: string): Promise<void> {
+  if (process.env.TAHAI_RUNTIME_E2E !== '1' || pass158RuntimeE2eStarted || window.isDestroyed()) return;
+  pass158RuntimeE2eStarted = true;
+  const resultPath = process.env.TAHAI_RUNTIME_E2E_RESULT || path.join(app.getPath('temp'), `tahai-pass158-runtime-e2e-${Date.now()}.json`);
+  const startedAt = new Date().toISOString();
+  let payload: unknown;
+  try {
+    payload = await window.webContents.executeJavaScript(`Promise.resolve(window.__TAHAI_RUNTIME_E2E__?.run?.()).then((result) => result || { ok: false, pass: 'PASS158', error: 'renderer runtime E2E harness was not installed' })`, true);
+  } catch (error) {
+    payload = { ok: false, pass: RUNTIME_E2E_HARNESS_PASS, error: error instanceof Error ? error.stack || error.message : String(error || 'unknown runtime E2E error') };
+  }
+  const wrapped = { pass: RUNTIME_E2E_HARNESS_PASS, reason, startedAt, finishedAt: new Date().toISOString(), result: payload };
+  try {
+    fs.mkdirSync(path.dirname(resultPath), { recursive: true });
+    fs.writeFileSync(resultPath, JSON.stringify(wrapped, null, 2));
+  } catch (error) {
+    console.error(`[${RUNTIME_E2E_HARNESS_PASS}] failed to write runtime E2E result`, error);
+  }
+  if (process.env.TAHAI_RUNTIME_E2E_QUIT !== '0') {
+    setTimeout(() => app.quit(), 80);
+  }
+}
+
 async function checkRendererBootHeartbeat(window: BrowserWindow): Promise<boolean> {
   if (window.isDestroyed()) return false;
   try {
@@ -570,6 +648,8 @@ function loadRendererShell(window: BrowserWindow): void {
       void checkRendererBootHeartbeat(window).then((ready) => {
         if (!ready) {
           showFailure(`${reason}: renderer shell loaded but did not report the strict ready marker within 12 seconds. The source tree may contain stale dist output, a preload failure, a CSP/script load issue, or a renderer runtime exception.`);
+        } else {
+          void maybeRunPass158RuntimeE2e(window, reason);
         }
       });
     }, 12000);
@@ -614,7 +694,45 @@ function startupUrl(): string {
 }
 
 function sendMenuCommand(window: BrowserWindow, command: string): void {
-  window.webContents.send('tahai-browser:menu-command', command);
+  if (!window.isDestroyed()) sendTrustedRendererEvent(window, 'tahai-browser:menu-command', command);
+}
+
+type Pass185BrowserHistoryCommand = 'back' | 'forward';
+let pass185LastMainMouseHistoryRouteAt = 0;
+let pass185LastMainMouseHistoryDirection: Pass185BrowserHistoryCommand | undefined;
+
+function pass185NormalizeBrowserHistoryAppCommand(command: unknown): Pass185BrowserHistoryCommand | undefined {
+  const normalized = String(command || '').toLowerCase();
+  if (normalized === 'browser-backward' || normalized === 'back' || normalized === 'mouse-back') return 'back';
+  if (normalized === 'browser-forward' || normalized === 'forward' || normalized === 'mouse-forward') return 'forward';
+  return undefined;
+}
+
+function pass185WindowForHistoryAppCommand(sourceWindow?: BrowserWindow, sourceContents?: WebContents): BrowserWindow | undefined {
+  if (sourceWindow && !sourceWindow.isDestroyed()) return sourceWindow;
+  const directWindow = sourceContents ? BrowserWindow.fromWebContents(sourceContents) : undefined;
+  if (directWindow && !directWindow.isDestroyed()) return directWindow;
+  const hostContents = sourceContents && 'hostWebContents' in sourceContents ? (sourceContents as WebContents & { hostWebContents?: WebContents }).hostWebContents : undefined;
+  const hostWindow = hostContents ? BrowserWindow.fromWebContents(hostContents) : undefined;
+  if (hostWindow && !hostWindow.isDestroyed()) return hostWindow;
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  if (focusedWindow && !focusedWindow.isDestroyed()) return focusedWindow;
+  const candidates = BrowserWindow.getAllWindows().filter((candidate) => !candidate.isDestroyed());
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+function pass185RouteBrowserHistoryAppCommand(event: { preventDefault?: () => void } | undefined, command: unknown, sourceWindow?: BrowserWindow, sourceContents?: WebContents): boolean {
+  const direction = pass185NormalizeBrowserHistoryAppCommand(command);
+  if (!direction) return false;
+  if (typeof event?.preventDefault === 'function') event.preventDefault();
+  const now = Date.now();
+  if (direction === pass185LastMainMouseHistoryDirection && now - pass185LastMainMouseHistoryRouteAt < 80) return true;
+  pass185LastMainMouseHistoryDirection = direction;
+  pass185LastMainMouseHistoryRouteAt = now;
+  const targetWindow = pass185WindowForHistoryAppCommand(sourceWindow, sourceContents);
+  if (!targetWindow) return false;
+  sendMenuCommand(targetWindow, direction);
+  return true;
 }
 
 function installApplicationMenu(window: BrowserWindow): void {
@@ -668,8 +786,8 @@ function installApplicationMenu(window: BrowserWindow): void {
         { label: 'Right-side Ops Panel', accelerator: 'CmdOrCtrl+Alt+H', click: () => sendMenuCommand(window, 'ops-hub') },
         { label: 'Keyboard Shortcuts', accelerator: 'CmdOrCtrl+/', click: () => sendMenuCommand(window, 'shortcuts') },
         { type: 'separator' },
-        { label: 'Developer Tools', accelerator: 'F12', click: () => window.webContents.send('tahai-browser:toggle-devtools') },
-        { label: 'Chromium DevTools', accelerator: 'CmdOrCtrl+Shift+I', click: () => window.webContents.send('tahai-browser:toggle-devtools') }
+        { label: 'Developer Tools', accelerator: 'F12', click: () => sendTrustedRendererEvent(window, 'tahai-browser:toggle-devtools') },
+        { label: 'Chromium DevTools', accelerator: 'CmdOrCtrl+Shift+I', click: () => sendTrustedRendererEvent(window, 'tahai-browser:toggle-devtools') }
       ]
     },
     {
@@ -817,16 +935,15 @@ function createWindow(): BrowserWindow {
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      webviewTag: true,
+      // PASS142/PASS51 invariant mirror: contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, allowRunningInsecureContent: false.
+      ...TAHAI_REQUIRED_BROWSER_WINDOW_WEB_PREFERENCES,
       spellcheck: true,
       devTools: true
     },
     ...titleBarChromeOptions()
   });
 
+  enforcePass153WebviewAttachBoundary(window);
   loadRendererShell(window);
   installApplicationMenu(window);
   if (process.platform !== 'darwin') {
@@ -836,7 +953,7 @@ function createWindow(): BrowserWindow {
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     const safeUrl = normalizeSafeExternalWindowUrl(url);
-    if (safeUrl) window.webContents.send('tahai-browser:open-in-tab', safeUrl);
+    if (safeUrl) sendTrustedRendererEvent(window, 'tahai-browser:open-in-tab', safeUrl);
     return { action: 'deny' };
   });
 
@@ -844,22 +961,17 @@ function createWindow(): BrowserWindow {
     if (!isTrustedShellOrigin(url, trustedShellUrls())) event.preventDefault();
   });
 
-  // PASS88: Route OS/browser mouse back-forward app commands through the same renderer
-  // menu-command channel used by Alt+Left/Alt+Right, preserving active-pane targeting.
+  // PASS88/PASS185: Route OS/browser mouse back-forward app commands through the
+  // same renderer menu-command channel used by Alt+Left/Alt+Right, preserving
+  // active-pane targeting whether focus is in the shell or inside a webview.
   window.on('app-command', (event, command) => {
-    const normalized = String(command || '').toLowerCase();
-    if (normalized === 'browser-backward') {
-      event.preventDefault();
-      sendMenuCommand(window, 'back');
-    } else if (normalized === 'browser-forward') {
-      event.preventDefault();
-      sendMenuCommand(window, 'forward');
-    }
+    pass185RouteBrowserHistoryAppCommand(event, command, window, window.webContents);
   });
 
   return window;
 }
 
+assertTrustedIpcChannel('tahai-browser:get-config');
 ipcMain.handle('tahai-browser:get-config', (event) => {
   assertTrustedBrowserShellIpc(event);
   const settings = readBrowserSettings();
@@ -871,18 +983,38 @@ ipcMain.handle('tahai-browser:get-config', (event) => {
     itDocsUrl: ITDOCS_HOME_URL,
     startupUrl: startupUrl(),
     settings: rendererSettings,
+    adminPolicy: getEnterpriseAdminPolicyForRenderer(),
+    adminPolicySummary: getEnterpriseAdminPolicySummary(),
+    enterpriseSupportBundlePass: ENTERPRISE_SUPPORT_BUNDLE_PASS,
     settingsLabel: localFilesystemHandoffLabel('browser-config'),
     profiles: listBrowserProfiles(),
     ...localPages(),
     version: app.getVersion(),
     releaseChannel: RELEASE_CHANNEL,
+    releasePass: TAHAI_RELEASE_PASS,
+    updateChannel: releaseTruthForRenderer().updateChannel,
+    updatePolicy: releaseTruthForRenderer().updatePolicy,
+    signingStatus: releaseTruthForRenderer().signingStatus,
+    releaseTruth: releaseTruthForRenderer(),
     firstLaunch: runFirstLaunchChecks(),
     userDataLabel: localFilesystemHandoffLabel('browser-config')
   };
 });
 
+assertTrustedIpcChannel('tahai-browser:get-admin-policy');
+ipcMain.handle('tahai-browser:get-admin-policy', (event) => { assertTrustedBrowserShellIpc(event); return getEnterpriseAdminPolicyForRenderer(); });
+assertTrustedIpcChannel('tahai-browser:preview-enterprise-support-bundle');
+ipcMain.handle('tahai-browser:preview-enterprise-support-bundle', (event) => { assertTrustedBrowserShellIpc(event); return previewEnterpriseSupportBundle(); });
+assertTrustedIpcChannel('tahai-browser:copy-enterprise-support-bundle');
+ipcMain.handle('tahai-browser:copy-enterprise-support-bundle', (event) => { assertTrustedBrowserShellIpc(event); return copyEnterpriseSupportBundle(); });
+assertTrustedIpcChannel('tahai-browser:save-enterprise-support-bundle');
+ipcMain.handle('tahai-browser:save-enterprise-support-bundle', async (event) => { assertTrustedBrowserShellIpc(event); return saveEnterpriseSupportBundle(); });
+
+assertTrustedIpcChannel('tahai-browser:get-settings');
 ipcMain.handle('tahai-browser:get-settings', (event) => { assertTrustedBrowserShellIpc(event); return settingsForRenderer(readBrowserSettings()); });
+assertTrustedIpcChannel('tahai-browser:update-settings');
 ipcMain.handle('tahai-browser:update-settings', (event, next) => { assertTrustedBrowserShellIpc(event); return settingsForRenderer(writeBrowserSettings(next)); });
+assertTrustedIpcChannel('tahai-browser:reset-settings');
 ipcMain.handle('tahai-browser:reset-settings', (event) => { assertTrustedBrowserShellIpc(event); return settingsForRenderer(resetBrowserSettings()); });
 type ClearBrowsingDataScope = 'active-profile' | 'selected-profile' | 'all-profiles';
 
@@ -936,11 +1068,17 @@ async function clearOnExitIfEnabled(): Promise<void> {
   await clearBrowsingDataForProfiles({ scope: 'all-profiles' });
 }
 
+assertTrustedIpcChannel('tahai-browser:clear-browsing-data');
 ipcMain.handle('tahai-browser:clear-browsing-data', async (event, options?: ClearBrowsingDataOptions) => { assertTrustedBrowserShellIpc(event); return clearBrowsingDataForProfiles(options); });
+assertTrustedIpcChannel('tahai-browser:open-user-data');
 ipcMain.handle('tahai-browser:open-user-data', async (event) => { assertTrustedBrowserShellIpc(event); await shell.openPath(app.getPath('userData')); return true; });
+assertTrustedIpcChannel('tahai-browser:open-external');
 ipcMain.handle('tahai-browser:open-external', async (event, url: string) => { assertTrustedBrowserShellIpc(event); return safeOpenExternal(url); });
+assertTrustedIpcChannel('tahai-browser:open-itdocs');
 ipcMain.handle('tahai-browser:open-itdocs', async (event) => { assertTrustedBrowserShellIpc(event); return safeOpenExternal(ITDOCS_HOME_URL); });
+assertTrustedIpcChannel('tahai-browser:get-itdocs-capabilities');
 ipcMain.handle('tahai-browser:get-itdocs-capabilities', async (event) => { assertTrustedBrowserShellIpc(event); return getItDocsMissionCapabilities(ITDOCS_HOME_URL); });
+assertTrustedIpcChannel('tahai-browser:copy-itdocs-capabilities');
 ipcMain.handle('tahai-browser:copy-itdocs-capabilities', async (event) => {
   assertTrustedBrowserShellIpc(event);
   const capabilities = await getItDocsMissionCapabilities(ITDOCS_HOME_URL);
@@ -948,12 +1086,14 @@ ipcMain.handle('tahai-browser:copy-itdocs-capabilities', async (event) => {
   return true;
 });
 
+assertTrustedIpcChannel('tahai-browser:copy-psa-reference-contract');
 ipcMain.handle('tahai-browser:copy-psa-reference-contract', async (event) => {
   assertTrustedBrowserShellIpc(event);
   clipboard.writeText(psaReferenceMarkdown(null, localOnlyPsaReferenceContractState()));
   return true;
 });
 
+assertTrustedIpcChannel('tahai-browser:copy-devops-capture');
 ipcMain.handle('tahai-browser:copy-devops-capture', (event, markdown: string) => {
   assertTrustedBrowserShellIpc(event);
   const clean = mainProcessExportMarkdownSafe(markdown);
@@ -962,6 +1102,7 @@ ipcMain.handle('tahai-browser:copy-devops-capture', (event, markdown: string) =>
   return true;
 });
 
+assertTrustedIpcChannel('tahai-browser:save-devops-capture');
 ipcMain.handle('tahai-browser:save-devops-capture', async (event, markdown: string, sourceUrl: string) => {
   assertTrustedBrowserShellIpc(event);
   const clean = mainProcessExportMarkdownSafe(markdown);
@@ -979,23 +1120,31 @@ ipcMain.handle('tahai-browser:save-devops-capture', async (event, markdown: stri
   return { saved: true, canceled: false, savedLabel: localFilesystemHandoffLabel('devops-capture') };
 });
 
+assertTrustedIpcChannel('tahai-browser:run-url-diagnostics');
 ipcMain.handle('tahai-browser:run-url-diagnostics', async (event, sourceUrl: string) => { assertTrustedBrowserShellIpc(event); return runUrlDiagnostics(sourceUrl); });
+assertTrustedIpcChannel('tahai-browser:run-it-service-card-diagnostics');
 ipcMain.handle('tahai-browser:run-it-service-card-diagnostics', async (event, sourceUrl: string) => { assertTrustedBrowserShellIpc(event); return runItServiceCardDiagnostics(sourceUrl); });
+assertTrustedIpcChannel('tahai-browser:list-profiles');
 ipcMain.handle('tahai-browser:list-profiles', (event) => { assertTrustedBrowserShellIpc(event); return listBrowserProfiles(); });
+assertTrustedIpcChannel('tahai-browser:create-profile');
 ipcMain.handle('tahai-browser:create-profile', async (event, input) => {
   assertTrustedBrowserShellIpc(event);
   const state = createBrowserProfile(input);
   await hardenSession(session.fromPartition(state.activeProfile.partition));
   return state;
 });
+assertTrustedIpcChannel('tahai-browser:update-profile');
 ipcMain.handle('tahai-browser:update-profile', (event, input) => { assertTrustedBrowserShellIpc(event); return updateBrowserProfile(input); });
+assertTrustedIpcChannel('tahai-browser:set-active-profile');
 ipcMain.handle('tahai-browser:set-active-profile', async (event, id: string) => {
   assertTrustedBrowserShellIpc(event);
   const state = setActiveBrowserProfile(id);
   await hardenSession(session.fromPartition(state.activeProfile.partition));
   return state;
 });
+assertTrustedIpcChannel('tahai-browser:delete-profile');
 ipcMain.handle('tahai-browser:delete-profile', (event, id: string) => { assertTrustedBrowserShellIpc(event); return deleteBrowserProfile(id); });
+assertTrustedIpcChannel('tahai-browser:open-profile-data');
 ipcMain.handle('tahai-browser:open-profile-data', async (event, id: string) => {
   assertTrustedBrowserShellIpc(event);
   const target = profileDataPath(id);
@@ -1003,12 +1152,19 @@ ipcMain.handle('tahai-browser:open-profile-data', async (event, id: string) => {
   await shell.openPath(target);
   return true;
 });
+assertTrustedIpcChannel('tahai-browser:list-missions');
 ipcMain.handle('tahai-browser:list-missions', (event) => { assertTrustedBrowserShellIpc(event); return listMissions(); });
+assertTrustedIpcChannel('tahai-browser:load-mission');
 ipcMain.handle('tahai-browser:load-mission', (event, missionId: string) => { assertTrustedBrowserShellIpc(event); return loadMission(missionId); });
+assertTrustedIpcChannel('tahai-browser:save-mission');
 ipcMain.handle('tahai-browser:save-mission', (event, mission) => { assertTrustedBrowserShellIpc(event); return saveMission(mission); });
+assertTrustedIpcChannel('tahai-browser:delete-mission');
 ipcMain.handle('tahai-browser:delete-mission', (event, missionId: string) => { assertTrustedBrowserShellIpc(event); return deleteMission(missionId); });
+assertTrustedIpcChannel('tahai-browser:preview-mission-export');
 ipcMain.handle('tahai-browser:preview-mission-export', (event, mission) => { assertTrustedBrowserShellIpc(event); return previewMissionExport(mission); });
+assertTrustedIpcChannel('tahai-browser:copy-mission-export');
 ipcMain.handle('tahai-browser:copy-mission-export', (event, mission) => { assertTrustedBrowserShellIpc(event); return copyMissionExport(mission); });
+assertTrustedIpcChannel('tahai-browser:save-mission-export');
 ipcMain.handle('tahai-browser:save-mission-export', async (event, mission) => { assertTrustedBrowserShellIpc(event); return saveMissionExport(mission); });
 app.setPath('userData', path.join(app.getPath('appData'), 'TAHAI Web Services Browser'));
 
@@ -1045,7 +1201,9 @@ if (process.platform === "win32") {
 // PASS33_WINDOWS_TASKBAR_ICON_HELPERS_END
 
 app.whenReady().then(async () => {
+    installPass153WebContentsPopupBoundary();
     runFirstLaunchChecks();
+    webviewAttachSecuritySummary();
     await hardenSession(session.defaultSession);
     await hardenSession(session.fromPartition('persist:tahai-browser'));
     for (const partition of profileSessionPartitions()) {

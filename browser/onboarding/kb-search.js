@@ -1,5 +1,8 @@
 (() => {
   const body = document.body;
+  const walkthroughStart = document.querySelector('[data-kb-walkthrough-start]');
+  const walkthroughSteps = Array.from(document.querySelectorAll('[data-kb-walkthrough-step]'));
+  body.dataset.pass137KbWalkthroughReady = 'true';
   if (!body || body.dataset.pass131KbSearchReady === 'true') return;
   body.dataset.pass131KbSearchReady = 'true';
   body.dataset.pass136KbScreenshotNavigationReady = 'true';
@@ -137,6 +140,28 @@
     }
 
     applySearch(input?.value || '');
+  }
+
+
+
+  function focusWalkthroughTarget(targetId) {
+    if (!targetId) return;
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    document.querySelectorAll('.kb-walkthrough-active').forEach((node) => node.classList.remove('kb-walkthrough-active'));
+    target.classList.add('kb-walkthrough-active');
+    target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  walkthroughStart?.addEventListener('click', () => focusWalkthroughTarget(walkthroughStart.dataset.kbWalkthroughTarget || 'getting-started'));
+  for (const step of walkthroughSteps) {
+    step.addEventListener('click', (event) => {
+      const targetId = step.dataset.kbWalkthroughTarget || step.getAttribute('href')?.replace('#', '');
+      if (!targetId) return;
+      event.preventDefault();
+      window.location.hash = targetId;
+      focusWalkthroughTarget(targetId);
+    });
   }
 
   input?.addEventListener('input', () => applySearch(input.value));

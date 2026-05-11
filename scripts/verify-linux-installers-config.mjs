@@ -17,6 +17,8 @@ const envAssert = exists('scripts/assert-linux-native-build-env.mjs') ? read('sc
 const linuxVerifier = exists('scripts/verify-linux-installers.mjs') ? read('scripts/verify-linux-installers.mjs') : '';
 const nativeGuard = exists('scripts/verify-linux-native-build-guard.mjs') ? read('scripts/verify-linux-native-build-guard.mjs') : '';
 
+const linuxHandoffWriter = exists('scripts/write-linux-installer-handoff.mjs') ? read('scripts/write-linux-installer-handoff.mjs') : '';
+
 if (pkg.version !== '1.8.30') fail(`package version must be 1.8.30 for Linux RC1, found ${pkg.version}`);
 if (lock.version !== pkg.version) fail(`package-lock top-level version mismatch: ${lock.version} != ${pkg.version}`);
 if (lock.packages?.['']?.version !== pkg.version) fail(`package-lock package version mismatch: ${lock.packages?.['']?.version} != ${pkg.version}`);
@@ -38,12 +40,14 @@ for (const token of [
 }
 
 for (const required of [
+  'package:linux',
   'package:linux:appimage',
   'package:linux:deb',
   'package:linux:rpm',
   'package:linux:release',
   'package:linux:wsl',
   'verify:package:linux',
+  'release:linux:manifest',
   'verify:linux-native-build-guard',
   'assert:linux-native-build-env',
 ]) {
@@ -65,6 +69,8 @@ for (const token of [
   'deb',
   'rpm',
   'scripts/verify-linux-installers.mjs "${TARGETS[@]}"',
+  'scripts/write-linux-installer-handoff.mjs "${TARGETS[@]}"',
+  'PASS139 target-mode normalization',
   'TAHAI_LINUX_NATIVE_BUILD_DIR',
   'rsync -a --delete',
   '--exclude node_modules',
@@ -79,9 +85,7 @@ for (const token of [
   'LINUX_NODE_DEPS_OK',
   'DIST_MAIN_MISSING',
   'release/linux',
-  'TAHAI-Web-Services-Browser-${APP_VERSION}-x64.AppImage',
-  'TAHAI-Web-Services-Browser-${APP_VERSION}-x64.deb',
-  'TAHAI-Web-Services-Browser-${APP_VERSION}-x64.rpm',
+  'write-linux-installer-handoff.mjs',
 ]) {
   if (!bash.includes(token)) fail(`Linux WSL build script missing token: ${token}`);
 }
@@ -106,6 +110,23 @@ for (const token of [
   'must not bypass the Linux-native mirror guard',
 ]) {
   if (!nativeGuard.includes(token)) fail(`Linux native build guard verifier missing token: ${token}`);
+}
+
+
+if (!linuxHandoffWriter) fail('missing scripts/write-linux-installer-handoff.mjs');
+for (const token of [
+  "pass: 'PASS139'",
+  "supersedesPass: 'PASS126'",
+  'targetMode',
+  'requestedTargets: targetList',
+  'TAHAI-Web-Services-Browser-${pkg.version}-x64.AppImage',
+  'TAHAI-Web-Services-Browser-${pkg.version}-x64.deb',
+  'TAHAI-Web-Services-Browser-${pkg.version}-x64.rpm',
+  'TAHAI-Linux-installers-SHA256SUMS.txt',
+  'TAHAI-Linux-installers-manifest.json',
+  'TAHAI-Linux-installers-manifest.txt',
+]) {
+  if (!linuxHandoffWriter.includes(token)) fail(`Linux handoff writer missing token: ${token}`);
 }
 
 if (!linuxVerifier) fail('missing scripts/verify-linux-installers.mjs');

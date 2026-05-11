@@ -59,7 +59,7 @@ for (const id of ['address-form', 'address', 'back', 'forward', 'reload', 'devop
 }
 
 
-for (const token of ['allowpopups', 'autosize', 'nodeintegration', 'data-pass87-navigation-recovery', 'data-pass87-non-drop-boundary', 'data-pass87-evidence-recovery']) {
+for (const token of ['pass153PopupBoundary', 'autosize', 'nodeintegration', 'data-pass87-navigation-recovery', 'data-pass87-non-drop-boundary', 'data-pass87-evidence-recovery']) {
   need(app.includes(token), `missing navigation/tool/evidence recovery token ${token}`);
 }
 

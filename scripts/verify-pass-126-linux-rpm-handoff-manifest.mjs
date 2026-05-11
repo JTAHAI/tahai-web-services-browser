@@ -4,27 +4,36 @@ import path from 'node:path';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
-const pkg = JSON.parse(read('package.json'));
+const json = (rel) => JSON.parse(read(rel));
+const pkg = json('package.json');
 const build = read('scripts/build-linux-installers.sh');
 const handoff = read('scripts/verify-linux-installer-handoff.mjs');
+const writer = fs.existsSync(path.join(root, 'scripts/write-linux-installer-handoff.mjs'))
+  ? read('scripts/write-linux-installer-handoff.mjs')
+  : '';
 const linuxConfig = read('scripts/verify-linux-installers-config.mjs');
 const summary = read('PASS_126_LINUX_RPM_HANDOFF_MANIFEST_SUMMARY.md');
 const errors = [];
 const need = (ok, msg) => { if (!ok) errors.push(msg); };
 
 for (const token of [
-  'PASS126 Linux RPM handoff manifest guard',
-  'TAHAI-Linux-installers-SHA256SUMS.txt',
-  'TAHAI-Linux-installers-manifest.json',
-  'crypto.createHash',
-  "pass: 'PASS126'",
-  'requestedTargets: targets.length ? targets',
-  'sha256Sums=TAHAI-Linux-installers-SHA256SUMS.txt',
-  'jsonManifest=TAHAI-Linux-installers-manifest.json',
+  'scripts/verify-linux-installers.mjs "${TARGETS[@]}"',
+  'scripts/write-linux-installer-handoff.mjs "${TARGETS[@]}"',
+  'release/linux',
 ]) need(build.includes(token), `builder missing ${token}`);
 
 for (const token of [
-  'scripts/verify-linux-installers.mjs \"${TARGETS[@]}\"',
+  'TAHAI-Linux-installers-SHA256SUMS.txt',
+  'TAHAI-Linux-installers-manifest.json',
+  'crypto.createHash',
+  "supersedesPass: 'PASS126'",
+  'requestedTargets: targetList',
+  'sha256Sums=TAHAI-Linux-installers-SHA256SUMS.txt',
+  'jsonManifest=TAHAI-Linux-installers-manifest.json',
+]) need(writer.includes(token), `handoff writer missing ${token}`);
+
+for (const token of [
+  'scripts/verify-linux-installers.mjs "${TARGETS[@]}"',
 ]) need(linuxConfig.includes(token), `Linux installer config verifier missing ${token}`);
 
 for (const token of [
@@ -32,7 +41,7 @@ for (const token of [
   'TAHAI_LINUX_HANDOFF=OK',
   'TAHAI-Linux-installers-SHA256SUMS.txt',
   'TAHAI-Linux-installers-manifest.json',
-  'JSON manifest pass marker must be PASS126',
+  'JSON manifest supersedesPass marker must be PASS126',
   'SHA256 mismatch or missing entry',
   'expectedByTarget',
 ]) need(handoff.includes(token), `handoff verifier missing ${token}`);

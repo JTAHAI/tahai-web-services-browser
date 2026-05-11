@@ -18,7 +18,7 @@ if (!failures.length) {
   const intake = read('docs/kb/screenshot-intake.md');
   const contract = read('docs/kb/article-authoring-contract.md');
   need(kbManifest.sourcePass === 'PASS129', 'KB manifest sourcePass must remain PASS129 for continuity');
-  need(['PASS130','PASS131','PASS135','PASS136'].includes(kbManifest.lastHardenedPass), 'KB manifest must record PASS130 or later hardening');
+  need(['PASS130','PASS131','PASS135','PASS136','PASS137'].includes(kbManifest.lastHardenedPass), 'KB manifest must record PASS130 or later hardening');
   need(kbManifest.screenshotManifest === 'docs/kb/screenshot-manifest.json', 'KB manifest must point to docs screenshot manifest');
   need([1,2].includes(screenshotManifest.schemaVersion), 'screenshot manifest schemaVersion must be 1 or PASS135 schemaVersion 2');
   need(['PASS130','PASS135'].includes(screenshotManifest.sourcePass), 'screenshot manifest sourcePass must be PASS130 or PASS135');

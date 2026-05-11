@@ -45,3 +45,8 @@ Every article screenshot reference must stay manifest-driven. The canonical capt
 ## PASS136 navigation rule
 
 Each article with a screenshot slot must remain discoverable by normal text search and by screenshot status filters. Missing screenshots must never hide the article or fail the build.
+
+
+## PASS137 walkthrough rule
+
+The first-run walkthrough must remain local-only, static, and source-reviewable. It may guide users through existing KB anchors, but it must not add telemetry, remote scripts, cookies, localStorage, sessionStorage, backend calls, PSA calls, or IT Docs authorization behavior.

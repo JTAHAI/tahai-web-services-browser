@@ -8,9 +8,26 @@ $Version = [string]$Package.version
 $ProductName = [string]$Package.productName
 $AppId = [string]$Package.build.appId
 $ReleaseDir = Join-Path $AppRoot "release"
+# PASS138 handoff path: release\windows
+$HandoffDir = Join-Path $ReleaseDir "windows"
 
 if (-not (Test-Path $ReleaseDir)) {
   throw "Release directory not found: $ReleaseDir"
+}
+
+if (-not (Test-Path $HandoffDir)) {
+  throw "PASS138 Windows handoff directory not found: $HandoffDir. Run npm run package:win:installer or npm run package:win:release first."
+}
+
+npm run verify:windows-installer-handoff -- nsis
+
+$WindowsSha = Join-Path $HandoffDir "TAHAI-Windows-installers-SHA256SUMS.txt"
+$WindowsManifestJson = Join-Path $HandoffDir "TAHAI-Windows-installers-manifest.json"
+$WindowsManifestTxt = Join-Path $HandoffDir "TAHAI-Windows-installers-manifest.txt"
+foreach ($HandoffFile in @($WindowsSha, $WindowsManifestJson, $WindowsManifestTxt)) {
+  if (-not (Test-Path $HandoffFile)) {
+    throw "Required PASS138 Windows handoff file missing: $HandoffFile"
+  }
 }
 
 function Resolve-ReleaseArtifact {
@@ -102,7 +119,7 @@ Feedback requested:
 "@ | Set-Content .\README-FIRST.txt -Encoding UTF8
 
 $ZipName = "TAHAI-Web-Services-Browser-$Version-Preview-Friend-Feedback.zip"
-$Inputs = @($Exe.FullName, (Join-Path $ReleaseDir "SHA256SUMS.txt"), (Join-Path $ReleaseDir "README-FIRST.txt"), (Join-Path $ReleaseDir "release-build-truth.json"))
+$Inputs = @($Exe.FullName, (Join-Path $ReleaseDir "SHA256SUMS.txt"), (Join-Path $ReleaseDir "README-FIRST.txt"), (Join-Path $ReleaseDir "release-build-truth.json"), $WindowsSha, $WindowsManifestJson, $WindowsManifestTxt)
 if ($null -ne $Msi) { $Inputs += $Msi.FullName }
 Compress-Archive -Path $Inputs -DestinationPath (Join-Path $ReleaseDir $ZipName) -Force
 Get-Item (Join-Path $ReleaseDir $ZipName) | Select-Object FullName, Length, LastWriteTime

@@ -1,0 +1,66 @@
+{
+  "pass": "PASS159",
+  "contractId": "enterprise-signing-provenance-sbom-v1",
+  "schemaVersion": 1,
+  "productName": "TAHAI Web Services Browser",
+  "version": "1.8.30",
+  "releaseChannel": "manual-release",
+  "noFalseSigningClaim": true,
+  "packageLockSha256": "GENERATED_AFTER_NPM_CI_FROM_PACKAGE_LOCK_JSON",
+  "sourceCommitOrTag": "REQUIRED_BEFORE_PUBLIC_RELEASE",
+  "sbomPath": "artifacts/sbom/tahai-browser-sbom.json",
+  "provenanceManifestPath": "artifacts/provenance/tahai-browser-release-provenance.json",
+  "requiredArtifacts": [
+    {
+      "kind": "windows-exe",
+      "path": "release/windows/TAHAI-Web-Services-Browser-1.8.30-x64.exe",
+      "sha256": "GENERATED_AFTER_PACKAGING",
+      "signatureState": "unsigned-preview-or-signed-with-evidence"
+    },
+    {
+      "kind": "windows-msi",
+      "path": "release/windows/TAHAI-Web-Services-Browser-1.8.30-x64.msi",
+      "sha256": "GENERATED_AFTER_PACKAGING",
+      "signatureState": "unsigned-preview-or-signed-with-evidence"
+    },
+    {
+      "kind": "linux-appimage",
+      "path": "release/linux/TAHAI-Web-Services-Browser-1.8.30-x64.AppImage",
+      "sha256": "GENERATED_AFTER_PACKAGING",
+      "signatureState": "not-applicable"
+    },
+    {
+      "kind": "linux-deb",
+      "path": "release/linux/TAHAI-Web-Services-Browser-1.8.30-x64.deb",
+      "sha256": "GENERATED_AFTER_PACKAGING",
+      "signatureState": "not-applicable"
+    },
+    {
+      "kind": "linux-rpm",
+      "path": "release/linux/TAHAI-Web-Services-Browser-1.8.30-x64.rpm",
+      "sha256": "GENERATED_AFTER_PACKAGING",
+      "signatureState": "not-applicable"
+    },
+    {
+      "kind": "sbom",
+      "path": "artifacts/sbom/tahai-browser-sbom.json",
+      "sha256": "GENERATED_AFTER_SBOM",
+      "signatureState": "not-applicable"
+    },
+    {
+      "kind": "provenance-manifest",
+      "path": "artifacts/provenance/tahai-browser-release-provenance.json",
+      "sha256": "GENERATED_AFTER_PROVENANCE",
+      "signatureState": "not-applicable"
+    }
+  ],
+  "requiredBeforeEnterpriseGA": [
+    "signed-artifact-or-unsigned-preview-truth",
+    "public-commit-or-tag-traceability",
+    "package-lock-sha256-recorded",
+    "sbom-published-beside-artifacts",
+    "provenance-manifest-published-beside-artifacts",
+    "windows-installed-smoke-evidence",
+    "linux-installed-package-smoke-evidence"
+  ]
+}

@@ -51,7 +51,7 @@ for (const command of ['enterprise-contract-ledger', 'source-contract-sentinel',
   need(app.includes(`'${command}'`), `missing command coverage ${command}`);
 }
 
-for (const token of ['allowpopups', 'autosize', 'nodeintegration', 'data-pass86-webview-contract', 'data-pass86-mission-drop-boundary']) {
+for (const token of ['pass153PopupBoundary', 'autosize', 'nodeintegration', 'data-pass86-webview-contract', 'data-pass86-mission-drop-boundary']) {
   need(app.includes(token), `missing webview/pane/drop source contract token ${token}`);
 }
 

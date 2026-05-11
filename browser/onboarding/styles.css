@@ -125,3 +125,42 @@ body[data-pass136-kb-screenshot-navigation="true"] .kb-screenshot-ready-list{gri
 body[data-pass131-kb-search-active="true"] .kb-card[data-kb-screenshot-state="awaiting"]{outline:1px dashed rgba(255,210,122,.28);outline-offset:-8px}
 body[data-pass131-kb-search-active="true"] .kb-card[data-kb-screenshot-state="loaded"]{outline:1px solid rgba(61,220,151,.25);outline-offset:-8px}
 @media(max-width:760px){body[data-pass136-kb-screenshot-navigation="true"] .kb-screenshot-status-panel{grid-template-columns:1fr}body[data-pass136-kb-screenshot-navigation="true"] .kb-screenshot-counts{justify-content:flex-start}}
+
+
+/* PASS137 — first-run walkthrough */
+.kb-walkthrough-panel {
+  margin: 18px 0;
+  padding: 20px;
+  border: 1px solid rgba(125, 227, 255, 0.28);
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), rgba(15, 23, 42, 0.92));
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
+}
+.kb-walkthrough-start {
+  margin: 12px 0 8px;
+  border: 1px solid rgba(125, 227, 255, 0.45);
+  border-radius: 999px;
+  background: rgba(125, 227, 255, 0.16);
+  color: #e8fbff;
+  padding: 9px 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.kb-walkthrough-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px 14px;
+  padding-left: 20px;
+}
+.kb-walkthrough-steps a {
+  color: #d7f7ff;
+  text-decoration: none;
+}
+.kb-walkthrough-active {
+  outline: 2px solid rgba(125, 227, 255, 0.65);
+  outline-offset: 4px;
+}
+@media (max-width: 720px) {
+  .kb-walkthrough-panel { padding: 14px; }
+  .kb-walkthrough-steps { grid-template-columns: 1fr; }
+}

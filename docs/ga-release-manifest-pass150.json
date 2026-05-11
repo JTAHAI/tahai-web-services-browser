@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "productName": "TAHAI Web Services Browser",
+  "version": "1.8.30",
+  "releasePass": "PASS150",
+  "releaseChannel": "public-rc",
+  "releasePhase": "rc2-final-ship-candidate-ga-manifest",
+  "updateChannel": "manual-release",
+  "silentAutoUpdate": false,
+  "signingStatus": "Unsigned preview until the approved code-signing lane is active.",
+  "requiredContinuityPasses": [
+    "PASS138",
+    "PASS139",
+    "PASS140",
+    "PASS141",
+    "PASS142",
+    "PASS143",
+    "PASS144",
+    "PASS145",
+    "PASS146",
+    "PASS147",
+    "PASS148",
+    "PASS149",
+    "PASS150"
+  ],
+  "manualReleaseRequirements": [
+    "Windows installer handoff manifests generated after packaging",
+    "Linux RPM/AppImage/DEB handoff manifests generated after packaging",
+    "Checksums published beside installers",
+    "Installed Windows smoke evidence captured locally",
+    "Installed Linux package smoke evidence captured locally",
+    "Cross-size responsive regression evidence captured locally",
+    "Titlebar drag-region manual smoke completed on Windows"
+  ],
+  "forbiddenSourceOutputs": [
+    "node_modules/",
+    "dist/",
+    "release/",
+    "artifacts/",
+    ".pass-runs/",
+    "generated installers",
+    "generated package manifests",
+    "runtime browser profiles",
+    "local Mission data",
+    "local Evidence data"
+  ],
+  "enterpriseAllSurfacesGate": {
+    "pass": "PASS151",
+    "status": "enterprise-all-surfaces-release-grade-gate",
+    "sourceReleaseTruthRemains": "PASS150 rc2-final-ship-candidate-ga-manifest",
+    "requiredBeforeEnterpriseRelease": [
+      "verify:release-blockers passes with PASS138 through PASS151 wired before final build",
+      "Windows installer handoff manifest and SHA256SUMS generated after packaging",
+      "Linux package handoff manifest and SHA256SUMS generated after packaging",
+      "Windows installed-app smoke evidence captured locally",
+      "Linux installed-package smoke evidence captured locally",
+      "Cross-size responsive regression evidence captured locally",
+      "PASS151 enterprise all-surfaces evidence report generated",
+      "Titlebar drag-region manual smoke completed on Windows"
+    ],
+    "releaseBlockerPrinciple": "Do not call the build enterprise release grade until source, package handoff, installed-app, and cross-size/manual evidence all exist."
+  },
+  "enterpriseEvidenceBinderNoFalseGaGate": {
+    "pass": "PASS152",
+    "status": "blocked-until-installed-evidence-exists",
+    "sourceReleaseTruthRemains": "PASS150 rc2-final-ship-candidate-ga-manifest",
+    "requiredBeforeEnterpriseGA": [
+      "Windows installer handoff manifest and SHA256SUMS generated after packaging",
+      "Linux package handoff manifest and SHA256SUMS generated after packaging",
+      "Windows installed-app smoke evidence captured locally",
+      "Linux installed-package smoke evidence captured locally",
+      "Cross-size responsive regression evidence captured locally",
+      "Titlebar drag-region manual smoke captured locally",
+      "Enterprise evidence binder reviewed before GA language is used"
+    ],
+    "releaseBlockerPrinciple": "No enterprise GA claim until installed package evidence and manual smoke evidence exist outside the source tree."
+  },
+  "enterpriseSigningProvenanceSbomGate": {
+    "pass": "PASS159",
+    "status": "blocked-until-signing-provenance-sbom-evidence-exists",
+    "sourceReleaseTruthRemains": "PASS150 rc2-final-ship-candidate-ga-manifest",
+    "requiredBeforeEnterpriseGA": [
+      "SBOM generated from exact package-lock.json used for packaging",
+      "package-lock SHA-256 recorded in SBOM and release provenance manifest",
+      "release provenance manifest generated after packaging",
+      "artifact SHA256SUMS generated from exact uploaded artifacts",
+      "Windows signing status is truthful: signed only with actual approved signing evidence, otherwise unsigned preview",
+      "Windows installer handoff manifest generated after packaging",
+      "Linux package handoff manifest generated after packaging",
+      "Windows and Linux installed smoke evidence captured outside source tree"
+    ],
+    "releaseBlockerPrinciple": "No enterprise GA claim until signing truth, artifact provenance, SBOM, checksums, package manifests, and installed-app smoke evidence all exist and agree."
+  }
+}

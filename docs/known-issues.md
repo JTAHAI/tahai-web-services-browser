@@ -1,14 +1,16 @@
 # Known Issues
 
-## 1.8.30 Linux RC1 / public source baseline
+## 1.8.30 PASS145 documentation closeout
 
-- Linux RC1 packaging now builds AppImage, `.deb`, and `.rpm` from Ubuntu 24.04 WSL using a Linux-native mirror folder under `$HOME`.
-- The Linux build script copies Electron Builder's native architecture names back into canonical release names under `release/linux/`.
-- Linux install/run validation is still manual before broad public announcement: launch AppImage, install `.deb` on Ubuntu/Debian-family, and install `.rpm` on Fedora/RHEL-family.
-- Windows installers remain unsigned until the approved signing lane is active. Windows SmartScreen may show a warning; publish SHA256 checksums with every public artifact.
+- This is still a public-RC / preview lane, not enterprise GA. Do not describe the browser as enterprise GA until the PASS150 final ship candidate / GA manifest is completed and verified.
+- Unsigned Windows preview packages may trigger Windows SmartScreen or enterprise endpoint warnings until the approved signing lane is active. Publish SHA256 checksums beside every public Windows artifact.
+- Windows EXE/MSI packages still need manual installed-app smoke before broad announcement: installed launch, desktop shortcut, Start Menu shortcut, taskbar icon, Mission Control pane routing, keyboard shortcuts, mouse Button 4/5 where applicable, Evidence Pack redaction, and local-only Mission restore/export.
+- Linux AppImage, Linux deb, and Linux rpm packages now have handoff manifests and checksum UX, but broad announcement still requires manual installed-app smoke on representative Linux targets.
+- TAHAI OS/SENTINEL RPM consumption should use the PASS139 Linux handoff manifest instead of filename guessing.
 - macOS packages must be built on macOS. Signed/notarized public macOS releases require Apple Developer signing and notarization configuration.
-- Public release packaging must still be manually verified on the target OS before broad announcement: installed launch, shortcuts/menu entries, taskbar/dock icon, Mission Control pane routing, keyboard shortcuts, mouse Button 4/5 where applicable, Evidence Pack redaction, and local-only Mission restore/export.
 - IT Docs and PSA integration surfaces are browser-side contracts only. They intentionally do not perform server-side IT Docs writes or direct PSA API calls from this browser repo.
+- Mission export and Evidence Pack workflows are redaction-aware, but users must still avoid placing secrets, copied cookies, credentials, private customer data, or unredacted support material into public issue reports.
+- Privacy Policy and Support docs were closed out in PASS145 so public users know what is local, what is third-party, how manual updates work, and what not to post in support channels.
 
 ## Linux build footguns now guarded
 
