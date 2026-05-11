@@ -443,3 +443,38 @@ body[data-pass123-overlay-cycle-guard="true"] [data-pass120-pointer-boundary="hi
   .toolbar-guide-quick span:not([aria-hidden="true"]) { display: none; }
   .toolbar .address-form { min-width: 132px; }
 }
+
+
+/* PASS163: moved More Tools actions stay clickable and the panel releases focus after dispatch. */
+/* PASS164: first-click action broker gives moved buttons a deterministic settle window before overlay cleanup. */
+/* PASS165: known cross-module More Tools actions keep a settle window even when native fallback is used. */
+body[data-pass163-more-tools-action-dispatch] .toolbar-overflow-menu[data-pass163-more-tools-action-dispatch="true"] {
+  pointer-events: auto !important;
+}
+body[data-pass163-more-tools-action-dispatch] #toolbar-overflow-items > .in-toolbar-overflow {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+body[data-pass163-more-tools-action-dispatch="activated"] .toolbar-overflow-toggle {
+  border-color: rgba(109,255,183,.72) !important;
+}
+
+body[data-pass164-more-tools-first-click-broker="ready"] #toolbar-overflow-items > .in-toolbar-overflow {
+  pointer-events: auto !important;
+  user-select: none;
+}
+body[data-pass164-more-tools-first-click-dispatch="handled"] .toolbar-overflow-menu {
+  outline: 1px solid rgba(109,255,183,.22);
+}
+.mission-recipe-filter-summary {
+  border-style: dashed !important;
+  color: rgba(219,241,255,.78) !important;
+}
+
+body[data-pass165-responsive-mission-recipe-hardening="true"] .mission-recipe-filter-summary[data-pass165-recipe-fallback="affinity"] {
+  border-color: rgba(255, 210, 122, .30);
+  background: linear-gradient(180deg, rgba(255, 210, 122, .075), rgba(255, 255, 255, .035));
+}
+body[data-pass165-more-tools-known-action-settle="ready"] .toolbar-overflow-menu {
+  scroll-margin-top: var(--pass114-chrome-stack-top, 112px);
+}

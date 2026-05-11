@@ -13,7 +13,12 @@ import {
 } from '../shared/active-capture-boundary';
 import { missionStateInvariantIssues } from '../shared/mission-state-invariants';
 import { sanitizeRemotePageTitle, sanitizeStatusMetadataText, sanitizeTabMetadataRecord, sanitizeTabMetadataTitle, sanitizeTabMetadataUrl } from '../shared/tab-metadata-boundary';
+import { reviewEvidenceCapturePrivacy, sanitizeEvidenceCaptureMetadata } from '../shared/evidence-capture-privacy-contract';
+import { RUNTIME_E2E_HARNESS_CONTRACT_ID, RUNTIME_E2E_SCENARIOS, runtimeE2eHarnessSummary } from '../shared/runtime-e2e-harness-contract';
+import { fallbackBrowserConfig, loadBrowserConfigWithRuntimeFallback, markRendererShellReady, showBootDiagnostic } from './renderer-shell-lifecycle';
 import { normalizeBrowserNavigationTarget, navigationBoundaryReason, sanitizeBrowserNavigationUrl } from '../shared/navigation-boundary';
+import { TAHAI_REQUIRED_WEBVIEW_WEBPREFERENCES, normalizeTahaiWebviewPreferences } from '../shared/electron-security-contract';
+// PASS81/PASS142/PASS153 webview invariant mirror: contextIsolation=yes,nodeIntegration=no,sandbox=yes,spellcheck=yes,devTools=yes; popup permission stays absent and main-owned.
 import {
   TAH_BROWSER_TAB_DRAG_MIME,
   TAH_MISSION_TAB_DRAG_MIME,
@@ -62,6 +67,8 @@ import {
   syncMissionLayoutPanesForMission,
   visibleMissionPaneIds
 } from './mission-model';
+import { ADMIN_CONSOLE_PROFILES, adminConsoleProfileToLaunchRecipe, adminConsoleProfilesSummary } from '../shared/admin-console-profiles-contract';
+import { MISSION_RECIPE_LIBRARY, missionRecipeLibrarySummary, missionRecipeLibraryToLaunchRecipe } from '../shared/mission-recipes-contract';
 
 type BrowserConfig = Awaited<ReturnType<typeof window.tahaiBrowser.getConfig>>;
 type BrowserSettings = Awaited<ReturnType<typeof window.tahaiBrowser.getSettings>>;
@@ -377,6 +384,10 @@ type LaunchRecipe = {
   missionEvidencePrompts?: string[];
   cockpitProvider?: 'aws' | 'azure' | 'm365' | 'cloudflare' | 'github' | 'vercel' | 'firebase' | 'incident' | 'generic';
   operatorShortcut?: string;
+  adminConsoleProfileId?: string;
+  evidenceProfile?: 'change-record' | 'incident-packet' | 'sanitized-handoff' | 'internal-markdown';
+  policyTags?: string[];
+  missionRecipeLibraryId?: string;
 };
 
 type CommandPalettePhase = 'mission' | 'devops' | 'it' | 'evidence' | 'browser' | 'all';
@@ -400,74 +411,6 @@ type CommandPaletteAction = {
 
 window.dispatchEvent(new CustomEvent('tahai-renderer-app-script'));
 
-function showBootDiagnostic(detail: string): void {
-  const panel = document.getElementById('boot-diagnostic');
-  const detailEl = document.getElementById('boot-diagnostic-detail');
-  if (detailEl) detailEl.textContent = detail;
-  if (panel) panel.removeAttribute('hidden');
-}
-
-function markRendererShellReady(): void {
-  document.documentElement.dataset.tahaiShellReady = '1';
-  window.dispatchEvent(new CustomEvent('tahai-renderer-ready'));
-  const panel = document.getElementById('boot-diagnostic');
-  if (panel) panel.setAttribute('hidden', 'true');
-}
-
-function fallbackBrowserConfig(): BrowserConfig {
-  const fallbackSettings: BrowserSettings = {
-    homeUrl: 'https://tahaiportal.com',
-    startup: 'home',
-    searchProvider: 'google',
-    permissions: { allowClipboardRead: false, allowMedia: true, allowGeolocation: false, allowNotifications: false },
-    downloads: { askEveryTime: true, defaultDirectory: '' },
-    ui: { showStatusBar: true, openExternalLinksInNewTab: true },
-    privacy: { sendDoNotTrack: true, blockThirdPartyCookies: true, reduceCrossSiteReferrers: true, clearProfileDataOnExit: false },
-  };
-  return {
-    productName: 'TAHAI Web Services Browser',
-    bundleName: 'TAHAI—SENTINEL Browser',
-    homeUrl: 'https://tahaiportal.com',
-    itDocsUrl: 'https://docs.tahaiportal.com',
-    startupUrl: 'https://tahaiportal.com',
-    newTabUrl: 'about:blank',
-    settingsUrl: 'about:blank',
-    aboutUrl: 'about:blank',
-    errorPageUrl: 'about:blank',
-    onboardingUrl: 'about:blank',
-    bookmarksUrl: '',
-    version: '0.0.0',
-    releaseChannel: 'fallback',
-    firstLaunch: { product: 'TAHAI Web Services Browser', defaultHome: 'https://tahaiportal.com', initializedAt: '', sourceGuardrails: [] },
-    userDataLabel: 'Filesystem paths hidden.',
-    settingsLabel: 'Filesystem paths hidden.',
-    settings: fallbackSettings,
-    profiles: {
-      activeProfileId: 'default',
-      activeProfile: { id: 'default', name: 'Default', kind: 'local', color: '#77dbff', partition: 'persist:tahai-profile-default', createdAt: '', updatedAt: '', lastUsedAt: '', isDefault: true },
-      profiles: [{ id: 'default', name: 'Default', kind: 'local', color: '#77dbff', partition: 'persist:tahai-profile-default', createdAt: '', updatedAt: '', lastUsedAt: '', isDefault: true }],
-      storageLabel: 'Filesystem paths hidden.'
-    }
-  };
-}
-
-function loadBrowserConfigWithRuntimeFallback(timeoutMs = 4500): Promise<BrowserConfig> {
-  const bridge = window.tahaiBrowser;
-  if (!bridge || typeof bridge.getConfig !== 'function') {
-    return Promise.reject(new Error('Preload bridge did not expose tahaiBrowser.getConfig.'));
-  }
-  return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error(`Preload/config bridge timed out after ${timeoutMs}ms.`)), timeoutMs);
-    bridge.getConfig().then((loaded) => {
-      window.clearTimeout(timeout);
-      resolve(loaded);
-    }).catch((error) => {
-      window.clearTimeout(timeout);
-      reject(error);
-    });
-  });
-}
-
 window.addEventListener('error', (event) => {
   showBootDiagnostic(`Renderer error: ${event.message || 'unknown error'}`);
 });
@@ -480,6 +423,8 @@ window.addEventListener('unhandledrejection', (event) => {
 // Full browser configuration still has its own guarded fallback below. This prevents a
 // functional but slow/blocked preload bridge from replacing the app with a false black-screen diagnostic.
 markRendererShellReady();
+document.documentElement.dataset.tahaiShellReady = '1';
+window.dispatchEvent(new CustomEvent('tahai-renderer-ready'));
 
 const tabsEl = document.getElementById('tabs') as HTMLElement;
 const stageEl = document.getElementById('webview-stage') as HTMLElement;
@@ -737,6 +682,9 @@ const itDocsCapabilitySummary = document.getElementById('itdocs-capability-summa
 const refreshItDocsCapabilitiesButton = document.getElementById('refresh-itdocs-capabilities') as HTMLButtonElement;
 const copyItDocsCapabilitiesButton = document.getElementById('copy-itdocs-capabilities') as HTMLButtonElement;
 const copyPsaReferenceContractButton = document.getElementById('copy-psa-reference-contract') as HTMLButtonElement;
+const previewEnterpriseSupportBundleButton = document.getElementById('preview-enterprise-support-bundle') as HTMLButtonElement;
+const copyEnterpriseSupportBundleButton = document.getElementById('copy-enterprise-support-bundle') as HTMLButtonElement;
+const saveEnterpriseSupportBundleButton = document.getElementById('save-enterprise-support-bundle') as HTMLButtonElement;
 const psaReferenceSummary = document.getElementById('psa-reference-summary') as HTMLElement;
 const opsGuardDialog = document.getElementById('ops-guard-dialog') as HTMLDialogElement;
 const opsGuardSummary = document.getElementById('ops-guard-summary') as HTMLElement;
@@ -1018,13 +966,10 @@ function pass81HardenWebviewsAndRouting(): Pass81SurfaceIssue[] {
   for (const tab of tabs.values()) {
     const prefs = tab.webview.getAttribute('webpreferences') || '';
     if (!/contextIsolation\s*=\s*yes/i.test(prefs) || !/nodeIntegration\s*=\s*no/i.test(prefs) || !/sandbox\s*=\s*yes/i.test(prefs)) {
-      tab.webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes,spellcheck=yes,devTools=yes');
+      tab.webview.setAttribute('webpreferences', normalizeTahaiWebviewPreferences(TAHAI_REQUIRED_WEBVIEW_WEBPREFERENCES));
       issues.push(pass81Issue(`webview-${tab.id}-preferences`, 'repair', `${tab.title} webview preferences repaired to hardened baseline.`));
     }
-    if (tab.webview.getAttribute('allowpopups') !== 'false') {
-      tab.webview.setAttribute('allowpopups', 'false');
-      issues.push(pass81Issue(`webview-${tab.id}-allowpopups`, 'repair', `${tab.title} popup policy repaired.`));
-    }
+    tab.webview.dataset.pass153PopupBoundary = 'main-process-owned';
     if (currentMission && currentMission.layout.type !== 'single' && tab.webview.getAttribute('autosize') !== 'off') {
       tab.webview.setAttribute('autosize', 'off');
       tab.webview.dataset.pass78AutosizeGuard = 'off';
@@ -1293,10 +1238,7 @@ function pass82EnsureWebviewAssurance(): Pass82AssuranceIssue[] {
     if (prefs.includes('node' + 'integration=yes') || prefs.includes('context' + 'isolation=no') || prefs.includes('web' + 'security=no')) {
       issues.push(pass82Issue(`webview-${index}-unsafe-webpreferences`, 'warn', 'Unsafe webview webpreferences token detected.'));
     }
-    if (view.getAttribute('allowpopups') !== 'false') {
-      view.setAttribute('allowpopups', 'false');
-      issues.push(pass82Issue(`webview-${index}-allowpopups`, 'repair', 'Webview allowpopups forced false.'));
-    }
+    view.dataset.pass153PopupBoundary = 'main-process-owned';
     if (view.getAttribute('autosize') !== 'off') {
       view.setAttribute('autosize', 'off');
       issues.push(pass82Issue(`webview-${index}-autosize`, 'repair', 'Webview autosize forced off for deterministic pane fit.'));
@@ -2381,15 +2323,13 @@ function pass86EnsurePaneAndWebviewContracts(): Pass86SentinelIssue[] {
       webview.removeAttribute('nodeintegration');
       issues.push(pass86Issue(`webview-nodeintegration-${index}`, 'repair', `Removed nodeintegration from webview ${index + 1}.`));
     }
-    if (webview.getAttribute('allowpopups') !== 'false') {
-      webview.setAttribute('allowpopups', 'false');
-      issues.push(pass86Issue(`webview-allowpopups-${index}`, 'repair', `Forced allowpopups=false on webview ${index + 1}.`));
-    }
     if (webview.getAttribute('autosize') !== 'off') {
       webview.setAttribute('autosize', 'off');
       anyWebview.autosize = false;
       issues.push(pass86Issue(`webview-autosize-${index}`, 'repair', `Forced autosize=off on webview ${index + 1}.`));
     }
+    webview.dataset.pass153PopupBoundary = 'main-process-owned';
+  webview.dataset.testid = 'runtime-webview';
     webview.dataset.pass86WebviewContract = 'direct-stage-child-fit';
   });
   document.body.dataset.pass86VisiblePaneContract = String(visiblePaneIds.length);
@@ -2638,15 +2578,13 @@ function pass87EnsureNavigationRecovery(): Pass87RecoveryIssue[] {
       webview.removeAttribute('nodeintegration');
       issues.push(pass87Issue(`webview-nodeintegration-${index}`, 'repair', `Removed nodeintegration from webview ${index + 1}.`));
     }
-    if (webview.getAttribute('allowpopups') !== 'false') {
-      webview.setAttribute('allowpopups', 'false');
-      issues.push(pass87Issue(`webview-allowpopups-${index}`, 'repair', `Forced allowpopups=false on webview ${index + 1}.`));
-    }
     if (webview.getAttribute('autosize') !== 'off') {
       webview.setAttribute('autosize', 'off');
       anyWebview.autosize = false;
       issues.push(pass87Issue(`webview-autosize-${index}`, 'repair', `Forced autosize=off on webview ${index + 1}.`));
     }
+    webview.dataset.pass153PopupBoundary = 'main-process-owned';
+  webview.dataset.testid = 'runtime-webview';
     if (!webview.getAttribute('aria-label')) webview.setAttribute('aria-label', `Mission/browser pane ${index + 1}`);
     webview.dataset.pass87NavigationRecovery = 'isolated-direct-stage-child';
   });
@@ -3638,17 +3576,19 @@ function createTab(url: string): string {
   button.type = 'button';
   button.draggable = true;
   button.dataset.browserTabId = tabId;
+  button.dataset.testid = 'runtime-browser-tab';
   button.dataset.pass106SiteViewTabId = tabId;
   button.title = 'Drag this tab onto a Mission pane, or right-click for pane assignment.';
-  button.innerHTML = `<span class="tab-title"></span><button class="tab-close" type="button" title="Close tab">×</button>`;
+  button.innerHTML = `<span class="tab-title"></span><button class="tab-close" type="button" title="Close tab" data-testid="runtime-tab-close">×</button>`;
   tabsEl.appendChild(button);
 
   const webview = document.createElement('webview') as Electron.WebviewTag;
   webview.className = 'browser-view';
   webview.src = safeUrl;
-  webview.setAttribute('allowpopups', 'false');
   webview.setAttribute('partition', browserProfileState?.activeProfile?.partition || 'persist:tahai-profile-default');
-  webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes,spellcheck=yes,devTools=yes');
+  webview.setAttribute('webpreferences', normalizeTahaiWebviewPreferences(TAHAI_REQUIRED_WEBVIEW_WEBPREFERENCES));
+  webview.dataset.pass153PopupBoundary = 'main-process-owned';
+  webview.dataset.testid = 'runtime-webview';
   webview.dataset.browserTabId = tabId;
   webview.dataset.pass106SiteViewTabId = tabId;
   stageEl.appendChild(webview);
@@ -3706,11 +3646,7 @@ function createTab(url: string): string {
   webview.addEventListener('new-window', (event: any) => {
     event.preventDefault();
     const popupUrl = typeof event.url === 'string' ? browserNavigationSafeUrl(event.url) : '';
-    if (popupUrl && !isTrustedLocalUrl(popupUrl)) {
-      createTab(popupUrl);
-      return;
-    }
-    setStatus('Blocked popup navigation', navigationBoundaryReason(event.url, trustedLocalUrls()));
+    setStatus('Blocked popup navigation', navigationBoundaryReason(popupUrl || event.url, trustedLocalUrls()));
   });
 
   setActive(tabId);
@@ -3767,6 +3703,7 @@ function ensureMissionPaneShell(paneIdInput: string): HTMLElement {
     shell = document.createElement('section');
     shell.className = 'mission-pane-shell mission-view-pane pane-' + paneId.slice(-1);
     shell.dataset.pass63MissionPaneId = paneId;
+    shell.dataset.testid = 'runtime-mission-pane-shell';
     shell.dataset.paneId = paneId;
     shell.setAttribute('role', 'group');
     shell.setAttribute('aria-label', missionPaneLabel(paneId));
@@ -3842,7 +3779,7 @@ function renderMissionPaneHeads(layout: MissionLayoutType, enabled: boolean): vo
     const role = missionTab ? missionRoleLabel(missionTab.role) : 'Drop or send a tab';
     const activeClass = paneId === activePane ? ' active' : '';
     return '<div class="mission-pane-head-cell" data-pane-id="' + escapeHtml(paneId) + '">' +
-      '<button type="button" class="mission-pane-head' + activeClass + '" data-focus-mission-pane="' + escapeHtml(paneId) + '" title="Focus ' + escapeHtml(missionPaneLabel(paneId)) + '">' +
+      '<button type="button" class="mission-pane-head' + activeClass + '" data-testid="runtime-mission-pane-focus" data-focus-mission-pane="' + escapeHtml(paneId) + '" title="Focus ' + escapeHtml(missionPaneLabel(paneId)) + '">' +
       '<strong>' + escapeHtml(missionPaneLabel(paneId)) + '</strong>' +
       '<span>' + escapeHtml(role + ' · ' + title) + '</span>' +
       '</button>' +
@@ -4200,6 +4137,10 @@ function addMissionEvidenceEntry(input: { kind: MissionEvidenceKind; title: stri
     operatorNote: note,
     metadata: sanitizeTabMetadataRecord(input.metadata)
   };
+  const privacyReview = reviewEvidenceCapturePrivacy({ url: entry.url, title: entry.title, note: entry.operatorNote, metadata: entry.metadata, profile: 'sanitized-handoff', operation: 'preview' });
+  if (privacyReview.sensitiveDomain || privacyReview.highRiskCount > 0) {
+    entry.metadata = sanitizeEvidenceCaptureMetadata(sanitizeTabMetadataRecord({ ...entry.metadata, privacyReview: privacyReview.action, sensitiveDomain: String(privacyReview.sensitiveDomain) }));
+  }
   ensureMissionEvidence(mission).unshift(entry);
   mission.evidence = mission.evidence.slice(0, 80);
   missionTimelineEvent('evidence-added', entry.title, missionEvidenceKindLabel(entry.kind) + (entry.paneId ? ' · ' + entry.paneId : ''));
@@ -4628,6 +4569,7 @@ async function refreshMissionStore(): Promise<void> {
 }
 
 function closeMissionControl(restoreFocus = false): void {
+  pass164CancelMissionControlOpen('close');
   missionDialog.dataset.pass117FocusOpen = 'false';
   missionDialog.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('mission-small-window-stress', 'mission-micro-window-stress');
@@ -4715,21 +4657,31 @@ function missionPanelScrollTopReset(): void {
 }
 
 async function openMissionControl(): Promise<void> {
+  const openRun = pass164BeginMissionControlOpen();
   pass117MissionControlOpener = missionControlButton;
-  pass116AnnounceChromeOverlayOpen('mission-control');
   closeToolMenus(undefined, false);
-  if (!missionTypeSelect.options.length) {
-    missionTypeSelect.innerHTML = missionTypes.map((type) => '<option value="' + type + '">' + type.replace(/-/g, ' ') + '</option>').join('');
+  try {
+    if (!missionTypeSelect.options.length) {
+      missionTypeSelect.innerHTML = missionTypes.map((type) => '<option value="' + type + '">' + type.replace(/-/g, ' ') + '</option>').join('');
+    }
+    await refreshMissionStore();
+    if (openRun !== pass164MissionControlOpenRun) return;
+    renderMissionControl();
+    missionDialog.dataset.pass117FocusScope = 'mission-control';
+    missionDialog.dataset.pass117FocusOpen = 'true';
+    missionDialog.dataset.pass118DismissBoundary = 'true';
+    missionDialog.setAttribute('aria-hidden', 'false');
+    missionDialog.setAttribute('aria-keyshortcuts', 'Escape');
+    document.body.dataset.pass117ActiveFocusScope = 'mission-control';
+    pass128ShowMissionDialog();
+    pass116AnnounceChromeOverlayOpen('mission-control');
+    pass164FinishMissionControlOpen(openRun, 'open');
+    pass122ScheduleOverlayViewportReflow('viewport-reflow');
+    pass123ScheduleOverlayCycleAudit('mission-control-open');
+  } catch (error) {
+    pass164FinishMissionControlOpen(openRun, 'blocked');
+    setStatus('Mission Control open blocked', error instanceof Error ? error.message : 'Unable to open Mission Control.');
   }
-  await refreshMissionStore();
-  renderMissionControl();
-  missionDialog.dataset.pass117FocusScope = 'mission-control';
-  missionDialog.dataset.pass117FocusOpen = 'true';
-  missionDialog.dataset.pass118DismissBoundary = 'true';
-  missionDialog.setAttribute('aria-hidden', 'false');
-  missionDialog.setAttribute('aria-keyshortcuts', 'Escape');
-  document.body.dataset.pass117ActiveFocusScope = 'mission-control';
-  pass128ShowMissionDialog();
 }
 
 
@@ -4999,8 +4951,44 @@ const PASS116_CHROME_OVERLAY_OPEN_EVENT = 'tahai:chrome-overlay-open';
 const PASS118_CHROME_OVERLAY_CLOSE_EVENT = 'tahai:chrome-overlay-close-all';
 const PASS122_CHROME_STACK_REFLOW_EVENT = 'tahai:chrome-stack-reflow';
 const PASS123_OVERLAY_CYCLE_AUDIT_EVENT = 'tahai:chrome-overlay-cycle-audit';
+const PASS164_MORE_TOOLS_ACTION_EVENT = 'tahai:more-tools-action-request';
+type Pass164MoreToolsActionId = 'about' | 'settings' | 'onboarding' | 'launchpad' | 'ops-hub-toggle' | 'site-view-rail-toggle' | 'chromium-bookmark-star' | 'chromium-bookmarks-button' | 'profile-switcher';
+const PASS165_MORE_TOOLS_ACTION_IDS: readonly Pass164MoreToolsActionId[] = ['about', 'settings', 'onboarding', 'launchpad', 'ops-hub-toggle', 'site-view-rail-toggle', 'chromium-bookmark-star', 'chromium-bookmarks-button', 'profile-switcher'];
+const PASS165_MORE_TOOLS_SHELL_ACTION_IDS = new Set<Pass164MoreToolsActionId>(['about', 'settings', 'onboarding', 'launchpad', 'ops-hub-toggle', 'profile-switcher']);
+const PASS122_OVERLAY_OPEN_SETTLE_MS = 260;
 type Pass118OverlayCloseReason = 'escape' | 'explicit-close' | 'overlay-switch' | 'outside-click' | 'mission-control' | 'stale-state' | 'aria-contract' | 'pointer-boundary' | 'scroll-containment' | 'viewport-reflow' | 'cycle-stress' | 'unknown';
 const PASS117_FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+let pass164MissionControlOpenRun = 0;
+
+function pass164MissionControlIsOpening(): boolean {
+  return document.body.dataset.pass164MissionControlOpenState === 'opening' || missionDialog.dataset.pass164MissionControlOpenState === 'opening';
+}
+
+function pass164BeginMissionControlOpen(): number {
+  const run = ++pass164MissionControlOpenRun;
+  document.body.dataset.pass164MissionControlOpenRaceGuard = 'ready';
+  document.body.dataset.pass164MissionControlOpenState = 'opening';
+  document.body.dataset.pass164MissionControlOpenRun = String(run);
+  document.body.dataset.pass164MissionControlOpenStartedAt = String(Date.now());
+  missionDialog.dataset.pass164MissionControlOpenState = 'opening';
+  missionDialog.dataset.pass164MissionControlOpenRun = String(run);
+  return run;
+}
+
+function pass164FinishMissionControlOpen(run: number, state: 'open' | 'closed' | 'blocked' = 'open'): void {
+  if (run !== pass164MissionControlOpenRun) return;
+  document.body.dataset.pass164MissionControlOpenState = state;
+  document.body.dataset.pass164MissionControlOpenFinishedAt = String(Date.now());
+  missionDialog.dataset.pass164MissionControlOpenState = state;
+}
+
+function pass164CancelMissionControlOpen(reason = 'close'): void {
+  pass164MissionControlOpenRun += 1;
+  document.body.dataset.pass164MissionControlOpenRaceGuard = 'ready';
+  document.body.dataset.pass164MissionControlOpenState = 'closed';
+  document.body.dataset.pass164MissionControlOpenCancelReason = reason;
+  missionDialog.dataset.pass164MissionControlOpenState = 'closed';
+}
 
 function pass116ChromeOverlaySource(event: Event): Pass116ChromeOverlaySource | undefined {
   if (!(event instanceof CustomEvent)) return undefined;
@@ -5010,6 +4998,8 @@ function pass116ChromeOverlaySource(event: Event): Pass116ChromeOverlaySource | 
 
 function pass116AnnounceChromeOverlayOpen(source: Pass116ChromeOverlaySource): void {
   document.body.dataset.pass116ActiveOverlay = source;
+  document.body.dataset.pass122ActiveOverlayOpenedAt = String(Date.now());
+  document.body.dataset.pass122ActiveOverlayOpenedSource = source;
   document.dispatchEvent(new CustomEvent(PASS116_CHROME_OVERLAY_OPEN_EVENT, { detail: { source, focusScope: source } }));
 }
 
@@ -5031,7 +5021,7 @@ function pass118OverlayIsActuallyOpen(source: Pass116ChromeOverlaySource): boole
   if (source === 'command-toolbar') return Boolean((devopsToolsPanel && !devopsToolsPanel.hidden) || (itToolsPanel && !itToolsPanel.hidden));
   if (source === 'ops-hub') return Boolean(opsHub && !opsHub.hidden);
   if (source === 'site-view') return document.body.classList.contains('site-view-rail-enabled');
-  if (source === 'mission-control') return Boolean(missionDialog && missionDialog.open);
+  if (source === 'mission-control') return Boolean(missionDialog && (missionDialog.open || pass164MissionControlIsOpening()));
   return false;
 }
 
@@ -5143,12 +5133,30 @@ function pass122OverlayPanelForSource(source: Pass116ChromeOverlaySource): HTMLE
   return null;
 }
 function pass122ViewportHeight(): number { return Math.round(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0); }
-function pass122OverlayFitsViewport(panel: HTMLElement): boolean {
+function pass122OverlayVisibleHeight(rect: DOMRect, source: Pass116ChromeOverlaySource, chromeTop: number, usableBottom: number): number {
+  const usableTop = source === 'mission-control' ? 0 : Math.max(0, chromeTop - 32);
+  return Math.max(0, Math.min(rect.bottom, usableBottom + 8) - Math.max(rect.top, usableTop));
+}
+function pass122OverlayHasScrollSafeViewport(panel: HTMLElement, source: Pass116ChromeOverlaySource, rect: DOMRect, chromeTop: number, usableBottom: number): boolean {
+  const scrollSafe = panel.dataset.pass121ScrollContainment === 'true' || panel.classList.contains('toolbar-overflow-menu') || panel.classList.contains('tool-menu-panel') || panel.classList.contains('ops-hub') || panel.classList.contains('site-view-mission-rail') || panel.classList.contains('mission-dialog');
+  if (!scrollSafe) return false;
+  const topOk = source === 'mission-control' ? rect.top >= -12 : rect.top >= chromeTop - 36;
+  const bottomOk = source === 'mission-control' ? rect.bottom <= pass122ViewportHeight() + 12 : rect.top < usableBottom - 96;
+  const visibleHeight = pass122OverlayVisibleHeight(rect, source, chromeTop, usableBottom);
+  return topOk && bottomOk && visibleHeight >= Math.min(140, Math.max(80, pass122ViewportHeight() * 0.22));
+}
+function pass122OverlayOpenedAgeMs(source: Pass116ChromeOverlaySource): number {
+  if (document.body.dataset.pass122ActiveOverlayOpenedSource !== source) return Number.POSITIVE_INFINITY;
+  const openedAt = Number(document.body.dataset.pass122ActiveOverlayOpenedAt || 0);
+  return openedAt > 0 ? Date.now() - openedAt : Number.POSITIVE_INFINITY;
+}
+function pass122OverlayFitsViewport(panel: HTMLElement, source: Pass116ChromeOverlaySource): boolean {
   const rect = panel.getBoundingClientRect();
   const chromeTop = Number(document.body.dataset.pass114ChromeStackTop || 112);
   const viewportHeight = pass122ViewportHeight();
   const bottom = Number(document.body.dataset.pass114OverlayBottom || 18);
   const usableBottom = viewportHeight - bottom;
+  if (pass122OverlayHasScrollSafeViewport(panel, source, rect, chromeTop, usableBottom)) return true;
   return rect.height <= Math.max(160, usableBottom - chromeTop + 8) && rect.bottom <= usableBottom + 8 && rect.top >= chromeTop - 24;
 }
 let pass122ViewportReflowTimer: number | undefined;
@@ -5166,7 +5174,21 @@ function pass122RunOverlayViewportReflow(reason: Pass118OverlayCloseReason = 'vi
   if (!active) { document.body.dataset.pass122LastReflowAction = 'no-active-overlay'; pass119AuditOverlayAriaContract(reason); pass120AuditOverlayPointerBoundary(reason); pass121AuditOverlayScrollContainment(reason); return; }
   const panel = pass122OverlayPanelForSource(active);
   if (!panel || !pass118OverlayIsActuallyOpen(active)) { document.body.dataset.pass122LastReflowAction = 'cleared-stale-active-overlay'; document.body.dataset.pass122DismissedOverlay = active; pass118ClearChromeOverlayState('viewport-reflow', active); return; }
-  if (!pass122OverlayFitsViewport(panel)) { document.body.dataset.pass122LastReflowAction = 'dismissed-clipped-overlay'; document.body.dataset.pass122DismissedOverlay = active; pass118AnnounceChromeOverlayClose('viewport-reflow', active, false); return; }
+  if (active === 'mission-control' && pass164MissionControlIsOpening()) {
+    document.body.dataset.pass122LastReflowAction = 'deferred-mission-open-pending';
+    document.body.dataset.pass164MissionControlViewportDeferred = 'true';
+    pass122ScheduleOverlayViewportReflow('viewport-reflow');
+    return;
+  }
+  if (!pass122OverlayFitsViewport(panel, active)) {
+    if (pass122OverlayOpenedAgeMs(active) < PASS122_OVERLAY_OPEN_SETTLE_MS) {
+      document.body.dataset.pass122LastReflowAction = 'deferred-open-settle';
+      document.body.dataset.pass122DeferredOverlay = active;
+      pass122ScheduleOverlayViewportReflow('viewport-reflow');
+      return;
+    }
+    document.body.dataset.pass122LastReflowAction = 'dismissed-clipped-overlay'; document.body.dataset.pass122DismissedOverlay = active; pass118AnnounceChromeOverlayClose('viewport-reflow', active, false); return;
+  }
   document.body.dataset.pass122LastReflowAction = 'active-overlay-fits'; pass119AuditOverlayAriaContract(reason); pass120AuditOverlayPointerBoundary(reason); pass121AuditOverlayScrollContainment(reason);
 }
 let pass123OverlayCycleTimer: number | undefined;
@@ -5488,7 +5510,12 @@ function runToolFromMenu(action: () => void | Promise<void>): void {
   void action();
 }
 
+const adminConsoleLaunchRecipes: LaunchRecipe[] = ADMIN_CONSOLE_PROFILES.map((profile) => adminConsoleProfileToLaunchRecipe(profile));
+const missionRecipeLibraryLaunchRecipes: LaunchRecipe[] = MISSION_RECIPE_LIBRARY.map((entry) => missionRecipeLibraryToLaunchRecipe(entry));
+
 const premiumLaunchRecipes: LaunchRecipe[] = [
+  ...adminConsoleLaunchRecipes,
+  ...missionRecipeLibraryLaunchRecipes,
   {
     id: 'deploy-cockpit',
     cockpitProvider: 'vercel',
@@ -5964,9 +5991,66 @@ function renderLaunchRecipes(container: HTMLElement): void {
   }).join('');
 }
 
+function selectedMissionRecipeType(): MissionType {
+  const value = missionTypeSelect?.value as MissionType | undefined;
+  if (value && missionTypes.includes(value)) return value;
+  return currentMission?.missionType || 'generic';
+}
+
+const PASS165_MISSION_RECIPE_TYPE_AFFINITY: Record<MissionType, MissionType[]> = {
+  deployment: ['deployment', 'development', 'migration'],
+  incident: ['incident', 'support', 'admin'],
+  support: ['support', 'documentation', 'incident', 'admin'],
+  documentation: ['documentation', 'support', 'audit'],
+  migration: ['migration', 'deployment', 'admin'],
+  audit: ['audit', 'security-review', 'documentation', 'admin', 'incident'],
+  admin: ['admin', 'support', 'documentation', 'security-review'],
+  development: ['development', 'deployment', 'documentation'],
+  'security-review': ['security-review', 'audit', 'admin', 'incident', 'migration'],
+  generic: ['deployment', 'incident', 'support', 'documentation', 'migration', 'audit', 'admin', 'development', 'security-review', 'generic']
+};
+
+function missionRecipeTypeFor(recipe: LaunchRecipe): MissionType {
+  return recipe.missionType || 'generic';
+}
+
+function missionRecipeMatchesSelectedType(recipe: LaunchRecipe, selectedType: MissionType): boolean {
+  if (selectedType === 'generic') return true;
+  if (missionRecipeTypeFor(recipe) === selectedType) return true;
+  const tags = (recipe.policyTags || []).join(' ').toLowerCase();
+  if (selectedType === 'audit') return /audit|evidence|handoff|change-record|incident-packet|sanitized/.test(tags);
+  if (selectedType === 'security-review') return /security|firewall|vpn|tls|certificate|secret|guard|incident|waf/.test(tags);
+  return false;
+}
+
+function missionRecipesForSelectedType(type: MissionType): LaunchRecipe[] {
+  if (type === 'generic') return premiumLaunchRecipes;
+  const exact = premiumLaunchRecipes.filter((recipe) => missionRecipeMatchesSelectedType(recipe, type));
+  if (exact.length) return exact;
+  const affinity = new Set(PASS165_MISSION_RECIPE_TYPE_AFFINITY[type] || []);
+  const contextual = premiumLaunchRecipes.filter((recipe) => affinity.has(missionRecipeTypeFor(recipe)));
+  return contextual.length ? contextual : premiumLaunchRecipes;
+}
+
 function renderMissionRecipes(): void {
   if (!missionRecipes) return;
-  missionRecipes.innerHTML = premiumLaunchRecipes.map((recipe) => {
+  const selectedType = selectedMissionRecipeType();
+  const recipes = missionRecipesForSelectedType(selectedType);
+  const filtered = selectedType !== 'generic' && recipes.length < premiumLaunchRecipes.length;
+  const exactCount = selectedType === 'generic' ? premiumLaunchRecipes.length : premiumLaunchRecipes.filter((recipe) => missionRecipeMatchesSelectedType(recipe, selectedType)).length;
+  missionRecipes.dataset.pass164RecipeSelectedMissionType = selectedType;
+  missionRecipes.dataset.pass164RecipeFiltered = String(filtered);
+  document.body.dataset.pass164MissionRecipeTypeRefactor = selectedType;
+  document.body.dataset.pass164MissionRecipeVisibleCount = String(recipes.length);
+  document.body.dataset.pass165MissionRecipeExactCount = String(exactCount);
+  document.body.dataset.pass165MissionRecipeFallback = selectedType !== 'generic' && exactCount === 0 ? 'affinity' : 'exact-or-generic';
+  const summaryDetail = selectedType === 'generic'
+    ? 'Showing the full recipe library. Choose a Mission Type to refactor this list.'
+    : exactCount > 0
+      ? `${exactCount} exact/contextual mission recipe(s) for this type.`
+      : `${recipes.length} affinity-matched recipe(s) shown because this type has no dedicated recipe pack yet.`;
+  const summary = '<article class="ops-hub-empty mission-recipe-filter-summary" data-pass164-recipe-filter-summary="true" data-pass165-recipe-fallback="' + escapeHtml(document.body.dataset.pass165MissionRecipeFallback || 'exact-or-generic') + '"><strong>Recipes refactored for ' + escapeHtml(selectedType.replace(/-/g, ' ')) + '</strong><span>' + escapeHtml(summaryDetail + ' Change Mission Type to refactor this list again.') + '</span></article>';
+  missionRecipes.innerHTML = summary + recipes.map((recipe) => {
     const plan = pass90BuildRecipeLaunchPlan(recipe, 'mission');
     const layout = recipe.missionLayout ? missionLayoutLabel(recipe.missionLayout) : '1-Up Normal';
     const disabled = plan.allowed ? '' : ' aria-disabled="true" disabled';
@@ -5974,7 +6058,7 @@ function renderMissionRecipes(): void {
     const phaseClass = recipe.missionPhase ? ' ' + recipe.missionPhase : '';
     const stepCount = recipe.missionRunbookSteps?.length || defaultRunbookStepLabels(recipe.missionType || 'generic').length;
     const shortcut = recipe.operatorShortcut ? ' · ' + recipe.operatorShortcut : '';
-    return '<button class="ops-hub-row mission-recipe-card provider-' + escapeHtml(recipe.cockpitProvider || 'generic') + phaseClass + '" type="button" data-start-mission-recipe-id="' + escapeHtml(recipe.id) + '" data-pass90-recipe-launch="' + (plan.allowed ? 'safe-plan' : 'blocked-plan') + '" data-pass90-safe-url-count="' + String(plan.urls.length) + '" title="' + escapeHtml(pass90RecipeStatusLabel(plan)) + '"' + disabled + '>' +
+    return '<button class="ops-hub-row mission-recipe-card provider-' + escapeHtml(recipe.cockpitProvider || 'generic') + phaseClass + '" type="button" data-start-mission-recipe-id="' + escapeHtml(recipe.id) + '" data-pass164-recipe-mission-type="' + escapeHtml(recipe.missionType || 'generic') + '" data-pass90-recipe-launch="' + (plan.allowed ? 'safe-plan' : 'blocked-plan') + '" data-pass90-safe-url-count="' + String(plan.urls.length) + '" title="' + escapeHtml(pass90RecipeStatusLabel(plan)) + '"' + disabled + '>' +
       '<strong><span class="ops-hub-recipe-title">' + escapeHtml(recipe.label) + soon + '</span><small class="recipe-chip ops-hub-recipe-meta">' + escapeHtml(recipeProviderLabel(recipe) + shortcut) + '</small></strong>' +
       '<span class="ops-hub-recipe-detail">' + escapeHtml(recipePhaseLabel(recipe) + ' · ' + layout + ' · ' + recipe.profileName + ' · ' + stepCount + '-step runbook') + '</span>' +
       '</button>';
@@ -6032,6 +6116,11 @@ function renderOpsHub(): void {
   if (!config) return;
   const profile = activeBrowserProfile();
   opsHubProfile.textContent = `Profile: ${profile?.name || 'Default'}${profile ? ' · ' + profileKindLabel(profile.kind) : ''}`;
+  opsHubProfile.title = `${adminConsoleProfilesSummary()} | ${missionRecipeLibrarySummary()}`;
+  document.body.dataset.pass155AdminConsoleProfiles = String(ADMIN_CONSOLE_PROFILES.length);
+  document.body.dataset.pass155AdminConsoleProfilesSummary = adminConsoleProfilesSummary();
+  document.body.dataset.pass156MissionRecipeLibrary = String(MISSION_RECIPE_LIBRARY.length);
+  document.body.dataset.pass156MissionRecipeLibrarySummary = missionRecipeLibrarySummary();
   opsHubUrl.textContent = currentActiveUrl();
   renderLaunchRecipes(opsHubRecipes);
   renderWorkspaceSnapshots();
@@ -7072,7 +7161,7 @@ function showSettingsResult(message: string): void {
 
 function openSettings(): void {
   populateSettingsForm();
-  settingsDialog.showModal();
+  if (!settingsDialog.open) settingsDialog.showModal();
 }
 
 function toggleActiveDevTools(): void {
@@ -9105,6 +9194,46 @@ function handleMenuCommand(command: string): void {
 }
 
 
+function pass165IsKnownMoreToolsActionId(value: string): value is Pass164MoreToolsActionId {
+  return PASS165_MORE_TOOLS_ACTION_IDS.includes(value as Pass164MoreToolsActionId);
+}
+
+function pass164HandleMoreToolsActionRequest(event: Event): void {
+  if (!(event instanceof CustomEvent)) return;
+  const rawActionId = String(event.detail?.actionId || '');
+  if (!pass165IsKnownMoreToolsActionId(rawActionId)) return;
+  const actionId = rawActionId as Pass164MoreToolsActionId;
+  document.body.dataset.pass165MoreToolsActionObserved = actionId;
+  const handled = PASS165_MORE_TOOLS_SHELL_ACTION_IDS.has(actionId);
+  if (!handled) {
+    document.body.dataset.pass165MoreToolsExternalBridgePending = actionId;
+    return;
+  }
+  event.preventDefault();
+  document.body.dataset.pass164MoreToolsActionHandled = actionId;
+  document.body.dataset.pass165MoreToolsExternalBridgePending = 'none';
+  if (actionId === 'about') navigate(config.aboutUrl, 'about');
+  if (actionId === 'settings') openSettings();
+  if (actionId === 'onboarding') navigate(config.onboardingUrl, 'guide');
+  if (actionId === 'launchpad') navigate(config.newTabUrl, 'launchpad');
+  if (actionId === 'ops-hub-toggle') toggleOpsHub(true, false);
+  if (actionId === 'profile-switcher') void openProfileManager();
+}
+
+document.addEventListener(PASS164_MORE_TOOLS_ACTION_EVENT, pass164HandleMoreToolsActionRequest);
+
+function pass164RefactorRecipesForSelectedMissionType(): void {
+  const selectedType = selectedMissionRecipeType();
+  if (currentMission) {
+    currentMission.missionType = selectedType;
+    currentMission.updatedAt = new Date().toISOString();
+  }
+  renderMissionControl();
+  document.body.dataset.pass165MissionRecipeTypeChangeHandled = selectedType;
+  setStatus('Mission recipes refactored', selectedType.replace(/-/g, ' '));
+}
+
+
 addressForm.addEventListener('submit', (event) => { event.preventDefault(); pass88NavigateAddressInput(); });
 backButton.addEventListener('click', () => goBackTarget('toolbar'));
 forwardButton.addEventListener('click', () => goForwardTarget('toolbar'));
@@ -9139,6 +9268,7 @@ opsHub.addEventListener('click', (event) => {
 });
 closeMissionButton.addEventListener('click', () => closeMissionControl(true));
 missionForm.addEventListener('submit', (event) => { event.preventDefault(); createMissionFromForm(); });
+missionTypeSelect.addEventListener('change', pass164RefactorRecipesForSelectedMissionType);
 missionCreateButton.addEventListener('click', () => createMissionFromForm());
 missionAddActiveTabButton.addEventListener('click', () => addActiveTabToMission());
 missionMakeQuadButton.addEventListener('click', () => makeQuadFromOpenTabs());
@@ -9494,6 +9624,22 @@ copyPsaReferenceContractButton.addEventListener('click', async () => {
   const copied = await window.tahaiBrowser.copyPsaReferenceContract();
   showHandoffResult(copied ? 'Copied PSA reference contract.' : 'Copy failed.');
 });
+previewEnterpriseSupportBundleButton.addEventListener('click', async () => {
+  const result = await window.tahaiBrowser.previewEnterpriseSupportBundle();
+  handoffMarkdown.value = result.markdown;
+  showHandoffResult(result.ok ? 'PASS160 support bundle preview ready.' : result.error || 'Support bundle preview failed.');
+});
+copyEnterpriseSupportBundleButton.addEventListener('click', async () => {
+  const result = await window.tahaiBrowser.copyEnterpriseSupportBundle();
+  if (result.markdown) handoffMarkdown.value = result.markdown;
+  showHandoffResult(result.ok ? 'Copied redacted PASS160 support bundle.' : result.error || 'Copy failed.');
+});
+saveEnterpriseSupportBundleButton.addEventListener('click', async () => {
+  const result = await window.tahaiBrowser.saveEnterpriseSupportBundle();
+  if (result.canceled) { showHandoffResult('Save cancelled.'); return; }
+  if (result.markdown) handoffMarkdown.value = result.markdown;
+  showHandoffResult(result.ok ? result.savedLabel || 'Saved redacted PASS160 support bundle.' : result.error || 'Save failed.');
+});
 openItDocsFromHandoffButton.addEventListener('click', async () => {
   const opened = await window.tahaiBrowser.openItDocs();
   if (!opened) void openLaunchRecipe('tahai-it-docs');
@@ -9606,6 +9752,147 @@ if (window.tahaiBrowser) {
 } else {
   showBootDiagnostic('Preload bridge missing. Browser shell loaded in fallback mode; rebuild after npm run build and confirm dist/preload/preload.js exists.');
 }
+
+
+function pass158RuntimeE2eWaitFor(predicate: () => boolean, timeoutMs = 2500): Promise<boolean> {
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (predicate()) return resolve(true);
+      if (Date.now() - started >= timeoutMs) return resolve(false);
+      window.setTimeout(tick, 40);
+    };
+    tick();
+  });
+}
+
+function pass158RuntimeE2eElement(selector: string): HTMLElement {
+  const element = document.querySelector(selector) as HTMLElement | null;
+  if (!element) throw new Error(`Missing runtime E2E selector: ${selector}`);
+  return element;
+}
+
+async function pass158RuntimeE2eClick(selector: string): Promise<void> {
+  const element = pass158RuntimeE2eElement(selector);
+  element.click();
+  await new Promise((resolve) => window.setTimeout(resolve, 80));
+}
+
+function pass158RuntimeE2eResult(id: string, ok: boolean, detail: string): { id: string; ok: boolean; detail: string } {
+  return { id, ok, detail };
+}
+
+function installPass158RuntimeE2eHarness(): void {
+  if (window.__TAHAI_RUNTIME_E2E__) return;
+  window.__TAHAI_RUNTIME_E2E__ = {
+    async run() {
+      const results: Array<{ id: string; ok: boolean; detail: string }> = [];
+      const step = async (id: string, fn: () => Promise<string> | string) => {
+        try {
+          const detail = await fn();
+          results.push(pass158RuntimeE2eResult(id, true, detail || 'ok'));
+        } catch (error) {
+          results.push(pass158RuntimeE2eResult(id, false, error instanceof Error ? error.message : String(error || 'unknown error')));
+        }
+      };
+
+      await step('launch-shell', async () => {
+        if (document.documentElement.dataset.tahaiShellReady !== '1') throw new Error('renderer ready marker missing');
+        pass158RuntimeE2eElement('#webview-stage');
+        await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('[data-testid="runtime-webview"]').length >= 1);
+        if (!document.querySelector('[data-testid="runtime-webview"]')) throw new Error('initial runtime webview missing');
+        return 'renderer heartbeat, stage, and initial webview are mounted';
+      });
+
+      await step('titlebar-drag', () => {
+        const topbar = pass158RuntimeE2eElement('[data-testid="runtime-titlebar-drag-region"]');
+        const tabsTrack = pass158RuntimeE2eElement('[data-testid="runtime-tabs"]');
+        const newTab = pass158RuntimeE2eElement('[data-testid="runtime-new-tab"]');
+        const topbarRegion = window.getComputedStyle(topbar).getPropertyValue('-webkit-app-region');
+        const tabRegion = window.getComputedStyle(tabsTrack).getPropertyValue('-webkit-app-region');
+        const buttonRegion = window.getComputedStyle(newTab).getPropertyValue('-webkit-app-region');
+        if (topbarRegion !== 'drag') throw new Error(`topbar drag region is ${topbarRegion || 'unset'}`);
+        if (tabRegion !== 'drag') throw new Error(`tab strip drag region is ${tabRegion || 'unset'}`);
+        if (buttonRegion !== 'no-drag') throw new Error(`new-tab no-drag region is ${buttonRegion || 'unset'}`);
+        return 'titlebar and tab strip drag while new-tab remains clickable';
+      });
+
+      await step('tab-create-close', async () => {
+        const before = document.querySelectorAll('[data-testid="runtime-browser-tab"]').length;
+        await pass158RuntimeE2eClick('[data-testid="runtime-new-tab"]');
+        const grew = await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('[data-testid="runtime-browser-tab"]').length >= before + 1);
+        if (!grew) throw new Error('new tab did not increase tab count');
+        const tabCount = document.querySelectorAll('[data-testid="runtime-browser-tab"]').length;
+        const closeButtons = document.querySelectorAll('[data-testid="runtime-tab-close"]').length;
+        if (closeButtons < tabCount) throw new Error('tab close button count is lower than tab count');
+        return `tab count grew from ${before} to ${tabCount}; close buttons present`;
+      });
+
+      await step('mission-control-open', async () => {
+        await pass158RuntimeE2eClick('[data-testid="runtime-mission-control"]');
+        await pass158RuntimeE2eWaitFor(() => Boolean((document.getElementById('mission-dialog') as HTMLDialogElement | null)?.open));
+        const dialog = document.getElementById('mission-dialog') as HTMLDialogElement | null;
+        if (!dialog?.open) throw new Error('Mission Control dialog did not open');
+        (document.getElementById('mission-name') as HTMLInputElement | null)!.value = 'PASS158 Runtime E2E Mission';
+        await pass158RuntimeE2eClick('#mission-create');
+        await pass158RuntimeE2eClick('#mission-add-active-tab');
+        await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('#mission-tabs-list .mission-tab-row').length >= 1);
+        if (!document.querySelector('#mission-tabs-list .mission-tab-row')) throw new Error('active tab was not added to local mission');
+        return 'Mission Control opens, creates a synthetic local mission, and adds active tab';
+      });
+
+      await step('mission-layouts-split-tri-quad-focus', async () => {
+        for (const layout of ['split-horizontal', 'triple-top', 'quad', 'focus']) {
+          await pass158RuntimeE2eClick(`[data-mission-layout="${layout}"]`);
+          const active = await pass158RuntimeE2eWaitFor(() => Boolean(document.querySelector(`[data-mission-layout="${layout}"].active`)), 900);
+          if (!active) throw new Error(`${layout} layout did not become active`);
+        }
+        return '2-Up, Tri-view, Quad, and Focus layout buttons activate';
+      });
+
+      await step('active-pane-routing', async () => {
+        await pass158RuntimeE2eClick('[data-mission-layout="quad"]');
+        await pass158RuntimeE2eClick('[data-send-active-pane="pane-1"]');
+        await pass158RuntimeE2eClick('[data-send-active-pane="pane-2"]');
+        const headReady = await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('[data-testid="runtime-mission-pane-focus"]').length >= 2, 1600);
+        if (!headReady) throw new Error('mission pane focus controls did not render');
+        if (!document.querySelector('.mission-active-pane')) throw new Error('active pane marker missing');
+        return 'pane send controls, focus controls, and active-pane marker are present';
+      });
+
+      await step('popup-denied', () => {
+        const webview = pass158RuntimeE2eElement('[data-pass153-popup-boundary="main-process-owned"]');
+        if (webview.hasAttribute('allowpopups')) throw new Error('webview has forbidden allowpopups attribute');
+        return 'webview carries PASS153 main-process popup boundary marker and no allowpopups attribute';
+      });
+
+      await step('kb-guide-more-tools', () => {
+        pass158RuntimeE2eElement('[data-testid="runtime-guide-kb"]');
+        pass158RuntimeE2eElement('[data-tool-menu="devops"]');
+        pass158RuntimeE2eElement('[data-tool-menu="it"]');
+        pass158RuntimeE2eElement('#devops-tools-panel');
+        pass158RuntimeE2eElement('#it-tools-panel');
+        return 'Guide/KB entry and DevOps/IT tool lanes are runtime-addressable';
+      });
+
+      await step('evidence-export-preview', async () => {
+        await pass158RuntimeE2eClick('#mission-pin-active-page');
+        const previewReady = await pass158RuntimeE2eWaitFor(() => Boolean((document.getElementById('mission-export-preview') as HTMLTextAreaElement | null)?.value.trim()), 1200);
+        if (!previewReady) throw new Error('mission export preview was not populated after evidence pin');
+        const exportPreview = pass158RuntimeE2eElement('#mission-export-preview');
+        if (exportPreview.getAttribute('data-export-redaction-boundary') !== 'redaction-required-before-copy-save') throw new Error('mission export preview missing redaction boundary');
+        return 'active page evidence pins into local mission and redaction-controlled export preview is populated';
+      });
+
+      const ok = results.every((result) => result.ok);
+      document.body.dataset.pass158RuntimeE2eLastResult = ok ? 'pass' : 'fail';
+      document.body.dataset.pass158RuntimeE2eScenarioCount = String(RUNTIME_E2E_SCENARIOS.length);
+      return { ok, pass: 'PASS158' as const, contractId: RUNTIME_E2E_HARNESS_CONTRACT_ID, scenarioCount: RUNTIME_E2E_SCENARIOS.length, results };
+    }
+  };
+}
+
+installPass158RuntimeE2eHarness();
 
 loadBrowserConfigWithRuntimeFallback().then((loaded) => {
   config = loaded;

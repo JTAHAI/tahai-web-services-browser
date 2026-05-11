@@ -31,7 +31,7 @@ need(!main.includes('frame: false'), 'PASS113 must not replace native OS caption
 
 need(html.includes('data-pass113-adaptive-chrome-density="true"'), 'renderer body missing PASS113 adaptive chrome marker');
 need(html.includes('data-pass112-tabs-titlebar="true"'), 'PASS112 titlebar marker must be preserved');
-need(html.includes('<nav id="tabs" class="tabs" aria-label="Browser tabs"></nav>'), 'tabs must remain in the titlebar row');
+need(/<nav\s+[^>]*id="tabs"[^>]*class="tabs"[^>]*aria-label="Browser tabs"[^>]*><\/nav>/.test(html), 'tabs must remain in the titlebar row');
 
 for (const token of ['--pass113-titlebar-chrome-height','--pass113-titlebar-caption-reserve','--pass113-toolbar-chrome-height','calc(var(--pass113-titlebar-caption-reserve) + 10px)','.toolbar-overflow-menu','-webkit-app-region: no-drag','@media (max-width: 980px)','@media (max-width: 760px)']) need(browserCss.includes(token), `browser CSS missing PASS113 token: ${token}`);
 for (const token of ['PASS113 adaptive chrome density','PASS113_MIN_ADDRESS_WIDTH','PASS113_ALWAYS_VISIBLE_IDS','CHROME_OVERFLOW_ITEMS','MutationObserver','targetCountForWidth','addressWidth()','dataset.pass113ChromeOverflowState','dataset.pass113AdaptiveChromeDensity']) need(responsiveTs.includes(token), `responsive toolbar missing PASS113 token: ${token}`);

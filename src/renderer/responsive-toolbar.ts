@@ -10,6 +10,9 @@
   // PASS122 overlay viewport reflow: chrome-stack updates notify overlay recovery.
   // PASS123 overlay cycle guard: rapid open/close/resize cycles request a safe audit.
   // PASS128 Guide / KB anchor: Guide remains a first-class quick control even when the full Guide button is moved into More Tools.
+  // PASS163 More Tools action dispatch: moved controls must activate and then close the overflow panel at every window size.
+  // PASS164 first-click action broker: More Tools delegates compact-menu actions before any overlay close/reflow cleanup can swallow them.
+  // PASS165 action-settle hardening: known cross-module More Tools actions keep a settle window even when native fallback is used.
   // Verifier token: &gt; keeps the chevron overflow release gate aligned with escaped HTML output checks.
   type ChromeOverflowItem = { id: string; priority: number; label: string };
   type ManagedItem = { id: string; priority: number; marker: Comment; element: HTMLElement };
@@ -25,7 +28,22 @@
   const PASS118_CHROME_OVERLAY_CLOSE_EVENT = 'tahai:chrome-overlay-close-all';
   const PASS122_CHROME_STACK_REFLOW_EVENT = 'tahai:chrome-stack-reflow';
   const PASS123_OVERLAY_CYCLE_AUDIT_EVENT = 'tahai:chrome-overlay-cycle-audit';
+  const PASS164_MORE_TOOLS_ACTION_EVENT = 'tahai:more-tools-action-request';
+  const PASS164_MORE_TOOLS_ACTION_SETTLE_MS = 180;
+  const PASS165_MORE_TOOLS_KNOWN_ACTION_IDS = new Set([
+    'about',
+    'settings',
+    'onboarding',
+    'launchpad',
+    'ops-hub-toggle',
+    'site-view-rail-toggle',
+    'chromium-bookmark-star',
+    'chromium-bookmarks-button',
+    'profile-switcher'
+  ]);
   const PASS117_FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const PASS163_MORE_TOOLS_ACTION_CLOSE_DELAY_MS = 0;
+  let pass164MoreToolsActionInFlight = false;
 
   const PASS113_ALWAYS_VISIBLE_IDS = new Set([
     'back', 'forward', 'reload', 'home', 'address-form',
@@ -92,6 +110,7 @@
     menuEl.setAttribute('aria-hidden', 'true');
     menuEl.setAttribute('aria-keyshortcuts', 'Escape');
     menuEl.setAttribute('data-pass113-adaptive-chrome-density', 'true');
+    menuEl.dataset.pass163MoreToolsActionDispatch = 'true';
     menuEl.innerHTML = '<div class="toolbar-overflow-header"><strong>More Tools</strong><span>Secondary controls move here before they crowd the active address/pane routing row.</span></div><div class="toolbar-overflow-items" id="toolbar-overflow-items"></div>';
     toolbar.appendChild(guideQuickEl);
     toolbar.appendChild(buttonEl);
@@ -108,6 +127,42 @@
       if (target && (menuEl.contains(target) || buttonEl.contains(target))) return;
       closeMenu({ restoreFocus: false });
     });
+    menuEl.addEventListener('click', (event) => {
+      const activated = pass163OverflowActionElement(event.target);
+      if (!activated) return;
+      const actionId = pass164MoreToolsActionId(activated);
+      document.body.dataset.pass163LastMoreToolsAction = actionId;
+      document.body.dataset.pass163MoreToolsActionDispatch = 'activated';
+      document.body.dataset.pass164MoreToolsFirstClickAction = actionId;
+      const request = new CustomEvent(PASS164_MORE_TOOLS_ACTION_EVENT, {
+        bubbles: true,
+        cancelable: true,
+        detail: { actionId, source: 'more-tools', elementId: activated.id || '' }
+      });
+      const unhandled = document.dispatchEvent(request);
+      const knownPass165Action = PASS165_MORE_TOOLS_KNOWN_ACTION_IDS.has(actionId);
+      document.body.dataset.pass165MoreToolsKnownAction = knownPass165Action ? actionId : 'unknown';
+      if (!unhandled) {
+        event.preventDefault();
+        event.stopPropagation();
+        pass164MoreToolsActionInFlight = true;
+        document.body.dataset.pass164MoreToolsFirstClickDispatch = 'handled';
+        document.body.dataset.pass165MoreToolsDispatchMode = 'broker-handled';
+        window.setTimeout(() => { pass164MoreToolsActionInFlight = false; }, PASS164_MORE_TOOLS_ACTION_SETTLE_MS);
+      } else {
+        document.body.dataset.pass164MoreToolsFirstClickDispatch = knownPass165Action ? 'known-native-fallback' : 'native-fallback';
+        document.body.dataset.pass165MoreToolsDispatchMode = knownPass165Action ? 'known-native-fallback-settle' : 'native-fallback';
+        if (knownPass165Action) {
+          pass164MoreToolsActionInFlight = true;
+          window.setTimeout(() => { pass164MoreToolsActionInFlight = false; }, PASS164_MORE_TOOLS_ACTION_SETTLE_MS);
+        }
+      }
+      const closeDelay = (!unhandled || knownPass165Action) ? PASS164_MORE_TOOLS_ACTION_SETTLE_MS : PASS163_MORE_TOOLS_ACTION_CLOSE_DELAY_MS;
+      window.setTimeout(() => {
+        if (!menuEl || menuEl.hidden) return;
+        closeMenu({ restoreFocus: false });
+      }, closeDelay);
+    }, true);
   }
 
   function collectManagedItems(): void {
@@ -129,7 +184,11 @@
   function pass117FocusFirstMenuItem(): void {
     if (!menuEl) return;
     const target = menuEl.querySelector<HTMLElement>(PASS117_FOCUSABLE_SELECTOR) || menuEl;
-    window.setTimeout(() => target.focus(), 0);
+    window.setTimeout(() => {
+      if (pass164MoreToolsActionInFlight) return;
+      if (document.activeElement && menuEl?.contains(document.activeElement)) return;
+      target.focus();
+    }, 0);
   }
   function pass117SetMenuFocusOpen(open: boolean): void {
     if (!menuEl || !buttonEl) return;
@@ -194,6 +253,18 @@
     else closeMenu({ restoreFocus: true });
   }
   function overflowItemsEl(): HTMLElement | null { return document.getElementById('toolbar-overflow-items') as HTMLElement | null; }
+  function pass163OverflowActionElement(target: EventTarget | null): HTMLElement | null {
+    if (!(target instanceof HTMLElement)) return null;
+    const host = overflowItemsEl();
+    const candidate = target.closest<HTMLElement>('.in-toolbar-overflow');
+    if (!host || !candidate || !host.contains(candidate)) return null;
+    if (candidate instanceof HTMLButtonElement && candidate.disabled) return null;
+    if (candidate.getAttribute('aria-disabled') === 'true') return null;
+    return candidate;
+  }
+  function pass164MoreToolsActionId(element: HTMLElement): string {
+    return element.id || element.dataset.pass113ChromeOverflowCandidate || element.dataset.opsAction || 'overflow-action';
+  }
   function moveToMenu(item: ManagedItem): void {
     const host = overflowItemsEl();
     if (!host || item.element.parentElement === host) return;
@@ -298,6 +369,9 @@
     document.body.dataset.pass122OverlayViewportReflow = 'ready';
     document.body.dataset.pass123OverlayCycleGuard = 'ready';
     document.body.dataset.pass128GuideMissionTriviewHardening = 'ready';
+    document.body.dataset.pass163MoreToolsActionDispatch = 'ready';
+    document.body.dataset.pass164MoreToolsFirstClickBroker = 'ready';
+    document.body.dataset.pass165MoreToolsKnownActionSettle = 'ready';
     pass116InstallOverlayArbitration();
     pass118InstallDismissRecovery();
     ensureShell(); watchDynamicChromeControls(); relayout();

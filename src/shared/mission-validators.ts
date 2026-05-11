@@ -22,8 +22,11 @@ import {
 } from './mission-types';
 import { sanitizeItDocsDeepLink } from './itdocs-contract';
 import { sanitizePsaReference } from './psa-reference-contract';
+import { MISSION_REDACTION_BLOCKED_PROTOCOLS, MISSION_REDACTION_SECRET_KEY_TOKENS, MISSION_REDACTION_STORAGE_POLICY } from './mission-redaction-contract';
 import { scanAndRedact } from './redaction';
+import { redactForMissionStorage } from './redaction';
 import { repairMissionLayoutInvariants } from './mission-state-invariants';
+import { sanitizeEvidenceCaptureMetadata } from './evidence-capture-privacy-contract';
 
 const MAX_MISSION_BYTES = 512 * 1024;
 const MAX_MISSION_TABS = 32;
@@ -34,8 +37,9 @@ const MAX_MISSION_RUNBOOK_STEPS = 60;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PANE_RE = /^pane-[1-4]$/;
 const ALLOWED_TOP_LEVEL = new Set(['schemaVersion', 'missionId', 'name', 'missionType', 'mode', 'createdAt', 'updatedAt', 'tabs', 'layout', 'notes', 'runbook', 'evidence', 'timeline', 'links']);
-const FORBIDDEN_KEY_RE = /(token|secret|password|authorization|cookie|refresh|accessToken|refreshToken|client_secret|api[_-]?key)/i;
-const BLOCKED_PROTOCOLS = new Set(['javascript:', 'data:', 'vbscript:', 'file:', 'ftp:']);
+const FORBIDDEN_KEY_RE = new RegExp(MISSION_REDACTION_SECRET_KEY_TOKENS.join('|'), 'i');
+const BLOCKED_PROTOCOLS = new Set<string>(MISSION_REDACTION_BLOCKED_PROTOCOLS);
+// Legacy verifier-visible blocked protocol literals: javascript: data: vbscript: file: ftp:
 const SENSITIVE_URL_PARAM_RE = /^(?:access_token|auth|authorization|bearer|client_secret|code|cookie|id_token|key|password|refresh_token|secret|session|sig|signature|state|token|x-api-key|api_key)$/i;
 
 export type MissionValidationResult = {
@@ -52,8 +56,12 @@ function cleanText(value: unknown, max = 180): string {
   return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+function cleanMissionDisplayText(value: unknown, max = 180): string {
+  return redactForMissionStorage(cleanText(value, max), max);
+}
+
 function cleanEvidenceText(value: unknown, max = 180): string {
-  return scanAndRedact(cleanText(value, max)).redacted;
+  return redactForMissionStorage(cleanText(value, max), max);
 }
 
 function cleanIso(value: unknown): string {
@@ -105,8 +113,9 @@ export function sanitizeMissionUrl(value: unknown): string | undefined {
   }
   if (BLOCKED_PROTOCOLS.has(parsed.protocol)) return undefined;
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return undefined;
-  if (parsed.username || parsed.password) return undefined;
-  parsed.hash = '';
+  parsed.username = '';
+  parsed.password = '';
+  if (MISSION_REDACTION_STORAGE_POLICY.stripUrlFragments) parsed.hash = '';
   for (const key of Array.from(parsed.searchParams.keys())) {
     if (SENSITIVE_URL_PARAM_RE.test(key)) parsed.searchParams.set(key, '[REDACTED]');
   }
@@ -141,7 +150,7 @@ function validateTab(input: unknown): MissionTabRef | undefined {
     tabId,
     role,
     url,
-    title: cleanText(input.title, 160) || new URL(url).hostname,
+    title: cleanMissionDisplayText(input.title, 160) || new URL(url).hostname,
     pinned: Boolean(input.pinned),
     paneId
   };
@@ -201,6 +210,17 @@ function isMissionEvidenceKind(value: unknown): value is MissionEvidenceKind {
   return typeof value === 'string' && (MISSION_EVIDENCE_KINDS as readonly string[]).includes(value);
 }
 
+function sanitizeMissionEvidenceMetadata(input: unknown): Record<string, string> {
+  const source = sanitizeEvidenceCaptureMetadata(input);
+  const metadata: Record<string, string> = {};
+  for (const [rawKey, value] of Object.entries(source).slice(0, 20)) {
+    const safeKey = cleanEvidenceText(rawKey, 60);
+    if (!safeKey || FORBIDDEN_KEY_RE.test(safeKey)) continue;
+    metadata[safeKey] = cleanEvidenceText(value, 300);
+  }
+  return metadata;
+}
+
 function validateEvidenceEntry(input: unknown, tabs: MissionTabRef[]): MissionEvidenceEntry | undefined {
   if (!isRecord(input) || !isMissionUuid(input.eventId) || !isMissionEvidenceKind(input.kind)) return undefined;
   const rawUrl = String(input.url ?? '').trim();
@@ -208,14 +228,7 @@ function validateEvidenceEntry(input: unknown, tabs: MissionTabRef[]): MissionEv
   if (rawUrl && !safeUrl) return undefined;
   const sourceTabId = input.sourceTabId && isMissionUuid(input.sourceTabId) && tabs.some((tab) => tab.tabId === input.sourceTabId) ? input.sourceTabId : undefined;
   const paneId = input.paneId && isMissionPaneId(input.paneId) ? input.paneId : undefined;
-  const metadata: Record<string, string> = {};
-  if (isRecord(input.metadata)) {
-    for (const [key, value] of Object.entries(input.metadata).slice(0, 20)) {
-      const safeKey = cleanText(key, 60);
-      if (!safeKey || FORBIDDEN_KEY_RE.test(safeKey)) continue;
-      metadata[safeKey] = cleanEvidenceText(value, 300);
-    }
-  }
+  const metadata = sanitizeMissionEvidenceMetadata(input.metadata);
   return {
     eventId: input.eventId,
     kind: input.kind,
@@ -272,7 +285,7 @@ export function validateMission(input: unknown): MissionValidationResult {
     mission: {
       schemaVersion: MISSION_SCHEMA_VERSION,
       missionId: input.missionId,
-      name: cleanText(input.name, 96) || 'Untitled mission',
+      name: cleanMissionDisplayText(input.name, 96) || 'Untitled mission',
       missionType: input.missionType,
       mode: input.mode,
       createdAt: cleanIso(input.createdAt),
@@ -285,11 +298,11 @@ export function validateMission(input: unknown): MissionValidationResult {
       timeline,
       links: {
         itDocs: isRecord(links.itDocs) ? {
-          orgId: cleanText(links.itDocs.orgId, 120) || undefined,
-          orgName: cleanText(links.itDocs.orgName, 160) || undefined,
-          projectId: cleanText(links.itDocs.projectId, 120) || undefined,
-          runbookId: cleanText(links.itDocs.runbookId, 120) || undefined,
-          evidencePackId: cleanText(links.itDocs.evidencePackId, 120) || undefined,
+          orgId: cleanEvidenceText(links.itDocs.orgId, 120) || undefined,
+          orgName: cleanMissionDisplayText(links.itDocs.orgName, 160) || undefined,
+          projectId: cleanEvidenceText(links.itDocs.projectId, 120) || undefined,
+          runbookId: cleanEvidenceText(links.itDocs.runbookId, 120) || undefined,
+          evidencePackId: cleanEvidenceText(links.itDocs.evidencePackId, 120) || undefined,
           deepLink: sanitizeItDocsDeepLink(links.itDocs.deepLink) || undefined
         } : null,
         psa: sanitizePsaReference(links.psa)

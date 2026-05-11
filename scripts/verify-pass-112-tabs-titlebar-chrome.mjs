@@ -34,13 +34,14 @@ need(!pass73.includes("const releaseChainToken = 'npm run verify:pass-73-mission
 
 need(html.includes('data-pass112-tabs-titlebar="true"'), 'topbar missing PASS112 titlebar marker');
 need(html.includes('aria-label="Window tab strip"'), 'topbar needs accessible window tab strip label');
-need(html.includes('<nav id="tabs" class="tabs" aria-label="Browser tabs"></nav>'), 'browser tabs must remain in the topbar/titlebar row');
+need(/<nav\s+[^>]*id="tabs"[^>]*class="tabs"[^>]*aria-label="Browser tabs"[^>]*><\/nav>/.test(html), 'browser tabs must remain in the topbar/titlebar row');
 
 need(css.includes('border-top:0'), 'app shell must not render an extra top border below the native title bar');
 need(css.includes('-webkit-app-region:drag'), 'topbar must be draggable as custom titlebar chrome');
 need(css.includes('-webkit-app-region:no-drag'), 'tabs/buttons must opt out of drag so tab clicks keep working');
 need(css.includes('padding:6px 150px 6px 10px'), 'topbar must reserve space for native Windows caption buttons');
-need(css.includes('.topbar .tabs, .topbar .tab, .topbar .tab *, .topbar .new-tab-control'), 'no-drag must cover tabs, close buttons, and new-tab control');
+need(css.includes('.topbar .tab, .topbar .tab *, .topbar .new-tab-control'), 'no-drag must cover actual tabs, close buttons, and new-tab control');
+need(css.includes('.topbar .tabs { -webkit-app-region:drag;'), 'tab-strip container must remain draggable so empty titlebar space can move the window');
 
 need(read('PASS_112_TABS_TITLEBAR_CHROME_SUMMARY.md').includes('PASS112'), 'PASS112 summary missing marker');
 need(read('docs/tabs-titlebar-chrome-pass112.md').includes('tabs into the window chrome'), 'PASS112 docs missing UX rationale');

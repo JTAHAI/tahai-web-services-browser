@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="./styles/responsive-toolbar.css" />
   <link rel="stylesheet" href="./styles/mission-control.css" />
 </head>
-<body data-pass98-shell-origin-boundary="true" data-pass99-drop-boundary="true" data-pass100-active-capture-boundary="true" data-pass101-settings-boundary="true" data-pass113-adaptive-chrome-density="true" data-pass114-chrome-stack-guard="true" data-pass115-overflow-visibility-guard="true" data-pass116-overlay-arbitration="true" data-pass117-overlay-focus-recovery="true" data-pass118-overlay-dismiss-recovery="true" data-pass119-overlay-aria-contract="true" data-pass120-overlay-pointer-boundary="true" data-pass121-overlay-scroll-containment="true" data-pass122-overlay-viewport-reflow="true" data-pass123-overlay-cycle-guard="true" data-pass128-guide-mission-triview-hardening="true">
+<body data-pass98-shell-origin-boundary="true" data-pass99-drop-boundary="true" data-pass100-active-capture-boundary="true" data-pass101-settings-boundary="true" data-pass113-adaptive-chrome-density="true" data-pass114-chrome-stack-guard="true" data-pass115-overflow-visibility-guard="true" data-pass116-overlay-arbitration="true" data-pass117-overlay-focus-recovery="true" data-pass118-overlay-dismiss-recovery="true" data-pass119-overlay-aria-contract="true" data-pass120-overlay-pointer-boundary="true" data-pass121-overlay-scroll-containment="true" data-pass122-overlay-viewport-reflow="true" data-pass123-overlay-cycle-guard="true" data-pass128-guide-mission-triview-hardening="true" data-pass150-titlebar-drag-recovery="true" data-pass158-runtime-e2e-harness="true" data-pass163-more-tools-mission-reflow="true" data-pass164-mission-control-open-race="true" data-pass164-responsive-overlay-action-reliability="true" data-pass165-responsive-mission-recipe-hardening="true">
   <section id="boot-diagnostic" class="boot-diagnostic" aria-live="assertive">
     <div>
       <p class="eyebrow">TAHAI Browser Runtime Diagnostic</p>
@@ -20,13 +20,13 @@
     </div>
   </section>
   <div class="app-shell">
-    <header class="topbar" data-pass112-tabs-titlebar="true" aria-label="Window tab strip">
+    <header class="topbar" data-pass112-tabs-titlebar="true" data-testid="runtime-titlebar-drag-region" aria-label="Window tab strip">
       <div class="brand">
         <img src="../browser/new-tab/assets/tws/tws-square-logo.png" alt="" />
         <div><strong>TAHAI</strong><span>Web Services Browser</span></div>
       </div>
-      <nav id="tabs" class="tabs" aria-label="Browser tabs"></nav>
-      <button id="new-tab" class="icon-button new-tab-control" type="button" title="New tab">+</button>
+      <nav id="tabs" class="tabs" data-testid="runtime-tabs" aria-label="Browser tabs"></nav>
+      <button id="new-tab" class="icon-button new-tab-control" type="button" title="New tab" data-testid="runtime-new-tab">+</button>
     </header>
     <section class="toolbar" aria-label="Browser controls">
       <button id="back" class="icon-button" type="button" title="Back">&larr;</button>
@@ -37,7 +37,7 @@
         <input id="address" autocomplete="off" spellcheck="false" aria-label="Address" />
       </form>
       <button id="launchpad" class="home-button" type="button" title="TAHAI launchpad">Launchpad</button>
-      <button id="onboarding" class="home-button secondary" type="button" title="Guide / Knowledge Base">Guide</button>
+      <button id="onboarding" class="home-button secondary" type="button" title="Guide / Knowledge Base" data-testid="runtime-guide-kb">Guide</button>
       <button id="profile-switcher" class="home-button profile-switcher" type="button" title="Manage browser profiles"><span id="profile-dot" class="profile-dot" aria-hidden="true"></span><span id="profile-name">Default</span></button>
       <div class="tool-flyout" data-tool-menu="devops">
         <button id="devops-tools" class="home-button tool-menu-button devops" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="devops-tools-panel" title="Open DevOps and developer tool panel (Ctrl+Alt+O)"><span aria-hidden="true">&#9776;</span><span>DevOps</span></button>
@@ -84,11 +84,11 @@
         </section>
       </div>
       <button id="ops-hub-toggle" class="home-button secondary ops-hub-button" type="button" title="Open right-side Ops Panel (Ctrl+Alt+H)">Ops Panel</button>
-      <button id="mission-control-toggle" class="home-button secondary mission-control-button" type="button" title="Open Mission Control (Ctrl+Alt+M)">Mission</button>
+      <button id="mission-control-toggle" class="home-button secondary mission-control-button" type="button" title="Open Mission Control (Ctrl+Alt+M)" data-testid="runtime-mission-control">Mission</button>
       <button id="settings" class="home-button secondary" type="button" title="Settings">Settings</button>
       <button id="about" class="home-button secondary" type="button" title="About">About</button>
     </section>
-    <main id="webview-stage" class="webview-stage"></main>
+    <main id="webview-stage" class="webview-stage" data-testid="runtime-webview-stage"></main>
     <aside id="ops-hub" class="ops-hub" aria-label="TAHAI Ops Panel" hidden>
       <header>
         <div>
@@ -541,6 +541,17 @@
           <div id="psa-reference-summary" class="ops-summary" aria-live="polite"></div>
           <div class="inline-actions">
             <button id="copy-psa-reference-contract" type="button" class="home-button secondary">Copy PSA Reference Contract</button>
+          </div>
+        </div>
+        <div class="itdocs-contract-panel" aria-label="Enterprise support bundle">
+          <div class="ops-summary">
+            <strong>Enterprise Support Bundle</strong>
+            <p>PASS160 redacted support bundle with version truth, policy truth, install/runtime truth, profile/mission counts, and signing/provenance/SBOM status. No cookies, tokens, raw browser profiles, local paths, or raw mission files.</p>
+          </div>
+          <div class="inline-actions">
+            <button id="preview-enterprise-support-bundle" type="button" class="home-button secondary">Preview Support Bundle</button>
+            <button id="copy-enterprise-support-bundle" type="button" class="home-button secondary">Copy Support Bundle</button>
+            <button id="save-enterprise-support-bundle" type="button" class="home-button secondary">Save Support Bundle</button>
           </div>
         </div>
         <div id="handoff-summary" class="ops-summary" aria-live="polite"></div>
