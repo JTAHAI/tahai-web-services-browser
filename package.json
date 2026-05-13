@@ -296,10 +296,10 @@
     "apply:pass-246-devops-tool-dialog-closeout": "node scripts/apply-pass246-devops-tool-dialog-closeout.mjs"
   },
   "devDependencies": {
-    "@types/node": "20.19.39",
-    "electron": "41.3.0",
+    "@types/node": "25.7.0",
+    "electron": "42.0.1",
     "electron-builder": "26.8.1",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   },
   "build": {
     "appId": "com.tahai.webservices.browser",
