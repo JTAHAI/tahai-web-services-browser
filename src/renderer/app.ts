@@ -837,6 +837,10 @@ let browserProfileState: BrowserProfileState | undefined;
 let editingProfileId = '';
 let commandPaletteActions: CommandPaletteAction[] = [];
 let commandPaletteIndex = 0;
+let pass242CommandPaletteIntentionalClose = false;
+let pass242CommandPaletteOpenGuardUntil = 0;
+let pass242CommandPaletteOpenEpoch = 0;
+const PASS242_COMMAND_PALETTE_FLASH_GUARD_MS = 700;
 let currentMission: MissionState | undefined;
 const pass204OperatorCommandCenterV2 = installOperatorCommandCenterV2(() => currentMission);
 let missionTimelineV2ActiveFilter = 'all';
@@ -8907,19 +8911,54 @@ function renderCommandPalette(): void {
   commandPaletteList.querySelector<HTMLButtonElement>('.command-row.active')?.scrollIntoView({ block: 'nearest' });
 }
 
+function pass242FocusCommandPaletteInput(epoch = pass242CommandPaletteOpenEpoch): void {
+  window.setTimeout(() => {
+    if (epoch !== pass242CommandPaletteOpenEpoch) return;
+    if (pass118ActiveChromeOverlaySource() === 'command-palette' && commandPaletteDialog.open) commandPaletteInput.focus({ preventScroll: true });
+  }, 0);
+}
+
+function pass242ReopenCommandPaletteAfterSpuriousClose(epoch: number): void {
+  window.setTimeout(() => {
+    if (epoch !== pass242CommandPaletteOpenEpoch) return;
+    if (Date.now() > pass242CommandPaletteOpenGuardUntil) return;
+    if (pass242CommandPaletteIntentionalClose) return;
+    if (commandPaletteDialog.open) return;
+    document.body.dataset.pass242CommandPaletteFlashRecovery = 'reopened-after-spurious-close';
+    try {
+      commandPaletteDialog.showModal();
+      pass190OpenOwnedOverlay('command-palette', commandPaletteDialog as unknown as HTMLElement, null);
+      pass242FocusCommandPaletteInput(epoch);
+    } catch {
+      document.body.dataset.pass242CommandPaletteFlashRecovery = 'reopen-failed';
+    }
+  }, 40);
+}
+
 function openCommandPalette(): void {
+  if (commandPaletteDialog.open) {
+    document.body.dataset.pass242CommandPaletteIdempotentOpen = 'true';
+    renderCommandPalette();
+    pass242FocusCommandPaletteInput(pass242CommandPaletteOpenEpoch);
+    return;
+  }
   pass190CloseRivalOverlays('command-palette');
   commandPaletteInput.value = '';
   commandPaletteIndex = 0;
   renderCommandPalette();
+  pass242CommandPaletteIntentionalClose = false;
+  pass242CommandPaletteOpenEpoch += 1;
+  pass242CommandPaletteOpenGuardUntil = Date.now() + PASS242_COMMAND_PALETTE_FLASH_GUARD_MS;
+  commandPaletteDialog.dataset.pass242OpenEpoch = String(pass242CommandPaletteOpenEpoch);
+  commandPaletteDialog.dataset.pass242FlashGuard = 'active';
   if (!commandPaletteDialog.open) commandPaletteDialog.showModal();
   pass190OpenOwnedOverlay('command-palette', commandPaletteDialog as unknown as HTMLElement, null);
-  window.setTimeout(() => {
-    if (pass118ActiveChromeOverlaySource() === 'command-palette' && commandPaletteDialog.open) commandPaletteInput.focus();
-  }, 0);
+  pass242FocusCommandPaletteInput(pass242CommandPaletteOpenEpoch);
 }
 
 function closeCommandPaletteDialog(restoreFocus = false): void {
+  pass242CommandPaletteIntentionalClose = true;
+  commandPaletteDialog.dataset.pass242FlashGuard = 'intentional-close';
   pass117ClearOverlayFocus('command-palette', commandPaletteDialog as unknown as HTMLElement, null, false);
   if (commandPaletteDialog.open) commandPaletteDialog.close();
   if (document.body.dataset.pass116ActiveOverlay === 'command-palette') pass118ClearChromeOverlayState('explicit-close', 'command-palette');
@@ -11335,8 +11374,21 @@ commandPaletteDialog.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') { event.preventDefault(); runCommandPaletteAction(); }
   if (event.key === 'Escape') closeCommandPaletteDialog(true);
 });
+commandPaletteDialog.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  closeCommandPaletteDialog(true);
+});
 commandPaletteDialog.addEventListener('close', () => {
-  if (document.body.dataset.pass116ActiveOverlay === 'command-palette') pass118ClearChromeOverlayState('explicit-close', 'command-palette');
+  const wasIntentional = pass242CommandPaletteIntentionalClose;
+  const withinOpenGuard = Date.now() <= pass242CommandPaletteOpenGuardUntil;
+  if (document.body.dataset.pass116ActiveOverlay === 'command-palette') pass118ClearChromeOverlayState(wasIntentional ? 'explicit-close' : 'stale-state', 'command-palette');
+  if (!wasIntentional && withinOpenGuard) pass242ReopenCommandPaletteAfterSpuriousClose(pass242CommandPaletteOpenEpoch);
+  window.setTimeout(() => {
+    if (!commandPaletteDialog.open) {
+      pass242CommandPaletteIntentionalClose = false;
+      commandPaletteDialog.dataset.pass242FlashGuard = 'idle';
+    }
+  }, PASS242_COMMAND_PALETTE_FLASH_GUARD_MS + 40);
 });
 settingsDialog.addEventListener('close', () => {
   if (document.body.dataset.pass116ActiveOverlay === 'settings') pass118ClearChromeOverlayState('explicit-close', 'settings');
@@ -11410,6 +11462,9 @@ closeDeployButton.addEventListener('click', () => deployDialog.close());
 closeItCardButton.addEventListener('click', () => itCardDialog.close());
 closeEndpointButton.addEventListener('click', () => endpointDialog.close());
 closeTriageButton.addEventListener('click', () => triageDialog.close());
+// PASS246: route map and developer audit tool dialogs must close from their header X controls.
+closeRouteMapButton.addEventListener('click', () => routeMapDialog.close());
+closeDevAuditButton.addEventListener('click', () => devAuditDialog.close());
 copyCaptureButton.addEventListener('click', async () => {
   const markdown = captureMarkdown.value.trim() || latestCapture?.markdown || '';
   if (!markdown) { showCaptureResult('Nothing to copy.'); return; }

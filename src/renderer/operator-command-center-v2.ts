@@ -100,19 +100,29 @@ function renderPanel(report: OperatorCommandCenterV2Report): void {
   scope.textContent = report.summary;
   header.append(titleWrap, scope);
 
+  const summary = document.createElement('p');
+  summary.className = 'operator-command-family-summary';
+  const readyCount = report.families.filter((family) => family.enabled && family.status === 'ready').length;
+  summary.textContent = `${readyCount}/${report.families.length} command families ready · type to narrow results · disabled commands explain why`;
+
   const filters = document.createElement('div');
   filters.className = 'operator-command-quick-filters';
-  for (const filter of report.quickFilters) filters.appendChild(quickFilterButton(filter.label, filter.query));
+  for (const filter of report.quickFilters.slice(0, 6)) filters.appendChild(quickFilterButton(filter.label, filter.query));
 
+  const details = document.createElement('details');
+  details.className = 'operator-command-family-details';
+  const detailsSummary = document.createElement('summary');
+  detailsSummary.textContent = 'Show command families';
   const grid = document.createElement('div');
   grid.className = 'operator-command-family-grid';
   for (const family of report.families) grid.appendChild(familyCard(family));
+  details.append(detailsSummary, grid);
 
   const guardrail = document.createElement('p');
   guardrail.className = 'operator-command-guardrail';
-  guardrail.textContent = 'Commands remain mission-aware and browser-side. IT Docs/PSA writeback stays reference-only unless an authorized server-side contract is active.';
+  guardrail.textContent = 'Browser-side only · IT Docs/PSA writeback requires authorized server-side contracts.';
 
-  panel.append(header, filters, grid, guardrail);
+  panel.append(header, summary, filters, details, guardrail);
 }
 
 export function installOperatorCommandCenterV2(getMission: () => MissionState | undefined): { refresh: () => void } {

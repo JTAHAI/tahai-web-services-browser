@@ -1,6 +1,6 @@
 {
   "name": "tahai-web-services-browser",
-  "version": "2.0.0",
+  "version": "1.9.0",
   "private": true,
   "description": "TAHAI Web Services Browser - enterprise-grade Chromium workbench for developers, DevOps, and IT engineering workflows.",
   "productName": "TAHAI Web Services Browser",
@@ -289,11 +289,7 @@
     "verify:pass-243-maximized-overlay-layering-polish": "node scripts/verify-pass-243-maximized-overlay-layering-polish.mjs",
     "apply:pass-243-maximized-overlay-layering-polish": "node scripts/apply-pass243-maximized-overlay-layering-polish.mjs",
     "verify:pass-244-mission-control-overlap-closeout": "node scripts/verify-pass-244-mission-control-overlap-closeout.mjs",
-    "apply:pass-244-mission-control-overlap-closeout": "node scripts/apply-pass244-mission-control-overlap-closeout.mjs",
-    "verify:pass-245-mission-control-card-scroll-closeout": "node scripts/verify-pass-245-mission-control-card-scroll-closeout.mjs",
-    "apply:pass-245-mission-control-card-scroll-closeout": "node scripts/apply-pass245-mission-control-card-scroll-closeout.mjs",
-    "verify:pass-246-devops-tool-dialog-closeout": "node scripts/verify-pass-246-devops-tool-dialog-closeout.mjs",
-    "apply:pass-246-devops-tool-dialog-closeout": "node scripts/apply-pass246-devops-tool-dialog-closeout.mjs"
+    "apply:pass-244-mission-control-overlap-closeout": "node scripts/apply-pass244-mission-control-overlap-closeout.mjs"
   },
   "devDependencies": {
     "@types/node": "20.19.39",

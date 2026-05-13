@@ -1,7 +1,7 @@
-export const TAHAI_RELEASE_VERSION = '1.8.30';
-export const TAHAI_RELEASE_PASS = 'PASS150';
+export const TAHAI_RELEASE_VERSION = '1.9.0';
+export const TAHAI_RELEASE_PASS = 'PASS242';
 export const TAHAI_RELEASE_CHANNEL = 'public-rc';
-export const TAHAI_RELEASE_PHASE = 'rc2-final-ship-candidate-ga-manifest';
+export const TAHAI_RELEASE_PHASE = 'command-palette-modal-spacing-rc1';
 export const TAHAI_PRODUCT_NAME = 'TAHAI Web Services Browser';
 export const TAHAI_BUNDLE_NAME = 'TAHAI—SENTINEL Browser';
 export const TAHAI_DEFAULT_HOME_URL = 'https://tahaiportal.com';

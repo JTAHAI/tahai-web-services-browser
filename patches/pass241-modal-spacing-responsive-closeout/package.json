@@ -1,6 +1,6 @@
 {
   "name": "tahai-web-services-browser",
-  "version": "2.0.0",
+  "version": "1.8.30",
   "private": true,
   "description": "TAHAI Web Services Browser - enterprise-grade Chromium workbench for developers, DevOps, and IT engineering workflows.",
   "productName": "TAHAI Web Services Browser",
@@ -281,19 +281,7 @@
     "verify:pass-238-webview-command-lifecycle-gate": "node scripts/verify-pass-238-webview-command-lifecycle-gate.mjs",
     "verify:pass-239-webview-boot-lifecycle-closeout": "node scripts/verify-pass-239-webview-boot-lifecycle-closeout.mjs",
     "verify:pass-240-peripheral-webview-lifecycle-closeout": "node scripts/verify-pass-240-peripheral-webview-lifecycle-closeout.mjs",
-    "verify:pass-241-modal-spacing-responsive-closeout": "node scripts/verify-pass-241-modal-spacing-responsive-closeout.mjs",
-    "verify:pass-241-responsive-modal-spacing": "node scripts/verify-pass-241-responsive-modal-spacing.mjs",
-    "apply:pass-241-responsive-modal-spacing": "node scripts/apply-pass241-responsive-modal-spacing.mjs",
-    "verify:pass-242-command-palette-mission-spacing-version": "node scripts/verify-pass-242-command-palette-mission-spacing-version.mjs",
-    "apply:pass-242-command-palette-mission-spacing-version": "node scripts/apply-pass242-command-palette-mission-spacing-version.mjs",
-    "verify:pass-243-maximized-overlay-layering-polish": "node scripts/verify-pass-243-maximized-overlay-layering-polish.mjs",
-    "apply:pass-243-maximized-overlay-layering-polish": "node scripts/apply-pass243-maximized-overlay-layering-polish.mjs",
-    "verify:pass-244-mission-control-overlap-closeout": "node scripts/verify-pass-244-mission-control-overlap-closeout.mjs",
-    "apply:pass-244-mission-control-overlap-closeout": "node scripts/apply-pass244-mission-control-overlap-closeout.mjs",
-    "verify:pass-245-mission-control-card-scroll-closeout": "node scripts/verify-pass-245-mission-control-card-scroll-closeout.mjs",
-    "apply:pass-245-mission-control-card-scroll-closeout": "node scripts/apply-pass245-mission-control-card-scroll-closeout.mjs",
-    "verify:pass-246-devops-tool-dialog-closeout": "node scripts/verify-pass-246-devops-tool-dialog-closeout.mjs",
-    "apply:pass-246-devops-tool-dialog-closeout": "node scripts/apply-pass246-devops-tool-dialog-closeout.mjs"
+    "verify:pass-241-modal-spacing-responsive-closeout": "node scripts/verify-pass-241-modal-spacing-responsive-closeout.mjs"
   },
   "devDependencies": {
     "@types/node": "20.19.39",
