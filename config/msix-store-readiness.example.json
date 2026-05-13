@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS247",
+  "productName": "TAHAI Web Services Browser",
+  "version": "2.0.0",
+  "packageFamilyPlaceholder": "TAHAIWebServices.TAHAIWebServicesBrowser_placeholder",
+  "identity": {
+    "name": "TAHAIWebServices.TAHAIWebServicesBrowser",
+    "publisher": "CN=TAHAI Web Services Placeholder",
+    "publisherDisplayName": "TAHAI Web Services",
+    "displayName": "TAHAI Web Services Browser",
+    "executableName": "TAHAI Web Services Browser.exe"
+  },
+  "storeSubmission": {
+    "reservedPartnerCenterNameRequired": true,
+    "finalPublisherFromPartnerCenterRequired": true,
+    "manualWindowsSmokeRequired": true,
+    "microsoftStoreSubmissionAllowedBySource": false,
+    "directDownloadTrustedSigningClaimAllowed": false,
+    "notes": "Source can prepare MSIX packaging and listing artifacts. Store submission remains blocked until installed smoke, package identity, privacy/support links, and release evidence are clean."
+  },
+  "assets": {
+    "directory": "assets/store/windows",
+    "square44x44Logo": "assets/store/windows/Square44x44Logo.png",
+    "square150x150Logo": "assets/store/windows/Square150x150Logo.png",
+    "wide310x150Logo": "assets/store/windows/Wide310x150Logo.png",
+    "storeLogo": "assets/store/windows/StoreLogo.png"
+  },
+  "commands": [
+    "npm run verify:store:git",
+    "npm run verify:pass-246-devops-tool-dialog-closeout",
+    "npm run verify:pass-247-windows-store-msix-readiness",
+    "npm run build",
+    "npm run package:win:msix"
+  ],
+  "blockedUntil": [
+    "clean git status and v2.0.0 tag are verified on the real repo",
+    "installed Windows smoke evidence is produced from the installed package",
+    "Partner Center app name/package identity is reserved",
+    "final Store publisher identity replaces placeholders",
+    "privacy/support/security/known-issues links are live and accurate",
+    "Store screenshots use sanitized demo data only"
+  ]
+}

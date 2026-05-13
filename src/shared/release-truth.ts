@@ -1,4 +1,4 @@
-export const TAHAI_RELEASE_VERSION = '1.9.0';
+export const TAHAI_RELEASE_VERSION = '2.0.0';
 export const TAHAI_RELEASE_PASS = 'PASS242';
 export const TAHAI_RELEASE_CHANNEL = 'public-rc';
 export const TAHAI_RELEASE_PHASE = 'command-palette-modal-spacing-rc1';

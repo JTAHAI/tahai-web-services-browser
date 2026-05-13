@@ -3252,7 +3252,7 @@ body[data-pass192-titlebar-chrome-final="true"] .new-tab-control {
 }
 
 
-/* PASS242 — Command Palette maximize stability and 1.9.0 modal polish.
+/* PASS242 — Command Palette maximize stability and 2.0.0 modal polish.
    Keep Ctrl+K readable after maximize/restore and prevent dense rows from visually stacking. */
 .command-palette-dialog[data-pass241-responsive-modal-spacing],
 .command-palette-dialog {
