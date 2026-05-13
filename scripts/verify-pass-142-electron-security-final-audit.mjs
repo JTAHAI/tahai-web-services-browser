@@ -43,8 +43,8 @@ for (const token of [
 ]) need(contract.includes(token), `electron security contract missing ${token}`);
 
 const trustedIpc = Array.from(contract.matchAll(/'tahai-browser:[a-z0-9:-]+'/g)).map((m) => m[0].slice(1, -1));
-const trustedInvoke = new Set(trustedIpc.filter((channel) => !['tahai-browser:open-in-tab','tahai-browser:menu-command','tahai-browser:toggle-devtools','tahai-browser:download-state'].includes(channel)));
-const trustedEvents = new Set(['tahai-browser:open-in-tab','tahai-browser:menu-command','tahai-browser:toggle-devtools','tahai-browser:download-state']);
+const trustedInvoke = new Set(trustedIpc.filter((channel) => !['tahai-browser:open-in-tab','tahai-browser:menu-command','tahai-browser:toggle-devtools','tahai-browser:download-state','tahai-browser:pass188-input-boundary'].includes(channel)));
+const trustedEvents = new Set(['tahai-browser:open-in-tab','tahai-browser:menu-command','tahai-browser:toggle-devtools','tahai-browser:download-state','tahai-browser:pass188-input-boundary']);
 
 const main = read('src/main/main.ts');
 for (const token of [

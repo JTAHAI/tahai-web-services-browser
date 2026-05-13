@@ -76,7 +76,7 @@ export function missionStateInvariantIssues(mission: MissionState): MissionState
 }
 
 export function repairMissionLayoutInvariants(layout: MissionLayout, tabs: MissionTabRef[]): { layout: MissionLayout; issues: MissionStateInvariantIssue[] } {
-  const mission = { schemaVersion: 1, missionId: '00000000-0000-4000-8000-000000000000', name: 'layout', missionType: 'generic', mode: 'local-only', createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString(), tabs, layout, notes: [], runbook: { objective: '', rollback: '', steps: [] }, evidence: [], timeline: [], links: { itDocs: null, psa: null } } as MissionState;
+  const mission = { schemaVersion: 1, missionId: '00000000-0000-4000-8000-000000000000', name: 'layout', missionType: 'generic', mode: 'local-only', createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString(), tabs, layout, notes: [], runbook: { objective: '', rollback: '', steps: [], sections: [], validationSteps: [], rollbackConditions: [], blockedItems: [], operatorTimestamps: [], exportProfile: 'sanitized-handoff', updatedAt: new Date(0).toISOString() }, evidence: [], timeline: [], links: { itDocs: null, psa: null } } as MissionState;
   const issues = missionStateInvariantIssues(mission);
   if (issues.some((issue) => issue.severity === 'block')) return { layout, issues };
   const nextActive = missionVisiblePaneIdsForLayout(layout.type, layout.activePaneId).includes(layout.activePaneId) ? normalizeMissionInvariantPaneId(layout.activePaneId) : normalizeMissionInvariantPaneId(missionVisiblePaneIdsForLayout(layout.type, layout.activePaneId)[0]);

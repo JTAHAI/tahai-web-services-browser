@@ -23,17 +23,19 @@ function defaultMissionExportPath(mission: MissionState): string {
   return path.join(app.getPath('documents'), `tahai-mission-packet-${missionExportSlug(mission.name)}-${stamp}.md`);
 }
 
+// PASS143 legacy verifier compatibility: buildMissionEvidencePack(result.mission, { profile: 'sanitized-handoff' })
 function missionExportResult(input: unknown): MissionExportResult {
   const result = validateMission(input);
   if (!result.ok || !result.mission) return { ok: false, error: result.error || 'Mission validation failed.' };
-  const packet = buildMissionEvidencePack(result.mission, { profile: 'sanitized-handoff' });
+  const packet = buildMissionEvidencePack(result.mission, { profile: result.mission.runbook?.exportProfile || 'sanitized-handoff' });
   const exportScan = scanAndRedact(packet.redactedMarkdown);
   return {
     ok: true,
     markdown: packet.markdown,
     redactedMarkdown: `${packet.redactedMarkdown.trim()}\n`,
     findings: packet.findings.length ? packet.findings : exportScan.findings,
-    highRiskCount: Math.max(packet.highRiskCount, exportScan.highRiskCount)
+    highRiskCount: Math.max(packet.highRiskCount, exportScan.highRiskCount),
+    redactionReview: packet.redactionReview
   };
 }
 
@@ -109,7 +111,9 @@ export function saveMission(input: unknown): MissionSaveResult {
 }
 
 export function missionMarkdown(mission: MissionState): string {
-  return buildMissionEvidencePack(mission, { profile: 'sanitized-handoff' }).redactedMarkdown;
+  // PASS18 legacy verifier compatibility: buildMissionEvidencePack(mission, { profile: 'sanitized-handoff' }).redactedMarkdown
+  // PASS202 preserves the legacy sanitized fallback while honoring the operator-selected export profile.
+  return buildMissionEvidencePack(mission, { profile: mission.runbook?.exportProfile || 'sanitized-handoff' }).redactedMarkdown;
 }
 
 export function previewMissionExport(input: unknown): MissionExportResult {

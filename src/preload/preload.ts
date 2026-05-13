@@ -4,6 +4,8 @@ import type { BrowserDownloadState } from '../shared/download-boundary';
 import type { MissionDeleteResult, MissionExportResult, MissionListResult, MissionLoadResult, MissionSaveResult, MissionState } from '../shared/mission-types';
 import type { EnterpriseAdminPolicyState } from '../shared/enterprise-admin-policy-contract';
 import type { EnterpriseSupportBundleResult } from '../shared/enterprise-support-bundle-contract';
+import type { Pass188InputBoundaryPayload } from '../shared/webview-focus-input-boundary-contract';
+import type { FirstRunOperatorMilestone } from '../shared/first-run-operator-walkthrough';
 
 export type TahaiBrowserSettings = {
   homeUrl: string;
@@ -36,6 +38,14 @@ export type FirstLaunchState = {
   defaultHome: string;
   initializedAt: string;
   sourceGuardrails: string[];
+  operatorWalkthrough: {
+    pass: string;
+    version: number;
+    startAnchor: string;
+    query: string;
+    privacySummary: string;
+    milestones: FirstRunOperatorMilestone[];
+  };
 };
 
 
@@ -134,6 +144,11 @@ export type BrowserProfileUpdateInput = {
 
 export type DownloadState = BrowserDownloadState;
 
+export type DownloadArtifactRevealResult = {
+  ok: boolean;
+  error: string;
+};
+
 export type DevOpsCaptureSaveResult = {
   saved: boolean;
   canceled: boolean;
@@ -206,6 +221,7 @@ contextBridge.exposeInMainWorld('tahaiBrowser', {
   saveEnterpriseSupportBundle: (): Promise<EnterpriseSupportBundleResult> => ipcRenderer.invoke('tahai-browser:save-enterprise-support-bundle'),
   updateSettings: (settings: TahaiBrowserSettings): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:update-settings', settings),
   resetSettings: (): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:reset-settings'),
+  revealDownloadArtifact: (artifactId: string): Promise<DownloadArtifactRevealResult> => ipcRenderer.invoke('tahai-browser:reveal-download-artifact', artifactId),
   clearBrowsingData: (options?: ClearBrowsingDataOptions): Promise<ClearBrowsingDataResult> => ipcRenderer.invoke('tahai-browser:clear-browsing-data', options),
   openUserData: (): Promise<boolean> => ipcRenderer.invoke('tahai-browser:open-user-data'),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('tahai-browser:open-external', url),
@@ -249,5 +265,10 @@ contextBridge.exposeInMainWorld('tahaiBrowser', {
     const listener = (_event: Electron.IpcRendererEvent, state: DownloadState) => callback(state);
     ipcRenderer.on('tahai-browser:download-state', listener);
     return () => ipcRenderer.removeListener('tahai-browser:download-state', listener);
+  },
+  onPass188InputBoundary: (callback: (payload: Pass188InputBoundaryPayload) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: Pass188InputBoundaryPayload) => callback(payload);
+    ipcRenderer.on('tahai-browser:pass188-input-boundary', listener);
+    return () => ipcRenderer.removeListener('tahai-browser:pass188-input-boundary', listener);
   }
 });

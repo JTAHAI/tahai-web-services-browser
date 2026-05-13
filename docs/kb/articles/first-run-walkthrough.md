@@ -9,7 +9,8 @@ Capture prompt: Open the Guide / KB and capture the guided first-run walkthrough
 Must show:
 - Guide / KB walkthrough panel
 - Start walkthrough control
-- Mission Control, Mission Views, Tools, Evidence, and Troubleshooting steps
+- First 10 minutes operator path
+- Mission Control, Mission Views, Tools, Evidence, Settings, and Troubleshooting steps
 - No private page content or account details
 
 Avoid:
@@ -19,15 +20,16 @@ Avoid:
 
 ## What this feature does
 
-The first-run walkthrough turns the local Guide / Knowledge Base into a practical starting path for new users. It explains the safe order for learning the browser: normal browsing, Guide / KB, Mission Control, pane layouts, active-pane routing, Runbook Rail, command workflows, tools, evidence/export, settings, and troubleshooting states.
+The first-run walkthrough gives new users a safe order for learning the browser. Version 2 starts with the fastest operator path: confirm normal browsing, open Mission Control, try Mission Views, use Runbook Rail, open DevOps/IT tools, capture/export safely, review settings, and recognize troubleshooting states.
 
 ## How to use it
 
 1. Open **Guide / Knowledge Base** from the browser toolbar or More Tools fallback.
-2. Select **Start walkthrough** in the KB hero or walkthrough panel.
-3. Work through the steps in order: normal mode, Guide access, Mission Control, Mission Tabs, Mission Views, active pane routing, Runbook Rail, Command Center, tools, evidence/export, settings, and troubleshooting.
-4. Use the search box to jump to any feature you need to revisit.
-5. Add screenshots later through the PASS135 screenshot ingestion workflow.
+2. Use **First 10 minutes** when you want the fast path for a new IT admin or DevOps operator.
+3. Select **Start walkthrough** for the full guided sequence.
+4. Work through normal mode, Guide access, Mission Control, Mission Tabs, Mission Views, active pane routing, Runbook Rail, Command Center, tools, evidence/export, settings, and troubleshooting.
+5. Use the search box to jump to any feature you need to revisit.
+6. Add screenshots later through the screenshot ingestion workflow.
 
 ## Safety notes
 

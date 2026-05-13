@@ -104,3 +104,69 @@ export function sanitizeExternalNavigationUrl(input: unknown): string {
   const decision = evaluateBrowserNavigationUrl(input, []);
   return decision.ok && decision.kind === 'remote' ? decision.url : '';
 }
+
+export type AddressBarResolutionAction = 'navigate' | 'search' | 'blocked' | 'fallback';
+
+export type AddressBarResolution = {
+  ok: boolean;
+  input: string;
+  url: string;
+  action: AddressBarResolutionAction;
+  reason: string;
+  protocol: string;
+  warning?: string;
+};
+
+export type AddressBarResolutionOptions = NavigationTargetOptions & {
+  searchUrlForInput?: (input: string) => string;
+};
+
+function addressBarResolution(ok: boolean, input: string, url: string, action: AddressBarResolutionAction, reason: string, protocol = '', warning?: string): AddressBarResolution {
+  return { ok, input, url, action, reason, protocol, ...(warning ? { warning } : {}) };
+}
+
+export function sanitizeAddressBarInput(input: unknown): string {
+  return compactNavigationInput(input);
+}
+
+export function resolveBrowserAddressBarTarget(input: unknown, options: AddressBarResolutionOptions = {}): AddressBarResolution {
+  const raw = String(input ?? '');
+  if (raw.length > MAX_BROWSER_NAVIGATION_URL_CHARS) {
+    return addressBarResolution(false, raw.slice(0, MAX_BROWSER_NAVIGATION_URL_CHARS), options.fallbackUrl || '', 'blocked', 'Address input is too long.');
+  }
+
+  const value = compactNavigationInput(input);
+  if (!value) return addressBarResolution(false, value, options.fallbackUrl || '', 'blocked', 'Address input is empty.');
+
+  const trustedLocalUrls = options.trustedLocalUrls || [];
+  const direct = evaluateBrowserNavigationUrl(value, trustedLocalUrls);
+  if (direct.ok) {
+    const warning = direct.protocol === 'http:' && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:[/?#]|$)/i.test(direct.url)
+      ? 'HTTP address entered; secure HTTPS is preferred for enterprise/admin work.'
+      : undefined;
+    return addressBarResolution(true, value, direct.url, 'navigate', direct.reason, direct.protocol, warning);
+  }
+
+  if (EXPLICIT_SCHEME_RE.test(value)) {
+    return addressBarResolution(false, value, options.fallbackUrl || '', 'blocked', direct.reason, direct.protocol || value.split(':', 1)[0].toLowerCase() + ':');
+  }
+
+  const candidate = LOCALHOST_RE.test(value)
+    ? `http://${value}`
+    : HOST_LIKE_RE.test(value)
+      ? `https://${value}`
+      : '';
+  if (candidate) {
+    const normalized = evaluateBrowserNavigationUrl(candidate, trustedLocalUrls);
+    if (normalized.ok) return addressBarResolution(true, value, normalized.url, 'navigate', `Address shorthand normalized to ${normalized.protocol.toUpperCase().replace(':', '')}.`, normalized.protocol);
+    return addressBarResolution(false, value, options.fallbackUrl || '', 'blocked', normalized.reason, normalized.protocol);
+  }
+
+  const searchUrl = options.searchUrlForInput ? options.searchUrlForInput(value) : options.searchUrl;
+  if (searchUrl) {
+    const searchDecision = evaluateBrowserNavigationUrl(searchUrl, trustedLocalUrls);
+    if (searchDecision.ok) return addressBarResolution(true, value, searchDecision.url, 'search', 'Plain text routed through the configured search provider.', searchDecision.protocol);
+  }
+
+  return addressBarResolution(false, value, options.fallbackUrl || '', 'fallback', 'Could not resolve address or search target safely.');
+}

@@ -47,10 +47,10 @@ need(main.indexOf('const publicTarget = await resolvePublicDiagnosticsTarget(req
 need(!/maxRedirects|followRedirect|redirect:\s*['\"]follow['\"]/.test(main),'diagnostics must not add automatic redirect following');
 includes('src/renderer/index.html',[
   'data-pass103-diagnostics-ssrf-boundary="true"',
-  'SSRF-guarded',
-  'Localhost, private/link-local ranges, metadata endpoints',
+  'cookie-free requests',
+  'localhost, private/link-local ranges, metadata endpoints',
   'unsafe DNS results',
-  'redirect targets are blocked or withheld automatically'
+  'redirect targets'
 ]);
 includes('src/renderer/styles/browser.css',[
   'PASS103 diagnostics SSRF/local-network boundary',

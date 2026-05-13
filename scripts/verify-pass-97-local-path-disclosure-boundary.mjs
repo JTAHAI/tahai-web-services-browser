@@ -63,12 +63,12 @@ need(!/path:\s*profilesPath\(\)/.test(profiles),'profile state must not return l
 
 includes('src/renderer/index.html',[
   'data-pass97-local-path-boundary="true"',
-  'PASS97: mission, profile, and evidence-save handoffs return saved labels instead of local paths.',
-  'PASS97 hides local filesystem paths from save status.'
+  'Mission, profile, and evidence saves show safe labels instead of local paths.',
+  'local file paths'
 ]);
 includes('src/renderer/styles/browser.css',[
   'PASS97 local filesystem path disclosure boundary',
-  'Local paths hidden from renderer save status'
+  'Local paths stay hidden'
 ]);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-97-local-path-disclosure-boundary']==='node scripts/verify-pass-97-local-path-disclosure-boundary.mjs','package.json missing PASS97 verifier script');

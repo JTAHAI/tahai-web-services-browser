@@ -1,7 +1,8 @@
 import type { ItDocsMissionCapabilities } from '../shared/itdocs-contract';
 import type { EnterpriseAdminPolicyState } from '../shared/enterprise-admin-policy-contract';
 import type { EnterpriseSupportBundleResult } from '../shared/enterprise-support-bundle-contract';
-import type { BrowserProfileInput, BrowserProfileState, BrowserProfileUpdateInput, ClearBrowsingDataOptions, ClearBrowsingDataResult, DevOpsCaptureSaveResult, DownloadState, ItServiceCardDiagnostics, MissionApiDeleteResult, MissionApiExportResult, MissionApiListResult, MissionApiLoadResult, MissionApiSaveResult, MissionApiState, OpsUrlDiagnostics, TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
+import type { BrowserProfileInput, BrowserProfileState, BrowserProfileUpdateInput, ClearBrowsingDataOptions, ClearBrowsingDataResult, DevOpsCaptureSaveResult, DownloadArtifactRevealResult, DownloadState, ItServiceCardDiagnostics, MissionApiDeleteResult, MissionApiExportResult, MissionApiListResult, MissionApiLoadResult, MissionApiSaveResult, MissionApiState, OpsUrlDiagnostics, TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
+import type { Pass188InputBoundaryPayload } from '../shared/webview-focus-input-boundary-contract';
 
 declare global {
   interface Window {
@@ -18,6 +19,7 @@ declare global {
       saveEnterpriseSupportBundle: () => Promise<EnterpriseSupportBundleResult>;
       updateSettings: (settings: TahaiBrowserSettings) => Promise<TahaiBrowserSettings>;
       resetSettings: () => Promise<TahaiBrowserSettings>;
+      revealDownloadArtifact: (artifactId: string) => Promise<DownloadArtifactRevealResult>;
       clearBrowsingData: (options?: ClearBrowsingDataOptions) => Promise<ClearBrowsingDataResult>;
       openUserData: () => Promise<boolean>;
       openExternal: (url: string) => Promise<boolean>;
@@ -46,6 +48,7 @@ declare global {
       onMenuCommand: (callback: (command: string) => void) => () => void;
       onToggleDevTools: (callback: () => void) => () => void;
       onDownloadState: (callback: (state: DownloadState) => void) => () => void;
+      onPass188InputBoundary: (callback: (payload: Pass188InputBoundaryPayload) => void) => () => void;
     };
   }
 }

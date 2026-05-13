@@ -94,12 +94,37 @@ export type MissionLayout = {
   panes: MissionPaneAssignment[];
 };
 
+export type MissionTimelineEventKind =
+  | 'created'
+  | 'tab-added'
+  | 'tab-removed'
+  | 'tab-role-set'
+  | 'layout-set'
+  | 'pane-focused'
+  | 'saved'
+  | 'restored'
+  | 'mission-renamed'
+  | 'mission-duplicated'
+  | 'mission-deleted'
+  | 'note'
+  | 'evidence-added'
+  | 'tool-run'
+  | 'exported'
+  | 'runbook-updated'
+  | 'checklist-added'
+  | 'checklist-updated';
+
 export type MissionTimelineEvent = {
   eventId: string;
-  kind: 'created' | 'tab-added' | 'tab-role-set' | 'layout-set' | 'saved' | 'restored' | 'mission-renamed' | 'mission-duplicated' | 'mission-deleted' | 'note' | 'evidence-added' | 'exported' | 'runbook-updated' | 'checklist-added' | 'checklist-updated';
+  kind: MissionTimelineEventKind;
   createdAt: string;
   title: string;
   detail: string;
+  surface?: string;
+  paneId?: string;
+  tabId?: string;
+  exportSafeSummary?: string;
+  operatorTime?: string;
 };
 
 export type MissionItDocsLinks = {
@@ -132,10 +157,58 @@ export type MissionRunbookStep = {
   evidenceNote: string;
 };
 
+export type MissionRunbookSection = {
+  sectionId: string;
+  label: string;
+  intent: string;
+  required: boolean;
+  state: MissionRunbookStepState;
+  operatorNote: string;
+  evidencePrompt: string;
+};
+
+export type MissionRunbookValidationStep = {
+  stepId: string;
+  label: string;
+  state: MissionRunbookStepState;
+  evidenceNote: string;
+};
+
+export type MissionRunbookRollbackCondition = {
+  conditionId: string;
+  label: string;
+  active: boolean;
+  owner: string;
+  note: string;
+};
+
+export type MissionRunbookBlockedItem = {
+  itemId: string;
+  label: string;
+  owner: string;
+  status: 'open' | 'watching' | 'resolved';
+  note: string;
+  createdAt: string;
+};
+
+export type MissionRunbookOperatorTimestamp = {
+  timestampId: string;
+  label: string;
+  value: string;
+  note: string;
+};
+
 export type MissionRunbook = {
   objective: string;
   rollback: string;
   steps: MissionRunbookStep[];
+  sections: MissionRunbookSection[];
+  validationSteps: MissionRunbookValidationStep[];
+  rollbackConditions: MissionRunbookRollbackCondition[];
+  blockedItems: MissionRunbookBlockedItem[];
+  operatorTimestamps: MissionRunbookOperatorTimestamp[];
+  exportProfile: MissionEvidenceExportProfile;
+  updatedAt: string;
 };
 
 export type MissionEvidenceKind = 'url' | 'screenshot' | 'note' | 'header-summary' | 'tls-summary' | 'dns-summary' | 'tool-output' | 'checklist' | 'export';
@@ -202,6 +275,7 @@ export type MissionExportResult = {
   redactedMarkdown?: string;
   findings?: RedactionFinding[];
   highRiskCount?: number;
+  redactionReview?: unknown;
   savedLabel?: string;
   path?: never;
   error?: string;

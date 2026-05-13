@@ -30,6 +30,7 @@ export const TAHAI_TRUSTED_IPC_CHANNELS = Object.freeze([
   'tahai-browser:get-settings',
   'tahai-browser:update-settings',
   'tahai-browser:reset-settings',
+  'tahai-browser:reveal-download-artifact',
   'tahai-browser:clear-browsing-data',
   'tahai-browser:open-user-data',
   'tahai-browser:open-external',
@@ -60,7 +61,8 @@ export const TAHAI_TRUSTED_RENDERER_EVENT_CHANNELS = Object.freeze([
   'tahai-browser:open-in-tab',
   'tahai-browser:menu-command',
   'tahai-browser:toggle-devtools',
-  'tahai-browser:download-state'
+  'tahai-browser:download-state',
+  'tahai-browser:pass188-input-boundary'
 ] as const);
 
 export type TahaiTrustedIpcChannel = typeof TAHAI_TRUSTED_IPC_CHANNELS[number];

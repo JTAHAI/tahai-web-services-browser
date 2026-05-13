@@ -3,42 +3,23 @@ name: Public release candidate
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
   public-release-candidate:
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Verify public release candidate source
-        run: npm run release:public:verify
-
-      - name: Generate source SBOM
-        run: npm run generate:sbom
-
-      - name: Generate release provenance manifest
-        run: npm run release:provenance
-
-      - name: Build unsigned public release candidate
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npm run release:public:win
-
-      - name: Upload public RC release directory
-        uses: actions/upload-artifact@v4
+          cache: npm
+      - run: npm ci
+      - run: npm run release:public:verify
+      - name: Build unsigned public RC
+        shell: pwsh
+        run: |
+          $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
+          npm run release:public:win
+      - uses: actions/upload-artifact@v4
         with:
-          name: tahai-browser-public-rc-unsigned
+          name: tahai-browser-public-release-candidate
           path: release/**
-          if-no-files-found: error

@@ -1,7 +1,9 @@
 export const PASS96_DOWNLOAD_BOUNDARY_TAG = 'PASS96_DOWNLOAD_HANDOFF_BOUNDARY';
+export const PASS194_DOWNLOAD_ARTIFACT_SHELF_TAG = 'PASS194_DOWNLOAD_ARTIFACT_SHELF_UX';
 
 export const MAX_DOWNLOAD_FILENAME_CHARS = 180;
 export const MAX_DOWNLOAD_DETAIL_CHARS = 240;
+export const MAX_DOWNLOAD_CHECKSUM_CHARS = 128;
 
 const CONTROL_CHARS_RE = /[\u0000-\u001f\u007f]/g;
 const WINDOWS_UNSAFE_CHARS_RE = /[<>:"/\\|?*]/g;
@@ -16,12 +18,25 @@ const HIGH_RISK_DOWNLOAD_EXTENSIONS = new Set([
   'app', 'dmg', 'pkg', 'deb', 'rpm', 'appimage', 'sh', 'bash', 'zsh', 'jar'
 ]);
 
+const ELEVATED_RISK_DOWNLOAD_EXTENSIONS = new Set([
+  'zip', '7z', 'rar', 'tar', 'gz', 'tgz', 'xz', 'iso', 'img', 'vhd', 'vhdx', 'docm', 'xlsm', 'pptm'
+]);
+
+export type BrowserDownloadArtifactRiskLevel = 'low' | 'elevated' | 'high';
+
 export type BrowserDownloadState = {
+  artifactId: string;
   state: string;
   filename: string;
+  displayLabel: string;
   detail?: string;
   warning?: string;
   sourceOrigin?: string;
+  riskLevel: BrowserDownloadArtifactRiskLevel;
+  riskLabel: string;
+  checksumSha256?: string;
+  canRevealInFolder: boolean;
+  handoffRelation: string;
   sensitivePathHidden: true;
 };
 
@@ -61,11 +76,26 @@ export function downloadFileExtension(filename: unknown): string {
   return lastDot > 0 && lastDot < safe.length - 1 ? safe.slice(lastDot + 1).toLowerCase() : '';
 }
 
-export function downloadRiskWarning(filename: unknown, mimeType?: unknown): string {
+export function classifyDownloadArtifactRisk(filename: unknown, mimeType?: unknown): BrowserDownloadArtifactRiskLevel {
   const extension = downloadFileExtension(filename);
-  if (HIGH_RISK_DOWNLOAD_EXTENSIONS.has(extension)) return 'Executable or installer download. Verify publisher/signature before opening.';
   const mime = compactText(mimeType, 120).toLowerCase();
-  if (mime.includes('application/x-msdownload') || mime.includes('application/x-msdos-program')) return 'Executable download. Verify publisher/signature before opening.';
+  if (HIGH_RISK_DOWNLOAD_EXTENSIONS.has(extension)) return 'high';
+  if (mime.includes('application/x-msdownload') || mime.includes('application/x-msdos-program')) return 'high';
+  if (ELEVATED_RISK_DOWNLOAD_EXTENSIONS.has(extension)) return 'elevated';
+  if (mime.includes('application/zip') || mime.includes('application/x-7z') || mime.includes('application/x-rar')) return 'elevated';
+  return 'low';
+}
+
+export function downloadArtifactRiskLabel(riskLevel: BrowserDownloadArtifactRiskLevel): string {
+  if (riskLevel === 'high') return 'High risk';
+  if (riskLevel === 'elevated') return 'Review';
+  return 'Normal';
+}
+
+export function downloadRiskWarning(filename: unknown, mimeType?: unknown): string {
+  const riskLevel = classifyDownloadArtifactRisk(filename, mimeType);
+  if (riskLevel === 'high') return 'Executable or installer download. Verify publisher/signature before opening.';
+  if (riskLevel === 'elevated') return 'Archive, disk image, or macro-capable file. Verify source and checksum before handoff.';
   return '';
 }
 
@@ -82,21 +112,68 @@ export function sanitizeDownloadSourceOrigin(sourceUrl: unknown): string {
   }
 }
 
+
+export function createDownloadArtifactId(input: { filename?: unknown; sourceUrl?: unknown; startedAt?: unknown }): string {
+  const seed = [sanitizeDownloadFilename(input.filename), compactText(input.sourceUrl, 512), compactText(input.startedAt, 80)].join('|') || 'download';
+  let hash = 2166136261;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `artifact-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+export function sanitizeDownloadArtifactId(value: unknown): string {
+  const raw = compactText(value, 96).toLowerCase();
+  return /^artifact-[a-f0-9]{8,16}$/.test(raw) ? raw : '';
+}
+
+export function sanitizeDownloadChecksum(value: unknown): string {
+  const raw = compactText(value, MAX_DOWNLOAD_CHECKSUM_CHARS).toLowerCase();
+  return /^[a-f0-9]{64}$/.test(raw) ? raw : '';
+}
+
+export function downloadArtifactHandoffRelation(state: unknown): string {
+  const cleanState = compactText(state, 80).toLowerCase();
+  if (cleanState === 'completed') return 'Evidence-ready metadata; file content stays local unless the operator explicitly attaches it.';
+  if (cleanState === 'progressing' || cleanState === 'started') return 'Download is being tracked for later evidence or handoff review.';
+  if (cleanState === 'cancelled' || cleanState === 'interrupted') return 'Not evidence-ready; keep the failed state in the operator trail only.';
+  return 'Artifact metadata only; local filesystem path is never exposed to the renderer.';
+}
+
 export function createDownloadStatePayload(input: {
   state: unknown;
   filename: unknown;
   detail?: unknown;
   warning?: unknown;
   sourceUrl?: unknown;
+  artifactId?: unknown;
+  startedAt?: unknown;
+  mimeType?: unknown;
+  checksumSha256?: unknown;
+  canRevealInFolder?: unknown;
 }): BrowserDownloadState {
-  const warning = compactText(input.warning || downloadRiskWarning(input.filename), MAX_DOWNLOAD_DETAIL_CHARS);
+  const state = compactText(input.state, 80) || 'unknown';
+  const filename = sanitizeDownloadFilename(input.filename);
+  const riskLevel = classifyDownloadArtifactRisk(filename, input.mimeType);
+  const warning = compactText(input.warning || downloadRiskWarning(filename, input.mimeType), MAX_DOWNLOAD_DETAIL_CHARS);
   const detail = compactText(input.detail, MAX_DOWNLOAD_DETAIL_CHARS);
+  const sourceOrigin = sanitizeDownloadSourceOrigin(input.sourceUrl);
+  const artifactId = sanitizeDownloadArtifactId(input.artifactId) || createDownloadArtifactId({ filename, sourceUrl: input.sourceUrl, startedAt: input.startedAt });
+  const checksumSha256 = sanitizeDownloadChecksum(input.checksumSha256);
   return {
-    state: compactText(input.state, 80) || 'unknown',
-    filename: sanitizeDownloadFilename(input.filename),
+    artifactId,
+    state,
+    filename,
+    displayLabel: filename,
     ...(detail ? { detail } : {}),
     ...(warning ? { warning } : {}),
-    ...(sanitizeDownloadSourceOrigin(input.sourceUrl) ? { sourceOrigin: sanitizeDownloadSourceOrigin(input.sourceUrl) } : {}),
+    ...(sourceOrigin ? { sourceOrigin } : {}),
+    riskLevel,
+    riskLabel: downloadArtifactRiskLabel(riskLevel),
+    ...(checksumSha256 ? { checksumSha256 } : {}),
+    canRevealInFolder: input.canRevealInFolder === true,
+    handoffRelation: downloadArtifactHandoffRelation(state),
     sensitivePathHidden: true
   };
 }

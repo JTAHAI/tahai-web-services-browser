@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS230",
+  "name": "GA / Store Deploy Decision Gate",
+  "sourceSideGateOnly": true,
+  "noNewFeatures": true,
+  "versionLane": "1.8.30 unless explicitly incremented by a separate release decision",
+  "defaultDecision": {
+    "publicGaAllowed": false,
+    "microsoftStoreSubmissionAllowed": false,
+    "broadPublicInstallerPushAllowed": false,
+    "directDownloadTrustedSigningClaimAllowed": false,
+    "reason": "PASS230 is an evidence gate. The default source-side packet blocks public GA, Store submission, broad installer push, and direct-download trusted-signing claims until manual proof artifacts and external approvals are attached outside source."
+  },
+  "hardBoundaries": {
+    "thisPassDoesNotAddFeatures": true,
+    "thisPassDoesNotSubmitToStore": true,
+    "thisPassDoesNotCreateMsixUpload": true,
+    "thisPassDoesNotLoadPartnerCenterCredentials": true,
+    "thisPassDoesNotClaimStoreApproval": true,
+    "thisPassDoesNotClaimDirectDownloadSigning": true,
+    "thisPassDoesNotCommitGeneratedArtifacts": true,
+    "thisPassDoesNotAddSecretsOrCertificates": true
+  },
+  "requiredGateEvidence": [
+    {
+      "id": "g1-full-ux-hardening",
+      "title": "Full UX Hardening Gate",
+      "required": true,
+      "sourcePasses": ["PASS201", "PASS202", "PASS203", "PASS204", "PASS205", "PASS206", "PASS207", "PASS208", "PASS209", "PASS210", "PASS211", "PASS212", "PASS213", "PASS214"],
+      "mustProve": [
+        "restored window usable website/content pane",
+        "maximized window chrome and content budget",
+        "small window overlay containment",
+        "one-click More Tools, Mission, Settings, Guide/KB, DevOps, IT Tools",
+        "Mission Control 1-Up, 2-Up, Tri-view, Quad, and Focus Pane restore",
+        "keyboard and focus accessibility closeout",
+        "installed Windows UX smoke evidence",
+        "installed Linux UX smoke evidence"
+      ],
+      "defaultStatus": "blocked-until-manual-evidence"
+    },
+    {
+      "id": "g2-enterprise-security-data",
+      "title": "Enterprise Security and Data Gate",
+      "required": true,
+      "sourcePasses": ["PASS215", "PASS216", "PASS217", "PASS218", "PASS219", "PASS220", "PASS221", "PASS222"],
+      "mustProve": [
+        "Electron security checklist closeout",
+        "webview/window/popup boundary closeout",
+        "IPC contract freeze",
+        "mission import fuzz and validation hardening",
+        "managed policy framework truth",
+        "privacy and local data inventory",
+        "secrets and redaction static gate",
+        "crash recovery and session durability"
+      ],
+      "defaultStatus": "blocked-until-source-and-runtime-evidence"
+    },
+    {
+      "id": "g3-release-evidence",
+      "title": "Release Evidence Gate",
+      "required": true,
+      "sourcePasses": ["PASS223", "PASS224", "PASS225", "PASS226", "PASS227", "PASS228", "PASS229"],
+      "mustProve": [
+        "SBOM/provenance/checksum evidence",
+        "Windows installer enterprise closeout",
+        "Linux package enterprise closeout",
+        "Enterprise Support Bundle v2",
+        "Windows Store MSIX build lane readiness",
+        "MSIX manifest and Store identity readiness",
+        "Microsoft Store listing and submission packet readiness",
+        "no generated installers, packages, signing files, or Partner Center credentials committed"
+      ],
+      "defaultStatus": "blocked-until-release-evidence-complete"
+    },
+    {
+      "id": "g4-external-distribution",
+      "title": "External Distribution and Signing Gate",
+      "required": true,
+      "sourcePasses": ["PASS227", "PASS228", "PASS229", "PASS230"],
+      "mustProve": [
+        "Partner Center package identity reserved outside source before Store submission",
+        "MSIX upload generated outside source only when tooling is available",
+        "Microsoft Store review result tracked outside source",
+        "direct MSI/EXE/MSIX signing path documented separately if used",
+        "public copy does not claim signed direct-download packages unless trusted signing is actually complete"
+      ],
+      "defaultStatus": "blocked-until-external-approval-or-signing-proof"
+    }
+  ],
+  "requiredCommands": [
+    "npm run prepare:win:msix-manifest",
+    "npm run prepare:store-submission-packet",
+    "npm run prepare:ga-store-deploy-decision-gate",
+    "npm run verify:pass-226-enterprise-support-bundle-v2",
+    "npm run verify:pass-227-windows-store-msix-build-lane-v1",
+    "npm run verify:pass-228-msix-manifest-store-identity-readiness",
+    "npm run verify:pass-229-microsoft-store-listing-submission-packet",
+    "npm run verify:pass-230-ga-store-deploy-decision-gate",
+    "npm run verify:release-blockers",
+    "npm run build"
+  ],
+  "manualEvidenceChecklist": [
+    "Fresh installed Windows smoke evidence attached outside source",
+    "Fresh installed Linux package smoke evidence attached outside source",
+    "Support bundle generated from installed app and reviewed for redaction",
+    "SBOM, checksums, release manifest, and package hashes attached outside source",
+    "Privacy, support, security, known issues, and code signing pages live",
+    "Store screenshots use sanitized demo data only",
+    "Partner Center identity and package upload handled outside source",
+    "Direct-download signing status is accurately described",
+    "Known blockers either resolved or explicitly documented with mitigation"
+  ],
+  "decisionOutputs": {
+    "allowedWhenAllEvidencePasses": {
+      "publicGaAllowed": true,
+      "microsoftStoreSubmissionAllowed": true,
+      "broadPublicInstallerPushAllowed": true,
+      "directDownloadTrustedSigningClaimAllowed": "only if the direct-download package is actually signed by a trusted signing path"
+    },
+    "defaultSourceSideOutcome": {
+      "publicGaAllowed": false,
+      "microsoftStoreSubmissionAllowed": false,
+      "broadPublicInstallerPushAllowed": false,
+      "directDownloadTrustedSigningClaimAllowed": false
+    }
+  }
+}

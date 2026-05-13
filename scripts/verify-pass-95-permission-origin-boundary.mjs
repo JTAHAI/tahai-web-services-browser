@@ -40,8 +40,8 @@ const runtime=includes('src/main/runtime-security.ts',[
 need(!/const allowed = new Set<string>\(\)/.test(runtime),'runtime permission handling must not use global Set allowlist without origin context');
 need(!/callback\(allowedPermission\(permission\)\)/.test(runtime),'permission request handler must not approve based on permission name only');
 need(!/setPermissionCheckHandler\(\(_webContents, permission\) => allowedPermission\(permission\)\)/.test(runtime),'permission check handler must not approve based on permission name only');
-includes('src/renderer/index.html',['data-pass95-permission-boundary="true"','permission toggles are still origin-gated in the main process','HTTPS or localhost']);
-includes('src/renderer/styles/browser.css',['PASS95 origin-aware permission boundary','.permission-boundary-note','Origin-aware permission guard']);
+includes('src/renderer/index.html',['data-pass95-permission-boundary="true"','Permission prompts remain locked down','HTTPS or localhost']);
+includes('src/renderer/styles/browser.css',['PASS95 origin-aware permission boundary','.permission-boundary-note','Permission safety']);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-95-permission-origin-boundary']==='node scripts/verify-pass-95-permission-origin-boundary.mjs','package.json missing PASS95 verifier script');
 need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-95-permission-origin-boundary'),'release blockers missing PASS95 verifier');

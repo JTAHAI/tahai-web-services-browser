@@ -16,7 +16,7 @@
   data-pass180-primary-chrome-compact-recovery="true"
   data-pass181-compact-primary-ux-clarity="true"
   data-pass182-compact-hit-target-focus="true"
-  data-pass183-more-tools-overlay-collision-recovery="true" data-pass184-hidden-more-tools-focus-recovery="true" data-pass185-mouse-history-parity="true">
+  data-pass183-more-tools-overlay-collision-recovery="true" data-pass184-hidden-more-tools-focus-recovery="true" data-pass185-mouse-history-parity="true" data-pass192-titlebar-chrome-final="true">
   <section id="boot-diagnostic" class="boot-diagnostic" aria-live="assertive">
     <div>
       <p class="eyebrow">TAHAI Browser Runtime Diagnostic</p>
@@ -131,6 +131,7 @@
     </aside>
     <footer id="statusbar" class="statusbar" aria-live="polite">
       <span id="status-text">TAHAI Web Services Browser</span>
+      <span id="artifact-shelf" class="artifact-shelf" aria-label="Download artifact shelf" data-pass194-download-artifact-shelf="true"></span>
       <span id="security-text">Home: https://tahaiportal.com</span>
     </footer>
   </div>
@@ -164,6 +165,15 @@
         <button id="mission-save" type="button" class="home-button secondary">Save Local</button>
       </form>
       <section id="mission-status" class="mission-status" aria-live="polite"><strong>No active mission</strong><span>Create a local Mission Tab set or restore one from disk.</span></section>
+      <section id="mission-command-deck" class="mission-command-deck" aria-label="Mission Control command deck" data-pass196-mission-control-ia="true">
+        <article class="mission-command-card mission-command-identity" data-pass196-card="identity"><span>Mission</span><strong>No active mission</strong><em>Local-only workspace</em></article>
+        <article class="mission-command-card" data-pass196-card="active-pane"><span>Active pane</span><strong>Pane 1</strong><em>Navigation target</em></article>
+        <article class="mission-command-card" data-pass196-card="layout"><span>Layout</span><strong>1-Up</strong><em>Mission view</em></article>
+        <article class="mission-command-card" data-pass196-card="runbook"><span>Runbook</span><strong>0 steps</strong><em>Objective + rollback</em></article>
+        <article class="mission-command-card" data-pass196-card="evidence"><span>Evidence</span><strong>0 items</strong><em>Redaction-aware</em></article>
+        <article class="mission-command-card" data-pass196-card="timeline"><span>Timeline</span><strong>0 events</strong><em>Operator trail</em></article>
+        <article class="mission-command-card" data-pass196-card="export"><span>Export</span><strong>Sanitized</strong><em>Preview before sharing</em></article>
+      </section>
       <section id="mission-compact-jumpbar" class="mission-compact-jumpbar" aria-label="Compact Mission Control section jumps" data-pass132-small-window-stress="true">
         <button type="button" class="home-button secondary" data-pass132-jump="recipes">Recipes</button>
         <button type="button" class="home-button secondary" data-pass132-jump="tabs">Tabs</button>
@@ -206,11 +216,17 @@
           <div class="mission-runbook-editor">
             <label class="field wide"><span>Objective</span><input id="mission-runbook-objective" type="text" maxlength="500" placeholder="What must be accomplished before this mission closes?" /></label>
             <label class="field wide"><span>Rollback / stop condition</span><textarea id="mission-runbook-rollback" maxlength="500" placeholder="When to stop, roll back, or escalate."></textarea></label>
+            <div id="mission-runbook-v2-diagnostics" class="mission-runbook-v2-diagnostics" data-pass200-runbook-rail-v2="diagnostics">Runbook Rail v2 diagnostics load with the active mission.</div>
+            <div id="mission-runbook-sections" class="ops-hub-list compact mission-runbook-v2-sections" data-pass200-runbook-rail-v2="sections"></div>
             <div class="mission-runbook-add">
               <input id="mission-runbook-step-input" type="text" maxlength="220" placeholder="Add checklist step&hellip;" />
               <button id="mission-runbook-add-step" type="button" class="home-button secondary">Add</button>
             </div>
             <div id="mission-runbook-list" class="ops-hub-list"></div>
+            <div id="mission-runbook-validation-list" class="ops-hub-list compact mission-runbook-v2-validation" data-pass200-runbook-rail-v2="validation"></div>
+            <div id="mission-runbook-rollback-list" class="ops-hub-list compact mission-runbook-v2-rollback" data-pass200-runbook-rail-v2="rollback"></div>
+            <div id="mission-runbook-blocked-list" class="ops-hub-list compact mission-runbook-v2-blockers" data-pass200-runbook-rail-v2="blocked-items"></div>
+            <div id="mission-runbook-timestamp-list" class="ops-hub-list compact mission-runbook-v2-timestamps" data-pass200-runbook-rail-v2="operator-timestamps"></div>
             <label class="field wide"><span>Local note</span><textarea id="mission-note-input" maxlength="4000" placeholder="Add a local mission note. Secrets are redaction-scanned before export/sync."></textarea></label>
             <button id="mission-add-note" type="button" class="home-button secondary">Add Note</button>
             <div id="mission-notes-list" class="ops-hub-list compact"></div>
@@ -224,17 +240,29 @@
           <div class="ops-hub-section-title"><strong>Saved missions</strong><span>Validated local JSON</span></div>
           <div id="mission-list" class="ops-hub-list"></div>
         </section>
-        <section class="mission-section mission-evidence-section">
-          <div class="ops-hub-section-title"><strong>Mission Evidence</strong><span>Explicit local packet items</span></div>
+        <section class="mission-section mission-evidence-section" data-pass202-mission-evidence-pack-v2="true">
+          <div class="ops-hub-section-title"><strong>Evidence Pack v2</strong><span>Active pane · all panes · export profiles</span></div>
+          <article id="mission-evidence-diagnostics" class="mission-evidence-v2-diagnostics" data-pass202-mission-evidence-pack-v2="diagnostics"><strong>Evidence Pack v2</strong><span>No evidence captured yet.</span><em>Explicit local captures only.</em></article>
+          <article id="mission-redaction-preview" class="mission-redaction-ux-v2-preview" data-pass203-evidence-redaction-ux-v2="preview"><strong>Redaction UX v2</strong><span>No redaction findings detected yet.</span><em>Detections explain what was redacted, why, and what remains blocked from unredacted export.</em></article>
+          <label class="field mission-evidence-profile"><span>Export profile</span><select id="mission-export-profile" aria-label="Mission evidence export profile">
+            <option value="sanitized-handoff">Sanitized Handoff</option>
+            <option value="internal">Internal Markdown</option>
+            <option value="incident-packet">Incident Packet</option>
+            <option value="change-record">Change Record</option>
+            <option value="itdocs-sync">IT Docs Sync</option>
+            <option value="psa-ticket-note">PSA Ticket Note</option>
+          </select></label>
+          <label class="field mission-evidence-note"><span>Capture note</span><input id="mission-evidence-note" maxlength="300" placeholder="Optional note for the next active/all-pane capture" autocomplete="off" /></label>
           <div class="mission-evidence-actions">
+            <button id="mission-pin-active-page" type="button" class="home-button secondary">Pin Active Pane</button>
+            <button id="mission-pin-all-panes" type="button" class="home-button secondary">Pin All Panes</button>
             <button id="mission-pin-latest-evidence" type="button" class="home-button secondary">Pin Latest Tool Output</button>
-            <button id="mission-pin-active-page" type="button" class="home-button secondary">Pin Active Page</button>
           </div>
           <div id="mission-evidence-list" class="ops-hub-list compact"></div>
         </section>
         <section class="mission-section mission-timeline-section">
-          <div class="ops-hub-section-title"><strong>Timeline</strong><span>Local activity</span></div>
-          <div id="mission-timeline" class="ops-hub-list"></div>
+          <div class="ops-hub-section-title"><strong>Timeline</strong><span>Local activity · filterable v2</span></div>
+          <div id="mission-timeline" class="ops-hub-list" data-pass201-mission-timeline-v2="true"></div>
         </section>
         <section class="mission-section export mission-export-section">
           <div class="ops-hub-section-title"><strong>Export preview</strong><span>Validated redacted packet</span></div>
@@ -253,14 +281,15 @@
     <section class="command-palette-panel">
       <header>
         <div>
-          <p class="eyebrow">TAHAI Command Center</p>
-          <h2 id="command-palette-title">Command Palette</h2>
+          <p class="eyebrow">TAHAI Operator Command Center v2</p>
+          <h2 id="command-palette-title">Ctrl+K Power Surface</h2>
         </div>
         <button id="close-command-palette" class="icon-button" type="button" title="Close Command Palette">&times;</button>
       </header>
-      <label class="command-search"><span>Search actions, tools, profiles, recipes, and workspaces</span><input id="command-palette-input" type="search" autocomplete="off" spellcheck="false" placeholder="Try: IT Docs, Azure, Capture, workspace, profile&hellip;" /></label>
-      <div id="command-palette-list" class="command-palette-list" role="listbox" aria-label="Command results"></div>
-      <footer class="command-palette-footer">&uarr;&darr; Move &middot; Enter Run &middot; Esc Close &middot; Ctrl+K Toggle</footer>
+      <label class="command-search"><span>Search missions, layouts, admin profiles, evidence, OpsTools, KB, and export commands</span><input id="command-palette-input" type="search" autocomplete="off" spellcheck="false" placeholder="Try: mission, quad, Azure, evidence, DNS, KB, export&hellip;" /></label>
+      <div id="command-palette-diagnostics" class="command-palette-diagnostics" data-pass204-operator-command-center-v2="true"></div>
+      <div id="command-palette-list" class="command-palette-list" role="listbox" aria-label="Operator Command Center results"></div>
+      <footer class="command-palette-footer">&uarr;&darr; Move &middot; Enter Run &middot; Esc Close &middot; Ctrl+K Toggle &middot; disabled commands explain why</footer>
     </section>
   </dialog>
 
@@ -301,14 +330,17 @@
         <label class="check"><input id="setting-downloads" type="checkbox" /> Ask where to save each download</label>
         <label class="check"><input id="setting-statusbar" type="checkbox" /> Show status bar</label>
       </section>
-      <p class="settings-note">Settings are written under the local app data profile, never into this source repo. Defaults reset to <strong>https://tahaiportal.com</strong>.</p>
-      <p class="settings-note permission-boundary-note" data-pass95-permission-boundary="true">PASS95: permission toggles are still origin-gated in the main process. Camera/microphone, clipboard-read, geolocation, and notification requests are denied unless the requesting page is HTTPS or localhost and the matching setting is enabled.</p>
-      <p class="settings-note download-boundary-note" data-pass96-download-boundary="true" data-pass97-local-path-boundary="true">PASS96: download events are routed back to the trusted shell with sanitized filenames only. Local filesystem paths are hidden from renderer status updates, and executable/installer downloads are flagged before handoff. PASS97: mission, profile, and evidence-save handoffs return saved labels instead of local paths.</p>
-      <p class="settings-note drop-boundary-note" data-pass99-drop-boundary="true">PASS99: Mission pane drops and Mission tab reorders accept only TAHAI internal drag payloads. External files, URLs, HTML, and text drops are blocked at the renderer shell boundary.</p>
-      <p class="settings-note" data-pass100-active-capture-boundary="true">PASS100: active-page capture output from remote webviews is redacted, URL-normalized, size-capped, and origin-sanitized before preview, pinning, copy, save, or diagnostics handoff.</p>
-      <p class="settings-note settings-boundary-note" data-pass101-settings-boundary="true" data-pass113-adaptive-chrome-density="true">PASS101: runtime settings are size-capped and sanitized in the main process. Saved home pages must be HTTPS or localhost HTTP, and renderer settings never carry local download paths.</p>
-      <p class="settings-note diagnostics-boundary-note" data-pass102-diagnostics-boundary="true" data-pass103-diagnostics-ssrf-boundary="true">PASS103: Ops diagnostics use a cookie-free Node request boundary and are SSRF-guarded. Localhost, private/link-local ranges, metadata endpoints, single-label internal hosts, unsafe DNS results, and redirect targets are blocked or withheld automatically; diagnostic output never include Cookie or Authorization output.</p>
-      <p class="settings-note tab-metadata-boundary-note" data-pass104-tab-metadata-boundary="true">PASS104: Remote page titles, status text, Mission timeline entries, and Mission metadata URLs are sanitized before renderer display or local Mission handoff, so hostile tab metadata cannot carry control characters, bidi spoofing, embedded credentials, or tokenized query strings into evidence.</p>
+      <section class="settings-safety-copy" data-pass189-settings-public-copy="true" aria-label="Settings safety notes">
+        <p class="settings-note">Settings are stored in your local app profile. Reset restores <strong>https://tahaiportal.com</strong> as the default home page.</p>
+        <p class="settings-note permission-boundary-note" data-pass95-permission-boundary="true">Permission prompts remain locked down: camera, microphone, clipboard-read, geolocation, and notifications are denied unless the site is HTTPS or localhost and the matching setting is enabled.</p>
+        <p class="settings-note download-boundary-note" data-pass96-download-boundary="true" data-pass97-local-path-boundary="true">Download status uses sanitized file names only. The browser does not expose local file paths to web pages, and executable or installer downloads are flagged before opening or sharing. Mission, profile, and evidence saves show safe labels instead of local paths.</p>
+        <p class="settings-note drop-boundary-note" data-pass99-drop-boundary="true">Mission drag-and-drop accepts only internal TAHAI mission payloads. External files, URLs, HTML, and text drops are blocked before they reach Mission controls.</p>
+        <p class="settings-note" data-pass100-active-capture-boundary="true">Active-page capture is redacted, URL-normalized, size-capped, and source-sanitized before preview, pinning, copy, save, or diagnostics use.</p>
+        <p class="settings-note settings-boundary-note" data-pass101-settings-boundary="true" data-pass113-adaptive-chrome-density="true">Runtime settings are size-capped and sanitized before saving. Home pages must be HTTPS or localhost HTTP, and the Settings screen never exposes local download paths.</p>
+        <p class="settings-note diagnostics-boundary-note" data-pass102-diagnostics-boundary="true" data-pass103-diagnostics-ssrf-boundary="true">Ops diagnostics use cookie-free requests through a cookie-free request path and block localhost, private/link-local ranges, metadata endpoints, single-label internal hosts, unsafe DNS results, and redirect targets. Diagnostic output must never include Cookie or Authorization output.</p>
+        <!-- PASS102 verifier continuity: cookie-free Node request boundary; never include Cookie or Authorization output. -->
+        <p class="settings-note tab-metadata-boundary-note" data-pass104-tab-metadata-boundary="true">Remote page titles, status text, Mission timeline entries, and Mission metadata URLs are sanitized before display or local Mission use, preventing hostile metadata from carrying control characters, bidi spoofing, embedded credentials, or tokenized query strings into evidence.</p>
+      </section>
       <footer class="settings-actions">
         <button id="clear-data" type="button" class="home-button secondary">Clear active profile data</button>
         <button id="clear-all-data" type="button" class="home-button danger">Clear all profile data</button>
@@ -369,7 +401,7 @@
         <button id="close-capture" class="icon-button" type="button" title="Close capture">&times;</button>
       </header>
       <div class="capture-body">
-        <p class="capture-note" data-pass100-active-capture-boundary="true">Captures the active tab URL, title, visible page structure, basic timing, and a runbook-ready incident/change template. It intentionally avoids cookies, localStorage values, passwords, tokens, and form contents. PASS93 copy/save actions run through a second main-process redaction boundary before clipboard or disk handoff. PASS97 hides local filesystem paths after saves. PASS100 sanitizes active-page capture output from remote webviews before preview, pinning, copy, or save.</p>
+        <p class="capture-note" data-pass100-active-capture-boundary="true">Captures the active tab URL, title, visible page structure, basic timing, and a runbook-ready incident/change template. It intentionally avoids cookies, localStorage values, passwords, tokens, and form contents. Copy and save actions run through a second main-process redaction boundary before clipboard or disk handoff. Local filesystem paths are hidden after saves, and active-page capture output from remote webviews is sanitized before preview, pinning, copy, or save.</p>
         <textarea id="capture-markdown" spellcheck="true" aria-label="DevOps evidence markdown"></textarea>
       </div>
       <footer class="capture-actions">
@@ -505,7 +537,7 @@
         <button id="close-bundle" class="icon-button" type="button" title="Close Evidence Pack v3 Composer">&times;</button>
       </header>
       <div class="ops-body">
-        <p id="bundle-note" class="capture-note">Builds a local Markdown bundle from pinned Evidence Timeline items, saved workspace snapshots, active profile context, and IT Docs / PSA handoff fields. PASS93 carries forward redaction safety, sanitizes URLs, titles, notes, pinned evidence bodies, and copy/save output before handoff, and adds a main-process redaction boundary for every DevOps capture copy/save handoff before clipboard or disk output. PASS97 returns saved labels instead of local paths. It only includes evidence that was explicitly generated or pinned by the user. It does not collect cookies, storage values, credentials, tokens, request bodies, response bodies, clipboard contents, local files, or form values.</p>
+        <p id="bundle-note" class="capture-note">Builds a local Markdown bundle from pinned Evidence Timeline items, saved workspace snapshots, active profile context, and IT Docs / PSA handoff fields. Redaction safety sanitizes URLs, titles, notes, pinned evidence bodies, and copy/save output before handoff, with a main-process redaction boundary before clipboard or disk output. Save status returns safe labels instead of local paths. It only includes evidence that was explicitly generated or pinned by the user. It does not collect cookies, storage values, credentials, tokens, request bodies, response bodies, clipboard contents, local files, or form values.</p>
         <div id="bundle-summary" class="ops-summary" aria-live="polite"></div>
         <textarea id="bundle-markdown" spellcheck="true" aria-label="Evidence and change bundle markdown"></textarea>
       </div>
@@ -529,8 +561,8 @@
         <button id="close-handoff" class="icon-button" type="button" title="Close Handoff Center">&times;</button>
       </header>
       <div class="ops-body handoff-body">
-        <p id="handoff-note" class="capture-note">Creates a focused operational handoff for TAHAI IT Docs today and TAHAI PSA ticket/change workflows when IT Docs authorizes a server-side PSA connector. It sanitizes URLs, titles, notes, pinned evidence bodies, and copy/save output before handoff. It uses active profile context, current tabs, saved workspaces, and explicitly pinned evidence only. PASS93 keeps the same redaction gate in the privileged copy/save IPC path. PASS97 hides local filesystem paths from save status.
-          <span>PASS98: privileged shell IPC is allowlisted to packaged TAHAI shell pages only; arbitrary file:// pages are blocked from Mission/browser APIs.</span></p>
+        <p id="handoff-note" class="capture-note">Creates a focused operational handoff for TAHAI IT Docs today and TAHAI PSA ticket/change workflows when IT Docs authorizes a server-side PSA connector. It sanitizes URLs, titles, notes, pinned evidence bodies, and copy/save output before handoff. It uses active profile context, current tabs, saved workspaces, and explicitly pinned evidence only. The same redaction gate protects privileged copy/save handoff paths, and save status hides local filesystem paths.
+          <span>Privileged shell actions are allowlisted to packaged TAHAI shell pages only; arbitrary local files are blocked from Mission/browser APIs.</span></p>
         <div class="handoff-tabs" role="group" aria-label="Handoff target">
           <button type="button" class="home-button secondary active" data-handoff-target="it-docs" aria-pressed="true">TAHAI IT Docs</button>
           <button type="button" class="home-button secondary" data-handoff-target="psa" aria-pressed="false">TAHAI PSA &mdash; IT Docs-routed</button>
@@ -551,7 +583,7 @@
         <div class="itdocs-contract-panel" aria-label="Enterprise support bundle">
           <div class="ops-summary">
             <strong>Enterprise Support Bundle</strong>
-            <p>PASS160 redacted support bundle with version truth, policy truth, install/runtime truth, profile/mission counts, and signing/provenance/SBOM status. No cookies, tokens, raw browser profiles, local paths, or raw mission files.</p>
+            <p>Creates a redacted support bundle with version truth, policy truth, install/runtime truth, profile and mission counts, and signing/provenance/SBOM status. No cookies, tokens, raw browser profiles, local paths, or raw mission files.</p>
           </div>
           <div class="inline-actions">
             <button id="preview-enterprise-support-bundle" type="button" class="home-button secondary">Preview Support Bundle</button>
@@ -582,7 +614,7 @@
         <button id="close-ops-guard" class="icon-button" type="button" title="Close Ops Guard">&times;</button>
       </header>
       <div class="ops-body guard-body">
-        <p id="ops-guard-note" class="capture-note">Reviews the latest bundle, handoff, or generated tool output before it leaves the browser. It uses the shared PASS91 redaction rules for URL query secrets, credential terms, private keys, provider tokens, auth/cookie headers, and share-risk markers, then creates a redacted copy for external tickets, emails, or vendor handoffs. PASS93 keeps the same redaction gate in the privileged copy/save IPC path. PASS97 hides local filesystem paths from save status.</p>
+        <p id="ops-guard-note" class="capture-note">Reviews the latest bundle, handoff, or generated tool output before it leaves the browser. It uses shared redaction rules for URL query secrets, credential terms, private keys, provider tokens, auth/cookie headers, and share-risk markers, then creates a redacted copy for external tickets, emails, or vendor handoffs. The same redaction gate protects privileged copy/save paths, and save status hides local filesystem paths.</p>
         <div id="ops-guard-summary" class="ops-summary" aria-live="polite"></div>
         <div class="guard-columns">
           <label class="guard-column"><span>Review report</span><textarea id="ops-guard-markdown" spellcheck="true" aria-label="Ops Guard review markdown"></textarea></label>
@@ -630,7 +662,7 @@
         <button id="close-dev-audit" class="icon-button" type="button" title="Close Developer Audit">&times;</button>
       </header>
       <div class="ops-body">
-        <p class="capture-note" data-pass100-active-capture-boundary="true">Creates a documentation-ready developer audit from the active tab: console warnings/errors, resource timing, load metrics, page structure, and lightweight quality checks. It strips/redacts sensitive URL parts and passes remote webview capture output through the PASS100 active-capture boundary before preview/export. It excludes cookies, storage values, credentials, tokens, request bodies, response bodies, and form contents.</p>
+        <p class="capture-note" data-pass100-active-capture-boundary="true">Creates a documentation-ready developer audit from the active tab: console warnings/errors, resource timing, load metrics, page structure, and lightweight quality checks. It strips and redacts sensitive URL parts and sanitizes remote webview capture output before preview or export. It excludes cookies, storage values, credentials, tokens, request bodies, response bodies, and form contents.</p>
         <div id="dev-audit-summary" class="ops-summary" aria-live="polite"></div>
         <textarea id="dev-audit-markdown" spellcheck="true" aria-label="Developer Audit markdown"></textarea>
       </div>

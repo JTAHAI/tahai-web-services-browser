@@ -4,7 +4,12 @@ import type {
   MissionLayout,
   MissionLayoutType,
   MissionRunbook,
+  MissionRunbookBlockedItem,
+  MissionRunbookOperatorTimestamp,
+  MissionRunbookRollbackCondition,
+  MissionRunbookSection,
   MissionRunbookStepState,
+  MissionRunbookValidationStep,
   MissionState,
   MissionTabRole,
   MissionTimelineEvent,
@@ -17,6 +22,21 @@ import {
   MISSION_TAB_ROLES,
   MISSION_TYPES
 } from '../shared/mission-types';
+import {
+  RUNBOOK_RAIL_V2_GUARDRAILS,
+  runbookRailV2Diagnostics,
+  runbookRailV2TemplateForMissionType
+} from '../shared/runbook-rail-v2-contract';
+import {
+  MISSION_TIMELINE_V2_FILTERS,
+  PASS201_MISSION_TIMELINE_V2_PASS,
+  missionTimelineV2Diagnostics,
+  missionTimelineV2GuardrailSummary,
+  missionTimelineV2KindModel,
+  missionTimelineV2SafeSummary,
+  type MissionTimelineV2Filter,
+  type MissionTimelineV2Surface
+} from '../shared/mission-timeline-v2-contract';
 
 export type MissionRecipeLike = {
   label: string;
@@ -89,22 +109,81 @@ export function defaultRunbookStepLabels(type: MissionType): string[] {
   return ['Define mission objective', 'Capture starting context', 'Perform work step', 'Validate result', 'Document closeout'];
 }
 
+function createRunbookSections(type: MissionType): MissionRunbookSection[] {
+  return runbookRailV2TemplateForMissionType(type).sections.map((section) => ({
+    sectionId: section.sectionId,
+    label: section.label,
+    intent: section.intent,
+    required: section.required,
+    state: 'todo' as MissionRunbookStepState,
+    operatorNote: '',
+    evidencePrompt: section.evidencePrompt
+  }));
+}
+
+function createRunbookValidationSteps(type: MissionType): MissionRunbookValidationStep[] {
+  return runbookRailV2TemplateForMissionType(type).validationSteps.map((label) => ({
+    stepId: missionUuid(),
+    label: label.slice(0, 220),
+    state: 'todo' as MissionRunbookStepState,
+    evidenceNote: ''
+  }));
+}
+
+function createRunbookRollbackConditions(type: MissionType): MissionRunbookRollbackCondition[] {
+  return runbookRailV2TemplateForMissionType(type).rollbackConditions.map((label) => ({
+    conditionId: missionUuid(),
+    label: label.slice(0, 220),
+    active: true,
+    owner: '',
+    note: ''
+  }));
+}
+
+function createRunbookBlockedItems(type: MissionType): MissionRunbookBlockedItem[] {
+  return runbookRailV2TemplateForMissionType(type).blockedItems
+    .filter((label) => label !== 'No active blocker recorded')
+    .map((label) => ({ itemId: missionUuid(), label: label.slice(0, 220), owner: '', status: 'open', note: '', createdAt: new Date().toISOString() }));
+}
+
+function createRunbookOperatorTimestamps(type: MissionType): MissionRunbookOperatorTimestamp[] {
+  return runbookRailV2TemplateForMissionType(type).operatorTimestampLabels.map((label) => ({
+    timestampId: missionUuid(),
+    label: label.slice(0, 80),
+    value: '',
+    note: ''
+  }));
+}
+
 export function createMissionRunbook(type: MissionType, objectiveSeed = ''): MissionRunbook {
+  const template = runbookRailV2TemplateForMissionType(type);
   return {
-    objective: objectiveSeed || 'Define the operational outcome before closing this mission.',
-    rollback: 'Stop, roll back, or escalate if validation fails, permissions are unclear, or secret-bearing material appears.',
-    steps: defaultRunbookStepLabels(type).map((label) => ({ stepId: missionUuid(), label, state: 'todo' as MissionRunbookStepState, evidenceNote: '' }))
+    objective: objectiveSeed || template.objectivePrompt || 'Define the operational outcome before closing this mission.',
+    rollback: template.stopConditionPrompt || 'Stop, roll back, or escalate if validation fails, permissions are unclear, or secret-bearing material appears.',
+    steps: defaultRunbookStepLabels(type).map((label) => ({ stepId: missionUuid(), label, state: 'todo' as MissionRunbookStepState, evidenceNote: '' })),
+    sections: createRunbookSections(type),
+    validationSteps: createRunbookValidationSteps(type),
+    rollbackConditions: createRunbookRollbackConditions(type),
+    blockedItems: createRunbookBlockedItems(type),
+    operatorTimestamps: createRunbookOperatorTimestamps(type),
+    exportProfile: 'sanitized-handoff',
+    updatedAt: new Date().toISOString()
   };
 }
 
 export function createMissionRunbookFromRecipe(recipe: MissionRecipeLike): MissionRunbook {
   const type = recipe.missionType || 'generic';
   const labels = recipe.missionRunbookSteps?.length ? recipe.missionRunbookSteps : defaultRunbookStepLabels(type);
-  return {
-    objective: recipe.missionPrimaryAction || recipe.note || 'Define the operational outcome before closing this mission.',
-    rollback: recipe.missionStopCondition || 'Stop, roll back, or escalate if validation fails, permissions are unclear, or secret-bearing material appears.',
-    steps: labels.slice(0, 12).map((label) => ({ stepId: missionUuid(), label: label.slice(0, 220), state: 'todo' as MissionRunbookStepState, evidenceNote: '' }))
-  };
+  const runbook = createMissionRunbook(type, recipe.missionPrimaryAction || recipe.note || '');
+  runbook.rollback = recipe.missionStopCondition || runbook.rollback;
+  runbook.steps = labels.slice(0, 12).map((label) => ({ stepId: missionUuid(), label: label.slice(0, 220), state: 'todo' as MissionRunbookStepState, evidenceNote: '' }));
+  const prompts = recipe.missionEvidencePrompts || [];
+  runbook.sections = runbook.sections.map((section, index) => ({
+    ...section,
+    evidencePrompt: prompts[index] || section.evidencePrompt
+  }));
+  runbook.updatedAt = new Date().toISOString();
+  return runbook;
 }
 
 export function recipePhaseLabel(recipe: MissionRecipeLike): string {
@@ -150,8 +229,24 @@ export function recipeBlueprintMarkdown(recipe: MissionRecipeLike, md: (value: s
 
 export function ensureMissionRunbook(mission: MissionState): MissionRunbook {
   if (!mission.runbook) mission.runbook = createMissionRunbook(mission.missionType);
+  const fallback = createMissionRunbook(mission.missionType);
   if (!Array.isArray(mission.runbook.steps)) mission.runbook.steps = [];
+  if (!Array.isArray(mission.runbook.sections) || mission.runbook.sections.length === 0) mission.runbook.sections = fallback.sections;
+  if (!Array.isArray(mission.runbook.validationSteps) || mission.runbook.validationSteps.length === 0) mission.runbook.validationSteps = fallback.validationSteps;
+  if (!Array.isArray(mission.runbook.rollbackConditions) || mission.runbook.rollbackConditions.length === 0) mission.runbook.rollbackConditions = fallback.rollbackConditions;
+  if (!Array.isArray(mission.runbook.blockedItems)) mission.runbook.blockedItems = [];
+  if (!Array.isArray(mission.runbook.operatorTimestamps) || mission.runbook.operatorTimestamps.length === 0) mission.runbook.operatorTimestamps = fallback.operatorTimestamps;
+  if (!mission.runbook.exportProfile) mission.runbook.exportProfile = 'sanitized-handoff';
+  if (!mission.runbook.updatedAt) mission.runbook.updatedAt = mission.updatedAt || new Date().toISOString();
   return mission.runbook;
+}
+
+export function missionRunbookV2DiagnosticsLabel(mission: MissionState): string {
+  return runbookRailV2Diagnostics(ensureMissionRunbook(mission)).diagnosticsLabel;
+}
+
+export function missionRunbookV2GuardrailSummary(): string {
+  return 'local-only=' + String(RUNBOOK_RAIL_V2_GUARDRAILS.localOnly) + ' · browser-side-only=' + String(RUNBOOK_RAIL_V2_GUARDRAILS.browserSideOnly) + ' · redaction-before-export=' + String(RUNBOOK_RAIL_V2_GUARDRAILS.redactionBeforeExport);
 }
 
 export function ensureMissionEvidence(mission: MissionState): MissionEvidenceEntry[] {
@@ -178,7 +273,7 @@ export function createEmptyMission(input: { name: string; missionType: MissionTy
     notes: [],
     runbook: createMissionRunbook(input.missionType),
     evidence: [],
-    timeline: [{ eventId: missionUuid(), kind: 'created', createdAt: now, title: input.createdTitle || 'Mission created', detail: input.createdDetail || 'Local-only Mission Tabs model initialized.' }],
+    timeline: [{ eventId: missionUuid(), kind: 'created', createdAt: now, title: input.createdTitle || 'Mission created', detail: input.createdDetail || 'Local-only Mission Tabs model initialized.', surface: 'mission-control', operatorTime: now, exportSafeSummary: 'Mission · Mission created · Local-only Mission Tabs model initialized.' }],
     links: { itDocs: null, psa: null }
   };
 }
@@ -204,14 +299,38 @@ export function cloneMissionForDuplicate(source: MissionState, name: string): Mi
     evidence: (source.evidence || []).map((entry) => ({ ...entry, eventId: missionUuid(), sourceTabId: entry.sourceTabId ? tabIdMap.get(entry.sourceTabId) : undefined })),
     timeline: []
   };
-  mission.timeline.unshift({ eventId: missionUuid(), kind: 'mission-duplicated', createdAt: now, title: 'Mission duplicated', detail: 'Created from ' + source.name + '.' });
+  appendMissionTimelineEvent(mission, 'mission-duplicated', 'Mission duplicated', 'Created from ' + source.name + '.', { surface: 'local-store' });
   return mission;
 }
 
-export function appendMissionTimelineEvent(mission: MissionState, kind: MissionTimelineEvent['kind'], title: string, detail: string): void {
-  mission.timeline.unshift({ eventId: missionUuid(), kind, createdAt: new Date().toISOString(), title, detail });
+export type MissionTimelineAppendMeta = {
+  surface?: MissionTimelineV2Surface;
+  paneId?: string;
+  tabId?: string;
+};
+
+// Timeline v2 export and renderer support.
+export const missionTimelineV2Filters: MissionTimelineV2Filter[] = [...MISSION_TIMELINE_V2_FILTERS];
+export { PASS201_MISSION_TIMELINE_V2_PASS, missionTimelineV2Diagnostics, missionTimelineV2GuardrailSummary, missionTimelineV2KindModel, missionTimelineV2SafeSummary };
+
+export function appendMissionTimelineEvent(mission: MissionState, kind: MissionTimelineEvent['kind'], title: string, detail: string, meta: MissionTimelineAppendMeta = {}): void {
+  const now = new Date().toISOString();
+  const model = missionTimelineV2KindModel(kind);
+  const draft: MissionTimelineEvent = {
+    eventId: missionUuid(),
+    kind,
+    createdAt: now,
+    title,
+    detail,
+    surface: meta.surface || model.surface,
+    operatorTime: now
+  };
+  if (meta.paneId) draft.paneId = meta.paneId;
+  if (meta.tabId) draft.tabId = meta.tabId;
+  draft.exportSafeSummary = missionTimelineV2SafeSummary(draft);
+  mission.timeline.unshift(draft);
   mission.timeline = mission.timeline.slice(0, 160);
-  mission.updatedAt = new Date().toISOString();
+  mission.updatedAt = now;
 }
 
 export function syncMissionLayoutPanesForMission(mission: MissionState): void {
@@ -225,7 +344,11 @@ export function missionExportMarkdown(currentMission: MissionState | undefined, 
   const checklist = runbook.steps.map((step) => '- [' + (step.state === 'done' ? 'x' : ' ') + '] ' + md(step.label) + ' — ' + md(step.state)).join('\n') || '- _No runbook checklist steps._';
   const notes = currentMission.notes.map((note) => '- ' + md(note)).join('\n') || '- _No local notes yet._';
   const evidenceRows = ensureMissionEvidence(currentMission).map((entry) => '| ' + md(missionEvidenceKindLabel(entry.kind)) + ' | ' + md(entry.title) + ' | ' + md(entry.url || 'n/a') + ' | ' + md(entry.paneId || 'n/a') + ' | ' + md(entry.createdAt) + ' |').join('\n') || '| _No mission evidence pinned._ |  |  |  |  |';
-  const timeline = currentMission.timeline.map((event) => '- ' + md(event.createdAt) + ' — ' + md(event.kind) + ' — ' + md(event.title) + (event.detail ? ' — ' + md(event.detail) : '')).join('\n') || '- _No timeline yet._';
+  const timelineDiagnostics = missionTimelineV2Diagnostics(currentMission.timeline);
+  const timeline = currentMission.timeline.map((event) => {
+    const model = missionTimelineV2KindModel(event.kind);
+    return '- ' + md(event.createdAt) + ' — ' + md(model.label) + ' — ' + md(event.exportSafeSummary || missionTimelineV2SafeSummary(event));
+  }).join('\n') || '- _No timeline yet._';
   return '# TAHAI Mission Packet — ' + md(currentMission.name) + '\n\n' +
     '> Local-only Mission Control export preview. Review through Ops Guard before sharing or syncing. IT Docs/PSA writeback stays disabled until an authorized server-side contract is active.\n\n' +
     '| Field | Value |\n| --- | --- |\n' +
@@ -237,5 +360,7 @@ export function missionExportMarkdown(currentMission: MissionState | undefined, 
     '## Runbook Rail\n\nObjective: ' + md(runbook.objective || 'Not set') + '\n\nRollback / stop condition: ' + md(runbook.rollback || 'Not set') + '\n\n' + checklist + '\n\n' +
     '## Local Notes\n\n' + notes + '\n\n' +
     '## Mission Evidence\n\n| Kind | Title | URL | Pane | Captured |\n| --- | --- | --- | --- | --- |\n' + evidenceRows + '\n\n' +
-    '## Timeline\n\n' + timeline + '\n';
+    '## Timeline\n\n' +
+    '> ' + md(PASS201_MISSION_TIMELINE_V2_PASS) + ' · ' + md(timelineDiagnostics.diagnosticsLabel) + ' · ' + md(missionTimelineV2GuardrailSummary()) + '\n\n' +
+    timeline + '\n';
 }

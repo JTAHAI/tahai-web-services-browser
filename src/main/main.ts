@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readBrowserSettings, resetBrowserSettings, settingsForRenderer, writeBrowserSettings } from './settings';
-import { hardenSession } from './runtime-security';
+import { hardenSession, revealDownloadArtifact } from './runtime-security';
 import { runFirstLaunchChecks } from './first-run';
 import { copyMissionExport, deleteMission, listMissions, loadMission, previewMissionExport, saveMission, saveMissionExport } from './mission-store';
 import { getItDocsMissionCapabilities, itDocsCapabilitiesMarkdown, itDocsHomeUrl } from './itdocs-client';
@@ -22,6 +22,7 @@ import { DIAGNOSTIC_TIMEOUT_MS, evaluateDiagnosticsHostScope, evaluateDiagnostic
 import { TAHAI_BUNDLE_NAME, TAHAI_DEFAULT_HOME_URL, TAHAI_PRODUCT_NAME, TAHAI_RELEASE_CHANNEL, TAHAI_RELEASE_PASS, TAHAI_RELEASE_VERSION, releaseTruthForRenderer } from '../shared/release-truth';
 import { TAHAI_REQUIRED_BROWSER_WINDOW_WEB_PREFERENCES, isTrustedTahaiIpcChannel, isTrustedTahaiRendererEventChannel, type TahaiTrustedRendererEventChannel } from '../shared/electron-security-contract';
 import { hardenWebviewAttachOptions, TAHAI_WEBVIEW_ATTACH_SECURITY_PASS, webviewAttachSecuritySummary, type TahaiWebviewAttachRecord } from '../shared/webview-attach-security-contract';
+import { PASS188_WEBVIEW_FOCUS_INPUT_BOUNDARY_VERSION, pass188NormalizeBeforeInputCommand, type Pass188BeforeInputLike, type Pass188InputBoundaryCommand, type Pass188InputBoundaryPayload, type Pass188InputBoundarySource } from '../shared/webview-focus-input-boundary-contract';
 import { ENTERPRISE_ADMIN_POLICY_PASS, enterpriseAdminPolicySummary } from '../shared/enterprise-admin-policy-contract';
 import { RUNTIME_E2E_HARNESS_PASS } from '../shared/runtime-e2e-harness-contract';
 import { ENTERPRISE_SUPPORT_BUNDLE_PASS } from '../shared/enterprise-support-bundle-contract';
@@ -464,12 +465,66 @@ function sendTrustedRendererEvent(window: BrowserWindow, channel: TahaiTrustedRe
   window.webContents.send(channel, ...args);
 }
 
+
+let pass188InputBoundaryInstallSequence = 0;
+
+function pass188WindowForInputBoundary(sourceContents: WebContents): BrowserWindow | undefined {
+  const directWindow = BrowserWindow.fromWebContents(sourceContents);
+  if (directWindow && !directWindow.isDestroyed()) return directWindow;
+  const hostContents = 'hostWebContents' in sourceContents ? (sourceContents as WebContents & { hostWebContents?: WebContents }).hostWebContents : undefined;
+  const hostWindow = hostContents ? BrowserWindow.fromWebContents(hostContents) : undefined;
+  if (hostWindow && !hostWindow.isDestroyed()) return hostWindow;
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  if (focusedWindow && !focusedWindow.isDestroyed()) return focusedWindow;
+  const candidates = BrowserWindow.getAllWindows().filter((candidate) => !candidate.isDestroyed());
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+function pass188InputBoundarySource(sourceContents: WebContents): Pass188InputBoundarySource {
+  const hostContents = 'hostWebContents' in sourceContents ? (sourceContents as WebContents & { hostWebContents?: WebContents }).hostWebContents : undefined;
+  if (hostContents) return 'webview-guest';
+  const type = typeof sourceContents.getType === 'function' ? sourceContents.getType() : '';
+  if (type === 'window') return 'browser-window';
+  return 'unknown';
+}
+
+function pass188ForwardInputBoundaryCommand(sourceContents: WebContents, command: Pass188InputBoundaryCommand, input: Pass188BeforeInputLike): boolean {
+  const targetWindow = pass188WindowForInputBoundary(sourceContents);
+  if (!targetWindow || targetWindow.isDestroyed()) return false;
+  const source = pass188InputBoundarySource(sourceContents);
+  const payload: Pass188InputBoundaryPayload = {
+    version: PASS188_WEBVIEW_FOCUS_INPUT_BOUNDARY_VERSION,
+    command,
+    source,
+    fromGuest: source === 'webview-guest',
+    key: String(input.key || ''),
+    code: String(input.code || ''),
+    createdAt: new Date().toISOString()
+  };
+  sendTrustedRendererEvent(targetWindow, 'tahai-browser:pass188-input-boundary', payload);
+  return true;
+}
+
+function installPass188WebContentsInputBoundary(contents: WebContents): void {
+  const marker = contents as WebContents & { __tahaiPass188InputBoundaryInstalled?: number };
+  if (marker.__tahaiPass188InputBoundaryInstalled) return;
+  marker.__tahaiPass188InputBoundaryInstalled = ++pass188InputBoundaryInstallSequence;
+  contents.on('before-input-event', (event, input) => {
+    const command = pass188NormalizeBeforeInputCommand(input as Pass188BeforeInputLike);
+    if (!command) return;
+    if (pass188ForwardInputBoundaryCommand(contents, command, input as Pass188BeforeInputLike)) {
+      event.preventDefault();
+    }
+  });
+}
+
 let pass153WebContentsPopupBoundaryInstalled = false;
 
 function installPass153WebContentsPopupBoundary(): void {
   if (pass153WebContentsPopupBoundaryInstalled) return;
   pass153WebContentsPopupBoundaryInstalled = true;
   app.on('web-contents-created', (_event, contents) => {
+    installPass188WebContentsInputBoundary(contents);
     contents.setWindowOpenHandler(() => ({ action: 'deny' }));
     // PASS185: hardware mouse Button 4/5 can surface as an app-command on
     // guest webContents when focus lives inside an Electron <webview>. Route it
@@ -944,6 +999,7 @@ function createWindow(): BrowserWindow {
   });
 
   enforcePass153WebviewAttachBoundary(window);
+  installPass188WebContentsInputBoundary(window.webContents);
   loadRendererShell(window);
   installApplicationMenu(window);
   if (process.platform !== 'darwin') {
@@ -961,7 +1017,7 @@ function createWindow(): BrowserWindow {
     if (!isTrustedShellOrigin(url, trustedShellUrls())) event.preventDefault();
   });
 
-  // PASS88/PASS185: Route OS/browser mouse back-forward app commands through the
+  // PASS88: Route OS/browser mouse back-forward app commands through the
   // same renderer menu-command channel used by Alt+Left/Alt+Right, preserving
   // active-pane targeting whether focus is in the shell or inside a webview.
   window.on('app-command', (event, command) => {
@@ -1016,6 +1072,8 @@ assertTrustedIpcChannel('tahai-browser:update-settings');
 ipcMain.handle('tahai-browser:update-settings', (event, next) => { assertTrustedBrowserShellIpc(event); return settingsForRenderer(writeBrowserSettings(next)); });
 assertTrustedIpcChannel('tahai-browser:reset-settings');
 ipcMain.handle('tahai-browser:reset-settings', (event) => { assertTrustedBrowserShellIpc(event); return settingsForRenderer(resetBrowserSettings()); });
+assertTrustedIpcChannel('tahai-browser:reveal-download-artifact');
+ipcMain.handle('tahai-browser:reveal-download-artifact', async (event, artifactId: string) => { assertTrustedBrowserShellIpc(event); return revealDownloadArtifact(artifactId); });
 type ClearBrowsingDataScope = 'active-profile' | 'selected-profile' | 'all-profiles';
 
 type ClearBrowsingDataOptions = {

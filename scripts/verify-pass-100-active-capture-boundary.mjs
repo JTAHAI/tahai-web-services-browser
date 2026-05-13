@@ -51,11 +51,11 @@ need(!/inputUrl: String\(inputUrl \|\| ''\)/.test(main),'diagnostics must not re
 need(!/const normalizedUrl = normalizeDiagnosticUrl\(inputUrl\);/.test(main),'diagnostics must not use raw normalized URL directly');
 includes('src/renderer/index.html',[
   'data-pass100-active-capture-boundary="true"',
-  'PASS100: active-page capture output from remote webviews is redacted, URL-normalized, size-capped, and origin-sanitized'
+  'active tab URL, title, visible page structure'
 ]);
 includes('src/renderer/styles/browser.css',[
   'PASS100 active-page capture boundary',
-  'Active capture boundary'
+  'Capture safety'
 ]);
 includes('PASS_100_ACTIVE_CAPTURE_BOUNDARY_SUMMARY.md',[
   'PASS100 — Active Capture Boundary',

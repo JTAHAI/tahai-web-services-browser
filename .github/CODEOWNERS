@@ -1,17 +1,1 @@
-# PASS144 public repo and supply-chain hardening.
-# Keep release, security, installer, Electron shell, and Mission boundary changes owner-reviewed.
-
 * @JTAHAI
-
-/.github/ @JTAHAI
-/scripts/ @JTAHAI
-/packaging/ @JTAHAI
-/src/main/ @JTAHAI
-/src/preload/ @JTAHAI
-/src/shared/ @JTAHAI
-/electron-builder.yml @JTAHAI
-/package.json @JTAHAI
-/package-lock.json @JTAHAI
-/SECURITY.md @JTAHAI
-/docs/code-signing-policy.md @JTAHAI
-/docs/privacy-policy.md @JTAHAI

@@ -47,7 +47,7 @@ need(!app.includes('title: input.title.trim().slice(0, 180)'), 'Mission evidence
 need(!app.includes('url: (input.url || currentActiveUrl() || \'\').slice(0, 2048)'), 'Mission evidence URLs must not use raw slice-only handling');
 includes('src/renderer/index.html',[
   'data-pass104-tab-metadata-boundary="true"',
-  'Remote page titles, status text, Mission timeline entries, and Mission metadata URLs are sanitized',
+  'Remote page titles, status text, Mission timeline entries, and Mission metadata URLs are sanitized before display or local Mission use',
   'bidi spoofing',
   'tokenized query strings'
 ]);

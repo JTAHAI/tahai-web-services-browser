@@ -1,5 +1,6 @@
 import type { TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
 import { RUNTIME_E2E_HARNESS_CONTRACT_ID, runtimeE2eHarnessSummary } from '../shared/runtime-e2e-harness-contract';
+import { firstRunOperatorWalkthroughState } from '../shared/first-run-operator-walkthrough';
 
 export type RendererBrowserConfig = TahaiBrowserConfig;
 export type RendererBrowserSettings = TahaiBrowserSettings;
@@ -52,7 +53,7 @@ export function fallbackBrowserConfig(): RendererBrowserConfig {
     updatePolicy: 'Fallback config only. Runtime release truth unavailable until preload/config bridge responds.',
     signingStatus: 'Unknown in fallback config.',
     releaseTruth: { productName: 'TAHAI Web Services Browser', bundleName: 'TAHAI—SENTINEL Browser', version: '0.0.0', releasePass: 'fallback', releaseChannel: 'fallback', releasePhase: 'fallback', updateChannel: 'fallback', updatePolicy: 'Fallback config only. Runtime release truth unavailable until preload/config bridge responds.', signingStatus: 'Unknown in fallback config.', downloadOrigin: 'https://browser.tahai.net', downloadAliasOrigin: 'https://browser.tahaiportal.com', publicRepoUrl: 'https://github.com/JTAHAI/tahai-web-services-browser' },
-    firstLaunch: { product: 'TAHAI Web Services Browser', defaultHome: 'https://tahaiportal.com', initializedAt: '', sourceGuardrails: [] },
+    firstLaunch: { product: 'TAHAI Web Services Browser', defaultHome: 'https://tahaiportal.com', initializedAt: '', sourceGuardrails: [], operatorWalkthrough: firstRunOperatorWalkthroughState() },
     userDataLabel: 'Filesystem paths hidden.',
     settingsLabel: 'Filesystem paths hidden.',
     settings: fallbackSettings,

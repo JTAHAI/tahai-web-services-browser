@@ -1,60 +1,49 @@
-# Dependencies
 node_modules/
-
-# Build output
 dist/
 release/
 out/
 build-output/
 artifacts/
+.pass-runs/
 coverage/
-
-
-# Generated installers / release packages
+.cache/
+.vite/
+.DS_Store
+Thumbs.db
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+id_rsa
+id_ed25519
+credential-vault.json
+credential-vault*.json
+**/credential-vault.json
+**/credential-vault*.json
 *.zip
 *.exe
 *.msi
 *.dmg
 *.AppImage
-*.deb
 *.rpm
+*.deb
 *.blockmap
-
-# Runtime/user data
+*.log
+*.tmp
+*.sqlite
+*.db
+*.local
+runtime-profiles/
 profiles/
 user-data/
 .local-data/
 mission-data/
 evidence-data/
-*.log
-npm-debug.log*
-
-# Environment and secrets
-.env
-.env.*
-!.env.example
-*.pfx
-*.p12
-*.pem
-*.key
-id_rsa
-id_ed25519
-
-# OS/editor
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-
-# Temporary files
-*.bak
-*.orig
-*.tmp
-
-# Local credential vault/user secrets
-credential-vault.json
-credential-vault*.json
-**/credential-vault.json
-**/credential-vault*.json
-
-.pass-runs/
+browser-cache/
+cookies/
+localStorage/
+sessionStorage/
+IndexedDB/

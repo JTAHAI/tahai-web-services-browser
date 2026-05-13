@@ -1172,3 +1172,423 @@ body[data-pass176-compact-icon-viewport-hardening="true"].mission-micro-window-s
     min-height: 42px !important;
   }
 }
+
+
+/* PASS196 — Mission Control IA rebuild: visible command deck for mission, pane, layout, runbook, evidence, timeline, and export truth. */
+.mission-command-deck {
+  display: grid !important;
+  grid-template-columns: minmax(210px, 1.25fr) repeat(6, minmax(130px, 1fr)) !important;
+  gap: 10px !important;
+  padding: 12px 22px !important;
+  border-bottom: 1px solid rgba(109,255,183,.14) !important;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(109,255,183,.10), transparent 30%),
+    linear-gradient(90deg, rgba(2,8,13,.86), rgba(5,18,28,.76), rgba(2,8,13,.86)) !important;
+}
+
+.mission-command-card {
+  min-width: 0 !important;
+  display: grid !important;
+  gap: 3px !important;
+  align-content: center !important;
+  min-height: 74px !important;
+  padding: 10px 12px !important;
+  border: 1px solid rgba(119,219,255,.18) !important;
+  border-radius: 16px !important;
+  background:
+    linear-gradient(180deg, rgba(8,24,36,.92), rgba(2,9,15,.92)) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.026),
+    0 10px 28px rgba(0,0,0,.18) !important;
+}
+
+.mission-command-card[data-pass196-card="identity"] {
+  border-color: rgba(109,255,183,.34) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.03),
+    0 0 24px rgba(109,255,183,.08) !important;
+}
+
+.mission-command-card span {
+  color: var(--mission-cyan) !important;
+  font-size: .66rem !important;
+  font-weight: 900 !important;
+  letter-spacing: .14em !important;
+  line-height: 1 !important;
+  text-transform: uppercase !important;
+}
+
+.mission-command-card strong {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  color: #ffffff !important;
+  font-size: .90rem !important;
+  font-weight: 900 !important;
+  line-height: 1.12 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.mission-command-card em {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  color: var(--mission-muted) !important;
+  font-size: .70rem !important;
+  font-style: normal !important;
+  line-height: 1.22 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 1440px) {
+  .mission-command-deck {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 940px) {
+  .mission-command-deck {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    padding: 10px 12px !important;
+  }
+  .mission-command-card {
+    min-height: 66px !important;
+    padding: 9px 10px !important;
+  }
+}
+
+body.mission-small-window-stress .mission-command-deck,
+body.mission-micro-window-stress .mission-command-deck,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-command-deck,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-command-deck {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  padding: 8px 10px !important;
+}
+
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-command-card,
+body.mission-micro-window-stress .mission-command-card {
+  min-height: 58px !important;
+}
+
+/* PASS200 — Runbook Rail v2: structured local operator rail. */
+.mission-runbook-v2-diagnostics {
+  border: 1px solid rgba(119,219,255,.22);
+  border-radius: 14px;
+  background: rgba(4,15,28,.72);
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  color: var(--mission-text);
+  font-size: .78rem;
+}
+
+.mission-runbook-v2-diagnostics strong { color: #f7fbff; }
+.mission-runbook-v2-diagnostics span { color: #bdddef; }
+.mission-runbook-v2-diagnostics em { color: #91a8bc; font-style: normal; }
+
+.mission-runbook-v2-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  border: 1px solid rgba(109,255,183,.14);
+  border-radius: 14px;
+  padding: 9px;
+  background: rgba(3,12,17,.70);
+  min-width: 0;
+}
+
+.mission-runbook-v2-row span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  color: var(--mission-text);
+  font-size: .80rem;
+  line-height: 1.25;
+}
+
+.mission-runbook-v2-row span strong { color: #f7fbff; }
+.mission-runbook-v2-row span em,
+.mission-runbook-v2-row span small {
+  color: #9fb5c7;
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+
+.mission-runbook-v2-row.done,
+.mission-runbook-v2-row.resolved { border-color: rgba(109,255,183,.38); }
+.mission-runbook-v2-row.blocked,
+.mission-runbook-v2-row.open { border-color: rgba(255,204,102,.42); }
+.mission-runbook-v2-row.watching { border-color: rgba(119,219,255,.40); }
+
+.mission-runbook-v2-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #d9f4ff;
+  font-weight: 900;
+  font-size: .72rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.mission-runbook-v2-heading.split button { min-height: 30px; padding: 4px 8px; }
+
+/* PASS201 — Mission Timeline v2 UX: visual event model, filters, operator timestamps, and export-safe summaries. */
+.mission-timeline-v2-diagnostics {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(119, 219, 255, .24);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(3, 13, 24, .76);
+  color: var(--mission-text);
+}
+
+.mission-timeline-v2-diagnostics strong { color: #f7fbff; font-size: .80rem; }
+.mission-timeline-v2-diagnostics span { color: #bdddef; font-size: .74rem; }
+.mission-timeline-v2-diagnostics em { color: #91a8bc; font-size: .68rem; font-style: normal; overflow-wrap: anywhere; }
+
+.mission-timeline-v2-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 0 4px;
+}
+
+.mission-timeline-v2-filter {
+  min-height: 30px;
+  border: 1px solid rgba(119, 219, 255, .18);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: rgba(6, 18, 29, .88);
+  color: #bdddef;
+  cursor: pointer;
+  font-size: .68rem;
+  font-weight: 850;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.mission-timeline-v2-filter:hover,
+.mission-timeline-v2-filter:focus-visible,
+.mission-timeline-v2-filter.active {
+  border-color: rgba(109, 255, 183, .44);
+  color: #f7fbff;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(109, 255, 183, .10);
+}
+
+.mission-timeline-v2-event {
+  display: grid;
+  grid-template-columns: minmax(74px, .34fr) minmax(0, 1fr);
+  gap: 9px;
+  border: 1px solid rgba(109, 255, 183, .14);
+  border-radius: 15px;
+  padding: 9px;
+  background: rgba(2, 10, 17, .72);
+  min-width: 0;
+}
+
+.mission-timeline-v2-event.tone-layout,
+.mission-timeline-v2-event.tone-pane { border-color: rgba(119, 219, 255, .34); }
+.mission-timeline-v2-event.tone-evidence,
+.mission-timeline-v2-event.tone-export { border-color: rgba(109, 255, 183, .34); }
+.mission-timeline-v2-event.tone-tool { border-color: rgba(255, 204, 102, .36); }
+
+.mission-timeline-v2-rail,
+.mission-timeline-v2-body {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.mission-timeline-v2-rail span {
+  color: var(--mission-cyan);
+  font-size: .64rem;
+  font-weight: 900;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+}
+
+.mission-timeline-v2-rail time {
+  color: #91a8bc;
+  font-size: .66rem;
+  line-height: 1.2;
+}
+
+.mission-timeline-v2-body strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #f7fbff;
+  font-size: .82rem;
+  line-height: 1.18;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mission-timeline-v2-body span,
+.mission-timeline-v2-body em {
+  min-width: 0;
+  color: #a9bdce;
+  font-size: .72rem;
+  font-style: normal;
+  line-height: 1.24;
+  overflow-wrap: anywhere;
+}
+
+.mission-timeline-v2-body em { color: #7894a8; }
+
+body.mission-small-window-stress .mission-timeline-v2-event,
+body.mission-micro-window-stress .mission-timeline-v2-event,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-timeline-v2-event,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-timeline-v2-event {
+  grid-template-columns: 1fr;
+}
+
+/* PASS202 — Evidence Pack v2 UX: active/all-pane scope, export profile, and deterministic capture status. */
+.mission-evidence-v2-diagnostics {
+  margin: 12px 14px 0;
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(109, 255, 183, .20);
+  border-radius: 16px;
+  padding: 10px 11px;
+  background: linear-gradient(135deg, rgba(2, 14, 20, .86), rgba(7, 28, 42, .66));
+  min-width: 0;
+}
+
+.mission-evidence-v2-diagnostics strong {
+  color: #f7fbff;
+  font-size: .82rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.mission-evidence-v2-diagnostics span,
+.mission-evidence-v2-diagnostics em {
+  min-width: 0;
+  color: #bdddef;
+  font-size: .72rem;
+  line-height: 1.32;
+  overflow-wrap: anywhere;
+}
+
+.mission-evidence-v2-diagnostics em { color: #8fb0c5; font-style: normal; }
+
+.mission-evidence-profile,
+.mission-evidence-note {
+  margin: 10px 14px 0 !important;
+}
+
+.mission-evidence-profile select,
+.mission-evidence-note input {
+  width: 100%;
+  min-height: 36px;
+}
+
+.mission-evidence-section[data-pass202-mission-evidence-pack-v2="true"] .mission-evidence-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.mission-evidence-v2-item {
+  border-color: rgba(109, 255, 183, .18) !important;
+}
+
+.mission-evidence-v2-item[data-pass202-capture-scope="active-pane"] { box-shadow: inset 3px 0 0 rgba(119, 219, 255, .50); }
+.mission-evidence-v2-item[data-pass202-capture-scope="all-panes"] { box-shadow: inset 3px 0 0 rgba(109, 255, 183, .48); }
+.mission-evidence-v2-item[data-pass202-capture-scope="tool-output"] { box-shadow: inset 3px 0 0 rgba(255, 204, 102, .46); }
+
+@media (max-width: 760px) {
+  .mission-evidence-section[data-pass202-mission-evidence-pack-v2="true"] .mission-evidence-actions {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* PASS203 Evidence Redaction UX v2 */
+.mission-redaction-ux-v2-preview {
+  border: 1px solid rgba(255, 204, 102, 0.28);
+  border-radius: 14px;
+  padding: 0.7rem 0.8rem;
+  background: linear-gradient(135deg, rgba(255, 204, 102, 0.1), rgba(16, 185, 129, 0.06));
+  display: grid;
+  gap: 0.28rem;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035);
+}
+
+.mission-redaction-ux-v2-preview strong {
+  color: rgba(255, 245, 220, 0.96);
+  font-size: 0.84rem;
+  letter-spacing: 0.02em;
+}
+
+.mission-redaction-ux-v2-preview span,
+.mission-redaction-ux-v2-preview em {
+  color: rgba(236, 254, 255, 0.82);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.mission-redaction-ux-v2-preview[data-pass203-blocked-class-count]:not([data-pass203-blocked-class-count="0"]) {
+  border-color: rgba(255, 112, 112, 0.44);
+  background: linear-gradient(135deg, rgba(255, 112, 112, 0.12), rgba(255, 204, 102, 0.07));
+}
+
+.mission-evidence-v2-item[data-pass203-redaction-action="blocked-from-unredacted-export"] {
+  border-color: rgba(255, 112, 112, 0.38);
+}
+
+.mission-evidence-v2-item[data-pass203-redaction-action="redact-before-copy-save"] {
+  border-color: rgba(255, 204, 102, 0.34);
+}
+
+/* PASS204 — Operator Command Center v2 */
+.operator-command-center-v2 {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0.75rem 0 0;
+  padding: 0.85rem;
+  border: 1px solid rgba(119, 219, 255, 0.22);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.72), rgba(11, 18, 32, 0.88));
+}
+.operator-command-center-v2-header,
+.operator-command-family-top,
+.operator-command-quick-filters,
+.operator-command-family-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+.operator-command-center-v2-header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+.operator-command-target-scope,
+.operator-command-guardrail,
+.operator-command-family-detail {
+  color: rgba(222, 241, 255, 0.76);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+.operator-command-quick-filters,
+.operator-command-family-grid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+.operator-command-family-card,
+.operator-command-quick-filter {
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  color: inherit;
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+}
+.operator-command-family-card:hover,
+.operator-command-quick-filter:hover,
+.operator-command-family-card:focus-visible,
+.operator-command-quick-filter:focus-visible {
+  border-color: rgba(119, 219, 255, 0.44);
+}

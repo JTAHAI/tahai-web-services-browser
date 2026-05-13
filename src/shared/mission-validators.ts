@@ -12,12 +12,18 @@ import {
   type MissionMode,
   type MissionPaneAssignment,
   type MissionRunbook,
+  type MissionRunbookBlockedItem,
+  type MissionRunbookOperatorTimestamp,
+  type MissionRunbookRollbackCondition,
+  type MissionRunbookSection,
   type MissionRunbookStep,
   type MissionRunbookStepState,
+  type MissionRunbookValidationStep,
   type MissionState,
   type MissionTabRef,
   type MissionTabRole,
   type MissionTimelineEvent,
+  type MissionTimelineEventKind,
   type MissionType
 } from './mission-types';
 import { sanitizeItDocsDeepLink } from './itdocs-contract';
@@ -27,6 +33,7 @@ import { scanAndRedact } from './redaction';
 import { redactForMissionStorage } from './redaction';
 import { repairMissionLayoutInvariants } from './mission-state-invariants';
 import { sanitizeEvidenceCaptureMetadata } from './evidence-capture-privacy-contract';
+import { MISSION_TIMELINE_V2_SURFACES, missionTimelineV2SafeSummary, type MissionTimelineV2Surface } from './mission-timeline-v2-contract';
 
 const MAX_MISSION_BYTES = 512 * 1024;
 const MAX_MISSION_TABS = 32;
@@ -34,6 +41,11 @@ const MAX_MISSION_NOTES = 80;
 const MAX_MISSION_TIMELINE = 160;
 const MAX_MISSION_EVIDENCE = 80;
 const MAX_MISSION_RUNBOOK_STEPS = 60;
+const MAX_MISSION_RUNBOOK_SECTIONS = 12;
+const MAX_MISSION_RUNBOOK_VALIDATION_STEPS = 24;
+const MAX_MISSION_RUNBOOK_ROLLBACK_CONDITIONS = 24;
+const MAX_MISSION_RUNBOOK_BLOCKED_ITEMS = 24;
+const MAX_MISSION_RUNBOOK_OPERATOR_TIMESTAMPS = 12;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PANE_RE = /^pane-[1-4]$/;
 const ALLOWED_TOP_LEVEL = new Set(['schemaVersion', 'missionId', 'name', 'missionType', 'mode', 'createdAt', 'updatedAt', 'tabs', 'layout', 'notes', 'runbook', 'evidence', 'timeline', 'links']);
@@ -192,14 +204,86 @@ function validateRunbookStep(input: unknown): MissionRunbookStep | undefined {
   };
 }
 
+function validateRunbookSection(input: unknown): MissionRunbookSection | undefined {
+  if (!isRecord(input) || !isMissionRunbookStepState(input.state)) return undefined;
+  const sectionId = cleanEvidenceText(input.sectionId, 60);
+  const label = cleanEvidenceText(input.label, 80);
+  if (!sectionId || !label) return undefined;
+  return {
+    sectionId,
+    label,
+    intent: cleanEvidenceText(input.intent, 300),
+    required: Boolean(input.required),
+    state: input.state,
+    operatorNote: cleanEvidenceText(input.operatorNote, 900),
+    evidencePrompt: cleanEvidenceText(input.evidencePrompt, 500)
+  };
+}
+
+function validateRunbookValidationStep(input: unknown): MissionRunbookValidationStep | undefined {
+  return validateRunbookStep(input) as MissionRunbookValidationStep | undefined;
+}
+
+function validateRunbookRollbackCondition(input: unknown): MissionRunbookRollbackCondition | undefined {
+  if (!isRecord(input) || !isMissionUuid(input.conditionId)) return undefined;
+  const label = cleanEvidenceText(input.label, 220);
+  if (!label) return undefined;
+  return {
+    conditionId: input.conditionId,
+    label,
+    active: input.active !== false,
+    owner: cleanEvidenceText(input.owner, 120),
+    note: cleanEvidenceText(input.note, 700)
+  };
+}
+
+function validateRunbookBlockedItem(input: unknown): MissionRunbookBlockedItem | undefined {
+  if (!isRecord(input) || !isMissionUuid(input.itemId)) return undefined;
+  const label = cleanEvidenceText(input.label, 220);
+  if (!label) return undefined;
+  const status = ['open', 'watching', 'resolved'].includes(String(input.status)) ? String(input.status) as MissionRunbookBlockedItem['status'] : 'open';
+  return {
+    itemId: input.itemId,
+    label,
+    owner: cleanEvidenceText(input.owner, 120),
+    status,
+    note: cleanEvidenceText(input.note, 700),
+    createdAt: cleanIso(input.createdAt)
+  };
+}
+
+function validateRunbookOperatorTimestamp(input: unknown): MissionRunbookOperatorTimestamp | undefined {
+  if (!isRecord(input) || !isMissionUuid(input.timestampId)) return undefined;
+  const label = cleanEvidenceText(input.label, 80);
+  if (!label) return undefined;
+  return {
+    timestampId: input.timestampId,
+    label,
+    value: input.value ? cleanIso(input.value) : '',
+    note: cleanEvidenceText(input.note, 400)
+  };
+}
+
 function validateRunbook(input: unknown): MissionRunbook {
   const record = isRecord(input) ? input : {};
   const rawSteps = Array.isArray(record.steps) ? record.steps.slice(0, MAX_MISSION_RUNBOOK_STEPS) : [];
   const steps = rawSteps.map(validateRunbookStep).filter(Boolean) as MissionRunbookStep[];
+  const sections = Array.isArray(record.sections) ? record.sections.slice(0, MAX_MISSION_RUNBOOK_SECTIONS).map(validateRunbookSection).filter(Boolean) as MissionRunbookSection[] : [];
+  const validationSteps = Array.isArray(record.validationSteps) ? record.validationSteps.slice(0, MAX_MISSION_RUNBOOK_VALIDATION_STEPS).map(validateRunbookValidationStep).filter(Boolean) as MissionRunbookValidationStep[] : [];
+  const rollbackConditions = Array.isArray(record.rollbackConditions) ? record.rollbackConditions.slice(0, MAX_MISSION_RUNBOOK_ROLLBACK_CONDITIONS).map(validateRunbookRollbackCondition).filter(Boolean) as MissionRunbookRollbackCondition[] : [];
+  const blockedItems = Array.isArray(record.blockedItems) ? record.blockedItems.slice(0, MAX_MISSION_RUNBOOK_BLOCKED_ITEMS).map(validateRunbookBlockedItem).filter(Boolean) as MissionRunbookBlockedItem[] : [];
+  const operatorTimestamps = Array.isArray(record.operatorTimestamps) ? record.operatorTimestamps.slice(0, MAX_MISSION_RUNBOOK_OPERATOR_TIMESTAMPS).map(validateRunbookOperatorTimestamp).filter(Boolean) as MissionRunbookOperatorTimestamp[] : [];
   return {
     objective: cleanEvidenceText(record.objective, 500),
     rollback: cleanEvidenceText(record.rollback, 500),
-    steps
+    steps,
+    sections,
+    validationSteps,
+    rollbackConditions,
+    blockedItems,
+    operatorTimestamps,
+    exportProfile: record.exportProfile === 'internal' || record.exportProfile === 'incident-packet' || record.exportProfile === 'change-record' || record.exportProfile === 'itdocs-sync' || record.exportProfile === 'psa-ticket-note' ? record.exportProfile : 'sanitized-handoff',
+    updatedAt: cleanIso(record.updatedAt)
   };
 }
 
@@ -242,17 +326,34 @@ function validateEvidenceEntry(input: unknown, tabs: MissionTabRef[]): MissionEv
   };
 }
 
+const MISSION_TIMELINE_KINDS: MissionTimelineEventKind[] = ['created', 'tab-added', 'tab-removed', 'tab-role-set', 'layout-set', 'pane-focused', 'saved', 'restored', 'mission-renamed', 'mission-duplicated', 'mission-deleted', 'note', 'evidence-added', 'tool-run', 'exported', 'runbook-updated', 'checklist-added', 'checklist-updated'];
+
+function isMissionTimelineKind(value: unknown): value is MissionTimelineEventKind {
+  return typeof value === 'string' && MISSION_TIMELINE_KINDS.includes(value as MissionTimelineEventKind);
+}
+
+function sanitizeMissionTimelineSurface(value: unknown): MissionTimelineV2Surface | undefined {
+  return typeof value === 'string' && (MISSION_TIMELINE_V2_SURFACES as readonly string[]).includes(value) ? value as MissionTimelineV2Surface : undefined;
+}
+
 function validateTimelineEvent(input: unknown): MissionTimelineEvent | undefined {
-  if (!isRecord(input) || !isMissionUuid(input.eventId)) return undefined;
-  const kind = String(input.kind || 'note');
-  if (!['created', 'tab-added', 'tab-role-set', 'layout-set', 'saved', 'restored', 'mission-renamed', 'mission-duplicated', 'mission-deleted', 'note', 'evidence-added', 'exported', 'runbook-updated', 'checklist-added', 'checklist-updated'].includes(kind)) return undefined;
-  return {
+  if (!isRecord(input) || !isMissionUuid(input.eventId) || !isMissionTimelineKind(input.kind)) return undefined;
+  const title = cleanEvidenceText(input.title, 140) || 'Mission event';
+  const detail = cleanEvidenceText(input.detail, 500);
+  const base: MissionTimelineEvent = {
     eventId: input.eventId,
-    kind: kind as MissionTimelineEvent['kind'],
+    kind: input.kind,
     createdAt: cleanIso(input.createdAt),
-    title: cleanEvidenceText(input.title, 140),
-    detail: cleanEvidenceText(input.detail, 500)
+    title,
+    detail
   };
+  const surface = sanitizeMissionTimelineSurface(input.surface);
+  if (surface) base.surface = surface;
+  if (isMissionPaneId(input.paneId)) base.paneId = input.paneId;
+  if (isMissionUuid(input.tabId)) base.tabId = input.tabId;
+  base.exportSafeSummary = cleanEvidenceText(input.exportSafeSummary || missionTimelineV2SafeSummary(base), 260);
+  base.operatorTime = cleanIso(input.operatorTime || base.createdAt);
+  return base;
 }
 
 export function validateMission(input: unknown): MissionValidationResult {

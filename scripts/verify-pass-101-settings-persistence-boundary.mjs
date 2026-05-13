@@ -41,12 +41,12 @@ need(!/get-settings'.*return readBrowserSettings\(\)/.test(main),'get-settings m
 need(!/update-settings'.*return writeBrowserSettings\(next\)/.test(main),'update-settings must not return raw persisted settings');
 includes('src/renderer/index.html',[
   'data-pass101-settings-boundary="true"',
-  'Saved home pages must be HTTPS or localhost HTTP',
-  'renderer settings never carry local download paths'
+  'Home pages must be HTTPS or localhost HTTP',
+  'the Settings screen never exposes local download paths'
 ]);
 includes('src/renderer/styles/browser.css',[
   'PASS101 settings persistence boundary',
-  'Settings boundary',
+  'Settings safety',
   'data-pass101-settings-boundary="true"'
 ]);
 includes('PASS_101_SETTINGS_PERSISTENCE_BOUNDARY_SUMMARY.md',[

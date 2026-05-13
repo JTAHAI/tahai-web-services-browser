@@ -180,7 +180,7 @@ for (const forbidden of [
 }
 
 need(!/fetch\([^)]*psa/i.test(contract), 'PASS162 must not add browser-side PSA fetches');
-need(!/client_secret\s*=\s*[^\s'"`]+|refresh_token\s*=\s*[^\s'"`]+|access_token\s*=\s*[^\s'"`]+|Authorization:\s*Bearer\s+[A-Za-z0-9._-]+|-----BEGIN PRIVATE KEY-----/i.test(contract + evidenceBinder + signing + support + policy + webview + evidencePrivacy + runtime), 'PASS162 must not introduce secret-bearing material');
+need(!/client_secret\s*=\s*[^\s'"`]+|refresh_token\s*=\s*[^\s'"`]+|access_token\s*=\s*[^\s'"`]+|Authorization:\s*Bearer\s+[A-Za-z0-9._-]+|-----BEGIN\s+PRIVATE\s+KEY-----/i.test(contract + evidenceBinder + signing + support + policy + webview + evidencePrivacy + runtime), 'PASS162 must not introduce secret-bearing material');
 
 for (const generated of [
   'dist/main/main.js',

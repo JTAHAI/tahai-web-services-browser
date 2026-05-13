@@ -103,6 +103,8 @@ body { background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,
 .check { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:.86rem; }
 .check input { width:18px; height:18px; accent-color:var(--cyan); }
 .settings-note { margin:0 24px 18px; color:var(--muted); line-height:1.55; }
+.settings-safety-copy { margin:0 0 2px; }
+.settings-safety-copy .settings-note { margin-left:24px; margin-right:24px; }
 .settings-actions { display:flex; align-items:center; justify-content:flex-end; gap:10px; padding:18px 24px 24px; border-top:1px solid rgba(119,219,255,.13); }
 .settings-result { margin-right:auto; color:var(--cyan); font-size:.83rem; min-width:140px; }
 @media (max-width:760px) { .settings-grid { grid-template-columns:1fr; } .settings-actions { flex-wrap:wrap; justify-content:flex-start; } .settings-result { width:100%; } }
@@ -2313,7 +2315,7 @@ body.pass92-mission-invariant-warning #mission-status span::after { content:" ·
   padding:10px 12px;
 }
 .permission-boundary-note::before {
-  content:'Origin-aware permission guard';
+  content:'Permission safety';
   display:block;
   margin-bottom:4px;
   color:var(--cyan);
@@ -2332,7 +2334,7 @@ body.pass92-mission-invariant-warning #mission-status span::after { content:" ·
   padding:10px 12px;
 }
 .download-boundary-note::before {
-  content:'Download handoff guard';
+  content:'Download safety';
   display:block;
   margin-bottom:4px;
   color:var(--cyan);
@@ -2348,7 +2350,7 @@ body.pass92-mission-invariant-warning #mission-status span::after { content:" ·
   border-color: rgba(109,255,183,.28);
 }
 .download-boundary-note[data-pass97-local-path-boundary="true"]::after {
-  content: "Local paths hidden from renderer save status";
+  content: "Local paths stay hidden";
   display: block;
   margin-top: .4rem;
   color: rgba(109,255,183,.78);
@@ -2373,7 +2375,7 @@ body.pass92-mission-invariant-warning #mission-status span::after { content:" ·
   padding:10px 12px;
 }
 .drop-boundary-note::before {
-  content:'Mission drop boundary';
+  content:'Mission drag safety';
   display:block;
   margin-bottom:4px;
   color:var(--cyan);
@@ -2403,7 +2405,7 @@ body[data-pass99-drop-boundary="true"] .mission-pane-drop-zones::after {
 /* PASS100 active-page capture boundary */
 .capture-note[data-pass100-active-capture-boundary="true"]::after,
 .settings-note[data-pass100-active-capture-boundary="true"]::before {
-  content:'Active capture boundary';
+  content:'Capture safety';
   display:inline-flex;
   margin-left:.45rem;
   padding:.14rem .42rem;
@@ -2426,7 +2428,7 @@ body[data-pass99-drop-boundary="true"] .mission-pane-drop-zones::after {
   padding:10px 12px;
 }
 .settings-boundary-note::before {
-  content:'Settings boundary';
+  content:'Settings safety';
   display:inline-flex;
   margin-right:.45rem;
   padding:.14rem .42rem;
@@ -2601,4 +2603,235 @@ body[data-pass113-adaptive-chrome-density="true"] .toolbar-overflow-active .tool
   .mission-layouts [data-pass133-recover-view] {
     flex: 1 1 128px;
   }
+}
+
+/* PASS188 WebView Focus/Input Boundary Hardening: keep shell, guest webviews, Mission panes, and overlays visibly recoverable. */
+[data-pass188-focus-input-boundary="webview-guest"]:focus,
+[data-pass188-focus-input-boundary="mission-pane"]:focus,
+[data-pass188-focus-input-boundary="mission-pane-head"]:focus-visible,
+[data-pass188-focus-input-boundary="tool-menu"]:focus-within,
+[data-pass188-focus-input-boundary="app-overlay"]:focus-within,
+[data-pass188-focus-input-boundary="command-palette"]:focus-within {
+  outline: 2px solid rgba(119,219,255,.46);
+  outline-offset: 2px;
+}
+
+body[data-pass188-last-focus-surface="webview-guest"] #address,
+body[data-pass188-last-input-boundary-from-guest="true"] #address {
+  box-shadow: 0 0 0 3px rgba(119,219,255,.10), inset 0 0 18px rgba(47,143,255,.12);
+}
+
+
+/* PASS192 Tab Strip and Titlebar Drag Final UX: explicit drag track, real close hit target, overflow and high-DPI finish. */
+body[data-pass192-titlebar-chrome-final="true"] .topbar {
+  isolation: isolate;
+  grid-template-columns: auto minmax(92px, 1fr) auto;
+  -webkit-app-region: drag;
+}
+body[data-pass192-titlebar-chrome-final="true"] .topbar .brand {
+  -webkit-app-region: drag;
+}
+body[data-pass192-titlebar-chrome-final="true"] .tabs {
+  position: relative;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  -webkit-app-region: drag;
+  touch-action: pan-x;
+}
+body[data-pass192-titlebar-chrome-final="true"] .tabs::after {
+  content: '';
+  flex: 1 0 26px;
+  min-width: 26px;
+  align-self: stretch;
+  -webkit-app-region: drag;
+  pointer-events: none;
+}
+body[data-pass192-titlebar-chrome-final="true"] .tab {
+  position: relative;
+  flex: 0 1 218px;
+  min-width: clamp(104px, 16vw, 150px);
+  max-width: 224px;
+  min-height: 32px;
+  scroll-snap-align: nearest;
+  -webkit-app-region: no-drag;
+  contain: layout paint;
+}
+body[data-pass192-titlebar-chrome-final="true"] .tab-title {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+body[data-pass192-titlebar-chrome-final="true"] .tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  border-radius: 999px;
+  color: inherit;
+  cursor: pointer;
+  line-height: 1;
+  -webkit-app-region: no-drag;
+  user-select: none;
+  touch-action: manipulation;
+}
+body[data-pass192-titlebar-chrome-final="true"] .tab-close:hover,
+body[data-pass192-titlebar-chrome-final="true"] .tab-close:focus-visible {
+  background: rgba(255,106,106,.16);
+  color: #ffd7d7;
+  outline: 1px solid rgba(255,106,106,.32);
+  outline-offset: 1px;
+}
+body[data-pass192-titlebar-chrome-final="true"] .tab[aria-selected="true"],
+body[data-pass192-titlebar-chrome-final="true"] .tab.pass192-active-titlebar-tab {
+  border-color: rgba(119,219,255,.34);
+  box-shadow: inset 0 -2px 0 rgba(119,219,255,.70), 0 0 14px rgba(47,143,255,.10);
+}
+body[data-pass192-titlebar-overflow="overflowing"] .tabs {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 34px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 34px), transparent 100%);
+}
+body[data-pass192-titlebar-chrome-final="true"] .new-tab-control {
+  -webkit-app-region: no-drag;
+  flex: 0 0 32px;
+}
+@media (max-width: 980px) {
+  body[data-pass192-titlebar-chrome-final="true"] .tab { min-width: 92px; max-width: 156px; }
+  body[data-pass192-titlebar-chrome-final="true"] .tab-close { flex-basis: 22px; width: 22px; height: 22px; }
+}
+@media (max-width: 640px) {
+  body[data-pass192-titlebar-chrome-final="true"] .tab { min-width: 82px; max-width: 128px; padding-inline: 7px; }
+  body[data-pass192-titlebar-chrome-final="true"] .tabs::after { flex-basis: 18px; min-width: 18px; }
+}
+@media (min-resolution: 1.25dppx) {
+  body[data-pass192-titlebar-chrome-final="true"] .topbar,
+  body[data-pass192-titlebar-chrome-final="true"] .tab {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+}
+
+/* PASS194 download artifact shelf UX */
+.artifact-shelf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: min(52vw, 720px);
+  overflow: hidden;
+  justify-content: flex-end;
+  color: var(--muted);
+}
+
+.artifact-shelf:empty { display: none; }
+
+.artifact-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid rgba(119, 219, 255, .16);
+  background: rgba(6, 16, 32, .82);
+  border-radius: 999px;
+  padding: 3px 6px 3px 8px;
+  box-shadow: 0 0 14px rgba(119, 219, 255, .05);
+}
+
+.artifact-card[data-risk="elevated"] { border-color: rgba(255, 210, 122, .38); }
+.artifact-card[data-risk="high"] { border-color: rgba(255, 118, 144, .45); }
+
+.artifact-card strong,
+.artifact-card span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-card strong { max-width: 170px; color: var(--text); font-weight: 650; }
+.artifact-card .artifact-risk { color: var(--muted); }
+.artifact-card .artifact-checksum { font-family: var(--mono); color: var(--cyan); max-width: 118px; }
+.artifact-card .artifact-relation { max-width: 180px; }
+
+.artifact-card button {
+  border: 1px solid rgba(119, 219, 255, .24);
+  background: rgba(119, 219, 255, .08);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 2px 7px;
+  cursor: pointer;
+  font-size: .7rem;
+}
+
+.artifact-card button:hover,
+.artifact-card button:focus-visible {
+  border-color: rgba(119, 219, 255, .5);
+  outline: none;
+}
+
+@media (max-width: 860px) {
+  .artifact-shelf { max-width: 36vw; }
+  .artifact-card .artifact-relation,
+  .artifact-card .artifact-checksum,
+  .artifact-card .artifact-risk { display: none; }
+}
+
+/* PASS200 — Runbook Rail v2 compact/source mirror. */
+.mission-runbook-v2-diagnostics,
+.mission-runbook-v2-row,
+.mission-runbook-v2-heading { max-width: 100%; min-width: 0; }
+.mission-runbook-v2-sections,
+.mission-runbook-v2-validation,
+.mission-runbook-v2-rollback,
+.mission-runbook-v2-blockers,
+.mission-runbook-v2-timestamps { min-height: 0; overflow: auto; }
+
+/* PASS201 — Timeline v2 compact/source mirror. */
+.mission-timeline-v2-diagnostics,
+.mission-timeline-v2-filterbar,
+.mission-timeline-v2-event { max-width: 100%; min-width: 0; }
+#mission-timeline { min-height: 0; overflow: auto; }
+
+/* PASS204 Operator Command Center v2: target-scope diagnostics and disabled reasons stay inside the Ctrl+K overlay. */
+.command-palette-diagnostics {
+  margin: 0 18px 12px;
+  padding: 11px 13px;
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(119, 219, 255, .18);
+  border-radius: 16px;
+  background: rgba(119, 219, 255, .055);
+  color: var(--muted);
+  font-size: .76rem;
+}
+.command-palette-diagnostics strong { color: #eaffff; font-size: .83rem; }
+.command-palette-diagnostics span,
+.command-palette-diagnostics em { display: block; font-style: normal; line-height: 1.35; }
+.command-row.disabled,
+.command-row[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: .68;
+  border-style: dashed;
+}
+.command-row .pass204-command-scope {
+  border-color: rgba(119, 219, 255, .20);
+  background: rgba(119, 219, 255, .06);
+}
+.command-row .pass204-command-disabled {
+  color: #ffd38a;
+  border-color: rgba(255, 211, 138, .28);
+  background: rgba(255, 211, 138, .08);
+}
+.command-row[data-pass204-command-family="export"] { border-color: rgba(255, 210, 122, .26); }
+.command-row[data-pass204-command-family="evidence"] { border-color: rgba(255, 210, 122, .22); }
+.command-row[data-pass204-command-family="profile"] { border-color: rgba(109, 255, 183, .22); }
+@media (max-width: 720px) {
+  .command-palette-diagnostics { margin-inline: 12px; }
+  .command-row .pass204-command-scope,
+  .command-row .pass204-command-disabled { max-width: 100%; overflow-wrap: anywhere; }
 }

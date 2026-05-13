@@ -35,7 +35,7 @@ const preload=includes('src/preload/preload.ts',['contextBridge.exposeInMainWorl
 need(!/ipcRenderer\.send\(/.test(preload),'preload must not expose send-style raw IPC');
 includes('src/renderer/index.html',[
   'data-pass98-shell-origin-boundary="true"',
-  'PASS98: privileged shell IPC is allowlisted to packaged TAHAI shell pages only'
+  'Privileged shell actions are allowlisted to packaged TAHAI shell pages only'
 ]);
 includes('src/renderer/styles/browser.css',[
   'PASS98 shell origin boundary',

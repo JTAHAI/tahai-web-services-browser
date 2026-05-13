@@ -38,11 +38,11 @@ need(/window\.addEventListener\('dragover', blockExternalDrop, true\)/.test(rend
 need(/window\.addEventListener\('drop', blockExternalDrop, true\)/.test(renderer),'external drop guard must run in capture phase');
 includes('src/renderer/index.html',[
   'data-pass99-drop-boundary="true"',
-  'PASS99: Mission pane drops and Mission tab reorders accept only TAHAI internal drag payloads.'
+  'Mission drag-and-drop accepts only internal TAHAI mission payloads.'
 ]);
 includes('src/renderer/styles/browser.css',[
   'PASS99 Mission drop boundary',
-  'Mission drop boundary',
+  'Mission drag safety',
   'Internal TAHAI drags only'
 ]);
 includes('PASS_99_MISSION_DROP_BOUNDARY_SUMMARY.md',[

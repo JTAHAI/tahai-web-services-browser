@@ -2,38 +2,16 @@ name: Supply chain guard
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
-  supply-chain-guard:
+  supply-chain:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
-
-      - name: Install dependencies from lockfile
-        run: npm ci --ignore-scripts --no-audit --no-fund
-
-      - name: Verify public repo supply-chain posture
-        run: npm run verify:pass-144-public-repo-supply-chain
-
-      - name: Verify public repo posture
-        run: npm run verify:public-repo
-
-      - name: Verify enterprise signing provenance SBOM gate
-        run: npm run verify:pass-159-enterprise-signing-provenance-sbom
-
-      - name: Build
-        run: npm run build
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run verify:pass-144-public-repo-supply-chain

@@ -30,3 +30,15 @@
 - Mouse Button 4 / Button 5 navigation is wired through Electron app-command events for Windows parity. It still requires installed-app hardware verification on Windows before broad distribution.
 - The initial friend-feedback Windows build is unsigned. Windows SmartScreen may show a warning. The project has been published publicly on GitHub, and SignPath Foundation open-source code signing has been submitted/in progress.
 - Windows installer packaging must still be verified on Windows before broad public release.
+
+## PASS236 DOM-ready direct loadURL elimination
+
+Marker: PASS236_DOM_READY_DIRECT_LOADURL_ELIMINATION
+
+The release remains blocked if the renderer shows this exact diagnostic after PASS236:
+
+```text
+The WebView must be attached to the DOM and the dom-ready event emitted before this method can be called.
+```
+
+PASS236 removes direct renderer calls to `webview.loadURL(...)` and routes blocked-navigation and load-failure fallback navigation through a `src` assignment wrapper instead. This is intentionally stricter than prior queueing attempts because the installed app continued to hit the Electron lifecycle throw.

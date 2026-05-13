@@ -72,3 +72,10 @@ The shipped KB now includes screenshot readiness counts plus filters for article
 ## PASS137 first-run walkthrough
 
 PASS137 adds a local-first guided walkthrough to the in-app Guide / Knowledge Base. It gives new users a safe order for learning normal browsing, Guide access, Mission Control, Mission Tabs, Mission Views, active-pane routing, Runbook Rail, Command Center, tools, evidence/export, settings, and troubleshooting states. The walkthrough uses static source, a self-hosted KB script only, no telemetry, no remote KB service, no cookies, and no browser storage.
+
+
+## PASS195 first-run operator walkthrough v2
+
+PASS195 hardens the first-run experience into an operator-ready path. The in-app Guide / KB now includes a **First 10 minutes** panel that teaches a practical order for new users: normal browsing, Mission Control, Mission Views, Runbook Rail, DevOps/IT tools, safe evidence/export, settings, and troubleshooting.
+
+The walkthrough remains local-only: no telemetry, no remote KB service, no cookies, no browser storage, and no IT Docs or PSA backend dependency. The public KB page should not show development pass labels as user-facing copy.

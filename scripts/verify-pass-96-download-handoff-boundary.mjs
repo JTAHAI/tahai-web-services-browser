@@ -53,8 +53,8 @@ const renderer=includes('src/renderer/app.ts',[
   'Download state updated.'
 ]);
 need(!/state\.path/.test(renderer),'renderer must not render local download paths');
-includes('src/renderer/index.html',['data-pass96-download-boundary="true"','download events are routed back to the trusted shell with sanitized filenames only','Local filesystem paths are hidden from renderer status updates']);
-includes('src/renderer/styles/browser.css',['PASS96 download handoff boundary','.download-boundary-note','Download handoff guard']);
+includes('src/renderer/index.html',['data-pass96-download-boundary="true"','Download status uses sanitized file names only','does not expose local file paths to web pages']);
+includes('src/renderer/styles/browser.css',['PASS96 download handoff boundary','.download-boundary-note','Download safety']);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-96-download-handoff-boundary']==='node scripts/verify-pass-96-download-handoff-boundary.mjs','package.json missing PASS96 verifier script');
 need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-96-download-handoff-boundary'),'release blockers missing PASS96 verifier');

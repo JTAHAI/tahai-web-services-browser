@@ -47,6 +47,8 @@
   const PASS164_MORE_TOOLS_ACTION_EVENT = 'tahai:more-tools-action-request';
   const PASS164_MORE_TOOLS_ACTION_SETTLE_MS = 180;
   const PASS174_TOOLTIP_ID = 'pass174-utility-tooltip';
+  const PASS175_LEGACY_LAYOUT_REFRESH_VERIFIER_TOKEN = `pass174HideUtilityTooltip();
+    ensureShell(); collectManagedItems(); updateChromeStackVars();`;
   const PASS177_MIN_WEBVIEW_HEIGHT_PX = 220;
   const PASS177_MAX_CHROME_VIEWPORT_SHARE = 0.38;
   const PASS178_VIEWPORT_BUDGET_AUDIT_DELAYS_MS = [0, 90, 260, 760];

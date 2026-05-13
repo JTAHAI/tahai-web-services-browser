@@ -298,18 +298,24 @@
       "screenOrder": 19,
       "captureTitle": "First-run walkthrough",
       "keywords": [
+        "admin profiles",
+        "evidence",
+        "first 10 minutes",
         "first run",
-        "walkthrough",
-        "how to use",
-        "start here",
-        "guided tour",
-        "onboarding",
         "guide",
+        "guided tour",
+        "how to use",
         "kb",
         "mission control",
+        "onboarding",
+        "operator walkthrough",
+        "runbook rail",
+        "safe exports",
+        "start here",
         "tools",
-        "evidence"
-      ]
+        "walkthrough"
+      ],
+      "summary": "A local-only first-run path that teaches normal browsing, Mission Control, Mission Views, Runbook Rail, DevOps/IT tools, evidence export, settings, and troubleshooting in operator order."
     }
   ],
   "lastHardenedPass": "PASS137",
@@ -317,6 +323,13 @@
   "walkthroughSearchPolicy": {
     "sourcePass": "PASS137",
     "entryId": "first-run-walkthrough",
+    "localOnly": true
+  },
+  "operatorWalkthroughSearchPolicy": {
+    "sourcePass": "PASS195",
+    "entryId": "first-run-walkthrough",
+    "startAnchor": "operator-first-ten-minutes",
+    "query": "walkthrough=operator-v2",
     "localOnly": true
   }
 }

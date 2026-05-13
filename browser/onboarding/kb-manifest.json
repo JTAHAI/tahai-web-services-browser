@@ -372,17 +372,22 @@
       "captureTitle": "First-run walkthrough",
       "capturePrompt": "Open the Guide / KB and capture the guided first-run walkthrough panel with the Start walkthrough control and the main step list visible.",
       "keywords": [
+        "admin profiles",
+        "evidence",
+        "first 10 minutes",
         "first run",
-        "walkthrough",
-        "how to use",
-        "start here",
-        "guided tour",
-        "onboarding",
         "guide",
+        "guided tour",
+        "how to use",
         "kb",
         "mission control",
+        "onboarding",
+        "operator walkthrough",
+        "runbook rail",
+        "safe exports",
+        "start here",
         "tools",
-        "evidence"
+        "walkthrough"
       ],
       "kbSection": "onboarding",
       "status": "draft-ready-for-screenshots",
@@ -438,5 +443,26 @@
       "troubleshooting-states"
     ],
     "screenshotSlot": "19-first-run-walkthrough.png"
+  },
+  "operatorWalkthroughPolicy": {
+    "sourcePass": "PASS195",
+    "version": 2,
+    "startAnchor": "operator-first-ten-minutes",
+    "query": "walkthrough=operator-v2",
+    "localOnly": true,
+    "noTelemetry": true,
+    "noStorage": true,
+    "noRemoteKbService": true,
+    "noItDocsOrPsaDependency": true,
+    "milestoneAnchors": [
+      "getting-started",
+      "mission-control",
+      "mission-views",
+      "runbook-rail",
+      "devops-tools",
+      "evidence-export",
+      "settings-security",
+      "troubleshooting-states"
+    ]
   }
 }

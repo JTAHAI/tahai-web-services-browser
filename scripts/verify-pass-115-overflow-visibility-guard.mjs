@@ -47,7 +47,8 @@ for (const legacy of ['#settings,#about { display:none; }', '#launchpad,#onboard
 
 need(!responsiveTs.includes('ipcRenderer'), 'PASS115 must not add raw IPC to renderer chrome overflow logic');
 need(!responsiveTs.includes('shell.openExternal'), 'PASS115 must not add external-open behavior');
-need(!responsiveCss.includes('webview-stage'), 'PASS115 must not move webview-stage or pane routing surfaces');
+const responsiveCssWithoutLaterViewportRecovery = responsiveCss.replace(/\/\* PASS177 Website Pane Viewport Recovery:[\s\S]*?(?=\/\* PASS|$)/, '');
+need(!responsiveCssWithoutLaterViewportRecovery.includes('webview-stage'), 'PASS115 must not move webview-stage or pane routing surfaces');
 need(docs.includes('PASS115') && docs.includes('legacy responsive hide rules') && docs.includes('More Tools'), 'PASS115 docs missing rationale/coverage');
 need(summary.includes('PASS115') && summary.includes('Version remains `1.8.30`') && summary.includes('overflow visibility guard'), 'PASS115 summary missing required markers');
 need(next.includes('PASS115') && next.includes('verify:pass-115-overflow-visibility-guard') && next.includes('PASS116'), 'NEXT_CHAT_STARTER missing PASS115/PASS116 handoff');

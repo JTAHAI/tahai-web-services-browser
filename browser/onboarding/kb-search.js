@@ -2,6 +2,8 @@
   const body = document.body;
   const walkthroughStart = document.querySelector('[data-kb-walkthrough-start]');
   const walkthroughSteps = Array.from(document.querySelectorAll('[data-kb-walkthrough-step]'));
+  const operatorSteps = Array.from(document.querySelectorAll('[data-kb-operator-step]'));
+  body.dataset.pass195KbOperatorWalkthroughReady = 'true';
   body.dataset.pass137KbWalkthroughReady = 'true';
   if (!body || body.dataset.pass131KbSearchReady === 'true') return;
   body.dataset.pass131KbSearchReady = 'true';
@@ -154,7 +156,7 @@
   }
 
   walkthroughStart?.addEventListener('click', () => focusWalkthroughTarget(walkthroughStart.dataset.kbWalkthroughTarget || 'getting-started'));
-  for (const step of walkthroughSteps) {
+  for (const step of [...walkthroughSteps, ...operatorSteps]) {
     step.addEventListener('click', (event) => {
       const targetId = step.dataset.kbWalkthroughTarget || step.getAttribute('href')?.replace('#', '');
       if (!targetId) return;
@@ -162,6 +164,15 @@
       window.location.hash = targetId;
       focusWalkthroughTarget(targetId);
     });
+  }
+
+  function pass195ApplyOperatorWalkthroughRoute() {
+    const params = new URLSearchParams(window.location.search || '');
+    if (params.get('walkthrough') !== 'operator-v2' && window.location.hash !== '#operator-first-ten-minutes') return;
+    const target = document.getElementById('operator-first-ten-minutes');
+    if (!target) return;
+    target.classList.add('kb-walkthrough-active');
+    window.setTimeout(() => target.scrollIntoView({ block: 'start', behavior: 'smooth' }), 0);
   }
 
   input?.addEventListener('input', () => applySearch(input.value));
@@ -230,4 +241,5 @@
 
   hydrateScreenshotSlots();
   applySearch('');
+  pass195ApplyOperatorWalkthroughRoute();
 })();

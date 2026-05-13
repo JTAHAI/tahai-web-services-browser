@@ -2,12 +2,14 @@ import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_HOME_URL, readBrowserSettings, writeBrowserSettings } from './settings';
+import { firstRunOperatorWalkthroughState } from '../shared/first-run-operator-walkthrough';
 
 export type FirstLaunchState = {
   product: string;
   defaultHome: string;
   initializedAt: string;
   sourceGuardrails: string[];
+  operatorWalkthrough: ReturnType<typeof firstRunOperatorWalkthroughState>;
 };
 
 const SOURCE_GUARDRAILS = [
@@ -31,7 +33,7 @@ export function runFirstLaunchChecks(): FirstLaunchState {
   if (fs.existsSync(marker)) {
     try {
       const existing = JSON.parse(fs.readFileSync(marker, 'utf8')) as FirstLaunchState;
-      if (existing.product === 'TAHAI Web Services Browser') return existing;
+      if (existing.product === 'TAHAI Web Services Browser' && existing.operatorWalkthrough?.version === 2) return existing;
     } catch {
       // Rewrite corrupt marker below.
     }
@@ -41,7 +43,8 @@ export function runFirstLaunchChecks(): FirstLaunchState {
     product: 'TAHAI Web Services Browser',
     defaultHome: DEFAULT_HOME_URL,
     initializedAt: new Date().toISOString(),
-    sourceGuardrails: SOURCE_GUARDRAILS
+    sourceGuardrails: SOURCE_GUARDRAILS,
+    operatorWalkthrough: firstRunOperatorWalkthroughState()
   };
   fs.mkdirSync(path.dirname(marker), { recursive: true });
   fs.writeFileSync(marker, JSON.stringify(state, null, 2) + '\n', 'utf8');

@@ -128,7 +128,7 @@ includesAll('src/renderer/global.d.ts', [
 
 includesAll('src/renderer/index.html', [
   'Enterprise Support Bundle',
-  'PASS160 redacted support bundle',
+  'Creates a redacted support bundle',
   'preview-enterprise-support-bundle',
   'copy-enterprise-support-bundle',
   'save-enterprise-support-bundle',
@@ -142,9 +142,9 @@ includesAll('src/renderer/app.ts', [
   'window.tahaiBrowser.previewEnterpriseSupportBundle()',
   'window.tahaiBrowser.copyEnterpriseSupportBundle()',
   'window.tahaiBrowser.saveEnterpriseSupportBundle()',
-  'PASS160 support bundle preview ready.',
-  'Copied redacted PASS160 support bundle.',
-  'Saved redacted PASS160 support bundle.'
+  'Support bundle preview ready.',
+  'Copied redacted support bundle.',
+  'Saved redacted support bundle.'
 ]);
 
 includesAll('docs/enterprise-support-bundle-pass160.md', [
