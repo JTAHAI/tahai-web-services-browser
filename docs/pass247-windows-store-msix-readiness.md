@@ -15,7 +15,7 @@ PASS247 starts the Microsoft Store/MSIX lane after the 2.0.0 polish release. It 
 ## Commands
 
 ```powershell
-Set-Location C:\devrowserpp
+Set-Location C:\dev\browser\app
 git status --short
 git tag --points-at HEAD
 npm ci

@@ -55,7 +55,12 @@ for (const rel of [
 mustInclude('src/shared/release-truth.ts', "TAHAI_RELEASE_VERSION = '2.0.0'");
 mustInclude('config/msix-manifest.template.xml', 'runFullTrust');
 mustInclude('config/msix-manifest.template.xml', 'tahai-browser');
-mustInclude('packaging/windows/build-windows-msix.ps1', 'npx winapp pack');
+const msixPs1 = read('packaging/windows/build-windows-msix.ps1');
+if (!msixPs1.trimStart().startsWith('param(')) failures.push('build-windows-msix.ps1 must start with param( and no stray prefix characters');
+if (/^\\\s*param\(/m.test(msixPs1) || msixPs1.startsWith('\\')) failures.push('build-windows-msix.ps1 must not have a stray leading backslash before param');
+if (!msixPs1.includes('npx winapp pack')) failures.push('packaging/windows/build-windows-msix.ps1: missing npx winapp pack');
+if (!msixPs1.includes('& npx @packArgs')) failures.push('packaging/windows/build-windows-msix.ps1: missing safe PowerShell call operator invocation for npx args');
+if (!msixPs1.includes('$LASTEXITCODE')) failures.push('packaging/windows/build-windows-msix.ps1: missing external command exit-code checks');
 mustInclude('docs/pass247-windows-store-msix-readiness.md', 'Store submission remains blocked');
 mustInclude('docs/microsoft-store-listing-packet-2.0.0.md', 'TAHAI Web Services Browser 2.0.0');
 mustInclude('docs/qa/pass247-installed-windows-smoke-before-store.md', 'installed Windows smoke');

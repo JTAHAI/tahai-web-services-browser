@@ -19,7 +19,7 @@ This is browser-side UX/IA hardening only. It does not implement IT Docs backend
 ## Local verification
 
 ```powershell
-Set-Location C:\devrowserpp
+Set-Location C:\dev\browser\app
 npm run verify:pass-196-mission-control-ia-rebuild
 npm run verify:release-blockers
 ```

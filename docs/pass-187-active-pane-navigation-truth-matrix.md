@@ -25,7 +25,7 @@ The enterprise guardrail requires Back, Forward, Reload, address-bar navigation,
 ## Verification
 
 ```powershell
-Set-Location C:\devrowserpp
+Set-Location C:\dev\browser\app
 npm run verify:pass-187-active-pane-navigation-truth-matrix
 ```
 

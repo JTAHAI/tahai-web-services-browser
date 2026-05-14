@@ -5,7 +5,7 @@ PASS247 corrects 2.0.0 version truth and prepares the Microsoft Store/MSIX lane 
 Run:
 
 ```powershell
-Set-Location C:\devrowserpp
+Set-Location C:\dev\browser\app
 npm ci
 npm run verify:pass-247-windows-store-msix-readiness
 npm run build

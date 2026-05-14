@@ -1,0 +1,27 @@
+{
+  "pass": "PASS248",
+  "name": "MSIX Local Blocker Repair",
+  "changedFiles": [
+    "NEXT_CHAT_STARTER.md",
+    "PASS_196_MISSION_CONTROL_IA_REBUILD_SUMMARY.md",
+    "PASS_248_MSIX_LOCAL_BLOCKER_REPAIR_SUMMARY.md",
+    "README-PASS247.md",
+    "README-PASS248.md",
+    "docs/enterprise-ga-decision-gate-pass162.md",
+    "docs/pass-186-installed-mouse-navigation-proof.md",
+    "docs/pass-187-active-pane-navigation-truth-matrix.md",
+    "docs/pass-196-mission-control-ia-rebuild.md",
+    "docs/pass247-windows-store-msix-readiness.md",
+    "docs/pass248-msix-local-blocker-repair.md",
+    "docs/site-view-mission-rail.md",
+    "package.json",
+    "packaging/windows/build-windows-msix.ps1",
+    "scripts/apply-pass248-msix-local-blocker-repair.mjs",
+    "scripts/package-win-msix-lane.mjs",
+    "scripts/repair-store-v2-tag-to-head.mjs",
+    "scripts/verify-pass-195-first-run-operator-walkthrough-v2.mjs",
+    "scripts/verify-pass-247-windows-store-msix-readiness.mjs",
+    "scripts/verify-pass-248-msix-local-blocker-repair.mjs",
+    "scripts/verify-store-git-readiness.mjs"
+  ]
+}

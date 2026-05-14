@@ -43,7 +43,7 @@ It turns open tabs into scrollable visual site thumbnails while keeping normal b
 Run from the app root:
 
 ```powershell
-Set-Location C:\devrowserpp
+Set-Location C:\dev\browser\app
 npm run typecheck
 npm run build
 npm run verify:site-view-rail

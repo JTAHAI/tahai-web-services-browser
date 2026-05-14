@@ -1,4 +1,3 @@
-\
 param(
   [string]$OutputRoot = "release-msix",
   [string]$ManifestOutput = "release-msix\Package.appxmanifest",
@@ -8,8 +7,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function Write-Step($Message) { Write-Host "[PASS247][MSIX] $Message" }
-function Fail($Message) { Write-Error "[PASS247][MSIX][FAIL] $Message"; exit 1 }
+function Write-Step($Message) { Write-Host "[PASS248][MSIX] $Message" }
+function Fail($Message) { Write-Error "[PASS248][MSIX][FAIL] $Message"; exit 1 }
 
 if (-not $IsWindows -and $env:OS -ne "Windows_NT") { Fail "MSIX packaging is Windows-only. Run from Windows PowerShell in C:\dev\browser\app." }
 if (-not (Test-Path "package.json")) { Fail "Run from repo root." }
@@ -22,12 +21,15 @@ New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 
 Write-Step "Rendering manifest readiness template"
 node scripts\render-msix-manifest-readiness.mjs --output=$ManifestOutput
+if ($LASTEXITCODE -ne 0) { Fail "MSIX manifest rendering failed with exit code $LASTEXITCODE." }
 
 Write-Step "Building Electron app before MSIX pack"
 npm run build
+if ($LASTEXITCODE -ne 0) { Fail "npm run build failed with exit code $LASTEXITCODE." }
 
 Write-Step "Creating unpacked Windows app folder"
 npx electron-builder --win dir --x64 --config electron-builder.yml --publish never
+if ($LASTEXITCODE -ne 0) { Fail "electron-builder Windows dir build failed with exit code $LASTEXITCODE." }
 
 $unpacked = Join-Path (Resolve-Path "release").Path "win-unpacked"
 if (-not (Test-Path $unpacked)) { Fail "Expected electron-builder output not found: $unpacked" }
@@ -49,6 +51,7 @@ if ($CertificatePath) {
 
 # npx winapp pack readiness token for source verification
 Write-Step "Running: npx $($packArgs -join ' ')"
-npx @($packArgs)
+& npx @packArgs
+if ($LASTEXITCODE -ne 0) { Fail "WinApp CLI MSIX pack failed with exit code $LASTEXITCODE." }
 
 Write-Step "MSIX lane completed locally. Store submission remains blocked until installed smoke, package identity, and Partner Center evidence are clean."

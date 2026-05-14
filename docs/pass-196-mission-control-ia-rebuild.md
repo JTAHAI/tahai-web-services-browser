@@ -18,7 +18,7 @@ Make Mission Control feel like the flagship enterprise work surface instead of a
 Run:
 
 ```powershell
-Set-Location C:\devrowserpp
+Set-Location C:\dev\browser\app
 npm run verify:pass-196-mission-control-ia-rebuild
 ```
 

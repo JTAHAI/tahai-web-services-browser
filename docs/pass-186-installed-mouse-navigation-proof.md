@@ -36,7 +36,7 @@ The proof lane covers:
 ## Run locally
 
 ```powershell
-Set-Location C:\devrowserpp
+Set-Location C:\dev\browser\app
 npm run verify:pass-186-installed-mouse-navigation-proof
 npm run proof:pass-186-installed-mouse-navigation
 ```

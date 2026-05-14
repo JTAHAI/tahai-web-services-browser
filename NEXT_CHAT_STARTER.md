@@ -1,7 +1,7 @@
-We are continuing TAHAI Web Services Browser after PASS247 — Windows Store / MSIX Readiness v1.
+We are continuing TAHAI Web Services Browser after PASS248 — MSIX Local Blocker Repair.
 
 Repo:
-C:\devrowserpp
+C:\dev\browser\app
 
 Public repo:
 https://github.com/JTAHAI/tahai-web-services-browser
@@ -10,31 +10,40 @@ Current version:
 2.0.0
 
 Latest completed pass:
-PASS247 — Windows Store / MSIX Readiness v1
+PASS248 — MSIX Local Blocker Repair
 
 Latest patch ZIP:
-TAHAI-browser-pass247-windows-store-msix-readiness-patch-20260513.zip
+TAHAI-browser-pass248-msix-local-blocker-repair-patch-20260513.zip
 
 Latest full source ZIP:
-TAHAI-browser-pass247-windows-store-msix-readiness-full-source-20260513.zip
+TAHAI-browser-pass248-msix-local-blocker-repair-full-source-20260513.zip
 
-PASS247 completed:
-- Corrected package/release truth to 2.0.0.
-- Added Windows-only MSIX build lane: npm run package:win:msix.
-- Added MSIX manifest template, Store readiness config, Store listing packet, Store/MSIX assets, installed Windows smoke checklist, git/tag verifier, and PASS247 verifier.
-- Preserved release truth: Store submission remains blocked until installed smoke, Partner Center identity, package evidence, privacy/support links, and release-truth gates are clean.
+PASS248 completed:
+- Fixed the Windows PowerShell parser blocker in packaging/windows/build-windows-msix.ps1.
+- Hardened MSIX build script exit-code handling.
+- Fixed WinApp CLI invocation to use PowerShell call operator: & npx @packArgs.
+- Added local v2.0.0 tag repair helper: npm run repair:store-tag:v2.0.0.
+- Improved verify:store:git output for existing-tag-but-not-HEAD cases.
+- Upgraded PASS247 verifier so this parse issue is caught before packaging.
+- Added PASS248 verifier and release-blocker wiring.
+- Fixed text/source control-character drift in C:\dev\browser\app command snippets.
 
 Run first after overlay:
-Set-Location C:\devrowserpp
-npm ci
-npm run verify:pass-246-devops-tool-dialog-closeout
+Set-Location C:\dev\browser\app
 npm run verify:pass-247-windows-store-msix-readiness
+npm run verify:pass-248-msix-local-blocker-repair
 npm run build
 
-Then on the real git repo:
+after committing PASS248:
 git status --short
-git tag --points-at HEAD
+git add .
+git commit -m "PASS248: repair MSIX local blockers"
+npm run repair:store-tag:v2.0.0
 npm run verify:store:git
+npm run package:win:msix
+
+Important:
+repair:store-tag:v2.0.0 moves the local v2.0.0 tag only. Push or force-push the public tag only deliberately after confirming the public release/tag plan.
 
 Next goal:
-Run installed Windows smoke and MSIX build locally, then replace manifest placeholder identity with Partner Center reserved identity when available.
+Run the MSIX packaging lane locally. If package tooling succeeds, produce installed Windows smoke evidence from the installed package and keep Store submission blocked until Partner Center identity/manifest/assets/listing evidence is clean.

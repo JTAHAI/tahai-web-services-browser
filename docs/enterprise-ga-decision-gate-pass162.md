@@ -56,7 +56,7 @@ PASS162 must block or avoid the following claims unless the external evidence ex
 ## Verification
 
 ```powershell
-Set-Location C:\devrowserpp
+Set-Location C:\dev\browser\app
 npm run build
 npm run verify:pass-162-enterprise-ga-decision-gate
 npm run verify:release-blockers

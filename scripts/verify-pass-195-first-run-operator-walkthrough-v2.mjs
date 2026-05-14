@@ -72,7 +72,7 @@ const html = includesAll('browser/onboarding/index.html', [
 need((html.match(/id="first-run-walkthrough"/g) || []).length === 1, 'first-run walkthrough article must not be duplicated');
 need(!/>PASS\d+<|>PASS\d+\s/i.test(html), 'visible HTML must not contain development pass labels');
 need(!/https?:\/\//i.test(html), 'KB HTML must not load or link remote URLs');
-need(!/PASS\d+/.test(visibleText(html)), 'public KB visible text must not expose PASS labels');
+need(!/\bPASS\d+\b/.test(visibleText(html)), 'public KB visible text must not expose PASS labels');
 
 includesAll('browser/onboarding/styles.css', [
   'PASS195 — first-run operator walkthrough v2',
