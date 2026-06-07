@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const fail = (message) => { console.error(`TAHAI_BROWSER_SITE_VIEW_MISSION_RAIL_VERIFY_FAIL=${message}`); process.exit(1); };
@@ -73,7 +74,7 @@ for (const forbidden of [
 
 const pkg = JSON.parse(read('package.json'));
 if (pkg.scripts?.['verify:site-view-rail'] !== 'node scripts/verify-site-view-mission-rail.mjs') fail('package.json missing verify:site-view-rail script');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:site-view-rail')) fail('release blockers do not include verify:site-view-rail');
+if (!getReleaseBlockersContract(pkg).includes('verify:site-view-rail')) fail('release blockers do not include verify:site-view-rail');
 
 console.log('TAHAI_BROWSER_SITE_VIEW_MISSION_RAIL_VERIFY=OK');
 process.exit(0);

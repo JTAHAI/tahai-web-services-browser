@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), 'utf8').replace(/^\uFEFF/, '');
@@ -16,8 +17,8 @@ const ok = (condition, message) => checks.push({ ok: Boolean(condition), message
 
 ok(pkg.version === '1.8.30', 'PASS199 must not increment version without explicit approval.');
 ok(pkg.scripts?.['verify:pass-199-admin-console-profiles-v2'] === 'node scripts/verify-pass-199-admin-console-profiles-v2.mjs', 'package.json exposes PASS199 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-199-admin-console-profiles-v2'), 'release-blockers chain includes PASS199 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-199-admin-console-profiles-v2') > pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-198-mission-recipe-library-v2'), 'PASS199 must run after PASS198.');
+ok(getReleaseBlockersContract(pkg).includes('verify:pass-199-admin-console-profiles-v2'), 'release-blockers chain includes PASS199 verifier.');
+ok(getReleaseBlockersContract(pkg).indexOf('verify:pass-199-admin-console-profiles-v2') > getReleaseBlockersContract(pkg).indexOf('verify:pass-198-mission-recipe-library-v2'), 'PASS199 must run after PASS198.');
 
 for (const file of [
   'src/shared/admin-console-profiles-v2-contract.ts',

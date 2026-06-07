@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const app = readFileSync('src/renderer/app.ts', 'utf8');
 const css = readFileSync('src/renderer/styles/browser.css', 'utf8');
@@ -44,7 +45,7 @@ for (const token of requiredPackageTokens) {
   if (!JSON.stringify(pkg.scripts).includes(token)) failures.push(`missing package script token: ${token}`);
 }
 
-if (!String(pkg.scripts['verify:release-blockers'] || '').includes('verify:pass-74-mission-view-ux-hardening')) {
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-74-mission-view-ux-hardening')) {
   failures.push('release blockers chain does not include PASS74 verifier');
 }
 

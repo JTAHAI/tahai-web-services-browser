@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS261",
+  "packetName": "TAHAI Web Services Browser Microsoft Store Submission Packet",
+  "status": "BLOCKED_PENDING_PASS260_INSTALLED_SMOKE_AND_OPERATOR_REVIEW",
+  "versionTarget": "2.0.14",
+  "generatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+  "preparedBy": "REPLACE_WITH_OPERATOR_NAME",
+  "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+  "packageIdentityTruth": {
+    "partnerCenterReserved": false,
+    "packageFamilyName": "REPLACE_WITH_PARTNER_CENTER_PACKAGE_FAMILY_NAME",
+    "publisherDisplayName": "TAHAI Web Services",
+    "publisherId": "REPLACE_WITH_PARTNER_CENTER_PUBLISHER_ID",
+    "appIdentitySource": "packaging/windows/msix/package-identity.store.example.json until Partner Center identity is reserved",
+    "identityPlaceholdersRemoved": false
+  },
+  "storeListingTruth": {
+    "appName": "TAHAI Web Services Browser",
+    "shortDescription": "Enterprise DevOps and IT Admin command browser for Mission Control workflows.",
+    "descriptionSource": "docs/store/MICROSOFT_STORE_LISTING_PACKET.md",
+    "category": "Developer tools / Productivity",
+    "ageRatingNotes": "No user-generated marketplace content; browser loads user-selected web content.",
+    "microsoftStoreSubmissionClaim": "not-submitted",
+    "microsoftStoreApprovalClaim": "not-approved"
+  },
+  "privacySupportTruth": {
+    "privacyPolicyUrl": "REPLACE_WITH_PUBLIC_PRIVACY_POLICY_URL",
+    "supportUrl": "REPLACE_WITH_PUBLIC_SUPPORT_URL",
+    "websiteUrl": "REPLACE_WITH_PUBLIC_BROWSER_LANDING_URL",
+    "noPersonalDataCollectedByDefaultClaimReviewed": false,
+    "localDataInventoryReviewed": false,
+    "supportBoundariesReviewed": false
+  },
+  "screenshotManifest": {
+    "manifestPath": "docs/store/pass261-store-screenshot-manifest.template.json",
+    "requiredScreenshots": [
+      "normal-browser-mode",
+      "mission-control-overview",
+      "quad-view-recipe-started",
+      "runbook-rail-and-evidence",
+      "operator-command-center",
+      "settings-about-unsigned-preview-truth"
+    ],
+    "screenshotsCapturedFromInstalledApp": false,
+    "screenshotsContainNoSecrets": false,
+    "screenshotsMatchVersion": "2.0.14"
+  },
+  "pass260InstalledSmokeEvidence": {
+    "required": true,
+    "evidencePath": "release-candidate/store-submission/pass260-installed-recipe-quad-smoke-evidence.json",
+    "gateCommand": "npm run gate:pass-260-installed-recipe-quad-store-smoke",
+    "gateResult": "PENDING",
+    "noBlankPanes": false,
+    "noBottomOnlyWebview": false,
+    "noOrphanedWebview": false,
+    "noHiddenActivePane": false,
+    "focusRestorePassed": false,
+    "activePaneRoutingPassed": false
+  },
+  "checksumsAndProvenance": {
+    "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+    "releaseManifestPath": "REPLACE_WITH_RELEASE_MANIFEST_PATH",
+    "sbomPath": "REPLACE_WITH_SBOM_PATH_IF_AVAILABLE",
+    "sourceArchiveSha256": "REPLACE_WITH_SOURCE_ARCHIVE_SHA256_IF_AVAILABLE",
+    "provenanceReviewed": false
+  },
+  "knownIssuesTruth": {
+    "knownIssuesDocument": "docs/known-issues.md or docs/store/KNOWN_ISSUES_TRUTH_TEMPLATE.md",
+    "blockersOpen": true,
+    "blockers": [
+      "PASS260 installed Recipe + Quad/Tri/Split smoke evidence not yet attached."
+    ],
+    "falseClaimsRemoved": false
+  },
+  "signingTruth": {
+    "storeMsixSigningTruth": "Microsoft Store can sign Store-distributed MSIX during submission/review; do not claim approval until Partner Center approval exists.",
+    "directMsiExeSigningStatus": "unsigned-preview unless trusted signing evidence is attached",
+    "directMsixSigningStatus": "not a free public signing path by itself unless trusted cert path is proven",
+    "noPrivateCertificatesInRepo": true
+  },
+  "goNoGo": {
+    "status": "NO_GO",
+    "reason": "PASS260 installed smoke evidence and operator review are required before Partner Center submission.",
+    "readyForPartnerCenterUpload": false,
+    "readyForPublicGA": false,
+    "operatorApproved": false
+  }
+}

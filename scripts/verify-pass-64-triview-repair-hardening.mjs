@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -74,7 +75,7 @@ if (exists('package.json')) {
   for (const scriptName of ['pass64:apply', 'verify:pass-64-triview-repair-hardening', 'pass63:apply', 'verify:pass-63-triview-pane-reorder']) {
     if (!pkg.scripts?.[scriptName]) fail(`package.json missing ${scriptName} script`);
   }
-  const blockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+  const blockers = getReleaseBlockersContract(pkg);
   if (blockers && !blockers.includes('verify:pass-64-triview-repair-hardening')) {
     fail('verify:release-blockers does not include PASS64 verifier');
   }

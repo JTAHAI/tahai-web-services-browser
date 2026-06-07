@@ -6,7 +6,7 @@ Store submission is blocked until this installed Windows smoke checklist is run 
 
 - [ ] Install package on a clean or representative Windows user profile.
 - [ ] Launch from Start menu and taskbar shortcut.
-- [ ] Confirm app name, icon, and version show TAHAI Web Services Browser 2.0.0.
+- [ ] Confirm app name, icon, and version show TAHAI Web Services Browser 2.0.14.
 - [ ] Confirm normal browsing loads `https://tahaiportal.com` or the configured default URL.
 - [ ] Confirm Ctrl+K opens and closes cleanly at restored, maximized, and small window sizes.
 - [ ] Confirm Mission Control cards do not overlap or cut off at restored, maximized, and small window sizes.

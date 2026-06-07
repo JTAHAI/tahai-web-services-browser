@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -27,7 +28,7 @@ if (!failures.length) {
   const doc = read('docs/pass-178-live-viewport-budget-enterprise-button-geometry.md');
   const summary = read('PASS_178_LIVE_VIEWPORT_BUDGET_ENTERPRISE_BUTTON_GEOMETRY_SUMMARY.md');
   const pkg = JSON.parse(read('package.json'));
-  const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+  const releaseBlockers = getReleaseBlockersContract(pkg);
 
   need(pkg.version === '1.8.30', 'PASS178 must not increment version without explicit approval.');
   need(pkg.scripts?.['verify:pass-178-live-viewport-budget-enterprise-button-geometry'] === 'node scripts/verify-pass-178-live-viewport-budget-enterprise-button-geometry.mjs', 'package.json must expose PASS178 verifier.');

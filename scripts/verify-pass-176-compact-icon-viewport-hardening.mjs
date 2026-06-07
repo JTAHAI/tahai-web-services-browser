@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -30,7 +31,7 @@ if (!failures.length) {
   const doc = read('docs/pass-176-compact-icon-viewport-hardening.md');
   const summary = read('PASS_176_COMPACT_ICON_VIEWPORT_HARDENING_SUMMARY.md');
   const pkg = JSON.parse(read('package.json'));
-  const releaseBlockers = pkg.scripts?.['verify:release-blockers'] || '';
+  const releaseBlockers = getReleaseBlockersContract(pkg);
 
   need(pkg.version === '1.8.30', 'PASS176 must not increment version without explicit approval.');
   need(pkg.scripts?.['verify:pass-176-compact-icon-viewport-hardening'] === 'node scripts/verify-pass-176-compact-icon-viewport-hardening.mjs', 'package.json must expose PASS176 verifier.');

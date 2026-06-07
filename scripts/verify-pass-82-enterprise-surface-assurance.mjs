@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -33,7 +34,7 @@ includes('src/renderer/styles/browser.css', 'PASS82 enterprise surface assurance
 includes('PASS_82_ENTERPRISE_SURFACE_ASSURANCE_SUMMARY.md', 'PASS82');
 
 need(pkg.scripts?.['verify:pass-82-enterprise-surface-assurance'], 'package.json missing verify:pass-82-enterprise-surface-assurance script');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-82-enterprise-surface-assurance'), 'verify:release-blockers missing PASS82 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-82-enterprise-surface-assurance'), 'verify:release-blockers missing PASS82 verifier');
 
 for (const forbidden of ['psa:direct-fetch', 'Browser -> PSA API directly', 'PSA_API_KEY']) {
   need(!app.includes(forbidden), `forbidden browser-side integration token present: ${forbidden}`);

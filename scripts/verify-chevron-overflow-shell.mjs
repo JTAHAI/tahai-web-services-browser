@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const fail = (message) => {
@@ -69,7 +70,7 @@ for (const token of [
 
 const pkg = JSON.parse(read('package.json').replace(/^\uFEFF/, ''));
 if (pkg.scripts?.['verify:chevron-overflow'] !== 'node scripts/verify-chevron-overflow-shell.mjs') fail('package.json missing verify:chevron-overflow script');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:chevron-overflow')) fail('verify:release-blockers does not include verify:chevron-overflow');
+if (!getReleaseBlockersContract(pkg).includes('verify:chevron-overflow')) fail('verify:release-blockers does not include verify:chevron-overflow');
 
 console.log('TAHAI_BROWSER_CHEVRON_OVERFLOW_VERIFY=OK');
 process.exit(0);

@@ -30,10 +30,10 @@ npm run verify:store:git
 npm run package:win:msix
 ```
 
-If `verify:store:git` fails because `v2.0.0` no longer points at `HEAD`, run this after the PASS249 commit:
+If `verify:store:git` fails because `v2.0.14` no longer points at `HEAD`, run this after the PASS249 commit:
 
 ```powershell
-npm run repair:store-tag:v2.0.0
+npm run repair:store-tag:2.0.14
 npm run verify:store:git
 npm run package:win:msix
 ```

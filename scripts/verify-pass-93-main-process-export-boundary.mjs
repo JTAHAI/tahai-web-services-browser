@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS93 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -12,5 +13,5 @@ includes('src/renderer/styles/browser.css',['PASS93 main-process export boundary
 includes('src/shared/evidence-safety.ts',['sanitizeEvidenceMarkdown','operational-handoff','scanAndRedact(normalized)']);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-93-main-process-export-boundary']==='node scripts/verify-pass-93-main-process-export-boundary.mjs','package.json missing PASS93 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-93-main-process-export-boundary'),'release blockers missing PASS93 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-93-main-process-export-boundary'),'release blockers missing PASS93 verifier');
 console.log('PASS93 main-process export boundary verification passed.');

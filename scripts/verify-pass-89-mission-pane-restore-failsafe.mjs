@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 function read(rel) {
@@ -71,6 +72,6 @@ for (const token of [
 
 const script = String(pkg.scripts?.['verify:pass-89-mission-pane-restore-failsafe'] || '');
 need(script.includes('verify-pass-89-mission-pane-restore-failsafe.mjs'), 'package script missing PASS89 verifier');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-89-mission-pane-restore-failsafe'), 'verify:release-blockers missing PASS89 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-89-mission-pane-restore-failsafe'), 'verify:release-blockers missing PASS89 verifier');
 
 console.log('PASS89 mission pane restore failsafe verified');

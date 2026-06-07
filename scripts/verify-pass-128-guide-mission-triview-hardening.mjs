@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -32,7 +33,7 @@ need(app.includes("event.shiftKey ? 'triple-top' : 'triple-bottom'") || (app.inc
 need(missionCss.includes('PASS128') && missionCss.includes('mission-compact-viewport') && missionCss.includes('data-pass128-mission-viewport="compact"'), 'Mission CSS missing compact small-window PASS128 rules');
 need(missionCss.includes('.mission-layouts .mission-triview-entry'), 'Mission CSS missing direct tri-view entry styling');
 need(pkg.scripts['verify:pass-128-guide-mission-triview-hardening'] === 'node scripts/verify-pass-128-guide-mission-triview-hardening.mjs', 'package script missing PASS128 verifier');
-need(String(pkg.scripts['verify:release-blockers'] || '').includes('verify:pass-128-guide-mission-triview-hardening'), 'release blockers missing PASS128 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-128-guide-mission-triview-hardening'), 'release blockers missing PASS128 verifier');
 
 if (failures.length) {
   console.error('PASS128 Guide / Mission / Tri-view hardening verification failed:');

@@ -2,11 +2,39 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import ts from 'typescript';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const fail = (message) => { console.error(`TAHAI_BROWSER_RELEASE_VERIFY_FAIL=${message}`); process.exit(1); };
 const exists = (p) => fs.existsSync(path.join(root, p));
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+const hasUnsupportedPromptCall = (sourceText) => {
+  const sourceFile = ts.createSourceFile('verify-enterprise-release.ts', sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  let found = false;
+  const visit = (node) => {
+    if (found) return;
+    if (ts.isCallExpression(node)) {
+      const expression = node.expression;
+      if (ts.isIdentifier(expression) && expression.text === 'prompt') {
+        found = true;
+        return;
+      }
+      if (
+        ts.isPropertyAccessExpression(expression)
+        && ts.isIdentifier(expression.expression)
+        && expression.expression.text === 'window'
+        && expression.name.text === 'prompt'
+      ) {
+        found = true;
+        return;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return found;
+};
 const versionAtLeast = (actual, minimum) => {
   const parse = (v) => String(v).split(/[.-]/).slice(0, 3).map((x) => Number.parseInt(x, 10) || 0);
   const a = parse(actual), b = parse(minimum);
@@ -31,7 +59,7 @@ if (pkg.build?.publish !== null) fail('package build publish must be null');
 if (pkg.build?.removePackageScripts !== true) fail('package build removePackageScripts must be true');
 if (pkg.build?.nodeGypRebuild !== false) fail('package build nodeGypRebuild must be false');
 if (!pkg.scripts?.['verify:builder-truth']) fail('builder truth verifier script missing');
-if (!pkg.scripts?.['verify:release-blockers']?.includes('verify:builder-truth')) fail('release blockers must include builder truth verifier');
+if (!getReleaseBlockersContract(pkg).includes('verify:builder-truth')) fail('release blockers must include builder truth verifier');
 
 const required = [
   'src/main/main.ts',
@@ -64,7 +92,7 @@ if (builder.includes('buildVersion: 1.1.0')) fail('stale electron-builder buildV
 const renderer = read('src/renderer/app.ts');
 const chromiumBookmarks = read('src/renderer/chromium-bookmarks.ts');
 for (const [rel, source] of Object.entries({ 'src/renderer/app.ts': renderer, 'src/renderer/chromium-bookmarks.ts': chromiumBookmarks })) {
-  if (/\b(?:window\.)?prompt\s*\(/.test(source)) fail(`unsupported renderer prompt usage remains: ${rel}`);
+  if (hasUnsupportedPromptCall(source)) fail(`unsupported renderer prompt usage remains: ${rel}`);
 }
 
 const banned = [

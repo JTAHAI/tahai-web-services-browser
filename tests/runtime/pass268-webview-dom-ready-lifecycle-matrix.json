@@ -1,0 +1,57 @@
+{
+  "pass": "PASS268",
+  "schemaVersion": 1,
+  "passName": "WebView DOM-Ready Lifecycle Hardening",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 3,
+  "requiredLifecycleGuards": [
+    "isConnected",
+    "dom-ready",
+    "destroyed-state",
+    "removed-from-dom",
+    "render-process-gone",
+    "did-fail-load",
+    "safe-no-op-before-ready",
+    "method-exists-before-call"
+  ],
+  "requiredGuardedMethods": [
+    "goBack",
+    "goForward",
+    "reload",
+    "reloadIgnoringCache",
+    "stop",
+    "focus",
+    "loadURL",
+    "executeJavaScript",
+    "insertCSS",
+    "openDevTools",
+    "send"
+  ],
+  "requiredMissionSurfaces": [
+    "normal-tab",
+    "split-view",
+    "triple-top",
+    "triple-bottom",
+    "triple-left",
+    "triple-right",
+    "quad-view",
+    "focus-pane",
+    "recipe-launch",
+    "evidence-preview"
+  ],
+  "runtimeAssertions": [
+    "noWebViewMustBeAttachedDomReadyError",
+    "noUnhandledRendererError",
+    "noUnhandledPromiseRejection",
+    "guardedCallsBeforeReadyReturnFalse",
+    "guardedCallsAfterReadyExecute",
+    "removedWebviewCallsNoOp",
+    "crashedWebviewCallsNoOp",
+    "mutationObserverWrapsNewWebviews"
+  ],
+  "storeTruth": {
+    "microsoftStoreSubmissionClaim": "not-submitted",
+    "microsoftStoreApprovalClaim": "not-approved",
+    "publicGaClaim": false
+  }
+}

@@ -27,6 +27,7 @@ export type TahaiBrowserSettings = {
   ui: {
     showStatusBar: boolean;
     openExternalLinksInNewTab: boolean;
+    allowPopupsAsTabs: boolean;
   };
   privacy: {
     sendDoNotTrack: boolean;
@@ -52,7 +53,8 @@ export const DEFAULT_BROWSER_SETTINGS: TahaiBrowserSettings = {
   },
   ui: {
     showStatusBar: true,
-    openExternalLinksInNewTab: true
+    openExternalLinksInNewTab: true,
+    allowPopupsAsTabs: true
   },
   privacy: {
     sendDoNotTrack: true,
@@ -110,7 +112,8 @@ export function sanitizeSettings(value: unknown): TahaiBrowserSettings {
     },
     ui: {
       showStatusBar: cleanBoolean(rawUi.showStatusBar, DEFAULT_BROWSER_SETTINGS.ui.showStatusBar),
-      openExternalLinksInNewTab: cleanBoolean(rawUi.openExternalLinksInNewTab, DEFAULT_BROWSER_SETTINGS.ui.openExternalLinksInNewTab)
+      openExternalLinksInNewTab: cleanBoolean(rawUi.openExternalLinksInNewTab, DEFAULT_BROWSER_SETTINGS.ui.openExternalLinksInNewTab),
+      allowPopupsAsTabs: cleanBoolean(rawUi.allowPopupsAsTabs, DEFAULT_BROWSER_SETTINGS.ui.allowPopupsAsTabs)
     },
     privacy: {
       sendDoNotTrack: cleanBoolean(rawPrivacy.sendDoNotTrack, DEFAULT_BROWSER_SETTINGS.privacy.sendDoNotTrack),

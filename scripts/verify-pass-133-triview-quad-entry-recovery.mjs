@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const exists = (rel) => fs.existsSync(path.join(root, rel));
@@ -34,7 +35,7 @@ if (!failures.length) {
   need(doc.includes('PASS133') && doc.includes('Tri-view') && doc.includes('Recover View'), 'PASS133 doc missing tri-view/recovery coverage');
   need(summary.includes('1.8.30 unchanged') && summary.includes('PASS133'), 'PASS133 summary must preserve version truth');
   need(pkg.scripts?.['verify:pass-133-triview-quad-entry-recovery'] === 'node scripts/verify-pass-133-triview-quad-entry-recovery.mjs', 'missing package script for PASS133');
-  need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-133-triview-quad-entry-recovery'), 'release blockers missing PASS133 verifier');
+  need(getReleaseBlockersContract(pkg).includes('verify:pass-133-triview-quad-entry-recovery'), 'release blockers missing PASS133 verifier');
 }
 if (failures.length) { console.error('PASS133 Tri-view / Quad View entry + recovery verification failed:'); for (const failure of failures) console.error(` - ${failure}`); process.exit(1); }
 console.log('PASS133 Tri-view / Quad View entry + recovery verification passed.');

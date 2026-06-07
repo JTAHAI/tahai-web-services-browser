@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const read = (p) => fs.readFileSync(p, 'utf8');
 const pkg = JSON.parse(read('package.json'));
 const app = read('src/renderer/app.ts');
@@ -8,7 +9,7 @@ const css = read('src/renderer/styles/browser.css');
 const doc = read('docs/pass-107-site-view-triview-geometry-settle.md');
 const failures = [];
 const need = (ok, msg) => { if (!ok) failures.push(msg); };
-const rb = String(pkg.scripts?.['verify:release-blockers'] || '');
+const rb = getReleaseBlockersContract(pkg);
 need(pkg.scripts?.['verify:pass-107-site-view-triview-geometry-settle'] === 'node scripts/verify-pass-107-site-view-triview-geometry-settle.mjs', 'package-script-missing');
 need(rb.includes('verify:pass-107-site-view-triview-geometry-settle'), 'release-blockers-not-wired');
 need(app.includes('function pass107MeasureSiteViewRailReservation'), 'pass107-rail-reservation-helper-missing');

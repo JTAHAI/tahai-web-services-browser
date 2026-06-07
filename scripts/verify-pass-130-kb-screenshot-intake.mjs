@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const root = process.cwd(); const failures = [];
 const rel = (p) => path.join(root, p);
 const exists = (p) => fs.existsSync(rel(p));
@@ -85,7 +86,7 @@ if (!failures.length) {
   need(committedScreenshots.length === 0, `PASS135 permits only allowlisted KB screenshots; unlisted files found: ${committedScreenshots.join(', ')}`);
   for (const forbidden of ['node_modules', 'dist', 'release', '.git', '.pass-runs', 'artifacts']) need(!Array.from(files).some((file) => file.includes(forbidden)), `screenshot manifest must not reference ${forbidden}`);
   need(pkg.scripts?.['verify:pass-130-kb-screenshot-intake'] === 'node scripts/verify-pass-130-kb-screenshot-intake.mjs', 'missing package script for PASS130');
-  need(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-130-kb-screenshot-intake'), 'release blockers missing PASS130');
+  need(getReleaseBlockersContract(pkg).includes('verify:pass-130-kb-screenshot-intake'), 'release blockers missing PASS130');
 }
 if (failures.length) { console.error('PASS130 KB screenshot intake verification failed:'); for (const failure of failures) console.error(` - ${failure}`); process.exit(1); }
 console.log('PASS130 KB screenshot intake verification passed.');

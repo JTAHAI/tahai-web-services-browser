@@ -2,8 +2,9 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
-const tagName = 'v2.0.0';
-const message = 'TAHAI Web Services Browser 2.0.0';
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8').replace(/^﻿/, ''));
+const tagName = `v${pkg.version}`;
+const message = `${pkg.productName} ${pkg.version}`;
 function fail(messageText, code = 1) { console.error(`[STORE-TAG][FAIL] ${messageText}`); process.exit(code); }
 function run(args) { return spawnSync('git', args, { encoding: 'utf8' }); }
 function trim(value) { return String(value || '').trim(); }

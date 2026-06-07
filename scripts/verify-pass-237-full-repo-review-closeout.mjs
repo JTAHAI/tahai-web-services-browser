@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -61,8 +62,8 @@ for (const token of [
 
 need(pkg.scripts?.['verify:pass-236-dom-ready-direct-loadurl-elimination'] === 'node scripts/verify-pass-236-dom-ready-direct-loadurl-elimination.mjs', 'package.json missing PASS236 verifier script');
 need(pkg.scripts?.['verify:pass-237-full-repo-review-closeout'] === 'node scripts/verify-pass-237-full-repo-review-closeout.mjs', 'package.json missing PASS237 verifier script');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-236-dom-ready-direct-loadurl-elimination'), 'release blockers missing PASS236');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-237-full-repo-review-closeout'), 'release blockers missing PASS237');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-236-dom-ready-direct-loadurl-elimination'), 'release blockers missing PASS236');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-237-full-repo-review-closeout'), 'release blockers missing PASS237');
 
 const forbiddenSourceFiles = [];
 function walk(dir) {

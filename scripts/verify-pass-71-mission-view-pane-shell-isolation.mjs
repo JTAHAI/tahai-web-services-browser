@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const root = process.cwd();
 const app = fs.readFileSync(path.join(root, 'src', 'renderer', 'app.ts'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'src', 'renderer', 'styles', 'browser.css'), 'utf8');
@@ -28,5 +29,5 @@ const shellWebviewBlock = css.match(/\.webview-stage\.mission-layout \.mission-p
 if (!shellWebviewBlock) fail('missing-shell-webview-block');
 for (const forbidden of ['filter: blur', 'transform: scale', 'opacity: .', 'opacity: 0.', 'backdrop-filter']) if (shellWebviewBlock.includes(forbidden)) fail(`forbidden-webview-compositor-style-${forbidden.replace(/[^a-z0-9]+/gi, '-')}`);
 if (pkg.scripts['verify:pass-71-mission-view-pane-shell-isolation'] !== 'node scripts/verify-pass-71-mission-view-pane-shell-isolation.mjs') fail('package-script-not-registered');
-if (!pkg.scripts['verify:release-blockers']?.includes('verify:pass-71-mission-view-pane-shell-isolation')) fail('release-blockers-not-wired');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-71-mission-view-pane-shell-isolation')) fail('release-blockers-not-wired');
 console.log('PASS71_MISSION_VIEW_PANE_SHELL_ISOLATION=OK');

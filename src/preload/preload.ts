@@ -24,6 +24,7 @@ export type TahaiBrowserSettings = {
   ui: {
     showStatusBar: boolean;
     openExternalLinksInNewTab: boolean;
+    allowPopupsAsTabs: boolean;
   };
   privacy: {
     sendDoNotTrack: boolean;
@@ -91,6 +92,7 @@ export type TahaiBrowserConfig = {
   adminPolicy: EnterpriseAdminPolicyState;
   adminPolicySummary: string;
   enterpriseSupportBundlePass: string;
+  runtimeControl: RuntimeControlState;
 };
 
 export type ClearBrowsingDataScope = 'active-profile' | 'selected-profile' | 'all-profiles';
@@ -156,6 +158,35 @@ export type DevOpsCaptureSaveResult = {
   path?: never;
 };
 
+export type RuntimeControlState = {
+  runtimeE2e: boolean;
+  runtimeE2eQuit: boolean;
+  diagnostics: boolean;
+  resultPath: string;
+  runId: string;
+};
+
+export type RuntimeE2eScenarioResult = {
+  id: string;
+  ok: boolean;
+  detail: string;
+};
+
+export type RuntimeE2eHarnessResult = {
+  ok: boolean;
+  pass: 'PASS158';
+  contractId?: string;
+  scenarioCount?: number;
+  error?: string;
+  results?: RuntimeE2eScenarioResult[];
+};
+
+export type RuntimeE2eRendererReport = {
+  reason: string;
+  startedAt: string;
+  result: RuntimeE2eHarnessResult;
+};
+
 
 export type OpsCheckStatus = 'pass' | 'warn' | 'fail' | 'info';
 
@@ -213,6 +244,9 @@ export type ItServiceCardDiagnostics = {
 };
 
 contextBridge.exposeInMainWorld('tahaiBrowser', {
+  notifyRendererReady: (): Promise<boolean> => ipcRenderer.invoke('tahai-browser:renderer-ready'),
+  getRuntimeControl: (): Promise<RuntimeControlState> => ipcRenderer.invoke('tahai-browser:get-runtime-control'),
+  reportRuntimeE2eResult: (report: RuntimeE2eRendererReport): Promise<boolean> => ipcRenderer.invoke('tahai-browser:report-runtime-e2e-result', report),
   getConfig: (): Promise<TahaiBrowserConfig> => ipcRenderer.invoke('tahai-browser:get-config'),
   getSettings: (): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:get-settings'),
   getAdminPolicy: (): Promise<EnterpriseAdminPolicyState> => ipcRenderer.invoke('tahai-browser:get-admin-policy'),

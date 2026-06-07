@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS267",
+  "name": "Installed Mission Control Brutal Runtime Harness",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 4,
+  "storePosture": "NOT_SUBMITTED_NOT_APPROVED_NO_GA_CLAIM",
+  "purpose": "Define the installed-app Mission Control runtime proof matrix that must pass before Store submission confidence.",
+  "priorBlockerRepairsRequired": [
+    "PASS255 recipe-to-pane hydration must be wired into the PASS254 recipe start path.",
+    "PASS259/PASS260 secret scan must not false-positive on synthetic private-key fixture prose in src/shared contracts.",
+    "PASS264 must have both verify script aliases so old and new command forms work."
+  ],
+  "requiredRecipes": [
+    "dns-migration",
+    "cloudflare-cutover",
+    "github-actions-release",
+    "production-deployment",
+    "certificate-renewal",
+    "m365-user-offboarding",
+    "incident-triage",
+    "vendor-support-handoff"
+  ],
+  "requiredLayoutSequence": [
+    "single",
+    "split-horizontal",
+    "triple-top",
+    "triple-bottom",
+    "triple-left",
+    "triple-right",
+    "quad",
+    "focus",
+    "quad",
+    "single"
+  ],
+  "minimumLayoutCyclesPerRecipe": 50,
+  "requiredWindowProfiles": [
+    {
+      "id": "restored-1366x768",
+      "width": 1366,
+      "height": 768,
+      "minimumContentWidth": 520,
+      "minimumContentHeight": 360
+    },
+    {
+      "id": "small-1280x720",
+      "width": 1280,
+      "height": 720,
+      "minimumContentWidth": 480,
+      "minimumContentHeight": 320
+    },
+    {
+      "id": "maximized-1920x1080",
+      "width": 1920,
+      "height": 1080,
+      "minimumContentWidth": 760,
+      "minimumContentHeight": 520
+    },
+    {
+      "id": "wide-2560x1440",
+      "width": 2560,
+      "height": 1440,
+      "minimumContentWidth": 980,
+      "minimumContentHeight": 680
+    }
+  ],
+  "requiredInstalledAppAssertions": [
+    "packageInstalledForSmoke",
+    "launchedFromInstalledShortcut",
+    "appVersionVisibleAndMatchesPackage",
+    "allFlagshipRecipesStart",
+    "recipeSelectionPopulatesMissionFields",
+    "panesHydrateWithRuntimeTabs",
+    "noBlankPanes",
+    "noBlackPanes",
+    "noBottomOnlyWebview",
+    "noOrphanedWebview",
+    "noHiddenActivePane",
+    "layoutStressCompleted",
+    "focusPaneRestoresToPreviousLayout",
+    "activePaneRoutingPassed",
+    "exportPreviewOpened",
+    "redactionPreviewDidNotCrash",
+    "noWebViewDomReadyMethodError",
+    "noUnhandledRendererError",
+    "noConsoleNoiseAboveWarningBudget",
+    "screenshotsCapturedForEachWindowProfile"
+  ],
+  "requiredEvidencePaths": [
+    "release-candidate/runtime/pass267-installed-mission-control-brutal-runtime-evidence.json",
+    "release-candidate/runtime/pass267-installed-mission-control-brutal-runtime-gate-output.txt"
+  ],
+  "nextPass": "PASS268 \u2014 WebView DOM-Ready Lifecycle Hardening"
+}

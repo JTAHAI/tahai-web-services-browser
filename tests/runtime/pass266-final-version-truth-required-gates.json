@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS266",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 5,
+  "name": "PASS266 Final Package Version Matrix",
+  "finalPackageVersion": "2.0.14",
+  "repairedPasses": [
+    "PASS260",
+    "PASS261",
+    "PASS262",
+    "PASS263",
+    "PASS264",
+    "PASS265"
+  ],
+  "versionPolicy": {
+    "singleInstalledPackageEvidenceVersionRequired": true,
+    "historicalPassVersionDriftBlocked": true,
+    "packageVersionMustMatchAboutVersion": true,
+    "screenshotsAssetsListingsDryRunAndHandoffMustMatchPackageVersion": true,
+    "storeSubmissionStillManualAndBlocked": true
+  },
+  "scriptFilesThatMustRequireFinalVersion": [
+    "scripts/gate-pass260-installed-recipe-quad-store-smoke.mjs",
+    "scripts/gate-pass261-store-submission-packet.mjs",
+    "scripts/gate-pass262-store-asset-evidence-pack.mjs",
+    "scripts/gate-pass263-store-listing-copy-truth-pack.mjs",
+    "scripts/gate-pass264-store-submission-dry-run-evidence.mjs",
+    "scripts/gate-pass265-store-handoff-freeze-operator-approval.mjs",
+    "scripts/verify-pass260-installed-recipe-quad-store-smoke-evidence.mjs",
+    "scripts/verify-pass261-store-submission-packet-finalizer.mjs",
+    "scripts/verify-pass262-store-asset-evidence-pack.mjs",
+    "scripts/verify-pass263-store-listing-copy-truth-pack.mjs",
+    "scripts/verify-pass264-store-submission-dry-run-evidence-gate.mjs",
+    "scripts/verify-pass265-store-handoff-freeze-operator-approval.mjs"
+  ],
+  "jsonFilesThatMustUseFinalVersion": [
+    "docs/store/pass260-installed-recipe-quad-smoke-evidence.template.json",
+    "docs/store/pass261-store-submission-packet.template.json",
+    "docs/store/pass261-store-screenshot-manifest.template.json",
+    "docs/store/pass262-store-asset-evidence-pack.template.json",
+    "docs/store/pass262-store-listing-image-checklist.template.json",
+    "docs/store/pass262-public-url-review.template.json",
+    "docs/store/pass263-store-listing-copy.template.json",
+    "docs/store/pass263-partner-center-field-map.template.json",
+    "docs/store/pass263-copy-claim-review.template.json",
+    "docs/store/pass264-store-submission-dry-run-evidence.template.json",
+    "docs/store/pass264-store-submission-dry-run-checklist.template.json",
+    "docs/store/pass265-store-handoff-freeze-operator-approval.template.json",
+    "docs/store/pass265-store-closeout-manifest.template.json",
+    "docs/store/pass265-operator-approval-checklist.template.json",
+    "tests/runtime/pass260-installed-recipe-quad-smoke-checks.json",
+    "tests/runtime/pass262-store-asset-required-slots.json",
+    "tests/runtime/pass263-store-listing-claim-rules.json",
+    "tests/runtime/pass264-store-submission-dry-run-required-gates.json",
+    "tests/runtime/pass265-store-handoff-freeze-required-gates.json"
+  ]
+}

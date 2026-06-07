@@ -19,6 +19,7 @@ export function markRendererShellReady(): void {
   document.body.dataset.pass158RuntimeE2eHarness = RUNTIME_E2E_HARNESS_CONTRACT_ID;
   document.body.dataset.pass158RuntimeE2eHarnessSummary = runtimeE2eHarnessSummary();
   document.body.dataset.pass161RendererLifecycleModule = PASS161_RENDERER_LIFECYCLE_MODULE;
+  void window.tahaiBrowser?.notifyRendererReady?.().catch(() => undefined);
   window.dispatchEvent(new CustomEvent('tahai-renderer-ready'));
   const panel = document.getElementById('boot-diagnostic');
   if (panel) panel.setAttribute('hidden', 'true');
@@ -31,7 +32,7 @@ export function fallbackBrowserConfig(): RendererBrowserConfig {
     searchProvider: 'google',
     permissions: { allowClipboardRead: false, allowMedia: true, allowGeolocation: false, allowNotifications: false },
     downloads: { askEveryTime: true, defaultDirectory: '' },
-    ui: { showStatusBar: true, openExternalLinksInNewTab: true },
+    ui: { showStatusBar: true, openExternalLinksInNewTab: true, allowPopupsAsTabs: true },
     privacy: { sendDoNotTrack: true, blockThirdPartyCookies: true, reduceCrossSiteReferrers: true, clearProfileDataOnExit: false },
   };
   return {
@@ -87,6 +88,13 @@ export function fallbackBrowserConfig(): RendererBrowserConfig {
     },
     adminPolicySummary: 'PASS154 enterprise-admin-policy-framework-v1 fallback: managed=false; source=none;',
     enterpriseSupportBundlePass: 'PASS160',
+    runtimeControl: {
+      runtimeE2e: false,
+      runtimeE2eQuit: true,
+      diagnostics: false,
+      resultPath: '',
+      runId: ''
+    },
     profiles: {
       activeProfileId: 'default',
       activeProfile: { id: 'default', name: 'Default', kind: 'local', color: '#77dbff', partition: 'persist:tahai-profile-default', createdAt: '', updatedAt: '', lastUsedAt: '', isDefault: true },

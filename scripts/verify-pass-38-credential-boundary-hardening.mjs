@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const read = (path) => readFileSync(path, 'utf8');
 const failures = [];
@@ -31,7 +32,7 @@ for (const token of ['secret-boundary', 'openSecretBoundary', 'No browser-side v
 }
 if (!main.includes('assertTrustedBrowserShellIpc')) failures.push('trusted shell IPC guard missing');
 if (!String(pkg.scripts?.['verify:pass-38-credential-boundary-hardening'] || '').includes('verify-pass-38-credential-boundary-hardening.mjs')) failures.push('package script missing revised pass38 verifier');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-38-credential-boundary-hardening')) failures.push('pass38 verifier not wired into release blockers');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-38-credential-boundary-hardening')) failures.push('pass38 verifier not wired into release blockers');
 
 if (failures.length) {
   console.error('TAHAI_BROWSER_PASS38_SECRET_BOUNDARY_OK=0');

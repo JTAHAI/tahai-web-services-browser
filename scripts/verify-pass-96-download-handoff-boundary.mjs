@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS96 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -57,5 +58,5 @@ includes('src/renderer/index.html',['data-pass96-download-boundary="true"','Down
 includes('src/renderer/styles/browser.css',['PASS96 download handoff boundary','.download-boundary-note','Download safety']);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-96-download-handoff-boundary']==='node scripts/verify-pass-96-download-handoff-boundary.mjs','package.json missing PASS96 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-96-download-handoff-boundary'),'release blockers missing PASS96 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-96-download-handoff-boundary'),'release blockers missing PASS96 verifier');
 console.log('PASS96 download handoff boundary verification passed.');

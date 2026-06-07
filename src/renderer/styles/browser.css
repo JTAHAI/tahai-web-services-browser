@@ -1154,7 +1154,7 @@ body.mission-tab-dragging .webview-stage.mission-layout .mission-pane-drop-zones
 .mission-runbook-editor .ops-hub-list::-webkit-scrollbar {
   width: 9px !important;
   height: 9px !important;
-  display: block !important;
+  display: inline-flex !important;
 }
 
 .mission-section > .ops-hub-list::-webkit-scrollbar-track,
@@ -1357,7 +1357,7 @@ body.mission-tab-dragging .webview-stage.mission-layout .mission-pane-drop-zones
 }
 
 #ops-hub-recipes .mission-recipe-card span {
-  display: block !important;
+  display: inline-flex !important;
   min-width: 0 !important;
   padding-left: 4px !important;
   line-height: 1.35 !important;
@@ -1368,7 +1368,7 @@ body.mission-tab-dragging .webview-stage.mission-layout .mission-pane-drop-zones
 
 #ops-hub-recipes .recipe-chip {
   justify-self: start !important;
-  display: inline-flex !important;
+  display: block !important;
   align-items: center !important;
   width: max-content !important;
   max-width: 100% !important;
@@ -1676,7 +1676,7 @@ body.pass66-mission-pane-pointer-dragging iframe {
   height: 100% !important;
   min-width: 0 !important;
   min-height: 0 !important;
-  display: inline-flex !important;
+  display: block !important;
   border: 0 !important;
   border-radius: 0 !important;
   overflow: visible !important;
@@ -3440,3 +3440,1425 @@ body[data-pass192-titlebar-chrome-final="true"] .new-tab-control {
   position: relative !important;
   z-index: 1 !important;
 }
+
+/* PASS251_MISSION_MULTIVIEW_FINAL_POLISH_START */
+:root {
+  --pass251-mission-gap: clamp(6px, 0.55vw, 10px);
+  --pass251-mission-compact-gap: clamp(4px, 0.4vw, 8px);
+  --pass251-mission-control-min: 0px;
+}
+
+/* Keep Mission Control overlays centered, contained, and scrollable at restored, maximized, and ultrawide sizes. */
+.mission-modal,
+.mission-control-modal,
+.mission-dialog,
+.mission-overlay-panel,
+.mission-drawer,
+.mission-control-shell,
+[class*="mission" i][class*="modal" i],
+[class*="mission" i][class*="dialog" i],
+[class*="mission" i][class*="overlay" i] {
+  max-width: min(96vw, 1640px) !important;
+  max-height: min(88vh, 980px) !important;
+  min-width: min(92vw, 860px);
+  min-height: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* The modal body owns vertical scroll. Individual dense rails own their own horizontal overflow. */
+.mission-modal-body,
+.mission-control-body,
+.mission-panel-body,
+.mission-content,
+[class*="mission" i][class*="body" i],
+[class*="mission" i][class*="content" i] {
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
+  box-sizing: border-box !important;
+}
+
+/* Stop layout tabs, active pane controls, and repair/doctor buttons from colliding. */
+.mission-layout-tabs,
+.mission-layout-controls,
+.mission-layout-actions,
+.mission-pane-controls,
+.mission-pane-actions,
+.mission-action-row,
+.mission-toolbar-row,
+.mission-tabs-toolbar,
+.mission-control-toolbar,
+[class*="mission" i][class*="toolbar" i],
+[class*="mission" i][class*="controls" i],
+[class*="mission" i][class*="actions" i] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: var(--pass251-mission-compact-gap) !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  scrollbar-width: thin;
+  box-sizing: border-box !important;
+}
+
+/* Prevent individual action buttons/chips from becoming illegible while still allowing wrapping. */
+.mission-layout-tabs > *,
+.mission-layout-controls > *,
+.mission-layout-actions > *,
+.mission-pane-controls > *,
+.mission-pane-actions > *,
+.mission-action-row > *,
+.mission-toolbar-row > *,
+.mission-tabs-toolbar > *,
+.mission-control-toolbar > *,
+[class*="mission" i][class*="toolbar" i] > *,
+[class*="mission" i][class*="controls" i] > *,
+[class*="mission" i][class*="actions" i] > * {
+  flex: 0 0 auto;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+/* Dense panes and cards must shrink inside flex/grid parents instead of forcing overlap. */
+.mission-grid,
+.mission-summary-grid,
+.mission-cards,
+.mission-card-grid,
+.mission-pane-map,
+.mission-pane-grid,
+.mission-layout-map,
+.mission-rail-grid,
+.mission-control-grid,
+[class*="mission" i][class*="grid" i],
+[class*="mission" i][class*="cards" i] {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  gap: var(--pass251-mission-gap) !important;
+  box-sizing: border-box !important;
+}
+
+.mission-card,
+.mission-summary-card,
+.mission-pane-card,
+.mission-recipe-card,
+.mission-runbook-card,
+.mission-evidence-card,
+.mission-timeline-card,
+[class*="mission" i][class*="card" i] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+/* Pane operation area: force a clean stacked model with enough vertical budget. */
+.mission-pane-operator,
+.mission-pane-routing,
+.mission-pane-repair,
+.mission-pane-doctor,
+.mission-pane-transfer,
+[class*="mission" i][class*="pane" i][class*="operator" i],
+[class*="mission" i][class*="pane" i][class*="routing" i],
+[class*="mission" i][class*="pane" i][class*="repair" i],
+[class*="mission" i][class*="pane" i][class*="doctor" i],
+[class*="mission" i][class*="pane" i][class*="transfer" i] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: var(--pass251-mission-compact-gap) !important;
+  align-items: center !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+/* Labels, selects, and move/swap rows should wrap cleanly instead of pushing buttons under cards. */
+.mission-pane-transfer select,
+.mission-pane-routing select,
+[class*="mission" i][class*="pane" i] select,
+[class*="mission" i][class*="transfer" i] select,
+[class*="mission" i][class*="routing" i] select {
+  min-width: min(100%, 220px) !important;
+  max-width: 100% !important;
+}
+
+/* Mission pane/webview surface: the content surface gets the budget, not the chrome/chips. */
+.mission-view,
+.mission-views,
+.mission-viewport,
+.mission-view-grid,
+.mission-panes,
+.mission-pane-shell,
+.mission-pane,
+.mission-webview-pane,
+.pane-shell,
+.pane,
+[class*="mission" i][class*="view" i],
+[class*="mission" i][class*="pane" i] {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.mission-view-grid,
+.mission-panes,
+.mission-pane-grid,
+[class*="mission" i][class*="view" i][class*="grid" i],
+[class*="mission" i][class*="pane" i][class*="grid" i] {
+  display: grid;
+  gap: var(--pass251-mission-gap) !important;
+  overflow: hidden !important;
+}
+
+.mission-pane-shell,
+.mission-pane,
+.mission-webview-pane,
+[class*="mission" i][class*="pane" i] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+}
+
+.mission-pane iframe,
+.mission-pane webview,
+.mission-webview-pane iframe,
+.mission-webview-pane webview,
+.pane iframe,
+.pane webview,
+[class*="mission" i][class*="pane" i] iframe,
+[class*="mission" i][class*="pane" i] webview,
+[class*="mission" i][class*="view" i] iframe,
+[class*="mission" i][class*="view" i] webview {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  overflow: hidden !important;
+}
+
+/* The active pane marker should remain visible without stealing content budget. */
+.mission-pane.is-active,
+.mission-pane.active,
+.mission-webview-pane.is-active,
+.mission-webview-pane.active,
+[class*="mission" i][class*="pane" i].is-active,
+[class*="mission" i][class*="pane" i].active {
+  outline-offset: -2px;
+}
+
+/* At restored widths, make the modal favor clean vertical flow over dense side-by-side squeezing. */
+@media (max-width: 1180px) {
+  .mission-modal,
+  .mission-control-modal,
+  .mission-dialog,
+  .mission-overlay-panel,
+  .mission-drawer,
+  .mission-control-shell,
+  [class*="mission" i][class*="modal" i],
+  [class*="mission" i][class*="dialog" i],
+  [class*="mission" i][class*="overlay" i] {
+    min-width: 0 !important;
+    width: min(98vw, 980px) !important;
+    max-height: 90vh !important;
+  }
+
+  .mission-grid,
+  .mission-summary-grid,
+  .mission-card-grid,
+  .mission-rail-grid,
+  .mission-control-grid,
+  [class*="mission" i][class*="grid" i] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .mission-layout-tabs,
+  .mission-layout-controls,
+  .mission-layout-actions,
+  .mission-pane-controls,
+  .mission-pane-actions,
+  .mission-action-row,
+  .mission-toolbar-row,
+  .mission-tabs-toolbar,
+  .mission-control-toolbar,
+  [class*="mission" i][class*="toolbar" i],
+  [class*="mission" i][class*="controls" i],
+  [class*="mission" i][class*="actions" i] {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    padding-bottom: 3px;
+  }
+}
+/* PASS251_MISSION_MULTIVIEW_FINAL_POLISH_END */
+
+/* PASS252_MISSION_MULTIVIEW_STATE_HARDENING_START */
+:root {
+  --pass252-view-gap: clamp(6px, 0.52vw, 10px);
+  --pass252-pane-radius: 12px;
+  --pass252-pane-min-height: clamp(260px, 42vh, 620px);
+  --pass252-focus-min-height: clamp(360px, 62vh, 880px);
+}
+
+/* PASS252 treats Mission View as a deterministic state machine: one layout truth, one active pane, no stale hidden/broken intermediate state. */
+.mission-control-shell,
+.mission-modal,
+.mission-control-modal,
+.mission-overlay-panel,
+.mission-view-host,
+.mission-multiview,
+.mission-views,
+.mission-panes,
+.mission-view-grid,
+[data-mission-control],
+[data-mission-layout],
+[class*="mission" i][class*="view" i],
+[class*="mission" i][class*="pane" i] {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.mission-view-host,
+.mission-multiview,
+.mission-views,
+.mission-panes,
+.mission-view-grid,
+[data-mission-layout] .mission-panes,
+[data-mission-layout] .mission-view-grid,
+[class*="mission" i][class*="view" i][class*="grid" i],
+[class*="mission" i][class*="pane" i][class*="grid" i] {
+  display: grid !important;
+  gap: var(--pass252-view-gap) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: var(--pass252-pane-min-height) !important;
+  overflow: hidden !important;
+  align-items: stretch !important;
+}
+
+/* Single / 1-Up */
+[data-mission-layout="single"] .mission-view-grid,
+[data-mission-layout="single"] .mission-panes,
+.mission-layout-single .mission-view-grid,
+.mission-layout-single .mission-panes,
+[class*="1-up" i] .mission-view-grid,
+[class*="one-up" i] .mission-view-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+/* Split / 2-Up */
+[data-mission-layout="split"] .mission-view-grid,
+[data-mission-layout="split"] .mission-panes,
+[data-mission-layout="two"] .mission-view-grid,
+[data-mission-layout="two"] .mission-panes,
+.mission-layout-split .mission-view-grid,
+.mission-layout-split .mission-panes,
+.mission-layout-two-up .mission-view-grid,
+.mission-layout-two-up .mission-panes,
+[class*="2-up" i] .mission-view-grid,
+[class*="two-up" i] .mission-view-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+/* Triple / 3-Up — default plus left/right-tall variants. */
+[data-mission-layout="triple"] .mission-view-grid,
+[data-mission-layout="triple"] .mission-panes,
+[data-mission-layout="three"] .mission-view-grid,
+[data-mission-layout="three"] .mission-panes,
+.mission-layout-triple .mission-view-grid,
+.mission-layout-triple .mission-panes,
+.mission-layout-three-up .mission-view-grid,
+.mission-layout-three-up .mission-panes,
+[class*="3-up" i] .mission-view-grid,
+[class*="three-up" i] .mission-view-grid {
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) !important;
+}
+
+[data-mission-layout="triple"] .mission-pane:first-child,
+[data-mission-layout="triple"] [data-mission-pane]:first-child,
+[data-mission-layout="three"] .mission-pane:first-child,
+[data-mission-layout="three"] [data-mission-pane]:first-child,
+.mission-layout-triple .mission-pane:first-child,
+.mission-layout-three-up .mission-pane:first-child,
+[class*="left-tall" i] .mission-pane:first-child,
+[class*="left-tall" i] [data-mission-pane]:first-child {
+  grid-row: 1 / span 2 !important;
+}
+
+[class*="right-tall" i] .mission-pane:first-child,
+[class*="right-tall" i] [data-mission-pane]:first-child {
+  grid-row: auto !important;
+}
+[class*="right-tall" i] .mission-pane:nth-child(2),
+[class*="right-tall" i] [data-mission-pane]:nth-child(2) {
+  grid-row: 1 / span 2 !important;
+}
+
+/* Quad / 4-Up */
+[data-mission-layout="quad"] .mission-view-grid,
+[data-mission-layout="quad"] .mission-panes,
+[data-mission-layout="four"] .mission-view-grid,
+[data-mission-layout="four"] .mission-panes,
+.mission-layout-quad .mission-view-grid,
+.mission-layout-quad .mission-panes,
+.mission-layout-four-up .mission-view-grid,
+.mission-layout-four-up .mission-panes,
+[class*="4-up" i] .mission-view-grid,
+[class*="quad" i] .mission-view-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) !important;
+}
+
+/* Focus view: the active pane gets the entire working area; inactive panes stay non-destructive and recoverable. */
+[data-mission-layout="focus"] .mission-view-grid,
+[data-mission-layout="focus"] .mission-panes,
+.mission-layout-focus .mission-view-grid,
+.mission-layout-focus .mission-panes,
+[class*="focus" i] .mission-view-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  min-height: var(--pass252-focus-min-height) !important;
+}
+
+[data-mission-layout="focus"] .mission-pane:not(.is-active):not(.active):not([data-active="true"]),
+[data-mission-layout="focus"] [data-mission-pane]:not(.is-active):not(.active):not([data-active="true"]),
+.mission-layout-focus .mission-pane:not(.is-active):not(.active):not([data-active="true"]),
+.mission-layout-focus [data-mission-pane]:not(.is-active):not(.active):not([data-active="true"]) {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  opacity: 0.001 !important;
+  pointer-events: none !important;
+}
+
+/* Pane shells and embedded webviews must fill the assigned grid cell after every layout switch. */
+.mission-pane,
+.mission-webview-pane,
+.mission-pane-shell,
+[data-mission-pane],
+[class*="mission" i][class*="pane" i] {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  border-radius: var(--pass252-pane-radius);
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  contain: layout paint;
+  pointer-events: auto !important;
+}
+
+.mission-pane > webview,
+.mission-pane > iframe,
+.mission-webview-pane > webview,
+.mission-webview-pane > iframe,
+[data-mission-pane] > webview,
+[data-mission-pane] > iframe,
+[class*="mission" i][class*="pane" i] > webview,
+[class*="mission" i][class*="pane" i] > iframe {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  display: flex !important;
+}
+
+/* Recover from stale switch states: no invisible pane host should keep pointer-events locked off after a failed transition. */
+.pass252-mission-view-managed,
+.pass252-mission-pane-managed,
+.mission-view-grid.is-switching,
+.mission-panes.is-switching,
+.mission-pane.is-switching,
+.mission-pane.is-resizing,
+.mission-pane.is-moving,
+[data-pass252-pane-index] {
+  pointer-events: auto !important;
+}
+
+/* Button/control rows remain usable when repeated layout switches make labels wider than expected. */
+.mission-layout-tabs,
+.mission-layout-controls,
+.mission-pane-controls,
+.mission-pane-actions,
+.mission-view-switcher,
+.mission-view-controls,
+[data-mission-layout-controls],
+[class*="mission" i][class*="layout" i][class*="control" i],
+[class*="mission" i][class*="view" i][class*="control" i] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: clamp(4px, 0.42vw, 8px) !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  scrollbar-width: thin;
+}
+
+@media (max-width: 1180px) {
+  [data-mission-layout="split"] .mission-view-grid,
+  [data-mission-layout="split"] .mission-panes,
+  .mission-layout-split .mission-view-grid,
+  .mission-layout-split .mission-panes,
+  [data-mission-layout="triple"] .mission-view-grid,
+  [data-mission-layout="triple"] .mission-panes,
+  .mission-layout-triple .mission-view-grid,
+  .mission-layout-triple .mission-panes,
+  [data-mission-layout="quad"] .mission-view-grid,
+  [data-mission-layout="quad"] .mission-panes,
+  .mission-layout-quad .mission-view-grid,
+  .mission-layout-quad .mission-panes {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: none !important;
+  }
+
+  [data-mission-layout="triple"] .mission-pane:first-child,
+  [data-mission-layout="three"] .mission-pane:first-child,
+  .mission-layout-triple .mission-pane:first-child,
+  .mission-layout-three-up .mission-pane:first-child,
+  [class*="left-tall" i] .mission-pane:first-child,
+  [class*="right-tall" i] .mission-pane:nth-child(2) {
+    grid-row: auto !important;
+  }
+}
+/* PASS252_MISSION_MULTIVIEW_STATE_HARDENING_END */
+
+/* PASS253_MISSION_PANE_VIEWPORT_HARDENING_START */
+:root {
+  --pass253-pane-min-visible-site-height: clamp(300px, 48vh, 760px);
+  --pass253-pane-compact-site-height: clamp(240px, 42vh, 640px);
+  --pass253-pane-gap: clamp(6px, 0.5vw, 10px);
+}
+
+/* PASS253: visible Mission panes must always allocate a real top-anchored website viewport. */
+.mission-view-host,
+.mission-multiview,
+.mission-views,
+.mission-panes,
+.mission-view-grid,
+[data-mission-layout] .mission-panes,
+[data-mission-layout] .mission-view-grid,
+[data-pass253-viewport-managed="true"] {
+  align-content: stretch !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  justify-items: stretch !important;
+  gap: var(--pass253-pane-gap) !important;
+  min-width: 0 !important;
+  min-height: var(--pass253-pane-min-visible-site-height) !important;
+  overflow: hidden !important;
+}
+
+.mission-pane,
+.mission-webview-pane,
+.mission-pane-shell,
+[data-mission-pane],
+[data-pane-id],
+[data-pass253-pane-managed="true"] {
+  align-self: stretch !important;
+  justify-self: stretch !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: var(--pass253-pane-compact-site-height) !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  position: relative !important;
+  isolation: isolate;
+  background: transparent !important;
+}
+
+/* Generic content shells inside panes: prevent spacer/header math from pushing the webview to the bottom. */
+.mission-pane .mission-pane-content,
+.mission-pane .mission-pane-body,
+.mission-pane .mission-pane-main,
+.mission-pane .mission-pane-viewport,
+.mission-pane .mission-webview-container,
+.mission-pane .webview-container,
+.mission-pane .site-view,
+.mission-pane .website-pane,
+.mission-pane .browser-pane-content,
+.mission-pane [class*="content" i],
+.mission-pane [class*="viewport" i],
+.mission-pane [class*="webview" i],
+[data-mission-pane] .mission-pane-content,
+[data-mission-pane] .mission-pane-body,
+[data-mission-pane] .mission-pane-main,
+[data-mission-pane] .mission-pane-viewport,
+[data-mission-pane] .mission-webview-container,
+[data-mission-pane] .webview-container,
+[data-mission-pane] .site-view,
+[data-mission-pane] .website-pane,
+[data-mission-pane] .browser-pane-content,
+[data-mission-pane] [class*="content" i],
+[data-mission-pane] [class*="viewport" i],
+[data-mission-pane] [class*="webview" i],
+[data-pass253-site-container="true"] {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  flex: 1 1 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  align-content: stretch !important;
+  justify-items: stretch !important;
+  overflow: hidden !important;
+  position: relative !important;
+  top: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  translate: none !important;
+  background: transparent !important;
+}
+
+/* The actual site surface: top-left anchored, full size, never bottom-aligned. */
+.mission-pane webview,
+.mission-pane iframe,
+.mission-webview-pane webview,
+.mission-webview-pane iframe,
+[data-mission-pane] webview,
+[data-mission-pane] iframe,
+[data-pane-id] webview,
+[data-pane-id] iframe,
+[data-pass253-site-view="true"] {
+  align-self: stretch !important;
+  justify-self: stretch !important;
+  flex: 1 1 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  display: flex !important;
+  position: relative !important;
+  inset: auto !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  margin: 0 !important;
+  transform: none !important;
+  translate: none !important;
+  object-fit: fill !important;
+  object-position: top left !important;
+  vertical-align: top !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+/* Emergency repaired state: when runtime detects a bottom-only/black-area failure, make the pane a two-row shell and put the site into the fill row. */
+[data-pass253-viewport-repaired="true"] {
+  display: grid !important;
+  grid-template-rows: auto minmax(var(--pass253-pane-compact-site-height), 1fr) !important;
+  grid-auto-rows: auto !important;
+  align-items: stretch !important;
+  justify-items: stretch !important;
+}
+
+[data-pass253-viewport-repaired="true"] > webview,
+[data-pass253-viewport-repaired="true"] > iframe,
+[data-pass253-viewport-repaired="true"] [data-pass253-site-view="true"] {
+  grid-row: 2 / -1 !important;
+  min-height: var(--pass253-pane-compact-site-height) !important;
+  height: 100% !important;
+}
+
+/* Hide only truly inactive focus panes. Non-focus switches must not leave split/tri/quad panes collapsed. */
+[data-mission-layout="split"] .mission-pane,
+[data-mission-layout="triple"] .mission-pane,
+[data-mission-layout="quad"] .mission-pane,
+[data-mission-layout="split"] [data-mission-pane],
+[data-mission-layout="triple"] [data-mission-pane],
+[data-mission-layout="quad"] [data-mission-pane],
+[data-pass253-layout-mode="split"] [data-pass253-pane-managed="true"],
+[data-pass253-layout-mode="triple"] [data-pass253-pane-managed="true"],
+[data-pass253-layout-mode="quad"] [data-pass253-pane-managed="true"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  width: auto !important;
+  height: auto !important;
+  clip-path: none !important;
+}
+
+@media (max-width: 1180px) {
+  .mission-view-host,
+  .mission-multiview,
+  .mission-views,
+  .mission-panes,
+  .mission-view-grid,
+  [data-pass253-viewport-managed="true"] {
+    min-height: auto !important;
+    overflow-y: auto !important;
+  }
+
+  .mission-pane,
+  .mission-webview-pane,
+  .mission-pane-shell,
+  [data-mission-pane],
+  [data-pane-id],
+  [data-pass253-pane-managed="true"] {
+    min-height: var(--pass253-pane-compact-site-height) !important;
+  }
+}
+/* PASS253_MISSION_PANE_VIEWPORT_HARDENING_END */
+
+/* PASS254_MISSION_RECIPE_CLICK_CONTRACT_CSS_START */
+.pass254-mission-recipe-card,
+.mission-recipe-card[data-pass254-recipe-id],
+.recipe-card[data-pass254-recipe-id],
+.launch-recipe-card[data-pass254-recipe-id] {
+  position: relative;
+  min-width: 0 !important;
+  cursor: pointer;
+  outline-offset: 3px;
+}
+
+.pass254-mission-recipe-card:focus-visible,
+.pass254-selected-recipe {
+  outline: 2px solid color-mix(in srgb, currentColor 70%, transparent);
+}
+
+.pass254-selected-recipe {
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent), 0 12px 34px rgba(0,0,0,0.25);
+}
+
+.pass254-recipe-contract-detail {
+  display: block;
+  margin-top: 0.45rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  opacity: 0.82;
+}
+
+.pass254-recipe-actions,
+.pass254-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+  min-width: 0;
+}
+
+.pass254-recipe-actions > button,
+.pass254-preview-actions > button {
+  white-space: nowrap;
+  min-width: max-content;
+}
+
+.pass254-mission-recipe-preview {
+  display: block;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 16px;
+  padding: clamp(0.75rem, 1vw, 1rem);
+  margin: 0 0 clamp(0.75rem, 1vw, 1rem);
+  background: rgba(7, 12, 24, 0.72);
+  box-shadow: 0 16px 44px rgba(0,0,0,0.22);
+  overflow: hidden;
+}
+
+.pass254-preview-header,
+.pass254-preview-grid,
+.pass254-preview-lists {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.pass254-preview-header {
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: baseline;
+}
+
+.pass254-preview-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 0.75rem;
+}
+
+.pass254-preview-grid p,
+.pass254-preview-lists > div {
+  min-width: 0;
+  margin: 0;
+  padding: 0.65rem;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.055);
+}
+
+.pass254-preview-grid b,
+.pass254-preview-grid span {
+  display: block;
+}
+
+.pass254-preview-grid span {
+  opacity: 0.86;
+  margin-top: 0.18rem;
+}
+
+.pass254-preview-action {
+  margin: 0.75rem 0;
+  opacity: 0.9;
+}
+
+.pass254-preview-lists {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.pass254-preview-lists ul {
+  margin: 0.45rem 0 0;
+  padding-left: 1.05rem;
+}
+
+.pass254-preview-lists li {
+  margin: 0.18rem 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1180px) {
+  .pass254-preview-grid,
+  .pass254-preview-lists {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 740px) {
+  .pass254-preview-header,
+  .pass254-preview-grid,
+  .pass254-preview-lists {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* PASS254_MISSION_RECIPE_CLICK_CONTRACT_CSS_END */
+
+/* PASS255_RECIPE_PANE_HYDRATION_CSS_START */
+[data-pass255-pane-visible="true"],
+[data-pass255-pane-geometry-ok="true"] {
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-pass255-pane-has-webview="true"] {
+  position: relative;
+  overflow: hidden;
+  background: #05070d;
+}
+
+[data-pass255-pane-has-webview="true"] webview,
+[data-pass255-pane-has-webview="true"] iframe,
+[data-pass255-pane-has-webview="true"] .webview,
+[data-pass255-pane-has-webview="true"] .mission-webview,
+[data-pass255-pane-has-webview="true"] .site-view {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  transform: none !important;
+  object-fit: fill;
+}
+
+[data-pass255-pane-has-webview="false"]::after {
+  content: "Mission pane ready";
+  position: absolute;
+  inset: auto 0.75rem 0.75rem 0.75rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgba(90, 214, 255, 0.2);
+  border-radius: 10px;
+  color: rgba(235, 246, 255, 0.82);
+  background: rgba(5, 7, 13, 0.74);
+  pointer-events: none;
+}
+
+body[data-pass255-pane-geometry-ok="false"] .mission-control,
+body[data-pass255-recipe-hydration-status="repaired-or-needs-review"] .mission-control {
+  --pass255-pane-repair-ring: 0 0 0 1px rgba(90, 214, 255, 0.22) inset;
+}
+
+.pass255-hydration-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.pass255-hydration-summary > * {
+  min-width: 0;
+  padding: 0.55rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+@media (max-width: 980px) {
+  .pass255-hydration-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .pass255-hydration-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* PASS255_RECIPE_PANE_HYDRATION_CSS_END */
+
+/* PASS256_QUAD_VIEW_STATE_MACHINE_CSS_START */
+[data-pass256-state-machine="managed"] { min-width: 0 !important; min-height: 0 !important; contain: layout style; }
+[data-pass256-pane-visible="true"] { position: relative !important; min-width: 0 !important; min-height: 0 !important; overflow: hidden !important; display: flex !important; flex-direction: column !important; }
+[data-pass256-pane-visible="false"] { display: none !important; pointer-events: none !important; visibility: hidden !important; }
+[data-pass256-active-pane="true"] { outline: 1px solid rgba(80, 200, 255, 0.34) !important; outline-offset: -1px !important; }
+[data-pass256-pane-geometry-ok="false"] { outline: 1px solid rgba(255, 84, 84, 0.48) !important; }
+[data-pass256-pane-visible="true"] > webview, [data-pass256-pane-visible="true"] > iframe { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; min-width: 0 !important; min-height: 0 !important; transform: none !important; }
+[data-pass256-pane-visible="true"][data-pass256-pane-has-runtime-view="false"]::after { content: "Mission pane placeholder — add a tab, restore layout, or start a recipe."; position: absolute; inset: 0; display: grid; place-items: center; padding: 18px; text-align: center; font-size: 12px; line-height: 1.4; color: rgba(226, 241, 255, 0.72); background: radial-gradient(circle at top, rgba(32,120,190,.18), rgba(3,10,18,.84)); pointer-events: none; }
+/* PASS256_QUAD_VIEW_STATE_MACHINE_CSS_END */
+
+/* PASS257_MISSION_PANE_GEOMETRY_ENGINE_CSS_START */
+[data-pass257-geometry-engine="managed"] { position: relative !important; min-width: 0 !important; min-height: 0 !important; overflow: hidden !important; contain: layout style !important; }
+[data-pass257-pane-managed="true"] { box-sizing: border-box !important; min-width: 0 !important; min-height: 0 !important; overflow: hidden !important; contain: layout style !important; }
+[data-pass257-pane-managed="true"][data-pane-visible="true"] { position: absolute !important; display: block !important; visibility: visible !important; pointer-events: auto !important; }
+[data-pass257-pane-managed="true"][data-pane-visible="false"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+[data-pass257-pane-managed="true"] > webview, [data-pass257-pane-managed="true"] > iframe, [data-pass257-pane-managed="true"] webview, [data-pass257-pane-managed="true"] iframe { position: absolute !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100% !important; height: 100% !important; min-width: 0 !important; min-height: 0 !important; margin: 0 !important; transform: none !important; }
+[data-pass257-pane-managed="true"][data-pane-geometry-ok="false"], [data-pass257-pane-managed="true"][data-webview-top-left-ok="false"] { outline: 1px solid rgba(255, 84, 84, 0.52) !important; outline-offset: -1px !important; }
+[data-pass257-pane-managed="true"][data-pane-visible="true"][data-pane-has-webview="false"]::after { content: "Mission pane ready — start a recipe, restore layout, or send a tab here."; position: absolute; inset: 0; display: grid; place-items: center; padding: 18px; text-align: center; font-size: 12px; line-height: 1.4; color: rgba(226, 241, 255, 0.74); background: radial-gradient(circle at top, rgba(32,120,190,.18), rgba(3,10,18,.86)); pointer-events: none; }
+/* PASS257_MISSION_PANE_GEOMETRY_ENGINE_CSS_END */
+
+/* PASS259_MISSION_CONTROL_UX_FINAL_FLAGSHIP_POLISH_CSS_START */
+:root {
+  --pass259-pane-accent: rgba(79, 209, 197, 0.78);
+  --pass259-panel-bg: rgba(8, 12, 22, 0.82);
+  --pass259-panel-border: rgba(148, 163, 184, 0.32);
+}
+[data-pass259-card-polished="true"], .mission-recipe-card[data-pass259-card-polished="true"], .recipe-card[data-pass259-card-polished="true"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.pass259-recipe-card-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.5rem;
+  min-width: 0;
+}
+.pass259-recipe-card-sections section {
+  min-width: 0;
+  border: 1px solid var(--pass259-panel-border);
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  background: rgba(15, 23, 42, 0.52);
+}
+.pass259-recipe-card-sections strong {
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.82;
+  margin-bottom: 0.22rem;
+}
+.pass259-recipe-card-sections span {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+[data-pass259-active-pane-clear="true"] {
+  outline: 2px solid var(--pass259-pane-accent);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16), 0 0 0 1px rgba(79,209,197,0.28);
+}
+.pass259-empty-pane-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.45rem;
+  padding: 1rem;
+  min-width: 0;
+  min-height: 0;
+  text-align: center;
+  color: inherit;
+  background: radial-gradient(circle at 50% 18%, rgba(79,209,197,0.10), transparent 42%), rgba(2, 6, 23, 0.48);
+  border: 1px dashed rgba(148,163,184,0.38);
+  border-radius: 0.9rem;
+  overflow: hidden;
+}
+.pass259-empty-pane-placeholder h3 {
+  margin: 0;
+  max-width: 38rem;
+  font-size: clamp(1rem, 1.5vw, 1.35rem);
+}
+.pass259-empty-pane-placeholder p {
+  margin: 0;
+  max-width: 42rem;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  opacity: 0.86;
+}
+.pass259-empty-pane-kicker, .pass259-empty-pane-actions {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+.pass259-start-confirmation {
+  position: absolute;
+  z-index: 12;
+  top: 0.65rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(56rem, calc(100% - 2rem));
+  padding: 0.55rem 0.8rem;
+  border: 1px solid rgba(79, 209, 197, 0.34);
+  border-radius: 999px;
+  background: var(--pass259-panel-bg);
+  backdrop-filter: blur(10px);
+  font-size: 0.84rem;
+  line-height: 1.25;
+  pointer-events: none;
+}
+[data-pass259-website-budget-ok="false"] .pass259-start-confirmation {
+  border-color: rgba(251, 191, 36, 0.46);
+}
+@media (max-width: 1100px) {
+  .pass259-recipe-card-sections { grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); }
+  .pass259-recipe-card-sections span { font-size: 0.78rem; }
+  .pass259-start-confirmation { top: 0.4rem; font-size: 0.78rem; }
+}
+/* PASS259_MISSION_CONTROL_UX_FINAL_FLAGSHIP_POLISH_CSS_END */
+
+/* PASS337_LOADED_CHROME_SAFE_WEBVIEW_STAGE_CONTRACT compatibility marker.
+   PASS338_CURSOR_RUNTIME_ROOT_CAUSE_CLOSEOUT
+   Single loaded stylesheet owner for normal 1-Up webview containment.
+   Keep active guests inside #webview-stage, keep chrome above the stage, and
+   prevent stale PASS271 R4/R8/R9 emergency rules from forcing opaque white
+   high-z-index webview surfaces over browser chrome.
+*/
+#webview-stage {
+  position: relative !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: auto !important;
+  isolation: isolate !important;
+  background: #02050b !important;
+  -webkit-app-region: no-drag !important;
+}
+
+#webview-stage:not(.mission-layout) > webview.browser-view,
+#webview-stage:not(.mission-layout) > webview.active,
+#webview-stage:not(.mission-layout) > webview[data-active="true"] {
+  display: block !important;
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  transform: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 1 !important;
+  pointer-events: auto !important;
+  background: transparent !important;
+  -webkit-app-region: no-drag !important;
+}
+
+#webview-stage:not(.mission-layout) > webview.browser-view:not(.active):not([data-active="true"]),
+#webview-stage:not(.mission-layout) > webview:not(.active):not([data-active="true"]) {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.titlebar,
+.topbar,
+.tabs,
+.tab-strip,
+.toolbar,
+.statusbar,
+.browser-chrome,
+#titlebar,
+#tabs,
+#tabs *,
+#toolbar,
+#browser-chrome,
+#new-tab,
+#address,
+#address-form {
+  position: relative;
+  z-index: 1000;
+  pointer-events: auto;
+}
+
+.topbar,
+.topbar button,
+.topbar .tab,
+.topbar .tab *,
+.toolbar,
+.toolbar *,
+.statusbar,
+.statusbar *,
+#address,
+#address-form,
+#tabs,
+#tabs *,
+#new-tab {
+  -webkit-app-region: no-drag !important;
+}
+
+:root {
+  --navLinkBrowser: rgba(96, 255, 218, 0.92);
+  --tahai-browser-primary-accent: rgba(96, 255, 218, 0.92);
+}
+
+/* PASS339_NORMAL_BROWSING_INPUT_PAINT_CLOSEOUT
+   Mission drag/drop chrome must never remain visible or hit-testable in normal
+   1-Up browsing. PASS271_R4 used to hide this emergency residue; PASS339 makes
+   the inertness contract standalone so disabling R4 cannot leave a transparent
+   full-stage Mission overlay above the live webview.
+*/
+.mission-pane-drop-zones[hidden],
+.mission-pane-heads[hidden],
+body:not(.mission-tab-dragging) .mission-pane-drop-zones,
+#webview-stage:not(.mission-layout) .mission-pane-drop-zones,
+#webview-stage:not(.mission-layout) .mission-pane-drop-zone,
+#webview-stage:not(.mission-layout) .mission-pane-heads,
+#webview-stage:not(.mission-layout) .mission-pane-head-cell,
+#webview-stage[data-pass339-normal-browsing="true"] .mission-pane-drop-zones,
+#webview-stage[data-pass339-normal-browsing="true"] .mission-pane-drop-zone,
+#webview-stage[data-pass339-normal-browsing="true"] .mission-pane-heads,
+#webview-stage[data-pass339-normal-browsing="true"] .mission-pane-head-cell {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+#webview-stage[data-pass339-normal-browsing="true"] {
+  display: block !important;
+  isolation: isolate !important;
+  overflow: hidden !important;
+}
+
+#webview-stage[data-pass339-normal-browsing="true"] > webview.browser-view.active {
+  display: block !important;
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 1 !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  background: transparent !important;
+  contain: none !important;
+}
+
+.topbar button,
+.toolbar button,
+.tool-menu-button,
+.tool-card,
+#address,
+#address-form,
+#tabs .tab,
+#tabs .tab *,
+#new-tab,
+#profile-switcher,
+#mission-control,
+#ops-hub-toggle,
+#settings {
+  pointer-events: auto !important;
+  -webkit-app-region: no-drag !important;
+}
+/* END PASS339_NORMAL_BROWSING_INPUT_PAINT_CLOSEOUT */
+
+/* END PASS338_CURSOR_RUNTIME_ROOT_CAUSE_CLOSEOUT */
+
+
+/* PASS340_CHROME_INPUT_HITTEST_CLOSEOUT
+   Runtime proved the guest load path is alive, so chrome input must be protected
+   from stale native-webview hit-test ownership. Keep browser chrome above the
+   normal browsing stage, force top/toolbar controls to no-drag, and use an
+   inline-flex webview host plus runtime-owned pixel bounds so the native
+   Electron guest viewport follows the stage instead of falling back to the
+   intrinsic 150px height.
+*/
+body[data-pass340-chrome-input-recovery="true"] .topbar,
+body[data-pass340-chrome-input-recovery="true"] .toolbar,
+body[data-pass340-chrome-input-recovery="true"] .statusbar,
+.topbar,
+.toolbar,
+.statusbar {
+  position: relative !important;
+  z-index: 2147483000 !important;
+  pointer-events: auto !important;
+  isolation: isolate !important;
+}
+
+body[data-pass340-chrome-input-recovery="true"] .topbar,
+body[data-pass340-chrome-input-recovery="true"] .toolbar,
+body[data-pass340-chrome-input-recovery="true"] .topbar *,
+body[data-pass340-chrome-input-recovery="true"] .toolbar *,
+body[data-pass340-chrome-input-recovery="true"] #tabs,
+body[data-pass340-chrome-input-recovery="true"] #tabs *,
+body[data-pass340-chrome-input-recovery="true"] #new-tab,
+body[data-pass340-chrome-input-recovery="true"] #address,
+body[data-pass340-chrome-input-recovery="true"] #address-form,
+.toolbar,
+.toolbar *,
+.topbar button,
+.topbar .tab,
+.topbar .tab *,
+#tabs .tab,
+#tabs .tab *,
+#new-tab,
+#address,
+#address-form {
+  pointer-events: auto !important;
+  -webkit-app-region: no-drag !important;
+}
+
+#webview-stage[data-pass340-chrome-input-containment],
+#webview-stage[data-pass339-normal-browsing="true"] {
+  position: relative !important;
+  z-index: 0 !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+  contain: layout size paint !important;
+  -webkit-app-region: no-drag !important;
+}
+
+#webview-stage[data-pass340-chrome-input-containment] > webview.browser-view.active,
+#webview-stage[data-pass339-normal-browsing="true"] > webview.browser-view.active,
+#webview-stage:not(.mission-layout) > webview.browser-view.active {
+  display: inline-flex !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  z-index: 1 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  transform: none !important;
+  background: #02050b !important;
+  -webkit-app-region: no-drag !important;
+}
+
+body[data-pass340-webview-pointer-paused] #webview-stage:not(.mission-layout) > webview.browser-view.active {
+  pointer-events: none !important;
+}
+
+
+/* PASS341_NORMAL_BROWSER_AND_FEATURE_CLICKABILITY_CLOSEOUT
+   End-to-end clickability contract for normal browsing and primary TAHAI feature
+   surfaces. Browser chrome, topbar, tabs, tool buttons, settings, Mission, Ops
+   Panel, Guide, Launchpad, and profile controls must remain no-drag and clickable
+   while the webview stays contained inside #webview-stage. Runtime owns exact
+   inline-flex webview pixel width/height so Electron never falls back to its
+   intrinsic 150px guest viewport or leaves the hosted page bottom floating
+   above the pane bottom.
+*/
+body[data-pass341-feature-clickability="true"] .topbar,
+body[data-pass341-feature-clickability="true"] .toolbar,
+body[data-pass341-feature-clickability="true"] .statusbar,
+.topbar,
+.toolbar,
+.statusbar {
+  position: relative !important;
+  z-index: 2147483000 !important;
+  pointer-events: auto !important;
+  isolation: isolate !important;
+}
+
+body[data-pass341-feature-clickability="true"] .topbar *,
+body[data-pass341-feature-clickability="true"] .toolbar *,
+body[data-pass341-feature-clickability="true"] .statusbar *,
+body[data-pass341-feature-clickability="true"] #tabs,
+body[data-pass341-feature-clickability="true"] #tabs *,
+body[data-pass341-feature-clickability="true"] button,
+body[data-pass341-feature-clickability="true"] input,
+body[data-pass341-feature-clickability="true"] form,
+.topbar button,
+.topbar .tab,
+.topbar .tab *,
+.toolbar,
+.toolbar *,
+.statusbar,
+.statusbar *,
+#tabs,
+#tabs *,
+#new-tab,
+#back,
+#forward,
+#reload,
+#home,
+#address,
+#address-form,
+#launchpad,
+#onboarding,
+#profile-switcher,
+#devops-tools,
+#it-tools,
+#ops-hub-toggle,
+#mission-control-toggle,
+#settings,
+.tool-menu-button,
+.tool-card,
+.icon-button,
+.home-button {
+  pointer-events: auto !important;
+  -webkit-app-region: no-drag !important;
+  user-select: auto;
+}
+
+body[data-pass341-feature-clickability="true"] .topbar,
+body[data-pass340-chrome-input-recovery="true"] .topbar,
+body[data-pass341-feature-clickability="true"] #tabs,
+body[data-pass340-chrome-input-recovery="true"] #tabs,
+.topbar,
+.topbar .brand,
+.tabs,
+#tabs {
+  -webkit-app-region: drag !important;
+  user-select: none !important;
+}
+
+body[data-pass341-feature-clickability="true"] .topbar button,
+body[data-pass341-feature-clickability="true"] .topbar .tab,
+body[data-pass341-feature-clickability="true"] .topbar .tab *,
+body[data-pass341-feature-clickability="true"] #new-tab,
+body[data-pass341-feature-clickability="true"] #address,
+body[data-pass341-feature-clickability="true"] #address-form,
+body[data-pass340-chrome-input-recovery="true"] .topbar button,
+body[data-pass340-chrome-input-recovery="true"] .topbar .tab,
+body[data-pass340-chrome-input-recovery="true"] .topbar .tab *,
+body[data-pass340-chrome-input-recovery="true"] #new-tab,
+body[data-pass340-chrome-input-recovery="true"] #address,
+body[data-pass340-chrome-input-recovery="true"] #address-form,
+.topbar button,
+.topbar .tab,
+.topbar .tab *,
+#tabs .tab,
+#tabs .tab *,
+#new-tab,
+#address,
+#address-form {
+  -webkit-app-region: no-drag !important;
+  user-select: auto !important;
+}
+
+body[data-pass341-feature-clickability="true"] #webview-stage,
+#webview-stage[data-pass341-stage-contained],
+#webview-stage:not(.mission-layout) {
+  position: relative !important;
+  z-index: 0 !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+  contain: layout size paint !important;
+  pointer-events: auto !important;
+  -webkit-app-region: no-drag !important;
+}
+
+#webview-stage[data-pass341-stage-contained] > webview.browser-view.active,
+#webview-stage:not(.mission-layout) > webview.browser-view.active,
+#webview-stage:not(.mission-layout) > webview.active,
+#webview-stage:not(.mission-layout) > webview[data-active="true"] {
+  display: inline-flex !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  transform: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 1 !important;
+  pointer-events: auto !important;
+  background: #02050b !important;
+  -webkit-app-region: no-drag !important;
+}
+
+body:not(.mission-tab-dragging) .mission-pane-drop-zones,
+body:not(.mission-tab-dragging) .mission-pane-drop-zone,
+#webview-stage:not(.mission-layout) .mission-pane-drop-zones,
+#webview-stage:not(.mission-layout) .mission-pane-drop-zone,
+#webview-stage:not(.mission-layout) .mission-pane-heads,
+#webview-stage:not(.mission-layout) .mission-pane-head-cell,
+.pass76-mission-pane-move-layer[data-pass341-normal-browsing-residue-hidden],
+.mission-pane-drop-zones[data-pass341-normal-browsing-residue-hidden],
+.mission-pane-heads[data-pass341-normal-browsing-residue-hidden] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.tool-menu-panel[hidden],
+.toolbar-overflow-menu[hidden],
+dialog:not([open]),
+#ops-hub[hidden],
+#devops-tools-panel[hidden],
+#it-tools-panel[hidden],
+#command-palette-dialog:not([open]),
+#settings-dialog:not([open]),
+#profile-dialog:not([open]),
+#mission-dialog:not([open]),
+#shortcut-dialog:not([open]) {
+  pointer-events: none !important;
+}
+
+.tool-menu-panel:not([hidden]),
+dialog[open],
+#ops-hub:not([hidden]) {
+  pointer-events: auto !important;
+  -webkit-app-region: no-drag !important;
+}
+/* END PASS341_NORMAL_BROWSER_AND_FEATURE_CLICKABILITY_CLOSEOUT */

@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -17,22 +18,34 @@ const includesAll = (file, tokens) => {
 };
 
 const pkg = json('package.json');
-const blockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const blockers = getReleaseBlockersContract(pkg);
 const manifest = json('docs/ga-release-manifest-pass150.json');
+const expectedVersion = pkg.version;
+const isGitTracked = (file) => {
+  try {
+    execFileSync('git', ['ls-files', '--error-unmatch', file], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+};
 
-need(pkg.version === '1.8.30', `version must remain 1.8.30 for PASS159, found ${pkg.version}`);
+need(/^\d+\.\d+\.\d+$/.test(expectedVersion), `package.json version must be semver-like for PASS159, found ${pkg.version}`);
 need(pkg.scripts?.['verify:pass-159-enterprise-signing-provenance-sbom'] === 'node scripts/verify-pass-159-enterprise-signing-provenance-sbom.mjs', 'package missing PASS159 verifier script');
 need(pkg.scripts?.['generate:sbom'] === 'node scripts/generate-source-sbom.mjs --output artifacts/sbom/tahai-browser-sbom.json', 'package generate:sbom script drifted');
 need(pkg.scripts?.['release:provenance:plan'] === 'node scripts/generate-pass159-release-provenance.mjs --plan-json', 'package missing PASS159 provenance plan script');
 need(pkg.scripts?.['release:provenance'] === 'node scripts/generate-pass159-release-provenance.mjs --output artifacts/provenance/tahai-browser-release-provenance.json', 'package missing PASS159 provenance output script');
 
+const pass152Idx = blockers.indexOf('verify:pass-152-enterprise-evidence-binder');
 const pass158Idx = blockers.indexOf('verify:pass-158-runtime-e2e-harness');
 const pass159Idx = blockers.indexOf('verify:pass-159-enterprise-signing-provenance-sbom');
+const pass250Idx = blockers.indexOf('verify:pass-250-store-submission-evidence-identity-prep');
+const runtimeSmokeIdx = blockers.indexOf('npm run test:runtime-e2e');
 const finalBuildIdx = blockers.lastIndexOf('npm run build');
-need(pass158Idx >= 0, 'release blockers missing PASS158');
-need(pass159Idx > pass158Idx, 'PASS159 must run after PASS158');
+need(pass158Idx >= 0 || runtimeSmokeIdx >= 0, 'release blockers missing runtime proof gate (PASS158 verifier or test:runtime-e2e)');
+need(pass158Idx < 0 || pass159Idx > pass158Idx, 'PASS159 must run after PASS158 when PASS158 is part of the blocker chain');
 need(finalBuildIdx > pass159Idx, 'PASS159 must run before final build');
-need(blockers.includes('verify:pass-152-enterprise-evidence-binder'), 'release blockers must preserve PASS152 no-false-GA gate');
+need(pass152Idx >= 0 || pass250Idx >= 0, 'release blockers must preserve a no-false-GA/store-evidence gate (PASS152 or PASS250)');
 
 for (const file of [
   'src/shared/signing-provenance-sbom-contract.ts',
@@ -63,11 +76,14 @@ const contract = includesAll('src/shared/signing-provenance-sbom-contract.ts', [
   'requiresArtifactManifests: true',
   'requiresProvenanceManifest: true',
   'requiresInstallerSmokeEvidenceBeforeEnterpriseGA: true',
-  'TAHAI-Web-Services-Browser-1.8.30-x64.exe',
-  'TAHAI-Web-Services-Browser-1.8.30-x64.msi',
-  'TAHAI-Web-Services-Browser-1.8.30-x64.AppImage',
-  'TAHAI-Web-Services-Browser-1.8.30-x64.deb',
-  'TAHAI-Web-Services-Browser-1.8.30-x64.rpm',
+  "import { TAHAI_RELEASE_VERSION } from './release-truth';",
+  'SIGNING_PROVENANCE_ARTIFACT_BASENAME',
+  'TAHAI-Web-Services-Browser-${TAHAI_RELEASE_VERSION}-x64',
+  'release/windows/${SIGNING_PROVENANCE_ARTIFACT_BASENAME}.exe',
+  'release/windows/${SIGNING_PROVENANCE_ARTIFACT_BASENAME}.msi',
+  'release/linux/${SIGNING_PROVENANCE_ARTIFACT_BASENAME}.AppImage',
+  'release/linux/${SIGNING_PROVENANCE_ARTIFACT_BASENAME}.deb',
+  'release/linux/${SIGNING_PROVENANCE_ARTIFACT_BASENAME}.rpm',
   'signingProvenanceSbomSummary'
 ]);
 
@@ -146,7 +162,7 @@ need(Array.isArray(manifest.enterpriseSigningProvenanceSbomGate?.requiredBeforeE
 const plan = JSON.parse(execFileSync(process.execPath, ['scripts/generate-pass159-release-provenance.mjs', '--plan-json'], { cwd: root, encoding: 'utf8' }));
 need(plan.pass === 'PASS159', 'PASS159 provenance plan must identify PASS159');
 need(plan.contractId === 'enterprise-signing-provenance-sbom-v1', 'PASS159 provenance plan contract mismatch');
-need(plan.version === '1.8.30', 'PASS159 provenance plan version mismatch');
+need(plan.version === expectedVersion, 'PASS159 provenance plan version mismatch');
 need(typeof plan.packageLockSha256 === 'string' && /^[a-f0-9]{64}$/.test(plan.packageLockSha256), 'PASS159 provenance plan package-lock SHA256 invalid');
 need(plan.requiredArtifacts?.length >= 7, 'PASS159 provenance plan must include required artifacts');
 need(plan.enterpriseGaBlockedUntil?.some((x) => x.includes('signing')), 'PASS159 provenance plan must block GA on signing truth');
@@ -162,7 +178,7 @@ for (const generated of [
   'release/linux/TAHAI-Linux-installers-manifest.json',
   'artifacts/sbom/tahai-browser-sbom.json',
   'artifacts/provenance/tahai-browser-release-provenance.json'
-]) need(!exists(generated), `generated output must not be committed: ${generated}`);
+]) need(!isGitTracked(generated), `generated output must not be committed: ${generated}`);
 
 if (errors.length) {
   for (const error of errors) console.error(`[PASS159][FAIL] ${error}`);

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -27,7 +28,7 @@ if (!failures.length) {
   const doc = read('docs/pass-177-website-pane-viewport-recovery.md');
   const summary = read('PASS_177_WEBSITE_PANE_VIEWPORT_RECOVERY_SUMMARY.md');
   const pkg = JSON.parse(read('package.json'));
-  const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+  const releaseBlockers = getReleaseBlockersContract(pkg);
 
   need(pkg.version === '1.8.30', 'PASS177 must not increment version without explicit approval.');
   need(pkg.scripts?.['verify:pass-177-website-pane-viewport-recovery'] === 'node scripts/verify-pass-177-website-pane-viewport-recovery.mjs', 'package.json must expose PASS177 verifier.');

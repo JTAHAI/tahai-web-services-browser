@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
@@ -31,7 +32,7 @@ for (const [script, expected] of Object.entries({
   need(pkg.scripts?.[script] === expected, `package script ${script} must be ${expected}`);
 }
 
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 const pass137Idx = releaseBlockers.indexOf('verify:pass-137-first-run-walkthrough');
 const pass139Idx = releaseBlockers.indexOf('verify:pass-139-linux-package-handoff-closeout');
 const buildIdx = releaseBlockers.lastIndexOf('npm run build');

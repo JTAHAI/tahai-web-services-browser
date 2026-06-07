@@ -73,3 +73,9 @@ package-identity.json
 store-identity.json
 PartnerCenter*.json
 partner-center*.json
+
+# PASS250 Microsoft Store / package-generated artifacts
+*.cer
+release-candidate/generated/
+release-candidate/store-submission/*.local.json
+release-candidate/store-submission/*.generated.json

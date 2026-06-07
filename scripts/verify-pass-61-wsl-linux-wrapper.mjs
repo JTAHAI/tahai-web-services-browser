@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -41,7 +42,7 @@ for (const token of [
 
 if (!pkg.scripts?.['wsl:linux:release']) fail('package.json missing script wsl:linux:release');
 if (!pkg.scripts?.['verify:pass-61-wsl-linux-wrapper']) fail('package.json missing script verify:pass-61-wsl-linux-wrapper');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-61-wsl-linux-wrapper')) {
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-61-wsl-linux-wrapper')) {
   fail('verify:release-blockers must include verify:pass-61-wsl-linux-wrapper');
 }
 

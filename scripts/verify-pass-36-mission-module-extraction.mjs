@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const app = readFileSync('src/renderer/app.ts', 'utf8');
@@ -48,7 +49,7 @@ if (!app.includes('buildMissionExportMarkdown(currentMission, md)')) failures.pu
 if (!shared.includes('export type MissionState')) failures.push('shared mission state type missing');
 if (!versionAtLeast(pkg.version, '1.8.13')) failures.push('package version expected >= 1.8.13, found ' + pkg.version);
 if (!pkg.scripts?.['verify:pass-36-mission-module-extraction']) failures.push('package script missing: verify:pass-36-mission-module-extraction');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-36-mission-module-extraction')) failures.push('pass36 verifier is not wired into release blockers');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-36-mission-module-extraction')) failures.push('pass36 verifier is not wired into release blockers');
 
 if (failures.length) {
   console.error('PASS36_MISSION_MODULE_EXTRACTION_OK=0');

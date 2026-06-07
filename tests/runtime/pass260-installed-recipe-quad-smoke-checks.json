@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS260",
+  "name": "Installed Recipe + Quad Store Smoke Evidence Gate",
+  "versionTarget": "2.0.14",
+  "evidenceFile": "release-candidate/store-submission/pass260-installed-recipe-quad-smoke-evidence.json",
+  "storePosture": "BLOCKED_UNTIL_REAL_INSTALLED_RECIPE_QUAD_SMOKE_EVIDENCE",
+  "requiredEnvironment": {
+    "platform": "windows",
+    "packageTypes": [
+      "msix",
+      "msi"
+    ],
+    "appMustBeInstalled": true,
+    "sourceVerificationMustPass": true,
+    "directDownloadSigningTruth": "unsigned-preview unless a trusted signing path is separately proven",
+    "microsoftStoreTruth": "not submitted and not approved until Partner Center upload/review evidence exists"
+  },
+  "requiredRecipes": [
+    "dns-migration",
+    "cloudflare-cutover",
+    "github-actions-release",
+    "production-deployment",
+    "certificate-renewal",
+    "m365-user-offboarding",
+    "incident-triage",
+    "vendor-support-handoff"
+  ],
+  "requiredLayouts": [
+    "single",
+    "split-horizontal",
+    "triple-top",
+    "triple-bottom",
+    "triple-left",
+    "triple-right",
+    "quad",
+    "focus",
+    "quad",
+    "single"
+  ],
+  "requiredWindowSizes": [
+    "small-restored",
+    "restored-laptop",
+    "maximized-1080p"
+  ],
+  "requiredEvidenceSections": [
+    "packageTruth",
+    "installedAppTruth",
+    "sourceVerification",
+    "recipeSmoke",
+    "layoutStress",
+    "paneHealth",
+    "exportPreview",
+    "storeTruth",
+    "blockers"
+  ],
+  "minimumRecipePassCount": 8,
+  "minimumLayoutCycleCount": 50,
+  "requiredPaneHealthFlags": [
+    "noBlankPanes",
+    "noBottomOnlyWebview",
+    "noOrphanedWebview",
+    "noHiddenActivePane",
+    "usefulPlaceholderForEmptyPane",
+    "focusRestorePassed",
+    "activePaneRoutingPassed"
+  ]
+}

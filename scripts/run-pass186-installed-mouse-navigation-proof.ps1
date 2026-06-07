@@ -39,7 +39,7 @@ for ($i = 0; $i -lt $caseIds.Count; $i++) {
 $payload = [ordered]@{
   pass = "PASS186"
   title = "Installed Mouse Navigation Proof Harness"
-  versionExpectation = "1.8.30"
+  versionExpectation = "2.0.14"
   generatedAt = (Get-Date).ToString("o")
   installedExe = $InstalledExe
   installedExePresent = $installed
@@ -63,7 +63,7 @@ $lines += ""
 $lines += "## Proof cases"
 $lines += ""
 foreach ($case in $proofCases) {
-  $lines += "- [ ] $($case.id) — $($case.prompt)"
+  $lines += "- [ ] $($case.id) - $($case.prompt)"
 }
 $lines += ""
 $lines += "## Operator closeout"

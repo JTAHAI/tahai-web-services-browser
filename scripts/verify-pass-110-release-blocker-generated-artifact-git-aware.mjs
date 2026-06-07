@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -9,7 +10,7 @@ const need = (condition, message) => { if (!condition) fail(message); };
 
 const pkg = JSON.parse(read('package.json'));
 const pass109 = read('scripts/verify-pass-109-release-blocker-continuity-repair.mjs');
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 const gitignore = read('.gitignore');
 
 need(pkg.scripts?.['verify:pass-110-release-blocker-generated-artifact-git-aware'] === 'node scripts/verify-pass-110-release-blocker-generated-artifact-git-aware.mjs', 'package script missing PASS110 verifier');

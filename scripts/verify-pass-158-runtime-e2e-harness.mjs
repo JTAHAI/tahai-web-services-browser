@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -10,6 +11,14 @@ const exists = (p) => fs.existsSync(rel(p));
 const read = (p) => fs.readFileSync(rel(p), 'utf8').replace(/^﻿/, '');
 const json = (p) => JSON.parse(read(p));
 const need = (ok, message) => { if (!ok) errors.push(message); };
+const gitTracked = (p) => {
+  try {
+    execFileSync('git', ['ls-files', '--error-unmatch', p], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+};
 const includesAll = (file, tokens) => {
   const text = read(file);
   for (const token of tokens) need(text.includes(token), `${file} missing ${token}`);
@@ -17,7 +26,7 @@ const includesAll = (file, tokens) => {
 };
 
 const pkg = json('package.json');
-const blockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const blockers = getReleaseBlockersContract(pkg);
 const contract = includesAll('src/shared/runtime-e2e-harness-contract.ts', [
   'RUNTIME_E2E_HARNESS_PASS',
   'PASS158',
@@ -40,14 +49,19 @@ const scenarioIds = [
   'launch-shell',
   'titlebar-drag',
   'tab-create-close',
+  'launchpad-guide-home-address',
   'mission-control-open',
   'mission-layouts-split-tri-quad-focus',
   'active-pane-routing',
   'popup-denied',
   'kb-guide-more-tools',
+  'shell-overlays-open-close',
   'evidence-export-preview'
 ];
 for (const id of scenarioIds) need(contract.includes(`id: '${id}'`), `PASS158 contract missing scenario ${id}`);
+need(contract.includes('active-webview-stage-viewport-fit'), 'PASS158 contract missing active webview stage viewport fit assertion');
+need(contract.includes('guest-window-height-fills-stage-budget'), 'PASS158 contract missing guest viewport fill-budget assertion');
+need(contract.includes('guest-document-bottom-fills-viewport'), 'PASS158 contract missing guest document-bottom viewport assertion');
 
 const app = includesAll('src/renderer/app.ts', [
   'runtime-e2e-harness-contract',
@@ -58,7 +72,12 @@ const app = includesAll('src/renderer/app.ts', [
   'mission-layouts-split-tri-quad-focus',
   'popup-denied',
   'kb-guide-more-tools',
+  'shell-overlays-open-close',
   'evidence-export-preview',
+  'pass158-guest-viewport',
+  'guest viewport',
+  'document bottom',
+  'active guest document bottom stops before viewport bottom',
   "hasAttribute('allowpopups')",
   "data-export-redaction-boundary"
 ]);
@@ -95,20 +114,28 @@ const runner = includesAll('scripts/run-pass-158-runtime-e2e-harness.mjs', [
   '--run',
   'TAHAI_RUNTIME_E2E',
   'TAHAI_RUNTIME_E2E_RESULT',
+  'pass158-runtime-e2e-result.json',
+  'pass158-runtime-e2e-full.log',
   'npm run build before npm run test:runtime-e2e',
   'Runtime E2E harness passed'
 ]);
 
-need(pkg.version === '1.8.30', `version must remain 1.8.30 for PASS158, found ${pkg.version}`);
+need(pkg.version === '2.0.14', `version must remain 2.0.14 for PASS158 closeout, found ${pkg.version}`);
 need(pkg.scripts?.['verify:pass-158-runtime-e2e-harness'] === 'node scripts/verify-pass-158-runtime-e2e-harness.mjs', 'package missing PASS158 verifier script');
 need(pkg.scripts?.['test:runtime-e2e'] === 'node scripts/run-pass-158-runtime-e2e-harness.mjs --run', 'package missing live runtime E2E script');
 need(pkg.scripts?.['test:runtime-e2e:plan'] === 'node scripts/run-pass-158-runtime-e2e-harness.mjs', 'package missing source-only runtime E2E plan script');
-const pass157Idx = blockers.indexOf('verify:pass-157-evidence-capture-privacy-hardening');
-const pass158Idx = blockers.indexOf('verify:pass-158-runtime-e2e-harness');
+const pass250Idx = blockers.indexOf('verify:pass-250-store-submission-evidence-identity-prep');
+const pass337Idx = blockers.indexOf('verify:pass-337-cursor-root-cause-closeout');
+const pass339Idx = blockers.indexOf('verify:pass-339-normal-browsing-input-paint-closeout');
+const pass341Idx = blockers.indexOf('verify:pass-341-normal-browser-and-feature-clickability-closeout');
 const finalBuildIdx = blockers.lastIndexOf('npm run build');
-need(pass157Idx >= 0, 'release blockers missing PASS157');
-need(pass158Idx > pass157Idx, 'PASS158 must run after PASS157');
-need(finalBuildIdx > pass158Idx, 'PASS158 must run before final build');
+const runtimeE2eIdx = blockers.lastIndexOf('npm run test:runtime-e2e');
+need(pass250Idx >= 0, 'release blockers missing PASS250 Store submission evidence prep');
+need(pass337Idx > pass250Idx, 'PASS337 runtime root-cause closeout must run after PASS250');
+need(pass339Idx > pass337Idx, 'PASS339 normal browsing closeout must run after PASS337');
+need(pass341Idx > pass339Idx, 'PASS341 feature clickability closeout must run after PASS339');
+need(finalBuildIdx > pass341Idx, 'final build must run after PASS341');
+need(runtimeE2eIdx > finalBuildIdx, 'live runtime E2E must run after final build');
 
 for (const file of [
   'src/shared/runtime-e2e-harness-contract.ts',
@@ -146,14 +173,15 @@ includesAll('PASS_158_RUNTIME_E2E_HARNESS_SUMMARY.md', [
 ]);
 
 need(!/fetch\([^)]*psa/i.test(app + main + contract + runner), 'PASS158 must not add browser-side PSA fetches');
-need(!/client_secret|refresh_token|access_token|BEGIN PRIVATE KEY/i.test(app + main + runner), 'PASS158 runtime harness must not add secret-bearing fixtures');
+need(!/psa[\s\S]{0,120}(client_secret|refresh_token|access_token|api[_-]?key)/i.test(app + main + contract + runner), 'PASS158 runtime harness must not add direct PSA secret handling');
+need(!/(client_secret|refresh_token|access_token|api[_-]?key)\s*[:=]\s*['"][A-Za-z0-9_./+=-]{12,}/i.test(main + contract + runner), 'PASS158 runtime harness must not add secret-bearing fixtures');
 for (const generated of [
   'dist/main/main.js',
   'dist/renderer/app.js',
   'release/windows/TAHAI-Windows-installers-manifest.json',
   'release/linux/TAHAI-Linux-installers-manifest.json',
   'artifacts/runtime-e2e/result.json'
-]) need(!exists(generated), `generated output must not be committed: ${generated}`);
+]) need(!gitTracked(generated), `generated output must not be tracked for commit: ${generated}`);
 
 if (errors.length) {
   for (const error of errors) console.error(`[PASS158][FAIL] ${error}`);

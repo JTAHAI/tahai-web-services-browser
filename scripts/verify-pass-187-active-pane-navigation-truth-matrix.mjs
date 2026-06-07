@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), 'utf8');
@@ -15,7 +16,7 @@ const summary = read('PASS_187_ACTIVE_PANE_NAVIGATION_TRUTH_MATRIX_SUMMARY.md');
 
 ok(pkg.version === '1.8.30', 'PASS187 must not increment version without explicit approval.');
 ok(pkg.scripts?.['verify:pass-187-active-pane-navigation-truth-matrix'] === 'node scripts/verify-pass-187-active-pane-navigation-truth-matrix.mjs', 'package.json exposes PASS187 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-187-active-pane-navigation-truth-matrix'), 'release-blockers chain includes PASS187 verifier.');
+ok(getReleaseBlockersContract(pkg).includes('verify:pass-187-active-pane-navigation-truth-matrix'), 'release-blockers chain includes PASS187 verifier.');
 
 for (const token of [
   'PASS187_ACTIVE_PANE_NAVIGATION_TRUTH_MATRIX_VERSION',

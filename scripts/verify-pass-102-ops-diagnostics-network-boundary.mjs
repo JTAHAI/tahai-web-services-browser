@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS102 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -59,5 +60,5 @@ includes('PASS_102_OPS_DIAGNOSTICS_NETWORK_BOUNDARY_SUMMARY.md',[
 ]);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-102-ops-diagnostics-network-boundary']==='node scripts/verify-pass-102-ops-diagnostics-network-boundary.mjs','package.json missing PASS102 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-102-ops-diagnostics-network-boundary'),'release blockers missing PASS102 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-102-ops-diagnostics-network-boundary'),'release blockers missing PASS102 verifier');
 console.log('PASS102 ops diagnostics network boundary verification passed.');

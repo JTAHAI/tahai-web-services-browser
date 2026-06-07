@@ -1,4 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const requiredFiles = [
   'scripts/repair-electron-install.ps1',

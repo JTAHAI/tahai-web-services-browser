@@ -22,6 +22,9 @@ export const TAHAI_BLOCKED_RUNTIME_PROTOCOLS = Object.freeze([
 ] as const);
 
 export const TAHAI_TRUSTED_IPC_CHANNELS = Object.freeze([
+  'tahai-browser:renderer-ready',
+  'tahai-browser:get-runtime-control',
+  'tahai-browser:report-runtime-e2e-result',
   'tahai-browser:get-config',
   'tahai-browser:get-admin-policy',
   'tahai-browser:preview-enterprise-support-bundle',

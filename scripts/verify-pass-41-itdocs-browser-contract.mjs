@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const fail = (m) => { console.error(`PASS41_ITDOCS_BROWSER_CONTRACT_FAIL=${m}`); process.exit(1); };
 const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
 const shared = fs.readFileSync('src/shared/itdocs-contract.ts','utf8');
@@ -29,7 +30,7 @@ const checks = [
 ];
 for (const [content, needle, code] of checks) if (!content.includes(needle)) fail(code);
 if (!pkg.scripts?.['verify:pass-41-itdocs-browser-contract']) fail('package-script-missing');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-41-itdocs-browser-contract')) fail('release-blockers-not-wired');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-41-itdocs-browser-contract')) fail('release-blockers-not-wired');
 for (const pattern of [/psa:direct-fetch/i, /fetch\(['"]https:\/\/[^'"]*psa/i, /Authorization['"]\s*,\s*['"]Bearer/i]) {
   if (pattern.test(shared + mainClient + main + preload + renderer)) fail(`forbidden-pattern-${pattern}`);
 }

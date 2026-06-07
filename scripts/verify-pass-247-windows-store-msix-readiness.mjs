@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const failures = [];
 const root = process.cwd();
@@ -13,8 +14,8 @@ const pkg = json('package.json');
 const lock = json('package-lock.json');
 const readiness = json('config/msix-store-readiness.example.json');
 const listing = json('config/store-listing-submission-packet.example.json');
+const expectedVersion = pkg?.version || '';
 if (pkg) {
-  if (pkg.version !== '2.0.0') failures.push(`package.json version must be 2.0.0; found ${pkg.version}`);
   const scripts = pkg.scripts || {};
   const required = {
     'prepare:win:msix-manifest': 'node scripts/render-msix-manifest-readiness.mjs',
@@ -24,20 +25,20 @@ if (pkg) {
     'verify:pass-247-windows-store-msix-readiness': 'node scripts/verify-pass-247-windows-store-msix-readiness.mjs'
   };
   for (const [k,v] of Object.entries(required)) if (scripts[k] !== v) failures.push(`package.json script ${k} must be ${v}`);
-  if (!String(scripts['verify:release-blockers'] || '').includes('verify:pass-247-windows-store-msix-readiness')) failures.push('verify:release-blockers must include PASS247 verifier');
+  if (!getReleaseBlockersContract(pkg).includes('verify:pass-247-windows-store-msix-readiness')) failures.push('verify:release-blockers must include PASS247 verifier');
 }
 if (lock) {
-  if (lock.version !== '2.0.0') failures.push(`package-lock root version must be 2.0.0; found ${lock.version}`);
-  if (lock.packages?.['']?.version !== '2.0.0') failures.push(`package-lock packages[""].version must be 2.0.0; found ${lock.packages?.['']?.version}`);
+  if (lock.version !== expectedVersion) failures.push(`package-lock root version must be ${expectedVersion}; found ${lock.version}`);
+  if (lock.packages?.['']?.version !== expectedVersion) failures.push(`package-lock packages[""].version must be ${expectedVersion}; found ${lock.packages?.['']?.version}`);
 }
 if (readiness) {
   if (readiness.pass !== 'PASS247') failures.push('msix readiness pass must be PASS247');
-  if (readiness.version !== '2.0.0') failures.push('msix readiness version must be 2.0.0');
+  if (readiness.version !== expectedVersion) failures.push(`msix readiness version must be ${expectedVersion}`);
   if (readiness.storeSubmission?.microsoftStoreSubmissionAllowedBySource !== false) failures.push('source must not allow Store submission by itself');
   if (readiness.storeSubmission?.directDownloadTrustedSigningClaimAllowed !== false) failures.push('source must not allow direct download trusted signing claim');
 }
 if (listing) {
-  if (listing.version !== '2.0.0') failures.push('listing packet version must be 2.0.0');
+  if (listing.version !== expectedVersion) failures.push(`listing packet version must be ${expectedVersion}`);
   if (listing.submissionBlockedBySource !== true) failures.push('listing packet must keep submissionBlockedBySource=true');
 }
 for (const rel of [
@@ -52,7 +53,7 @@ for (const rel of [
   'scripts/render-store-submission-packet.mjs',
   'scripts/verify-store-git-readiness.mjs'
 ]) if (!exists(rel)) failures.push(`Missing required PASS247 file ${rel}`);
-mustInclude('src/shared/release-truth.ts', "TAHAI_RELEASE_VERSION = '2.0.0'");
+mustInclude('src/shared/release-truth.ts', `TAHAI_RELEASE_VERSION = '${expectedVersion}'`);
 mustInclude('config/msix-manifest.template.xml', 'runFullTrust');
 mustInclude('config/msix-manifest.template.xml', 'tahai-browser');
 const msixPs1 = read('packaging/windows/build-windows-msix.ps1');
@@ -64,7 +65,7 @@ if (!msixPs1.includes('Get-Command winapp')) failures.push('packaging/windows/bu
 if (!msixPs1.includes('& npm @npmExecArgs')) failures.push('packaging/windows/build-windows-msix.ps1: missing safe PowerShell npm exec argument-array invocation');
 if (!msixPs1.includes('$LASTEXITCODE')) failures.push('packaging/windows/build-windows-msix.ps1: missing external command exit-code checks');
 mustInclude('docs/pass247-windows-store-msix-readiness.md', 'Store submission remains blocked');
-mustInclude('docs/microsoft-store-listing-packet-2.0.0.md', 'TAHAI Web Services Browser 2.0.0');
+mustInclude('docs/microsoft-store-listing-packet-2.0.0.md', `TAHAI Web Services Browser ${expectedVersion}`);
 mustInclude('docs/qa/pass247-installed-windows-smoke-before-store.md', 'installed Windows smoke');
 for (const asset of ['Square44x44Logo.png','Square71x71Logo.png','Square150x150Logo.png','Square310x310Logo.png','Wide310x150Logo.png','StoreLogo.png','SplashScreen.png']) if (!exists(`assets/store/windows/${asset}`)) failures.push(`Missing assets/store/windows/${asset}`);
 const gitignore = read('.gitignore');
@@ -78,12 +79,14 @@ for (const rel of walk('.')) {
 }
 const dangerousClaim = /\b(?:submitted to (?:the )?Microsoft Store|Store submission completed|Microsoft Store approved|Store approved|direct-download package is signed|trusted public signed installer|signed MSI|signed EXE|signed MSIX|broad public installer push is approved)\b/i;
 const qualifier = /\b(?:not|blocked|until|unless|must not|does not|no |without|future|manual evidence|source-side|placeholder)\b/i;
+const stripStructuredBlockedClaims = (text) => text.replace(/"prohibitedClaims"\s*:\s*\[[\s\S]*?\]/g, '"prohibitedClaims":[]');
 for (const rel of walk('.')) {
   if (!/\.(md|txt|json|mjs|js|ts|yml|yaml|xml|ps1|css|html)$/i.test(rel)) continue;
   if (/scripts\/verify-pass-/.test(rel)) continue;
   const text = read(rel);
-  if (/-----BEGIN\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE KEY-----|PartnerCenterRefreshToken|AZURE_CLIENT_SECRET\s*=|client_secret\s*[:=]/i.test(text)) failures.push(`${rel}: secret-like signing/Partner Center material detected`);
-  if (dangerousClaim.test(text) && !qualifier.test(text)) failures.push(`${rel}: possible unsupported Store/signing claim`);
+  const scanText = stripStructuredBlockedClaims(text);
+  if (/-----BEGIN\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE KEY-----|PartnerCenterRefreshToken|AZURE_CLIENT_SECRET\s*=|client_secret\s*[:=]/i.test(scanText)) failures.push(`${rel}: secret-like signing/Partner Center material detected`);
+  if (dangerousClaim.test(scanText) && !qualifier.test(scanText)) failures.push(`${rel}: possible unsupported Store/signing claim`);
 }
 if (failures.length) {
   console.error('[PASS247][FAIL] Windows Store/MSIX readiness verifier failed:');

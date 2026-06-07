@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS104 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -63,5 +64,5 @@ includes('PASS_104_TAB_METADATA_BOUNDARY_SUMMARY.md',[
 ]);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-104-tab-metadata-boundary']==='node scripts/verify-pass-104-tab-metadata-boundary.mjs','package.json missing PASS104 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-104-tab-metadata-boundary'),'release blockers missing PASS104 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-104-tab-metadata-boundary'),'release blockers missing PASS104 verifier');
 console.log('PASS104 tab metadata boundary verification passed.');

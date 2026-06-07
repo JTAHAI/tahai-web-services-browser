@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const repo = process.cwd();
 const failures = [];
@@ -40,7 +41,7 @@ function checkPackageWiring() {
   if (!pkg.scripts?.['verify:pass-226-enterprise-support-bundle-v2']) {
     failures.push('package.json: missing verify:pass-226-enterprise-support-bundle-v2 script');
   }
-  if (typeof pkg.scripts?.['verify:release-blockers'] === 'string' && !pkg.scripts['verify:release-blockers'].includes('verify:pass-226-enterprise-support-bundle-v2')) {
+  if (typeof getReleaseBlockersContract(pkg) === 'string' && !getReleaseBlockersContract(pkg).includes('verify:pass-226-enterprise-support-bundle-v2')) {
     failures.push('package.json: verify:release-blockers does not include PASS226 verifier');
   }
 }

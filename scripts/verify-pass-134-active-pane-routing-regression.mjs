@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -79,7 +80,7 @@ requireMatch(app, /if \(event\.altKey && event\.key === 'ArrowRight'\) \{ event\
 if (pkg.scripts?.['verify:pass-134-active-pane-routing-regression'] !== 'node scripts/verify-pass-134-active-pane-routing-regression.mjs') {
   failures.push('missing_package_script_verify_pass134');
 }
-if (!pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-134-active-pane-routing-regression')) {
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-134-active-pane-routing-regression')) {
   failures.push('release_blockers_missing_pass134');
 }
 if (pkg.version !== '1.8.30') failures.push(`unexpected_version_${pkg.version}`);

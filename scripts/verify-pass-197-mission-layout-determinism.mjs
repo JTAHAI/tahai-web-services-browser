@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), 'utf8');
@@ -14,8 +15,8 @@ const ok = (condition, message) => checks.push({ ok: Boolean(condition), message
 
 ok(pkg.version === '1.8.30', 'PASS197 must not increment version without explicit approval.');
 ok(pkg.scripts?.['verify:pass-197-mission-layout-determinism'] === 'node scripts/verify-pass-197-mission-layout-determinism.mjs', 'package.json exposes PASS197 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-197-mission-layout-determinism'), 'release-blockers chain includes PASS197 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-197-mission-layout-determinism') > pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-196-mission-control-ia-rebuild'), 'PASS197 must run after PASS196.');
+ok(getReleaseBlockersContract(pkg).includes('verify:pass-197-mission-layout-determinism'), 'release-blockers chain includes PASS197 verifier.');
+ok(getReleaseBlockersContract(pkg).indexOf('verify:pass-197-mission-layout-determinism') > getReleaseBlockersContract(pkg).indexOf('verify:pass-196-mission-control-ia-rebuild'), 'PASS197 must run after PASS196.');
 
 for (const token of [
   'PASS197_MISSION_LAYOUT_DETERMINISM_PASS',

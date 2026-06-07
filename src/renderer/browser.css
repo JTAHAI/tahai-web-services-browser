@@ -1,0 +1,199 @@
+
+/* PASS317_EMERGENCY_VIEWPORT_COMPOSITOR_FILL
+   Emergency runtime fix for maximized/restored Electron window content being
+   trapped in the upper-left while the BrowserWindow compositor fills the screen.
+   This deliberately targets root/app/chrome/workspace wrappers and removes
+   stale max-width/fixed-shell behavior without changing security boundaries. */
+html,
+body,
+#root,
+#app,
+.app,
+.browser-app,
+.tahai-app,
+.tahai-app-root,
+.tahai-browser,
+.tahai-browser-root,
+.tahai-browser-shell,
+.window-shell,
+.app-shell,
+.browser-shell,
+.chrome-shell,
+.browser-frame,
+.browser-layout,
+.browser-window,
+.main-window,
+.shell-root,
+.workspace,
+.workspace-root,
+.workspace-shell,
+.workspace-stage {
+  width: 100vw !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: 100vh !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  box-sizing: border-box !important;
+}
+
+body {
+  margin: 0 !important;
+  overflow: hidden !important;
+  background: #020710 !important;
+}
+
+body > *,
+#root > *,
+#app > *,
+.app > *,
+.browser-app > *,
+.tahai-browser > *,
+.tahai-browser-root > *,
+.tahai-browser-shell > *,
+.window-shell > *,
+.app-shell > *,
+.browser-shell > *,
+.chrome-shell > *,
+.browser-frame > *,
+.browser-layout > *,
+.shell-root > *,
+.workspace-root > * {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.content-shell,
+.content-root,
+.content-area,
+.browser-content,
+.page-content,
+.webview-stage,
+.webview-host,
+.webview-container,
+.webview-stack,
+.webview-layer,
+.mission-stage,
+.mission-panes,
+.mission-pane,
+.mission-pane-body,
+[data-webview-stage],
+[data-pane-shell],
+[data-pane-body] {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+webview,
+.webview-stage webview,
+.webview-host webview,
+.webview-container webview,
+.webview-stack webview,
+.webview-layer webview,
+.mission-pane webview {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+
+@media (min-width: 1200px) {
+  body > *,
+  #root > *,
+  #app > *,
+  .app > *,
+  .browser-app > *,
+  .tahai-browser > *,
+  .tahai-browser-root > *,
+  .tahai-browser-shell > *,
+  .window-shell > *,
+  .app-shell > *,
+  .browser-shell > *,
+  .chrome-shell > *,
+  .browser-frame > *,
+  .browser-layout > *,
+  .shell-root > *,
+  .workspace-root > * {
+    max-width: none !important;
+  }
+}
+/* PASS329_VIEWPORT_LIFECYCLE_HEALTH_BEGIN
+   Diagnostic-only health flags. This does not resize the viewport.
+*/
+:root[data-pass329-viewport-health="critical"] [data-pass329-viewport-health-badge],
+:root[data-pass329-viewport-health="critical"] .pass329-viewport-health-badge {
+  border-color: rgba(96, 255, 218, 0.92);
+  box-shadow: 0 0 0 1px rgba(96, 255, 218, 0.38), 0 0 18px rgba(96, 255, 218, 0.16);
+}
+/* PASS329_VIEWPORT_LIFECYCLE_HEALTH_END */
+/* PASS333_CHROME_SAFE_WEBVIEW_STAGE_CONTRACT_BEGIN
+   Chrome-safe webview stage contract.
+   This intentionally replaces the broad PASS328 contract, which matched generic
+   .browser-content/.webview-container surfaces and could let a webview become
+   a full-window hit-test owner above toolbar buttons.
+*/
+[data-webview-stage],
+[data-browser-content-stage],
+[data-tab-stage],
+[data-mission-stage],
+.browser-webview-stage,
+.tahai-webview-stage,
+.tab-webview-stage,
+.mission-stage,
+.mission-pane-body {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+[data-webview-stage] > webview,
+[data-browser-content-stage] > webview,
+[data-tab-stage] > webview,
+[data-mission-stage] > webview,
+.browser-webview-stage > webview,
+.tahai-webview-stage > webview,
+.tab-webview-stage > webview,
+.mission-pane-body > webview,
+webview[data-browser-webview="true"],
+webview[data-mission-pane-webview="true"] {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  transform: none;
+  transform-origin: top left;
+  zoom: 1;
+  pointer-events: auto;
+}
+
+header,
+nav,
+[role="toolbar"],
+[role="tablist"],
+.titlebar,
+.title-bar,
+.toolbar,
+.browser-toolbar,
+.tab-strip,
+.address-bar,
+.omnibox,
+[data-toolbar],
+[data-browser-toolbar],
+[data-tab-strip],
+[data-address-bar] {
+  position: relative;
+  z-index: 30;
+  pointer-events: auto;
+}
+/* PASS333_CHROME_SAFE_WEBVIEW_STAGE_CONTRACT_END */

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -71,7 +72,7 @@ if (exists('package.json')) {
   const pkg = JSON.parse(read('package.json'));
   if (!pkg.scripts?.['pass66:apply']) fail('package.json missing pass66:apply script');
   if (!pkg.scripts?.['verify:pass-66-mission-view-pane-runtime-repair']) fail('package.json missing PASS66 verifier script');
-  const blockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+  const blockers = getReleaseBlockersContract(pkg);
   if (blockers && !blockers.includes('verify:pass-66-mission-view-pane-runtime-repair')) {
     fail('verify:release-blockers does not include PASS66 verifier');
   }

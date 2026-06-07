@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
@@ -15,7 +16,7 @@ const includesAll = (rel, tokens) => {
 };
 
 const pkg = json('package.json');
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 
 need(pkg.version === '1.8.30', `version must remain 1.8.30 for PASS145, found ${pkg.version}`);
 need(pkg.scripts?.['verify:pass-145-privacy-support-known-issues'] === 'node scripts/verify-pass-145-privacy-support-known-issues.mjs', 'package missing PASS145 verifier script');

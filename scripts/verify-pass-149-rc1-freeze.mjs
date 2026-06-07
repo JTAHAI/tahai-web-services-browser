@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -21,7 +22,7 @@ const includesAll = (file, tokens) => {
 };
 
 const pkg = json('package.json');
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 const releaseTruthSource = read('src/shared/release-truth.ts');
 const releasePassMatch = releaseTruthSource.match(/TAHAI_RELEASE_PASS\s*=\s*'([^']+)'/);
 const currentReleasePass = releasePassMatch?.[1] || '';

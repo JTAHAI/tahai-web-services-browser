@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS103 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -67,5 +68,5 @@ includes('PASS_103_DIAGNOSTICS_SSRF_BOUNDARY_SUMMARY.md',[
 ]);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-103-diagnostics-ssrf-boundary']==='node scripts/verify-pass-103-diagnostics-ssrf-boundary.mjs','package.json missing PASS103 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-103-diagnostics-ssrf-boundary'),'release blockers missing PASS103 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-103-diagnostics-ssrf-boundary'),'release blockers missing PASS103 verifier');
 console.log('PASS103 diagnostics SSRF boundary verification passed.');

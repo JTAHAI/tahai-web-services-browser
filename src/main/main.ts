@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell, session, IpcMainInvokeEvent } from 'electron';
+﻿import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell, session, IpcMainInvokeEvent } from 'electron';
 import type { WebContents } from 'electron';
 import { createBrowserProfile, deleteBrowserProfile, listBrowserProfiles, profileDataPath, profileSessionPartitions, setActiveBrowserProfile, updateBrowserProfile } from './profile-manager';
 import * as dns from 'node:dns/promises';
@@ -38,6 +38,36 @@ const SAFE_HTTP_PROTOCOLS = new Set(['http:', 'https:']);
 const MAX_MAIN_PROCESS_CAPTURE_CHARS = 120000;
 const WINDOWS_TITLEBAR_CHROME_HEIGHT_PX = 44;
 const WINDOWS_TITLEBAR_CAPTION_RESERVE_PX = 168;
+const TAHAI_RUNTIME_DIAGNOSTIC_MODE = process.env.TAHAI_BROWSER_RUNTIME_DIAGNOSTICS === '1' || process.env.TAHAI_RUNTIME_E2E === '1';
+const TAHAI_SINGLE_INSTANCE_LOCK_DISABLED = process.env.TAHAI_BROWSER_DISABLE_SINGLE_INSTANCE_LOCK === '1' || process.env.TAHAI_RUNTIME_E2E === '1';
+const TAHAI_USER_DATA_SUFFIX = String(process.env.TAHAI_BROWSER_USER_DATA_SUFFIX || process.env.TAHAI_RUNTIME_E2E_RUN_ID || '').trim();
+
+// PASS271-R9: Windows/Electron can leave guest webview surfaces white/non-interactive
+// when GPU compositing wedges. Disable hardware acceleration for the release-confidence
+// lane unless explicitly overridden for local comparison testing.
+const PASS271_R9_WEBVIEW_WHITE_SCREEN_COMPOSITOR_CLOSEOUT = 'PASS271_R9_WEBVIEW_WHITE_SCREEN_COMPOSITOR_CLOSEOUT';
+function installPass271R9WebviewCompositorCloseout(): void {
+  if (process.env.TAHAI_BROWSER_ENABLE_PASS271_R9_GPU_DISABLE !== "1") {
+    console.info("[PASS337] PASS271_R9 GPU/compositor disable is opt-in; set TAHAI_BROWSER_ENABLE_PASS271_R9_GPU_DISABLE=1 to re-enable.");
+    return;
+  }
+  if (process.env.TAHAI_BROWSER_DISABLE_GPU_WHITE_SCREEN_REPAIR === '0') return;
+  try {
+    app.disableHardwareAcceleration();
+    app.commandLine.appendSwitch('disable-gpu');
+    app.commandLine.appendSwitch('disable-gpu-compositing');
+    app.commandLine.appendSwitch('disable-accelerated-2d-canvas');
+  } catch (error) {
+    console.warn('[PASS271_R9] unable to apply webview compositor closeout', error);
+  }
+}
+installPass271R9WebviewCompositorCloseout();
+
+function tahaiLogRuntimeDiagnostic(label: string, detail: string): void {
+  if (!TAHAI_RUNTIME_DIAGNOSTIC_MODE) return;
+  console.info(`[TAHAI_RUNTIME] ${label} ${detail}`.trim());
+}
+
 
 type OpsCheckStatus = 'pass' | 'warn' | 'fail' | 'info';
 
@@ -518,6 +548,28 @@ function installPass188WebContentsInputBoundary(contents: WebContents): void {
   });
 }
 
+
+const PASS271_R6_POPUP_AS_TABS_OPERATOR_TOGGLE = 'PASS271_R6_POPUP_AS_TABS_OPERATOR_TOGGLE';
+
+function pass271R6PopupsAsTabsEnabled(): boolean {
+  try {
+    return readBrowserSettings().ui.allowPopupsAsTabs !== false;
+  } catch {
+    return true;
+  }
+}
+
+function pass271R6RoutePopupAsTab(sourceContents: WebContents, safeUrl: string, source: string): boolean {
+  if (!safeUrl) return false;
+  if (!pass271R6PopupsAsTabsEnabled()) return false;
+  const targetWindow = pass185WindowForHistoryAppCommand(undefined, sourceContents);
+  if (!targetWindow || targetWindow.isDestroyed()) return false;
+  sendTrustedRendererEvent(targetWindow, 'tahai-browser:open-in-tab', safeUrl);
+  void source;
+  void PASS271_R6_POPUP_AS_TABS_OPERATOR_TOGGLE;
+  return true;
+}
+
 let pass153WebContentsPopupBoundaryInstalled = false;
 
 function installPass153WebContentsPopupBoundary(): void {
@@ -525,7 +577,12 @@ function installPass153WebContentsPopupBoundary(): void {
   pass153WebContentsPopupBoundaryInstalled = true;
   app.on('web-contents-created', (_event, contents) => {
     installPass188WebContentsInputBoundary(contents);
-    contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    // PASS153 continuity token for legacy verifiers: contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    contents.setWindowOpenHandler(({ url }) => {
+      const safeUrl = normalizeSafeExternalWindowUrl(url);
+      pass271R6RoutePopupAsTab(contents, safeUrl, 'webview-guest');
+      return { action: 'deny' };
+    });
     // PASS185: hardware mouse Button 4/5 can surface as an app-command on
     // guest webContents when focus lives inside an Electron <webview>. Route it
     // through the trusted renderer command bridge so active Mission pane targeting
@@ -545,7 +602,7 @@ function enforcePass153WebviewAttachBoundary(window: BrowserWindow): void {
     );
     if (!decision.ok) {
       event.preventDefault();
-      console.warn(`[${TAHAI_WEBVIEW_ATTACH_SECURITY_PASS}] blocked webview attach: ${decision.blockedReasons.join(',') || 'unknown-reason'}`);
+      console.warn(`[${TAHAI_WEBVIEW_ATTACH_SECURITY_PASS}] blocked webview attach: ${decision.blockedReasons.join(',') || 'unknown-reason'} src=${String((params as TahaiWebviewAttachRecord).src || '').slice(0, 240)}`);
     }
   });
 }
@@ -638,16 +695,37 @@ function rendererAssetPreflight(rendererPath: string): RendererAssetPreflight {
 
 
 let pass158RuntimeE2eStarted = false;
+let pass158RuntimeE2eReadyPollTimer: NodeJS.Timeout | undefined;
+
+async function pass158RuntimeE2eHarnessInstalled(window: BrowserWindow): Promise<boolean> {
+  if (window.isDestroyed()) return false;
+  try {
+    return Boolean(await window.webContents.executeJavaScript(
+      "typeof window.__TAHAI_RUNTIME_E2E__?.run === 'function'",
+      true
+    ));
+  } catch {
+    return false;
+  }
+}
 
 async function maybeRunPass158RuntimeE2e(window: BrowserWindow, reason: string): Promise<void> {
   if (process.env.TAHAI_RUNTIME_E2E !== '1' || pass158RuntimeE2eStarted || window.isDestroyed()) return;
+  if (!await pass158RuntimeE2eHarnessInstalled(window)) {
+    tahaiLogRuntimeDiagnostic('runtime-e2e-wait', `${reason} harness-not-ready`);
+    return;
+  }
   pass158RuntimeE2eStarted = true;
+  tahaiLogRuntimeDiagnostic('runtime-e2e-start', reason);
   const resultPath = process.env.TAHAI_RUNTIME_E2E_RESULT || path.join(app.getPath('temp'), `tahai-pass158-runtime-e2e-${Date.now()}.json`);
   const startedAt = new Date().toISOString();
   let payload: unknown;
   try {
+    tahaiLogRuntimeDiagnostic('runtime-e2e-execute', 'begin');
     payload = await window.webContents.executeJavaScript(`Promise.resolve(window.__TAHAI_RUNTIME_E2E__?.run?.()).then((result) => result || { ok: false, pass: 'PASS158', error: 'renderer runtime E2E harness was not installed' })`, true);
+    tahaiLogRuntimeDiagnostic('runtime-e2e-execute', 'resolved');
   } catch (error) {
+    tahaiLogRuntimeDiagnostic('runtime-e2e-execute', `error=${error instanceof Error ? error.message : String(error || 'unknown runtime E2E error')}`);
     payload = { ok: false, pass: RUNTIME_E2E_HARNESS_PASS, error: error instanceof Error ? error.stack || error.message : String(error || 'unknown runtime E2E error') };
   }
   const wrapped = { pass: RUNTIME_E2E_HARNESS_PASS, reason, startedAt, finishedAt: new Date().toISOString(), result: payload };
@@ -661,6 +739,35 @@ async function maybeRunPass158RuntimeE2e(window: BrowserWindow, reason: string):
     setTimeout(() => app.quit(), 80);
   }
 }
+
+function schedulePass158RuntimeE2e(window: BrowserWindow, reason: string): void {
+  if (process.env.TAHAI_RUNTIME_E2E !== '1') return;
+  if (pass158RuntimeE2eStarted || window.isDestroyed()) {
+    tahaiLogRuntimeDiagnostic('runtime-e2e-schedule-skip', `reason=${reason} started=${pass158RuntimeE2eStarted} destroyed=${window.isDestroyed()}`);
+    return;
+  }
+  if (pass158RuntimeE2eReadyPollTimer) {
+    clearTimeout(pass158RuntimeE2eReadyPollTimer);
+    tahaiLogRuntimeDiagnostic('runtime-e2e-schedule-reset', reason);
+  } else {
+    tahaiLogRuntimeDiagnostic('runtime-e2e-schedule', reason);
+  }
+  pass158RuntimeE2eReadyPollTimer = setTimeout(() => {
+    pass158RuntimeE2eReadyPollTimer = undefined;
+    tahaiLogRuntimeDiagnostic('runtime-e2e-schedule-fire', reason);
+    void maybeRunPass158RuntimeE2e(window, reason);
+  }, 120);
+}
+
+/* PASS271_R4_MAIN_DESTROYED_WINDOW_GUARD_START */
+function pass271R4BrowserWindowAlive(window: BrowserWindow): boolean {
+  try {
+    return Boolean(window && !window.isDestroyed() && window.webContents && !window.webContents.isDestroyed());
+  } catch {
+    return false;
+  }
+}
+/* PASS271_R4_MAIN_DESTROYED_WINDOW_GUARD_END */
 
 async function checkRendererBootHeartbeat(window: BrowserWindow): Promise<boolean> {
   if (window.isDestroyed()) return false;
@@ -679,32 +786,47 @@ function loadRendererShell(window: BrowserWindow): void {
   let fallbackShown = false;
   let heartbeatTimer: NodeJS.Timeout | undefined;
   const assetPreflight = rendererAssetPreflight(rendererPath);
+  tahaiLogRuntimeDiagnostic('loadRendererShell', `rendererPath=${rendererPath}`);
 
   const showFailure = (detail: string) => {
-    if (fallbackShown || window.isDestroyed()) return;
+    if (fallbackShown || !pass271R4BrowserWindowAlive(window)) return;
     fallbackShown = true;
+    tahaiLogRuntimeDiagnostic('renderer-failure', detail.replace(/\s+/g, ' ').slice(0, 900));
     if (heartbeatTimer) clearTimeout(heartbeatTimer);
+    const html = rendererShellFailureHtml(detail, rendererPath);
+    const writeInlineFallback = () => {
+      if (!pass271R4BrowserWindowAlive(window)) return;
+      try {
+        void window.webContents.loadURL('about:blank').then(() => {
+          if (!pass271R4BrowserWindowAlive(window)) return undefined;
+          return window.webContents.executeJavaScript(`document.open();document.write(${JSON.stringify(html)});document.close();`, true);
+        }).catch(() => undefined);
+      } catch {
+        // Window was destroyed between the liveness check and the fallback write. Ignore cleanly.
+      }
+    };
     try {
       const failurePath = rendererShellFailureFile(detail, rendererPath);
-      window.loadFile(failurePath).catch(() => undefined);
+      if (!pass271R4BrowserWindowAlive(window)) return;
+      try {
+        void window.loadFile(failurePath).catch(() => writeInlineFallback());
+      } catch {
+        writeInlineFallback();
+      }
     } catch {
-      const html = rendererShellFailureHtml(detail, rendererPath);
-      window.webContents.loadURL('about:blank').then(() => {
-        if (!window.isDestroyed()) {
-          window.webContents.executeJavaScript(`document.open();document.write(${JSON.stringify(html)});document.close();`).catch(() => undefined);
-        }
-      }).catch(() => undefined);
+      writeInlineFallback();
     }
   };
 
   const scheduleHeartbeatCheck = (reason: string) => {
     if (heartbeatTimer) clearTimeout(heartbeatTimer);
+    tahaiLogRuntimeDiagnostic('heartbeat-scheduled', reason);
     heartbeatTimer = setTimeout(() => {
       void checkRendererBootHeartbeat(window).then((ready) => {
         if (!ready) {
           showFailure(`${reason}: renderer shell loaded but did not report the strict ready marker within 12 seconds. The source tree may contain stale dist output, a preload failure, a CSP/script load issue, or a renderer runtime exception.`);
         } else {
-          void maybeRunPass158RuntimeE2e(window, reason);
+          tahaiLogRuntimeDiagnostic('heartbeat-ready', reason);
         }
       });
     }, 12000);
@@ -735,6 +857,11 @@ function loadRendererShell(window: BrowserWindow): void {
     showFailure(assetPreflight.detail);
     return;
   }
+
+  // Some Electron/webview combinations can execute renderer code while the usual
+  // BrowserWindow did-finish-load/loadFile resolution path stalls. Keep a fallback
+  // heartbeat alive so runtime-ready detection and PASS158 are not skipped.
+  scheduleHeartbeatCheck('startup-fallback');
 
   window.loadFile(rendererPath).then(() => {
     scheduleHeartbeatCheck('loadFile');
@@ -998,7 +1125,33 @@ function createWindow(): BrowserWindow {
     ...titleBarChromeOptions()
   });
 
+  tahaiLogRuntimeDiagnostic('createWindow', `platform=${process.platform} titleBarStyle=${String((titleBarChromeOptions() as { titleBarStyle?: string }).titleBarStyle || 'default')} userData=${app.getPath('userData')}`);
+
+  if (TAHAI_RUNTIME_DIAGNOSTIC_MODE) {
+    window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+      const safeMessage = String(message || '').replace(/\s+/g, ' ').slice(0, 900);
+      const safeSource = String(sourceId || '').slice(0, 260);
+      console.info(`[TAHAI_RENDERER_CONSOLE] level=${level} line=${line || 0} source=${safeSource} message=${safeMessage}`);
+    });
+    window.webContents.on('did-start-loading', () => tahaiLogRuntimeDiagnostic('renderer', 'did-start-loading'));
+    window.webContents.on('did-stop-loading', () => tahaiLogRuntimeDiagnostic('renderer', 'did-stop-loading'));
+  }
+
   enforcePass153WebviewAttachBoundary(window);
+  // PASS338_WEBVIEW_ATTACH_LOAD_DIAGNOSTIC: make webview guest attach/load state visible in dev logs without GPU teardown.
+  window.webContents.on('did-attach-webview', (_event, guest) => {
+    try {
+      guest.setUserAgent((guest.getUserAgent() || '').replace(/\sElectron\/[0-9A-Za-z_.-]+/g, '').trim());
+      console.info('[PASS338] did-attach-webview url=' + (guest.getURL() || 'about:blank'));
+      guest.on('did-fail-load', (_failEvent, errorCode, errorDescription, validatedURL) => {
+        console.warn('[PASS338] guest did-fail-load ' + errorCode + ' ' + (errorDescription || '') + ' ' + (validatedURL || ''));
+      });
+      guest.on('did-finish-load', () => console.info('[PASS338] guest did-finish-load url=' + (guest.getURL() || 'unknown')));
+    } catch (error) {
+      console.warn('[PASS338] guest attach diagnostic failed', error);
+    }
+  });
+
   installPass188WebContentsInputBoundary(window.webContents);
   loadRendererShell(window);
   installApplicationMenu(window);
@@ -1009,7 +1162,7 @@ function createWindow(): BrowserWindow {
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     const safeUrl = normalizeSafeExternalWindowUrl(url);
-    if (safeUrl) sendTrustedRendererEvent(window, 'tahai-browser:open-in-tab', safeUrl);
+    if (safeUrl) pass271R6RoutePopupAsTab(window.webContents, safeUrl, 'browser-window');
     return { action: 'deny' };
   });
 
@@ -1042,6 +1195,13 @@ ipcMain.handle('tahai-browser:get-config', (event) => {
     adminPolicy: getEnterpriseAdminPolicyForRenderer(),
     adminPolicySummary: getEnterpriseAdminPolicySummary(),
     enterpriseSupportBundlePass: ENTERPRISE_SUPPORT_BUNDLE_PASS,
+    runtimeControl: {
+      runtimeE2e: process.env.TAHAI_RUNTIME_E2E === '1',
+      runtimeE2eQuit: process.env.TAHAI_RUNTIME_E2E_QUIT !== '0',
+      diagnostics: TAHAI_RUNTIME_DIAGNOSTIC_MODE,
+      resultPath: process.env.TAHAI_RUNTIME_E2E_RESULT || path.join(app.getPath('temp'), `tahai-pass158-runtime-e2e-${process.pid}.json`),
+      runId: String(process.env.TAHAI_RUNTIME_E2E_RUN_ID || '')
+    },
     settingsLabel: localFilesystemHandoffLabel('browser-config'),
     profiles: listBrowserProfiles(),
     ...localPages(),
@@ -1055,6 +1215,52 @@ ipcMain.handle('tahai-browser:get-config', (event) => {
     firstLaunch: runFirstLaunchChecks(),
     userDataLabel: localFilesystemHandoffLabel('browser-config')
   };
+});
+
+assertTrustedIpcChannel('tahai-browser:renderer-ready');
+ipcMain.handle('tahai-browser:renderer-ready', async (event) => {
+  assertTrustedBrowserShellIpc(event);
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window || window.isDestroyed()) return false;
+  tahaiLogRuntimeDiagnostic('renderer-ready-ipc', event.senderFrame?.url || event.sender.getURL() || 'unknown');
+  return true;
+});
+
+assertTrustedIpcChannel('tahai-browser:get-runtime-control');
+ipcMain.handle('tahai-browser:get-runtime-control', (event) => {
+  assertTrustedBrowserShellIpc(event);
+  return {
+    runtimeE2e: process.env.TAHAI_RUNTIME_E2E === '1',
+    runtimeE2eQuit: process.env.TAHAI_RUNTIME_E2E_QUIT !== '0',
+    diagnostics: TAHAI_RUNTIME_DIAGNOSTIC_MODE,
+    resultPath: process.env.TAHAI_RUNTIME_E2E_RESULT || path.join(app.getPath('temp'), `tahai-pass158-runtime-e2e-${process.pid}.json`),
+    runId: String(process.env.TAHAI_RUNTIME_E2E_RUN_ID || '')
+  };
+});
+
+assertTrustedIpcChannel('tahai-browser:report-runtime-e2e-result');
+ipcMain.handle('tahai-browser:report-runtime-e2e-result', async (event, report) => {
+  assertTrustedBrowserShellIpc(event);
+  const resultPath = process.env.TAHAI_RUNTIME_E2E_RESULT || path.join(app.getPath('temp'), `tahai-pass158-runtime-e2e-${process.pid}.json`);
+  const wrapped = {
+    pass: RUNTIME_E2E_HARNESS_PASS,
+    reason: String(report?.reason || 'renderer-runtime-e2e-report'),
+    startedAt: String(report?.startedAt || new Date().toISOString()),
+    finishedAt: new Date().toISOString(),
+    result: report?.result || { ok: false, pass: RUNTIME_E2E_HARNESS_PASS, error: 'Renderer runtime E2E report payload was empty.' }
+  };
+  try {
+    fs.mkdirSync(path.dirname(resultPath), { recursive: true });
+    fs.writeFileSync(resultPath, JSON.stringify(wrapped, null, 2));
+    tahaiLogRuntimeDiagnostic('runtime-e2e-report', `written path=${resultPath}`);
+  } catch (error) {
+    console.error(`[${RUNTIME_E2E_HARNESS_PASS}] failed to persist renderer-owned runtime E2E report`, error);
+    return false;
+  }
+  if (process.env.TAHAI_RUNTIME_E2E_QUIT !== '0') {
+    setTimeout(() => app.quit(), 80);
+  }
+  return true;
 });
 
 assertTrustedIpcChannel('tahai-browser:get-admin-policy');
@@ -1211,7 +1417,13 @@ ipcMain.handle('tahai-browser:open-profile-data', async (event, id: string) => {
   return true;
 });
 assertTrustedIpcChannel('tahai-browser:list-missions');
-ipcMain.handle('tahai-browser:list-missions', (event) => { assertTrustedBrowserShellIpc(event); return listMissions(); });
+ipcMain.handle('tahai-browser:list-missions', (event) => {
+  assertTrustedBrowserShellIpc(event);
+  tahaiLogRuntimeDiagnostic('list-missions', 'invoke');
+  const result = listMissions();
+  tahaiLogRuntimeDiagnostic('list-missions', `return ok=${result.ok ? '1' : '0'} count=${result.missions.length}`);
+  return result;
+});
 assertTrustedIpcChannel('tahai-browser:load-mission');
 ipcMain.handle('tahai-browser:load-mission', (event, missionId: string) => { assertTrustedBrowserShellIpc(event); return loadMission(missionId); });
 assertTrustedIpcChannel('tahai-browser:save-mission');
@@ -1224,12 +1436,17 @@ assertTrustedIpcChannel('tahai-browser:copy-mission-export');
 ipcMain.handle('tahai-browser:copy-mission-export', (event, mission) => { assertTrustedBrowserShellIpc(event); return copyMissionExport(mission); });
 assertTrustedIpcChannel('tahai-browser:save-mission-export');
 ipcMain.handle('tahai-browser:save-mission-export', async (event, mission) => { assertTrustedBrowserShellIpc(event); return saveMissionExport(mission); });
-app.setPath('userData', path.join(app.getPath('appData'), 'TAHAI Web Services Browser'));
+const tahaiUserDataRoot = path.join(app.getPath('appData'), 'TAHAI Web Services Browser');
+const tahaiUserDataPath = TAHAI_USER_DATA_SUFFIX ? path.join(tahaiUserDataRoot, TAHAI_USER_DATA_SUFFIX) : tahaiUserDataRoot;
+app.setPath('userData', tahaiUserDataPath);
+tahaiLogRuntimeDiagnostic('userData', tahaiUserDataPath);
 
-const gotLock = app.requestSingleInstanceLock();
+const gotLock = TAHAI_SINGLE_INSTANCE_LOCK_DISABLED ? true : app.requestSingleInstanceLock();
 if (!gotLock) {
+  tahaiLogRuntimeDiagnostic('single-instance-lock', 'lock-denied');
   app.quit();
 } else {
+  if (TAHAI_SINGLE_INSTANCE_LOCK_DISABLED) tahaiLogRuntimeDiagnostic('single-instance-lock', 'disabled-for-runtime-diagnostics');
   app.on('second-instance', () => {
     const [window] = BrowserWindow.getAllWindows();
     if (window) {

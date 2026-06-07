@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS262",
+  "versionTarget": "2.0.14",
+  "storePosture": "NOT_SUBMITTED_NOT_APPROVED_ASSET_EVIDENCE_ONLY",
+  "requiredScreenshotSlots": [
+    "normal-browser-mode",
+    "mission-control-overview",
+    "quad-view-recipe-started",
+    "tri-view-layout-routing",
+    "split-view-active-pane-routing",
+    "runbook-rail-and-evidence",
+    "operator-command-center",
+    "settings-about-unsigned-preview-truth"
+  ],
+  "requiredListingAssets": [
+    "store-square-logo",
+    "store-app-icon",
+    "store-listing-hero-or-promotional-image",
+    "store-screenshot-set",
+    "public-landing-page-preview-image"
+  ],
+  "requiredMetadataFields": [
+    "assetId",
+    "slot",
+    "sourcePath",
+    "sourceKind",
+    "capturedFrom",
+    "packageVersion",
+    "sourceCommit",
+    "packageSha256",
+    "assetSha256",
+    "pixelDimensions",
+    "noSecretReview",
+    "storeTruthReview"
+  ],
+  "requiredPublicUrls": [
+    "browserLandingUrl",
+    "privacyPolicyUrl",
+    "supportUrl",
+    "securityPolicyUrl",
+    "sourceRepoUrl",
+    "releaseNotesOrKnownIssuesUrl"
+  ],
+  "requiredReviews": [
+    "installed-app-source-review",
+    "version-match-review",
+    "sha256-hash-review",
+    "no-secret-review",
+    "store-listing-image-checklist-review",
+    "public-url-review",
+    "known-issues-truth-review",
+    "operator-approval-before-upload"
+  ],
+  "forbiddenClaims": [
+    "Microsoft Store submitted",
+    "Microsoft Store approved",
+    "direct MSI/EXE signed unless trusted signing evidence exists",
+    "public GA unless GA release gate exists"
+  ]
+}

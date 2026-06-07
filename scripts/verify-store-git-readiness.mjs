@@ -2,7 +2,8 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
-const expected = 'v2.0.0';
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8').replace(/^﻿/, ''));
+const expected = `v${pkg.version}`;
 function run(args) { return spawnSync('git', args, { encoding: 'utf8' }); }
 function trim(value) { return String(value || '').trim(); }
 
@@ -28,11 +29,11 @@ if (!headTags.includes(expected)) {
   const existingTarget = existingTag.status === 0 ? trim(existingTag.stdout) : '';
   if (existingTarget) {
     console.error(`[STORE-GIT][FAIL] ${expected} exists but points at ${existingTarget}, not current HEAD ${currentHead}.`);
-    console.error('[STORE-GIT][FIX] After committing the current pass, run: npm run repair:store-tag:v2.0.0');
-    console.error('[STORE-GIT][NOTE] This only repairs the local tag. Push/force-push the tag only if you intentionally want the public v2.0.0 tag moved.');
+    console.error(`[STORE-GIT][FIX] After committing the current pass, run: npm run repair:store-tag:${pkg.version}`);
+    console.error(`[STORE-GIT][NOTE] This only repairs the local tag. Push/force-push the tag only if you intentionally want the public ${expected} tag moved.`);
   } else {
     console.error(`[STORE-GIT][FAIL] HEAD is not tagged ${expected}. Current HEAD tags: ${headTags.join(', ') || '(none)'}`);
-    console.error('[STORE-GIT][FIX] After committing the current pass, run: git tag -a v2.0.0 -m "TAHAI Web Services Browser 2.0.0"');
+    console.error(`[STORE-GIT][FIX] After committing the current pass, run: git tag -a ${expected} -m "${pkg.productName} ${pkg.version}"`);
   }
   failed = true;
 }

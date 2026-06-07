@@ -61,6 +61,7 @@ function readMissionFile(filePath: string): MissionState | undefined {
 
 export function listMissions(): MissionListResult {
   try {
+    console.info('[MISSION_STORE] list:start');
     ensureMissionDirectory();
     const missions = fs.readdirSync(missionsDirectory(), { withFileTypes: true })
       .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
@@ -70,8 +71,10 @@ export function listMissions(): MissionListResult {
       })
       .filter(Boolean) as MissionState[];
     missions.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    console.info(`[MISSION_STORE] list:done count=${missions.length}`);
     return { ok: true, missions: missions.slice(0, MAX_LISTED_MISSIONS) };
   } catch (error) {
+    console.warn('[MISSION_STORE] list:error', error);
     return { ok: false, missions: [], error: error instanceof Error ? error.message : 'Unable to list missions.' };
   }
 }

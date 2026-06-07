@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const fail = (m) => { console.error(`PASS43_MISSION_VIEWS_HARDENING_FAIL=${m}`); process.exit(1); };
 const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
 const renderer = fs.readFileSync('src/renderer/app.ts','utf8');
@@ -23,5 +24,5 @@ for (const [content, needle, code] of [
   if (!content.includes(needle)) fail(code);
 }
 if (!pkg.scripts?.['verify:pass-43-mission-views-hardening']) fail('package-script-missing');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-43-mission-views-hardening')) fail('release-blockers-not-wired');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-43-mission-views-hardening')) fail('release-blockers-not-wired');
 console.log('PASS43_MISSION_VIEWS_HARDENING_OK=1');

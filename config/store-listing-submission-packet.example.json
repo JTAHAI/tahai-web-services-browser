@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "pass": "PASS247",
   "productName": "TAHAI Web Services Browser",
-  "version": "2.0.0",
+  "version": "2.0.14",
   "shortDescription": "An enterprise DevOps and IT Admin command browser for mission workspaces, multi-pane operations, local tools, and sanitized handoff evidence.",
   "storeDescription": [
     "TAHAI Web Services Browser is built for technical operators who live across cloud consoles, admin portals, logs, runbooks, documentation, tickets, and release evidence.",

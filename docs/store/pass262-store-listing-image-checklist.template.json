@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS262",
+  "versionTarget": "2.0.14",
+  "status": "TEMPLATE_PENDING_STORE_LISTING_IMAGE_REVIEW",
+  "checklist": [
+    {
+      "id": "partner-center-current-requirements-checked",
+      "required": true,
+      "result": "PENDING",
+      "notes": "Check Partner Center upload UI at submission time for accepted dimensions, aspect ratios, and file formats."
+    },
+    {
+      "id": "screenshots-from-installed-app",
+      "required": true,
+      "result": "PENDING",
+      "notes": "No dev server or mock screenshots for final Store evidence."
+    },
+    {
+      "id": "normal-mode-clean",
+      "required": true,
+      "result": "PENDING",
+      "notes": "Normal browser mode must look clean and not overrun chrome."
+    },
+    {
+      "id": "mission-control-flagship",
+      "required": true,
+      "result": "PENDING",
+      "notes": "Mission Control / Quad view must show the differentiator clearly."
+    },
+    {
+      "id": "no-blank-pane-or-bottom-only-webview",
+      "required": true,
+      "result": "PENDING",
+      "notes": "Screenshots must not show layout failures."
+    },
+    {
+      "id": "no-secrets-customer-data-or-tickets",
+      "required": true,
+      "result": "PENDING",
+      "notes": "No private customer, tenant, email, ticket, token, key, cookie, or account data."
+    },
+    {
+      "id": "no-false-store-signing-or-ga-claims",
+      "required": true,
+      "result": "PENDING",
+      "notes": "No submitted/approved/signed/GA claim unless separately evidenced."
+    },
+    {
+      "id": "version-and-source-recorded",
+      "required": true,
+      "result": "PENDING",
+      "notes": "Package version, source commit, package hash, and asset hash are recorded."
+    }
+  ],
+  "requiredAssetSlots": [
+    "store-square-logo",
+    "store-app-icon",
+    "store-listing-hero-or-promotional-image",
+    "store-screenshot-set",
+    "public-landing-page-preview-image"
+  ],
+  "requiredScreenshotSlots": [
+    "normal-browser-mode",
+    "mission-control-overview",
+    "quad-view-recipe-started",
+    "tri-view-layout-routing",
+    "split-view-active-pane-routing",
+    "runbook-rail-and-evidence",
+    "operator-command-center",
+    "settings-about-unsigned-preview-truth"
+  ]
+}

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function fail(message) { console.error(`PASS20_LINUX_RECIPE_HARDENING_FAIL=${message}`); process.exit(1); }
 const app = fs.readFileSync('src/renderer/app.ts', 'utf8');
 const model = fs.readFileSync('src/renderer/mission-model.ts', 'utf8');
@@ -12,5 +13,5 @@ for (const token of ["cockpitProvider?: 'aws' | 'azure' | 'm365'", "cockpitProvi
 for (const token of ["if (provider === 'm365') return 'M365'", "if (provider === 'azure') return 'Azure'"]) if (!model.includes(token)) fail(`missing-model-token:${token}`);
 for (const token of ['wsl -d FedoraLinux-43 --cd /mnt/c/dev/browser/app', 'npm run verify:release-blockers', 'npm run package:linux:appimage', 'find release dist -type f']) if (!linuxScript.includes(token)) fail(`missing-linux-build-token:${token}`);
 if (pkg.scripts?.['verify:pass-20-linux-recipe-hardening'] !== 'node scripts/verify-pass-20-linux-recipe-hardening.mjs') fail('missing-package-script');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-20-linux-recipe-hardening')) fail('release-blockers-not-wired');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-20-linux-recipe-hardening')) fail('release-blockers-not-wired');
 console.log('PASS20_LINUX_RECIPE_HARDENING_OK=1');

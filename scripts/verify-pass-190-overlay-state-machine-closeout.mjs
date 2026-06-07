@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function read(path) { return fs.readFileSync(path, 'utf8'); }
 function fail(message) { console.error(`[PASS190][FAIL] ${message}`); process.exit(1); }
@@ -13,8 +14,8 @@ const summary = read('PASS_190_OVERLAY_STATE_MACHINE_CLOSEOUT_SUMMARY.md');
 
 need(pkg.version === '1.8.30', 'version-must-not-change-without-explicit-approval');
 need(pkg.scripts?.['verify:pass-190-overlay-state-machine-closeout'] === 'node scripts/verify-pass-190-overlay-state-machine-closeout.mjs', 'package-script-missing');
-need(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-190-overlay-state-machine-closeout'), 'release-blockers-missing-pass190');
-need(pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-190-overlay-state-machine-closeout') > pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-189-settings-screen-public-copy'), 'pass190-must-run-after-pass189');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-190-overlay-state-machine-closeout'), 'release-blockers-missing-pass190');
+need(getReleaseBlockersContract(pkg).indexOf('verify:pass-190-overlay-state-machine-closeout') > getReleaseBlockersContract(pkg).indexOf('verify:pass-189-settings-screen-public-copy'), 'pass190-must-run-after-pass189');
 
 for (const token of [
   'PASS190_OVERLAY_STATE_MACHINE_VERSION',

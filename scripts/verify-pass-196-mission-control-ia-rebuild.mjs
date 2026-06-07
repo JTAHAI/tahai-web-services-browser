@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function read(path) { return fs.readFileSync(path, 'utf8'); }
 function readJson(path) { return JSON.parse(read(path)); }
@@ -88,7 +89,7 @@ includesAll('PASS_196_MISSION_CONTROL_IA_REBUILD_SUMMARY.md', [
 
 need(pkg.version === '1.8.30', 'version must remain unchanged without explicit approval');
 need(pkg.scripts?.['verify:pass-196-mission-control-ia-rebuild'] === 'node scripts/verify-pass-196-mission-control-ia-rebuild.mjs', 'package script missing PASS196 verifier');
-const blockers = pkg.scripts?.['verify:release-blockers'] || '';
+const blockers = getReleaseBlockersContract(pkg);
 need(blockers.includes('verify:pass-196-mission-control-ia-rebuild'), 'release blockers missing PASS196 verifier');
 need(blockers.indexOf('verify:pass-196-mission-control-ia-rebuild') > blockers.indexOf('verify:pass-195-first-run-operator-walkthrough-v2'), 'PASS196 must run after PASS195');
 need(blockers.indexOf('verify:pass-196-mission-control-ia-rebuild') < blockers.lastIndexOf('npm run build'), 'PASS196 must run before build in release blockers');

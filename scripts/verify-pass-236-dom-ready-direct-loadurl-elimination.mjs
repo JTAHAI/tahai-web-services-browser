@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const repo = process.cwd();
 const failures = [];
@@ -48,7 +49,7 @@ const pkg = parseJson('package.json');
 if (pkg.scripts?.['verify:pass-236-dom-ready-direct-loadurl-elimination'] !== 'node scripts/verify-pass-236-dom-ready-direct-loadurl-elimination.mjs') {
   failures.push('package.json: verify:pass-236-dom-ready-direct-loadurl-elimination script missing or incorrect');
 }
-if (typeof pkg.scripts?.['verify:release-blockers'] !== 'string' || !pkg.scripts['verify:release-blockers'].includes('verify:pass-236-dom-ready-direct-loadurl-elimination')) {
+if (typeof getReleaseBlockersContract(pkg) !== 'string' || !getReleaseBlockersContract(pkg).includes('verify:pass-236-dom-ready-direct-loadurl-elimination')) {
   failures.push('package.json: verify:release-blockers must include PASS236 verifier');
 }
 

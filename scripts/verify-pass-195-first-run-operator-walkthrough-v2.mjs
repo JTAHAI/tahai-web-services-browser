@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function read(path) { return fs.readFileSync(path, 'utf8'); }
 function readJson(path) { return JSON.parse(read(path)); }
@@ -133,7 +134,7 @@ includesAll('PASS_195_FIRST_RUN_OPERATOR_WALKTHROUGH_V2_SUMMARY.md', [
 
 need(pkg.version === '1.8.30', 'version must remain unchanged without explicit approval');
 need(pkg.scripts?.['verify:pass-195-first-run-operator-walkthrough-v2'] === 'node scripts/verify-pass-195-first-run-operator-walkthrough-v2.mjs', 'package script missing PASS195 verifier');
-need(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-195-first-run-operator-walkthrough-v2'), 'release blockers missing PASS195 verifier');
-need(pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-195-first-run-operator-walkthrough-v2') > pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-194-download-artifact-shelf-ux'), 'PASS195 must run after PASS194');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-195-first-run-operator-walkthrough-v2'), 'release blockers missing PASS195 verifier');
+need(getReleaseBlockersContract(pkg).indexOf('verify:pass-195-first-run-operator-walkthrough-v2') > getReleaseBlockersContract(pkg).indexOf('verify:pass-194-download-artifact-shelf-ux'), 'PASS195 must run after PASS194');
 
 console.log('[PASS195][OK] First-run operator walkthrough v2 verified.');

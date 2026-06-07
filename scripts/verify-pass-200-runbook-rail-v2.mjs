@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), 'utf8').replace(/^\uFEFF/, '');
@@ -21,8 +22,8 @@ const ok = (condition, message) => checks.push({ ok: Boolean(condition), message
 
 ok(pkg.version === '1.8.30', 'PASS200 must not increment version without explicit approval.');
 ok(pkg.scripts?.['verify:pass-200-runbook-rail-v2'] === 'node scripts/verify-pass-200-runbook-rail-v2.mjs', 'package.json exposes PASS200 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-200-runbook-rail-v2'), 'release-blockers chain includes PASS200 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-200-runbook-rail-v2') > pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-199-admin-console-profiles-v2'), 'PASS200 must run after PASS199.');
+ok(getReleaseBlockersContract(pkg).includes('verify:pass-200-runbook-rail-v2'), 'release-blockers chain includes PASS200 verifier.');
+ok(getReleaseBlockersContract(pkg).indexOf('verify:pass-200-runbook-rail-v2') > getReleaseBlockersContract(pkg).indexOf('verify:pass-199-admin-console-profiles-v2'), 'PASS200 must run after PASS199.');
 
 for (const file of [
   'src/shared/runbook-rail-v2-contract.ts',

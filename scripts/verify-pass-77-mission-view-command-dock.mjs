@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const app = fs.readFileSync('src/renderer/app.ts', 'utf8');
 const css = fs.readFileSync('src/renderer/styles/browser.css', 'utf8');
@@ -7,7 +8,7 @@ const errors = [];
 const need = (ok, label) => { if (!ok) errors.push(label); };
 
 need(pkg.scripts?.['verify:pass-77-mission-view-command-dock'] === 'node scripts/verify-pass-77-mission-view-command-dock.mjs', 'package-script-missing');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-77-mission-view-command-dock'), 'release-blockers-not-wired');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-77-mission-view-command-dock'), 'release-blockers-not-wired');
 need(app.includes('pass77-mission-pane-command-dock'), 'command-dock-class-missing');
 need(app.includes('pass77RefreshMissionPaneCommandDock'), 'command-dock-renderer-missing');
 need(app.includes('data-pass77-swap'), 'dock-swap-controls-missing');

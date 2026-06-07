@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const app = fs.readFileSync('src/renderer/app.ts', 'utf8');
 const css = fs.readFileSync('src/renderer/styles/browser.css', 'utf8');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const failures = [];
 const need = (name, ok) => { if (!ok) failures.push(name); };
 need('script registered', pkg.scripts?.['verify:pass-76-mission-view-direct-controls-health'] === 'node scripts/verify-pass-76-mission-view-direct-controls-health.mjs');
-need('release blockers include pass76', String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-76-mission-view-direct-controls-health'));
+need('release blockers include pass76', getReleaseBlockersContract(pkg).includes('verify:pass-76-mission-view-direct-controls-health'));
 need('direct move layer function', app.includes('function pass76EnsureMissionPaneMoveLayer') && app.includes('pass76-mission-pane-move-layer'));
 need('direct move handle function', app.includes('function pass76MoveHandleForPane') && app.includes('pass76-mission-pane-direct-move'));
 need('autosize off in pane bounds', app.includes("guest.setAttribute('autosize', 'off')"));

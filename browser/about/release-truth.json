@@ -1,10 +1,10 @@
 {
   "productName": "TAHAI Web Services Browser",
   "bundleName": "TAHAI\u2014SENTINEL Browser",
-  "version": "1.9.0",
-  "releasePass": "PASS242",
+  "version": "2.0.14",
+  "releasePass": "PASS341",
   "releaseChannel": "public-rc",
-  "releasePhase": "command-palette-modal-spacing-rc1",
+  "releasePhase": "browser-runtime-clickability-recovery",
   "updateChannel": "manual-release",
   "updatePolicy": "Manual download/install only; no silent auto-update lane is enabled in this preview build.",
   "signingStatus": "Unsigned preview until the approved code-signing lane is active.",

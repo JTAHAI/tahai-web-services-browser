@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const fail = (message) => { console.error(`PASS59_MISSION_PANE_CLOSE_VERIFY_FAIL=${message}`); process.exit(1); };
@@ -45,7 +46,7 @@ for (const token of [
 if (pkg.scripts?.['verify:pass-59-mission-pane-close-polish'] !== 'node scripts/verify-pass-59-mission-pane-close-polish.mjs') {
   fail('package.json missing verify:pass-59-mission-pane-close-polish script');
 }
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-59-mission-pane-close-polish')) {
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-59-mission-pane-close-polish')) {
   fail('verify:release-blockers is not wired to pass 59 verifier');
 }
 

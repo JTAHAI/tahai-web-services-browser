@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "verify:pass-317-viewport-compositor-fill": "node scripts/verify-pass-317-viewport-compositor-fill.mjs"
+  }
+}

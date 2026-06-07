@@ -5,7 +5,8 @@ const appRoot = path.resolve(process.cwd());
 const releaseDir = path.join(appRoot, 'release');
 const unpackedDir = path.join(releaseDir, 'win-unpacked');
 const exePath = path.join(unpackedDir, 'TAHAI Web Services Browser.exe');
-const zipPath = path.join(releaseDir, 'TAHAI-Web-Services-Browser-win-unpacked-test.zip');
+const rootPkg = JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
+const zipPath = path.join(releaseDir, `TAHAI-Web-Services-Browser-${rootPkg.version}-win-unpacked-test.zip`);
 
 function fail(message) {
   console.error(`TAHAI_BROWSER_WIN_PACKAGE=FAILED: ${message}`);
@@ -37,5 +38,6 @@ for (const rel of requiredUnpackedFiles) {
 const pkg = JSON.parse(fs.readFileSync(path.join(unpackedDir, 'resources/app/package.json'), 'utf8'));
 if (pkg.productName !== 'TAHAI Web Services Browser') fail('packaged productName mismatch');
 if (pkg.main !== 'dist/main/main.js') fail('packaged main entry mismatch');
+if (pkg.version !== rootPkg.version) fail(`packaged version ${pkg.version} does not match root package ${rootPkg.version}`);
 
 console.log(`TAHAI_BROWSER_WIN_PACKAGE=OK zip=${zipPath} bytes=${zipSize}`);

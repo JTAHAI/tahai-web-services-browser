@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS97 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -72,5 +73,5 @@ includes('src/renderer/styles/browser.css',[
 ]);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-97-local-path-disclosure-boundary']==='node scripts/verify-pass-97-local-path-disclosure-boundary.mjs','package.json missing PASS97 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-97-local-path-disclosure-boundary'),'release blockers missing PASS97 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-97-local-path-disclosure-boundary'),'release blockers missing PASS97 verifier');
 console.log('PASS97 local path disclosure boundary verification passed.');

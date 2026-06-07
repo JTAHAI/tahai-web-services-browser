@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const fail = (message) => { console.error(`PASS142_ELECTRON_SECURITY_FINAL_AUDIT=FAIL ${message}`); process.exit(1); };
@@ -21,9 +22,12 @@ const requiredFiles = [
 for (const rel of requiredFiles) need(exists(rel), `missing required PASS142 file: ${rel}`);
 
 const pkg = JSON.parse(read('package.json'));
-need(pkg.version === '1.8.30', 'PASS142 must not bump version');
+const releaseTruth = read('src/shared/release-truth.ts');
+const releaseVersion = releaseTruth.match(/TAHAI_RELEASE_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1] || '';
+need(releaseVersion === pkg.version, `PASS142 release truth version must match package.json version: package=${pkg.version} releaseTruth=${releaseVersion || 'missing'}`);
+need(/^\d+\.\d+\.\d+$/.test(pkg.version), `PASS142 package version must be a stable semver release, found ${pkg.version}`);
 need(pkg.scripts?.['verify:pass-142-electron-security-final-audit'] === 'node scripts/verify-pass-142-electron-security-final-audit.mjs', 'package.json missing PASS142 verifier script');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-142-electron-security-final-audit'), 'release blockers must include PASS142 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-142-electron-security-final-audit'), 'release blockers must include PASS142 verifier');
 
 const contract = read('src/shared/electron-security-contract.ts');
 for (const token of [

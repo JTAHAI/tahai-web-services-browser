@@ -3,7 +3,7 @@
   "contractId": "enterprise-signing-provenance-sbom-v1",
   "schemaVersion": 1,
   "productName": "TAHAI Web Services Browser",
-  "version": "1.8.30",
+  "version": "2.0.14",
   "releaseChannel": "manual-release",
   "noFalseSigningClaim": true,
   "packageLockSha256": "GENERATED_AFTER_NPM_CI_FROM_PACKAGE_LOCK_JSON",
@@ -13,31 +13,31 @@
   "requiredArtifacts": [
     {
       "kind": "windows-exe",
-      "path": "release/windows/TAHAI-Web-Services-Browser-1.8.30-x64.exe",
+      "path": "release/windows/TAHAI-Web-Services-Browser-2.0.14-x64.exe",
       "sha256": "GENERATED_AFTER_PACKAGING",
       "signatureState": "unsigned-preview-or-signed-with-evidence"
     },
     {
       "kind": "windows-msi",
-      "path": "release/windows/TAHAI-Web-Services-Browser-1.8.30-x64.msi",
+      "path": "release/windows/TAHAI-Web-Services-Browser-2.0.14-x64.msi",
       "sha256": "GENERATED_AFTER_PACKAGING",
       "signatureState": "unsigned-preview-or-signed-with-evidence"
     },
     {
       "kind": "linux-appimage",
-      "path": "release/linux/TAHAI-Web-Services-Browser-1.8.30-x64.AppImage",
+      "path": "release/linux/TAHAI-Web-Services-Browser-2.0.14-x64.AppImage",
       "sha256": "GENERATED_AFTER_PACKAGING",
       "signatureState": "not-applicable"
     },
     {
       "kind": "linux-deb",
-      "path": "release/linux/TAHAI-Web-Services-Browser-1.8.30-x64.deb",
+      "path": "release/linux/TAHAI-Web-Services-Browser-2.0.14-x64.deb",
       "sha256": "GENERATED_AFTER_PACKAGING",
       "signatureState": "not-applicable"
     },
     {
       "kind": "linux-rpm",
-      "path": "release/linux/TAHAI-Web-Services-Browser-1.8.30-x64.rpm",
+      "path": "release/linux/TAHAI-Web-Services-Browser-2.0.14-x64.rpm",
       "sha256": "GENERATED_AFTER_PACKAGING",
       "signatureState": "not-applicable"
     },

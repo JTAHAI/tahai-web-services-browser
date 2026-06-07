@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -29,7 +30,7 @@ if (pkg) {
   if (scripts['package:win:msix'] !== 'node scripts/package-win-msix-lane.mjs') failures.push('package.json package:win:msix script drifted');
   if (scripts['verify:pass-249-msix-winappcli-npm-invocation-repair'] !== 'node scripts/verify-pass-249-msix-winappcli-npm-invocation-repair.mjs') failures.push('package.json missing PASS249 verifier script');
   if (scripts['apply:pass-249-msix-winappcli-npm-invocation-repair'] !== 'node scripts/apply-pass249-msix-winappcli-npm-invocation-repair.mjs') failures.push('package.json missing PASS249 apply script');
-  if (!String(scripts['verify:release-blockers'] || '').includes('verify:pass-249-msix-winappcli-npm-invocation-repair')) failures.push('verify:release-blockers must include PASS249 verifier');
+  if (!getReleaseBlockersContract(pkg).includes('verify:pass-249-msix-winappcli-npm-invocation-repair')) failures.push('verify:release-blockers must include PASS249 verifier');
 }
 
 const ps1 = read('packaging/windows/build-windows-msix.ps1');
@@ -59,6 +60,7 @@ mustInclude('scripts/verify-pass-247-windows-store-msix-readiness.mjs', 'must no
 mustInclude('scripts/verify-pass-247-windows-store-msix-readiness.mjs', '& npm @npmExecArgs');
 mustInclude('scripts/verify-pass-248-msix-local-blocker-repair.mjs', '@microsoft/winappcli');
 mustInclude('scripts/verify-pass-248-msix-local-blocker-repair.mjs', '& npm @npmExecArgs');
+mustInclude('scripts/verify-pass-248-msix-local-blocker-repair.mjs', 'repair:store-tag:${pkg.version}');
 mustInclude('scripts/package-win-msix-lane.mjs', 'build-windows-msix.ps1');
 mustInclude('README-PASS249.md', 'PASS249');
 mustInclude('docs/pass249-msix-winappcli-npm-invocation-repair.md', '@microsoft/winappcli');

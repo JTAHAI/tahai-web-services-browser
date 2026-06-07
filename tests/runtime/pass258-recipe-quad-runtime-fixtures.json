@@ -1,0 +1,443 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS258",
+  "name": "Recipe + Quad Runtime E2E Harness Fixtures",
+  "layoutStressSequence": [
+    "single",
+    "split-horizontal",
+    "triple-top",
+    "triple-bottom",
+    "triple-left",
+    "triple-right",
+    "quad",
+    "focus",
+    "quad",
+    "single"
+  ],
+  "recipes": [
+    {
+      "id": "dns-migration",
+      "title": "DNS Migration",
+      "missionType": "migration",
+      "requestedLayout": "quad",
+      "expectedPaneCount": 4,
+      "profile": "change-record",
+      "safeUrls": [
+        {
+          "role": "primary-console",
+          "title": "Cloudflare DNS",
+          "url": "https://dash.cloudflare.com/"
+        },
+        {
+          "role": "vendor-portal",
+          "title": "Registrar",
+          "url": "https://www.namecheap.com/"
+        },
+        {
+          "role": "live-target",
+          "title": "Live Site",
+          "url": "https://example.com/"
+        },
+        {
+          "role": "tool",
+          "title": "DNS/TLS Checks",
+          "url": "tahai-browser://local/opstools/dns-tls"
+        }
+      ],
+      "runbook": {
+        "objective": "Move authoritative DNS safely with visible propagation checks.",
+        "rollbackCondition": "Nameserver or record validation fails after cutover.",
+        "checklist": [
+          "Capture current DNS records",
+          "Lower TTL where appropriate",
+          "Prepare registrar cutover",
+          "Validate authoritative nameservers",
+          "Verify live site and TLS"
+        ]
+      },
+      "evidencePrompts": [
+        "before-records",
+        "registrar-cutover",
+        "authoritative-dns",
+        "live-site-validation"
+      ],
+      "policyLocks": [
+        "no-secrets",
+        "redaction-preview-required",
+        "local-first-tools"
+      ]
+    },
+    {
+      "id": "cloudflare-cutover",
+      "title": "Cloudflare Cutover",
+      "missionType": "migration",
+      "requestedLayout": "quad",
+      "expectedPaneCount": 4,
+      "profile": "change-record",
+      "safeUrls": [
+        {
+          "role": "primary-console",
+          "title": "Cloudflare Dashboard",
+          "url": "https://dash.cloudflare.com/"
+        },
+        {
+          "role": "docs",
+          "title": "Cloudflare Docs",
+          "url": "https://developers.cloudflare.com/"
+        },
+        {
+          "role": "live-target",
+          "title": "Target Site",
+          "url": "https://example.com/"
+        },
+        {
+          "role": "monitoring",
+          "title": "Status Check",
+          "url": "tahai-browser://local/opstools/endpoint-smoke"
+        }
+      ],
+      "runbook": {
+        "objective": "Cut traffic through Cloudflare while preserving rollback evidence.",
+        "rollbackCondition": "Origin health, TLS, redirects, or cache behavior fails validation.",
+        "checklist": [
+          "Confirm origin reachability",
+          "Apply DNS/proxy settings",
+          "Check redirect chain",
+          "Check TLS summary",
+          "Capture post-cutover smoke"
+        ]
+      },
+      "evidencePrompts": [
+        "origin-before",
+        "proxy-enabled",
+        "redirects",
+        "tls-summary",
+        "smoke-pass"
+      ],
+      "policyLocks": [
+        "no-secrets",
+        "external-http-warning",
+        "redaction-preview-required"
+      ]
+    },
+    {
+      "id": "github-actions-release",
+      "title": "GitHub Actions Release",
+      "missionType": "deployment",
+      "requestedLayout": "quad",
+      "expectedPaneCount": 4,
+      "profile": "internal-markdown",
+      "safeUrls": [
+        {
+          "role": "logs",
+          "title": "GitHub Actions",
+          "url": "https://github.com/"
+        },
+        {
+          "role": "docs",
+          "title": "Release Notes",
+          "url": "tahai-browser://local/runbook/release-notes"
+        },
+        {
+          "role": "live-target",
+          "title": "Staging/Production Target",
+          "url": "https://example.com/"
+        },
+        {
+          "role": "evidence",
+          "title": "Release Evidence",
+          "url": "tahai-browser://local/evidence/release"
+        }
+      ],
+      "runbook": {
+        "objective": "Run and validate a release with evidence capture.",
+        "rollbackCondition": "Build, deploy, smoke check, or checksum verification fails.",
+        "checklist": [
+          "Confirm source/tag",
+          "Monitor workflow",
+          "Validate artifact checksums",
+          "Smoke target",
+          "Capture release evidence"
+        ]
+      },
+      "evidencePrompts": [
+        "source-tag",
+        "workflow-log",
+        "checksum-manifest",
+        "target-smoke",
+        "release-summary"
+      ],
+      "policyLocks": [
+        "no-provider-secrets",
+        "local-evidence-only",
+        "redaction-preview-required"
+      ]
+    },
+    {
+      "id": "production-deployment",
+      "title": "Production Deployment",
+      "missionType": "deployment",
+      "requestedLayout": "quad",
+      "expectedPaneCount": 4,
+      "profile": "incident-packet",
+      "safeUrls": [
+        {
+          "role": "primary-console",
+          "title": "Deploy Console",
+          "url": "https://vercel.com/"
+        },
+        {
+          "role": "logs",
+          "title": "Deployment Logs",
+          "url": "https://github.com/"
+        },
+        {
+          "role": "live-target",
+          "title": "Production Site",
+          "url": "https://example.com/"
+        },
+        {
+          "role": "runbook",
+          "title": "Deployment Runbook",
+          "url": "tahai-browser://local/runbook/production-deployment"
+        }
+      ],
+      "runbook": {
+        "objective": "Deploy production changes with clear rollback and validation.",
+        "rollbackCondition": "Deployment health checks or user-visible validation fails.",
+        "checklist": [
+          "Verify deploy source",
+          "Watch logs",
+          "Run endpoint checks",
+          "Validate production UI",
+          "Capture final status"
+        ]
+      },
+      "evidencePrompts": [
+        "deploy-start",
+        "logs-clean",
+        "endpoint-check",
+        "production-ui",
+        "handoff-summary"
+      ],
+      "policyLocks": [
+        "explicit-operator-intent",
+        "no-automation-clicking",
+        "redaction-preview-required"
+      ]
+    },
+    {
+      "id": "certificate-renewal",
+      "title": "Certificate Renewal",
+      "missionType": "admin",
+      "requestedLayout": "quad",
+      "expectedPaneCount": 4,
+      "profile": "change-record",
+      "safeUrls": [
+        {
+          "role": "primary-console",
+          "title": "Certificate Provider",
+          "url": "https://letsencrypt.org/"
+        },
+        {
+          "role": "tool",
+          "title": "TLS Inspector",
+          "url": "tahai-browser://local/opstools/tls-summary"
+        },
+        {
+          "role": "live-target",
+          "title": "HTTPS Target",
+          "url": "https://example.com/"
+        },
+        {
+          "role": "evidence",
+          "title": "Certificate Evidence",
+          "url": "tahai-browser://local/evidence/certificate"
+        }
+      ],
+      "runbook": {
+        "objective": "Renew and prove TLS certificate health.",
+        "rollbackCondition": "Certificate chain, expiry, hostname, or HTTPS smoke fails.",
+        "checklist": [
+          "Capture current certificate",
+          "Renew certificate",
+          "Restart/reload service if needed",
+          "Validate chain and hostname",
+          "Capture post-renewal proof"
+        ]
+      },
+      "evidencePrompts": [
+        "pre-renewal-cert",
+        "renewal-action",
+        "chain-valid",
+        "expiry-valid",
+        "post-renewal-proof"
+      ],
+      "policyLocks": [
+        "no-private-key-export",
+        "redaction-preview-required",
+        "local-first-tools"
+      ]
+    },
+    {
+      "id": "m365-user-offboarding",
+      "title": "M365 User Offboarding",
+      "missionType": "admin",
+      "requestedLayout": "quad",
+      "expectedPaneCount": 4,
+      "profile": "sanitized-handoff",
+      "safeUrls": [
+        {
+          "role": "primary-console",
+          "title": "Microsoft 365 Admin",
+          "url": "https://admin.microsoft.com/"
+        },
+        {
+          "role": "vendor-portal",
+          "title": "Entra Admin",
+          "url": "https://entra.microsoft.com/"
+        },
+        {
+          "role": "ticket",
+          "title": "Ticket Reference",
+          "url": "tahai-browser://local/reference/ticket"
+        },
+        {
+          "role": "runbook",
+          "title": "Offboarding Runbook",
+          "url": "tahai-browser://local/runbook/m365-offboarding"
+        }
+      ],
+      "runbook": {
+        "objective": "Offboard a user with documented access and license checks.",
+        "rollbackCondition": "Account disable, session revoke, mailbox/license, or group changes cannot be confirmed.",
+        "checklist": [
+          "Confirm ticket scope",
+          "Block sign-in",
+          "Revoke sessions",
+          "Review groups and licenses",
+          "Capture sanitized completion note"
+        ]
+      },
+      "evidencePrompts": [
+        "scope-confirmed",
+        "signin-blocked",
+        "sessions-revoked",
+        "groups-reviewed",
+        "completion-note"
+      ],
+      "policyLocks": [
+        "psa-reference-only",
+        "no-direct-psa-api",
+        "no-secrets",
+        "redaction-preview-required"
+      ]
+    },
+    {
+      "id": "incident-triage",
+      "title": "Incident Triage",
+      "missionType": "incident",
+      "requestedLayout": "quad",
+      "expectedPaneCount": 4,
+      "profile": "incident-packet",
+      "safeUrls": [
+        {
+          "role": "monitoring",
+          "title": "Monitoring Dashboard",
+          "url": "tahai-browser://local/reference/monitoring"
+        },
+        {
+          "role": "logs",
+          "title": "Logs",
+          "url": "tahai-browser://local/reference/logs"
+        },
+        {
+          "role": "live-target",
+          "title": "Affected Service",
+          "url": "https://example.com/"
+        },
+        {
+          "role": "runbook",
+          "title": "Incident Runbook",
+          "url": "tahai-browser://local/runbook/incident-triage"
+        }
+      ],
+      "runbook": {
+        "objective": "Triage an incident with safe timeline and handoff capture.",
+        "rollbackCondition": "Scope, customer impact, mitigation, or verification cannot be established.",
+        "checklist": [
+          "Declare observed symptom",
+          "Capture service state",
+          "Collect safe logs summary",
+          "Track mitigation",
+          "Export incident packet"
+        ]
+      },
+      "evidencePrompts": [
+        "symptom",
+        "service-state",
+        "safe-log-summary",
+        "mitigation",
+        "incident-export"
+      ],
+      "policyLocks": [
+        "redact-logs",
+        "no-auth-headers",
+        "explicit-export-preview"
+      ]
+    },
+    {
+      "id": "vendor-support-handoff",
+      "title": "Vendor Support Handoff",
+      "missionType": "support",
+      "requestedLayout": "quad",
+      "expectedPaneCount": 4,
+      "profile": "sanitized-handoff",
+      "safeUrls": [
+        {
+          "role": "vendor-portal",
+          "title": "Vendor Portal",
+          "url": "https://example.com/"
+        },
+        {
+          "role": "docs",
+          "title": "Vendor Docs",
+          "url": "tahai-browser://local/reference/vendor-docs"
+        },
+        {
+          "role": "evidence",
+          "title": "Sanitized Evidence",
+          "url": "tahai-browser://local/evidence/vendor-handoff"
+        },
+        {
+          "role": "runbook",
+          "title": "Support Handoff Runbook",
+          "url": "tahai-browser://local/runbook/vendor-support-handoff"
+        }
+      ],
+      "runbook": {
+        "objective": "Prepare a vendor-safe packet without leaking credentials or tenant secrets.",
+        "rollbackCondition": "Required evidence contains unredacted sensitive content.",
+        "checklist": [
+          "Summarize issue",
+          "Attach sanitized screenshots/metadata",
+          "Remove secrets and IDs as needed",
+          "Add reproduction steps",
+          "Export handoff preview"
+        ]
+      },
+      "evidencePrompts": [
+        "issue-summary",
+        "sanitized-metadata",
+        "redaction-report",
+        "repro-steps",
+        "handoff-preview"
+      ],
+      "policyLocks": [
+        "sanitized-only",
+        "redaction-preview-required",
+        "no-tenant-secrets"
+      ]
+    }
+  ]
+}

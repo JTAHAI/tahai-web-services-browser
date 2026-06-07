@@ -1,6 +1,6 @@
 # PASS141 — Version/about/update-channel truth pass
 
-Version remains `1.8.30`.
+Current release truth is `2.0.14 / PASS341`.
 
 ## Completed
 
@@ -8,7 +8,7 @@ Version remains `1.8.30`.
 - Reused shared release truth from download UX source.
 - Updated main-process runtime config to expose safe release metadata: version, pass, channel, update channel, update policy, signing status, and public download/repo origins.
 - Replaced hard-coded OpsDiagnostics user-agent version with the shared release version.
-- Updated the local About page from stale `1.8.28 / PASS54 polish` copy to v1.8.30 / PASS141 / public-rc truth.
+- Updated the local About page from stale PASS54/PASS242 copy to the current v2.0.14 / PASS341 / public-rc truth.
 - Added `browser/about/release-truth.json` for static about-page/site-copy parity.
 - Documented manual update-channel posture: no silent auto-update in this preview lane.
 - Added verifier `scripts/verify-pass-141-version-about-update-channel-truth.mjs`.

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const requiredFiles = [
@@ -29,7 +30,7 @@ const pkg = JSON.parse(read('package.json'));
 if (pkg.scripts?.['verify:pass-204-operator-command-center-v2'] !== 'node scripts/verify-pass-204-operator-command-center-v2.mjs') {
   throw new Error('[PASS204][FAIL] package.json missing verify:pass-204-operator-command-center-v2 script.');
 }
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-204-operator-command-center-v2')) {
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-204-operator-command-center-v2')) {
   throw new Error('[PASS204][FAIL] verify:release-blockers does not include PASS204 verifier.');
 }
 

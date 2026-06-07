@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const required = [

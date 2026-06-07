@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function read(path) { return fs.readFileSync(path, 'utf8'); }
 function fail(message) { console.error(`[PASS192][FAIL] ${message}`); process.exit(1); }
@@ -15,8 +16,8 @@ const summary = read('PASS_192_TAB_STRIP_TITLEBAR_DRAG_FINAL_UX_SUMMARY.md');
 
 need(pkg.version === '1.8.30', 'version-must-not-change-without-explicit-approval');
 need(pkg.scripts?.['verify:pass-192-tab-strip-titlebar-drag-final-ux'] === 'node scripts/verify-pass-192-tab-strip-titlebar-drag-final-ux.mjs', 'package-script-missing');
-need(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-192-tab-strip-titlebar-drag-final-ux'), 'release-blockers-missing-pass192');
-need(pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-192-tab-strip-titlebar-drag-final-ux') > pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-191-address-bar-enterprise-reliability'), 'pass192-must-run-after-pass191');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-192-tab-strip-titlebar-drag-final-ux'), 'release-blockers-missing-pass192');
+need(getReleaseBlockersContract(pkg).indexOf('verify:pass-192-tab-strip-titlebar-drag-final-ux') > getReleaseBlockersContract(pkg).indexOf('verify:pass-191-address-bar-enterprise-reliability'), 'pass192-must-run-after-pass191');
 
 for (const token of [
   'PASS192_TITLEBAR_CHROME_FINAL_UX_VERSION',

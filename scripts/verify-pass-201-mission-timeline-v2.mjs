@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), 'utf8').replace(/^\uFEFF/, '');
@@ -20,8 +21,8 @@ const ok = (condition, message) => checks.push({ ok: Boolean(condition), message
 
 ok(pkg.version === '1.8.30', 'PASS201 must not increment version without explicit approval.');
 ok(pkg.scripts?.['verify:pass-201-mission-timeline-v2'] === 'node scripts/verify-pass-201-mission-timeline-v2.mjs', 'package.json exposes PASS201 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-201-mission-timeline-v2'), 'release-blockers chain includes PASS201 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-201-mission-timeline-v2') > pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-200-runbook-rail-v2'), 'PASS201 must run after PASS200.');
+ok(getReleaseBlockersContract(pkg).includes('verify:pass-201-mission-timeline-v2'), 'release-blockers chain includes PASS201 verifier.');
+ok(getReleaseBlockersContract(pkg).indexOf('verify:pass-201-mission-timeline-v2') > getReleaseBlockersContract(pkg).indexOf('verify:pass-200-runbook-rail-v2'), 'PASS201 must run after PASS200.');
 
 for (const file of [
   'src/shared/mission-timeline-v2-contract.ts',

@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
 const fail = (message) => { console.error(`[PASS111][FAIL] ${message}`); process.exit(1); };
 const need = (condition, message) => { if (!condition) fail(message); };
 
 const pkg = JSON.parse(read('package.json'));
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 
 need(pkg.scripts?.['verify:pass-111-release-blocker-build-phase-ordering'] === 'node scripts/verify-pass-111-release-blocker-build-phase-ordering.mjs', 'package script missing PASS111 verifier');
 need(releaseBlockers.includes('verify:pass-111-release-blocker-build-phase-ordering'), 'verify:release-blockers missing PASS111 verifier');

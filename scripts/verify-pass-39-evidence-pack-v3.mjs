@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const fail = (m) => { console.error(`PASS39_EVIDENCE_PACK_V3_FAIL=${m}`); process.exit(1); };
 const types = fs.readFileSync('src/shared/mission-types.ts','utf8');
 const pack = fs.readFileSync('src/shared/evidence-pack.ts','utf8');
@@ -10,5 +11,5 @@ for (const s of ['buildMissionEvidencePack','scanAndRedact','PSA writeback route
 if (!store.includes("buildMissionEvidencePack(mission, { profile: 'sanitized-handoff' }).redactedMarkdown")) fail('store-not-wired');
 if (!html.includes('Evidence Pack v3')) fail('ui-copy-missing');
 if (!pkg.scripts?.['verify:pass-39-evidence-pack-v3']) fail('package-script-missing');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-39-evidence-pack-v3')) fail('release-blockers-not-wired');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-39-evidence-pack-v3')) fail('release-blockers-not-wired');
 console.log('PASS39_EVIDENCE_PACK_V3_OK=1');

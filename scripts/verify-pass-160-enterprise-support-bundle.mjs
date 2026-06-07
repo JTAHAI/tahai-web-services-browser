@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -16,7 +17,7 @@ const includesAll = (file, tokens) => {
 };
 
 const pkg = json('package.json');
-const blockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const blockers = getReleaseBlockersContract(pkg);
 const main = read('src/main/main.ts');
 const preload = read('src/preload/preload.ts');
 const globals = read('src/renderer/global.d.ts');

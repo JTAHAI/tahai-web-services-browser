@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS271",
+  "versionTarget": "2.0.14",
+  "title": "Release Candidate Flagship Freeze Gate evidence",
+  "storeSubmission": "not-submitted",
+  "storeApproval": "not-approved",
+  "publicGaClaim": false,
+  "signedReleaseClaim": false,
+  "operatorApproval": false,
+  "releaseManagerApproval": false,
+  "releaseCandidate": {
+    "freezeApproved": false,
+    "publicReleaseApproved": false,
+    "storeSubmissionApproved": false,
+    "gaApproved": false,
+    "signedReleaseApproved": false
+  },
+  "installedPackage": {
+    "version": "2.0.14",
+    "type": "REPLACE_WITH_MSI_OR_MSIX_OR_NSIS",
+    "path": "REPLACE_WITH_INSTALLED_PACKAGE_PATH_OR_ARTIFACT_NAME",
+    "sha256": "REPLACE_WITH_64_CHAR_SHA256",
+    "sourceCommit": "REPLACE_WITH_SOURCE_COMMIT",
+    "installedAppLaunchProof": "REPLACE_WITH_REAL_PROOF_REFERENCE"
+  },
+  "sourceVerifierChain": [
+    {
+      "pass": "PASS267",
+      "command": "npm run verify:pass-267-installed-mission-control-brutal-runtime-harness",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "pass": "PASS268",
+      "command": "npm run verify:pass-268-webview-dom-ready-lifecycle-hardening",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "pass": "PASS269",
+      "command": "npm run verify:pass-269-active-pane-routing-input-focus-regression-closeout",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "pass": "PASS270",
+      "command": "npm run verify:pass-270-restored-maximized-small-window-visual-soak",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "pass": "PASS271",
+      "command": "npm run verify:pass-271-release-candidate-flagship-freeze-gate",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    }
+  ],
+  "requiredRuntimeAssertions": {
+    "missionControlLoadsWithoutRuntimeErrors": false,
+    "missionRecipesSelectAndStart": false,
+    "quadTriSplitFocusLayoutsPreserveVisiblePanes": false,
+    "webviewDomReadyQueueHasNoEarlyCommandError": false,
+    "activePaneRoutingTargetsFocusedPane": false,
+    "inputFocusRecoversFromOverlaysAndWebviews": false,
+    "restoredMaximizedSmall1080pWideVisualSoakPasses": false,
+    "commandCenterMoreToolsMissionSettingsKbNotClipped": false,
+    "runbookRailEvidencePackAndExportPreviewPass": false,
+    "installedWindowsSmokeEvidencePresent": false,
+    "noBlackOrBottomOnlyWebviewPanes": false,
+    "noContentPaneSliver": false,
+    "noOrphanedActivePane": false,
+    "noUnhandledRendererErrors": false,
+    "evidenceExportPreviewRedactionPasses": false,
+    "knownIssuesReviewedNoFlagshipReleaseBlocker": false
+  },
+  "surfaceMatrix": [
+    {
+      "surface": "Mission Control",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "Mission Recipes",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "Mission Cards",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "Split/Tri/Quad/Focus layouts",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "WebView panes",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "Active pane routing",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "Input/focus recovery",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "Runbook Rail",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "Evidence Pack/export",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "Command Center",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "More Tools / DevOps / IT Tools",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "Settings",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    },
+    {
+      "surface": "KB/Guide",
+      "result": "PENDING",
+      "evidence": "PENDING"
+    }
+  ],
+  "windowEvidence": [
+    {
+      "profile": "restored-compact-1280x720",
+      "result": "PENDING",
+      "screenshot": "PENDING"
+    },
+    {
+      "profile": "small-laptop-1366x768",
+      "result": "PENDING",
+      "screenshot": "PENDING"
+    },
+    {
+      "profile": "1080p-1920x1080",
+      "result": "PENDING",
+      "screenshot": "PENDING"
+    },
+    {
+      "profile": "wide-2560x1440",
+      "result": "PENDING",
+      "screenshot": "PENDING"
+    },
+    {
+      "profile": "maximized-available-screen",
+      "result": "PENDING",
+      "screenshot": "PENDING"
+    }
+  ],
+  "knownIssues": {
+    "reviewed": false,
+    "releaseBlockingIssues": [],
+    "knownIssuesDocument": "PENDING"
+  },
+  "screenshots": [],
+  "notes": "Fill each evidence field with real local installed-app proof before running the PASS271 gate."
+}

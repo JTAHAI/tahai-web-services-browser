@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
@@ -30,7 +31,7 @@ if (!failures.length) {
   const doc = read('docs/pass-175-icon-screen-size-ux-hardening.md');
   const summary = read('PASS_175_ICON_SCREEN_SIZE_UX_HARDENING_SUMMARY.md');
   const pkg = JSON.parse(read('package.json'));
-  const releaseBlockers = pkg.scripts?.['verify:release-blockers'] || '';
+  const releaseBlockers = getReleaseBlockersContract(pkg);
 
   need(pkg.version === '1.8.30', 'PASS175 must not increment version without explicit approval.');
   need(pkg.scripts?.['verify:pass-175-icon-screen-size-ux-hardening'] === 'node scripts/verify-pass-175-icon-screen-size-ux-hardening.mjs', 'package.json must expose PASS175 verifier.');

@@ -60,20 +60,9 @@ const handoffRoot = process.env.TAHAI_WINDOWS_SOURCE_ROOT
 
 const listFiles = (dir) => {
   if (!fs.existsSync(dir)) return [];
-  const output = [];
-  const visit = (abs) => {
-    for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
-      const child = path.join(abs, entry.name);
-      if (entry.isDirectory()) {
-        if (path.resolve(child) === path.resolve(handoffRoot)) continue;
-        visit(child);
-      } else if (entry.isFile()) {
-        output.push(child);
-      }
-    }
-  };
-  visit(dir);
-  return output;
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => path.join(dir, entry.name));
 };
 
 const releaseFiles = listFiles(sourceReleaseDir);

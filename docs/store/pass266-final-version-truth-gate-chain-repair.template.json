@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS266",
+  "packName": "TAHAI Browser Final Version Truth + Store Gate Chain Repair",
+  "status": "TEMPLATE_PENDING_REAL_FINAL_VERSION_EVIDENCE",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 5,
+  "generatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+  "preparedBy": "REPLACE_WITH_OPERATOR_NAME",
+  "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+  "packageVersion": "2.0.14",
+  "repairScope": {
+    "pass260ThroughPass265UseOneFinalPackageVersion": true,
+    "historicalPassProvenancePreserved": true,
+    "finalEvidencePackageVersion": "2.0.14",
+    "noStoreSubmissionPerformedByThisPass": true,
+    "storeSubmissionStatus": "not-submitted",
+    "storeApprovalStatus": "not-approved"
+  },
+  "scriptTruth": {
+    "pass260GateRequiresFinalVersion": false,
+    "pass261GateRequiresFinalVersion": false,
+    "pass262GateRequiresFinalVersion": false,
+    "pass263GateRequiresFinalVersion": false,
+    "pass264GateRequiresFinalVersion": false,
+    "pass265GateRequiresFinalVersion": false,
+    "pass260VerifierRequiresFinalVersion": false,
+    "pass261VerifierRequiresFinalVersion": false,
+    "pass262VerifierRequiresFinalVersion": false,
+    "pass263VerifierRequiresFinalVersion": false,
+    "pass264VerifierRequiresFinalVersion": false,
+    "pass265VerifierRequiresFinalVersion": false
+  },
+  "templateTruth": {
+    "pass260TemplateFinalVersion": false,
+    "pass261TemplateFinalVersion": false,
+    "pass262TemplateFinalVersion": false,
+    "pass263TemplateFinalVersion": false,
+    "pass264TemplateFinalVersion": false,
+    "pass265TemplateFinalVersion": false,
+    "runtimeFixturesFinalVersion": false
+  },
+  "priorEvidenceVersionMatrix": [
+    {
+      "pass": "PASS260",
+      "requiredGate": "npm run gate:pass-260-installed-recipe-quad-store-smoke",
+      "evidencePath": "release-candidate/store-submission/pass260-installed-recipe-quad-smoke-evidence.json",
+      "packageVersion": "2.0.14",
+      "versionMatchesFinalPackage": false,
+      "gateOutputCaptured": false
+    },
+    {
+      "pass": "PASS261",
+      "requiredGate": "npm run gate:pass-261-store-submission-packet",
+      "evidencePath": "release-candidate/store-submission/pass261-store-submission-packet.json",
+      "packageVersion": "2.0.14",
+      "versionMatchesFinalPackage": false,
+      "gateOutputCaptured": false
+    },
+    {
+      "pass": "PASS262",
+      "requiredGate": "npm run gate:pass-262-store-asset-evidence-pack",
+      "evidencePath": "release-candidate/store-submission/pass262-store-asset-evidence-pack.json",
+      "packageVersion": "2.0.14",
+      "versionMatchesFinalPackage": false,
+      "gateOutputCaptured": false
+    },
+    {
+      "pass": "PASS263",
+      "requiredGate": "npm run gate:pass-263-store-listing-copy-truth-pack",
+      "evidencePath": "release-candidate/store-submission/pass263-store-listing-copy-truth-pack.json",
+      "packageVersion": "2.0.14",
+      "versionMatchesFinalPackage": false,
+      "gateOutputCaptured": false
+    },
+    {
+      "pass": "PASS264",
+      "requiredGate": "npm run gate:pass-264-store-submission-dry-run-evidence",
+      "evidencePath": "release-candidate/store-submission/pass264-store-submission-dry-run-evidence.json",
+      "packageVersion": "2.0.14",
+      "versionMatchesFinalPackage": false,
+      "gateOutputCaptured": false
+    },
+    {
+      "pass": "PASS265",
+      "requiredGate": "npm run gate:pass-265-store-handoff-freeze-operator-approval",
+      "evidencePath": "release-candidate/store-submission/pass265-store-handoff-freeze-operator-approval.json",
+      "packageVersion": "2.0.14",
+      "versionMatchesFinalPackage": false,
+      "gateOutputCaptured": false
+    }
+  ],
+  "releaseTruth": {
+    "microsoftStoreSubmissionClaim": "not-submitted",
+    "microsoftStoreApprovalClaim": "not-approved",
+    "publicGaClaim": false,
+    "directMsiExeSigningStatus": "unsigned-preview",
+    "noSignedInstallerClaimUnlessSeparatelyEvidenced": true,
+    "noITDocsBackendOrPSAConnectorClaim": true,
+    "noDirectPSAApiOrSecretStorageClaim": true
+  },
+  "operatorApproval": {
+    "approvedVersionRepair": false,
+    "approvedToProceedToPass267RuntimeHarness": false,
+    "approvedForPartnerCenterManualSubmission": false,
+    "approvedForPublicGA": false,
+    "approvedBy": "REPLACE_WITH_OPERATOR_NAME",
+    "approvedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+    "notes": "PENDING_REAL_OPERATOR_REVIEW"
+  },
+  "goNoGo": {
+    "status": "NO_GO",
+    "reason": "Template only. Fill with real version-truth review before relying on PASS260-PASS265 as one final package evidence chain.",
+    "readyForPass267": false,
+    "readyForPartnerCenterSubmission": false,
+    "readyForPublicGA": false
+  }
+}

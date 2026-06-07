@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const fail = (message) => {
@@ -69,7 +70,7 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8').
 if (pkg.scripts?.['verify:ui-encoding'] !== 'node scripts/verify-ui-encoding.mjs') {
   fail('package.json missing verify:ui-encoding script');
 }
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:ui-encoding')) {
+if (!getReleaseBlockersContract(pkg).includes('verify:ui-encoding')) {
   fail('verify:release-blockers does not include verify:ui-encoding');
 }
 if (badChars.some((char) => String(pkg.build?.copyright || '').includes(char))) {

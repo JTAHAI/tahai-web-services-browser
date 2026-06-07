@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const fail = (m) => { console.error(`PASS42_PSA_REFERENCE_CONTRACT_FAIL=${m}`); process.exit(1); };
 const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
 const shared = fs.readFileSync('src/shared/psa-reference-contract.ts','utf8');
@@ -27,7 +28,7 @@ for (const [content, needle, code] of [
   if (!content.includes(needle)) fail(code);
 }
 if (!pkg.scripts?.['verify:pass-42-psa-reference-contract']) fail('package-script-missing');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-42-psa-reference-contract')) fail('release-blockers-not-wired');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-42-psa-reference-contract')) fail('release-blockers-not-wired');
 const combined = [shared, types, validator, main, preload, renderer].join('\n');
 for (const pattern of [
   /psa:direct-fetch/i,

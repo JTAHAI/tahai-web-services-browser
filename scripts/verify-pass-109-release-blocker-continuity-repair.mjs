@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -50,7 +51,7 @@ function assertGeneratedArtifactHygiene() {
 
 const pkg = JSON.parse(read('package.json'));
 const next = read('NEXT_CHAT_STARTER.md');
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 const passScript = String(pkg.scripts?.['verify:pass-109-release-blocker-continuity-repair'] || '');
 
 includes('NEXT_CHAT_STARTER.md', 'PASS86');

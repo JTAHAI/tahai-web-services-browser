@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -9,6 +11,14 @@ const exists = (p) => fs.existsSync(rel(p));
 const read = (p) => fs.readFileSync(rel(p), 'utf8').replace(/^\uFEFF/, '');
 const json = (p) => JSON.parse(read(p));
 const need = (ok, message) => { if (!ok) errors.push(message); };
+const gitTracked = (p) => {
+  try {
+    execFileSync('git', ['ls-files', '--error-unmatch', p], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+};
 const includesAll = (file, tokens) => {
   const text = read(file);
   for (const token of tokens) need(text.includes(token), `${file} missing ${token}`);
@@ -16,9 +26,10 @@ const includesAll = (file, tokens) => {
 };
 
 const pkg = json('package.json');
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
+const expectedVersion = '2.0.14';
 
-need(pkg.version === '1.8.30', `version must remain 1.8.30 for PASS146, found ${pkg.version}`);
+need(pkg.version === expectedVersion, `version must remain ${expectedVersion} for PASS146, found ${pkg.version}`);
 need(pkg.scripts?.['evidence:windows-installed-smoke'] === 'powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\run-pass146-windows-installed-smoke.ps1', 'package missing evidence:windows-installed-smoke script');
 need(pkg.scripts?.['verify:pass-146-windows-installed-smoke'] === 'node scripts/verify-pass-146-windows-installed-smoke.mjs', 'package missing PASS146 verifier script');
 
@@ -67,7 +78,7 @@ const runner = includesAll('scripts/run-pass146-windows-installed-smoke.ps1', [
   '$InstalledExePath',
   '$InstallerType',
   '$InstallerPath',
-  '$ExpectedVersion = \'1.8.30\'',
+  `$ExpectedVersion = '${expectedVersion}'`,
   '$Launch',
   '$OutputDir = \'artifacts/windows-installed-smoke\'',
   'TAHAI Web Services Browser.exe',
@@ -88,7 +99,7 @@ const docs = includesAll('docs/windows-installed-smoke-pass146.md', [
   'Windows manual smoke checklist',
   'evidence runner',
   'installed Windows app',
-  'Version remains `1.8.30`',
+  `Version remains \`${expectedVersion}\``,
   'manual-release',
   'unsigned preview',
   'npm run package:win:release',
@@ -116,7 +127,7 @@ need(!/manual installed-app success until/i.test(docs) || docs.includes('No clai
 includesAll('PASS_146_WINDOWS_INSTALLED_SMOKE_CHECKLIST_SUMMARY.md', [
   'PASS146',
   'Windows Installed-App Smoke Checklist',
-  'Version remains `1.8.30`',
+  `Version remains \`${expectedVersion}\``,
   'src/shared/windows-installed-smoke-contract.ts',
   'scripts/run-pass146-windows-installed-smoke.ps1',
   'scripts/verify-pass-146-windows-installed-smoke.mjs',
@@ -138,7 +149,7 @@ const generatedForbidden = [
   'release/windows/TAHAI-Windows-installers-manifest.json',
   'release/windows/TAHAI-Windows-installers-SHA256SUMS.txt',
 ];
-for (const file of generatedForbidden) need(!exists(file), `generated output must not be committed: ${file}`);
+for (const file of generatedForbidden) need(!gitTracked(file), `generated output must not be tracked for commit: ${file}`);
 
 const allPass146Text = [contract, runner, docs, read('PASS_146_WINDOWS_INSTALLED_SMOKE_CHECKLIST_SUMMARY.md')].join('\n');
 need(!/psa[_-]?api[_-]?key\s*[:=]/i.test(allPass146Text), 'PASS146 must not include PSA credential assignment examples');

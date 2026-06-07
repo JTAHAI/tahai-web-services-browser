@@ -1,7 +1,7 @@
 import type { ItDocsMissionCapabilities } from '../shared/itdocs-contract';
 import type { EnterpriseAdminPolicyState } from '../shared/enterprise-admin-policy-contract';
 import type { EnterpriseSupportBundleResult } from '../shared/enterprise-support-bundle-contract';
-import type { BrowserProfileInput, BrowserProfileState, BrowserProfileUpdateInput, ClearBrowsingDataOptions, ClearBrowsingDataResult, DevOpsCaptureSaveResult, DownloadArtifactRevealResult, DownloadState, ItServiceCardDiagnostics, MissionApiDeleteResult, MissionApiExportResult, MissionApiListResult, MissionApiLoadResult, MissionApiSaveResult, MissionApiState, OpsUrlDiagnostics, TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
+import type { BrowserProfileInput, BrowserProfileState, BrowserProfileUpdateInput, ClearBrowsingDataOptions, ClearBrowsingDataResult, DevOpsCaptureSaveResult, DownloadArtifactRevealResult, DownloadState, ItServiceCardDiagnostics, MissionApiDeleteResult, MissionApiExportResult, MissionApiListResult, MissionApiLoadResult, MissionApiSaveResult, MissionApiState, OpsUrlDiagnostics, RuntimeControlState, RuntimeE2eRendererReport, TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
 import type { Pass188InputBoundaryPayload } from '../shared/webview-focus-input-boundary-contract';
 
 declare global {
@@ -11,6 +11,9 @@ declare global {
       run: () => Promise<{ ok: boolean; pass: 'PASS158'; contractId: string; scenarioCount: number; results: Array<{ id: string; ok: boolean; detail: string }> }>;
     };
     tahaiBrowser: {
+      notifyRendererReady: () => Promise<boolean>;
+      getRuntimeControl: () => Promise<RuntimeControlState>;
+      reportRuntimeE2eResult: (report: RuntimeE2eRendererReport) => Promise<boolean>;
       getConfig: () => Promise<TahaiBrowserConfig>;
       getSettings: () => Promise<TahaiBrowserSettings>;
       getAdminPolicy: () => Promise<EnterpriseAdminPolicyState>;

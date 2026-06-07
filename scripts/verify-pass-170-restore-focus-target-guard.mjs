@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8').replace(/^\uFEFF/, '');
@@ -23,7 +24,7 @@ for (const file of required) need(exists(file), `missing ${file}`);
 
 if (!failures.length) {
   const pkg = JSON.parse(read('package.json'));
-  const release = pkg.scripts?.['verify:release-blockers'] || '';
+  const release = getReleaseBlockersContract(pkg);
   const html = read('src/renderer/index.html');
   const app = read('src/renderer/app.ts');
   const responsive = read('src/renderer/responsive-toolbar.ts');

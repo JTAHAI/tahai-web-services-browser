@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS260",
+  "submissionGate": "INSTALLED_RECIPE_QUAD_STORE_SMOKE",
+  "status": "BLOCKED_UNTIL_FILLED_WITH_REAL_INSTALLED_APP_EVIDENCE",
+  "testedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+  "tester": "REPLACE_WITH_OPERATOR_NAME",
+  "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+  "packageTruth": {
+    "packageType": "msix-or-msi",
+    "packagePath": "REPLACE_WITH_LOCAL_PACKAGE_PATH_OR_ARTIFACT_NAME",
+    "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+    "packageSizeBytes": 0,
+    "packageInstalledForSmoke": false,
+    "packageVersion": "2.0.14",
+    "packageIdentity": "REPLACE_WITH_MSIX_OR_APP_IDENTITY_IF_APPLICABLE"
+  },
+  "installedAppTruth": {
+    "appLaunchedFromInstall": false,
+    "aboutVersionShows": "2.0.14",
+    "noRendererBootError": false,
+    "noWebViewDomReadyError": false,
+    "noConsoleUnhandledRejection": false,
+    "windowResizeSmokePassed": false,
+    "evidenceExportPreviewOpened": false
+  },
+  "sourceVerification": {
+    "verifyPass250": "PENDING",
+    "verifyPass251": "PENDING",
+    "verifyPass252": "PENDING",
+    "verifyPass253": "PENDING",
+    "verifyPass254": "PENDING",
+    "verifyPass255": "PENDING",
+    "verifyPass256": "PENDING",
+    "verifyPass257": "PENDING",
+    "verifyPass258": "PENDING",
+    "verifyPass259": "PENDING",
+    "verifyPass260": "PENDING",
+    "releaseBlockers": "PENDING"
+  },
+  "recipeSmoke": [
+    {
+      "recipeId": "dns-migration",
+      "result": "PENDING",
+      "selected": false,
+      "started": false,
+      "missionCreated": false,
+      "paneCount": 0,
+      "exportPreview": false,
+      "notes": ""
+    },
+    {
+      "recipeId": "cloudflare-cutover",
+      "result": "PENDING",
+      "selected": false,
+      "started": false,
+      "missionCreated": false,
+      "paneCount": 0,
+      "exportPreview": false,
+      "notes": ""
+    },
+    {
+      "recipeId": "github-actions-release",
+      "result": "PENDING",
+      "selected": false,
+      "started": false,
+      "missionCreated": false,
+      "paneCount": 0,
+      "exportPreview": false,
+      "notes": ""
+    },
+    {
+      "recipeId": "production-deployment",
+      "result": "PENDING",
+      "selected": false,
+      "started": false,
+      "missionCreated": false,
+      "paneCount": 0,
+      "exportPreview": false,
+      "notes": ""
+    },
+    {
+      "recipeId": "certificate-renewal",
+      "result": "PENDING",
+      "selected": false,
+      "started": false,
+      "missionCreated": false,
+      "paneCount": 0,
+      "exportPreview": false,
+      "notes": ""
+    },
+    {
+      "recipeId": "m365-user-offboarding",
+      "result": "PENDING",
+      "selected": false,
+      "started": false,
+      "missionCreated": false,
+      "paneCount": 0,
+      "exportPreview": false,
+      "notes": ""
+    },
+    {
+      "recipeId": "incident-triage",
+      "result": "PENDING",
+      "selected": false,
+      "started": false,
+      "missionCreated": false,
+      "paneCount": 0,
+      "exportPreview": false,
+      "notes": ""
+    },
+    {
+      "recipeId": "vendor-support-handoff",
+      "result": "PENDING",
+      "selected": false,
+      "started": false,
+      "missionCreated": false,
+      "paneCount": 0,
+      "exportPreview": false,
+      "notes": ""
+    }
+  ],
+  "layoutStress": {
+    "result": "PENDING",
+    "cyclesCompleted": 0,
+    "sequence": [
+      "single",
+      "split-horizontal",
+      "triple-top",
+      "triple-bottom",
+      "triple-left",
+      "triple-right",
+      "quad",
+      "focus",
+      "quad",
+      "single"
+    ],
+    "smallRestoredPassed": false,
+    "restoredLaptopPassed": false,
+    "maximized1080pPassed": false
+  },
+  "paneHealth": {
+    "result": "PENDING",
+    "noBlankPanes": false,
+    "noBottomOnlyWebview": false,
+    "noOrphanedWebview": false,
+    "noHiddenActivePane": false,
+    "usefulPlaceholderForEmptyPane": false,
+    "focusRestorePassed": false,
+    "activePaneRoutingPassed": false
+  },
+  "exportPreview": {
+    "result": "PENDING",
+    "openedForEveryRecipe": false,
+    "redactionPreviewVisible": false,
+    "noSecretsInPreview": false
+  },
+  "storeTruth": {
+    "microsoftStoreSubmissionClaim": "not-submitted",
+    "microsoftStoreApprovalClaim": "not-approved",
+    "directMsiExeSigningStatus": "unsigned-preview",
+    "msixStoreSigningTruthPreserved": true
+  },
+  "blockers": [
+    "Fill this template only with real installed Windows smoke results. Do not mark PASS from source-only checks."
+  ]
+}

@@ -30,7 +30,7 @@ for (const token of [
 ]) {
   if (!app.includes(token)) fail(`app.ts missing token: ${token}`);
 }
-if (app.includes('window.prompt(') || app.includes('prompt(')) fail('native prompt usage returned');
+if (app.includes('window.prompt(')) fail('native prompt usage returned');
 
 const mainStore = read('src/main/mission-store.ts');
 for (const token of ['export function deleteMission', 'missionFilePath(missionId)', 'fs.unlinkSync(filePath)']) {

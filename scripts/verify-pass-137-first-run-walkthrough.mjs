@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -108,7 +109,7 @@ if (!failures.length) {
   need(summary.includes('1.8.30 unchanged'), 'PASS137 summary must preserve version truth');
 
   need(pkg.scripts?.['verify:pass-137-first-run-walkthrough'] === 'node scripts/verify-pass-137-first-run-walkthrough.mjs', 'package.json missing PASS137 verifier script');
-  need(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-137-first-run-walkthrough'), 'verify:release-blockers missing PASS137 verifier');
+  need(getReleaseBlockersContract(pkg).includes('verify:pass-137-first-run-walkthrough'), 'verify:release-blockers missing PASS137 verifier');
 }
 
 if (failures.length) {

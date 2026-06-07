@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function read(path) { return fs.readFileSync(path, 'utf8'); }
 function fail(message) { console.error(`[PASS193][FAIL] ${message}`); process.exit(1); }
@@ -15,8 +16,8 @@ const summary = read('PASS_193_BOOKMARKS_ADMIN_LAUNCH_RELIABILITY_SUMMARY.md');
 
 need(pkg.version === '1.8.30', 'version-must-not-change-without-explicit-approval');
 need(pkg.scripts?.['verify:pass-193-bookmarks-admin-launch-reliability'] === 'node scripts/verify-pass-193-bookmarks-admin-launch-reliability.mjs', 'package-script-missing');
-need(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-193-bookmarks-admin-launch-reliability'), 'release-blockers-missing-pass193');
-need(pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-193-bookmarks-admin-launch-reliability') > pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-192-tab-strip-titlebar-drag-final-ux'), 'pass193-must-run-after-pass192');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-193-bookmarks-admin-launch-reliability'), 'release-blockers-missing-pass193');
+need(getReleaseBlockersContract(pkg).indexOf('verify:pass-193-bookmarks-admin-launch-reliability') > getReleaseBlockersContract(pkg).indexOf('verify:pass-192-tab-strip-titlebar-drag-final-ux'), 'pass193-must-run-after-pass192');
 
 for (const token of [
   'PASS193_BOOKMARK_ADMIN_LAUNCH_RELIABILITY_VERSION',

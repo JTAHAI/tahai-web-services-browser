@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS92 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -16,5 +17,5 @@ includes('src/renderer/app.ts',["import { missionStateInvariantIssues } from '..
 includes('src/renderer/styles/browser.css',['mission state invariant safety','body.pass92-mission-invariant-warning #mission-status','invariant guard active']);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-92-mission-state-invariant-guard']==='node scripts/verify-pass-92-mission-state-invariant-guard.mjs','package.json missing PASS92 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-92-mission-state-invariant-guard'),'release blockers missing PASS92 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-92-mission-state-invariant-guard'),'release blockers missing PASS92 verifier');
 console.log('PASS92 mission state invariant guard verification passed.');

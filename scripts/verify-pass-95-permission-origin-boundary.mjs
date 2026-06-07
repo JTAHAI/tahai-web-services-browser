@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS95 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -44,5 +45,5 @@ includes('src/renderer/index.html',['data-pass95-permission-boundary="true"','Pe
 includes('src/renderer/styles/browser.css',['PASS95 origin-aware permission boundary','.permission-boundary-note','Permission safety']);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-95-permission-origin-boundary']==='node scripts/verify-pass-95-permission-origin-boundary.mjs','package.json missing PASS95 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-95-permission-origin-boundary'),'release blockers missing PASS95 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-95-permission-origin-boundary'),'release blockers missing PASS95 verifier');
 console.log('PASS95 permission origin boundary verification passed.');

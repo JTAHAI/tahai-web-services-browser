@@ -1,15 +1,15 @@
 # PASS247 — Windows Store / MSIX Readiness v1
 
-PASS247 starts the Microsoft Store/MSIX lane after the 2.0.0 polish release. It is a source-side readiness pass only. Store submission remains blocked until installed smoke testing, Partner Center identity, package evidence, privacy/support links, and release-truth gates are clean.
+PASS247 starts the Microsoft Store/MSIX lane after the 2.0.14 polish release. It is a source-side readiness pass only. Store submission remains blocked until installed smoke testing, Partner Center identity, package evidence, privacy/support links, and release-truth gates are clean.
 
 ## What changed
 
-- Corrected source version truth to `2.0.0` in `package.json`, `package-lock.json`, and `src/shared/release-truth.ts`.
+- Corrected source version truth to `2.0.14` in `package.json`, `package-lock.json`, and `src/shared/release-truth.ts`.
 - Added a Windows-only `package:win:msix` lane that builds the app, creates a Windows unpacked app, copies Store/MSIX assets, renders a manifest, and delegates MSIX packing to Microsoft WinApp CLI.
 - Added MSIX readiness config and manifest template with placeholder Store identity values.
-- Added Store listing/submission packet source draft for 2.0.0.
+- Added Store listing/submission packet source draft for 2.0.14.
 - Added Store/MSIX placeholder assets derived from the TAHAI spider icon.
-- Added `verify:store:git` for real-repo clean status and `v2.0.0` tag verification.
+- Added `verify:store:git` for real-repo clean status and `v2.0.14` tag verification.
 - Added generated-artifact exclusions for MSIX, APPX, Partner Center, and signing files.
 
 ## Commands
@@ -32,7 +32,7 @@ The MSIX lane can prepare a local package, but source checks do not approve Micr
 
 ## Blockers before Store submission
 
-- Real repo must be clean and tagged `v2.0.0` at the submitted commit.
+- Real repo must be clean and tagged `v2.0.14` at the submitted commit.
 - Installed Windows smoke must pass from the installed package, not just source.
 - Partner Center app name and package identity must be reserved.
 - Placeholder manifest publisher values must be replaced with final Partner Center identity.

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -32,7 +33,7 @@ if (exists('package.json')) {
   const pkg = JSON.parse(read('package.json'));
   if (!pkg.scripts?.['pass62:apply']) fail('package.json missing pass62:apply script');
   if (!pkg.scripts?.['verify:pass-62-layout-event-type-fix']) fail('package.json missing verify:pass-62-layout-event-type-fix script');
-  const blockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+  const blockers = getReleaseBlockersContract(pkg);
   if (blockers && !blockers.includes('verify:pass-62-layout-event-type-fix')) {
     fail('verify:release-blockers does not include PASS 62 verifier');
   }

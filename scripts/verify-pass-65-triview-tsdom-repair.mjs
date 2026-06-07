@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -52,7 +53,7 @@ if (exists('package.json')) {
   const pkg = JSON.parse(read('package.json'));
   if (!pkg.scripts?.['pass65:apply']) fail('package.json missing pass65:apply script');
   if (!pkg.scripts?.['verify:pass-65-triview-tsdom-repair']) fail('package.json missing verify:pass-65-triview-tsdom-repair script');
-  const blockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+  const blockers = getReleaseBlockersContract(pkg);
   if (blockers && !blockers.includes('verify:pass-65-triview-tsdom-repair')) {
     fail('verify:release-blockers does not include PASS65 verifier');
   }

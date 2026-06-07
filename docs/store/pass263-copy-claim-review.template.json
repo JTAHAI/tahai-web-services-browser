@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS263",
+  "versionTarget": "2.0.14",
+  "status": "TEMPLATE_PENDING_COPY_CLAIM_REVIEW",
+  "remainingPassesAfterThisPass": 2,
+  "prohibitedClaims": [
+    "microsoft store approved",
+    "store approved",
+    "store certified",
+    "submitted to microsoft store",
+    "available in the microsoft store",
+    "signed msi",
+    "signed exe",
+    "public ga",
+    "general availability",
+    "direct psa integration",
+    "direct psa api",
+    "psa connector included",
+    "stores psa tokens",
+    "stores provider secrets",
+    "credential vault",
+    "automatic ticket writeback"
+  ],
+  "requiredTruthStatements": [
+    "Microsoft Store submission remains not-submitted until operator approval and Partner Center upload are complete.",
+    "Microsoft Store approval remains not-approved until Microsoft approves the package.",
+    "Direct MSI/EXE distribution remains unsigned-preview unless separate trusted signing evidence exists.",
+    "IT Docs and PSA references are browser-side contracts only in this repo.",
+    "The browser does not store PSA/API/provider secrets in mission files."
+  ],
+  "reviewRows": [
+    {
+      "claim": "microsoft store approved",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "store approved",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "store certified",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "submitted to microsoft store",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "available in the microsoft store",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "signed msi",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "signed exe",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "public ga",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "general availability",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "direct psa integration",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "direct psa api",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "psa connector included",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "stores psa tokens",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "stores provider secrets",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "credential vault",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    },
+    {
+      "claim": "automatic ticket writeback",
+      "result": "PENDING",
+      "notes": "Confirm this claim does not appear in Store copy, screenshots, public URLs, or reviewer notes."
+    }
+  ],
+  "positiveClaimsAllowed": [
+    "Chromium/Electron-based IT and DevOps command browser.",
+    "Mission Control, split/tri/quad/focus layouts, Runbook Rail, Evidence Pack, and Operator Command Center are browser-side features.",
+    "IT Docs and PSA integrations are browser-side references/contracts only in this repo.",
+    "Store submission and approval are not claimed until real Partner Center evidence exists."
+  ]
+}

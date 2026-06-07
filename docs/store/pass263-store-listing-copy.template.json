@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS263",
+  "packName": "TAHAI Web Services Browser Store Listing Copy Truth Pack",
+  "status": "TEMPLATE_PENDING_FINAL_COPY_AND_REVIEW",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 2,
+  "generatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+  "preparedBy": "REPLACE_WITH_OPERATOR_NAME",
+  "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+  "storeTruth": {
+    "microsoftStoreSubmissionClaim": "not-submitted",
+    "microsoftStoreApprovalClaim": "not-approved",
+    "directMsiExeSigningStatus": "unsigned-preview",
+    "publicGaClaim": false,
+    "listingCopyDoesNotSubmitToStore": true
+  },
+  "appIdentity": {
+    "appName": "TAHAI Web Services Browser",
+    "publisherDisplayName": "TAHAI Web Services",
+    "packageVersion": "2.0.14",
+    "packageFamilyName": "REPLACE_WITH_PARTNER_CENTER_PACKAGE_FAMILY_NAME",
+    "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+    "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA"
+  },
+  "listingCopy": {
+    "appName": "TAHAI Web Services Browser",
+    "shortDescription": "REPLACE_WITH_STORE_SHORT_DESCRIPTION_UNDER_PARTNER_CENTER_LIMIT",
+    "longDescription": "REPLACE_WITH_STORE_LONG_DESCRIPTION",
+    "featureBullets": [
+      "Mission Control workspaces for IT and DevOps operators.",
+      "Split, Tri-view, Quad, and Focus Pane layouts for operational work.",
+      "Runbook Rail, Evidence Pack, and Operator Command Center workflows.",
+      "Local-first evidence preparation with redaction-aware export posture.",
+      "Browser-side IT Docs and PSA reference contracts only; no PSA secrets stored."
+    ],
+    "searchTerms": [
+      "DevOps browser",
+      "IT admin browser",
+      "Mission Control",
+      "runbook",
+      "evidence"
+    ],
+    "whatsNew": "REPLACE_WITH_VERSION_SPECIFIC_RELEASE_NOTES_FOR_2_0_14",
+    "storeReviewerNotes": "REPLACE_WITH_REVIEWER_NOTES_AND_STORE_BLOCKER_TRUTH",
+    "supportContact": "REPLACE_WITH_SUPPORT_CONTACT_OR_PUBLIC_SUPPORT_URL",
+    "copyrightTrademarkNotice": "REPLACE_WITH_COPYRIGHT_AND_TRADEMARK_NOTICE"
+  },
+  "publicUrls": {
+    "browserLandingUrl": "REPLACE_WITH_PUBLIC_BROWSER_LANDING_URL",
+    "privacyPolicyUrl": "REPLACE_WITH_PUBLIC_PRIVACY_POLICY_URL",
+    "supportUrl": "REPLACE_WITH_PUBLIC_SUPPORT_URL",
+    "securityPolicyUrl": "REPLACE_WITH_PUBLIC_SECURITY_POLICY_URL",
+    "sourceRepoUrl": "https://github.com/JTAHAI/tahai-web-services-browser",
+    "knownIssuesUrl": "REPLACE_WITH_PUBLIC_KNOWN_ISSUES_OR_RELEASE_NOTES_URL"
+  },
+  "copyReview": {
+    "requiredCopyFields": [
+      "appName",
+      "shortDescription",
+      "longDescription",
+      "featureBullets",
+      "whatsNew",
+      "supportContact",
+      "privacyPolicyUrl",
+      "supportUrl",
+      "securityPolicyUrl",
+      "sourceRepoUrl",
+      "knownIssuesUrl",
+      "copyrightTrademarkNotice",
+      "storeReviewerNotes"
+    ],
+    "prohibitedClaims": [
+      "microsoft store approved",
+      "store approved",
+      "store certified",
+      "submitted to microsoft store",
+      "available in the microsoft store",
+      "signed msi",
+      "signed exe",
+      "public ga",
+      "general availability",
+      "direct psa integration",
+      "direct psa api",
+      "psa connector included",
+      "stores psa tokens",
+      "stores provider secrets",
+      "credential vault",
+      "automatic ticket writeback"
+    ],
+    "requiredTruthStatements": [
+      "Microsoft Store submission remains not-submitted until operator approval and Partner Center upload are complete.",
+      "Microsoft Store approval remains not-approved until Microsoft approves the package.",
+      "Direct MSI/EXE distribution remains unsigned-preview unless separate trusted signing evidence exists.",
+      "IT Docs and PSA references are browser-side contracts only in this repo.",
+      "The browser does not store PSA/API/provider secrets in mission files."
+    ],
+    "noFalseStoreSubmissionClaim": false,
+    "noFalseStoreApprovalClaim": false,
+    "noFalseSigningClaim": false,
+    "noPublicGaClaimWithoutGate": false,
+    "noDirectPsaOrSecretStorageClaim": false,
+    "noCustomerDataOrSecrets": false,
+    "screenshotsAndCopyConsistent": false,
+    "knownIssuesTruthMatchesDocs": false,
+    "operatorApprovedForPartnerCenterPaste": false
+  },
+  "goNoGo": {
+    "status": "NO_GO",
+    "reason": "Store listing copy is a template until final public URLs, known-issues truth, copy review, package identity truth, and operator approval are complete.",
+    "readyForPartnerCenterCopyPaste": false,
+    "readyForPartnerCenterSubmission": false,
+    "readyForPublicGA": false,
+    "operatorApproved": false
+  }
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -9,7 +10,7 @@ const responsiveTs = read('src/renderer/responsive-toolbar.ts');
 const siteViewTs = read('src/renderer/site-view-mission-rail.ts');
 const html = read('src/renderer/index.html');
 const pkg = JSON.parse(read('package.json'));
-const releaseBlockers = pkg.scripts?.['verify:release-blockers'] || '';
+const releaseBlockers = getReleaseBlockersContract(pkg);
 
 const issues = [];
 const need = (condition, message) => { if (!condition) issues.push(message); };

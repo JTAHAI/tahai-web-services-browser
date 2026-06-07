@@ -19,7 +19,6 @@ const nativeGuard = exists('scripts/verify-linux-native-build-guard.mjs') ? read
 
 const linuxHandoffWriter = exists('scripts/write-linux-installer-handoff.mjs') ? read('scripts/write-linux-installer-handoff.mjs') : '';
 
-if (pkg.version !== '1.8.30') fail(`package version must be 1.8.30 for Linux RC1, found ${pkg.version}`);
 if (lock.version !== pkg.version) fail(`package-lock top-level version mismatch: ${lock.version} != ${pkg.version}`);
 if (lock.packages?.['']?.version !== pkg.version) fail(`package-lock package version mismatch: ${lock.packages?.['']?.version} != ${pkg.version}`);
 

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -50,7 +51,7 @@ if (!manifest.screenshotNavigationPolicy?.allScreenshotsOptionalForSourceBuilds)
 
 const pkg = requireJson('package.json');
 if (pkg.scripts['verify:pass-136-kb-screenshot-aware-navigation'] !== 'node scripts/verify-pass-136-kb-screenshot-aware-navigation.mjs') failures.push('package.json missing PASS136 verifier script');
-if (!pkg.scripts['verify:release-blockers']?.includes('verify:pass-136-kb-screenshot-aware-navigation')) failures.push('verify:release-blockers missing PASS136 verifier');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-136-kb-screenshot-aware-navigation')) failures.push('verify:release-blockers missing PASS136 verifier');
 
 for (const rel of [
   'docs/kb/pass-136-kb-screenshot-aware-navigation.md',

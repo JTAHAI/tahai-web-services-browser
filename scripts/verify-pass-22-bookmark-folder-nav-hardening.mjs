@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function fail(message) {
   console.error(`PASS22_BOOKMARK_FOLDER_NAV_HARDENING_FAIL=${message}`);
@@ -41,7 +42,7 @@ if (pkg.scripts?.['verify:pass-22-bookmark-folder-nav-hardening'] !== 'node scri
   fail('missing-package-script');
 }
 
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-22-bookmark-folder-nav-hardening')) {
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-22-bookmark-folder-nav-hardening')) {
   fail('release-blockers-not-wired');
 }
 

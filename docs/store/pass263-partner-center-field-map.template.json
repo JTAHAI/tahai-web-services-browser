@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS263",
+  "versionTarget": "2.0.14",
+  "status": "TEMPLATE_PENDING_PARTNER_CENTER_FIELD_CHECK",
+  "remainingPassesAfterThisPass": 2,
+  "fields": [
+    {
+      "partnerCenterField": "Product name",
+      "source": "listingCopy.appName",
+      "required": true,
+      "finalValue": "TAHAI Web Services Browser",
+      "review": "PENDING"
+    },
+    {
+      "partnerCenterField": "Short description",
+      "source": "listingCopy.shortDescription",
+      "required": true,
+      "finalValue": "REPLACE_WITH_FINAL_VALUE",
+      "review": "PENDING"
+    },
+    {
+      "partnerCenterField": "Description",
+      "source": "listingCopy.longDescription",
+      "required": true,
+      "finalValue": "REPLACE_WITH_FINAL_VALUE",
+      "review": "PENDING"
+    },
+    {
+      "partnerCenterField": "Features",
+      "source": "listingCopy.featureBullets",
+      "required": true,
+      "finalValue": "REPLACE_WITH_FINAL_VALUE",
+      "review": "PENDING"
+    },
+    {
+      "partnerCenterField": "What is new",
+      "source": "listingCopy.whatsNew",
+      "required": true,
+      "finalValue": "REPLACE_WITH_FINAL_VALUE",
+      "review": "PENDING"
+    },
+    {
+      "partnerCenterField": "Privacy policy URL",
+      "source": "publicUrls.privacyPolicyUrl",
+      "required": true,
+      "finalValue": "REPLACE_WITH_FINAL_VALUE",
+      "review": "PENDING"
+    },
+    {
+      "partnerCenterField": "Support URL",
+      "source": "publicUrls.supportUrl",
+      "required": true,
+      "finalValue": "REPLACE_WITH_FINAL_VALUE",
+      "review": "PENDING"
+    },
+    {
+      "partnerCenterField": "Store reviewer notes",
+      "source": "listingCopy.storeReviewerNotes",
+      "required": true,
+      "finalValue": "REPLACE_WITH_FINAL_VALUE",
+      "review": "PENDING"
+    },
+    {
+      "partnerCenterField": "Age/content declarations",
+      "source": "copyReview/no-dangerous-claims",
+      "required": true,
+      "finalValue": "REPLACE_WITH_FINAL_DECLARATION",
+      "review": "PENDING"
+    }
+  ],
+  "notes": "Check live Partner Center field names, lengths, image requirements, and declarations during upload. This repo-side file prevents copy drift; it is not a Store submission."
+}

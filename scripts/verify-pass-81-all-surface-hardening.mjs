@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -29,7 +30,7 @@ assertIncludes('PASS_81_ALL_SURFACE_HARDENING_SUMMARY.md', 'PASS81');
 
 const pkg = JSON.parse(read('package.json'));
 if (!pkg.scripts?.['verify:pass-81-all-surface-hardening']) fail('package.json missing verify:pass-81-all-surface-hardening script');
-if (!pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-81-all-surface-hardening')) fail('verify:release-blockers does not include PASS81 verifier');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-81-all-surface-hardening')) fail('verify:release-blockers does not include PASS81 verifier');
 
 // PASS88 release-blocker hardening: source verifiers may run after npm ci/build.
 // Validate exclusion policy instead of falsely failing on local generated directories.

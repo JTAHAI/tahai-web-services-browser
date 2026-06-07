@@ -2,7 +2,7 @@
 
 PASS146 adds the Windows installed-app QA handoff lane for TAHAI Web Services Browser.
 
-Version remains `1.8.30`.
+Version remains `2.0.14`.
 
 ## Added
 

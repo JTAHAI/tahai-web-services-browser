@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 function read(rel) {
@@ -86,6 +87,6 @@ for (const token of [
 
 const script = String(pkg.scripts?.['verify:pass-90-launch-recipe-failsafe'] || '');
 need(script.includes('verify-pass-90-launch-recipe-failsafe.mjs'), 'package script missing PASS90 verifier');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-90-launch-recipe-failsafe'), 'verify:release-blockers missing PASS90 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-90-launch-recipe-failsafe'), 'verify:release-blockers missing PASS90 verifier');
 
 console.log('PASS90 launch recipe failsafe verified');

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const root = process.cwd();
 const fail = (message) => { console.error(`TAHAI_BROWSER_SHELL_LAYOUT_VERIFY_FAIL=${message}`); process.exit(1); };
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -16,6 +17,6 @@ const toolbarTs = read('src/renderer/responsive-toolbar.ts');
 for (const token of ['toolbar-overflow-menu', 'targetCountForWidth', 'moveToMenu', 'restoreToToolbar', 'site-view-rail-toggle']) if (!toolbarTs.includes(token)) fail(`responsive toolbar missing token: ${token}`);
 const pkg = JSON.parse(read('package.json').replace(/^\uFEFF/, ''));
 if (pkg.scripts?.['verify:browser-shell-layout'] !== 'node scripts/verify-browser-shell-layout.mjs') fail('package.json missing verify:browser-shell-layout script');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:browser-shell-layout')) fail('verify:release-blockers does not include verify:browser-shell-layout');
+if (!getReleaseBlockersContract(pkg).includes('verify:browser-shell-layout')) fail('verify:release-blockers does not include verify:browser-shell-layout');
 console.log('TAHAI_BROWSER_SHELL_LAYOUT_VERIFY=OK');
 process.exit(0);

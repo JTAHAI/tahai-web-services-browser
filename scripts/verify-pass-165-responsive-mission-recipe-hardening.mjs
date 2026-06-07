@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
 const exists = (rel) => fs.existsSync(path.join(root, rel));
@@ -33,7 +34,7 @@ if (!failures.length) {
   const summary = read('PASS_165_RESPONSIVE_MISSION_RECIPE_HARDENING_SUMMARY.md');
   const validators = read('src/shared/mission-validators.ts');
   const pkg = JSON.parse(read('package.json'));
-  const releaseBlockers = pkg.scripts?.['verify:release-blockers'] || '';
+  const releaseBlockers = getReleaseBlockersContract(pkg);
   const actionIds = ['about', 'settings', 'onboarding', 'launchpad', 'ops-hub-toggle', 'site-view-rail-toggle', 'chromium-bookmark-star', 'chromium-bookmarks-button', 'profile-switcher'];
 
   need(pkg.version === '1.8.30', 'PASS165 must not increment version without explicit approval');

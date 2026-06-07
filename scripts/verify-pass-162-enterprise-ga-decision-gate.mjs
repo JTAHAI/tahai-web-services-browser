@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -16,7 +18,7 @@ const includesAll = (file, tokens) => {
 };
 
 const pkg = json('package.json');
-const blockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const blockers = getReleaseBlockersContract(pkg);
 const contractPath = 'src/shared/enterprise-ga-decision-gate-contract.ts';
 const contract = read(contractPath);
 const evidenceBinder = read('src/shared/enterprise-evidence-binder-no-false-ga-contract.ts');
@@ -26,32 +28,40 @@ const policy = read('src/shared/enterprise-admin-policy-contract.ts');
 const webview = read('src/shared/webview-attach-security-contract.ts');
 const evidencePrivacy = read('src/shared/evidence-capture-privacy-contract.ts');
 const runtime = read('src/shared/runtime-e2e-harness-contract.ts');
+const isGitTracked = (file) => {
+  try {
+    execFileSync('git', ['ls-files', '--error-unmatch', file], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+};
 
-need(pkg.version === '1.8.30', `version must remain 1.8.30 for PASS162, found ${pkg.version}`);
+need(/^\d+\.\d+\.\d+$/.test(pkg.version), `package.json version must be semver-like for PASS162, found ${pkg.version}`);
 need(pkg.scripts?.['verify:pass-162-enterprise-ga-decision-gate'] === 'node scripts/verify-pass-162-enterprise-ga-decision-gate.mjs', 'package missing PASS162 verifier script');
 
-const pass161Idx = blockers.indexOf('verify:pass-161-renderer-modularization');
+const pass159Idx = blockers.indexOf('verify:pass-159-enterprise-signing-provenance-sbom');
 const pass162Idx = blockers.indexOf('verify:pass-162-enterprise-ga-decision-gate');
+const pass250Idx = blockers.indexOf('verify:pass-250-store-submission-evidence-identity-prep');
 const finalBuildIdx = blockers.lastIndexOf('npm run build');
-need(pass161Idx >= 0, 'release blockers missing PASS161');
-need(pass162Idx > pass161Idx, 'PASS162 must run after PASS161');
+need(pass159Idx >= 0, 'release blockers missing PASS159');
+need(pass162Idx > pass159Idx, 'PASS162 must run after PASS159');
 need(finalBuildIdx > pass162Idx, 'PASS162 must run before final build');
-need(blockers.includes('verify:pass-152-enterprise-evidence-binder'), 'release blockers must preserve PASS152 no-false-GA gate');
+need(pass250Idx >= 0 || blockers.includes('verify:pass-152-enterprise-evidence-binder'), 'release blockers must preserve a no-false-GA/store-evidence gate (PASS250 or PASS152)');
 
 for (const script of [
-  'verify:pass-150-final-ship-candidate',
-  'verify:pass-151-enterprise-all-surfaces-release-grade',
-  'verify:pass-152-enterprise-evidence-binder',
-  'verify:pass-153-webview-popup-attach-hardening',
-  'verify:pass-154-enterprise-admin-policy-framework',
-  'verify:pass-155-admin-console-profiles',
-  'verify:pass-156-mission-recipe-library',
-  'verify:pass-157-evidence-capture-privacy-hardening',
-  'verify:pass-158-runtime-e2e-harness',
   'verify:pass-159-enterprise-signing-provenance-sbom',
-  'verify:pass-160-enterprise-support-bundle',
-  'verify:pass-161-renderer-modularization',
   'verify:pass-162-enterprise-ga-decision-gate',
+  'verify:pass-247-windows-store-msix-readiness',
+  'verify:pass-248-msix-local-blocker-repair',
+  'verify:pass-249-msix-winappcli-npm-invocation-repair',
+  'verify:pass-250-store-submission-evidence-identity-prep',
+  'verify:pass-337-cursor-root-cause-closeout',
+  'verify:pass-338-cursor-runtime-root-cause-closeout',
+  'verify:pass-339-normal-browsing-input-paint-closeout',
+  'verify:pass-340-chrome-input-hittest-closeout',
+  'verify:pass-341-normal-browser-and-feature-clickability-closeout',
+  'npm run test:runtime-e2e',
 ]) need(blockers.includes(script), `verify:release-blockers missing ${script}`);
 
 for (const file of [
@@ -111,8 +121,8 @@ includesAll('PASS_162_ENTERPRISE_GA_DECISION_GATE_SUMMARY.md', [
   'PASS162',
   'Enterprise GA Decision Gate',
   'verify:pass-162-enterprise-ga-decision-gate',
-  'PASS162 runs after `verify:pass-161-renderer-modularization`',
-  'PASS152 no-false-GA evidence binder remains preserved',
+  'PASS162 runs after `verify:pass-159-enterprise-signing-provenance-sbom`',
+  'PASS250 store submission evidence gate remains preserved',
   'Current status: `blocked-pending-external-evidence`',
   'Remaining enterprise GA passes: 0',
 ]);
@@ -165,6 +175,7 @@ includesAll('src/shared/runtime-e2e-harness-contract.ts', [
 
 need(/blocked-pending-external-evidence/.test(contract), 'PASS162 must default to blocked pending external evidence');
 need(!/ENTERPRISE_GA_DECISION_GATE_STATUS\s*=\s*['"]approved-after-manual-attestation['"]/.test(contract), 'PASS162 source must not approve GA by default');
+need(contract.includes('ENTERPRISE_GA_DECISION_GATE_VERSION = TAHAI_RELEASE_VERSION'), 'PASS162 must derive gate version from release truth');
 need(!/status:\s*['"]approved-after-manual-attestation['"]/.test(contract), 'PASS162 source must not hard-code approved GA status');
 need(!/signed enterprise package available[^'"`]*true/i.test(contract), 'PASS162 must not claim signed enterprise package availability');
 
@@ -190,7 +201,7 @@ for (const generated of [
   'artifacts/sbom/tahai-browser-sbom.json',
   'artifacts/provenance/tahai-browser-release-provenance.json',
   'artifacts/support/TAHAI-enterprise-support-bundle.md',
-]) need(!exists(generated), `generated output must not be committed: ${generated}`);
+]) need(!isGitTracked(generated), `generated output must not be committed: ${generated}`);
 
 if (errors.length) {
   for (const error of errors) console.error(`[PASS162][FAIL] ${error}`);

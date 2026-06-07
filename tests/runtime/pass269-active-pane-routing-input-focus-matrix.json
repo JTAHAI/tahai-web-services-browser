@@ -1,0 +1,47 @@
+{
+  "pass": "PASS269",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 2,
+  "surfaces": [
+    "normal-tab",
+    "split-horizontal",
+    "split-vertical",
+    "triple-top",
+    "triple-bottom",
+    "triple-left",
+    "triple-right",
+    "quad",
+    "focus-pane"
+  ],
+  "inputs": [
+    "address-bar",
+    "toolbar-back",
+    "toolbar-forward",
+    "toolbar-reload",
+    "toolbar-stop",
+    "mouse-button-4",
+    "mouse-button-5",
+    "alt-left",
+    "alt-right",
+    "ctrl-k-command",
+    "ctrl-alt-pane-focus",
+    "recipe-start",
+    "overlay-close-focus-return"
+  ],
+  "requiredOutcomes": [
+    "exactly-one-target",
+    "active-pane-or-active-tab-only",
+    "safe-noop-when-unavailable",
+    "visible-target-scope",
+    "no-hidden-active-pane",
+    "no-orphan-routing-target",
+    "no-focus-trap",
+    "focus-pane-restores-prior-layout",
+    "no-dom-ready-webview-error"
+  ],
+  "storePosture": {
+    "submission": "not-submitted",
+    "approval": "not-approved",
+    "gaClaim": false
+  }
+}

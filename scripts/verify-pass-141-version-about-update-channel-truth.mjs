@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import childProcess from 'node:child_process';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
@@ -23,12 +25,32 @@ const releasePassOrder = (pass) => {
 const pkg = json('package.json');
 const releaseTruth = read('src/shared/release-truth.ts');
 const aboutTruth = json('browser/about/release-truth.json');
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 const releasePassMatch = releaseTruth.match(/TAHAI_RELEASE_PASS\s*=\s*'([^']+)'/);
 const currentReleasePass = releasePassMatch?.[1] || '';
+const releaseVersionMatch = releaseTruth.match(/TAHAI_RELEASE_VERSION\s*=\s*'([^']+)'/);
+const currentReleaseVersion = releaseVersionMatch?.[1] || '';
+const releaseChannelMatch = releaseTruth.match(/TAHAI_RELEASE_CHANNEL\s*=\s*'([^']+)'/);
+const currentReleaseChannel = releaseChannelMatch?.[1] || '';
+const releasePhaseMatch = releaseTruth.match(/TAHAI_RELEASE_PHASE\s*=\s*'([^']+)'/);
+const currentReleasePhase = releasePhaseMatch?.[1] || '';
+const updateChannelMatch = releaseTruth.match(/TAHAI_UPDATE_CHANNEL\s*=\s*'([^']+)'/);
+const currentUpdateChannel = updateChannelMatch?.[1] || '';
 
-need(pkg.version === '1.8.30', `package version must remain 1.8.30 for PASS141+, found ${pkg.version}`);
-need(releaseTruth.includes("TAHAI_RELEASE_VERSION = '1.8.30'"), 'release truth source must declare v1.8.30');
+const isTrackedByGit = (rel) => {
+  try {
+    childProcess.execFileSync('git', ['ls-files', '--error-unmatch', rel], {
+      cwd: root,
+      stdio: 'ignore',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+need(pkg.version === currentReleaseVersion, `package version ${pkg.version} must match shared release truth ${currentReleaseVersion || 'missing'}`);
+need(Boolean(currentReleaseVersion), 'release truth source must declare a current version');
 need(releasePassOrder(currentReleasePass) >= releasePassOrder(PASS141_MINIMUM_RELEASE_PASS), `release truth source must declare ${PASS141_MINIMUM_RELEASE_PASS} or later, found ${currentReleasePass || 'none'}`);
 need(['PASS141', 'PASS149', 'PASS150'].includes(currentReleasePass) || releasePassOrder(currentReleasePass) >= 141, 'release truth source must declare a current PASS141-or-later release pass');
 need(releaseTruth.includes("TAHAI_RELEASE_CHANNEL = 'public-rc'"), 'release truth source must declare public-rc');
@@ -38,9 +60,10 @@ need(releaseTruth.includes('releaseTruthForRenderer'), 'release truth source mus
 
 need(aboutTruth.version === pkg.version, `about release-truth.json version ${aboutTruth.version} must match package ${pkg.version}`);
 need(aboutTruth.releasePass === currentReleasePass, `about release-truth.json releasePass ${aboutTruth.releasePass} must match source ${currentReleasePass}`);
+need(aboutTruth.releasePhase === currentReleasePhase, `about release-truth.json releasePhase ${aboutTruth.releasePhase} must match source ${currentReleasePhase}`);
 need(releasePassOrder(aboutTruth.releasePass) >= releasePassOrder(PASS141_MINIMUM_RELEASE_PASS), 'about release-truth.json must declare PASS141 or later');
-need(aboutTruth.releaseChannel === 'public-rc', 'about release-truth.json must declare public-rc');
-need(aboutTruth.updateChannel === 'manual-release', 'about release-truth.json must declare manual-release');
+need(aboutTruth.releaseChannel === currentReleaseChannel, `about release-truth.json must declare ${currentReleaseChannel}`);
+need(aboutTruth.updateChannel === currentUpdateChannel, `about release-truth.json must declare ${currentUpdateChannel}`);
 need(/no silent auto-update/i.test(aboutTruth.updatePolicy || ''), 'about release-truth.json must document no silent auto-update');
 
 const main = includesAll('src/main/main.ts', [
@@ -85,7 +108,7 @@ const downloadUx = includesAll('src/shared/release-download-ux.ts', [
 need(!downloadUx.includes("RELEASE_DOWNLOAD_VERSION = '1.8.30'"), 'download UX should consume shared release truth instead of its own version string');
 
 const about = includesAll('browser/about/index.html', [
-  'v1.8.30 public-rc',
+  `v${pkg.version} public-rc`,
   '<span>Channel</span><span>public-rc</span>',
   'Manual release downloads only; no silent auto-update',
   'manual-release',
@@ -93,14 +116,15 @@ const about = includesAll('browser/about/index.html', [
   'browser.tahaiportal.com',
   'GitHub Releases',
 ]);
-need(about.includes('v1.8.30 / PASS141 enterprise hardening') || about.includes('v1.8.30 / PASS149 RC1 freeze') || about.includes('v1.8.30 / PASS150 RC2 final ship candidate'), 'about page must show current release-pass lane');
+need(about.includes(`v${pkg.version} / ${currentReleasePass}`), 'about page must show current release-pass lane');
 need(!about.includes('1.8.28 / PASS54 polish'), 'about page must not show stale PASS54 release lane');
 need(!about.includes('1.8.21 public RC'), 'about page must not show stale v1.8.21 public RC');
 
 includesAll('docs/version-about-update-channel-pass141.md', [
   'PASS141',
   'Version/about/update-channel truth pass',
-  'Version | `1.8.30`',
+  `Current version | \`${pkg.version}\``,
+  `Current release pass | \`${currentReleasePass}\``,
   'Release channel | `public-rc`',
   'Update channel | `manual-release`',
   'no silent updater is enabled',
@@ -109,7 +133,7 @@ includesAll('docs/version-about-update-channel-pass141.md', [
 
 includesAll('PASS_141_VERSION_ABOUT_UPDATE_CHANNEL_TRUTH_SUMMARY.md', [
   'PASS141',
-  'Version remains `1.8.30`',
+  `Current release truth is \`${pkg.version} / ${currentReleasePass}\``,
   'src/shared/release-truth.ts',
   'No direct PSA API calls',
   'verify:pass-141-version-about-update-channel-truth',
@@ -131,7 +155,7 @@ for (const rel of [
   'release/windows/TAHAI-Windows-installers-SHA256SUMS.txt',
   'release/linux/TAHAI-Linux-installers-SHA256SUMS.txt',
 ]) {
-  need(!exists(rel), `generated handoff output must not be committed in source: ${rel}`);
+  need(!isTrackedByGit(rel), `generated handoff output must not be committed in source: ${rel}`);
 }
 
 const riskySource = releaseTruth + '\n' + about + '\n' + read('docs/version-about-update-channel-pass141.md');

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8').replace(/^\uFEFF/, '');
@@ -26,7 +27,7 @@ if (!failures.length) {
   const app = read('src/renderer/app.ts');
   const responsive = read('src/renderer/responsive-toolbar.ts');
   const siteView = read('src/renderer/site-view-mission-rail.ts');
-  const release = pkg.scripts?.['verify:release-blockers'] || '';
+  const release = getReleaseBlockersContract(pkg);
 
   need(pkg.version === '1.8.30', 'PASS168 must not increment version without explicit approval');
   need(pkg.scripts?.['verify:pass-168-overlay-open-age-stamp'] === 'node scripts/verify-pass-168-overlay-open-age-stamp.mjs', 'package script missing PASS168 verifier');

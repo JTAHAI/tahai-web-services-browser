@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -82,7 +83,7 @@ need(toolCount >= 10, `expected at least 10 tool action controls, found ${toolCo
 
 const requiredScript = String(pkg.scripts?.['verify:pass-87-operator-recovery-mesh'] || '');
 need(requiredScript.includes('verify-pass-87-operator-recovery-mesh.mjs'), 'package script missing PASS87 verifier');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-87-operator-recovery-mesh'), 'verify:release-blockers missing PASS87 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-87-operator-recovery-mesh'), 'verify:release-blockers missing PASS87 verifier');
 
 // PASS88 release-blocker hardening: source verifiers may be run after `npm ci`.
 // Check repository exclusion policy here; ZIP artifact exclusion is verified during packaging.

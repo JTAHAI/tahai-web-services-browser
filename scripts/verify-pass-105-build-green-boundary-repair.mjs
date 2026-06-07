@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS105 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -33,5 +34,5 @@ includes('PASS_105_BUILD_GREEN_BOUNDARY_REPAIR_SUMMARY.md',[
 ]);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-105-build-green-boundary-repair']==='node scripts/verify-pass-105-build-green-boundary-repair.mjs','package.json missing PASS105 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-105-build-green-boundary-repair'),'release blockers missing PASS105 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-105-build-green-boundary-repair'),'release blockers missing PASS105 verifier');
 console.log('PASS105 build green boundary repair verification passed.');

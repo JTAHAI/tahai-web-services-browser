@@ -2,7 +2,7 @@
 
 PASS146 closes the Windows installed-app QA handoff gap. It does **not** claim the installed Windows app was manually smoked inside CI or this source pass. It gives the operator a repeatable checklist and a local evidence runner for the real Windows machine after NSIS/MSI packaging and install.
 
-Version remains `1.8.30`. Release channel remains `public-rc`. Update channel remains `manual-release`. The Windows build remains an unsigned preview until the approved signing lane is active.
+Version remains `2.0.14`. Release channel remains `public-rc`. Update channel remains `manual-release`. The Windows build remains an unsigned preview until the approved signing lane is active.
 
 ## Scope
 
@@ -63,7 +63,7 @@ Complete this checklist on the installed Windows app:
 1. **Installer checksum verified** — confirm SHA256 before running installer.
 2. **Installer completes cleanly** — NSIS/MSI install or upgrade completes without error dialogs.
 3. **Installed app launches** — launch from Start menu, shortcut, or installed executable path; do not use `npm run dev` for this proof.
-4. **About/version truth** — About page shows v1.8.30/public-rc/manual-release/unsigned preview truth and does not claim GA.
+4. **About/version truth** — About page shows v2.0.14/public-rc/manual-release/unsigned preview truth and does not claim GA.
 5. **Normal navigation** — address bar, reload, back, forward, and regular browsing still work.
 6. **Guide/KB opens** — Guide is discoverable from primary nav or More Tools when the window is constrained.
 7. **Mission Control opens** — Mission opens cleanly and does not require an oversized main window to be usable.

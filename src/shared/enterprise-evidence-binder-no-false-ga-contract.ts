@@ -1,6 +1,8 @@
+import { TAHAI_RELEASE_VERSION } from './release-truth';
+
 export const ENTERPRISE_EVIDENCE_BINDER_PASS = 'PASS152' as const;
 export const ENTERPRISE_EVIDENCE_BINDER_STATUS = 'enterprise-evidence-binder-no-false-ga' as const;
-export const ENTERPRISE_EVIDENCE_BINDER_VERSION = '1.8.30' as const;
+export const ENTERPRISE_EVIDENCE_BINDER_VERSION = TAHAI_RELEASE_VERSION;
 
 export const ENTERPRISE_EVIDENCE_BINDER_REQUIRED_SOURCE_GATES = Object.freeze([
   'verify:pass-150-final-ship-candidate',

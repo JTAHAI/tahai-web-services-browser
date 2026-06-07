@@ -1,6 +1,6 @@
 # PASS162 — Enterprise GA Decision Gate Summary
 
-PASS162 closes the bounded PASS153–PASS162 enterprise hardening lane with a decision gate that prevents false enterprise GA claims.
+PASS162 closes the current enterprise hardening lane with a decision gate that prevents false enterprise GA claims.
 
 ## Added
 
@@ -11,10 +11,10 @@ PASS162 closes the bounded PASS153–PASS162 enterprise hardening lane with a de
 
 ## Release-blocker wiring
 
-- PASS162 runs after `verify:pass-161-renderer-modularization`.
+- PASS162 runs after `verify:pass-159-enterprise-signing-provenance-sbom`.
 - PASS162 runs before the final `npm run build` in `verify:release-blockers`.
-- PASS152 no-false-GA evidence binder remains preserved.
-- PASS153–PASS161 enterprise gates remain preserved.
+- PASS250 store submission evidence gate remains preserved.
+- PASS247-PASS250 store/MSIX gates and PASS337-PASS341 browser runtime closeout gates remain preserved.
 
 ## Decision status
 

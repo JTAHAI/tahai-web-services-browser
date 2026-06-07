@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS265",
+  "packName": "TAHAI Web Services Browser Store Handoff Freeze + Operator Approval Packet",
+  "status": "TEMPLATE_PENDING_REAL_OPERATOR_APPROVAL",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 0,
+  "generatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+  "preparedBy": "REPLACE_WITH_OPERATOR_NAME",
+  "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+  "packageVersion": "2.0.14",
+  "storeTruth": {
+    "microsoftStoreSubmissionClaim": "not-submitted",
+    "microsoftStoreApprovalClaim": "not-approved",
+    "handoffFreezeOnly": true,
+    "noPartnerCenterSubmitPerformedByThisPass": true,
+    "noPublicGaClaim": true,
+    "directMsiExeSigningStatus": "unsigned-preview"
+  },
+  "priorGateResults": [
+    {
+      "pass": "PASS260",
+      "name": "Installed Recipe + Quad Store Smoke Evidence Gate",
+      "command": "npm run gate:pass-260-installed-recipe-quad-store-smoke",
+      "evidencePath": "release-candidate/store-submission/pass260-installed-recipe-quad-smoke-evidence.json",
+      "evidenceSha256": "REPLACE_WITH_64_HEX_SHA256_OF_EVIDENCE_FILE",
+      "gateOutputPath": "REPLACE_WITH_PATH_TO_CAPTURED_GATE_OUTPUT_OR_LOG",
+      "gatePassed": false,
+      "reviewed": false,
+      "notes": "PENDING_REAL_GATE_OUTPUT"
+    },
+    {
+      "pass": "PASS261",
+      "name": "Store Submission Packet Finalizer",
+      "command": "npm run gate:pass-261-store-submission-packet",
+      "evidencePath": "release-candidate/store-submission/pass261-store-submission-packet.json",
+      "evidenceSha256": "REPLACE_WITH_64_HEX_SHA256_OF_EVIDENCE_FILE",
+      "gateOutputPath": "REPLACE_WITH_PATH_TO_CAPTURED_GATE_OUTPUT_OR_LOG",
+      "gatePassed": false,
+      "reviewed": false,
+      "notes": "PENDING_REAL_GATE_OUTPUT"
+    },
+    {
+      "pass": "PASS262",
+      "name": "Store Asset Evidence Pack",
+      "command": "npm run gate:pass-262-store-asset-evidence-pack",
+      "evidencePath": "release-candidate/store-submission/pass262-store-asset-evidence-pack.json",
+      "evidenceSha256": "REPLACE_WITH_64_HEX_SHA256_OF_EVIDENCE_FILE",
+      "gateOutputPath": "REPLACE_WITH_PATH_TO_CAPTURED_GATE_OUTPUT_OR_LOG",
+      "gatePassed": false,
+      "reviewed": false,
+      "notes": "PENDING_REAL_GATE_OUTPUT"
+    },
+    {
+      "pass": "PASS263",
+      "name": "Store Listing Copy Truth Pack",
+      "command": "npm run gate:pass-263-store-listing-copy-truth-pack",
+      "evidencePath": "release-candidate/store-submission/pass263-store-listing-copy-truth-pack.json",
+      "evidenceSha256": "REPLACE_WITH_64_HEX_SHA256_OF_EVIDENCE_FILE",
+      "gateOutputPath": "REPLACE_WITH_PATH_TO_CAPTURED_GATE_OUTPUT_OR_LOG",
+      "gatePassed": false,
+      "reviewed": false,
+      "notes": "PENDING_REAL_GATE_OUTPUT"
+    },
+    {
+      "pass": "PASS264",
+      "name": "Store Submission Dry-Run Evidence Gate",
+      "command": "npm run gate:pass-264-store-submission-dry-run-evidence",
+      "evidencePath": "release-candidate/store-submission/pass264-store-submission-dry-run-evidence.json",
+      "evidenceSha256": "REPLACE_WITH_64_HEX_SHA256_OF_EVIDENCE_FILE",
+      "gateOutputPath": "REPLACE_WITH_PATH_TO_CAPTURED_GATE_OUTPUT_OR_LOG",
+      "gatePassed": false,
+      "reviewed": false,
+      "notes": "PENDING_REAL_GATE_OUTPUT"
+    }
+  ],
+  "freezeReview": {
+    "pass260InstalledSmokeGatePassed": false,
+    "pass261SubmissionPacketGatePassed": false,
+    "pass262AssetEvidenceGatePassed": false,
+    "pass263ListingCopyGatePassed": false,
+    "pass264DryRunGatePassed": false,
+    "allEvidenceHashesRecorded": false,
+    "sourceCommitRecorded": false,
+    "packageVersionRecorded": false,
+    "publicUrlsRecordedAndReviewed": false,
+    "screenshotsRecordedAndReviewed": false,
+    "knownIssuesRecordedAndReviewed": false,
+    "privacySupportSecurityUrlsReviewed": false,
+    "noSecretReviewPassed": false,
+    "noFalseStoreClaimReviewPassed": false,
+    "operatorReadKnownIssues": false,
+    "operatorReviewedSubmissionRisks": false,
+    "operatorApprovedFreeze": false
+  },
+  "finalAttestations": {
+    "notSubmittedToMicrosoftStore": false,
+    "notApprovedByMicrosoftStore": false,
+    "noSignedMsiExeClaimUnlessSeparatelyEvidenced": false,
+    "noPublicGaClaimUnlessSeparatelyEvidenced": false,
+    "noITDocsBackendOrPSAConnectorClaim": false,
+    "noDirectPSAApiOrSecretStorageClaim": false,
+    "handoffPacketReadyForHumanDecision": false
+  },
+  "releaseCandidateInventory": {
+    "packageFiles": [
+      {
+        "kind": "msix",
+        "path": "REPLACE_WITH_MSIX_OR_MSIXUPLOAD_PATH_IF_AVAILABLE",
+        "sha256": "REPLACE_WITH_64_HEX_SHA256_OR_NOT_APPLICABLE",
+        "reviewed": false
+      },
+      {
+        "kind": "msi",
+        "path": "REPLACE_WITH_MSI_PATH_IF_AVAILABLE",
+        "sha256": "REPLACE_WITH_64_HEX_SHA256_OR_NOT_APPLICABLE",
+        "reviewed": false
+      }
+    ],
+    "sourceZip": {
+      "path": "REPLACE_WITH_SOURCE_ZIP_PATH_IF_CREATED",
+      "sha256": "REPLACE_WITH_64_HEX_SHA256_OR_NOT_APPLICABLE",
+      "reviewed": false
+    },
+    "screenshotsFolder": "REPLACE_WITH_SCREENSHOTS_FOLDER_PATH",
+    "partnerCenterDraftNotesPath": "REPLACE_WITH_DRAFT_NOTES_OR_SCREENSHOTS_PATH",
+    "knownIssuesPath": "REPLACE_WITH_KNOWN_ISSUES_PATH",
+    "publicUrlsReviewPath": "REPLACE_WITH_PUBLIC_URL_REVIEW_PATH"
+  },
+  "operatorApproval": {
+    "decision": "NO_GO",
+    "approvedForPartnerCenterManualSubmission": false,
+    "approvedForPublicAnnouncement": false,
+    "approvedForGAClaim": false,
+    "approvedBy": "REPLACE_WITH_OPERATOR_NAME",
+    "approvedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+    "approvalNotes": "PENDING_REAL_OPERATOR_DECISION"
+  },
+  "prohibitedClaims": [
+    "submitted to microsoft store",
+    "microsoft store approved",
+    "store approved",
+    "store certified",
+    "available in the microsoft store",
+    "signed msi",
+    "signed exe",
+    "public ga",
+    "general availability",
+    "direct psa api",
+    "psa connector included",
+    "stores psa tokens",
+    "stores provider secrets"
+  ],
+  "goNoGo": {
+    "status": "NO_GO",
+    "reason": "Template only. PASS265 freezes the handoff structure but cannot approve Store submission until all real prior gates and operator approval are recorded.",
+    "readyForPartnerCenterManualSubmission": false,
+    "readyForPublicGA": false,
+    "storeSubmissionPerformed": false,
+    "storeApprovalReceived": false,
+    "operatorApprovedFreeze": false
+  }
+}

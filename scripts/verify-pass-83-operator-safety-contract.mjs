@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -45,7 +46,7 @@ const requiredDialogs = ['mission-dialog','command-palette-dialog','capture-dial
 for (const id of requiredDialogs) need(app.includes(`'${id}'`), `missing dialog recovery contract for ${id}`);
 
 need(String(pkg.scripts?.['verify:pass-83-operator-safety-contract'] || '').includes('verify-pass-83-operator-safety-contract.mjs'), 'package script missing PASS83 verifier');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-83-operator-safety-contract'), 'verify:release-blockers missing PASS83 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-83-operator-safety-contract'), 'verify:release-blockers missing PASS83 verifier');
 need(css.includes('pass83-operator-safety-warning') && css.includes('textarea[data-pass83-redacted="true"]'), 'PASS83 CSS state markers missing');
 
 console.log(`[PASS83][OK] Operator safety contract verified with ${gateCount} redaction-gated actions.`);

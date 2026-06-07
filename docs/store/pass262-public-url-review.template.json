@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS262",
+  "versionTarget": "2.0.14",
+  "status": "TEMPLATE_PENDING_PUBLIC_URL_REVIEW",
+  "urls": [
+    {
+      "id": "browserLandingUrl",
+      "required": true,
+      "url": "REPLACE_WITH_PUBLIC_HTTPS_URL",
+      "https": false,
+      "opensWithoutAuthentication": false,
+      "matchesStoreListingCopy": false,
+      "noFalseStoreApprovalOrSigningClaim": false,
+      "checkedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+      "result": "PENDING"
+    },
+    {
+      "id": "privacyPolicyUrl",
+      "required": true,
+      "url": "REPLACE_WITH_PUBLIC_HTTPS_URL",
+      "https": false,
+      "opensWithoutAuthentication": false,
+      "matchesStoreListingCopy": false,
+      "noFalseStoreApprovalOrSigningClaim": false,
+      "checkedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+      "result": "PENDING"
+    },
+    {
+      "id": "supportUrl",
+      "required": true,
+      "url": "REPLACE_WITH_PUBLIC_HTTPS_URL",
+      "https": false,
+      "opensWithoutAuthentication": false,
+      "matchesStoreListingCopy": false,
+      "noFalseStoreApprovalOrSigningClaim": false,
+      "checkedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+      "result": "PENDING"
+    },
+    {
+      "id": "securityPolicyUrl",
+      "required": true,
+      "url": "REPLACE_WITH_PUBLIC_HTTPS_URL",
+      "https": false,
+      "opensWithoutAuthentication": false,
+      "matchesStoreListingCopy": false,
+      "noFalseStoreApprovalOrSigningClaim": false,
+      "checkedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+      "result": "PENDING"
+    },
+    {
+      "id": "sourceRepoUrl",
+      "required": true,
+      "url": "https://github.com/JTAHAI/tahai-web-services-browser",
+      "https": true,
+      "opensWithoutAuthentication": false,
+      "matchesStoreListingCopy": false,
+      "noFalseStoreApprovalOrSigningClaim": false,
+      "checkedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+      "result": "PENDING"
+    },
+    {
+      "id": "releaseNotesOrKnownIssuesUrl",
+      "required": true,
+      "url": "REPLACE_WITH_PUBLIC_HTTPS_URL",
+      "https": false,
+      "opensWithoutAuthentication": false,
+      "matchesStoreListingCopy": false,
+      "noFalseStoreApprovalOrSigningClaim": false,
+      "checkedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+      "result": "PENDING"
+    }
+  ],
+  "reviewRules": [
+    "Every Store listing URL must be HTTPS.",
+    "Privacy, support, website, security, repo, and known-issues/release-note URLs must open without authentication.",
+    "URLs must not contain private tenant/customer data or secrets.",
+    "URLs must not claim Store approval, submission, direct signing, or GA before evidence exists."
+  ]
+}

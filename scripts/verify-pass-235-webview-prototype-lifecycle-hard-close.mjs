@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const repo = process.cwd();
 const failures = [];
@@ -68,7 +69,7 @@ const pkg = parseJson('package.json');
 if (pkg.scripts?.['verify:pass-235-webview-prototype-lifecycle-hard-close'] !== 'node scripts/verify-pass-235-webview-prototype-lifecycle-hard-close.mjs') {
   failures.push('package.json: verify:pass-235-webview-prototype-lifecycle-hard-close script is missing or incorrect');
 }
-if (typeof pkg.scripts?.['verify:release-blockers'] !== 'string' || !pkg.scripts['verify:release-blockers'].includes('verify:pass-235-webview-prototype-lifecycle-hard-close')) {
+if (typeof getReleaseBlockersContract(pkg) !== 'string' || !getReleaseBlockersContract(pkg).includes('verify:pass-235-webview-prototype-lifecycle-hard-close')) {
   failures.push('package.json: verify:release-blockers must include PASS235 verifier');
 }
 

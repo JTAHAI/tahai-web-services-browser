@@ -1,0 +1,243 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS267",
+  "packName": "TAHAI Browser Installed Mission Control Brutal Runtime Harness Evidence",
+  "status": "TEMPLATE_PENDING_REAL_INSTALLED_APP_RUNTIME_EVIDENCE",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 4,
+  "generatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+  "preparedBy": "REPLACE_WITH_OPERATOR_NAME",
+  "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+  "packageVersion": "2.0.14",
+  "installedPackage": {
+    "packageInstalledForSmoke": false,
+    "packageType": "REPLACE_WITH_MSI_OR_MSIX_OR_NSIS",
+    "packagePath": "REPLACE_WITH_LOCAL_PACKAGE_PATH",
+    "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+    "installedAppVersionVisible": false,
+    "installedAppVersion": "2.0.14",
+    "launchedFromInstalledShortcut": false
+  },
+  "priorBlockerRepairs": {
+    "pass255WiredIntoPass254RecipeStart": false,
+    "pass259Pass260PrivateKeyFixtureFalsePositiveRepaired": false,
+    "pass264VerifyAliasPresent": false,
+    "sourceVerifyPass255Passed": false,
+    "sourceVerifyPass259Passed": false,
+    "sourceVerifyPass260Passed": false,
+    "sourceVerifyPass264Passed": false
+  },
+  "recipeRuntimeSmoke": [
+    {
+      "recipeId": "dns-migration",
+      "started": false,
+      "missionFieldsPopulated": false,
+      "runbookVisible": false,
+      "evidencePromptsVisible": false,
+      "timelineRecipeStartEventPresent": false,
+      "paneHydrationPassed": false,
+      "runtimeTabsMapped": false,
+      "exportPreviewOpened": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH",
+      "notes": "PENDING_REAL_INSTALLED_APP_TEST"
+    },
+    {
+      "recipeId": "cloudflare-cutover",
+      "started": false,
+      "missionFieldsPopulated": false,
+      "runbookVisible": false,
+      "evidencePromptsVisible": false,
+      "timelineRecipeStartEventPresent": false,
+      "paneHydrationPassed": false,
+      "runtimeTabsMapped": false,
+      "exportPreviewOpened": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH",
+      "notes": "PENDING_REAL_INSTALLED_APP_TEST"
+    },
+    {
+      "recipeId": "github-actions-release",
+      "started": false,
+      "missionFieldsPopulated": false,
+      "runbookVisible": false,
+      "evidencePromptsVisible": false,
+      "timelineRecipeStartEventPresent": false,
+      "paneHydrationPassed": false,
+      "runtimeTabsMapped": false,
+      "exportPreviewOpened": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH",
+      "notes": "PENDING_REAL_INSTALLED_APP_TEST"
+    },
+    {
+      "recipeId": "production-deployment",
+      "started": false,
+      "missionFieldsPopulated": false,
+      "runbookVisible": false,
+      "evidencePromptsVisible": false,
+      "timelineRecipeStartEventPresent": false,
+      "paneHydrationPassed": false,
+      "runtimeTabsMapped": false,
+      "exportPreviewOpened": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH",
+      "notes": "PENDING_REAL_INSTALLED_APP_TEST"
+    },
+    {
+      "recipeId": "certificate-renewal",
+      "started": false,
+      "missionFieldsPopulated": false,
+      "runbookVisible": false,
+      "evidencePromptsVisible": false,
+      "timelineRecipeStartEventPresent": false,
+      "paneHydrationPassed": false,
+      "runtimeTabsMapped": false,
+      "exportPreviewOpened": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH",
+      "notes": "PENDING_REAL_INSTALLED_APP_TEST"
+    },
+    {
+      "recipeId": "m365-user-offboarding",
+      "started": false,
+      "missionFieldsPopulated": false,
+      "runbookVisible": false,
+      "evidencePromptsVisible": false,
+      "timelineRecipeStartEventPresent": false,
+      "paneHydrationPassed": false,
+      "runtimeTabsMapped": false,
+      "exportPreviewOpened": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH",
+      "notes": "PENDING_REAL_INSTALLED_APP_TEST"
+    },
+    {
+      "recipeId": "incident-triage",
+      "started": false,
+      "missionFieldsPopulated": false,
+      "runbookVisible": false,
+      "evidencePromptsVisible": false,
+      "timelineRecipeStartEventPresent": false,
+      "paneHydrationPassed": false,
+      "runtimeTabsMapped": false,
+      "exportPreviewOpened": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH",
+      "notes": "PENDING_REAL_INSTALLED_APP_TEST"
+    },
+    {
+      "recipeId": "vendor-support-handoff",
+      "started": false,
+      "missionFieldsPopulated": false,
+      "runbookVisible": false,
+      "evidencePromptsVisible": false,
+      "timelineRecipeStartEventPresent": false,
+      "paneHydrationPassed": false,
+      "runtimeTabsMapped": false,
+      "exportPreviewOpened": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH",
+      "notes": "PENDING_REAL_INSTALLED_APP_TEST"
+    }
+  ],
+  "layoutStress": {
+    "sequence": [
+      "single",
+      "split-horizontal",
+      "triple-top",
+      "triple-bottom",
+      "triple-left",
+      "triple-right",
+      "quad",
+      "focus",
+      "quad",
+      "single"
+    ],
+    "cyclesPerRecipe": 0,
+    "minimumCyclesPerRecipe": 50,
+    "allRecipesCompletedMinimumCycles": false,
+    "focusPaneRestorePassed": false,
+    "activePaneNeverHidden": false,
+    "noOrphanedWebviews": false,
+    "noBlankOrBlackPanes": false,
+    "noBottomOnlyWebviews": false
+  },
+  "windowProfileSmoke": [
+    {
+      "id": "restored-1366x768",
+      "width": 1366,
+      "height": 768,
+      "minimumContentWidth": 520,
+      "minimumContentHeight": 360,
+      "tested": false,
+      "missionCardsScrollable": false,
+      "noMissionCardOverlap": false,
+      "websiteBudgetPreserved": false,
+      "overlaysContained": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH"
+    },
+    {
+      "id": "small-1280x720",
+      "width": 1280,
+      "height": 720,
+      "minimumContentWidth": 480,
+      "minimumContentHeight": 320,
+      "tested": false,
+      "missionCardsScrollable": false,
+      "noMissionCardOverlap": false,
+      "websiteBudgetPreserved": false,
+      "overlaysContained": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH"
+    },
+    {
+      "id": "maximized-1920x1080",
+      "width": 1920,
+      "height": 1080,
+      "minimumContentWidth": 760,
+      "minimumContentHeight": 520,
+      "tested": false,
+      "missionCardsScrollable": false,
+      "noMissionCardOverlap": false,
+      "websiteBudgetPreserved": false,
+      "overlaysContained": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH"
+    },
+    {
+      "id": "wide-2560x1440",
+      "width": 2560,
+      "height": 1440,
+      "minimumContentWidth": 980,
+      "minimumContentHeight": 680,
+      "tested": false,
+      "missionCardsScrollable": false,
+      "noMissionCardOverlap": false,
+      "websiteBudgetPreserved": false,
+      "overlaysContained": false,
+      "screenshotPath": "REPLACE_WITH_SCREENSHOT_PATH"
+    }
+  ],
+  "runtimeErrors": {
+    "noWebViewDomReadyMethodError": false,
+    "noUnhandledRendererError": false,
+    "noUnhandledPromiseRejection": false,
+    "noConsoleNoiseAboveWarningBudget": false,
+    "errorLogPath": "REPLACE_WITH_RUNTIME_LOG_PATH_OR_NONE"
+  },
+  "storeTruth": {
+    "microsoftStoreSubmissionClaim": "not-submitted",
+    "microsoftStoreApprovalClaim": "not-approved",
+    "publicGaClaim": false,
+    "directMsiExeSigningStatus": "unsigned-preview",
+    "noITDocsBackendOrPSAConnectorClaim": true,
+    "noDirectPSAApiOrSecretStorageClaim": true
+  },
+  "operatorApproval": {
+    "approvedRuntimeHarnessEvidence": false,
+    "approvedToProceedToPass268": false,
+    "approvedForPartnerCenterSubmission": false,
+    "approvedForPublicGA": false,
+    "approvedBy": "REPLACE_WITH_OPERATOR_NAME",
+    "approvedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+    "notes": "PENDING_REAL_OPERATOR_REVIEW"
+  },
+  "goNoGo": {
+    "status": "NO_GO",
+    "reason": "Template only. Real installed Mission Control runtime evidence is required before release confidence.",
+    "readyForPass268": false,
+    "readyForPartnerCenterSubmission": false,
+    "readyForPublicGA": false
+  }
+}

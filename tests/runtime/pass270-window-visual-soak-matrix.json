@@ -1,0 +1,42 @@
+{
+  "pass": "PASS270",
+  "versionTarget": "2.0.14",
+  "windowProfiles": [
+    { "id": "restored-compact-1280x720", "width": 1280, "height": 720, "minimumWebsiteBudgetPx": 360 },
+    { "id": "small-laptop-1366x768", "width": 1366, "height": 768, "minimumWebsiteBudgetPx": 400 },
+    { "id": "1080p-1920x1080", "width": 1920, "height": 1080, "minimumWebsiteBudgetPx": 560 },
+    { "id": "wide-2560x1440", "width": 2560, "height": 1440, "minimumWebsiteBudgetPx": 720 },
+    { "id": "maximized-available-screen", "width": "screen.availWidth", "height": "screen.availHeight", "minimumWebsiteBudgetPx": 560 }
+  ],
+  "surfaces": [
+    "mission-control",
+    "mission-recipes",
+    "mission-cards",
+    "split-view",
+    "tri-view",
+    "quad-view",
+    "focus-pane",
+    "webview-panes",
+    "runbook-rail",
+    "evidence-pack",
+    "command-center",
+    "more-tools",
+    "devops-tools",
+    "it-tools",
+    "settings",
+    "kb-guide"
+  ],
+  "assertions": [
+    "no-mission-card-overlap",
+    "no-hidden-clipped-recipe-buttons",
+    "no-unscrollable-cards",
+    "no-overlay-collision",
+    "no-website-content-pane-collapse",
+    "no-black-bottom-only-webview-pane",
+    "no-orphaned-active-pane",
+    "no-clipped-command-center-more-tools-mission-settings-kb",
+    "useful-website-budget-preserved",
+    "store-not-submitted-not-approved"
+  ],
+  "failClosed": true
+}

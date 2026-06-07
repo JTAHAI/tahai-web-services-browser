@@ -1,0 +1,463 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS262",
+  "packName": "TAHAI Web Services Browser Store Asset Evidence Pack",
+  "status": "TEMPLATE_PENDING_INSTALLED_APP_ASSETS",
+  "versionTarget": "2.0.14",
+  "generatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+  "preparedBy": "REPLACE_WITH_OPERATOR_NAME",
+  "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+  "packageIdentityTruth": {
+    "partnerCenterReserved": false,
+    "packageFamilyName": "REPLACE_WITH_PARTNER_CENTER_PACKAGE_FAMILY_NAME",
+    "publisherDisplayName": "TAHAI Web Services",
+    "packageVersion": "2.0.14",
+    "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+    "packagePath": "REPLACE_WITH_LOCAL_PACKAGE_PATH_OR_RELEASE_MANIFEST_REFERENCE",
+    "packageBuiltFromCleanSource": false
+  },
+  "storeTruth": {
+    "microsoftStoreSubmissionClaim": "not-submitted",
+    "microsoftStoreApprovalClaim": "not-approved",
+    "directMsiExeSigningStatus": "unsigned-preview",
+    "assetPackDoesNotSubmitToStore": true,
+    "publicGaClaim": false
+  },
+  "assetManifest": {
+    "manifestPath": "release-candidate/store-submission/pass262-store-asset-evidence-pack.json",
+    "artifactRoot": "release-candidate/store-submission/assets",
+    "assetsCapturedFromInstalledApp": false,
+    "assetsMatchVersion": false,
+    "allAssetsHaveSha256": false,
+    "allAssetsReviewedForSecrets": false,
+    "screenshots": [
+      {
+        "assetId": "normal-browser-mode",
+        "slot": "normal-browser-mode",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "screenshot",
+        "capturedFrom": "installed-windows-app",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "privateTenantDataVisible": false,
+          "issueOrTicketDataVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "unsignedPreviewTruthIfVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      },
+      {
+        "assetId": "mission-control-overview",
+        "slot": "mission-control-overview",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "screenshot",
+        "capturedFrom": "installed-windows-app",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "privateTenantDataVisible": false,
+          "issueOrTicketDataVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "unsignedPreviewTruthIfVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      },
+      {
+        "assetId": "quad-view-recipe-started",
+        "slot": "quad-view-recipe-started",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "screenshot",
+        "capturedFrom": "installed-windows-app",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "privateTenantDataVisible": false,
+          "issueOrTicketDataVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "unsignedPreviewTruthIfVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      },
+      {
+        "assetId": "tri-view-layout-routing",
+        "slot": "tri-view-layout-routing",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "screenshot",
+        "capturedFrom": "installed-windows-app",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "privateTenantDataVisible": false,
+          "issueOrTicketDataVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "unsignedPreviewTruthIfVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      },
+      {
+        "assetId": "split-view-active-pane-routing",
+        "slot": "split-view-active-pane-routing",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "screenshot",
+        "capturedFrom": "installed-windows-app",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "privateTenantDataVisible": false,
+          "issueOrTicketDataVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "unsignedPreviewTruthIfVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      },
+      {
+        "assetId": "runbook-rail-and-evidence",
+        "slot": "runbook-rail-and-evidence",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "screenshot",
+        "capturedFrom": "installed-windows-app",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "privateTenantDataVisible": false,
+          "issueOrTicketDataVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "unsignedPreviewTruthIfVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      },
+      {
+        "assetId": "operator-command-center",
+        "slot": "operator-command-center",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "screenshot",
+        "capturedFrom": "installed-windows-app",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "privateTenantDataVisible": false,
+          "issueOrTicketDataVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "unsignedPreviewTruthIfVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      },
+      {
+        "assetId": "settings-about-unsigned-preview-truth",
+        "slot": "settings-about-unsigned-preview-truth",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "screenshot",
+        "capturedFrom": "installed-windows-app",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "privateTenantDataVisible": false,
+          "issueOrTicketDataVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "unsignedPreviewTruthIfVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      }
+    ],
+    "listingAssets": [
+      {
+        "assetId": "store-square-logo",
+        "slot": "store-square-logo",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "store-listing-image-or-icon",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "transparentBackgroundReviewed": false,
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      },
+      {
+        "assetId": "store-app-icon",
+        "slot": "store-app-icon",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "store-listing-image-or-icon",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "transparentBackgroundReviewed": false,
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      },
+      {
+        "assetId": "store-listing-hero-or-promotional-image",
+        "slot": "store-listing-hero-or-promotional-image",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "store-listing-image-or-icon",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "transparentBackgroundReviewed": false,
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      },
+      {
+        "assetId": "store-screenshot-set",
+        "slot": "store-screenshot-set",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "store-listing-image-or-icon",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "transparentBackgroundReviewed": false,
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      },
+      {
+        "assetId": "public-landing-page-preview-image",
+        "slot": "public-landing-page-preview-image",
+        "required": true,
+        "sourcePath": "REPLACE_WITH_ASSET_PATH",
+        "sourceKind": "store-listing-image-or-icon",
+        "packageVersion": "2.0.14",
+        "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+        "assetSha256": "REPLACE_WITH_64_HEX_SHA256",
+        "pixelDimensions": {
+          "width": 0,
+          "height": 0
+        },
+        "transparentBackgroundReviewed": false,
+        "noSecretReview": {
+          "reviewed": false,
+          "reviewer": "REPLACE_WITH_REVIEWER_NAME",
+          "customerDataVisible": false,
+          "tokensVisible": false,
+          "notes": ""
+        },
+        "storeTruthReview": {
+          "noStoreApprovalClaimVisible": true,
+          "noSubmittedClaimVisible": true,
+          "versionConsistentWithPacket": false
+        }
+      }
+    ]
+  },
+  "storeListingImageChecklist": {
+    "checklistPath": "docs/store/pass262-store-listing-image-checklist.template.json",
+    "finalPartnerCenterRequirementsCheckedAtUploadTime": false,
+    "screenshotsRepresentInstalledApp": false,
+    "noBlankOrBottomOnlyPanesShown": false,
+    "missionControlFlagshipShownClearly": false,
+    "normalModeStillLooksClean": false,
+    "noInternalDebugPassChatterVisible": false,
+    "noSecretsOrCustomerDataVisible": false,
+    "altTextOrCaptionsPrepared": false,
+    "notes": "Partner Center field names and size acceptance should be rechecked during upload; this pack records source, hashes, dimensions, and review truth."
+  },
+  "publicUrlReview": {
+    "reviewPath": "docs/store/pass262-public-url-review.template.json",
+    "browserLandingUrl": "REPLACE_WITH_PUBLIC_BROWSER_LANDING_URL",
+    "privacyPolicyUrl": "REPLACE_WITH_PUBLIC_PRIVACY_POLICY_URL",
+    "supportUrl": "REPLACE_WITH_PUBLIC_SUPPORT_URL",
+    "securityPolicyUrl": "REPLACE_WITH_PUBLIC_SECURITY_POLICY_URL",
+    "sourceRepoUrl": "https://github.com/JTAHAI/tahai-web-services-browser",
+    "releaseNotesOrKnownIssuesUrl": "REPLACE_WITH_PUBLIC_RELEASE_NOTES_OR_KNOWN_ISSUES_URL",
+    "allUrlsHttps": false,
+    "urlsOpenWithoutAuthentication": false,
+    "urlsMatchStoreListingCopy": false,
+    "noBrokenLinks": false,
+    "noFalseSigningOrApprovalClaims": false
+  },
+  "knownIssuesTruth": {
+    "knownIssuesReviewed": false,
+    "knownIssuesSource": "docs/known-issues.md or docs/store/KNOWN_ISSUES_TRUTH_TEMPLATE.md",
+    "blockersOpen": true,
+    "blockers": [
+      "Fill this asset pack only after real installed-app screenshots and asset hashes exist."
+    ]
+  },
+  "goNoGo": {
+    "status": "NO_GO",
+    "reason": "Asset evidence pack is a template until installed-app screenshots, asset hashes, URL review, no-secret review, and operator approval are complete.",
+    "readyForPartnerCenterAssetUpload": false,
+    "readyForPartnerCenterSubmission": false,
+    "readyForPublicGA": false,
+    "operatorApproved": false
+  }
+}

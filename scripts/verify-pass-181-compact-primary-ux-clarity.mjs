@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -13,7 +14,7 @@ const responsiveTs = read('src/renderer/responsive-toolbar.ts');
 const responsiveCss = read('src/renderer/styles/responsive-toolbar.css');
 const doc = read('docs/pass-181-compact-primary-ux-clarity.md');
 const summary = read('PASS_181_COMPACT_PRIMARY_UX_CLARITY_SUMMARY.md');
-const releaseBlockers = pkg.scripts?.['verify:release-blockers'] || '';
+const releaseBlockers = getReleaseBlockersContract(pkg);
 
 need(pkg.version === '1.8.30', 'PASS181 must not increment version without explicit approval.');
 need(pkg.scripts?.['verify:pass-181-compact-primary-ux-clarity'] === 'node scripts/verify-pass-181-compact-primary-ux-clarity.mjs', 'package.json must expose PASS181 verifier.');

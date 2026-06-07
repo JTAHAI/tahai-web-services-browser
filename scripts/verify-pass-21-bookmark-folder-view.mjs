@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function fail(message) {
   console.error(`PASS21_BOOKMARK_FOLDER_VIEW_FAIL=${message}`);
@@ -38,7 +39,7 @@ if (pkg.scripts?.['verify:pass-21-bookmark-folder-view'] !== 'node scripts/verif
   fail('missing-package-script');
 }
 
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-21-bookmark-folder-view')) {
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-21-bookmark-folder-view')) {
   fail('release-blockers-not-wired');
 }
 

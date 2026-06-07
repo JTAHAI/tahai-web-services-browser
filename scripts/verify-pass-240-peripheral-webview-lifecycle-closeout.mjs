@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const app = fs.readFileSync('src/renderer/app.ts', 'utf8');
 const bookmarks = fs.readFileSync('src/renderer/chromium-bookmarks.ts', 'utf8');
@@ -34,6 +35,6 @@ need(!has(rail, 'snapshot.webview?.reload?.();'), 'site-view raw reload optional
 
 need(has(docs, 'PASS240'), 'PASS240 docs missing');
 need(pkg.scripts['verify:pass-240-peripheral-webview-lifecycle-closeout'] === 'node scripts/verify-pass-240-peripheral-webview-lifecycle-closeout.mjs', 'package verifier script missing');
-need(pkg.scripts['verify:release-blockers'].includes('npm run verify:pass-240-peripheral-webview-lifecycle-closeout'), 'release blockers missing PASS240 verifier');
+need(getReleaseBlockersContract(pkg).includes('npm run verify:pass-240-peripheral-webview-lifecycle-closeout'), 'release blockers missing PASS240 verifier');
 
 console.log('[PASS240][OK] Peripheral WebView lifecycle closeout verified.');

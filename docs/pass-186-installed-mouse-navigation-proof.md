@@ -31,7 +31,7 @@ The proof lane covers:
 - No raw IPC exposure.
 - No global mouse hook.
 - No remote-page script injection.
-- Version remains `1.8.30`.
+- Version remains `2.0.14`.
 
 ## Run locally
 

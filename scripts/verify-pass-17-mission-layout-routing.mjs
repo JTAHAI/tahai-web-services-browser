@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const app = fs.readFileSync('src/renderer/app.ts', 'utf8');
 const css = fs.readFileSync('src/renderer/styles/browser.css', 'utf8');
@@ -36,5 +37,5 @@ for (const token of [
   if (!css.includes(token)) fail(`missing-css-token:${token}`);
 }
 if (pkg.scripts?.['verify:pass-17-mission-layout-routing'] !== 'node scripts/verify-pass-17-mission-layout-routing.mjs') fail('missing-package-script');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-17-mission-layout-routing')) fail('release-blockers-not-wired');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-17-mission-layout-routing')) fail('release-blockers-not-wired');
 console.log('PASS17_MISSION_LAYOUT_ROUTING_OK=1');

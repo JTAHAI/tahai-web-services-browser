@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const fail = (message) => { console.error(`PASS143_MISSION_REDACTION_CLOSEOUT=FAIL ${message}`); process.exit(1); };
@@ -23,8 +24,8 @@ for (const rel of requiredFiles) need(exists(rel), `missing required PASS143 fil
 const pkg = JSON.parse(read('package.json'));
 need(pkg.version === '1.8.30', 'PASS143 must not bump version');
 need(pkg.scripts?.['verify:pass-143-mission-redaction-closeout'] === 'node scripts/verify-pass-143-mission-redaction-closeout.mjs', 'package.json missing PASS143 verifier script');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-143-mission-redaction-closeout'), 'release blockers must include PASS143 verifier');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').indexOf('verify:pass-142-electron-security-final-audit') < String(pkg.scripts?.['verify:release-blockers'] || '').indexOf('verify:pass-143-mission-redaction-closeout'), 'PASS143 should run after PASS142');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-143-mission-redaction-closeout'), 'release blockers must include PASS143 verifier');
+need(getReleaseBlockersContract(pkg).indexOf('verify:pass-142-electron-security-final-audit') < getReleaseBlockersContract(pkg).indexOf('verify:pass-143-mission-redaction-closeout'), 'PASS143 should run after PASS142');
 
 const contract = read('src/shared/mission-redaction-contract.ts');
 for (const token of [

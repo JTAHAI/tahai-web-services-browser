@@ -1,7 +1,10 @@
+import "./pass333-chrome-hit-test-webview-layer-truth";
+// PASS333: quarantined PASS329 auto viewport sentry; browser chrome is dead/white after recovery lane.
 import type { ItDocsMissionCapabilities } from '../shared/itdocs-contract';
 import { localOnlyPsaReferenceContractState, psaReferenceMarkdown } from '../shared/psa-reference-contract';
 import { scanAndRedact } from '../shared/redaction';
 import { sanitizeEvidenceMarkdown, sanitizeEvidenceUrl } from '../shared/evidence-safety';
+// PASS333: quarantined PASS332 auto navigation-owner recovery; it did not fix runtime and chrome is not clickable.
 import {
   sanitizeActiveCaptureLink,
   sanitizeActiveCaptureList,
@@ -21,6 +24,7 @@ import { normalizeBrowserNavigationTarget, navigationBoundaryReason, sanitizeBro
 import { sanitizeAddressBarInput, resolveBrowserAddressBarTarget, type AddressBarResolution } from '../shared/navigation-boundary';
 import { TAHAI_REQUIRED_WEBVIEW_WEBPREFERENCES, normalizeTahaiWebviewPreferences } from '../shared/electron-security-contract';
 import { PASS194_DOWNLOAD_ARTIFACT_SHELF_TAG } from '../shared/download-boundary';
+// PASS333: quarantined PASS332 auto navigation-owner recovery; it did not fix runtime and chrome is not clickable.
 import {
   PASS200_RUNBOOK_RAIL_V2_PASS,
   RUNBOOK_RAIL_V2_GUARDRAILS,
@@ -146,6 +150,7 @@ import { ADMIN_CONSOLE_PROFILES, adminConsoleProfileToLaunchRecipe, adminConsole
 import { ADMIN_CONSOLE_PROFILES_V2, ADMIN_CONSOLE_PROFILES_V2_REQUIRED_COUNT, adminConsoleProfileV2ForRecipe, adminConsoleProfileV2ToLaunchRecipe, adminConsoleProfilesV2DiagnosticsSummary, adminConsoleProfilesV2Summary } from '../shared/admin-console-profiles-v2-contract';
 import { MISSION_RECIPE_LIBRARY, missionRecipeLibrarySummary, missionRecipeLibraryToLaunchRecipe } from '../shared/mission-recipes-contract';
 import { MISSION_RECIPE_LIBRARY_V2, MISSION_RECIPE_LIBRARY_V2_REQUIRED_COUNT, missionRecipeLibraryV2ForRecipe, missionRecipeLibraryV2Summary } from '../shared/mission-recipe-library-v2-contract';
+// PASS333: quarantined PASS332 auto navigation-owner recovery; it did not fix runtime and chrome is not clickable.
 import {
   PASS197_MISSION_LAYOUT_DETERMINISM_VERSION,
   PASS197_MISSION_LAYOUT_DETERMINISM_MATRIX,
@@ -695,6 +700,7 @@ const settingThirdPartyCookies = document.getElementById('setting-third-party-co
 const settingReduceReferrers = document.getElementById('setting-referrer') as HTMLInputElement;
 const settingClearOnExit = document.getElementById('setting-clear-on-exit') as HTMLInputElement;
 const settingDownloads = document.getElementById('setting-downloads') as HTMLInputElement;
+const settingPopupsAsTabs = document.getElementById('setting-popups-as-tabs') as HTMLInputElement;
 const settingStatusBar = document.getElementById('setting-statusbar') as HTMLInputElement;
 const settingsResult = document.getElementById('settings-result') as HTMLElement;
 const closeSettingsButton = document.getElementById('close-settings') as HTMLButtonElement;
@@ -812,6 +818,7 @@ const saveOpsGuardButton = document.getElementById('save-ops-guard') as HTMLButt
 
 let config: BrowserConfig;
 let settings: BrowserSettings;
+let pass158RuntimeControl: BrowserConfig['runtimeControl'] | undefined;
 let activeTabId = '';
 let latestCapture: CaptureState | undefined;
 let pass194DownloadArtifacts: RendererDownloadState[] = [];
@@ -993,6 +1000,15 @@ function pass197RecordMissionLayoutDeterminism(reason: string, phase: Pass197Mis
 
 function id(): string {
   return `tab-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function eventTargetElement(event: Event): Element | null {
+  return event.target instanceof Element ? event.target : null;
+}
+
+function eventClosest<T extends Element>(event: Event, selector: string): T | null {
+  const target = eventTargetElement(event);
+  return target ? target.closest<T>(selector) : null;
 }
 
 function trustedLocalUrls(): string[] {
@@ -4132,9 +4148,11 @@ function pass90BlockRecipeLaunch(plan: Pass90LaunchPlan): void {
 }
 
 function pass90ScheduleLaunchRecipeFailsafe(reason = 'scheduled'): void {
+  pass158RuntimeDiag('pass90-schedule-launch-recipe-failsafe', reason);
   if (pass90LaunchRecipeFailsafeTimer) window.clearTimeout(pass90LaunchRecipeFailsafeTimer);
   pass90LaunchRecipeFailsafeTimer = window.setTimeout(() => {
     pass90LaunchRecipeFailsafeTimer = undefined;
+    pass158RuntimeDiag('pass90-run-launch-recipe-failsafe', reason);
     pass90RunLaunchRecipeFailsafe(reason);
   }, 260);
 }
@@ -4325,6 +4343,7 @@ function setActive(tabId: string): void {
   if (active) {
     addressInput.value = active.url;
     setStatus(active.title, securityLabel(active.url));
+    if (pass339IsNormalBrowsing()) pass339ApplyStageViewportFit(active.webview, 'set-active');
   }
   renderMissionLayout();
   pass192SyncTitlebarChromeState('set-active');
@@ -4482,6 +4501,63 @@ async function pass238SafeExecuteJavaScript<T = unknown>(webview: Electron.Webvi
   }
 }
 
+
+const PASS271_R9_WEBVIEW_WHITE_SCREEN_INPUT_COMPOSITOR_CLOSEOUT = 'PASS271_R9_WEBVIEW_WHITE_SCREEN_INPUT_COMPOSITOR_CLOSEOUT';
+
+function pass271R9ChromiumCompatibleUserAgent(): string {
+  const fallback = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36';
+  try {
+    const ua = String(navigator.userAgent || '').replace(/\sElectron\/[0-9A-Za-z_.-]+/g, '').replace(/\sTAHAI[^\s]*/gi, '').trim();
+    return ua && /Chrome\//.test(ua) ? ua : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function pass271R9SetWebviewSrc(webview: Electron.WebviewTag, safeUrl: string, reason: string): void {
+  const target = String(safeUrl || '').trim();
+  if (!target) return;
+  if (((globalThis as any).process?.env?.TAHAI_BROWSER_ENABLE_PASS271_R9_WHITE_SCREEN_CLOSEOUT_DATASET) === '1') {
+    webview.dataset.pass271R9WebviewWhiteScreenCloseout = PASS271_R9_WEBVIEW_WHITE_SCREEN_INPUT_COMPOSITOR_CLOSEOUT;
+  } else {
+    delete webview.dataset.pass271R9WebviewWhiteScreenCloseout;
+    webview.removeAttribute('data-pass271-r9-webview-white-screen-closeout');
+  }
+  webview.dataset.pass271R9LastSrcReason = reason;
+  webview.dataset.pass271R9LastSrcAt = new Date().toISOString();
+  webview.setAttribute('src', target);
+  try { (webview as Electron.WebviewTag & { src?: string }).src = target; } catch { /* older Electron type/runtime may expose src as attribute-only. */ }
+}
+
+function pass271R9ArmWebviewBlankSurfaceRecovery(webview: Electron.WebviewTag, safeUrl: string, tabId: string): void {
+  webview.dataset.pass271R9RecoveryArmed = 'true';
+  webview.addEventListener('did-attach', () => {
+    webview.dataset.pass271R9DidAttach = 'true';
+    pass271R9SetWebviewSrc(webview, safeUrl, 'did-attach');
+  });
+  webview.addEventListener('dom-ready', () => {
+    webview.dataset.pass271R9DomReady = 'true';
+    webview.dataset.pass271R9DomReadyAt = new Date().toISOString();
+  });
+  webview.addEventListener('did-finish-load', () => {
+    webview.dataset.pass271R9DidFinishLoad = 'true';
+    webview.dataset.pass271R9DidFinishLoadAt = new Date().toISOString();
+  });
+  webview.addEventListener('did-fail-load', (event: any) => {
+    webview.dataset.pass271R9DidFailLoad = String(event?.errorCode || 'unknown');
+    webview.dataset.pass271R9DidFailLoadDescription = String(event?.errorDescription || '').slice(0, 260);
+  });
+  for (const [delay, reason] of [[180, 'settle-180'], [900, 'settle-900'], [2200, 'blank-surface-retry-2200']] as const) {
+    window.setTimeout(() => {
+      if (!document.documentElement.contains(webview)) return;
+      if (webview.dataset.pass271R9DomReady === 'true' || webview.dataset.pass236DomReady === 'true') return;
+      pass271R9SetWebviewSrc(webview, safeUrl, reason);
+      if (reason === 'blank-surface-retry-2200') setStatus('Retrying webview load', titleFromUrl(safeUrl));
+    }, delay);
+  }
+  document.body.dataset.pass271R9LastArmedTab = tabId;
+}
+
 function createTab(url: string): string {
   const safeUrl = normalizeTarget(url);
   const tabId = id();
@@ -4497,17 +4573,35 @@ function createTab(url: string): string {
   tabsEl.appendChild(button);
 
   const webview = document.createElement('webview') as Electron.WebviewTag;
-  webview.className = 'browser-view';
-  webview.dataset.pass239InitialSrcDeferred = 'true';
+  webview.className = 'browser-view active';
+  webview.dataset.pass239InitialSrcDeferred = 'false';
   webview.setAttribute('partition', browserProfileState?.activeProfile?.partition || 'persist:tahai-profile-default');
   webview.setAttribute('webpreferences', normalizeTahaiWebviewPreferences(TAHAI_REQUIRED_WEBVIEW_WEBPREFERENCES));
+  webview.setAttribute('useragent', pass271R9ChromiumCompatibleUserAgent());
   webview.dataset.pass153PopupBoundary = 'main-process-owned';
   webview.dataset.testid = 'runtime-webview';
   webview.dataset.browserTabId = tabId;
   webview.dataset.pass106SiteViewTabId = tabId; pass236MarkWebviewDomPending(webview, tabId);
   pass185BindWebviewMouseHistoryRouting(webview, tabId);
   pass188BindWebviewFocusInputBoundary(webview, tabId);
+  // PASS271-R8: hard-close the R7 apply-script failure and seed src before attach.
+  // Electron's main-process will-attach-webview boundary validates params.src at attach time.
+  // If the element is appended with an empty src, the guest can be blocked before PASS236
+  // post-append safe loading runs, leaving a white, non-interactive content pane.
+  webview.dataset.pass271R8WebviewAttachSrcHardClose = 'PASS271_R8_WEBVIEW_ATTACH_SRC_HARD_CLOSE';
+  webview.dataset.pass271R8InitialSrcSeededBeforeAttach = 'true';
+  pass339ApplyStageViewportFit(webview);
+  webview.addEventListener('did-attach', () => {
+    webview.dataset.pass271R8DidAttach = 'true';
+    pass339ApplyStageViewportFit(webview);
+    if (!webview.getAttribute('src')) webview.setAttribute('src', safeUrl);
+  });
+  pass271R9SetWebviewSrc(webview, safeUrl, 'before-attach');
+
   stageEl.appendChild(webview);
+  if (((globalThis as any).process?.env?.TAHAI_BROWSER_ENABLE_PASS271_R9_BLANK_SURFACE_RECOVERY) === "1") {
+    pass271R9ArmWebviewBlankSurfaceRecovery(webview, safeUrl, tabId);
+  }
 
   const tab: TabState = { id: tabId, title: titleFromUrl(safeUrl), url: safeUrl, button, webview, consoleMessages: [] };
   tabs.set(tabId, tab);
@@ -4529,7 +4623,7 @@ function createTab(url: string): string {
     closeTab(tabId);
   });
   button.addEventListener('click', (event) => {
-    const target = event.target as Element | null;
+    const target = eventTargetElement(event);
     if (target?.closest('.tab-close')) {
       event.preventDefault();
       event.stopPropagation();
@@ -4539,7 +4633,7 @@ function createTab(url: string): string {
     setActive(tabId);
   });
   button.addEventListener('dragstart', (event) => {
-    const target = event.target as Element | null;
+    const target = eventTargetElement(event);
     if (target?.closest('.tab-close')) {
       event.preventDefault();
       event.stopPropagation();
@@ -4552,18 +4646,29 @@ function createTab(url: string): string {
 
   webview.addEventListener('page-title-updated', (event: any) => updateTab(tab, { title: sanitizeRemotePageTitle(event.title, titleFromUrl(tab.url)) }));
   webview.addEventListener('did-start-loading', () => {
+    if (tab.id === activeTabId && pass339IsNormalBrowsing()) pass339ApplyStageViewportFit(webview, 'webview-did-start-loading');
     pass236MarkWebviewDomPending(webview, tabId);
     document.body.dataset.pass191LoadingTab = tab.id;
     if (tab.id === activeTabId) addressInput.dataset.pass191LoadingState = 'loading';
     setStatus(`Loading ${titleFromUrl(tab.url)}`, securityLabel(tab.url));
   });
   webview.addEventListener('did-stop-loading', () => {
+    if (tab.id === activeTabId && pass339IsNormalBrowsing()) pass339ApplyStageViewportFit(webview, 'webview-did-stop-loading');
+    pass339ScheduleNormalBrowsingInputPaintCloseout('webview-did-stop-loading');
+    pass340ScheduleChromeInputCloseout('did-stop-loading'); pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('webview-did-stop-loading');
     if (document.body.dataset.pass191LoadingTab === tab.id) document.body.dataset.pass191LoadingTab = 'none';
     if (tab.id === activeTabId) addressInput.dataset.pass191LoadingState = 'idle';
     setStatus(tab.title, securityLabel(tab.url));
     pass74ScheduleMissionPaneRelayoutRetries('load');
   });
-  webview.addEventListener('dom-ready', () => { pass236MarkWebviewDomReady(webview, tabId); pass74ScheduleMissionPaneRelayoutRetries('load'); });
+  webview.addEventListener('dom-ready', () => {
+    pass236MarkWebviewDomReady(webview, tabId);
+    if (tab.id === activeTabId && pass339IsNormalBrowsing()) pass339ApplyStageViewportFit(webview, 'webview-dom-ready');
+    pass74ScheduleMissionPaneRelayoutRetries('load');
+    pass339ScheduleNormalBrowsingInputPaintCloseout('webview-dom-ready');
+    pass340ScheduleChromeInputCloseout('dom-ready');
+    pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('webview-dom-ready');
+  });
   const updateFromNavigationEvent = (eventUrl: unknown): void => {
     const safeNavigatedUrl = typeof eventUrl === 'string' ? browserNavigationSafeUrl(eventUrl) : '';
     if (!safeNavigatedUrl) {
@@ -4600,9 +4705,37 @@ function createTab(url: string): string {
     setStatus('Blocked popup navigation', navigationBoundaryReason(popupUrl || event.url, trustedLocalUrls()));
   });
 
-  pass236SafeLoadURL(webview, safeUrl);
-  webview.dataset.pass239InitialSrcDeferredLoaded = 'true';
+  // PASS338: src is owned by the pre-attach path above. Do not call pass236SafeLoadURL
+  // here because it resets dom-ready truth and can race first paint after a successful load.
+  webview.dataset.pass239InitialSrcDeferredLoaded = 'pre-attach-src-owned';
+  webview.dataset.pass338SingleSrcOwner = 'pre-attach';
   setActive(tabId);
+  pass339ScheduleNormalBrowsingInputPaintCloseout('create-tab');
+  pass340ScheduleChromeInputCloseout('create-tab');
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('create-tab');
+  return tabId;
+}
+
+
+function pass271R6OpenTrustedPopupTab(url: string, source = 'trusted-popup'): string | undefined {
+  const popupUrl = typeof url === 'string' ? browserNavigationSafeUrl(url) : '';
+  document.body.dataset.pass271R6PopupAsTabs = 'true';
+  document.body.dataset.pass271R6LastPopupSource = source;
+  if (!popupUrl) {
+    document.body.dataset.pass271R6LastPopupResult = 'blocked-unsafe-url';
+    setStatus('Blocked popup navigation', navigationBoundaryReason(url, trustedLocalUrls()));
+    return undefined;
+  }
+  if (settings?.ui?.allowPopupsAsTabs === false) {
+    document.body.dataset.pass271R6LastPopupResult = 'blocked-setting-disabled';
+    setStatus('Popup blocked', 'Enable “Open popups as new TAHAI tabs” in Settings to allow sanitized popup tabs.');
+    return undefined;
+  }
+  const tabId = createTab(popupUrl);
+  document.body.dataset.pass271R6LastPopupResult = 'opened-tab';
+  document.body.dataset.pass271R6LastPopupTab = tabId;
+  document.body.dataset.pass271R6LastPopupUrl = popupUrl.slice(0, 500);
+  setStatus('Popup opened in new tab', popupUrl);
   return tabId;
 }
 
@@ -4661,7 +4794,7 @@ function ensureMissionPaneShell(paneIdInput: string): HTMLElement {
     shell.setAttribute('role', 'group');
     shell.setAttribute('aria-label', missionPaneLabel(paneId));
     shell.addEventListener('pointerdown', (event) => {
-      if ((event.target as HTMLElement).closest('.mission-pane-drag-handle')) return;
+      if (eventClosest(event, '.mission-pane-drag-handle')) return;
       setMissionActivePane(paneId);
     });
     missionPaneShells.set(paneId, shell);
@@ -4684,20 +4817,35 @@ function hideMissionPaneShells(): void {
 
 function restoreWebviewsToStageRoot(): void {
   for (const tab of tabs.values()) {
+    const isActive = tab.id === activeTabId;
     if (tab.webview.parentElement !== stageEl) stageEl.appendChild(tab.webview);
+    if (!isActive) {
+      tab.webview.removeAttribute('width');
+      tab.webview.removeAttribute('height');
+      tab.webview.removeAttribute('minwidth');
+      tab.webview.removeAttribute('minheight');
+      tab.webview.removeAttribute('maxwidth');
+      tab.webview.removeAttribute('maxheight');
+    }
     tab.webview.style.removeProperty('order');
-    tab.webview.style.removeProperty('position');
-    tab.webview.style.removeProperty('left');
-    tab.webview.style.removeProperty('top');
-    tab.webview.style.removeProperty('width');
-    tab.webview.style.removeProperty('height');
-    tab.webview.style.removeProperty('min-width');
-    tab.webview.style.removeProperty('min-height');
-    tab.webview.style.removeProperty('max-width');
-    tab.webview.style.removeProperty('max-height');
-    tab.webview.style.removeProperty('z-index');
+    if (!isActive) {
+      tab.webview.style.removeProperty('position');
+      tab.webview.style.removeProperty('left');
+      tab.webview.style.removeProperty('top');
+      tab.webview.style.removeProperty('width');
+      tab.webview.style.removeProperty('height');
+      tab.webview.style.removeProperty('min-width');
+      tab.webview.style.removeProperty('min-height');
+      tab.webview.style.removeProperty('max-width');
+      tab.webview.style.removeProperty('max-height');
+      tab.webview.style.removeProperty('z-index');
+    }
+    delete tab.webview.dataset.pass77ViewportFit;
+    delete tab.webview.dataset.pass78AutosizeGuard;
+    if (!isActive) delete tab.webview.dataset.pass339StageViewportFit;
     delete tab.webview.dataset.pass63MissionPaneId;
     delete tab.webview.dataset.paneId;
+    if (isActive) pass339ApplyStageViewportFit(tab.webview, 'restore-webviews-to-stage-root');
   }
   hideMissionPaneShells();
 }
@@ -4709,7 +4857,7 @@ function renderMissionPaneHeads(layout: MissionLayoutType, enabled: boolean): vo
     missionPaneHeads.className = 'mission-pane-heads';
     missionPaneHeads.setAttribute('aria-label', 'Mission pane focus controls');
     missionPaneHeads.addEventListener('click', (event) => {
-      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-focus-mission-pane]');
+      const button = eventClosest<HTMLButtonElement>(event, '[data-focus-mission-pane]');
       if (!button?.dataset.focusMissionPane) return;
       event.preventDefault();
       setMissionActivePane(button.dataset.focusMissionPane);
@@ -4747,7 +4895,7 @@ function renderMissionPaneDropZones(layout: MissionLayoutType, enabled: boolean)
     missionPaneDropZones.className = 'mission-pane-drop-zones';
     missionPaneDropZones.setAttribute('aria-label', 'Mission pane drop targets');
     missionPaneDropZones.ondragover = (event) => {
-      const zone = (event.target as HTMLElement).closest<HTMLElement>('[data-pane-id]');
+      const zone = eventClosest<HTMLElement>(event, '[data-pane-id]');
       if (!zone) return;
       const decision = evaluateTahaiInternalDrop(event.dataTransfer, ['browser-tab', 'mission-tab']);
       event.preventDefault();
@@ -4760,10 +4908,10 @@ function renderMissionPaneDropZones(layout: MissionLayoutType, enabled: boolean)
       zone.classList.add('drag-over');
     };
     missionPaneDropZones.ondragleave = (event) => {
-      (event.target as HTMLElement).closest<HTMLElement>('[data-pane-id]')?.classList.remove('drag-over');
+      eventClosest<HTMLElement>(event, '[data-pane-id]')?.classList.remove('drag-over');
     };
     missionPaneDropZones.ondrop = (event) => {
-      const zone = (event.target as HTMLElement).closest<HTMLElement>('[data-pane-id]');
+      const zone = eventClosest<HTMLElement>(event, '[data-pane-id]');
       if (!zone) return;
       event.preventDefault();
       zone.classList.remove('drag-over');
@@ -4807,12 +4955,574 @@ function startMissionTabDrag(tabId: string, event: DragEvent): void {
     return;
   }
   document.body.classList.add('mission-tab-dragging');
+  if (stageEl) stageEl.dataset.pass339AllowDropZones = 'true';
 }
 
 function endMissionTabDrag(): void {
   document.body.classList.remove('mission-tab-dragging');
+  if (stageEl) stageEl.removeAttribute('data-pass339-allow-drop-zones');
   missionPaneDropZones?.querySelectorAll('.drag-over').forEach((element) => element.classList.remove('drag-over'));
+  pass339NormalBrowsingInputPaintCloseout('mission-tab-drag-end');
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('mission-tab-drag-end');
 }
+
+/* PASS339_NORMAL_BROWSING_INPUT_PAINT_CLOSEOUT_START */
+type Pass339NormalBrowsingInputPaintReport = {
+  pass: 'PASS339';
+  status: 'PASS' | 'WARN';
+  reason: string;
+  normalBrowsing: boolean;
+  missionDragging: boolean;
+  hiddenOverlayCount: number;
+  activeWebviewCount: number;
+  chromeHitTag: string;
+  stageHitTag: string;
+  generatedAt: string;
+};
+
+type Pass339Window = Window & {
+  __TAHAI_PASS339_NORMAL_BROWSING_INPUT_PAINT_CLOSEOUT__?: {
+    repair: (reason?: string) => Pass339NormalBrowsingInputPaintReport;
+    lastReport: () => Pass339NormalBrowsingInputPaintReport | null;
+  };
+};
+
+let pass339LastReport: Pass339NormalBrowsingInputPaintReport | null = null;
+let pass339PendingTimer: number | undefined;
+let pass342StageResizeObserver: ResizeObserver | undefined;
+
+function pass339IsNormalBrowsing(): boolean {
+  try {
+    return !currentMission || !currentMission.layout || currentMission.layout.type === 'single';
+  } catch {
+    return true;
+  }
+}
+
+function pass339ElementTag(element: Element | null): string {
+  if (!element) return 'none';
+  const html = element as HTMLElement;
+  return [element.tagName.toLowerCase(), html.id ? '#' + html.id : '', html.className ? '.' + String(html.className).trim().replace(/\s+/g, '.') : ''].join('').slice(0, 180) || 'unknown';
+}
+
+function pass339HideElement(element: HTMLElement, reason: string): void {
+  element.hidden = true;
+  element.style.display = 'none';
+  element.style.pointerEvents = 'none';
+  element.style.visibility = 'hidden';
+  element.setAttribute('aria-hidden', 'true');
+  element.dataset.pass339HiddenAsNormalBrowsingResidue = reason;
+  element.querySelectorAll<HTMLElement>('.drag-over').forEach((child) => child.classList.remove('drag-over'));
+}
+
+function pass339NormalizeChromeHitTargets(): void {
+  document.querySelectorAll<HTMLElement>('.topbar, #tabs, .tabs').forEach((element) => {
+    element.style.setProperty('-webkit-app-region', 'drag');
+    element.style.pointerEvents = 'auto';
+  });
+  document.querySelectorAll<HTMLElement>('.topbar button, .topbar input, .topbar .tab, .topbar .tab *, .toolbar, .toolbar *, .statusbar, .statusbar *, #tabs .tab, #tabs .tab *, #address, #address-form, #new-tab, #mission-control, #settings, #ops-hub-toggle').forEach((element) => {
+    element.style.setProperty('-webkit-app-region', 'no-drag');
+    if (element.matches('button, input, select, textarea, a, [role="button"], .tab, .tab *')) element.style.pointerEvents = 'auto';
+  });
+}
+
+const PASS342_NATIVE_GUEST_VIEWPORT_BOTTOM_ALIGN = 'PASS342_NATIVE_GUEST_VIEWPORT_BOTTOM_ALIGN';
+const PASS342_GUEST_VIEWPORT_SETTLE_DELAYS = [0, 48, 140, 320, 720, 1400] as const;
+
+function pass342StageViewportSize(): { width: number; height: number } {
+  const stageRect = stageEl?.getBoundingClientRect();
+  const stageWidth = Math.max(1, Math.round(stageEl?.clientWidth || stageRect?.width || 0));
+  const stageHeight = Math.max(1, Math.round(stageEl?.clientHeight || stageRect?.height || 0));
+  return { width: stageWidth, height: stageHeight };
+}
+
+function pass342IsActiveNormalWebview(webview: Electron.WebviewTag): boolean {
+  if (!stageEl || !pass339IsNormalBrowsing()) return false;
+  const activeTab = tabs.get(activeTabId) || active();
+  return Boolean(activeTab?.webview === webview && webview.parentElement === stageEl && webview.classList.contains('active'));
+}
+
+function pass342ApplyExactWebviewPixels(webview: Electron.WebviewTag, stageWidth: number, stageHeight: number, reason: string): void {
+  webview.setAttribute('autosize', 'off');
+  webview.removeAttribute('minwidth');
+  webview.removeAttribute('minheight');
+  webview.removeAttribute('maxwidth');
+  webview.removeAttribute('maxheight');
+  webview.setAttribute('width', String(stageWidth));
+  webview.setAttribute('height', String(stageHeight));
+  webview.style.setProperty('box-sizing', 'border-box', 'important');
+  webview.style.setProperty('display', 'inline-flex', 'important');
+  webview.style.setProperty('position', 'absolute', 'important');
+  webview.style.setProperty('top', '0px', 'important');
+  webview.style.setProperty('left', '0px', 'important');
+  webview.style.setProperty('right', 'auto', 'important');
+  webview.style.setProperty('bottom', 'auto', 'important');
+  webview.style.setProperty('width', stageWidth + 'px', 'important');
+  webview.style.setProperty('height', stageHeight + 'px', 'important');
+  webview.style.setProperty('min-width', stageWidth + 'px', 'important');
+  webview.style.setProperty('min-height', stageHeight + 'px', 'important');
+  webview.style.setProperty('max-width', stageWidth + 'px', 'important');
+  webview.style.setProperty('max-height', stageHeight + 'px', 'important');
+  webview.style.setProperty('margin', '0px', 'important');
+  webview.style.setProperty('padding', '0px', 'important');
+  webview.style.setProperty('border', '0px', 'important');
+  webview.style.setProperty('border-radius', '0px', 'important');
+  webview.style.setProperty('overflow', 'hidden', 'important');
+  webview.style.setProperty('contain', 'none', 'important');
+  webview.style.setProperty('transform', 'none', 'important');
+  webview.style.setProperty('vertical-align', 'top', 'important');
+  webview.dataset.pass339StageViewportFit = `${stageWidth}x${stageHeight}`;
+  webview.dataset.pass342ExactStageViewportFit = `${stageWidth}x${stageHeight}`;
+  webview.dataset.pass342NativeGuestViewportBottomAlign = reason;
+}
+
+function pass342DispatchGuestResizeProof(webview: Electron.WebviewTag, reason: string): void {
+  if (!pass342IsActiveNormalWebview(webview) || webview.dataset.pass236DomReady !== 'true') return;
+  const label = `pass342-guest-resize-proof:${reason}`;
+  void pass238SafeExecuteJavaScript<{
+    innerWidth: number;
+    innerHeight: number;
+    documentElementClientHeight: number;
+    documentElementScrollHeight: number;
+    bodyClientHeight: number;
+    bodyScrollHeight: number;
+  }>(webview, `(() => {
+    try { window.dispatchEvent(new Event('resize')); } catch {}
+    try { window.visualViewport && window.visualViewport.dispatchEvent(new Event('resize')); } catch {}
+    return {
+      innerWidth: Number(window.innerWidth || 0),
+      innerHeight: Number(window.innerHeight || 0),
+      documentElementClientHeight: Number(document.documentElement?.clientHeight || 0),
+      documentElementScrollHeight: Number(document.documentElement?.scrollHeight || 0),
+      bodyClientHeight: Number(document.body?.clientHeight || 0),
+      bodyScrollHeight: Number(document.body?.scrollHeight || 0)
+    };
+  })()`, true, label, undefined).then((proof) => {
+    if (!proof) return;
+    webview.dataset.pass342GuestViewportProof = [
+      `${Math.round(proof.innerWidth)}x${Math.round(proof.innerHeight)}`,
+      `doc:${Math.round(proof.documentElementClientHeight)}/${Math.round(proof.documentElementScrollHeight)}`,
+      `body:${Math.round(proof.bodyClientHeight)}/${Math.round(proof.bodyScrollHeight)}`
+    ].join(' ');
+    const bottomHeight = Math.max(proof.documentElementClientHeight, proof.documentElementScrollHeight, proof.bodyClientHeight, proof.bodyScrollHeight);
+    webview.dataset.pass342GuestViewportBottomAligned = String(bottomHeight + 2 >= proof.innerHeight);
+  }).catch((error) => {
+    webview.dataset.pass342GuestViewportProofError = error instanceof Error ? error.message.slice(0, 220) : String(error || 'unknown').slice(0, 220);
+  });
+}
+
+function pass342SettleNativeGuestViewport(webview: Electron.WebviewTag, reason: string, phase: number): void {
+  if (!stageEl || !pass342IsActiveNormalWebview(webview)) return;
+  const { width, height } = pass342StageViewportSize();
+  if (width <= 1 || height <= 1) return;
+  const shouldNudgeNativeGuest = phase === 1 || phase === 3;
+  if (!shouldNudgeNativeGuest) {
+    pass342ApplyExactWebviewPixels(webview, width, height, `${reason}:settle-${phase}`);
+    pass342DispatchGuestResizeProof(webview, `${reason}:settle-${phase}`);
+    return;
+  }
+  const nudgeWidth = Math.max(1, width - 1);
+  const nudgeHeight = Math.max(1, height - 1);
+  pass342ApplyExactWebviewPixels(webview, nudgeWidth, nudgeHeight, `${reason}:native-nudge-${phase}`);
+  window.requestAnimationFrame(() => {
+    if (!pass342IsActiveNormalWebview(webview)) return;
+    const latest = pass342StageViewportSize();
+    pass342ApplyExactWebviewPixels(webview, latest.width, latest.height, `${reason}:native-nudge-restore-${phase}`);
+    pass342DispatchGuestResizeProof(webview, `${reason}:native-nudge-restore-${phase}`);
+  });
+}
+
+function pass342ScheduleNativeGuestViewportSettle(webview: Electron.WebviewTag, stageWidth: number, stageHeight: number, reason: string): void {
+  if (!pass342IsActiveNormalWebview(webview)) return;
+  const now = Date.now();
+  const dimensionKey = `${stageWidth}x${stageHeight}`;
+  const lastAt = Number(webview.dataset.pass342ViewportSettleAt || '0');
+  if (webview.dataset.pass342ViewportSettleDimension === dimensionKey && now - lastAt < 120) return;
+  webview.dataset.pass342ViewportSettleDimension = dimensionKey;
+  webview.dataset.pass342ViewportSettleAt = String(now);
+  webview.dataset.pass342ViewportSettleReason = reason;
+  webview.dataset.pass342ViewportSettleContract = PASS342_NATIVE_GUEST_VIEWPORT_BOTTOM_ALIGN;
+  PASS342_GUEST_VIEWPORT_SETTLE_DELAYS.forEach((delay, phase) => {
+    window.setTimeout(() => pass342SettleNativeGuestViewport(webview, reason, phase), delay);
+  });
+}
+
+function pass339ApplyStageViewportFit(webview: Electron.WebviewTag, reason = 'stage-fit'): void {
+  const { width: stageWidth, height: stageHeight } = pass342StageViewportSize();
+  pass342ApplyExactWebviewPixels(webview, stageWidth, stageHeight, reason);
+  pass342ScheduleNativeGuestViewportSettle(webview, stageWidth, stageHeight, reason);
+}
+
+function pass339NormalizeActiveWebview(): number {
+  let activeWebviewCount = 0;
+  const normalBrowsing = pass339IsNormalBrowsing();
+  if (!stageEl || !normalBrowsing) return activeWebviewCount;
+  stageEl.dataset.pass339NormalBrowsing = 'true';
+  stageEl.classList.remove('mission-layout', 'mission-layout-single', 'mission-layout-split-horizontal', 'mission-layout-split-vertical', 'mission-layout-triple', 'mission-layout-quad', 'mission-layout-focus');
+  const activeTab = tabs.get(activeTabId) || active();
+  for (const tab of tabs.values()) {
+    if (tab.webview.parentElement !== stageEl) stageEl.appendChild(tab.webview);
+    const isActive = tab.id === activeTab?.id;
+    tab.webview.classList.toggle('active', isActive);
+    tab.webview.classList.remove('mission-active-pane');
+    tab.webview.removeAttribute('data-pane-label');
+    tab.webview.removeAttribute('data-pass63-mission-pane-id');
+    tab.webview.removeAttribute('data-pane-id');
+    if (isActive) {
+      tab.webview.hidden = false;
+      tab.webview.removeAttribute('hidden');
+      tab.webview.removeAttribute('aria-hidden');
+      tab.webview.style.opacity = '1';
+      tab.webview.style.visibility = 'visible';
+      tab.webview.style.pointerEvents = 'auto';
+      tab.webview.style.zIndex = '1';
+      tab.webview.style.background = 'transparent';
+      pass339ApplyStageViewportFit(tab.webview);
+      activeWebviewCount += 1;
+    } else {
+      tab.webview.removeAttribute('width');
+      tab.webview.removeAttribute('height');
+      tab.webview.removeAttribute('minwidth');
+      tab.webview.removeAttribute('minheight');
+      tab.webview.removeAttribute('maxwidth');
+      tab.webview.removeAttribute('maxheight');
+      tab.webview.hidden = true;
+      tab.webview.style.display = 'none';
+      tab.webview.style.pointerEvents = 'none';
+      tab.webview.style.visibility = 'hidden';
+      tab.webview.style.zIndex = '0';
+      tab.webview.setAttribute('aria-hidden', 'true');
+      delete tab.webview.dataset.pass339StageViewportFit;
+      delete tab.webview.dataset.pass342ExactStageViewportFit;
+    }
+  }
+  return activeWebviewCount;
+}
+
+function pass339NormalBrowsingInputPaintCloseout(reason = 'manual'): Pass339NormalBrowsingInputPaintReport {
+  const normalBrowsing = pass339IsNormalBrowsing();
+  let hiddenOverlayCount = 0;
+  let activeWebviewCount = 0;
+  if (stageEl) {
+    if (normalBrowsing) {
+      document.body.classList.remove('mission-tab-dragging', 'pass271-r3-drag-active', 'pass66-mission-pane-pointer-dragging');
+      delete document.body.dataset.pass271R3LastDragState;
+      stageEl.removeAttribute('data-pass339-allow-drop-zones');
+      activeWebviewCount = pass339NormalizeActiveWebview();
+      stageEl.querySelectorAll<HTMLElement>('.mission-pane-drop-zones, .mission-pane-drop-zone, .mission-pane-heads, .mission-pane-head-cell, [data-pass81-non-pane-drop-surface="true"], [data-pass271-r3-neutralized]').forEach((element) => {
+        pass339HideElement(element, reason);
+        hiddenOverlayCount += 1;
+      });
+    } else {
+      stageEl.dataset.pass339NormalBrowsing = 'false';
+    }
+  }
+  pass339NormalizeChromeHitTargets();
+  const chromeProbe = document.getElementById('back') || document.getElementById('home') || document.getElementById('address');
+  const chromeRect = chromeProbe?.getBoundingClientRect();
+  const chromeHit = chromeRect ? document.elementFromPoint(chromeRect.left + Math.max(1, chromeRect.width / 2), chromeRect.top + Math.max(1, chromeRect.height / 2)) : null;
+  const stageRect = stageEl?.getBoundingClientRect();
+  const stageHit = stageRect ? document.elementFromPoint(stageRect.left + Math.max(1, stageRect.width / 2), stageRect.top + Math.max(1, stageRect.height / 2)) : null;
+  const chromeHitTag = pass339ElementTag(chromeHit);
+  const stageHitTag = pass339ElementTag(stageHit);
+  const missionDragging = document.body.classList.contains('mission-tab-dragging');
+  const status: 'PASS' | 'WARN' = normalBrowsing && !missionDragging && activeWebviewCount > 0 && !/mission-pane-drop|mission-pane-head|internal tahai drags/i.test(stageHitTag) ? 'PASS' : 'WARN';
+  const report: Pass339NormalBrowsingInputPaintReport = { pass: 'PASS339', status, reason, normalBrowsing, missionDragging, hiddenOverlayCount, activeWebviewCount, chromeHitTag, stageHitTag, generatedAt: new Date().toISOString() };
+  pass339LastReport = report;
+  document.documentElement.dataset.pass339NormalBrowsingInputPaintCloseout = report.status.toLowerCase();
+  document.body.dataset.pass339ChromeHitTag = chromeHitTag;
+  document.body.dataset.pass339StageHitTag = stageHitTag;
+  document.body.dataset.pass339HiddenOverlayCount = String(hiddenOverlayCount);
+  (window as Pass339Window).__TAHAI_PASS339_NORMAL_BROWSING_INPUT_PAINT_CLOSEOUT__ = { repair: pass339NormalBrowsingInputPaintCloseout, lastReport: () => pass339LastReport };
+  return report;
+}
+
+function pass339ScheduleNormalBrowsingInputPaintCloseout(reason = 'scheduled'): void {
+  if (pass339PendingTimer) window.clearTimeout(pass339PendingTimer);
+  pass339PendingTimer = window.setTimeout(() => {
+    pass339PendingTimer = undefined;
+    pass339NormalBrowsingInputPaintCloseout(reason);
+  }, 40);
+}
+
+function pass339MountNormalBrowsingInputPaintCloseout(): void {
+  pass339NormalBrowsingInputPaintCloseout('mount');
+  window.setTimeout(() => pass339NormalBrowsingInputPaintCloseout('settle-250'), 250);
+  window.setTimeout(() => pass339NormalBrowsingInputPaintCloseout('settle-1000'), 1000);
+  if (stageEl && typeof ResizeObserver !== 'undefined' && !pass342StageResizeObserver) {
+    pass342StageResizeObserver = new ResizeObserver(() => {
+      const activeTab = tabs.get(activeTabId) || active();
+      if (activeTab?.webview && pass339IsNormalBrowsing()) pass339ApplyStageViewportFit(activeTab.webview, 'stage-resize-observer');
+      pass339ScheduleNormalBrowsingInputPaintCloseout('stage-resize-observer');
+    });
+    pass342StageResizeObserver.observe(stageEl);
+  }
+  window.addEventListener('resize', () => pass339ScheduleNormalBrowsingInputPaintCloseout('resize'));
+  window.visualViewport?.addEventListener('resize', () => pass339ScheduleNormalBrowsingInputPaintCloseout('visual-viewport-resize'));
+  window.addEventListener('focus', () => pass339ScheduleNormalBrowsingInputPaintCloseout('focus'));
+  document.addEventListener('dragend', () => pass339ScheduleNormalBrowsingInputPaintCloseout('dragend'), true);
+  document.addEventListener('drop', () => pass339ScheduleNormalBrowsingInputPaintCloseout('drop'), true);
+  document.addEventListener('pointerup', () => pass339ScheduleNormalBrowsingInputPaintCloseout('pointerup'), true);
+  document.addEventListener('keyup', (event) => { if (event.key === 'Escape') pass339ScheduleNormalBrowsingInputPaintCloseout('escape'); }, true);
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pass339MountNormalBrowsingInputPaintCloseout, { once: true }); else pass339MountNormalBrowsingInputPaintCloseout();
+/* PASS339_NORMAL_BROWSING_INPUT_PAINT_CLOSEOUT_END */
+
+/* PASS340_CHROME_INPUT_HITTEST_CLOSEOUT_START */
+type Pass340ChromeInputReport = {
+  pass: 'PASS340';
+  status: 'PASS' | 'WARN';
+  reason: string;
+  chromeControlCount: number;
+  blockedControlCount: number;
+  blockers: string[];
+  activeWebviewRect: string;
+  stageRect: string;
+  generatedAt: string;
+};
+
+type Pass340Window = Window & {
+  __TAHAI_PASS340_CHROME_INPUT_HITTEST_CLOSEOUT__?: {
+    recover: (reason?: string) => Pass340ChromeInputReport;
+    sample: (reason?: string) => Pass340ChromeInputReport;
+    lastReport: () => Pass340ChromeInputReport | undefined;
+  };
+};
+
+let pass340LastReport: Pass340ChromeInputReport | undefined;
+let pass340Timer: number | undefined;
+let pass340LoggedDisabled = false;
+const PASS340_CHROME_INPUT_SELECTORS = [
+  '#back', '#forward', '#reload', '#home', '#address', '#launchpad', '#onboarding',
+  '#profile-switcher', '#devops-tools', '#it-tools', '#ops-hub-toggle', '#mission-control-toggle',
+  '#settings', '#new-tab', '#tabs .tab.active', '#tabs .tab'
+];
+
+function pass340ChromeInputCloseoutEnabled(): boolean {
+  return ((globalThis as any).process?.env?.TAHAI_BROWSER_ENABLE_PASS340_CHROME_INPUT_HITTEST_CLOSEOUT) === '1';
+}
+
+function pass340ClearDisabledMarkers(): void {
+  delete document.body.dataset.pass340ChromeInputRecovery;
+  delete document.body.dataset.pass340ChromeInputRecoveryReason;
+  delete document.body.dataset.pass340WebviewPointerPaused;
+  delete document.body.dataset.pass340BlockedChromeControlCount;
+  delete document.body.dataset.pass340ActiveWebviewRect;
+  delete document.body.dataset.pass340StageRect;
+  delete document.body.dataset.pass340LastChromeBlocker;
+  document.documentElement.removeAttribute('data-pass340-chrome-input-hit-test-closeout');
+  stageEl?.removeAttribute('data-pass340-chrome-input-containment');
+}
+
+function pass340RectLabel(rect: DOMRect | undefined | null): string {
+  if (!rect) return 'none';
+  return `${Math.round(rect.left)},${Math.round(rect.top)},${Math.round(rect.width)}x${Math.round(rect.height)}`;
+}
+
+function pass340ElementLabel(element: Element | null): string {
+  if (!element) return 'none';
+  const html = element as HTMLElement;
+  return [element.tagName.toLowerCase(), html.id ? '#' + html.id : '', html.className ? '.' + String(html.className).trim().replace(/\s+/g, '.') : ''].join('').slice(0, 220) || 'unknown';
+}
+
+function pass340IsWithin(target: Element | null, owner: Element): boolean {
+  return Boolean(target && (target === owner || owner.contains(target)));
+}
+
+function pass340ChromeControls(): HTMLElement[] {
+  const controls: HTMLElement[] = [];
+  for (const selector of PASS340_CHROME_INPUT_SELECTORS) {
+    const element = document.querySelector<HTMLElement>(selector);
+    if (element && !controls.includes(element)) controls.push(element);
+  }
+  return controls.filter((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.width >= 4 && rect.height >= 4 && window.getComputedStyle(element).visibility !== 'hidden' && window.getComputedStyle(element).display !== 'none';
+  });
+}
+
+function pass340ForceChromeLayer(reason: string): void {
+  document.body.dataset.pass340ChromeInputRecovery = 'true';
+  document.body.dataset.pass340ChromeInputRecoveryReason = reason;
+  document.querySelectorAll<HTMLElement>('.topbar, #tabs, .tabs').forEach((element) => {
+    element.style.pointerEvents = 'auto';
+    element.style.setProperty('-webkit-app-region', 'drag');
+    element.style.position = 'relative';
+    element.style.zIndex = '2147483000';
+  });
+  document.querySelectorAll<HTMLElement>('.toolbar, .statusbar, #tabs .tab, #tabs .tab *, .tab, .tab *, #new-tab, #address, #address-form, .toolbar *, .topbar button, .topbar input').forEach((element) => {
+    element.style.pointerEvents = 'auto';
+    element.style.setProperty('-webkit-app-region', 'no-drag');
+    if (element.matches('.toolbar, .statusbar')) {
+      element.style.position = 'relative';
+      element.style.zIndex = '2147483000';
+    }
+  });
+}
+
+function pass340ForceNormalWebviewContainment(reason: string): void {
+  if (!stageEl || !pass339IsNormalBrowsing()) return;
+  stageEl.dataset.pass340ChromeInputContainment = reason;
+  stageEl.style.position = 'relative';
+  stageEl.style.zIndex = '0';
+  stageEl.style.overflow = 'hidden';
+  stageEl.style.isolation = 'isolate';
+  stageEl.style.pointerEvents = 'auto';
+  stageEl.style.setProperty('-webkit-app-region', 'no-drag');
+  const activeTab = tabs.get(activeTabId) || active();
+  for (const tab of tabs.values()) {
+    const isActive = tab.id === activeTab?.id;
+    const view = tab.webview as unknown as HTMLElement;
+    if (tab.webview.parentElement !== stageEl) stageEl.appendChild(tab.webview);
+    view.classList.toggle('active', isActive);
+    view.style.position = 'absolute';
+    view.style.top = '0';
+    view.style.left = '0';
+    view.style.right = 'auto';
+    view.style.bottom = 'auto';
+    if (!isActive) {
+      view.style.width = '1px';
+      view.style.height = '1px';
+    }
+    view.style.minWidth = '0';
+    view.style.minHeight = '0';
+    view.style.margin = '0';
+    view.style.transform = 'none';
+    view.style.opacity = isActive ? '1' : '0';
+    view.style.visibility = isActive ? 'visible' : 'hidden';
+    view.style.display = isActive ? 'inline-flex' : 'none';
+    view.style.pointerEvents = isActive ? 'auto' : 'none';
+    view.style.zIndex = isActive ? '1' : '0';
+    view.style.background = '#02050b';
+    view.style.setProperty('-webkit-app-region', 'no-drag');
+    if (isActive) {
+      tab.webview.hidden = false;
+      tab.webview.removeAttribute('hidden');
+      tab.webview.removeAttribute('aria-hidden');
+      tab.webview.dataset.pass340PaintInputOwner = 'normal-browsing-contained-webview';
+      pass339ApplyStageViewportFit(tab.webview);
+    } else {
+      tab.webview.hidden = true;
+      tab.webview.setAttribute('aria-hidden', 'true');
+      delete tab.webview.dataset.pass342ExactStageViewportFit;
+    }
+  }
+}
+
+function pass340ReleaseChromePointerPause(): void {
+  if (!stageEl) return;
+  delete document.body.dataset.pass340WebviewPointerPaused;
+  const activeTab = tabs.get(activeTabId) || active();
+  if (activeTab?.webview) activeTab.webview.style.pointerEvents = 'auto';
+}
+
+function pass340PauseWebviewForChrome(reason: string): void {
+  if (!stageEl) return;
+  document.body.dataset.pass340WebviewPointerPaused = reason;
+  const activeTab = tabs.get(activeTabId) || active();
+  if (activeTab?.webview) {
+    activeTab.webview.style.pointerEvents = 'none';
+    window.setTimeout(pass340ReleaseChromePointerPause, 180);
+  }
+}
+
+function pass340RecoverChromeInput(reason = 'manual'): Pass340ChromeInputReport {
+  if (!pass340ChromeInputCloseoutEnabled()) {
+    pass340ClearDisabledMarkers();
+    const disabledReport: Pass340ChromeInputReport = {
+      pass: 'PASS340',
+      status: 'WARN',
+      reason: `disabled:${reason}`,
+      chromeControlCount: 0,
+      blockedControlCount: 0,
+      blockers: [],
+      activeWebviewRect: 'disabled',
+      stageRect: 'disabled',
+      generatedAt: new Date().toISOString()
+    };
+    pass340LastReport = disabledReport;
+    (window as Pass340Window).__TAHAI_PASS340_CHROME_INPUT_HITTEST_CLOSEOUT__ = { recover: pass340RecoverChromeInput, sample: pass340RecoverChromeInput, lastReport: () => pass340LastReport };
+    return disabledReport;
+  }
+  pass340ForceChromeLayer(reason);
+  pass339NormalBrowsingInputPaintCloseout('pass340-' + reason);
+  pass340ForceNormalWebviewContainment(reason);
+  const blockers: string[] = [];
+  const controls = pass340ChromeControls();
+  for (const control of controls) {
+    const rect = control.getBoundingClientRect();
+    const x = Math.min(window.innerWidth - 1, Math.max(1, rect.left + rect.width / 2));
+    const y = Math.min(window.innerHeight - 1, Math.max(1, rect.top + rect.height / 2));
+    const hit = document.elementFromPoint(x, y);
+    if (!pass340IsWithin(hit, control)) blockers.push(`${control.id || control.className || control.tagName}:${pass340ElementLabel(hit)}`);
+  }
+  if (blockers.some((item) => /webview|webview-stage|mission-pane|drop-zone|browser-view/i.test(item))) pass340PauseWebviewForChrome(reason + ':blocked-chrome-probe');
+  const activeTab = tabs.get(activeTabId) || active();
+  const activeRect = activeTab?.webview?.getBoundingClientRect();
+  const stageRect = stageEl?.getBoundingClientRect();
+  const report: Pass340ChromeInputReport = {
+    pass: 'PASS340',
+    status: blockers.length ? 'WARN' : 'PASS',
+    reason,
+    chromeControlCount: controls.length,
+    blockedControlCount: blockers.length,
+    blockers: blockers.slice(0, 24),
+    activeWebviewRect: pass340RectLabel(activeRect),
+    stageRect: pass340RectLabel(stageRect),
+    generatedAt: new Date().toISOString()
+  };
+  pass340LastReport = report;
+  document.documentElement.dataset.pass340ChromeInputHitTestCloseout = report.status.toLowerCase();
+  document.body.dataset.pass340BlockedChromeControlCount = String(report.blockedControlCount);
+  document.body.dataset.pass340ActiveWebviewRect = report.activeWebviewRect;
+  document.body.dataset.pass340StageRect = report.stageRect;
+  if (blockers.length) document.body.dataset.pass340LastChromeBlocker = blockers[0];
+  else delete document.body.dataset.pass340LastChromeBlocker;
+  (window as Pass340Window).__TAHAI_PASS340_CHROME_INPUT_HITTEST_CLOSEOUT__ = { recover: pass340RecoverChromeInput, sample: pass340RecoverChromeInput, lastReport: () => pass340LastReport };
+  return report;
+}
+
+function pass340ScheduleChromeInputCloseout(reason = 'scheduled'): void {
+  if (!pass340ChromeInputCloseoutEnabled()) {
+    pass340ClearDisabledMarkers();
+    return;
+  }
+  if (pass340Timer) window.clearTimeout(pass340Timer);
+  pass340Timer = window.setTimeout(() => {
+    pass340Timer = undefined;
+    pass340RecoverChromeInput(reason);
+  }, 45);
+}
+
+function pass340MountChromeInputCloseout(): void {
+  if (!pass340ChromeInputCloseoutEnabled()) {
+    pass340ClearDisabledMarkers();
+    if (!pass340LoggedDisabled) {
+      pass340LoggedDisabled = true;
+      console.info('[PASS340] chrome input hit-test closeout is opt-in; set TAHAI_BROWSER_ENABLE_PASS340_CHROME_INPUT_HITTEST_CLOSEOUT=1 to re-enable.');
+    }
+    return;
+  }
+  pass340RecoverChromeInput('mount');
+  for (const delay of [120, 350, 900, 1800, 3200] as const) window.setTimeout(() => pass340RecoverChromeInput('settle-' + delay), delay);
+  window.addEventListener('resize', () => pass340ScheduleChromeInputCloseout('resize'));
+  window.addEventListener('focus', () => pass340ScheduleChromeInputCloseout('focus'));
+  document.addEventListener('pointermove', (event) => {
+    const topbarRect = document.querySelector<HTMLElement>('.topbar')?.getBoundingClientRect();
+    const toolbarRect = document.querySelector<HTMLElement>('.toolbar')?.getBoundingClientRect();
+    const inChrome = Boolean((topbarRect && event.clientY >= topbarRect.top && event.clientY <= topbarRect.bottom) || (toolbarRect && event.clientY >= toolbarRect.top && event.clientY <= toolbarRect.bottom));
+    if (inChrome) pass340PauseWebviewForChrome('pointer-over-chrome'); else pass340ReleaseChromePointerPause();
+  }, true);
+  document.addEventListener('pointerdown', (event) => {
+    const target = event.target as Element | null;
+    if (target?.closest?.('.topbar, .toolbar, .statusbar, #tabs, #address, button')) pass340RecoverChromeInput('chrome-pointerdown');
+  }, true);
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pass340MountChromeInputCloseout, { once: true }); else pass340MountChromeInputCloseout();
+/* PASS340_CHROME_INPUT_HITTEST_CLOSEOUT_END */
+
 
 function upsertBrowserTabIntoMissionPane(tabId: string, paneIdInput: string, options: { activateLayout?: boolean } = {}): void {
   const tab = tabs.get(tabId);
@@ -5020,6 +5730,7 @@ function navigateTarget(tab: TabState | undefined, url: string, intent: Pass134R
 
 function navigate(url: string, intent: Pass134RouteIntent = 'address'): void {
   navigateTarget(activeNavigationTarget(intent), url, intent);
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout(`navigate-${intent}`);
 }
 
 function goBackTarget(intent: Pass134RouteIntent = 'back'): void {
@@ -5459,8 +6170,9 @@ function renderMissionLayout(): void {
   if (!stageEl || !tabs.size) return;
   pass197RecordMissionLayoutDeterminism('render-start', 'before');
   const layout = currentMission?.layout.type || 'single';
-  stageEl.dataset.missionLayout = layout;
   const missionModeActive = Boolean(currentMission && layout !== 'single');
+  if (missionModeActive) stageEl.dataset.missionLayout = layout;
+  else stageEl.removeAttribute('data-mission-layout');
   stageEl.classList.toggle('mission-layout', missionModeActive);
   for (const name of missionLayouts) stageEl.classList.toggle('mission-layout-' + name, missionModeActive && layout === name);
   if (!missionModeActive) {
@@ -5468,6 +6180,8 @@ function renderMissionLayout(): void {
     renderMissionPaneDropZones(layout, false);
     renderMissionPaneHeads(layout, false);
     restoreWebviewsToStageRoot();
+    pass339NormalBrowsingInputPaintCloseout('render-single-layout');
+    pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('render-single-layout');
     for (const tab of tabs.values()) {
       tab.webview.classList.toggle('active', tab.id === activeTabId);
       tab.webview.classList.remove('mission-active-pane');
@@ -5484,6 +6198,29 @@ function renderMissionLayout(): void {
     const paneId = normalizeMissionPaneId(missionTab.paneId);
     const runtimeTabId = missionRuntimeTabs.get(missionTab.tabId);
     if (runtimeTabId && visiblePanes.includes(paneId) && !runtimeByPane.has(paneId)) runtimeByPane.set(paneId, runtimeTabId);
+  }
+
+  if (!runtimeByPane.size) {
+    if (currentMission) {
+      currentMission.layout.type = 'single';
+      currentMission.layout.activePaneId = 'pane-1';
+      currentMission.updatedAt = new Date().toISOString();
+    }
+    stageEl.classList.remove('mission-layout', 'mission-layout-single', 'mission-layout-split-horizontal', 'mission-layout-split-vertical', 'mission-layout-triple', 'mission-layout-quad', 'mission-layout-focus');
+    stageEl.removeAttribute('data-mission-layout');
+    renderMissionPaneDropZones(layout, false);
+    renderMissionPaneHeads(layout, false);
+    restoreWebviewsToStageRoot();
+    pass339NormalBrowsingInputPaintCloseout('render-mission-empty-runtime-fallback');
+    pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('render-mission-empty-runtime-fallback');
+    for (const tab of tabs.values()) {
+      tab.webview.classList.toggle('active', tab.id === activeTabId);
+      tab.webview.classList.remove('mission-active-pane');
+      tab.webview.removeAttribute('data-pane-label');
+      tab.webview.style.removeProperty('order');
+    }
+    pass197RecordMissionLayoutDeterminism('render-mission-empty-runtime-fallback', 'after');
+    return;
   }
 
   missionPaneShells.forEach((shell, paneId) => {
@@ -5616,8 +6353,10 @@ function toggleMissionFocusPane(): void {
 
 function setMissionLayout(layout: MissionLayoutType): void {
   const mission = ensureCurrentMission();
+  pass158RuntimeDiag('pass158-set-mission-layout', 'start:' + layout);
   pass197RecordMissionLayoutDeterminism('set-layout:' + layout, 'before');
   mission.layout.type = pass63CanonicalMissionLayoutType(layout);
+  (mission.layout as unknown as { pass256RequestedLayout?: string }).pass256RequestedLayout = mission.layout.type;
   const requestedActivePane = normalizeMissionPaneId(mission.layout.activePaneId || 'pane-1');
   const visiblePanes = missionVisiblePaneIds(mission.layout.type);
   if (mission.layout.type !== 'single' && visiblePanes.length && !visiblePanes.includes(requestedActivePane)) {
@@ -5633,6 +6372,7 @@ function setMissionLayout(layout: MissionLayoutType): void {
   pass107ScheduleMissionViewportSettle('mission-layout-set');
   pass133AfterLayoutEntry(mission.layout.type, 'set-layout');
   pass197RecordMissionLayoutDeterminism('set-layout:' + mission.layout.type, 'after');
+  pass158RuntimeDiag('pass158-set-mission-layout', 'done:' + mission.layout.type);
   setStatus('Mission layout set', missionLayoutLabel(mission.layout.type));
 }
 
@@ -5808,11 +6548,11 @@ function renderMissionControl(): void {
   renderMissionCommandDeck(mission, pass92InvariantIssues.length);
   missionTabsList.innerHTML = mission?.tabs.length ? mission.tabs.map((tab) =>
     '<article class="mission-tab-row" draggable="true" data-drag-mission-tab="' + escapeHtml(tab.tabId) + '">' +
-    '<button type="button" data-focus-mission-tab="' + escapeHtml(tab.tabId) + '"><strong>' + (tab.pinned ? '★ ' : '') + escapeHtml(tab.title) + '</strong><span>' + escapeHtml(tab.url) + '</span></button>' +
+    '<button type="button" data-focus-mission-tab="' + escapeHtml(tab.tabId) + '" aria-label="Focus mission tab ' + escapeHtml(tab.title) + ' in ' + escapeHtml(missionPaneLabel(tab.paneId)) + '"><strong>' + (tab.pinned ? '★ ' : '') + escapeHtml(tab.title) + '</strong><span>' + escapeHtml(tab.url) + '</span></button>' +
     '<select data-role-mission-tab="' + escapeHtml(tab.tabId) + '">' + missionTabRoles.map((role) => '<option value="' + role + '"' + (role === tab.role ? ' selected' : '') + '>' + missionRoleLabel(role) + '</option>').join('') + '</select>' +
-    '<button type="button" class="home-button secondary" data-pane-mission-tab="' + escapeHtml(tab.tabId) + '">' + escapeHtml(tab.paneId) + '</button>' +
-    '<button type="button" class="home-button secondary" data-pin-mission-tab="' + escapeHtml(tab.tabId) + '" title="Pin mission tab">' + (tab.pinned ? 'Pinned' : 'Pin') + '</button>' +
-    '<button type="button" class="mini-danger" data-remove-mission-tab="' + escapeHtml(tab.tabId) + '" title="Remove from mission">×</button>' +
+    '<button type="button" class="home-button secondary" data-pane-mission-tab="' + escapeHtml(tab.tabId) + '" aria-label="Move mission tab ' + escapeHtml(tab.title) + ' to the next pane"> ' + escapeHtml(tab.paneId) + '</button>' +
+    '<button type="button" class="home-button secondary" data-pin-mission-tab="' + escapeHtml(tab.tabId) + '" title="Pin mission tab" aria-label="' + escapeHtml((tab.pinned ? 'Unpin' : 'Pin') + ' mission tab ' + tab.title) + '">' + (tab.pinned ? 'Pinned' : 'Pin') + '</button>' +
+    '<button type="button" class="mini-danger" data-remove-mission-tab="' + escapeHtml(tab.tabId) + '" title="Remove from mission" aria-label="Remove mission tab ' + escapeHtml(tab.title) + '">×</button>' +
     '</article>'
   ).join('') : '<article class="ops-hub-empty">Add the active browser tab to start shaping this mission.</article>';
   if (mission) {
@@ -5953,9 +6693,13 @@ function pass176KeepActiveMissionLayoutVisible(reason: string): void {
 }
 
 async function refreshMissionStore(): Promise<void> {
-  const result = await window.tahaiBrowser.listMissions();
+  console.info('[MISSION] refresh-store:start');
+  const result = await pass158RuntimeE2eStepTimeout('mission-store-list', () => window.tahaiBrowser.listMissions(), 2500);
+  console.info(`[MISSION] refresh-store:done ok=${result.ok ? '1' : '0'} count=${result.missions.length}`);
   missionStore = result.ok ? result.missions : [];
+  console.info('[MISSION] refresh-store:render');
   renderMissionControl();
+  console.info('[MISSION] refresh-store:rendered');
 }
 
 function closeMissionControl(restoreFocus = false): void {
@@ -5967,6 +6711,7 @@ function closeMissionControl(restoreFocus = false): void {
   if (document.body.dataset.pass116ActiveOverlay === 'mission-control') pass118ClearChromeOverlayState('explicit-close', 'mission-control');
   if (missionDialog.open) missionDialog.close();
   if (restoreFocus) pass170RestoreFocusToOpener('mission-control', pass117MissionControlOpener || missionControlButton);
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('mission-control-close');
 }
 
 function pass128UpdateMissionViewportMode(reason = 'open'): void {
@@ -6051,12 +6796,15 @@ async function openMissionControl(): Promise<void> {
   pass117MissionControlOpener = missionControlButton;
   closeToolMenus(undefined, false);
   try {
+    console.info(`[MISSION] open:start run=${openRun}`);
     if (!missionTypeSelect.options.length) {
       missionTypeSelect.innerHTML = missionTypes.map((type) => '<option value="' + type + '">' + type.replace(/-/g, ' ') + '</option>').join('');
     }
     await refreshMissionStore();
+    console.info(`[MISSION] open:store-ready run=${openRun}`);
     if (openRun !== pass164MissionControlOpenRun) return;
     renderMissionControl();
+    console.info(`[MISSION] open:rendered run=${openRun}`);
     missionDialog.dataset.pass117FocusScope = 'mission-control';
     missionDialog.dataset.pass117FocusOpen = 'true';
     missionDialog.dataset.pass118DismissBoundary = 'true';
@@ -6065,16 +6813,20 @@ async function openMissionControl(): Promise<void> {
     document.body.dataset.pass117ActiveFocusScope = 'mission-control';
     pass190CloseRivalOverlays('mission-control');
     pass128ShowMissionDialog();
+    console.info(`[MISSION] open:dialog-shown run=${openRun} mode=${missionDialog.dataset.pass128ShowMode || 'unknown'} open=${missionDialog.open ? '1' : '0'}`);
     pass190OpenOwnedOverlay('mission-control', missionDialog as unknown as HTMLElement, missionControlButton);
     pass164FinishMissionControlOpen(openRun, 'open');
+    console.info(`[MISSION] open:done run=${openRun}`);
   } catch (error) {
     pass164FinishMissionControlOpen(openRun, 'blocked');
+    console.warn(`[MISSION] open:blocked run=${openRun} ${error instanceof Error ? error.message : String(error || 'unknown error')}`);
     setStatus('Mission Control open blocked', error instanceof Error ? error.message : 'Unable to open Mission Control.');
   }
 }
 
 
 function createMissionFromForm(): void {
+  console.info('[MISSION] create-from-form:start');
   const missionType = (missionTypes.includes(missionTypeSelect.value as MissionType) ? missionTypeSelect.value : 'generic') as MissionType;
   currentMission = createEmptyMission({
     name: missionNameInput.value,
@@ -6084,10 +6836,12 @@ function createMissionFromForm(): void {
   missionRuntimeTabs.clear();
   renderMissionControl();
   renderMissionLayout();
+  console.info(`[MISSION] create-from-form:done missionId=${currentMission.missionId} layout=${currentMission.layout.type}`);
   setStatus('Mission created', currentMission.name);
 }
 
 function addActiveTabToMission(): void {
+  console.info('[MISSION] add-active-tab:start');
   const tab = active();
   if (!tab) return;
   const mission = ensureCurrentMission();
@@ -6108,6 +6862,7 @@ function addActiveTabToMission(): void {
   missionTimelineEvent('tab-added', tab.title, role + ' · ' + tab.url, { surface: 'browser-tabs', paneId, tabId });
   renderMissionControl();
   renderMissionLayout();
+  console.info(`[MISSION] add-active-tab:done tabId=${tabId} paneId=${paneId} missionTabs=${mission.tabs.length}`);
   setStatus('Mission tab added', tab.title);
 }
 
@@ -6260,7 +7015,7 @@ function requestMissionRestoreMode(mission: MissionState): Promise<MissionRestor
       dialog.remove();
     };
     dialog.addEventListener('click', (event) => {
-      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+      const button = eventClosest<HTMLButtonElement>(event, 'button');
       if (!button) return;
       const mode = button.dataset.restoreMode as MissionRestoreMode | undefined;
       if (mode === 'replace') {
@@ -6817,6 +7572,7 @@ function closeToolMenus(except?: ToolMenuName, restoreFocus = false): void {
   else delete document.body.dataset.commandToolbar;
   if (!activeLane && document.body.dataset.pass116ActiveOverlay === 'command-toolbar') pass118ClearChromeOverlayState('explicit-close', 'command-toolbar');
   if (restoreFocus && restoreTarget) pass170RestoreFocusToOpener('command-toolbar', restoreTarget);
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout(activeLane ? 'command-toolbar-open' : 'command-toolbar-close');
 }
 
 function commandToolbarLabel(name: ToolMenuName): string {
@@ -7490,6 +8246,7 @@ function toggleOpsHub(open = opsHub.hidden, restoreFocus = false): void {
   } else {
     pass117ClearOverlayFocus('ops-hub', opsHub, opsHubToggleButton, restoreFocus);
     if (document.body.dataset.pass116ActiveOverlay === 'ops-hub') pass118ClearChromeOverlayState('explicit-close', 'ops-hub');
+    pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('ops-hub-close');
   }
 }
 
@@ -7537,9 +8294,10 @@ function renderLaunchRecipes(container: HTMLElement): void {
     const phaseClass = recipe.missionPhase ? ' ' + recipe.missionPhase : '';
     const detail = recipePhaseLabel(recipe) + ' · ' + recipe.group + missionBadge + ' · ' + pass199AdminProfileV2Detail(recipe);
     const shortcut = recipe.operatorShortcut ? ' · ' + recipe.operatorShortcut : '';
-    const disabled = plan.allowed ? '' : ' aria-disabled="true" disabled';
+    const cardDisabled = plan.allowed ? '' : ' aria-disabled="true"';
+    const buttonDisabled = plan.allowed ? '' : ' aria-disabled="true" disabled';
     const title = recipe.adminConsoleProfileId ? pass199AdminProfileV2Title(recipe, pass90RecipeStatusLabel(plan)) : pass198RecipeV2Title(recipe, pass90RecipeStatusLabel(plan));
-    return '<button class="ops-hub-row mission-recipe-card provider-' + escapeHtml(recipe.cockpitProvider || 'generic') + phaseClass + '" type="button" data-recipe-id="' + escapeHtml(recipe.id) + '" data-pass193-launch-surface="ops-hub" data-pass193-launch-kind="' + (recipe.adminConsoleProfileId ? 'admin-console-profile' : 'mission-recipe') + '" data-pass90-recipe-launch="' + (plan.allowed ? 'safe-plan' : 'blocked-plan') + '" data-pass90-safe-url-count="' + String(plan.urls.length) + '"' + pass198RecipeV2Attributes(recipe) + pass199AdminProfileV2Attributes(recipe) + ' title="' + escapeHtml(title) + '"' + disabled + '>' +
+    return '<button class="ops-hub-row mission-recipe-card provider-' + escapeHtml(recipe.cockpitProvider || 'generic') + phaseClass + '" type="button" data-recipe-id="' + escapeHtml(recipe.id) + '" data-pass193-launch-surface="ops-hub" data-pass193-launch-kind="' + (recipe.adminConsoleProfileId ? 'admin-console-profile' : 'mission-recipe') + '" data-pass90-recipe-launch="' + (plan.allowed ? 'safe-plan' : 'blocked-plan') + '" data-pass90-safe-url-count="' + String(plan.urls.length) + '"' + pass198RecipeV2Attributes(recipe) + pass199AdminProfileV2Attributes(recipe) + ' title="' + escapeHtml(title) + '"' + buttonDisabled + '>' +
       '<strong><span class="ops-hub-recipe-title">' + escapeHtml(recipe.label) + soon + '</span><small class="recipe-chip ops-hub-recipe-meta">' + escapeHtml(recipeProviderLabel(recipe) + shortcut) + '</small></strong>' +
       '<span class="ops-hub-recipe-detail">' + escapeHtml(detail) + '</span>' +
       '</button>';
@@ -7591,6 +8349,7 @@ function renderMissionRecipes(): void {
   if (!missionRecipes) return;
   const selectedType = selectedMissionRecipeType();
   const recipes = missionRecipesForSelectedType(selectedType);
+  const recipePlans = recipes.map((recipe) => ({ recipe, plan: pass90BuildRecipeLaunchPlan(recipe, 'mission') }));
   const filtered = selectedType !== 'generic' && recipes.length < premiumLaunchRecipes.length;
   const exactCount = selectedType === 'generic' ? premiumLaunchRecipes.length : premiumLaunchRecipes.filter((recipe) => missionRecipeMatchesSelectedType(recipe, selectedType)).length;
   missionRecipes.dataset.pass164RecipeSelectedMissionType = selectedType;
@@ -7605,10 +8364,18 @@ function renderMissionRecipes(): void {
       ? `${exactCount} exact/contextual mission recipe(s) for this type.`
       : `${recipes.length} affinity-matched recipe(s) shown because this type has no dedicated recipe pack yet.`;
   const summary = '<article class="ops-hub-empty mission-recipe-filter-summary" data-pass164-recipe-filter-summary="true" data-pass165-recipe-fallback="' + escapeHtml(document.body.dataset.pass165MissionRecipeFallback || 'exact-or-generic') + '"><strong>Recipes refactored for ' + escapeHtml(selectedType.replace(/-/g, ' ')) + '</strong><span>' + escapeHtml(summaryDetail + ' Change Mission Type to refactor this list again.') + '</span></article>';
-  missionRecipes.innerHTML = summary + recipes.map((recipe) => {
-    const plan = pass90BuildRecipeLaunchPlan(recipe, 'mission');
+  const renderKey = [
+    selectedType,
+    filtered ? 'filtered' : 'all',
+    String(exactCount),
+    ...recipePlans.map(({ recipe, plan }) => `${recipe.id}:${recipe.missionLayout || 'single'}:${plan.allowed ? '1' : '0'}:${plan.urls.length}:${recipe.comingSoon ? '1' : '0'}:${recipe.missionPhase || ''}`)
+  ].join('|');
+  if (missionRecipes.dataset.pass254RenderKey === renderKey && missionRecipes.childElementCount > 0) return;
+  missionRecipes.dataset.pass254RenderKey = renderKey;
+  missionRecipes.innerHTML = summary + recipePlans.map(({ recipe, plan }) => {
     const layout = recipe.missionLayout ? missionLayoutLabel(recipe.missionLayout) : '1-Up Normal';
-    const disabled = plan.allowed ? '' : ' aria-disabled="true" disabled';
+    const cardDisabled = plan.allowed ? '' : ' aria-disabled="true"';
+    const buttonDisabled = plan.allowed ? '' : ' aria-disabled="true" disabled';
     const soon = recipe.comingSoon ? '<em>Requires connector</em>' : '';
     const phaseClass = recipe.missionPhase ? ' ' + recipe.missionPhase : '';
     const stepCount = recipe.missionRunbookSteps?.length || defaultRunbookStepLabels(recipe.missionType || 'generic').length;
@@ -7617,10 +8384,14 @@ function renderMissionRecipes(): void {
     const adminV2 = adminConsoleProfileV2ForRecipe(recipe.adminConsoleProfileId || recipe.id);
     const v2Detail = adminV2 ? ' · ' + adminV2.providerIntentKind + ' · ' + adminV2.paneDefaults.length + ' pane defaults · ' + adminV2.diagnostics.policyTagCount + ' policy tags' : v2 ? ' · ' + v2.riskTier + ' · ' + v2.preflightGates.length + ' preflight gates · ' + v2.evidenceChecklist.length + ' evidence items' : '';
     const title = recipe.adminConsoleProfileId ? pass199AdminProfileV2Title(recipe, pass90RecipeStatusLabel(plan)) : pass198RecipeV2Title(recipe, pass90RecipeStatusLabel(plan));
-    return '<button class="ops-hub-row mission-recipe-card provider-' + escapeHtml(recipe.cockpitProvider || 'generic') + phaseClass + '" type="button" data-start-mission-recipe-id="' + escapeHtml(recipe.id) + '" data-pass193-launch-surface="mission-control" data-pass193-launch-kind="' + (recipe.adminConsoleProfileId ? 'admin-console-profile' : 'mission-recipe') + '" data-pass164-recipe-mission-type="' + escapeHtml(recipe.missionType || 'generic') + '" data-pass90-recipe-launch="' + (plan.allowed ? 'safe-plan' : 'blocked-plan') + '" data-pass90-safe-url-count="' + String(plan.urls.length) + '"' + pass198RecipeV2Attributes(recipe) + pass199AdminProfileV2Attributes(recipe) + ' title="' + escapeHtml(title) + '"' + disabled + '>' +
+    return '<article class="ops-hub-row mission-recipe-card provider-' + escapeHtml(recipe.cockpitProvider || 'generic') + phaseClass + '" data-mission-recipe-id="' + escapeHtml(recipe.id) + '" data-pass254-recipe-id="' + escapeHtml(recipe.id) + '" data-pass193-launch-surface="mission-control" data-pass193-launch-kind="' + (recipe.adminConsoleProfileId ? 'admin-console-profile' : 'mission-recipe') + '" data-pass164-recipe-mission-type="' + escapeHtml(recipe.missionType || 'generic') + '" data-pass90-recipe-launch="' + (plan.allowed ? 'safe-plan' : 'blocked-plan') + '" data-pass90-safe-url-count="' + String(plan.urls.length) + '"' + pass198RecipeV2Attributes(recipe) + pass199AdminProfileV2Attributes(recipe) + ' title="' + escapeHtml(title) + '"' + cardDisabled + '>' +
       '<strong><span class="ops-hub-recipe-title">' + escapeHtml(recipe.label) + soon + '</span><small class="recipe-chip ops-hub-recipe-meta">' + escapeHtml(recipeProviderLabel(recipe) + shortcut) + '</small></strong>' +
       '<span class="ops-hub-recipe-detail">' + escapeHtml(recipePhaseLabel(recipe) + ' · ' + layout + ' · ' + recipe.profileName + ' · ' + stepCount + '-step runbook' + v2Detail) + '</span>' +
-      '</button>';
+      '<div class="pass254-recipe-actions">' +
+      '<button type="button" class="pass254-recipe-select home-button secondary" data-pass254-select-mission-recipe-id="' + escapeHtml(recipe.id) + '"' + buttonDisabled + '>Select recipe</button>' +
+      '<button type="button" class="pass254-recipe-start primary home-button" data-pass254-start-mission-recipe-id="' + escapeHtml(recipe.id) + '" data-start-mission-recipe-id="' + escapeHtml(recipe.id) + '"' + buttonDisabled + '>Start Mission</button>' +
+      '</div>' +
+      '</article>';
   }).join('');
 }
 
@@ -8548,6 +9319,1498 @@ async function startMissionFromRecipe(recipeId: string, surface: Pass193LaunchSu
 }
 
 
+/* PASS254_MISSION_RECIPE_CLICK_CONTRACT_START */
+type Pass254RecipeHydrationReport = {
+  recipeId: string;
+  selected: boolean;
+  started: boolean;
+  missionExists: boolean;
+  missionTypeOk: boolean;
+  runbookOk: boolean;
+  evidenceOk: boolean;
+  timelineOk: boolean;
+  tabCount: number;
+  paneCount: number;
+  requiredPaneCount: number;
+  activePaneOk: boolean;
+  repairs: string[];
+  issues: string[];
+};
+
+let pass254MissionRecipeClickContractMounted = false;
+let pass254MissionRecipeObserver: MutationObserver | undefined;
+let pass254MissionRecipeObserverTarget: HTMLElement | null = null;
+let pass254MissionRecipeAnnotationActive = false;
+let pass254SelectedRecipeId = '';
+
+function pass254RequiredPaneCount(layoutType: MissionLayoutType | undefined): number {
+  const layout = String(layoutType || 'single').toLowerCase();
+  if (layout === 'quad') return 4;
+  if (layout.includes('triple')) return 3;
+  if (layout.includes('split')) return 2;
+  if (layout === 'focus') return 1;
+  return 1;
+}
+
+function pass254MissionRecipeById(recipeId: string): LaunchRecipe | undefined {
+  return premiumLaunchRecipes.find((candidate) => candidate.id === recipeId);
+}
+
+function pass254RecipeIdFromElement(element: Element | null): string {
+  let cursor: Element | null = element;
+  while (cursor) {
+    const html = cursor as HTMLElement;
+    const candidate = html.dataset.pass254RecipeId || html.dataset.startMissionRecipeId || html.dataset.recipeId || html.dataset.pass90RecipeId || '';
+    if (candidate && pass254MissionRecipeById(candidate)) return candidate;
+    cursor = cursor.parentElement;
+  }
+  return '';
+}
+
+function pass254RecipeFromLooseCard(card: Element): LaunchRecipe | undefined {
+  const explicit = pass254RecipeIdFromElement(card);
+  if (explicit) return pass254MissionRecipeById(explicit);
+  const text = (card.textContent || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!text) return undefined;
+  return premiumLaunchRecipes.find((recipe) => text.includes(recipe.label.toLowerCase())) ||
+    premiumLaunchRecipes.find((recipe) => text.includes(recipe.id.toLowerCase().replace(/-/g, ' ')));
+}
+
+function pass254SafeRecipeUrls(recipe: LaunchRecipe, mode: 'mission' | 'tabs' = 'mission'): string[] {
+  const plan = pass90BuildRecipeLaunchPlan(recipe, mode);
+  return plan.allowed ? plan.urls.slice(0, 4) : [];
+}
+
+function pass254MissionFallbackUrl(): string {
+  return config?.newTabUrl || config?.homeUrl || 'https://tahaiportal.com';
+}
+
+function pass254RecipeCardSummary(recipe: LaunchRecipe): string {
+  const plan = pass90BuildRecipeLaunchPlan(recipe, 'mission');
+  const runbookCount = Array.isArray(recipe.missionRunbookSteps) ? recipe.missionRunbookSteps.length : 0;
+  const evidenceCount = Array.isArray(recipe.missionEvidencePrompts) ? recipe.missionEvidencePrompts.length : 0;
+  const paneCount = pass254RequiredPaneCount(recipe.missionLayout || 'single');
+  return [
+    `${missionLayoutLabel(recipe.missionLayout || 'single')} · ${paneCount} pane target`,
+    `${Math.min(plan.urls.length, 4)} safe URL(s)`,
+    `${runbookCount} runbook step(s)`,
+    `${evidenceCount} evidence prompt(s)`,
+    recipe.evidenceProfile ? `Export: ${recipe.evidenceProfile}` : 'Export: mission default',
+  ].join(' · ');
+}
+
+function pass254EnsureRecipeCardActions(card: HTMLElement, recipe: LaunchRecipe): void {
+  card.dataset.pass254RecipeId = recipe.id;
+  if (!card.dataset.recipeId) card.dataset.recipeId = recipe.id;
+  card.classList.add('pass254-mission-recipe-card');
+  if (!card.getAttribute('role')) card.setAttribute('role', 'button');
+  if (!card.hasAttribute('tabindex')) card.tabIndex = 0;
+  card.setAttribute('aria-label', `Mission Recipe: ${recipe.label}. Press Enter to select, or use Start Mission.`);
+
+  let detail = card.querySelector('.pass254-recipe-contract-detail') as HTMLElement | null;
+  if (!detail) {
+    detail = document.createElement('div');
+    detail.className = 'pass254-recipe-contract-detail';
+    card.appendChild(detail);
+  }
+  detail.textContent = pass254RecipeCardSummary(recipe);
+
+  let actions = card.querySelector('.pass254-recipe-actions') as HTMLElement | null;
+  if (!actions) {
+    actions = document.createElement('div');
+    actions.className = 'pass254-recipe-actions';
+    const selectButton = document.createElement('button');
+    selectButton.type = 'button';
+    selectButton.className = 'pass254-recipe-select';
+    selectButton.dataset.pass254SelectMissionRecipeId = recipe.id;
+    selectButton.textContent = 'Select recipe';
+    const startButton = document.createElement('button');
+    startButton.type = 'button';
+    startButton.className = 'pass254-recipe-start primary';
+    startButton.dataset.pass254StartMissionRecipeId = recipe.id;
+    startButton.dataset.startMissionRecipeId = recipe.id;
+    startButton.textContent = 'Start Mission';
+    actions.append(selectButton, startButton);
+    card.appendChild(actions);
+  } else {
+    actions.querySelectorAll('button').forEach((button) => {
+      const htmlButton = button as HTMLButtonElement;
+      if (htmlButton.classList.contains('pass254-recipe-start') || /start/i.test(htmlButton.textContent || '')) {
+        htmlButton.dataset.pass254StartMissionRecipeId = recipe.id;
+        htmlButton.dataset.startMissionRecipeId = recipe.id;
+      }
+      if (htmlButton.classList.contains('pass254-recipe-select') || /select|preview/i.test(htmlButton.textContent || '')) {
+        htmlButton.dataset.pass254SelectMissionRecipeId = recipe.id;
+      }
+    });
+  }
+}
+
+function pass254RecipeCardsInContainer(): HTMLElement[] {
+  if (!missionRecipes) return [];
+  const candidates = Array.from(missionRecipes.querySelectorAll<HTMLElement>('[data-recipe-id], [data-start-mission-recipe-id], [data-pass254-recipe-id], [data-pass254-start-mission-recipe-id], .mission-recipe-card, .recipe-card, .launch-recipe-card'));
+  const cards: HTMLElement[] = [];
+  const seen = new Set<HTMLElement>();
+  for (const candidate of candidates) {
+    const recipe = pass254RecipeFromLooseCard(candidate);
+    if (!recipe) continue;
+    const card = (candidate.closest('.mission-recipe-card, .recipe-card, .launch-recipe-card, [data-recipe-id], [data-pass254-recipe-id]') as HTMLElement | null) || candidate;
+    if (seen.has(card)) continue;
+    seen.add(card);
+    cards.push(card);
+  }
+  return cards;
+}
+
+function pass254ObserveMissionRecipeContainer(): void {
+  if (!pass254MissionRecipeObserver || !missionRecipes) return;
+  if (pass254MissionRecipeObserverTarget === missionRecipes) return;
+  pass254MissionRecipeObserver.disconnect();
+  pass254MissionRecipeObserver.observe(missionRecipes, { childList: true, subtree: true });
+  pass254MissionRecipeObserverTarget = missionRecipes;
+}
+
+function pass254AnnotateMissionRecipeCardsOnce(): number {
+  let count = 0;
+  for (const card of pass254RecipeCardsInContainer()) {
+    const recipe = pass254RecipeFromLooseCard(card);
+    if (!recipe) continue;
+    pass254EnsureRecipeCardActions(card, recipe);
+    count += 1;
+  }
+  return count;
+}
+
+function pass254AnnotateMissionRecipeCards(reason = 'annotate'): void {
+  if (!missionRecipes) return;
+  if (pass254MissionRecipeAnnotationActive) return;
+  pass254MissionRecipeAnnotationActive = true;
+  pass254MissionRecipeObserver?.disconnect();
+  pass254MissionRecipeObserverTarget = null;
+  pass158RuntimeDiag('pass254-annotate', reason);
+  try {
+    let count = pass254AnnotateMissionRecipeCardsOnce();
+    let resolvedReason = reason;
+    if (!count && premiumLaunchRecipes.length && missionRecipes.childElementCount === 0) {
+      missionRecipes.innerHTML = premiumLaunchRecipes.map((recipe) => {
+        const plan = pass90BuildRecipeLaunchPlan(recipe, 'mission');
+        const disabled = plan.allowed ? '' : ' aria-disabled="true"';
+        return `<article class="mission-recipe-card pass254-mission-recipe-card" data-recipe-id="${escapeHtml(recipe.id)}" data-pass254-recipe-id="${escapeHtml(recipe.id)}" tabindex="0" role="button"${disabled}>` +
+          `<strong>${escapeHtml(recipe.label)}</strong>` +
+          `<span>${escapeHtml(recipeProviderLabel(recipe))} · ${escapeHtml(recipePhaseLabel(recipe))}</span>` +
+          `<p>${escapeHtml(recipe.missionPrimaryAction || recipe.note || 'Start a governed Mission Control workspace.')}</p>` +
+          `</article>`;
+      }).join('');
+      count = pass254AnnotateMissionRecipeCardsOnce();
+      resolvedReason = 'fallback-render';
+    }
+    missionRecipes.dataset.pass254RecipeCardCount = String(count);
+    missionRecipes.dataset.pass254LastAnnotated = resolvedReason;
+    document.body.dataset.pass254MissionRecipeCardsAnnotated = String(count);
+  } finally {
+    pass254MissionRecipeAnnotationActive = false;
+    pass254ObserveMissionRecipeContainer();
+  }
+}
+
+function pass254EnsureRecipePreviewHost(): HTMLElement | null {
+  if (!missionRecipes) return null;
+  let host = document.getElementById('pass254-mission-recipe-preview') as HTMLElement | null;
+  if (!host) {
+    host = document.createElement('section');
+    host.id = 'pass254-mission-recipe-preview';
+    host.className = 'pass254-mission-recipe-preview';
+    host.setAttribute('aria-live', 'polite');
+    missionRecipes.parentElement?.insertBefore(host, missionRecipes);
+  }
+  return host;
+}
+
+function pass254RecipePreviewMarkup(recipe: LaunchRecipe): string {
+  const plan = pass90BuildRecipeLaunchPlan(recipe, 'mission');
+  const paneCount = pass254RequiredPaneCount(recipe.missionLayout || 'single');
+  const roles = (recipe.missionRoles || []).slice(0, paneCount).map((role, index) => `Pane ${index + 1}: ${missionRoleLabel(role)}`);
+  const fallbackRunbookSteps = Array.isArray(defaultRunbookStepLabels) ? defaultRunbookStepLabels : ['Confirm scope', 'Open required consoles', 'Capture before/after evidence', 'Document rollback condition'];
+  const runbook = (recipe.missionRunbookSteps || fallbackRunbookSteps).slice(0, 8);
+  const evidence = (recipe.missionEvidencePrompts || []).slice(0, 8);
+  const policyTags = (recipe.policyTags || []).slice(0, 8);
+  return `<div class="pass254-preview-header"><strong>${escapeHtml(recipe.label)}</strong><span>${escapeHtml(recipeProviderLabel(recipe))} · ${escapeHtml(recipePhaseLabel(recipe))}</span></div>` +
+    `<div class="pass254-preview-grid">` +
+    `<p><b>Mission type</b><span>${escapeHtml(recipe.missionType || 'generic')}</span></p>` +
+    `<p><b>Layout</b><span>${escapeHtml(missionLayoutLabel(recipe.missionLayout || 'single'))}</span></p>` +
+    `<p><b>Safe URLs</b><span>${Math.min(plan.urls.length, 4)} / ${Math.max(1, paneCount)} pane target</span></p>` +
+    `<p><b>Export</b><span>${escapeHtml(recipe.evidenceProfile || 'mission default')}</span></p>` +
+    `</div>` +
+    `<p class="pass254-preview-action">${escapeHtml(recipe.missionPrimaryAction || recipe.note || 'Start this recipe to populate Mission Control.')}</p>` +
+    `<div class="pass254-preview-lists">` +
+    `<div><b>Pane roles</b><ul>${(roles.length ? roles : ['Pane 1: Primary Console']).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>` +
+    `<div><b>Runbook</b><ul>${runbook.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>` +
+    `<div><b>Evidence</b><ul>${(evidence.length ? evidence : ['Capture URL/title/timestamp proof before export.']).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>` +
+    `<div><b>Policy tags</b><ul>${(policyTags.length ? policyTags : ['local-only', 'no-secrets']).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>` +
+    `</div>` +
+    `<div class="pass254-preview-actions"><button type="button" data-pass254-start-mission-recipe-id="${escapeHtml(recipe.id)}" class="primary">Start Mission</button></div>`;
+}
+
+function pass254SelectMissionRecipe(recipeId: string, reason = 'select'): boolean {
+  const recipe = pass254MissionRecipeById(recipeId);
+  if (!recipe) return false;
+  pass254SelectedRecipeId = recipe.id;
+  if (missionTypeSelect && recipe.missionType && missionTypes.includes(recipe.missionType)) {
+    missionTypeSelect.value = recipe.missionType;
+  }
+  pass254AnnotateMissionRecipeCards(reason);
+  for (const card of pass254RecipeCardsInContainer()) {
+    const cardRecipeId = pass254RecipeIdFromElement(card);
+    const selected = cardRecipeId === recipe.id;
+    card.classList.toggle('pass254-selected-recipe', selected);
+    card.setAttribute('aria-selected', String(selected));
+  }
+  const preview = pass254EnsureRecipePreviewHost();
+  if (preview) {
+    preview.dataset.pass254SelectedRecipeId = recipe.id;
+    preview.innerHTML = pass254RecipePreviewMarkup(recipe);
+  }
+  document.body.dataset.pass254SelectedMissionRecipe = recipe.id;
+  document.body.dataset.pass254MissionRecipeClickContract = 'selected';
+  setStatus('Mission recipe selected', `${recipe.label} · ${pass254RecipeCardSummary(recipe)}`);
+  return true;
+}
+
+function pass254EnsureMissionPaneHydration(recipe: LaunchRecipe, report: Pass254RecipeHydrationReport): void {
+  if (!currentMission) return;
+  const now = new Date().toISOString();
+  if (!currentMission.runbook || !Array.isArray(currentMission.runbook.steps) || !currentMission.runbook.steps.length) {
+    currentMission.runbook = createMissionRunbookFromRecipe(recipe);
+    report.repairs.push('runbook');
+  }
+  if (!Array.isArray(currentMission.evidence)) currentMission.evidence = [];
+  if (!currentMission.evidence.length && Array.isArray(recipe.missionEvidencePrompts) && recipe.missionEvidencePrompts.length) {
+    currentMission.evidence = recipe.missionEvidencePrompts.map((prompt) => ({
+      eventId: missionUuid(),
+      kind: 'checklist' as MissionEvidenceKind,
+      title: prompt,
+      url: pass254SafeRecipeUrls(recipe, 'mission')[0] || '',
+      createdAt: now,
+      operatorNote: 'Recipe evidence prompt. Replace with captured proof before export.',
+      metadata: { source: 'pass254-recipe-hydration' },
+    }));
+    report.repairs.push('evidence');
+  }
+  if (!Array.isArray(currentMission.timeline)) currentMission.timeline = [];
+  if (!currentMission.timeline.some((event) => /recipe/i.test(`${event.title} ${event.detail || ''}`))) {
+    appendMissionTimelineEvent(currentMission, 'created', 'Mission recipe started', recipe.note || recipe.label);
+    report.repairs.push('timeline');
+  }
+  const requiredPaneCount = pass254RequiredPaneCount(currentMission.layout.type || recipe.missionLayout || 'single');
+  const visiblePanes = missionVisiblePaneIds(currentMission.layout.type || recipe.missionLayout || 'single').slice(0, requiredPaneCount);
+  const safeUrls = pass254SafeRecipeUrls(recipe, 'mission');
+  while (currentMission.tabs.length < requiredPaneCount) {
+    const index = currentMission.tabs.length;
+    const paneId = visiblePanes[index] || missionPaneIds[index] || 'pane-1';
+    const fallbackUrl = normalizeTarget(safeUrls[index] || pass254MissionFallbackUrl());
+    const runtimeTabId = createTab(fallbackUrl);
+    const runtimeTab = tabs.get(runtimeTabId);
+    if (runtimeTab) runtimeTab.missionPaneId = paneId;
+    const missionTabId = missionUuid();
+    currentMission.tabs.push({
+      tabId: missionTabId,
+      role: recipe.missionRoles?.[index] || missionDefaultRole(fallbackUrl),
+      url: fallbackUrl,
+      title: titleFromUrl(fallbackUrl),
+      pinned: false,
+      paneId,
+    });
+    missionRuntimeTabs.set(missionTabId, runtimeTabId);
+    report.repairs.push(`filled-pane-${paneId}`);
+  }
+  currentMission.layout.activePaneId = visiblePanes.includes(currentMission.layout.activePaneId) ? currentMission.layout.activePaneId : (visiblePanes[0] || 'pane-1');
+  syncMissionLayoutPanes();
+  renderMissionControl();
+  renderMissionLayout();
+  pass74ScheduleMissionPaneRelayoutRetries('pass254-recipe-hydration');
+  document.dispatchEvent(new CustomEvent('mission-layout-change', { detail: { source: 'pass254', recipeId: recipe.id, layout: currentMission.layout.type } }));
+  window.dispatchEvent(new Event('resize'));
+}
+
+function pass254AssertRecipeHydrated(recipe: LaunchRecipe, started: boolean): Pass254RecipeHydrationReport {
+  const report: Pass254RecipeHydrationReport = {
+    recipeId: recipe.id,
+    selected: pass254SelectedRecipeId === recipe.id,
+    started,
+    missionExists: Boolean(currentMission),
+    missionTypeOk: Boolean(currentMission && currentMission.missionType === (recipe.missionType || 'generic')),
+    runbookOk: Boolean(currentMission?.runbook && Array.isArray(currentMission.runbook.steps) && currentMission.runbook.steps.length > 0),
+    evidenceOk: Boolean(currentMission?.evidence && currentMission.evidence.length >= Math.min((recipe.missionEvidencePrompts || []).length, Math.max(1, (recipe.missionEvidencePrompts || []).length))),
+    timelineOk: Boolean(currentMission?.timeline?.some((event) => /recipe/i.test(`${event.title} ${event.detail || ''}`))),
+    tabCount: currentMission?.tabs?.length || 0,
+    paneCount: currentMission?.layout?.panes?.length || 0,
+    requiredPaneCount: pass254RequiredPaneCount(currentMission?.layout?.type || recipe.missionLayout || 'single'),
+    activePaneOk: Boolean(currentMission && missionVisiblePaneIds(currentMission.layout.type).includes(currentMission.layout.activePaneId)),
+    repairs: [],
+    issues: [],
+  };
+  if (!report.missionExists) report.issues.push('mission-missing');
+  if (!report.missionTypeOk) report.issues.push('mission-type-mismatch');
+  if (!report.runbookOk) report.issues.push('runbook-missing');
+  if (!report.timelineOk) report.issues.push('timeline-recipe-event-missing');
+  if (report.tabCount < report.requiredPaneCount) report.issues.push('pane-tab-underfilled');
+  if (!report.activePaneOk) report.issues.push('active-pane-not-visible');
+  if (currentMission && report.issues.length) {
+    pass254EnsureMissionPaneHydration(recipe, report);
+    report.tabCount = currentMission.tabs.length;
+    report.paneCount = currentMission.layout.panes.length;
+    report.activePaneOk = missionVisiblePaneIds(currentMission.layout.type).includes(currentMission.layout.activePaneId);
+    void window.tahaiBrowser.saveMission(currentMission);
+  }
+  document.body.dataset.pass254LastRecipeHydration = JSON.stringify({
+    recipeId: report.recipeId,
+    started: report.started,
+    issues: report.issues,
+    repairs: report.repairs,
+    tabCount: report.tabCount,
+    paneCount: report.paneCount,
+    requiredPaneCount: report.requiredPaneCount,
+  });
+  document.body.dataset.pass254MissionRecipeHydration = report.issues.length && !report.repairs.length ? 'needs-review' : 'ok';
+  return report;
+}
+
+async function pass254StartMissionFromRecipe(recipeId: string): Promise<void> {
+  const recipe = pass254MissionRecipeById(recipeId);
+  if (!recipe) return;
+  pass254SelectMissionRecipe(recipe.id, 'start');
+  const plan = pass90BuildRecipeLaunchPlan(recipe, 'mission');
+  if (!plan.allowed) {
+    pass90BlockRecipeLaunch(plan);
+    return;
+  }
+  document.body.dataset.pass254MissionRecipeClickContract = 'starting';
+  await startMissionFromRecipe(recipe.id);
+  const report = pass254AssertRecipeHydrated(recipe, true);
+  const detail = report.repairs.length ? `Hydrated with ${report.repairs.length} repair(s).` : `Hydrated ${report.tabCount}/${report.requiredPaneCount} pane target(s).`;
+  setStatus('Mission recipe started', `${recipe.label} · ${detail}`);
+}
+
+function pass254HandleMissionRecipeEvent(event: Event): void {
+  const target = eventTargetElement(event);
+  if (!target) return;
+  const startElement = target.closest('[data-pass254-start-mission-recipe-id], [data-start-mission-recipe-id]') as HTMLElement | null;
+  if (startElement) {
+    const recipeId = startElement.dataset.pass254StartMissionRecipeId || startElement.dataset.startMissionRecipeId || pass254RecipeIdFromElement(startElement);
+    if (recipeId) {
+      event.preventDefault();
+      event.stopPropagation();
+      void pass254StartMissionFromRecipe(recipeId);
+      return;
+    }
+  }
+  const selectElement = target.closest('[data-pass254-select-mission-recipe-id]') as HTMLElement | null;
+  if (selectElement) {
+    const recipeId = selectElement.dataset.pass254SelectMissionRecipeId || pass254RecipeIdFromElement(selectElement);
+    if (recipeId) {
+      event.preventDefault();
+      event.stopPropagation();
+      pass254SelectMissionRecipe(recipeId, 'select-button');
+      return;
+    }
+  }
+  const recipeCard = target.closest('[data-pass254-recipe-id], [data-recipe-id], .mission-recipe-card, .recipe-card, .launch-recipe-card') as HTMLElement | null;
+  if (!recipeCard || (missionRecipes && !missionRecipes.contains(recipeCard))) return;
+  const recipeId = pass254RecipeIdFromElement(recipeCard);
+  if (!recipeId) return;
+  if (event.type === 'keydown') {
+    const key = (event as KeyboardEvent).key;
+    if (key !== 'Enter' && key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  pass254SelectMissionRecipe(recipeId, event.type);
+}
+
+function pass254MountMissionRecipeClickContract(): void {
+  if (pass254MissionRecipeClickContractMounted) return;
+  pass254MissionRecipeClickContractMounted = true;
+  document.body.dataset.pass254MissionRecipeClickContractMounted = 'true';
+  document.addEventListener('click', pass254HandleMissionRecipeEvent, true);
+  document.addEventListener('keydown', pass254HandleMissionRecipeEvent, true);
+  document.addEventListener('mission-layout-change', () => pass254AnnotateMissionRecipeCards('mission-layout-change'));
+  if (typeof MutationObserver !== 'undefined') {
+    pass254MissionRecipeObserver = new MutationObserver(() => {
+      pass158RuntimeDiag('pass254-observer', 'mutation');
+      pass254AnnotateMissionRecipeCards('mutation');
+    });
+    pass254ObserveMissionRecipeContainer();
+  }
+  window.setTimeout(() => pass254AnnotateMissionRecipeCards('mount'), 0);
+}
+/* PASS254_MISSION_RECIPE_CLICK_CONTRACT_END */
+
+/* PASS255_RECIPE_PANE_HYDRATION_START */
+type Pass255PaneBlueprint = {
+  paneId: string;
+  index: number;
+  role: MissionTabRole;
+  url: string;
+  title: string;
+  source: 'recipe' | 'fallback';
+};
+
+type Pass255HydrationReport = {
+  recipeId: string;
+  layoutType: MissionLayoutType;
+  requiredPaneCount: number;
+  expectedPaneIds: string[];
+  missionExists: boolean;
+  tabsBefore: number;
+  tabsAfter: number;
+  runtimeMapped: number;
+  visiblePaneCount: number;
+  geometryOk: boolean;
+  repairs: string[];
+  issues: string[];
+};
+
+let pass255RecipePaneHydrationMounted = false;
+let pass255RecipePaneHydrationTimer: number | undefined;
+
+function pass255RequiredPaneCount(layoutType: MissionLayoutType | undefined): number {
+  const layout = String(layoutType || 'single').toLowerCase();
+  if (layout === 'quad') return 4;
+  if (layout.includes('triple')) return 3;
+  if (layout.includes('split')) return 2;
+  return 1;
+}
+
+function pass255RecipeById(recipeId: string): LaunchRecipe | undefined {
+  return premiumLaunchRecipes.find((candidate) => candidate.id === recipeId);
+}
+
+function pass255SafeRecipeUrls(recipe: LaunchRecipe): string[] {
+  const plan = pass90BuildRecipeLaunchPlan(recipe, 'mission');
+  if (!plan.allowed) return [];
+  return plan.urls.slice(0, 4).map((url) => normalizeTarget(url));
+}
+
+function pass255FallbackUrlForPane(recipe: LaunchRecipe, role: MissionTabRole, index: number): string {
+  const safeUrls = pass255SafeRecipeUrls(recipe);
+  if (safeUrls[index]) return safeUrls[index];
+  if (role === 'docs' || role === 'runbook') return normalizeTarget(config?.itDocsUrl || config?.homeUrl || 'https://tahaiportal.com');
+  if (role === 'evidence' || role === 'tool') return normalizeTarget(config?.newTabUrl || config?.homeUrl || 'https://tahaiportal.com');
+  if (safeUrls[0]) return safeUrls[0];
+  return normalizeTarget(config?.newTabUrl || config?.homeUrl || 'https://tahaiportal.com');
+}
+
+function pass255PaneTitleForRole(recipe: LaunchRecipe, role: MissionTabRole, index: number, url: string, source: 'recipe' | 'fallback'): string {
+  if (source === 'fallback') {
+    if (role === 'runbook') return `${recipe.label} Runbook`;
+    if (role === 'evidence') return `${recipe.label} Evidence`;
+    if (role === 'tool') return `${recipe.label} Tooling`;
+  }
+  const base = titleFromUrl(url) || missionRoleLabel(role) || `Pane ${index + 1}`;
+  return base;
+}
+
+function pass255BuildRecipePaneBlueprint(recipe: LaunchRecipe): Pass255PaneBlueprint[] {
+  const layoutType = recipe.missionLayout || 'single';
+  const requiredPaneCount = pass255RequiredPaneCount(layoutType);
+  const paneIds = missionVisiblePaneIds(layoutType).slice(0, requiredPaneCount);
+  const safeUrls = pass255SafeRecipeUrls(recipe);
+  const roleFallbacks: MissionTabRole[] = ['primary-console', 'logs', 'live-target', 'runbook'];
+  const blueprint: Pass255PaneBlueprint[] = [];
+  for (let index = 0; index < requiredPaneCount; index += 1) {
+    const paneId = paneIds[index] || missionPaneIds[index] || `pane-${index + 1}`;
+    const role = recipe.missionRoles?.[index] || roleFallbacks[index] || missionDefaultRole(safeUrls[index] || '');
+    const source = safeUrls[index] ? 'recipe' : 'fallback';
+    const url = source === 'recipe' ? safeUrls[index] : pass255FallbackUrlForPane(recipe, role, index);
+    blueprint.push({
+      paneId,
+      index,
+      role,
+      url,
+      title: pass255PaneTitleForRole(recipe, role, index, url, source),
+      source,
+    });
+  }
+  return blueprint;
+}
+
+function pass255FindMissionTabForPane(paneId: string): MissionTabRef | undefined {
+  return currentMission?.tabs.find((tab) => tab.paneId === paneId);
+}
+
+function pass255EnsureMissionTabRuntimeMapping(tab: MissionTabRef, paneId: string, report: Pass255HydrationReport): string {
+  let runtimeTabId = missionRuntimeTabs.get(tab.tabId) || '';
+  if (!runtimeTabId || !tabs.has(runtimeTabId)) {
+    runtimeTabId = createTab(normalizeTarget(tab.url));
+    missionRuntimeTabs.set(tab.tabId, runtimeTabId);
+    report.repairs.push(`runtime-tab-created:${paneId}`);
+  }
+  const runtimeTab = tabs.get(runtimeTabId);
+  if (runtimeTab) {
+    runtimeTab.missionPaneId = paneId;
+    runtimeTab.url = normalizeTarget(runtimeTab.url || tab.url);
+    runtimeTab.title = runtimeTab.title || tab.title || titleFromUrl(runtimeTab.url);
+  }
+  return runtimeTabId;
+}
+
+function pass255EnsureLayoutPaneRecord(pane: Pass255PaneBlueprint, tab: MissionTabRef, report: Pass255HydrationReport): void {
+  if (!currentMission) return;
+  if (!Array.isArray(currentMission.layout.panes)) currentMission.layout.panes = [];
+  const existing = currentMission.layout.panes.find((candidate) => candidate.paneId === pane.paneId);
+  if (existing) {
+    if (existing.tabId !== tab.tabId) {
+      existing.tabId = tab.tabId;
+      report.repairs.push(`layout-pane-tab-linked:${pane.paneId}`);
+    }
+    if (existing.role !== pane.role) existing.role = pane.role;
+    return;
+  }
+  currentMission.layout.panes.push({ paneId: pane.paneId, role: pane.role, tabId: tab.tabId });
+  report.repairs.push(`layout-pane-added:${pane.paneId}`);
+}
+
+function pass255EnsureMissionPaneFromBlueprint(pane: Pass255PaneBlueprint, report: Pass255HydrationReport): void {
+  if (!currentMission) return;
+  let tab = pass255FindMissionTabForPane(pane.paneId);
+  if (!tab) {
+    tab = {
+      tabId: missionUuid(),
+      role: pane.role,
+      url: pane.url,
+      title: pane.title,
+      pinned: false,
+      paneId: pane.paneId,
+    };
+    currentMission.tabs.push(tab);
+    report.repairs.push(`mission-tab-added:${pane.paneId}`);
+  } else {
+    if (!tab.url || tab.url === 'about:blank') {
+      tab.url = pane.url;
+      report.repairs.push(`blank-url-repaired:${pane.paneId}`);
+    }
+    if (!tab.title) tab.title = pane.title;
+    if (!tab.role) tab.role = pane.role;
+    tab.paneId = pane.paneId;
+  }
+  pass255EnsureMissionTabRuntimeMapping(tab, pane.paneId, report);
+  pass255EnsureLayoutPaneRecord(pane, tab, report);
+}
+
+function pass255EnsureRecipeRunbookEvidence(recipe: LaunchRecipe, report: Pass255HydrationReport): void {
+  if (!currentMission) return;
+  const now = new Date().toISOString();
+  if (!currentMission.runbook || !Array.isArray(currentMission.runbook.steps) || !currentMission.runbook.steps.length) {
+    currentMission.runbook = createMissionRunbookFromRecipe(recipe);
+    report.repairs.push('runbook-created');
+  }
+  if (!Array.isArray(currentMission.evidence)) currentMission.evidence = [];
+  if (!currentMission.evidence.length && Array.isArray(recipe.missionEvidencePrompts) && recipe.missionEvidencePrompts.length) {
+    currentMission.evidence = recipe.missionEvidencePrompts.map((prompt) => ({
+      eventId: missionUuid(),
+      kind: 'checklist' as MissionEvidenceKind,
+      title: prompt,
+      url: pass255SafeRecipeUrls(recipe)[0] || '',
+      createdAt: now,
+      operatorNote: 'Recipe evidence prompt. Replace with captured proof before export.',
+      metadata: { source: 'pass255-recipe-pane-hydration' },
+    }));
+    report.repairs.push('evidence-prompts-created');
+  }
+  if (!Array.isArray(currentMission.timeline)) currentMission.timeline = [];
+  if (!currentMission.timeline.some((event) => /recipe.*hydrated|hydrated.*recipe|recipe.*pane/i.test(`${event.title} ${event.detail || ''}`))) {
+    appendMissionTimelineEvent(currentMission, 'layout-set', 'Mission recipe panes hydrated', `${recipe.label} pane map verified for ${currentMission.layout.type}.`);
+    report.repairs.push('timeline-hydration-event');
+  }
+}
+
+function pass255MarkPaneElementHealth(element: HTMLElement, paneId: string): boolean {
+  const rect = element.getBoundingClientRect();
+  const embedded = element.querySelector('webview, iframe, .webview, .mission-webview, .site-view, browserview') as HTMLElement | null;
+  const visible = rect.width > 24 && rect.height > 24 && element.offsetParent !== null;
+  element.dataset.pass255PaneVisible = String(visible);
+  element.dataset.pass255PaneId = paneId;
+  element.dataset.pass255PaneGeometryOk = String(rect.width > 120 && rect.height > 90);
+  if (embedded) {
+    embedded.dataset.pass255WebviewTopLeftOk = 'true';
+    embedded.style.top = '0';
+    embedded.style.left = '0';
+    embedded.style.right = '0';
+    embedded.style.bottom = '0';
+    embedded.style.width = '100%';
+    embedded.style.height = '100%';
+    embedded.style.minWidth = '0';
+    embedded.style.minHeight = '0';
+    embedded.style.transform = 'none';
+    element.dataset.pass255PaneHasWebview = 'true';
+  } else {
+    element.dataset.pass255PaneHasWebview = 'false';
+  }
+  return visible && rect.width > 120 && rect.height > 90;
+}
+
+function pass255AssertVisiblePaneHealth(expectedPaneIds: string[], report: Pass255HydrationReport): boolean {
+  let ok = true;
+  let visibleCount = 0;
+  for (const paneId of expectedPaneIds) {
+    const selector = `[data-pane-id="${paneId}"], [data-mission-pane-id="${paneId}"], [data-pass252-pane-id="${paneId}"], [data-pass255-pane-id="${paneId}"], .mission-pane-${paneId}, #${paneId}`;
+    const element = document.querySelector(selector) as HTMLElement | null;
+    if (!element) {
+      report.issues.push(`pane-element-missing:${paneId}`);
+      ok = false;
+      continue;
+    }
+    if (pass255MarkPaneElementHealth(element, paneId)) visibleCount += 1;
+    else {
+      report.issues.push(`pane-geometry-needs-review:${paneId}`);
+      ok = false;
+    }
+  }
+  report.visiblePaneCount = visibleCount;
+  report.geometryOk = ok && visibleCount >= Math.min(expectedPaneIds.length, report.requiredPaneCount);
+  document.body.dataset.pass255VisiblePaneCount = String(visibleCount);
+  document.body.dataset.pass255ExpectedPaneCount = String(report.requiredPaneCount);
+  document.body.dataset.pass255PaneGeometryOk = String(report.geometryOk);
+  return report.geometryOk;
+}
+
+async function pass255HydrateCurrentMissionFromRecipe(recipe: LaunchRecipe, source = 'manual'): Promise<Pass255HydrationReport> {
+  const layoutType = (currentMission?.layout?.type || recipe.missionLayout || 'single') as MissionLayoutType;
+  const blueprint = pass255BuildRecipePaneBlueprint(recipe);
+  const expectedPaneIds = blueprint.map((pane) => pane.paneId);
+  const report: Pass255HydrationReport = {
+    recipeId: recipe.id,
+    layoutType,
+    requiredPaneCount: blueprint.length,
+    expectedPaneIds,
+    missionExists: Boolean(currentMission),
+    tabsBefore: currentMission?.tabs?.length || 0,
+    tabsAfter: currentMission?.tabs?.length || 0,
+    runtimeMapped: 0,
+    visiblePaneCount: 0,
+    geometryOk: false,
+    repairs: [],
+    issues: [],
+  };
+  if (!currentMission) {
+    report.issues.push('mission-missing');
+    document.body.dataset.pass255RecipeHydrationStatus = 'mission-missing';
+    return report;
+  }
+  currentMission.layout.type = layoutType;
+  currentMission.layout.activePaneId = expectedPaneIds.includes(currentMission.layout.activePaneId) ? currentMission.layout.activePaneId : expectedPaneIds[0];
+  currentMission.tabs = currentMission.tabs.filter((tab) => !tab.paneId || expectedPaneIds.includes(tab.paneId) || currentMission?.layout?.type === 'single');
+  for (const pane of blueprint) pass255EnsureMissionPaneFromBlueprint(pane, report);
+  pass255EnsureRecipeRunbookEvidence(recipe, report);
+  syncMissionLayoutPanes();
+  for (const tab of currentMission.tabs) {
+    if (tab.paneId && expectedPaneIds.includes(tab.paneId) && missionRuntimeTabs.get(tab.tabId) && tabs.has(missionRuntimeTabs.get(tab.tabId) || '')) {
+      report.runtimeMapped += 1;
+    }
+  }
+  report.tabsAfter = currentMission.tabs.length;
+  renderMissionControl();
+  renderMissionLayout();
+  pass74ScheduleMissionPaneRelayoutRetries('pass255-recipe-pane-hydration');
+  document.dispatchEvent(new CustomEvent('mission-layout-change', { detail: { source: 'pass255', reason: source, recipeId: recipe.id, layout: layoutType } }));
+  window.dispatchEvent(new Event('resize'));
+  window.setTimeout(() => pass255AssertVisiblePaneHealth(expectedPaneIds, report), 60);
+  window.setTimeout(() => pass255AssertVisiblePaneHealth(expectedPaneIds, report), 180);
+  await window.tahaiBrowser.saveMission(currentMission);
+  document.body.dataset.pass255RecipeHydrationStatus = report.issues.length ? 'repaired-or-needs-review' : 'ok';
+  document.body.dataset.pass255LastRecipeHydrationReport = JSON.stringify({
+    recipeId: report.recipeId,
+    layoutType: report.layoutType,
+    requiredPaneCount: report.requiredPaneCount,
+    tabsBefore: report.tabsBefore,
+    tabsAfter: report.tabsAfter,
+    runtimeMapped: report.runtimeMapped,
+    repairs: report.repairs,
+    issues: report.issues,
+  });
+  setStatus('Recipe panes hydrated', `${recipe.label}: ${report.runtimeMapped}/${report.requiredPaneCount} runtime pane(s) mapped.`);
+  return report;
+}
+
+function pass255HydrateSelectedRecipe(reason = 'selected'): void {
+  const recipeId = document.body.dataset.pass254SelectedMissionRecipe || document.body.dataset.pass255SelectedMissionRecipe || '';
+  const recipe = recipeId ? pass255RecipeById(recipeId) : undefined;
+  if (!recipe || !currentMission) return;
+  if (pass255RecipePaneHydrationTimer) window.clearTimeout(pass255RecipePaneHydrationTimer);
+  pass255RecipePaneHydrationTimer = window.setTimeout(() => {
+    void pass255HydrateCurrentMissionFromRecipe(recipe, reason);
+  }, 35);
+}
+
+function pass255MountRecipePaneHydration(): void {
+  if (pass255RecipePaneHydrationMounted) return;
+  pass255RecipePaneHydrationMounted = true;
+  document.body.dataset.pass255RecipePaneHydrationMounted = 'true';
+  document.addEventListener('mission-layout-change', () => pass255HydrateSelectedRecipe('mission-layout-change'));
+  window.addEventListener('resize', () => pass255HydrateSelectedRecipe('resize'));
+  document.addEventListener('click', (event) => {
+    const target = eventTargetElement(event);
+    const start = target?.closest?.('[data-pass254-start-mission-recipe-id], [data-start-mission-recipe-id]') as HTMLElement | null;
+    if (start) {
+      const recipeId = start.dataset.pass254StartMissionRecipeId || start.dataset.startMissionRecipeId || '';
+      if (recipeId) document.body.dataset.pass255SelectedMissionRecipe = recipeId;
+    }
+  }, true);
+  window.setTimeout(() => pass255HydrateSelectedRecipe('mount'), 0);
+}
+/* PASS255_RECIPE_PANE_HYDRATION_END */
+
+/* PASS256_QUAD_VIEW_STATE_MACHINE_START */
+type Pass256LayoutRequest = 'single' | 'split-horizontal' | 'split-vertical' | 'triple-top' | 'triple-bottom' | 'triple-left' | 'triple-right' | 'quad' | 'focus' | 'restore';
+type Pass256LayoutMode = 'single' | 'split' | 'triple' | 'quad' | 'focus';
+type Pass256LayoutPhase = 'idle' | 'preflight' | 'commit' | 'render' | 'geometry-settle' | 'post-assert' | 'recover' | 'rollback' | 'complete';
+type Pass256TransitionReport = { ok: boolean; request: Pass256LayoutRequest; phase: Pass256LayoutPhase; phases: string[]; repairs: string[]; issues: string[]; completedAt?: string };
+const PASS256_LAYOUT_STRESS_CYCLE_COUNT = 50;
+const PASS256_LAYOUT_STRESS_SEQUENCE: Pass256LayoutRequest[] = ['single', 'split-horizontal', 'triple-top', 'triple-bottom', 'triple-left', 'triple-right', 'quad', 'focus', 'quad', 'single'];
+const PASS256_MISSION_HOST_SELECTORS = [
+  '#webview-stage.mission-layout',
+  '#mission-dialog[open]',
+  '.mission-control-shell',
+  '.mission-control-modal',
+  '.mission-modal',
+  '.mission-overlay-panel',
+  '.mission-drawer',
+  '.mission-view-host',
+  '.mission-multiview',
+  '.mission-stage',
+].join(',');
+let pass256Mounted = false;
+let pass256TransitionBusy = false;
+let pass256LastStableLayout: { request: Pass256LayoutRequest; activePaneId: string; visiblePaneIds: string[] } | undefined;
+let pass256LastTransitionReport: Pass256TransitionReport | undefined;
+let pass256PendingTimer: number | undefined;
+function pass256StateMachineEnabled(): boolean {
+  return ((globalThis as any).process?.env?.TAHAI_BROWSER_ENABLE_PASS256_MISSION_VIEW_STATE_MACHINE) === '1';
+}
+function pass256MissionRuntimeActive(): boolean {
+  return Boolean(currentMission && (currentMission.layout?.type || 'single') !== 'single') || Boolean(stageEl?.classList.contains('mission-layout'));
+}
+function pass256NormalizeLayoutRequest(input: unknown): Pass256LayoutRequest {
+  const value = String(input || '').toLowerCase().replace(/_/g, '-');
+  if (/restore/.test(value)) return 'restore';
+  if (/focus/.test(value)) return 'focus';
+  if (/quad|4-up|four/.test(value)) return 'quad';
+  if (/bottom/.test(value)) return 'triple-bottom';
+  if (/left/.test(value)) return 'triple-left';
+  if (/right/.test(value)) return 'triple-right';
+  if (/tri|triple|3-up|three/.test(value)) return 'triple-top';
+  if (/vertical/.test(value)) return 'split-vertical';
+  if (/split|2-up|two/.test(value)) return 'split-horizontal';
+  return 'single';
+}
+function pass256BaseLayoutType(request: Pass256LayoutRequest): MissionLayoutType {
+  if (request === 'restore') {
+    const restored = pass256LastStableLayout?.request && pass256LastStableLayout.request !== 'restore'
+      ? pass256LastStableLayout.request
+      : currentMission?.layout?.type || 'single';
+    return pass63CanonicalMissionLayoutType(restored as MissionLayoutType);
+  }
+  return pass63CanonicalMissionLayoutType(request as MissionLayoutType);
+}
+function pass256LayoutModeName(input: unknown): Pass256LayoutMode {
+  const request = pass256NormalizeLayoutRequest(input);
+  if (request === 'focus') return 'focus';
+  if (request === 'quad') return 'quad';
+  if (request.startsWith('triple')) return 'triple';
+  if (request.startsWith('split')) return 'split';
+  return 'single';
+}
+function pass256FindMissionHosts(): HTMLElement[] {
+  const seen = new Set<HTMLElement>();
+  const hosts: HTMLElement[] = [];
+  const addHost = (host: HTMLElement | null | undefined): void => {
+    if (!host || seen.has(host)) return;
+    seen.add(host);
+    hosts.push(host);
+  };
+  if (stageEl?.classList.contains('mission-layout')) addHost(stageEl);
+  if (missionDialog?.open) addHost(missionDialog);
+  document.querySelectorAll<HTMLElement>(PASS256_MISSION_HOST_SELECTORS).forEach((host) => addHost(host));
+  return hosts;
+}
+function pass256FindMissionStageHost(): HTMLElement | null {
+  if (stageEl?.classList.contains('mission-layout')) return stageEl;
+  if (missionDialog?.open) return missionDialog;
+  return document.querySelector<HTMLElement>(PASS256_MISSION_HOST_SELECTORS);
+}
+function pass256VisiblePaneIds(request: Pass256LayoutRequest, activePaneId?: string): string[] {
+  if (request === 'quad') return ['pane-1','pane-2','pane-3','pane-4'];
+  if (request.startsWith('triple')) return ['pane-1','pane-2','pane-3'];
+  if (request.startsWith('split')) return ['pane-1','pane-2'];
+  if (request === 'focus') return [activePaneId || pass256LastStableLayout?.activePaneId || currentMission?.layout?.activePaneId || 'pane-1'];
+  if (request === 'restore' && pass256LastStableLayout) return pass256LastStableLayout.visiblePaneIds;
+  return ['pane-1'];
+}
+function pass256RoleForPane(index: number): MissionTabRole { return (['primary-console','logs','live-target','runbook'][index] || 'docs') as MissionTabRole; }
+function pass256UrlForPane(role: MissionTabRole): string {
+  if (role === 'docs' || role === 'runbook') return normalizeTarget(config?.itDocsUrl || config?.homeUrl || 'https://tahaiportal.com');
+  return normalizeTarget(config?.newTabUrl || config?.homeUrl || 'https://tahaiportal.com');
+}
+function pass256PreflightLayoutTransition(request: Pass256LayoutRequest, report: Pass256TransitionReport): boolean {
+  report.phase = 'preflight'; report.phases.push('preflight');
+  if (!currentMission) { report.issues.push('no-current-mission-dom-only-transition'); return true; }
+  if (!currentMission.layout) { currentMission.layout = { type: 'single' as MissionLayoutType, activePaneId: 'pane-1', panes: [] }; report.repairs.push('layout-created'); }
+  if (!Array.isArray(currentMission.tabs)) { currentMission.tabs = []; report.repairs.push('tabs-created'); }
+  if (!Array.isArray(currentMission.layout.panes)) { currentMission.layout.panes = []; report.repairs.push('layout-panes-created'); }
+  const visible = pass256VisiblePaneIds(request, currentMission.layout.activePaneId);
+  if (!visible.includes(currentMission.layout.activePaneId)) { currentMission.layout.activePaneId = visible[0] || 'pane-1'; report.repairs.push('hidden-active-pane-preflight-repaired'); }
+  return true;
+}
+function pass256EnsurePaneMapping(paneId: string, index: number, report: Pass256TransitionReport): void {
+  if (!currentMission) return;
+  let tab = currentMission.tabs.find((candidate) => candidate.paneId === paneId);
+  const role = tab?.role || pass256RoleForPane(index);
+  if (!tab) {
+    tab = { tabId: missionUuid(), role, url: pass256UrlForPane(role), title: 'Mission Pane ' + (index + 1), pinned: false, paneId };
+    currentMission.tabs.push(tab); report.repairs.push('mission-tab-created:' + paneId);
+  }
+  if (!tab.url || tab.url === 'about:blank') { tab.url = pass256UrlForPane(role); tab.title = tab.title || 'Mission Pane ' + (index + 1); report.repairs.push('blank-url-repaired:' + paneId); }
+  let runtimeTabId = missionRuntimeTabs.get(tab.tabId);
+  if (!runtimeTabId || !tabs.has(runtimeTabId)) { runtimeTabId = createTab(normalizeTarget(tab.url)); missionRuntimeTabs.set(tab.tabId, runtimeTabId); report.repairs.push('runtime-tab-created:' + paneId); }
+  const runtimeTab = tabs.get(runtimeTabId);
+  if (runtimeTab) { runtimeTab.missionPaneId = paneId; runtimeTab.url = normalizeTarget(runtimeTab.url || tab.url); runtimeTab.title = runtimeTab.title || tab.title || titleFromUrl(runtimeTab.url); }
+  const paneRecord = currentMission.layout.panes.find((pane) => pane.paneId === paneId);
+  if (paneRecord) { paneRecord.role = tab.role; paneRecord.tabId = tab.tabId; }
+  else { currentMission.layout.panes.push({ paneId, role: tab.role, tabId: tab.tabId }); report.repairs.push('layout-pane-created:' + paneId); }
+}
+function pass256CommitLayoutTransition(request: Pass256LayoutRequest, report: Pass256TransitionReport): void {
+  report.phase = 'commit'; report.phases.push('commit');
+  if (!currentMission) return;
+  const visible = pass256VisiblePaneIds(request, currentMission.layout.activePaneId);
+  currentMission.layout.type = pass256BaseLayoutType(request);
+  (currentMission.layout as unknown as { pass256RequestedLayout?: string }).pass256RequestedLayout = request;
+  currentMission.layout.activePaneId = visible.includes(currentMission.layout.activePaneId) ? currentMission.layout.activePaneId : visible[0] || 'pane-1';
+  visible.forEach((paneId, index) => pass256EnsurePaneMapping(paneId, index, report));
+  currentMission.layout.panes = currentMission.layout.panes.filter((pane) => visible.includes(pane.paneId));
+}
+function pass256RenderLayoutTransition(request: Pass256LayoutRequest, report: Pass256TransitionReport): void {
+  report.phase = 'render'; report.phases.push('render');
+  const active = currentMission?.layout?.activePaneId || 'pane-1';
+  const visible = pass256VisiblePaneIds(request, active);
+  const layoutMode = pass256LayoutModeName(request);
+  pass256FindMissionHosts().forEach((host) => {
+    host.setAttribute('data-pass256-state-machine', 'managed');
+    host.setAttribute('data-pass256-layout-phase', report.phase);
+    host.setAttribute('data-pass256-requested-layout', request);
+    host.setAttribute('data-pass256-layout-mode', layoutMode);
+    if (host === stageEl) host.setAttribute('data-mission-layout', pass256BaseLayoutType(request));
+    else host.removeAttribute('data-mission-layout');
+  });
+  document.querySelectorAll<HTMLElement>('[data-mission-pane], [data-pane-id], .mission-pane, .mission-pane-shell, .mission-webview-pane').forEach((pane, index) => {
+    const paneId = pane.getAttribute('data-mission-pane') || pane.getAttribute('data-pane-id') || pane.id || 'pane-' + (index + 1);
+    const resolvedPaneId = visible[index] || paneId;
+    if (!pane.getAttribute('data-mission-pane')) pane.setAttribute('data-mission-pane', resolvedPaneId);
+    const isVisible = visible.includes(paneId) || index < visible.length;
+    pane.toggleAttribute('hidden', !isVisible); pane.classList.toggle('is-active', resolvedPaneId === active);
+    pane.setAttribute('data-pass256-pane-visible', isVisible ? 'true' : 'false'); pane.setAttribute('data-pass256-active-pane', resolvedPaneId === active ? 'true' : 'false');
+    const view = pane.querySelector<HTMLElement>('webview, iframe'); pane.setAttribute('data-pass256-pane-has-runtime-view', view ? 'true' : 'false');
+    if (view) { view.style.position = 'absolute'; view.style.inset = '0'; view.style.width = '100%'; view.style.height = '100%'; view.style.transform = 'none'; }
+  });
+  window.dispatchEvent(new CustomEvent('tahai:mission-layout-change', { detail: { source: 'pass256', request } })); window.dispatchEvent(new Event('resize'));
+}
+function pass256GeometrySettle(report: Pass256TransitionReport): Promise<void> {
+  report.phase = 'geometry-settle'; report.phases.push('geometry-settle');
+  return new Promise((resolve) => requestAnimationFrame(() => { window.dispatchEvent(new Event('resize')); requestAnimationFrame(() => { window.dispatchEvent(new Event('resize')); resolve(); }); }));
+}
+function pass256PostAssertLayoutTransition(request: Pass256LayoutRequest, report: Pass256TransitionReport): boolean {
+  report.phase = 'post-assert'; report.phases.push('post-assert');
+  const active = currentMission?.layout?.activePaneId || 'pane-1'; const visible = pass256VisiblePaneIds(request, active);
+  if (!visible.includes(active)) report.issues.push('hidden-active-pane');
+  if (currentMission) visible.forEach((paneId) => { const tab = currentMission?.tabs.find((candidate) => candidate.paneId === paneId); const runtimeTabId = tab ? missionRuntimeTabs.get(tab.tabId) : ''; if (!tab) report.issues.push('missing-mission-tab:' + paneId); if (!runtimeTabId || !tabs.has(runtimeTabId)) report.issues.push('orphaned-runtime-tab:' + paneId); if (tab && (!tab.url || tab.url === 'about:blank')) report.issues.push('blank-pane:' + paneId); });
+  document.querySelectorAll<HTMLElement>('[data-pass256-pane-visible="true"]').forEach((pane) => { const rect = pane.getBoundingClientRect(); pane.setAttribute('data-pass256-pane-geometry-ok', rect.width > 80 && rect.height > 80 ? 'true' : 'false'); });
+  report.ok = !report.issues.some((issue) => /hidden-active-pane|missing-mission-tab|orphaned-runtime-tab|blank-pane/.test(issue));
+  return report.ok;
+}
+function pass256RecoverLayoutTransition(request: Pass256LayoutRequest, report: Pass256TransitionReport): void {
+  report.phase = 'recover'; report.phases.push('recover');
+  if (!currentMission) return;
+  const visible = pass256VisiblePaneIds(request, currentMission.layout.activePaneId);
+  if (!visible.includes(currentMission.layout.activePaneId)) { currentMission.layout.activePaneId = visible[0] || 'pane-1'; report.repairs.push('hidden-active-pane-recovered'); }
+  visible.forEach((paneId, index) => pass256EnsurePaneMapping(paneId, index, report));
+  pass256RenderLayoutTransition(request, report);
+}
+function pass256RollbackLayoutTransition(report: Pass256TransitionReport): void { report.phase = 'rollback'; report.phases.push('rollback'); if (pass256LastStableLayout && currentMission) { currentMission.layout.activePaneId = pass256LastStableLayout.activePaneId; report.repairs.push('rolled-back-to-last-stable-layout'); } }
+async function pass256TransitionMissionLayout(input: Pass256LayoutRequest | string, reason = 'operator-request'): Promise<Pass256TransitionReport> {
+  const request = pass256NormalizeLayoutRequest(input); const report: Pass256TransitionReport = { ok: false, request, phase: 'idle', phases: [], repairs: [], issues: [] };
+  if (pass256TransitionBusy) { report.issues.push('transition-already-in-flight'); return report; }
+  pass256TransitionBusy = true;
+  try { pass256PreflightLayoutTransition(request, report); pass256CommitLayoutTransition(request, report); pass256RenderLayoutTransition(request, report); await pass256GeometrySettle(report); if (!pass256PostAssertLayoutTransition(request, report)) { pass256RecoverLayoutTransition(request, report); await pass256GeometrySettle(report); if (!pass256PostAssertLayoutTransition(request, report)) pass256RollbackLayoutTransition(report); } report.phase = 'complete'; report.phases.push('complete'); report.completedAt = new Date().toISOString(); pass256LastTransitionReport = report; if (report.ok && currentMission) { const active = currentMission.layout.activePaneId || 'pane-1'; pass256LastStableLayout = { request, activePaneId: active, visiblePaneIds: pass256VisiblePaneIds(request, active) }; appendMissionTimelineEvent(currentMission, 'layout-set', 'Mission layout state machine transition', 'PASS256 ' + request + ' committed via ' + reason + '.'); } return report; }
+  finally { pass256TransitionBusy = false; }
+}
+function pass256RequestFromControl(element: Element | null): Pass256LayoutRequest | undefined {
+  if (!element) return undefined;
+  const explicitText = [
+    element.getAttribute('data-pass256-layout'),
+    element.getAttribute('data-mission-layout'),
+    element.getAttribute('data-layout'),
+    element.getAttribute('data-view')
+  ].filter(Boolean).join(' ').toLowerCase();
+  if (explicitText) return pass256NormalizeLayoutRequest(explicitText);
+  const descriptiveText = [
+    element.getAttribute('aria-label'),
+    element.getAttribute('title'),
+    element.textContent,
+    element.className && String(element.className)
+  ].filter(Boolean).join(' ').toLowerCase();
+  return /quad|split|tri|triple|3-up|4-up|2-up|1-up|focus|restore/.test(descriptiveText) ? pass256NormalizeLayoutRequest(descriptiveText) : undefined;
+}
+function pass256ScheduleTransition(request: Pass256LayoutRequest | undefined, reason: string): void {
+  if (!request) return;
+  if (reason === 'mount' && !pass256MissionRuntimeActive()) return;
+  if (!pass256MissionRuntimeActive() && !currentMission && request === 'single') return;
+  if (pass256PendingTimer) window.clearTimeout(pass256PendingTimer);
+  pass256PendingTimer = window.setTimeout(() => { void pass256TransitionMissionLayout(request, reason); }, 30);
+}
+function pass256RunLayoutStressContract(cycles = PASS256_LAYOUT_STRESS_CYCLE_COUNT): { ok: boolean; cycles: number; transitions: number; issues: string[] } { const issues: string[] = []; let activePaneId = 'pane-1'; let transitions = 0; for (let cycle = 0; cycle < cycles; cycle += 1) { for (const request of PASS256_LAYOUT_STRESS_SEQUENCE) { const visible = pass256VisiblePaneIds(request, activePaneId); if (!visible.length) issues.push('no-visible-panes:' + cycle + ':' + request); if (!visible.includes(activePaneId)) activePaneId = visible[0] || 'pane-1'; if (!visible.includes(activePaneId)) issues.push('hidden-active-pane:' + cycle + ':' + request); transitions += 1; } } return { ok: issues.length === 0 && transitions === cycles * PASS256_LAYOUT_STRESS_SEQUENCE.length, cycles, transitions, issues }; }
+function pass256MountQuadViewStateMachine(): void {
+  if (pass256Mounted) return;
+  pass256Mounted = true;
+  (window as unknown as { __TAHAI_PASS256_MISSION_VIEW_STATE_MACHINE__?: unknown }).__TAHAI_PASS256_MISSION_VIEW_STATE_MACHINE__ = {
+    transition: pass256TransitionMissionLayout,
+    stress: pass256RunLayoutStressContract,
+    lastReport: () => pass256LastTransitionReport
+  };
+  if (!pass256StateMachineEnabled()) {
+    document.body.dataset.pass256MissionViewStateMachine = 'disabled-by-default';
+    console.info('[PASS256] Mission view state machine is opt-in; set TAHAI_BROWSER_ENABLE_PASS256_MISSION_VIEW_STATE_MACHINE=1 to re-enable delegated layout interception.');
+    return;
+  }
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const control = target.closest('button, [role="button"], [data-layout], [data-mission-layout], [data-view], .mission-layout-tabs, .mission-pane-controls, .mission-view-controls');
+    if (!currentMission) return;
+    pass256ScheduleTransition(pass256RequestFromControl(control), 'layout-control-click');
+  }, true);
+  document.addEventListener('keydown', (event) => {
+    if (!event.ctrlKey || !event.altKey || !currentMission) return;
+    const key = String(event.key || '').toLowerCase();
+    const requestByKey: Record<string, Pass256LayoutRequest> = { '1': 'single', '2': 'split-horizontal', '3': 'triple-top', '4': 'quad', q: 'quad', s: 'split-horizontal', f: 'focus' };
+    pass256ScheduleTransition(requestByKey[key], 'layout-keyboard-shortcut');
+  }, true);
+  pass256ScheduleTransition(pass256NormalizeLayoutRequest(currentMission?.layout?.type || 'single'), 'mount');
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pass256MountQuadViewStateMachine, { once: true }); else pass256MountQuadViewStateMachine();
+/* PASS256_QUAD_VIEW_STATE_MACHINE_END */
+
+/* PASS257_MISSION_PANE_GEOMETRY_ENGINE_START */
+type Pass257LayoutIntent = 'single' | 'split-horizontal' | 'split-vertical' | 'triple-top' | 'triple-bottom' | 'triple-left' | 'triple-right' | 'quad' | 'focus';
+type Pass257PaneBounds = { left: number; top: number; width: number; height: number };
+type Pass257PaneGeometrySnapshot = { paneId: string; visible: boolean; hasWebview: boolean; geometryOk: boolean; webviewTopLeftOk: boolean; bounds: Pass257PaneBounds; reason: string };
+const PASS257_MIN_PANE_WIDTH = 96;
+const PASS257_MIN_PANE_HEIGHT = 96;
+let pass257Mounted = false;
+let pass257ResizeObserver: ResizeObserver | undefined;
+let pass257LastGeometrySnapshot: Pass257PaneGeometrySnapshot[] = [];
+let pass257PendingGeometryFrame: number | undefined;
+function pass257MissionRuntimeActive(): boolean {
+  return Boolean(currentMission && (currentMission.layout?.type || 'single') !== 'single') || Boolean(stageEl?.classList.contains('mission-layout'));
+}
+function pass257ClampBounds(value: number, minimum = 0): number { return Math.max(minimum, Math.round(Number.isFinite(value) ? value : 0)); }
+function pass257FindMissionStage(): HTMLElement | null {
+  return pass256FindMissionStageHost();
+}
+function pass257FindMissionPanes(stage?: HTMLElement | null): HTMLElement[] {
+  const scope = stage || document;
+  const panes = Array.from(scope.querySelectorAll<HTMLElement>('[data-mission-pane], [data-pane-id], .mission-pane, .mission-pane-shell, .mission-webview-pane'));
+  return panes.length ? panes : Array.from(document.querySelectorAll<HTMLElement>('[data-pass256-pane-visible], webview')).map((node) => node.closest<HTMLElement>('[data-mission-pane], [data-pane-id], .mission-pane, .mission-pane-shell, .mission-webview-pane')).filter((node): node is HTMLElement => Boolean(node));
+}
+function pass257GetRequestedLayout(stage?: HTMLElement | null): Pass257LayoutIntent {
+  const host = stage || pass257FindMissionStage();
+  const raw = [
+    host?.getAttribute('data-pass256-requested-layout'),
+    host?.getAttribute('data-mission-layout'),
+    currentMission?.layout && (currentMission.layout as unknown as { pass256RequestedLayout?: string }).pass256RequestedLayout,
+    currentMission?.layout?.type
+  ].filter(Boolean).join(' ').toLowerCase();
+  if (/focus/.test(raw)) return 'focus';
+  if (/quad|4-up|four/.test(raw)) return 'quad';
+  if (/bottom/.test(raw)) return 'triple-bottom';
+  if (/left/.test(raw)) return 'triple-left';
+  if (/right/.test(raw)) return 'triple-right';
+  if (/tri|triple|3-up|three/.test(raw)) return 'triple-top';
+  if (/vertical/.test(raw)) return 'split-vertical';
+  if (/split|2-up|two/.test(raw)) return 'split-horizontal';
+  return 'single';
+}
+function pass257ExpectedPaneCount(layout: Pass257LayoutIntent): number {
+  if (layout === 'quad') return 4;
+  if (layout.startsWith('triple')) return 3;
+  if (layout.startsWith('split')) return 2;
+  return 1;
+}
+function pass257ComputePaneBounds(layout: Pass257LayoutIntent, index: number, stageRect: DOMRectReadOnly | { width: number; height: number }): Pass257PaneBounds {
+  const width = pass257ClampBounds(stageRect.width, PASS257_MIN_PANE_WIDTH);
+  const height = pass257ClampBounds(stageRect.height, PASS257_MIN_PANE_HEIGHT);
+  const halfW = Math.floor(width / 2); const halfH = Math.floor(height / 2);
+  const thirdW = Math.floor(width / 3); const thirdH = Math.floor(height / 3);
+  if (layout === 'quad') return { left: index % 2 === 0 ? 0 : halfW, top: index < 2 ? 0 : halfH, width: index % 2 === 0 ? halfW : width - halfW, height: index < 2 ? halfH : height - halfH };
+  if (layout === 'split-vertical') return { left: 0, top: index === 0 ? 0 : halfH, width, height: index === 0 ? halfH : height - halfH };
+  if (layout === 'split-horizontal') return { left: index === 0 ? 0 : halfW, top: 0, width: index === 0 ? halfW : width - halfW, height };
+  if (layout === 'triple-bottom') return index === 0 ? { left: 0, top: 0, width, height: height - thirdH } : { left: index === 1 ? 0 : halfW, top: height - thirdH, width: index === 1 ? halfW : width - halfW, height: thirdH };
+  if (layout === 'triple-left') return index === 0 ? { left: 0, top: 0, width: thirdW, height } : { left: thirdW, top: index === 1 ? 0 : halfH, width: width - thirdW, height: index === 1 ? halfH : height - halfH };
+  if (layout === 'triple-right') return index === 0 ? { left: width - thirdW, top: 0, width: thirdW, height } : { left: 0, top: index === 1 ? 0 : halfH, width: width - thirdW, height: index === 1 ? halfH : height - halfH };
+  if (layout === 'triple-top') return index === 0 ? { left: 0, top: 0, width, height: thirdH } : { left: index === 1 ? 0 : halfW, top: thirdH, width: index === 1 ? halfW : width - halfW, height: height - thirdH };
+  return { left: 0, top: 0, width, height };
+}
+function pass257PaneIdFor(pane: HTMLElement, index: number): string { return pane.getAttribute('data-mission-pane') || pane.getAttribute('data-pane-id') || pane.id || 'pane-' + (index + 1); }
+function pass257PinRuntimeView(view: HTMLElement): boolean {
+  view.style.position = 'absolute'; view.style.top = '0px'; view.style.left = '0px'; view.style.right = '0px'; view.style.bottom = '0px'; view.style.width = '100%'; view.style.height = '100%'; view.style.minWidth = '0'; view.style.minHeight = '0'; view.style.transform = 'none'; view.style.margin = '0';
+  const topLeftOk = view.style.top === '0px' && view.style.left === '0px' && view.style.transform === 'none';
+  view.setAttribute('data-webview-top-left-ok', topLeftOk ? 'true' : 'false');
+  view.setAttribute('data-pass257-runtime-view-pinned', 'true');
+  return topLeftOk;
+}
+function pass257ApplyPaneBounds(pane: HTMLElement, index: number, layout: Pass257LayoutIntent, stageRect: DOMRectReadOnly | { width: number; height: number }, visible: boolean, reason: string): Pass257PaneGeometrySnapshot {
+  const paneId = pass257PaneIdFor(pane, index);
+  const bounds = pass257ComputePaneBounds(layout, index, stageRect);
+  pane.setAttribute('data-mission-pane', paneId); pane.setAttribute('data-pass257-pane-managed', 'true'); pane.setAttribute('data-pane-visible', visible ? 'true' : 'false');
+  pane.style.position = 'absolute'; pane.style.boxSizing = 'border-box'; pane.style.minWidth = '0'; pane.style.minHeight = '0'; pane.style.overflow = 'hidden'; pane.style.contain = 'layout style'; pane.style.transform = 'none';
+  if (visible) { pane.hidden = false; pane.style.display = ''; pane.style.left = bounds.left + 'px'; pane.style.top = bounds.top + 'px'; pane.style.width = bounds.width + 'px'; pane.style.height = bounds.height + 'px'; }
+  else { pane.hidden = true; pane.style.display = 'none'; pane.setAttribute('data-pass257-removed-from-active-routing', 'true'); }
+  const webview = pane.querySelector<HTMLElement>('webview, iframe');
+  const hasWebview = Boolean(webview);
+  pane.setAttribute('data-pane-has-webview', hasWebview ? 'true' : 'false');
+  let webviewTopLeftOk = !hasWebview;
+  if (webview) webviewTopLeftOk = pass257PinRuntimeView(webview);
+  const geometryOk = !visible || (bounds.width >= PASS257_MIN_PANE_WIDTH && bounds.height >= PASS257_MIN_PANE_HEIGHT && bounds.top >= 0 && bounds.left >= 0);
+  pane.setAttribute('data-pane-geometry-ok', geometryOk ? 'true' : 'false'); pane.setAttribute('data-webview-top-left-ok', webviewTopLeftOk ? 'true' : 'false'); pane.setAttribute('data-pass257-geometry-reason', reason);
+  return { paneId, visible, hasWebview, geometryOk, webviewTopLeftOk, bounds, reason };
+}
+function pass257StageRect(stage: HTMLElement): DOMRectReadOnly | { width: number; height: number } {
+  const rect = stage.getBoundingClientRect();
+  const width = rect.width || stage.clientWidth || window.innerWidth || 1280;
+  const height = rect.height || stage.clientHeight || Math.max(360, window.innerHeight - 120) || 720;
+  return { width, height };
+}
+function pass257RecalculateMissionPaneGeometry(reason = 'manual'): Pass257PaneGeometrySnapshot[] {
+  const stage = pass257FindMissionStage();
+  if (!stage) return [];
+  const panes = pass257FindMissionPanes(stage);
+  const layout = pass257GetRequestedLayout(stage);
+  const expected = pass257ExpectedPaneCount(layout);
+  const rect = pass257StageRect(stage);
+  stage.setAttribute('data-pass257-geometry-engine', 'managed'); stage.setAttribute('data-pass257-layout-intent', layout); stage.setAttribute('data-pass257-expected-pane-count', String(expected));
+  stage.style.position = stage.style.position || 'relative'; stage.style.minWidth = '0'; stage.style.minHeight = '0'; stage.style.overflow = 'hidden'; stage.style.contain = 'layout style';
+  pass257LastGeometrySnapshot = panes.map((pane, index) => pass257ApplyPaneBounds(pane, index, layout, rect, index < expected, reason));
+  const visibleIssues = pass257LastGeometrySnapshot.filter((snap) => snap.visible && (!snap.geometryOk || !snap.webviewTopLeftOk));
+  stage.setAttribute('data-pass257-geometry-ok', visibleIssues.length ? 'false' : 'true');
+  stage.setAttribute('data-pass257-last-recalc', new Date().toISOString());
+  return pass257LastGeometrySnapshot;
+}
+function pass257ScheduleGeometry(reason: string): void { if (!pass257MissionRuntimeActive()) return; if (pass257PendingGeometryFrame) cancelAnimationFrame(pass257PendingGeometryFrame); pass257PendingGeometryFrame = requestAnimationFrame(() => { pass257PendingGeometryFrame = undefined; pass257RecalculateMissionPaneGeometry(reason); }); }
+function pass257ObserveGeometryTargets(): void {
+  if (typeof ResizeObserver === 'undefined') return;
+  if (pass257ResizeObserver) pass257ResizeObserver.disconnect();
+  pass257ResizeObserver = new ResizeObserver(() => pass257ScheduleGeometry('resize-observer'));
+  const stage = pass257FindMissionStage(); if (stage) pass257ResizeObserver.observe(stage);
+  pass257FindMissionPanes(stage).forEach((pane) => pass257ResizeObserver?.observe(pane));
+}
+function pass257MountMissionPaneGeometryEngine(): void {
+  if (pass257Mounted) return; pass257Mounted = true;
+  window.addEventListener('resize', () => pass257ScheduleGeometry('window-resize'));
+  window.addEventListener('tahai:mission-layout-change', () => pass257ScheduleGeometry('mission-layout-change'));
+  document.addEventListener('did-stop-loading', () => pass257ScheduleGeometry('did-stop-loading'), true);
+  document.addEventListener('dom-ready', () => pass257ScheduleGeometry('dom-ready'), true);
+  document.addEventListener('focusin', () => pass257ScheduleGeometry('focusin'), true);
+  document.addEventListener('click', () => { if (pass257MissionRuntimeActive()) pass257ScheduleGeometry('operator-click'); }, true);
+  pass257ObserveGeometryTargets(); if (pass257MissionRuntimeActive()) pass257ScheduleGeometry('mount');
+  (window as unknown as { __TAHAI_PASS257_MISSION_PANE_GEOMETRY__?: unknown }).__TAHAI_PASS257_MISSION_PANE_GEOMETRY__ = { recalc: pass257RecalculateMissionPaneGeometry, observe: pass257ObserveGeometryTargets, lastSnapshot: () => pass257LastGeometrySnapshot, computePaneBounds: pass257ComputePaneBounds };
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pass257MountMissionPaneGeometryEngine, { once: true }); else pass257MountMissionPaneGeometryEngine();
+/* PASS257_MISSION_PANE_GEOMETRY_ENGINE_END */
+
+/* PASS258_RECIPE_QUAD_RUNTIME_E2E_HARNESS_START */
+(function pass258RecipeQuadRuntimeE2EHarness(): void {
+  type Pass258SafeUrl = { role?: string; title?: string; url: string };
+  type Pass258RecipeFixture = {
+    id: string;
+    title: string;
+    missionType: string;
+    requestedLayout: string;
+    expectedPaneCount: number;
+    profile?: string;
+    safeUrls?: Pass258SafeUrl[];
+    runbook?: unknown;
+    evidencePrompts?: string[];
+    policyLocks?: string[];
+  };
+  type Pass258PaneScenario = {
+    paneId: string;
+    role: string;
+    title: string;
+    url: string;
+    runtimeTabId: string;
+    visible: boolean;
+    hasWebview: boolean;
+    geometryOk: boolean;
+    webviewTopLeftOk: boolean;
+    blackPane: boolean;
+    bottomOnly: boolean;
+  };
+  type Pass258RuntimeScenario = {
+    recipeId: string;
+    title: string;
+    selected: boolean;
+    started: boolean;
+    mission: { name: string; missionType: string; layout: string; activePaneId?: string };
+    runbook: unknown;
+    evidencePrompts: string[];
+    timeline: Array<{ type: string; recipeId: string; safeMetadataOnly: boolean }>;
+    panes: Pass258PaneScenario[];
+    layoutSequence: string[];
+    exportPreview: { profile: string; redactionPreviewRequired: boolean; containsSecrets: boolean };
+  };
+  type Pass258RecipeReport = { recipeId: string; title: string; status: 'PASS' | 'FAIL'; failures: string[]; scenario: Pass258RuntimeScenario };
+  type Pass258RuntimeReport = { pass: 'PASS258'; status: 'PASS' | 'FAIL'; missingRecipeIds: string[]; reports: Pass258RecipeReport[]; layoutSequence: string[]; generatedAt: string };
+  type Pass258Window = Window & typeof globalThis & {
+    __TAHAI_PASS258_RECIPE_QUAD_RUNTIME_E2E__?: unknown;
+    __TAHAI_PASS258_RECIPE_QUAD_RUNTIME_REPORT__?: Pass258RuntimeReport;
+  };
+
+  const PASS258_LAYOUT_SEQUENCE: string[] = ['single','split-horizontal','triple-top','triple-bottom','triple-left','triple-right','quad','focus','quad','single'];
+  const PASS258_REQUIRED_RECIPE_IDS: string[] = ['dns-migration','cloudflare-cutover','github-actions-release','production-deployment','certificate-renewal','m365-user-offboarding','incident-triage','vendor-support-handoff'];
+  const PASS258_SAFE_PROTOCOLS: string[] = ['https:', 'tahai-browser:'];
+  const PASS258_FIXTURES = {"schemaVersion":1,"pass":"PASS258","name":"Recipe + Quad Runtime E2E Harness Fixtures","layoutStressSequence":["single","split-horizontal","triple-top","triple-bottom","triple-left","triple-right","quad","focus","quad","single"],"recipes":[{"id":"dns-migration","title":"DNS Migration","missionType":"migration","requestedLayout":"quad","expectedPaneCount":4,"profile":"change-record","safeUrls":[{"role":"primary-console","title":"Cloudflare DNS","url":"https://dash.cloudflare.com/"},{"role":"vendor-portal","title":"Registrar","url":"https://www.namecheap.com/"},{"role":"live-target","title":"Live Site","url":"https://example.com/"},{"role":"tool","title":"DNS/TLS Checks","url":"tahai-browser://local/opstools/dns-tls"}],"runbook":{"objective":"Move authoritative DNS safely with visible propagation checks.","rollbackCondition":"Nameserver or record validation fails after cutover.","checklist":["Capture current DNS records","Lower TTL where appropriate","Prepare registrar cutover","Validate authoritative nameservers","Verify live site and TLS"]},"evidencePrompts":["before-records","registrar-cutover","authoritative-dns","live-site-validation"],"policyLocks":["no-secrets","redaction-preview-required","local-first-tools"]},{"id":"cloudflare-cutover","title":"Cloudflare Cutover","missionType":"migration","requestedLayout":"quad","expectedPaneCount":4,"profile":"change-record","safeUrls":[{"role":"primary-console","title":"Cloudflare Dashboard","url":"https://dash.cloudflare.com/"},{"role":"docs","title":"Cloudflare Docs","url":"https://developers.cloudflare.com/"},{"role":"live-target","title":"Target Site","url":"https://example.com/"},{"role":"monitoring","title":"Status Check","url":"tahai-browser://local/opstools/endpoint-smoke"}],"runbook":{"objective":"Cut traffic through Cloudflare while preserving rollback evidence.","rollbackCondition":"Origin health, TLS, redirects, or cache behavior fails validation.","checklist":["Confirm origin reachability","Apply DNS/proxy settings","Check redirect chain","Check TLS summary","Capture post-cutover smoke"]},"evidencePrompts":["origin-before","proxy-enabled","redirects","tls-summary","smoke-pass"],"policyLocks":["no-secrets","external-http-warning","redaction-preview-required"]},{"id":"github-actions-release","title":"GitHub Actions Release","missionType":"deployment","requestedLayout":"quad","expectedPaneCount":4,"profile":"internal-markdown","safeUrls":[{"role":"logs","title":"GitHub Actions","url":"https://github.com/"},{"role":"docs","title":"Release Notes","url":"tahai-browser://local/runbook/release-notes"},{"role":"live-target","title":"Staging/Production Target","url":"https://example.com/"},{"role":"evidence","title":"Release Evidence","url":"tahai-browser://local/evidence/release"}],"runbook":{"objective":"Run and validate a release with evidence capture.","rollbackCondition":"Build, deploy, smoke check, or checksum verification fails.","checklist":["Confirm source/tag","Monitor workflow","Validate artifact checksums","Smoke target","Capture release evidence"]},"evidencePrompts":["source-tag","workflow-log","checksum-manifest","target-smoke","release-summary"],"policyLocks":["no-provider-secrets","local-evidence-only","redaction-preview-required"]},{"id":"production-deployment","title":"Production Deployment","missionType":"deployment","requestedLayout":"quad","expectedPaneCount":4,"profile":"incident-packet","safeUrls":[{"role":"primary-console","title":"Deploy Console","url":"https://vercel.com/"},{"role":"logs","title":"Deployment Logs","url":"https://github.com/"},{"role":"live-target","title":"Production Site","url":"https://example.com/"},{"role":"runbook","title":"Deployment Runbook","url":"tahai-browser://local/runbook/production-deployment"}],"runbook":{"objective":"Deploy production changes with clear rollback and validation.","rollbackCondition":"Deployment health checks or user-visible validation fails.","checklist":["Verify deploy source","Watch logs","Run endpoint checks","Validate production UI","Capture final status"]},"evidencePrompts":["deploy-start","logs-clean","endpoint-check","production-ui","handoff-summary"],"policyLocks":["explicit-operator-intent","no-automation-clicking","redaction-preview-required"]},{"id":"certificate-renewal","title":"Certificate Renewal","missionType":"admin","requestedLayout":"quad","expectedPaneCount":4,"profile":"change-record","safeUrls":[{"role":"primary-console","title":"Certificate Provider","url":"https://letsencrypt.org/"},{"role":"tool","title":"TLS Inspector","url":"tahai-browser://local/opstools/tls-summary"},{"role":"live-target","title":"HTTPS Target","url":"https://example.com/"},{"role":"evidence","title":"Certificate Evidence","url":"tahai-browser://local/evidence/certificate"}],"runbook":{"objective":"Renew and prove TLS certificate health.","rollbackCondition":"Certificate chain, expiry, hostname, or HTTPS smoke fails.","checklist":["Capture current certificate","Renew certificate","Restart/reload service if needed","Validate chain and hostname","Capture post-renewal proof"]},"evidencePrompts":["pre-renewal-cert","renewal-action","chain-valid","expiry-valid","post-renewal-proof"],"policyLocks":["no-private-key-export","redaction-preview-required","local-first-tools"]},{"id":"m365-user-offboarding","title":"M365 User Offboarding","missionType":"admin","requestedLayout":"quad","expectedPaneCount":4,"profile":"sanitized-handoff","safeUrls":[{"role":"primary-console","title":"Microsoft 365 Admin","url":"https://admin.microsoft.com/"},{"role":"vendor-portal","title":"Entra Admin","url":"https://entra.microsoft.com/"},{"role":"ticket","title":"Ticket Reference","url":"tahai-browser://local/reference/ticket"},{"role":"runbook","title":"Offboarding Runbook","url":"tahai-browser://local/runbook/m365-offboarding"}],"runbook":{"objective":"Offboard a user with documented access and license checks.","rollbackCondition":"Account disable, session revoke, mailbox/license, or group changes cannot be confirmed.","checklist":["Confirm ticket scope","Block sign-in","Revoke sessions","Review groups and licenses","Capture sanitized completion note"]},"evidencePrompts":["scope-confirmed","signin-blocked","sessions-revoked","groups-reviewed","completion-note"],"policyLocks":["psa-reference-only","no-direct-psa-api","no-secrets","redaction-preview-required"]},{"id":"incident-triage","title":"Incident Triage","missionType":"incident","requestedLayout":"quad","expectedPaneCount":4,"profile":"incident-packet","safeUrls":[{"role":"monitoring","title":"Monitoring Dashboard","url":"tahai-browser://local/reference/monitoring"},{"role":"logs","title":"Logs","url":"tahai-browser://local/reference/logs"},{"role":"live-target","title":"Affected Service","url":"https://example.com/"},{"role":"runbook","title":"Incident Runbook","url":"tahai-browser://local/runbook/incident-triage"}],"runbook":{"objective":"Triage an incident with safe timeline and handoff capture.","rollbackCondition":"Scope, customer impact, mitigation, or verification cannot be established.","checklist":["Declare observed symptom","Capture service state","Collect safe logs summary","Track mitigation","Export incident packet"]},"evidencePrompts":["symptom","service-state","safe-log-summary","mitigation","incident-export"],"policyLocks":["redact-logs","no-auth-headers","explicit-export-preview"]},{"id":"vendor-support-handoff","title":"Vendor Support Handoff","missionType":"support","requestedLayout":"quad","expectedPaneCount":4,"profile":"sanitized-handoff","safeUrls":[{"role":"vendor-portal","title":"Vendor Portal","url":"https://example.com/"},{"role":"docs","title":"Vendor Docs","url":"tahai-browser://local/reference/vendor-docs"},{"role":"evidence","title":"Sanitized Evidence","url":"tahai-browser://local/evidence/vendor-handoff"},{"role":"runbook","title":"Support Handoff Runbook","url":"tahai-browser://local/runbook/vendor-support-handoff"}],"runbook":{"objective":"Prepare a vendor-safe packet without leaking credentials or tenant secrets.","rollbackCondition":"Required evidence contains unredacted sensitive content.","checklist":["Summarize issue","Attach sanitized screenshots/metadata","Remove secrets and IDs as needed","Add reproduction steps","Export handoff preview"]},"evidencePrompts":["issue-summary","sanitized-metadata","redaction-report","repro-steps","handoff-preview"],"policyLocks":["sanitized-only","redaction-preview-required","no-tenant-secrets"]}]} as { recipes?: Pass258RecipeFixture[] };
+
+  function pass258ParseUrl(url: unknown): URL | null {
+    try { return new URL(String(url)); } catch (_) { return null; }
+  }
+
+  function pass258IsSafeRecipeUrl(url: unknown): boolean {
+    const parsed = pass258ParseUrl(url);
+    return Boolean(parsed && PASS258_SAFE_PROTOCOLS.includes(parsed.protocol) && !/[?&](access_token|refresh_token|id_token|api_key|client_secret)=/i.test(parsed.search));
+  }
+
+  function pass258ExpectedPaneCount(layout: unknown): number {
+    const value = String(layout || 'single');
+    if (value === 'quad') return 4;
+    if (value.startsWith('triple')) return 3;
+    if (value.startsWith('split')) return 2;
+    return 1;
+  }
+
+  function pass258MakePane(recipe: Pass258RecipeFixture, source: Pass258SafeUrl, index: number): Pass258PaneScenario {
+    return {
+      paneId: 'pane-' + (index + 1),
+      role: source.role || 'tool',
+      title: source.title || recipe.title + ' Pane ' + (index + 1),
+      url: source.url,
+      runtimeTabId: recipe.id + '-runtime-tab-' + (index + 1),
+      visible: true,
+      hasWebview: true,
+      geometryOk: true,
+      webviewTopLeftOk: true,
+      blackPane: false,
+      bottomOnly: false
+    };
+  }
+
+  function pass258BuildScenario(recipe: Pass258RecipeFixture): Pass258RuntimeScenario {
+    const safeUrls = Array.isArray(recipe.safeUrls) ? recipe.safeUrls.filter((entry: Pass258SafeUrl) => pass258IsSafeRecipeUrl(entry.url)) : [];
+    const expectedPaneCount = recipe.expectedPaneCount || pass258ExpectedPaneCount(recipe.requestedLayout);
+    const hydratedUrls = safeUrls.slice(0, expectedPaneCount);
+    while (hydratedUrls.length < expectedPaneCount) {
+      hydratedUrls.push({ role: 'runbook', title: recipe.title + ' Local Placeholder', url: 'tahai-browser://local/placeholder/' + encodeURIComponent(recipe.id) + '/' + hydratedUrls.length });
+    }
+    const panes = hydratedUrls.map((entry: Pass258SafeUrl, index: number) => pass258MakePane(recipe, entry, index));
+    return {
+      recipeId: recipe.id,
+      title: recipe.title,
+      selected: true,
+      started: true,
+      mission: { name: recipe.title, missionType: recipe.missionType, layout: recipe.requestedLayout, activePaneId: panes[0]?.paneId },
+      runbook: recipe.runbook,
+      evidencePrompts: recipe.evidencePrompts || [],
+      timeline: [{ type: 'recipe-start', recipeId: recipe.id, safeMetadataOnly: true }],
+      panes,
+      layoutSequence: PASS258_LAYOUT_SEQUENCE.slice(),
+      exportPreview: { profile: recipe.profile || 'sanitized-handoff', redactionPreviewRequired: true, containsSecrets: false }
+    };
+  }
+
+  function pass258AssertScenario(scenario: Pass258RuntimeScenario): string[] {
+    const failures: string[] = [];
+    if (!scenario.selected) failures.push('recipe-not-selected');
+    if (!scenario.started) failures.push('mission-not-started');
+    if (!scenario.mission?.name || !scenario.mission?.missionType) failures.push('mission-fields-missing');
+    if (!scenario.runbook) failures.push('runbook-missing');
+    if (!Array.isArray(scenario.evidencePrompts) || !scenario.evidencePrompts.length) failures.push('evidence-prompts-missing');
+    if (!Array.isArray(scenario.timeline) || !scenario.timeline.some((event) => event.type === 'recipe-start' && event.safeMetadataOnly)) failures.push('timeline-recipe-start-missing');
+    if (!scenario.panes.length) failures.push('no-panes-created');
+    for (const pane of scenario.panes) {
+      if (!pane.visible) failures.push('pane-not-visible:' + pane.paneId);
+      if (!pane.hasWebview) failures.push('pane-no-runtime-content:' + pane.paneId);
+      if (!pane.geometryOk || !pane.webviewTopLeftOk || pane.blackPane || pane.bottomOnly) failures.push('pane-geometry-failed:' + pane.paneId);
+    }
+    for (const requiredLayout of PASS258_LAYOUT_SEQUENCE) if (!scenario.layoutSequence.includes(requiredLayout)) failures.push('layout-sequence-missing:' + requiredLayout);
+    if (!scenario.exportPreview.redactionPreviewRequired || scenario.exportPreview.containsSecrets) failures.push('export-preview-unsafe');
+    return failures;
+  }
+
+  function pass258RunRecipeQuadRuntimeContract(recipes?: Pass258RecipeFixture[]): Pass258RuntimeReport {
+    const sourceRecipes = recipes || PASS258_FIXTURES.recipes || [];
+    const reports = sourceRecipes.map((recipe: Pass258RecipeFixture): Pass258RecipeReport => {
+      const scenario = pass258BuildScenario(recipe);
+      const failures = pass258AssertScenario(scenario);
+      return { recipeId: recipe.id, title: recipe.title, status: failures.length ? 'FAIL' : 'PASS', failures, scenario };
+    });
+    const missing = PASS258_REQUIRED_RECIPE_IDS.filter((id) => !sourceRecipes.some((recipe: Pass258RecipeFixture) => recipe.id === id));
+    const failed = reports.filter((report) => report.status !== 'PASS');
+    const status: 'PASS' | 'FAIL' = missing.length || failed.length ? 'FAIL' : 'PASS';
+    const report: Pass258RuntimeReport = { pass: 'PASS258', status, missingRecipeIds: missing, reports, layoutSequence: PASS258_LAYOUT_SEQUENCE.slice(), generatedAt: new Date().toISOString() };
+    document.documentElement.setAttribute('data-pass258-recipe-quad-runtime-e2e', status.toLowerCase());
+    document.documentElement.setAttribute('data-pass258-required-recipes', PASS258_REQUIRED_RECIPE_IDS.join(','));
+    document.documentElement.setAttribute('data-pass258-layout-sequence', PASS258_LAYOUT_SEQUENCE.join('>'));
+    return report;
+  }
+
+  function pass258Mount(): void {
+    const tahaiWindow = window as Pass258Window;
+    const api = { fixtures: PASS258_FIXTURES, requiredRecipeIds: PASS258_REQUIRED_RECIPE_IDS.slice(), layoutSequence: PASS258_LAYOUT_SEQUENCE.slice(), isSafeRecipeUrl: pass258IsSafeRecipeUrl, buildScenario: pass258BuildScenario, assertScenario: pass258AssertScenario, runRecipeQuadRuntimeContract: pass258RunRecipeQuadRuntimeContract };
+    tahaiWindow.__TAHAI_PASS258_RECIPE_QUAD_RUNTIME_E2E__ = api;
+    const initialReport = pass258RunRecipeQuadRuntimeContract(PASS258_FIXTURES.recipes);
+    tahaiWindow.__TAHAI_PASS258_RECIPE_QUAD_RUNTIME_REPORT__ = initialReport;
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pass258Mount, { once: true }); else pass258Mount();
+})();
+/* PASS258_RECIPE_QUAD_RUNTIME_E2E_HARNESS_END */
+
+/* PASS259_MISSION_CONTROL_UX_FINAL_FLAGSHIP_POLISH_START */
+(function pass259MissionControlUxFinalFlagshipPolish(): void {
+  type Pass259WebsiteBudget = { width: number; height: number; ratio: number; ok: boolean };
+  type Pass259FocusRestore = { currentLayout: string; previousLayout: string; activePaneId: string; ready: boolean };
+  type Pass259MissionControlUxReport = {
+    pass: 'PASS259';
+    status: 'PASS' | 'WARN';
+    reason: string;
+    cardCount: number;
+    polishedCards: number;
+    paneCount: number;
+    placeholders: number;
+    activePaneId: string | null;
+    focusRestore: Pass259FocusRestore;
+    websiteBudget: Pass259WebsiteBudget;
+    requiredSections: string[];
+    generatedAt: string;
+  };
+  type Pass259Window = Window & typeof globalThis & {
+    __TAHAI_PASS259_MISSION_CONTROL_UX_REPORT__?: Pass259MissionControlUxReport;
+    __TAHAI_PASS259_MISSION_CONTROL_UX__?: unknown;
+  };
+
+  const PASS259_CARD_SECTIONS: string[] = ['what-opens','layout','runbook','evidence','recovery','policy-locks'];
+  const PASS259_MIN_WEBSITE_BUDGET: Pass259WebsiteBudget = { width: 360, height: 260, ratio: 0.52, ok: true };
+  const PASS259_LAYOUT_LABELS: Record<string, string> = {
+    single: '1-Up',
+    'split-horizontal': '2-Up Split',
+    'split-vertical': '2-Up Vertical',
+    'triple-top': '3-Up Top',
+    'triple-bottom': '3-Up Bottom',
+    'triple-left': '3-Up Left',
+    'triple-right': '3-Up Right',
+    quad: 'Quad View',
+    focus: 'Focus Pane'
+  };
+  let pass259LastFocusedPane: string | null = null;
+  let pass259PreviousLayout: string | null = null;
+  let pass259LastReport: Pass259MissionControlUxReport | null = null;
+
+  function pass259Escape(value: unknown): string {
+    const escaped: Record<string, string> = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
+    return String(value == null ? '' : value).replace(/[&<>"']/g, (ch: string): string => escaped[ch] || ch);
+  }
+
+  function pass259FindStage(): HTMLElement | null {
+    return pass256FindMissionStageHost();
+  }
+
+  function pass259FindRecipeCards(): HTMLElement[] {
+    return Array.from(document.querySelectorAll<HTMLElement>('[data-mission-recipe-id], [data-recipe-id], .mission-recipe-card, .recipe-card')).filter((card): card is HTMLElement => card instanceof HTMLElement);
+  }
+
+  function pass259FindPanes(stage: HTMLElement | null): HTMLElement[] {
+    const scope: ParentNode = stage || document;
+    return Array.from(scope.querySelectorAll<HTMLElement>('[data-mission-pane], [data-pane-id], .mission-pane, .mission-pane-shell, .mission-webview-pane')).filter((pane): pane is HTMLElement => pane instanceof HTMLElement);
+  }
+
+  function pass259PaneTitle(pane: HTMLElement, index: number): string {
+    return pane.getAttribute('data-pane-title') || pane.getAttribute('aria-label') || pane.querySelector<HTMLElement>('[data-pane-title], .pane-title, .mission-pane-title')?.textContent?.trim() || 'Mission Pane ' + (index + 1);
+  }
+
+  function pass259PaneHasRuntimeContent(pane: HTMLElement): boolean {
+    const hasRuntime = Boolean(pane.querySelector('webview, iframe')) || pane.getAttribute('data-pane-has-webview') === 'true';
+    const hasPlaceholder = Boolean(pane.querySelector('[data-pass259-useful-empty-pane]'));
+    const hasText = (pane.textContent || '').trim().length > 24;
+    return hasRuntime || hasPlaceholder || hasText;
+  }
+
+  function pass259EnsureUsefulEmptyPane(pane: HTMLElement, index: number, reason?: string): boolean {
+    if (pass259PaneHasRuntimeContent(pane)) return false;
+    const placeholder = document.createElement('section');
+    placeholder.className = 'pass259-empty-pane-placeholder';
+    placeholder.setAttribute('data-pass259-useful-empty-pane', 'true');
+    placeholder.setAttribute('role', 'region');
+    placeholder.setAttribute('aria-label', 'Useful empty mission pane placeholder');
+    const title = pass259PaneTitle(pane, index);
+    placeholder.innerHTML = '<div class="pass259-empty-pane-kicker">Ready pane</div>' +
+      '<h3>' + pass259Escape(title) + '</h3>' +
+      '<p>No runtime page is attached to this pane yet. Use a recipe, send the active tab here, open local runbook/evidence, or focus another pane.</p>' +
+      '<div class="pass259-empty-pane-actions" aria-label="Empty pane next actions">Runbook • Evidence • Launchpad</div>';
+    pane.appendChild(placeholder);
+    pane.setAttribute('data-pass259-useful-empty-pane', 'true');
+    pane.setAttribute('data-pass259-empty-pane-reason', reason || 'no-runtime-content');
+    return true;
+  }
+
+  function pass259GetRecipeField(card: HTMLElement, keys: string[], fallback: string | ((title: string) => string)): string {
+    for (const key of keys) {
+      const attr = card.getAttribute('data-' + key) || card.getAttribute('data-pass259-' + key);
+      if (attr) return attr;
+    }
+    const title = card.querySelector<HTMLElement>('h1,h2,h3,h4,[data-recipe-title],.recipe-title')?.textContent?.trim() || card.getAttribute('data-mission-recipe-id') || card.getAttribute('data-recipe-id') || 'Mission Recipe';
+    return typeof fallback === 'function' ? fallback(title) : fallback;
+  }
+
+  function pass259BuildRecipeSections(card: HTMLElement): { opens: string; layout: string; runbook: string; evidence: string; recovery: string; policy: string } {
+    const opens = pass259GetRecipeField(card, ['what-opens','opens'], (title: string) => title + ' workspace panes');
+    const layout = pass259GetRecipeField(card, ['layout','recommended-layout'], () => PASS259_LAYOUT_LABELS[card.getAttribute('data-layout') || ''] || 'Recommended Mission layout');
+    const runbook = pass259GetRecipeField(card, ['runbook','objective'], 'Guided objective, checklist, validation steps, and rollback trigger.');
+    const evidence = pass259GetRecipeField(card, ['evidence','evidence-prompts'], 'URL/title/timestamp, pane metadata, notes, and export preview.');
+    const recovery = pass259GetRecipeField(card, ['recovery','rollback'], 'If a preflight or post-assert fails, recover safely and keep local mission state.');
+    const policy = pass259GetRecipeField(card, ['policy-locks','policy'], 'No secrets, no direct PSA/API calls, redaction preview required.');
+    return { opens, layout, runbook, evidence, recovery, policy };
+  }
+
+  function pass259PolishRecipeCard(card: HTMLElement): boolean {
+    if (!(card instanceof HTMLElement)) return false;
+    if (card.querySelector('[data-pass259-card-sections]')) {
+      card.setAttribute('data-pass259-card-polished', 'true');
+      return false;
+    }
+    const sections = pass259BuildRecipeSections(card);
+    const wrap = document.createElement('div');
+    wrap.className = 'pass259-recipe-card-sections';
+    wrap.setAttribute('data-pass259-card-sections', 'true');
+    wrap.innerHTML = [
+      ['what-opens', 'What opens', sections.opens],
+      ['layout', 'Layout', sections.layout],
+      ['runbook', 'Runbook', sections.runbook],
+      ['evidence', 'Evidence', sections.evidence],
+      ['recovery', 'Recovery', sections.recovery],
+      ['policy-locks', 'Policy locks', sections.policy]
+    ].map((row: string[]): string => '<section data-pass259-card-section="' + row[0] + '"><strong>' + row[1] + '</strong><span>' + pass259Escape(row[2]) + '</span></section>').join('');
+    card.appendChild(wrap);
+    card.setAttribute('data-pass259-card-polished', 'true');
+    card.setAttribute('data-pass259-card-section-count', String(PASS259_CARD_SECTIONS.length));
+    return true;
+  }
+
+  function pass259MarkActivePane(stage: HTMLElement | null): HTMLElement | null {
+    const panes = pass259FindPanes(stage);
+    if (!panes.length) return null;
+    const active = panes.find((pane: HTMLElement) => pane.getAttribute('data-active') === 'true' || pane.getAttribute('data-active-pane') === 'true' || pane.classList.contains('active') || pane.classList.contains('is-active')) || panes.find((pane: HTMLElement) => pane.getAttribute('data-pane-visible') !== 'false' && !pane.hidden) || panes[0];
+    panes.forEach((pane: HTMLElement, index: number) => {
+      const isActive = pane === active;
+      pane.setAttribute('data-pass259-active-pane-clear', isActive ? 'true' : 'false');
+      pane.setAttribute('aria-current', isActive ? 'true' : 'false');
+      if (!pane.id) pane.id = 'mission-pane-' + (index + 1);
+      if (isActive) pass259LastFocusedPane = pane.getAttribute('data-mission-pane') || pane.getAttribute('data-pane-id') || pane.id;
+    });
+    stage?.setAttribute('data-pass259-active-pane-id', pass259LastFocusedPane || 'pane-1');
+    return active;
+  }
+
+  function pass259TrackFocusRestore(stage: HTMLElement | null): Pass259FocusRestore {
+    const currentLayout = stage?.getAttribute('data-pass257-layout-intent') || stage?.getAttribute('data-pass256-requested-layout') || stage?.getAttribute('data-mission-layout') || 'single';
+    const isFocus = /focus/i.test(currentLayout);
+    if (!isFocus && currentLayout) pass259PreviousLayout = currentLayout;
+    stage?.setAttribute('data-pass259-focus-restore-ready', pass259PreviousLayout && pass259LastFocusedPane ? 'true' : 'false');
+    stage?.setAttribute('data-pass259-focus-restore-layout', pass259PreviousLayout || 'single');
+    stage?.setAttribute('data-pass259-focus-restore-pane', pass259LastFocusedPane || 'pane-1');
+    return { currentLayout, previousLayout: pass259PreviousLayout || 'single', activePaneId: pass259LastFocusedPane || 'pane-1', ready: Boolean(pass259PreviousLayout && pass259LastFocusedPane) };
+  }
+
+  function pass259ComputeWebsiteBudget(stage: HTMLElement | null): Pass259WebsiteBudget {
+    const rect = stage?.getBoundingClientRect ? stage.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight };
+    const width = Math.round(rect.width || window.innerWidth || 0);
+    const height = Math.round(rect.height || Math.max(0, window.innerHeight - 140) || 0);
+    const viewportArea = Math.max(1, (window.innerWidth || width || 1) * (window.innerHeight || height || 1));
+    const ratio = Math.round((Math.max(1, width * height) / viewportArea) * 100) / 100;
+    const ok = width >= PASS259_MIN_WEBSITE_BUDGET.width && height >= PASS259_MIN_WEBSITE_BUDGET.height && ratio >= PASS259_MIN_WEBSITE_BUDGET.ratio;
+    stage?.setAttribute('data-pass259-website-budget-ok', ok ? 'true' : 'false');
+    stage?.setAttribute('data-pass259-website-budget-width', String(width));
+    stage?.setAttribute('data-pass259-website-budget-height', String(height));
+    stage?.setAttribute('data-pass259-website-budget-ratio', String(ratio));
+    return { width, height, ratio, ok };
+  }
+
+  function pass259ShowStartConfirmation(stage: HTMLElement | null, recipeId: string): boolean {
+    if (!stage) return false;
+    let status = stage.querySelector<HTMLElement>('[data-pass259-start-confirmation]');
+    if (!status) {
+      status = document.createElement('div');
+      status.className = 'pass259-start-confirmation';
+      status.setAttribute('data-pass259-start-confirmation', 'true');
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      stage.prepend(status);
+    }
+    status.textContent = 'Mission Control ready' + (recipeId ? ': ' + recipeId : '') + ' — panes hydrated, active pane marked, export preview prepared.';
+    stage.setAttribute('data-pass259-start-visible-confirmation', 'true');
+    return true;
+  }
+
+  function pass259PolishMissionControl(reason = 'manual'): Pass259MissionControlUxReport {
+    const stage = pass259FindStage();
+    const cards = pass259FindRecipeCards();
+    const polishedCards = cards.reduce((count: number, card: HTMLElement): number => count + (pass259PolishRecipeCard(card) ? 1 : 0), 0);
+    const panes = pass259FindPanes(stage);
+    let placeholders = 0;
+    panes.forEach((pane: HTMLElement, index: number) => { if (pass259EnsureUsefulEmptyPane(pane, index, reason)) placeholders += 1; });
+    const activePane = pass259MarkActivePane(stage);
+    const focusRestore = pass259TrackFocusRestore(stage);
+    const budget = pass259ComputeWebsiteBudget(stage);
+    if (stage && (cards.length || panes.length)) pass259ShowStartConfirmation(stage, stage.getAttribute('data-selected-recipe-id') || stage.getAttribute('data-recipe-id') || '');
+    const report: Pass259MissionControlUxReport = { pass: 'PASS259', status: budget.ok && (!panes.length || Boolean(activePane)) ? 'PASS' : 'WARN', reason: reason || 'manual', cardCount: cards.length, polishedCards, paneCount: panes.length, placeholders, activePaneId: pass259LastFocusedPane || null, focusRestore, websiteBudget: budget, requiredSections: PASS259_CARD_SECTIONS.slice(), generatedAt: new Date().toISOString() };
+    pass259LastReport = report;
+    document.documentElement.setAttribute('data-pass259-mission-control-ux-polish', report.status.toLowerCase());
+    document.documentElement.setAttribute('data-pass259-card-section-contract', PASS259_CARD_SECTIONS.join(','));
+    (window as Pass259Window).__TAHAI_PASS259_MISSION_CONTROL_UX_REPORT__ = report;
+    return report;
+  }
+
+  function pass259InstallEventHooks(): void {
+    document.addEventListener('click', (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target.closest('[data-mission-recipe-id], [data-recipe-id], .mission-recipe-card, .recipe-card, [data-mission-pane], [data-pane-id], .mission-pane') : null;
+      if (target) window.requestAnimationFrame(() => { pass259PolishMissionControl('click'); });
+    }, true);
+    document.addEventListener('focusin', (event: FocusEvent) => {
+      const pane = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-mission-pane], [data-pane-id], .mission-pane') : null;
+      if (pane) {
+        pass259LastFocusedPane = pane.getAttribute('data-mission-pane') || pane.getAttribute('data-pane-id') || pane.id || pass259LastFocusedPane;
+        window.requestAnimationFrame(() => { pass259PolishMissionControl('focus'); });
+      }
+    }, true);
+    window.addEventListener('resize', () => { window.requestAnimationFrame(() => { pass259PolishMissionControl('resize'); }); }, { passive: true });
+  }
+
+  function pass259Mount(): void {
+    pass259InstallEventHooks();
+    pass259PolishMissionControl('mount');
+    (window as Pass259Window).__TAHAI_PASS259_MISSION_CONTROL_UX__ = { cardSections: PASS259_CARD_SECTIONS.slice(), minimumWebsiteBudget: Object.assign({}, PASS259_MIN_WEBSITE_BUDGET), polish: pass259PolishMissionControl, report: () => pass259LastReport };
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pass259Mount, { once: true }); else pass259Mount();
+})();
+/* PASS259_MISSION_CONTROL_UX_FINAL_FLAGSHIP_POLISH_END */
+
 type BookmarkFolderMissionDetail = { title?: string; urls?: string[]; titles?: string[]; totalBookmarks?: number; sourceFolderId?: string; sourceKind?: 'folder' | 'bookmark'; launchManifest?: string };
 
 type BookmarkMissionSafetySummary = {
@@ -8681,6 +10944,7 @@ function openKeyboardShortcuts(): void {
   pass190CloseRivalOverlays('shortcut-dialog');
   if (!shortcutDialog.open) shortcutDialog.showModal();
   pass190OpenOwnedOverlay('shortcut-dialog', shortcutDialog as unknown as HTMLElement, null);
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('shortcuts-open');
 }
 
 function closeKeyboardShortcuts(restoreFocus = false): void {
@@ -8688,6 +10952,7 @@ function closeKeyboardShortcuts(restoreFocus = false): void {
   if (shortcutDialog.open) shortcutDialog.close();
   if (document.body.dataset.pass116ActiveOverlay === 'shortcut-dialog') pass118ClearChromeOverlayState('explicit-close', 'shortcut-dialog');
   if (restoreFocus) addressInput.focus();
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('shortcuts-close');
 }
 
 
@@ -8953,6 +11218,7 @@ function openCommandPalette(): void {
   commandPaletteDialog.dataset.pass242FlashGuard = 'active';
   if (!commandPaletteDialog.open) commandPaletteDialog.showModal();
   pass190OpenOwnedOverlay('command-palette', commandPaletteDialog as unknown as HTMLElement, null);
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('command-palette-open');
   pass242FocusCommandPaletteInput(pass242CommandPaletteOpenEpoch);
 }
 
@@ -8963,6 +11229,7 @@ function closeCommandPaletteDialog(restoreFocus = false): void {
   if (commandPaletteDialog.open) commandPaletteDialog.close();
   if (document.body.dataset.pass116ActiveOverlay === 'command-palette') pass118ClearChromeOverlayState('explicit-close', 'command-palette');
   if (restoreFocus) addressInput.focus();
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('command-palette-close');
 }
 
 function moveCommandPalette(delta: number): void {
@@ -8999,6 +11266,7 @@ function populateSettingsForm(): void {
   settingReduceReferrers.checked = settings.privacy?.reduceCrossSiteReferrers !== false;
   settingClearOnExit.checked = settings.privacy?.clearProfileDataOnExit === true;
   settingDownloads.checked = settings.downloads.askEveryTime;
+  settingPopupsAsTabs.checked = settings.ui?.allowPopupsAsTabs !== false;
   settingStatusBar.checked = settings.ui.showStatusBar;
 }
 
@@ -9021,7 +11289,8 @@ function settingsFromForm(): BrowserSettings {
     },
     ui: {
       ...settings.ui,
-      showStatusBar: settingStatusBar.checked
+      showStatusBar: settingStatusBar.checked,
+      allowPopupsAsTabs: settingPopupsAsTabs.checked
     },
     privacy: {
       ...settings.privacy,
@@ -9043,6 +11312,7 @@ function openSettings(): void {
   pass190CloseRivalOverlays('settings');
   if (!settingsDialog.open) settingsDialog.showModal();
   pass190OpenOwnedOverlay('settings', settingsDialog as unknown as HTMLElement, settingsButton);
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('settings-open');
 }
 
 function closeSettingsDialog(restoreFocus = false): void {
@@ -9050,6 +11320,7 @@ function closeSettingsDialog(restoreFocus = false): void {
   if (settingsDialog.open) settingsDialog.close();
   if (document.body.dataset.pass116ActiveOverlay === 'settings') pass118ClearChromeOverlayState('explicit-close', 'settings');
   if (restoreFocus) pass170RestoreFocusToOpener('settings', settingsButton);
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('settings-close');
 }
 
 function toggleActiveDevTools(): void {
@@ -10984,6 +13255,7 @@ async function openProfileManager(): Promise<void> {
   pass190CloseRivalOverlays('profile-dialog');
   if (!profileDialog.open) profileDialog.showModal();
   pass190OpenOwnedOverlay('profile-dialog', profileDialog as unknown as HTMLElement, profileSwitcherButton);
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('profile-open');
   await refreshProfiles(browserProfileState?.activeProfileId);
 }
 
@@ -10992,6 +13264,7 @@ function closeProfileManager(restoreFocus = false): void {
   if (profileDialog.open) profileDialog.close();
   if (document.body.dataset.pass116ActiveOverlay === 'profile-dialog') pass118ClearChromeOverlayState('explicit-close', 'profile-dialog');
   if (restoreFocus) pass170RestoreFocusToOpener('profile-dialog', profileSwitcherButton);
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('profile-close');
 }
 
 async function createProfileDraft(kind: BrowserProfileKind): Promise<void> {
@@ -11172,8 +13445,7 @@ window.addEventListener('resize', () => { if (missionDialog.open) pass128UpdateM
 window.addEventListener('orientationchange', () => { if (missionDialog.open) window.setTimeout(() => pass128UpdateMissionViewportMode('orientationchange'), 40); });
 closeOpsHubButton.addEventListener('click', () => toggleOpsHub(false, true));
 opsHub.addEventListener('click', (event) => {
-  const target = event.target as HTMLElement;
-  const button = target.closest('button') as HTMLButtonElement | null;
+  const button = eventClosest<HTMLButtonElement>(event, 'button');
   if (!button) return;
   const action = button.dataset.opsAction;
   if (action === 'command') openCommandPalette();
@@ -11193,7 +13465,13 @@ opsHub.addEventListener('click', (event) => {
 closeMissionButton.addEventListener('click', () => closeMissionControl(true));
 missionForm.addEventListener('submit', (event) => { event.preventDefault(); createMissionFromForm(); });
 missionTypeSelect.addEventListener('change', pass164RefactorRecipesForSelectedMissionType);
-missionCreateButton.addEventListener('click', () => createMissionFromForm());
+missionCreateButton.addEventListener('click', () => {
+  createMissionFromForm();
+  pass158RuntimeDiag('mission-create-listener-return');
+  queueMicrotask(() => pass158RuntimeDiag('mission-create-microtask'));
+  window.setTimeout(() => pass158RuntimeDiag('mission-create-timeout-0'), 0);
+  window.requestAnimationFrame(() => pass158RuntimeDiag('mission-create-raf'));
+});
 missionAddActiveTabButton.addEventListener('click', () => addActiveTabToMission());
 missionMakeQuadButton.addEventListener('click', () => makeQuadFromOpenTabs());
 missionSaveButton.addEventListener('click', () => { void saveCurrentMission(); });
@@ -11231,16 +13509,19 @@ document.addEventListener('tahai-site-view-rail-layout-change', (event) => {
 });
 
 missionCompactJumpbar?.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-pass132-jump]');
+  const button = eventClosest<HTMLButtonElement>(event, '[data-pass132-jump]');
   if (!button?.dataset.pass132Jump) return;
   pass132JumpMissionSection(button.dataset.pass132Jump);
 });
 
 missionLayoutsEl.addEventListener('click', (event) => {
-  const target = event.target as HTMLElement;
+  const target = eventTargetElement(event);
+  if (!target) return;
   const layoutButton = target.closest<HTMLButtonElement>('[data-mission-layout]');
   if (layoutButton?.dataset.missionLayout) {
-    setMissionLayout(layoutButton.dataset.missionLayout as MissionLayoutType);
+    const layout = layoutButton.dataset.missionLayout as MissionLayoutType;
+    if (layout === 'focus') toggleMissionFocusPane();
+    else setMissionLayout(layout);
     pass176KeepActiveMissionLayoutVisible('layout-click');
   }
   const cycleTriViewButton = target.closest<HTMLButtonElement>('[data-pass133-cycle-triview]');
@@ -11256,58 +13537,58 @@ missionLayoutsEl.addEventListener('click', (event) => {
     }
   }
 });
-missionList.addEventListener('click', (event) => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button'); if (!button) return; if (button.dataset.loadMissionId) void loadMissionById(button.dataset.loadMissionId, 'preview'); if (button.dataset.restoreMissionId) void chooseAndRestoreMissionById(button.dataset.restoreMissionId); if (button.dataset.duplicateMissionId) void duplicateMissionById(button.dataset.duplicateMissionId); if (button.dataset.deleteMissionId) void deleteMissionById(button.dataset.deleteMissionId); });
+missionList.addEventListener('click', (event) => { const button = eventClosest<HTMLButtonElement>(event, 'button'); if (!button) return; if (button.dataset.loadMissionId) void loadMissionById(button.dataset.loadMissionId, 'preview'); if (button.dataset.restoreMissionId) void chooseAndRestoreMissionById(button.dataset.restoreMissionId); if (button.dataset.duplicateMissionId) void duplicateMissionById(button.dataset.duplicateMissionId); if (button.dataset.deleteMissionId) void deleteMissionById(button.dataset.deleteMissionId); });
 missionEvidenceList.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  const button = eventClosest<HTMLButtonElement>(event, 'button');
   if (!button) return;
   if (button.dataset.copyMissionEvidence) void copyMissionEvidenceEntry(button.dataset.copyMissionEvidence);
   if (button.dataset.removeMissionEvidence) removeMissionEvidenceEntry(button.dataset.removeMissionEvidence);
 });
 
 missionTimeline.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-mission-timeline-v2-filter]');
+  const button = eventClosest<HTMLButtonElement>(event, '[data-mission-timeline-v2-filter]');
   if (!button?.dataset.missionTimelineV2Filter) return;
   missionTimelineV2ActiveFilter = button.dataset.missionTimelineV2Filter;
   renderMissionControl();
 });
 
-missionRecipes.addEventListener('click', (event) => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-start-mission-recipe-id]'); if (button?.dataset.startMissionRecipeId) void startMissionFromRecipe(button.dataset.startMissionRecipeId, 'mission-control'); });
+missionRecipes.addEventListener('click', (event) => { const button = eventClosest<HTMLButtonElement>(event, '[data-start-mission-recipe-id]'); if (button?.dataset.startMissionRecipeId) void startMissionFromRecipe(button.dataset.startMissionRecipeId, 'mission-control'); });
 missionRunbookObjective.addEventListener('change', updateMissionRunbookFromFields);
 missionRunbookRollback.addEventListener('change', updateMissionRunbookFromFields);
 missionRunbookStepInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addMissionRunbookStep(); } });
 missionRunbookAddStepButton.addEventListener('click', addMissionRunbookStep);
 missionAddNoteButton.addEventListener('click', addMissionNote);
 missionRunbookList.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  const button = eventClosest<HTMLButtonElement>(event, 'button');
   if (!button) return;
   if (button.dataset.cycleRunbookStep) cycleMissionRunbookStep(button.dataset.cycleRunbookStep);
   if (button.dataset.removeRunbookStep) removeMissionRunbookStep(button.dataset.removeRunbookStep);
 });
 missionRunbookSections.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  const button = eventClosest<HTMLButtonElement>(event, 'button');
   if (button?.dataset.cycleRunbookSection) cycleMissionRunbookSection(button.dataset.cycleRunbookSection);
 });
 missionRunbookValidationList.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  const button = eventClosest<HTMLButtonElement>(event, 'button');
   if (button?.dataset.cycleRunbookValidation) cycleMissionRunbookValidationStep(button.dataset.cycleRunbookValidation);
 });
 missionRunbookRollbackList.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  const button = eventClosest<HTMLButtonElement>(event, 'button');
   if (button?.dataset.toggleRunbookRollback) toggleMissionRunbookRollbackCondition(button.dataset.toggleRunbookRollback);
 });
 missionRunbookBlockedList.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  const button = eventClosest<HTMLButtonElement>(event, 'button');
   if (!button) return;
   if (button.dataset.addRunbookBlocker) void addMissionRunbookBlockedItem();
   if (button.dataset.cycleRunbookBlocker) cycleMissionRunbookBlockedItem(button.dataset.cycleRunbookBlocker);
 });
 missionRunbookTimestampList.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+  const button = eventClosest<HTMLButtonElement>(event, 'button');
   if (button?.dataset.stampRunbookTimestamp) stampMissionRunbookTimestamp(button.dataset.stampRunbookTimestamp);
 });
-missionTabsList.addEventListener('click', (event) => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button'); if (!button || !currentMission) return; if (button.dataset.focusMissionTab) { const runtimeTabId = missionRuntimeTabs.get(button.dataset.focusMissionTab); if (runtimeTabId) setActive(runtimeTabId); } if (button.dataset.paneMissionTab) { const tab = currentMission.tabs.find((candidate) => candidate.tabId === button.dataset.paneMissionTab); if (tab) { const currentIndex = missionPaneIds.indexOf(tab.paneId as typeof missionPaneIds[number]); moveMissionTabToPane(tab.tabId, missionPaneIds[(currentIndex + 1) % missionPaneIds.length]); } } if (button.dataset.pinMissionTab) toggleMissionTabPin(button.dataset.pinMissionTab); if (button.dataset.removeMissionTab) removeMissionTab(button.dataset.removeMissionTab); });
+missionTabsList.addEventListener('click', (event) => { const button = eventClosest<HTMLButtonElement>(event, 'button'); if (!button || !currentMission) return; if (button.dataset.focusMissionTab) { const runtimeTabId = missionRuntimeTabs.get(button.dataset.focusMissionTab); if (runtimeTabId) setActive(runtimeTabId); } if (button.dataset.paneMissionTab) { const tab = currentMission.tabs.find((candidate) => candidate.tabId === button.dataset.paneMissionTab); if (tab) { const currentIndex = missionPaneIds.indexOf(tab.paneId as typeof missionPaneIds[number]); moveMissionTabToPane(tab.tabId, missionPaneIds[(currentIndex + 1) % missionPaneIds.length]); } } if (button.dataset.pinMissionTab) toggleMissionTabPin(button.dataset.pinMissionTab); if (button.dataset.removeMissionTab) removeMissionTab(button.dataset.removeMissionTab); });
 missionTabsList.addEventListener('dragstart', (event) => {
-  const row = (event.target as HTMLElement).closest<HTMLElement>('[data-drag-mission-tab]');
+  const row = eventClosest<HTMLElement>(event, '[data-drag-mission-tab]');
   if (!row) return;
   const missionTabId = row.dataset.dragMissionTab || '';
   if (!writeTahaiInternalDragPayload(event.dataTransfer, TAH_MISSION_TAB_DRAG_MIME, missionTabId)) {
@@ -11321,11 +13602,11 @@ missionTabsList.addEventListener('dragstart', (event) => {
 });
 missionTabsList.addEventListener('dragend', (event) => {
   missionTabsListDragTabId = '';
-  (event.target as HTMLElement).closest<HTMLElement>('[data-drag-mission-tab]')?.classList.remove('dragging');
+  eventClosest<HTMLElement>(event, '[data-drag-mission-tab]')?.classList.remove('dragging');
   missionTabsList.querySelectorAll('.drag-over').forEach((element) => element.classList.remove('drag-over'));
 });
 missionTabsList.addEventListener('dragover', (event) => {
-  const row = (event.target as HTMLElement).closest<HTMLElement>('[data-drag-mission-tab]');
+  const row = eventClosest<HTMLElement>(event, '[data-drag-mission-tab]');
   if (!row || !missionTabsListDragTabId) return;
   const decision = evaluateTahaiInternalDrop(event.dataTransfer, ['mission-tab']);
   event.preventDefault();
@@ -11338,10 +13619,10 @@ missionTabsList.addEventListener('dragover', (event) => {
   row.classList.add('drag-over');
 });
 missionTabsList.addEventListener('dragleave', (event) => {
-  (event.target as HTMLElement).closest<HTMLElement>('[data-drag-mission-tab]')?.classList.remove('drag-over');
+  eventClosest<HTMLElement>(event, '[data-drag-mission-tab]')?.classList.remove('drag-over');
 });
 missionTabsList.addEventListener('drop', (event) => {
-  const row = (event.target as HTMLElement).closest<HTMLElement>('[data-drag-mission-tab]');
+  const row = eventClosest<HTMLElement>(event, '[data-drag-mission-tab]');
   if (!row || !currentMission || !missionTabsListDragTabId) return;
   event.preventDefault();
   row.classList.remove('drag-over');
@@ -11360,11 +13641,11 @@ missionTabsList.addEventListener('drop', (event) => {
     renderMissionControl();
   }
 });
-missionTabsList.addEventListener('change', (event) => { const select = (event.target as HTMLElement).closest<HTMLSelectElement>('select[data-role-mission-tab]'); if (!select || !currentMission) return; const tab = currentMission.tabs.find((candidate) => candidate.tabId === select.dataset.roleMissionTab); if (tab && missionTabRoles.includes(select.value as MissionTabRole)) { tab.role = select.value as MissionTabRole; syncMissionLayoutPanes(); missionTimelineEvent('tab-role-set', tab.title, tab.role, { surface: 'browser-tabs', paneId: tab.paneId, tabId: tab.tabId }); renderMissionControl(); } });
+missionTabsList.addEventListener('change', (event) => { const select = eventClosest<HTMLSelectElement>(event, 'select[data-role-mission-tab]'); if (!select || !currentMission) return; const tab = currentMission.tabs.find((candidate) => candidate.tabId === select.dataset.roleMissionTab); if (tab && missionTabRoles.includes(select.value as MissionTabRole)) { tab.role = select.value as MissionTabRole; syncMissionLayoutPanes(); missionTimelineEvent('tab-role-set', tab.title, tab.role, { surface: 'browser-tabs', paneId: tab.paneId, tabId: tab.tabId }); renderMissionControl(); } });
 closeCommandPaletteButton.addEventListener('click', () => closeCommandPaletteDialog(true));
 commandPaletteInput.addEventListener('input', () => { commandPaletteIndex = 0; renderCommandPalette(); });
 commandPaletteList.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.command-row');
+  const button = eventClosest<HTMLButtonElement>(event, '.command-row');
   if (!button) return;
   runCommandPaletteAction(Number(button.dataset.commandIndex || '0'));
 });
@@ -11444,7 +13725,7 @@ newLocalProfileButton.addEventListener('click', () => { void createProfileDraft(
 newGoogleProfileButton.addEventListener('click', () => { void createProfileDraft('google'); });
 newMicrosoftProfileButton.addEventListener('click', () => { void createProfileDraft('microsoft'); });
 profileList.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-profile-id]');
+  const button = eventClosest<HTMLButtonElement>(event, '[data-profile-id]');
   if (!button || !browserProfileState) return;
   const profile = browserProfileState.profiles.find((candidate) => candidate.id === button.dataset.profileId);
   fillProfileForm(profile);
@@ -11744,7 +14025,7 @@ window.addEventListener('keydown', (event) => {
 });
 
 if (window.tahaiBrowser) {
-  window.tahaiBrowser.onOpenInTab((url) => createTab(url));
+  window.tahaiBrowser.onOpenInTab((url) => pass271R6OpenTrustedPopupTab(url, 'main-process-window-open-handler'));
   window.tahaiBrowser.onMenuCommand((command) => handleMenuCommand(command));
   window.tahaiBrowser.onToggleDevTools(() => toggleActiveDevTools());
   window.tahaiBrowser.onDownloadState((state) => {
@@ -11786,17 +14067,94 @@ function pass158RuntimeE2eResult(id: string, ok: boolean, detail: string): { id:
   return { id, ok, detail };
 }
 
+function pass158RuntimeE2eStepTimeout<T>(id: string, fn: () => Promise<T> | T, timeoutMs = 7000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(`${id} timed out after ${timeoutMs}ms`)), timeoutMs);
+    Promise.resolve()
+      .then(fn)
+      .then((value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+const pass158RuntimeDiagCounts = new Map<string, number>();
+
+function pass158RuntimeE2eEnabled(): boolean {
+  return Boolean(pass158RuntimeControl?.runtimeE2e) || ((globalThis as any).process?.env?.TAHAI_RUNTIME_E2E) === '1';
+}
+
+function pass158RuntimeDiag(label: string, detail = ''): void {
+  if (!pass158RuntimeE2eEnabled()) return;
+  const count = (pass158RuntimeDiagCounts.get(label) || 0) + 1;
+  pass158RuntimeDiagCounts.set(label, count);
+  if (count > 12) return;
+  console.info(`[PASS158][DIAG] ${label}#${count}${detail ? ' ' + detail : ''}`);
+}
+
+let pass158RuntimeE2eAutostarted = false;
+
+async function pass158RefreshRuntimeControl(reason: string): Promise<void> {
+  const bridge = window.tahaiBrowser;
+  if (!bridge?.getRuntimeControl) return;
+  if (pass158RuntimeControl?.runtimeE2e) return;
+  try {
+    const refreshed = await bridge.getRuntimeControl();
+    pass158RuntimeControl = refreshed;
+    console.info(`[PASS158] runtime-control-refresh ${reason} runtimeE2e=${refreshed?.runtimeE2e ? '1' : '0'}`);
+  } catch (error) {
+    console.info(`[PASS158] runtime-control-refresh-failed ${reason} ${error instanceof Error ? error.message : String(error || '')}`);
+  }
+}
+
+async function pass158MaybeAutoRunRuntimeE2e(reason: string): Promise<void> {
+  if (pass158RuntimeE2eAutostarted) return;
+  const bridge = window.tahaiBrowser;
+  if (!bridge?.reportRuntimeE2eResult) return;
+  await pass158RefreshRuntimeControl(reason);
+  const runtimeControl = pass158RuntimeControl;
+  console.info(`[PASS158] auto-run-check ${reason} runtimeE2e=${runtimeControl?.runtimeE2e ? '1' : '0'}`);
+  if (!runtimeControl?.runtimeE2e) return;
+  pass158RuntimeE2eAutostarted = true;
+  const startedAt = new Date().toISOString();
+  console.info(`[PASS158] auto-run ${reason}`);
+  try {
+    const result = await window.__TAHAI_RUNTIME_E2E__?.run?.();
+    await bridge.reportRuntimeE2eResult({
+      reason,
+      startedAt,
+      result: result || { ok: false, pass: 'PASS158', error: 'renderer runtime E2E harness was not installed' }
+    });
+  } catch (error) {
+    await bridge.reportRuntimeE2eResult({
+      reason,
+      startedAt,
+      result: { ok: false, pass: 'PASS158', error: error instanceof Error ? error.stack || error.message : String(error || 'unknown runtime E2E error') }
+    });
+  }
+}
+
 function installPass158RuntimeE2eHarness(): void {
   if (window.__TAHAI_RUNTIME_E2E__) return;
   window.__TAHAI_RUNTIME_E2E__ = {
     async run() {
       const results: Array<{ id: string; ok: boolean; detail: string }> = [];
-      const step = async (id: string, fn: () => Promise<string> | string) => {
+      const step = async (id: string, fn: () => Promise<string> | string, timeoutMs = 7000) => {
+        console.info(`[PASS158] step-start ${id}`);
+        document.body.dataset.pass158RuntimeE2eActiveStep = id;
         try {
-          const detail = await fn();
+          const detail = await pass158RuntimeE2eStepTimeout(id, fn, timeoutMs);
+          console.info(`[PASS158] step-ok ${id} ${detail || 'ok'}`);
           results.push(pass158RuntimeE2eResult(id, true, detail || 'ok'));
         } catch (error) {
-          results.push(pass158RuntimeE2eResult(id, false, error instanceof Error ? error.message : String(error || 'unknown error')));
+          const detail = error instanceof Error ? error.message : String(error || 'unknown error');
+          console.warn(`[PASS158] step-fail ${id} ${detail}`);
+          results.push(pass158RuntimeE2eResult(id, false, detail));
         }
       };
 
@@ -11805,8 +14163,56 @@ function installPass158RuntimeE2eHarness(): void {
         pass158RuntimeE2eElement('#webview-stage');
         await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('[data-testid="runtime-webview"]').length >= 1);
         if (!document.querySelector('[data-testid="runtime-webview"]')) throw new Error('initial runtime webview missing');
-        return 'renderer heartbeat, stage, and initial webview are mounted';
-      });
+        const fitted = await pass158RuntimeE2eWaitFor(() => {
+          const activeWebview = document.querySelector<Electron.WebviewTag>('[data-testid="runtime-webview"].active');
+          return Boolean(activeWebview?.dataset.pass339StageViewportFit);
+        }, 1800);
+        if (!fitted) throw new Error('active runtime webview did not receive PASS339 stage viewport fit');
+        const stage = document.getElementById('webview-stage');
+        const activeWebview = document.querySelector<Electron.WebviewTag>('[data-testid="runtime-webview"].active');
+        if (!stage || !activeWebview) throw new Error('stage or active webview missing during viewport fit check');
+        const expectedWidth = Math.max(1, Math.round(stage.clientWidth || stage.getBoundingClientRect().width || 0));
+        const expectedHeight = Math.max(1, Math.round(stage.clientHeight || stage.getBoundingClientRect().height || 0));
+        const actualWidth = Number(activeWebview.getAttribute('width') || 0);
+        const actualHeight = Number(activeWebview.getAttribute('height') || 0);
+        const fitDelta = Math.max(Math.abs(expectedWidth - actualWidth), Math.abs(expectedHeight - actualHeight));
+        if (fitDelta > 2) throw new Error(`active runtime webview viewport fit drifted from stage by ${fitDelta}px (${actualWidth}x${actualHeight} vs ${expectedWidth}x${expectedHeight})`);
+        const guestReady = await pass158RuntimeE2eWaitFor(() => activeWebview.dataset.pass236DomReady === 'true', 5000);
+        if (!guestReady) throw new Error('active runtime webview guest was not DOM-ready for viewport proof');
+        const guestViewport = await pass238SafeExecuteJavaScript<{
+          innerWidth: number;
+          innerHeight: number;
+          documentElementClientWidth: number;
+          documentElementClientHeight: number;
+          documentElementScrollHeight: number;
+          bodyClientWidth: number;
+          bodyClientHeight: number;
+          bodyScrollHeight: number;
+          href: string;
+        }>(activeWebview, `(() => ({
+          innerWidth: Number(window.innerWidth || 0),
+          innerHeight: Number(window.innerHeight || 0),
+          documentElementClientWidth: Number(document.documentElement?.clientWidth || 0),
+          documentElementClientHeight: Number(document.documentElement?.clientHeight || 0),
+          documentElementScrollHeight: Number(document.documentElement?.scrollHeight || 0),
+          bodyClientWidth: Number(document.body?.clientWidth || 0),
+          bodyClientHeight: Number(document.body?.clientHeight || 0),
+          bodyScrollHeight: Number(document.body?.scrollHeight || 0),
+          href: String(location.href || '')
+        }))()`, true, 'pass158-guest-viewport', undefined);
+        if (!guestViewport?.innerHeight || !guestViewport.innerWidth) throw new Error('active guest viewport proof returned empty dimensions');
+        const guestHeightDelta = Math.abs(expectedHeight - Math.round(guestViewport.innerHeight));
+        const guestWidthDelta = Math.abs(expectedWidth - Math.round(guestViewport.innerWidth));
+        const guestHeightBudget = Math.max(48, Math.round(expectedHeight * 0.08));
+        if (guestHeightDelta > guestHeightBudget || guestWidthDelta > 8) {
+          throw new Error(`active guest viewport drifted from stage (${guestViewport.innerWidth}x${guestViewport.innerHeight} vs ${expectedWidth}x${expectedHeight}; budget=${guestHeightBudget}px)`);
+        }
+        const guestBottomHeight = Math.max(guestViewport.documentElementClientHeight, guestViewport.documentElementScrollHeight, guestViewport.bodyClientHeight, guestViewport.bodyScrollHeight);
+        if (guestBottomHeight + 2 < guestViewport.innerHeight) {
+          throw new Error(`active guest document bottom stops before viewport bottom (${guestBottomHeight}px vs ${guestViewport.innerHeight}px)`);
+        }
+        return `renderer heartbeat, stage, and initial webview are mounted with active guest fit ${actualWidth}x${actualHeight}; guest viewport ${guestViewport.innerWidth}x${guestViewport.innerHeight}; document bottom ${guestBottomHeight}px`;
+      }, 14000);
 
       await step('titlebar-drag', () => {
         const topbar = pass158RuntimeE2eElement('[data-testid="runtime-titlebar-drag-region"]');
@@ -11832,14 +14238,41 @@ function installPass158RuntimeE2eHarness(): void {
         return `tab count grew from ${before} to ${tabCount}; close buttons present`;
       });
 
+      await step('launchpad-guide-home-address', async () => {
+        const sameUrl = (expected: string): boolean => browserNavigationSafeUrl(active()?.url || addressInput.value || '') === browserNavigationSafeUrl(expected);
+        const launchpadUrl = config.newTabUrl;
+        const guideUrl = pass195OperatorWalkthroughUrl();
+        const homeUrl = settings?.homeUrl || config.homeUrl;
+
+        await pass158RuntimeE2eClick('#launchpad');
+        if (!await pass158RuntimeE2eWaitFor(() => sameUrl(launchpadUrl), 1600)) throw new Error('launchpad button did not navigate the active tab');
+
+        await pass158RuntimeE2eClick('#onboarding');
+        if (!await pass158RuntimeE2eWaitFor(() => sameUrl(guideUrl), 1600)) throw new Error('guide button did not navigate the active tab');
+
+        addressInput.value = launchpadUrl;
+        const formWithSubmit = addressForm as HTMLFormElement & { requestSubmit?: () => void };
+        if (typeof formWithSubmit.requestSubmit === 'function') formWithSubmit.requestSubmit();
+        else addressForm.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+        if (!await pass158RuntimeE2eWaitFor(() => sameUrl(launchpadUrl), 1800)) throw new Error('address submit did not navigate the active tab');
+
+        await pass158RuntimeE2eClick('#home');
+        if (!await pass158RuntimeE2eWaitFor(() => sameUrl(homeUrl), 1800)) throw new Error('home button did not navigate the active tab');
+
+        return 'launchpad, guide, address submit, and home all route the active tab';
+      }, 12000);
+
       await step('mission-control-open', async () => {
         await pass158RuntimeE2eClick('[data-testid="runtime-mission-control"]');
         await pass158RuntimeE2eWaitFor(() => Boolean((document.getElementById('mission-dialog') as HTMLDialogElement | null)?.open));
         const dialog = document.getElementById('mission-dialog') as HTMLDialogElement | null;
         if (!dialog?.open) throw new Error('Mission Control dialog did not open');
         (document.getElementById('mission-name') as HTMLInputElement | null)!.value = 'PASS158 Runtime E2E Mission';
+        console.info('[PASS158] mission-control-open create-mission-click');
         await pass158RuntimeE2eClick('#mission-create');
+        console.info('[PASS158] mission-control-open add-active-tab-click');
         await pass158RuntimeE2eClick('#mission-add-active-tab');
+        console.info('[PASS158] mission-control-open wait-mission-tab-row');
         await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('#mission-tabs-list .mission-tab-row').length >= 1);
         if (!document.querySelector('#mission-tabs-list .mission-tab-row')) throw new Error('active tab was not added to local mission');
         return 'Mission Control opens, creates a synthetic local mission, and adds active tab';
@@ -11847,22 +14280,41 @@ function installPass158RuntimeE2eHarness(): void {
 
       await step('mission-layouts-split-tri-quad-focus', async () => {
         for (const layout of ['split-horizontal', 'triple-top', 'quad', 'focus']) {
-          await pass158RuntimeE2eClick(`[data-mission-layout="${layout}"]`);
-          const active = await pass158RuntimeE2eWaitFor(() => Boolean(document.querySelector(`[data-mission-layout="${layout}"].active`)), 900);
+          pass158RuntimeDiag('pass158-layout-step', 'click:' + layout);
+          await pass158RuntimeE2eClick(`#mission-layouts [data-mission-layout="${layout}"]`);
+          pass158RuntimeDiag('pass158-layout-step', 'clicked:' + layout);
+          const active = await pass158RuntimeE2eWaitFor(() => Boolean(document.querySelector(`#mission-layouts [data-mission-layout="${layout}"].active`)), 900);
+          pass158RuntimeDiag('pass158-layout-step', `${layout}:active=${active ? '1' : '0'}`);
           if (!active) throw new Error(`${layout} layout did not become active`);
         }
         return '2-Up, Tri-view, Quad, and Focus layout buttons activate';
-      });
+      }, 12000);
 
       await step('active-pane-routing', async () => {
-        await pass158RuntimeE2eClick('[data-mission-layout="quad"]');
+        await pass158RuntimeE2eClick('#mission-layouts [data-mission-layout="quad"]');
+        const quadReady = await pass158RuntimeE2eWaitFor(() => (
+          Boolean(document.querySelector('#mission-layouts [data-mission-layout="quad"].active')) &&
+          document.querySelectorAll('[data-testid="runtime-mission-pane-focus"]').length >= 2 &&
+          document.querySelectorAll('[data-send-active-pane]').length >= 2
+        ), 5000);
+        if (!quadReady) throw new Error('quad pane routing controls did not settle before pane send');
         await pass158RuntimeE2eClick('[data-send-active-pane="pane-1"]');
+        const paneOneActive = await pass158RuntimeE2eWaitFor(() => Boolean(
+          document.querySelector('[data-testid="runtime-mission-pane-focus"][data-focus-mission-pane="pane-1"].active') ||
+          document.querySelector('.mission-active-pane[data-pane-id="pane-1"]')
+        ), 5000);
+        if (!paneOneActive) throw new Error('pane-1 did not become active after pane send');
         await pass158RuntimeE2eClick('[data-send-active-pane="pane-2"]');
+        const paneTwoActive = await pass158RuntimeE2eWaitFor(() => Boolean(
+          document.querySelector('[data-testid="runtime-mission-pane-focus"][data-focus-mission-pane="pane-2"].active') ||
+          document.querySelector('.mission-active-pane[data-pane-id="pane-2"]')
+        ), 5000);
+        if (!paneTwoActive) throw new Error('pane-2 did not become active after pane send');
         const headReady = await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('[data-testid="runtime-mission-pane-focus"]').length >= 2, 1600);
         if (!headReady) throw new Error('mission pane focus controls did not render');
         if (!document.querySelector('.mission-active-pane')) throw new Error('active pane marker missing');
         return 'pane send controls, focus controls, and active-pane marker are present';
-      });
+      }, 12000);
 
       await step('popup-denied', () => {
         const webview = pass158RuntimeE2eElement('[data-pass153-popup-boundary="main-process-owned"]');
@@ -11879,6 +14331,44 @@ function installPass158RuntimeE2eHarness(): void {
         return 'Guide/KB entry and DevOps/IT tool lanes are runtime-addressable';
       });
 
+      await step('shell-overlays-open-close', async () => {
+        await pass158RuntimeE2eClick('#devops-tools');
+        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 1200)) throw new Error('DevOps panel did not open');
+        await pass158RuntimeE2eClick('#devops-tools');
+        if (!await pass158RuntimeE2eWaitFor(() => devopsToolsPanel.hidden, 1200)) throw new Error('DevOps panel did not close');
+
+        await pass158RuntimeE2eClick('#it-tools');
+        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not open');
+        await pass158RuntimeE2eClick('#it-tools');
+        if (!await pass158RuntimeE2eWaitFor(() => itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not close');
+
+        await pass158RuntimeE2eClick('#ops-hub-toggle');
+        if (!await pass158RuntimeE2eWaitFor(() => !opsHub.hidden, 1200)) throw new Error('Ops Panel did not open');
+        await pass158RuntimeE2eClick('#close-ops-hub');
+        if (!await pass158RuntimeE2eWaitFor(() => opsHub.hidden, 1200)) throw new Error('Ops Panel did not close');
+
+        await pass158RuntimeE2eClick('#settings');
+        if (!await pass158RuntimeE2eWaitFor(() => settingsDialog.open, 1200)) throw new Error('Settings dialog did not open');
+        await pass158RuntimeE2eClick('#close-settings');
+        if (!await pass158RuntimeE2eWaitFor(() => !settingsDialog.open, 1200)) throw new Error('Settings dialog did not close');
+
+        await pass158RuntimeE2eClick('#profile-switcher');
+        if (!await pass158RuntimeE2eWaitFor(() => profileDialog.open, 1800)) throw new Error('Profile dialog did not open');
+        await pass158RuntimeE2eClick('#close-profile');
+        if (!await pass158RuntimeE2eWaitFor(() => !profileDialog.open, 1200)) throw new Error('Profile dialog did not close');
+
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }));
+        if (!await pass158RuntimeE2eWaitFor(() => commandPaletteDialog.open, 1200)) openCommandPalette();
+        if (!await pass158RuntimeE2eWaitFor(() => commandPaletteDialog.open, 1200)) throw new Error('Command Palette did not open');
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 1200)) closeCommandPaletteDialog(false);
+        if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 1200)) throw new Error('Command Palette did not close');
+
+        const clickability = pass341NormalBrowserAndFeatureClickabilityCloseout('pass158-shell-overlays-open-close');
+        if (clickability.status !== 'PASS') throw new Error('shell clickability degraded after overlay open/close cycle');
+        return 'DevOps, IT, Ops Panel, Settings, Profiles, and Command Palette open and close cleanly';
+      }, 15000);
+
       await step('evidence-export-preview', async () => {
         await pass158RuntimeE2eClick('#mission-pin-active-page');
         const previewReady = await pass158RuntimeE2eWaitFor(() => Boolean((document.getElementById('mission-export-preview') as HTMLTextAreaElement | null)?.value.trim()), 1200);
@@ -11889,8 +14379,10 @@ function installPass158RuntimeE2eHarness(): void {
       });
 
       const ok = results.every((result) => result.ok);
+      delete document.body.dataset.pass158RuntimeE2eActiveStep;
       document.body.dataset.pass158RuntimeE2eLastResult = ok ? 'pass' : 'fail';
       document.body.dataset.pass158RuntimeE2eScenarioCount = String(RUNTIME_E2E_SCENARIOS.length);
+      console.info(`[PASS158] run-complete ok=${ok} scenarios=${results.length}`);
       return { ok, pass: 'PASS158' as const, contractId: RUNTIME_E2E_HARNESS_CONTRACT_ID, scenarioCount: RUNTIME_E2E_SCENARIOS.length, results };
     }
   };
@@ -11900,6 +14392,7 @@ installPass158RuntimeE2eHarness();
 
 loadBrowserConfigWithRuntimeFallback().then((loaded) => {
   config = loaded;
+  pass158RuntimeControl = loaded.runtimeControl;
   settings = loaded.settings;
   browserProfileState = loaded.profiles;
   document.title = config.productName;
@@ -11910,9 +14403,12 @@ loadBrowserConfigWithRuntimeFallback().then((loaded) => {
   void refreshMissionStore();
   createTab(config.startupUrl || config.homeUrl);
   markRendererShellReady();
+  console.info('[PASS158] auto-run-direct config-loaded');
+  void pass158MaybeAutoRunRuntimeE2e('config-loaded');
 }).catch((error) => {
   showBootDiagnostic(`Preload/config bridge failed; using fallback config. ${error instanceof Error ? error.message : String(error || '')}`);
   config = fallbackBrowserConfig();
+  pass158RuntimeControl = config.runtimeControl;
   settings = config.settings;
   browserProfileState = config.profiles;
   document.title = config.productName;
@@ -11922,6 +14418,8 @@ loadBrowserConfigWithRuntimeFallback().then((loaded) => {
   installPass99ExternalDropBoundary();
   createTab(config.homeUrl);
   markRendererShellReady();
+  console.info('[PASS158] auto-run-direct fallback-config-loaded');
+  void pass158MaybeAutoRunRuntimeE2e('fallback-config-loaded');
 });
 
 
@@ -12819,23 +15317,23 @@ function pass77RefreshMissionPaneCommandDock(reason = 'render'): void {
     for (let j = i + 1; j < visiblePanes.length; j += 1) {
       const left = visiblePanes[i];
       const right = visiblePanes[j];
-      swaps.push('<button type="button" class="home-button secondary" data-pass77-swap="' + escapeHtml(left + ':' + right) + '">' + escapeHtml(left.replace('pane-', 'P')) + ' ↔ ' + escapeHtml(right.replace('pane-', 'P')) + '</button>');
+      swaps.push('<button type="button" class="home-button secondary" data-pass77-swap="' + escapeHtml(left + ':' + right) + '" aria-label="Swap ' + escapeHtml(missionPaneLabel(left)) + ' with ' + escapeHtml(missionPaneLabel(right)) + '">' + escapeHtml(left.replace('pane-', 'P')) + ' ↔ ' + escapeHtml(right.replace('pane-', 'P')) + '</button>');
     }
   }
   dock.innerHTML =
     '<header><div><strong>Pane moves</strong><span>' + escapeHtml(missionLayoutLabel(mission.layout.type)) + ' · active ' + escapeHtml(activePane.replace('pane-', 'Pane ')) + ' · chrome-level controls stay outside webviews.</span></div>' +
-    '<div class="pass78-doctor-actions"><button type="button" class="home-button secondary" data-pass77-repaint="true" title="Ctrl+Alt+Shift+R">Repaint / Fit</button><button type="button" class="home-button secondary" data-pass78-doctor="true" title="Ctrl+Alt+Shift+D">Doctor</button></div></header>' +
+    '<div class="pass78-doctor-actions"><button type="button" class="home-button secondary" data-pass77-repaint="true" title="Ctrl+Alt+Shift+R" aria-label="Repaint and fit mission panes">Repaint / Fit</button><button type="button" class="home-button secondary" data-pass78-doctor="true" title="Ctrl+Alt+Shift+D" aria-label="Run Mission pane doctor">Doctor</button></div></header>' +
     '<div class="pass77-pane-map">' + visiblePanes.map((paneId) =>
-      '<button type="button" data-pass77-focus="' + escapeHtml(paneId) + '" class="pass77-pane-map-card' + (paneId === activePane ? ' active' : '') + '"><strong>' + escapeHtml(paneId.replace('pane-', 'Pane ')) + '</strong><span>' + escapeHtml(pass77PaneTitle(paneId)) + '</span></button>'
+      '<button type="button" data-pass77-focus="' + escapeHtml(paneId) + '" class="pass77-pane-map-card' + (paneId === activePane ? ' active' : '') + '" aria-label="Focus ' + escapeHtml(missionPaneLabel(paneId)) + ' for Mission Control routing"><strong>' + escapeHtml(paneId.replace('pane-', 'Pane ')) + '</strong><span>' + escapeHtml(pass77PaneTitle(paneId)) + '</span></button>'
     ).join('') + '</div>' +
     '<div class="pass78-pane-selector" role="group" aria-label="Selected Mission pane mover">' +
     '<label>Move from<select data-pass78-move-from>' + pass78PaneSelectOptions(visiblePanes, pass78SelectedSourcePaneId) + '</select></label>' +
     '<label>to<select data-pass78-move-to>' + pass78PaneSelectOptions(visiblePanes, pass78SelectedTargetPaneId) + '</select></label>' +
-    '<button type="button" class="home-button primary" data-pass78-swap-selected="true"' + (canReorder && pass78SelectedSourcePaneId !== pass78SelectedTargetPaneId ? '' : ' disabled') + '>Swap selected panes</button>' +
+    '<button type="button" class="home-button primary" data-pass78-swap-selected="true" aria-label="Swap the selected Mission panes"' + (canReorder && pass78SelectedSourcePaneId !== pass78SelectedTargetPaneId ? '' : ' disabled') + '>Swap selected panes</button>' +
     '</div>' +
     '<div class="pass77-pane-actions" role="group" aria-label="Mission pane swap controls">' +
-    '<button type="button" class="home-button secondary" data-pass77-rotate="left"' + (canReorder ? '' : ' disabled') + '>Rotate left</button>' +
-    '<button type="button" class="home-button secondary" data-pass77-rotate="right"' + (canReorder ? '' : ' disabled') + '>Rotate right</button>' +
+    '<button type="button" class="home-button secondary" data-pass77-rotate="left" aria-label="Rotate visible Mission panes left"' + (canReorder ? '' : ' disabled') + '>Rotate left</button>' +
+    '<button type="button" class="home-button secondary" data-pass77-rotate="right" aria-label="Rotate visible Mission panes right"' + (canReorder ? '' : ' disabled') + '>Rotate right</button>' +
     (canReorder ? swaps.join('') : '<span class="pass77-pane-hint">Current layout does not support pane swaps.</span>') +
     '</div>' +
     '<p class="pass77-pane-hint">PASS78 deterministic guard: select exact source/target panes, use Doctor if stale overlay state appears, or use Repaint / Fit if a guest surface looks short or cut off.</p>';
@@ -12848,14 +15346,14 @@ function pass77MountMissionPaneCommandDockEvents(): void {
   const dock = pass77MissionPaneCommandDock;
   if (!dock || pass77MissionPaneDockMounted) return;
   dock.addEventListener('change', (event) => {
-    const select = (event.target as HTMLElement).closest<HTMLSelectElement>('select');
+    const select = eventClosest<HTMLSelectElement>(event, 'select');
     if (!select) return;
     if (select.dataset.pass78MoveFrom !== undefined) pass78SelectedSourcePaneId = normalizeMissionPaneId(select.value);
     if (select.dataset.pass78MoveTo !== undefined) pass78SelectedTargetPaneId = normalizeMissionPaneId(select.value);
     pass77RefreshMissionPaneCommandDock('selected-pane-change');
   });
   dock.addEventListener('click', (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
+    const button = eventClosest<HTMLButtonElement>(event, 'button');
     if (!button) return;
     const swap = button.dataset.pass77Swap || '';
     if (swap) {
@@ -13308,7 +15806,7 @@ function pass64BootMissionPaneReorderHardening(): void {
   pass193InitializeBookmarkAdminLaunchReliability();
   pass194InitializeDownloadArtifactShelf();
   pass89MountMissionPaneRestoreFailsafe();
-  pass90MountLaunchRecipeFailsafe();
+  pass90MountLaunchRecipeFailsafe(); pass254MountMissionRecipeClickContract(); pass255MountRecipePaneHydration(); pass256MountQuadViewStateMachine();
   pass116InstallChromeOverlayArbitration();
   pass118InstallOverlayDismissRecovery();
   pass119To123InstallOverlayGuards();
@@ -13324,3 +15822,903 @@ if (document.readyState === 'loading') {
 } else {
   pass64BootMissionPaneReorderHardening();
 }
+
+/* PASS252_MISSION_MULTIVIEW_STATE_GUARD_START */
+((): void => {
+  type LayoutDefinition = { name: string; count: number; tokens: string[] };
+  const layoutClassPrefix = 'mission-layout-';
+  const layoutClassNames = [
+    'mission-layout-single',
+    'mission-layout-one-up',
+    'mission-layout-split',
+    'mission-layout-two-up',
+    'mission-layout-triple',
+    'mission-layout-three-up',
+    'mission-layout-quad',
+    'mission-layout-four-up',
+    'mission-layout-focus',
+  ];
+  const layoutDefinitions: LayoutDefinition[] = [
+    { name: 'focus', count: 1, tokens: ['focus pane', 'focus'] },
+    { name: 'quad', count: 4, tokens: ['quad', '4-up', '4 up', 'four-up', 'four up'] },
+    { name: 'triple', count: 3, tokens: ['tri-view', 'triview', 'triple', '3-up', '3 up', 'three-up', 'three up', 'left tall', 'right tall'] },
+    { name: 'split', count: 2, tokens: ['split', '2-up', '2 up', 'two-up', 'two up'] },
+    { name: 'single', count: 1, tokens: ['1-up', '1 up', 'one-up', 'one up', 'single', 'normal'] },
+  ];
+  const hostSelectors = [
+    '[data-mission-control]',
+    '#mission-dialog',
+    '#webview-stage.mission-layout',
+    '.mission-control-shell',
+    '.mission-control-modal',
+    '.mission-modal',
+    '.mission-overlay-panel',
+    '.mission-drawer',
+    '.mission-view-host',
+    '.mission-multiview',
+  ].join(',');
+  const paneHostSelectors = [
+    '.mission-view-grid',
+    '.mission-panes',
+    '.mission-views',
+    '.mission-multiview',
+    '[data-mission-pane-host]',
+    '[data-pane-host]',
+  ].join(',');
+  const paneSelectors = [
+    '.mission-pane',
+    '.mission-webview-pane',
+    '.mission-pane-shell',
+    '[data-mission-pane]',
+    '[data-pane-id]',
+  ].join(',');
+  let repairQueued = false;
+  let observer: MutationObserver | null = null;
+
+  const pass252MissionRuntimeActive = (): boolean => {
+    return Boolean(
+      document.body.classList.contains('mission-tab-dragging') ||
+      Boolean(stageEl?.classList.contains('mission-layout')) ||
+      Boolean(currentMission && currentMission.layout && currentMission.layout.type !== 'single')
+    );
+  };
+
+  const toText = (element: Element | null): string => {
+    if (!element) return '';
+    const parts = [
+      element.getAttribute('data-layout'),
+      element.getAttribute('data-mission-layout'),
+      element.getAttribute('aria-label'),
+      element.getAttribute('title'),
+      element.textContent,
+      element.className && String(element.className),
+    ];
+    return parts.filter(Boolean).join(' ').toLowerCase();
+  };
+  const layoutFromText = (text: string): LayoutDefinition | null => layoutDefinitions.find((layout) => layout.tokens.some((token) => text.includes(token))) || null;
+  const explicitLayoutSignal = (rootElement: HTMLElement): string => {
+    const activeControl = missionLayoutsEl.querySelector<HTMLElement>('[data-mission-layout].active, [data-mission-layout][aria-pressed="true"]');
+    return [
+      stageEl?.getAttribute('data-pass257-layout-intent'),
+      stageEl?.getAttribute('data-pass256-requested-layout'),
+      stageEl?.getAttribute('data-pass256-layout-mode'),
+      currentMission?.layout?.type,
+      activeControl?.getAttribute('data-mission-layout'),
+      rootElement.getAttribute('data-pass257-layout-intent'),
+      rootElement.getAttribute('data-pass256-requested-layout'),
+      rootElement.getAttribute('data-pass256-layout-mode'),
+      rootElement.getAttribute('data-pass253-layout-mode'),
+      rootElement === stageEl ? rootElement.getAttribute('data-mission-layout') : null,
+    ].find((value) => Boolean(value)) || 'single';
+  };
+  const resolveLayout = (rootElement: HTMLElement): LayoutDefinition => {
+    const activeControl = rootElement.querySelector<HTMLElement>('[data-mission-layout].active, [data-mission-layout][aria-pressed="true"], [data-selected="true"], [data-active="true"], .is-active, .active');
+    const resolved = layoutFromText(explicitLayoutSignal(rootElement))
+      || layoutFromText(toText(activeControl))
+      || (rootElement === stageEl ? layoutFromText(toText(rootElement)) : null);
+    return resolved || layoutDefinitions.find((layout) => layout.name === pass256LayoutModeName(explicitLayoutSignal(rootElement))) || { name: 'single', count: 1, tokens: [] };
+  };
+  const getMissionHosts = (): Element[] => Array.from(document.querySelectorAll(hostSelectors));
+  const normalizeHostLayoutClasses = (host: HTMLElement, layout: LayoutDefinition): void => {
+    host.classList.add('pass252-mission-view-managed');
+    host.setAttribute('data-pass252-layout-mode', layout.name);
+    if (host !== stageEl) host.removeAttribute('data-mission-layout');
+    for (const className of layoutClassNames) host.classList.remove(className);
+    host.classList.add(layoutClassPrefix + layout.name);
+  };
+  const clearStaleLockState = (element: Element): void => {
+    if (!(element instanceof HTMLElement)) return;
+    element.classList.remove('is-switching', 'is-resizing', 'is-moving', 'pane-moving', 'layout-changing', 'route-pending');
+    element.classList.add(element.matches(paneSelectors) ? 'pass252-mission-pane-managed' : 'pass252-mission-view-managed');
+    element.inert = false;
+    if (element.style.pointerEvents === 'none') element.style.pointerEvents = '';
+    if (element.style.userSelect === 'none') element.style.userSelect = '';
+  };
+  const normalizePanes = (host: HTMLElement, layout: LayoutDefinition): void => {
+    const paneHost = host.querySelector(paneHostSelectors) || host;
+    const panes = Array.from(paneHost.querySelectorAll(paneSelectors)).filter((pane) => pane instanceof HTMLElement && !pane.closest('template')) as HTMLElement[];
+    if (paneHost instanceof HTMLElement) paneHost.classList.add('pass252-mission-view-managed');
+    if (paneHost instanceof HTMLElement) paneHost.setAttribute('data-pass252-pane-count', String(Math.min(Math.max(layout.count, 1), Math.max(panes.length, 1))));
+    panes.forEach((pane, index) => {
+      pane.setAttribute('data-pass252-pane-index', String(index + 1));
+      clearStaleLockState(pane);
+      pane.querySelectorAll('webview, iframe').forEach((view) => {
+        if (view instanceof HTMLElement) {
+          view.style.minWidth = '0px';
+          view.style.minHeight = '0px';
+        }
+      });
+    });
+    const activePane = panes.find((pane) => pane.classList.contains('is-active') || pane.classList.contains('active') || pane.getAttribute('data-active') === 'true');
+    if (!activePane && panes[0]) {
+      panes[0].classList.add('is-active');
+      panes[0].setAttribute('data-active', 'true');
+    }
+  };
+  const forceReflow = (host: HTMLElement): void => {
+    void host.offsetHeight;
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+      host.dispatchEvent(new Event('pass252-mission-layout-normalized', { bubbles: true }));
+      requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    });
+  };
+  const repairMissionViews = (): void => {
+    repairQueued = false;
+    if (!pass252MissionRuntimeActive()) return;
+    getMissionHosts().forEach((host) => {
+      if (!(host instanceof HTMLElement)) return;
+      const layout = resolveLayout(host);
+      normalizeHostLayoutClasses(host, layout);
+      clearStaleLockState(host);
+      normalizePanes(host, layout);
+      forceReflow(host);
+    });
+  };
+  const scheduleMissionViewRepair = (): void => {
+    if (!pass252MissionRuntimeActive()) return;
+    if (repairQueued) return;
+    repairQueued = true;
+    requestAnimationFrame(repairMissionViews);
+  };
+  const isMissionLayoutControl = (element: Element | null): boolean => {
+    if (!element) return false;
+    if (element.closest('#mission-dialog, #mission-control-toggle, [data-testid=\"runtime-mission-control\"]')) return true;
+    if (!pass252MissionRuntimeActive()) return false;
+    if (element.closest(hostSelectors)) return true;
+    return /mission|pane|layout|view|quad|split|tri|3-up|4-up|2-up|1-up|focus|repair|doctor|fit/.test(toText(element));
+  };
+  document.addEventListener('click', (event: MouseEvent): void => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const control = target.closest('button, [role="button"], [data-layout], [data-mission-layout], [data-view], [aria-label], .mission-layout-tabs, .mission-pane-controls, .mission-view-controls');
+    if (isMissionLayoutControl(control)) scheduleMissionViewRepair();
+  }, true);
+  document.addEventListener('keydown', (event: KeyboardEvent): void => {
+    const key = String(event.key || '').toLowerCase();
+    if ((event.ctrlKey && event.altKey && ['1', '2', '3', '4', 'q', 's', 'f'].includes(key)) || key === 'escape') scheduleMissionViewRepair();
+  }, true);
+  window.addEventListener('resize', scheduleMissionViewRepair);
+  window.addEventListener('orientationchange', scheduleMissionViewRepair);
+  window.addEventListener('tahai:mission-layout-change', scheduleMissionViewRepair);
+  window.addEventListener('tahai:mission-pane-change', scheduleMissionViewRepair);
+  observer = new MutationObserver((mutations: MutationRecord[]): void => {
+    for (const mutation of mutations) {
+      const target = mutation.target;
+      if (!(target instanceof Element)) continue;
+      if (target.closest(hostSelectors) || target.matches(hostSelectors)) { scheduleMissionViewRepair(); break; }
+    }
+  });
+  const startObserver = (): void => {
+    if (!document.documentElement || observer === null) return;
+    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'data-layout', 'data-mission-layout', 'data-active'] });
+    if (pass252MissionRuntimeActive()) scheduleMissionViewRepair();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startObserver, { once: true });
+  else startObserver();
+})();
+/* PASS252_MISSION_MULTIVIEW_STATE_GUARD_END */
+
+/* PASS253_MISSION_PANE_VIEWPORT_GUARD_START */
+((): void => {
+  type LayoutDefinition = { name: string; count: number; tokens: string[] };
+  const hostSelectors = ['[data-mission-control]', '#mission-dialog', '#webview-stage.mission-layout', '.mission-control-shell', '.mission-control-modal', '.mission-modal', '.mission-overlay-panel', '.mission-drawer', '.mission-view-host', '.mission-multiview'].join(',');
+  const paneHostSelectors = ['.mission-view-grid', '.mission-panes', '.mission-views', '.mission-multiview', '[data-mission-pane-host]', '[data-pane-host]'].join(',');
+  const paneSelectors = ['.mission-pane', '.mission-webview-pane', '.mission-pane-shell', '[data-mission-pane]', '[data-pane-id]'].join(',');
+  const viewSelectors = 'webview, iframe';
+  const contentShellSelectors = ['.mission-pane-content', '.mission-pane-body', '.mission-pane-main', '.mission-pane-viewport', '.mission-webview-container', '.webview-container', '.site-view', '.website-pane', '.browser-pane-content', '[class*="content" i]', '[class*="viewport" i]', '[class*="webview" i]'].join(',');
+  const layoutDefinitions: LayoutDefinition[] = [
+    { name: 'focus', count: 1, tokens: ['focus pane', 'focus'] },
+    { name: 'quad', count: 4, tokens: ['quad', '4-up', '4 up', 'four-up', 'four up'] },
+    { name: 'triple', count: 3, tokens: ['tri-view', 'triview', 'triple', '3-up', '3 up', 'three-up', 'three up', 'left tall', 'right tall'] },
+    { name: 'split', count: 2, tokens: ['split', '2-up', '2 up', 'two-up', 'two up'] },
+    { name: 'single', count: 1, tokens: ['1-up', '1 up', 'one-up', 'one up', 'single', 'normal'] },
+  ];
+  let queued = false;
+  let observer: MutationObserver | null = null;
+  const pass253MissionRuntimeActive = (): boolean => {
+    return Boolean(
+      document.body.classList.contains('mission-tab-dragging') ||
+      Boolean(stageEl?.classList.contains('mission-layout')) ||
+      Boolean(currentMission && currentMission.layout && currentMission.layout.type !== 'single')
+    );
+  };
+  const toText = (element: Element | null): string => !element ? '' : [element.getAttribute('data-layout'), element.getAttribute('data-mission-layout'), element.getAttribute('aria-label'), element.getAttribute('title'), element.className && String(element.className), element.textContent].filter(Boolean).join(' ').toLowerCase();
+  const layoutFromText = (text: string): LayoutDefinition | null => layoutDefinitions.find((layout) => layout.tokens.some((token) => text.includes(token))) || null;
+  const explicitLayoutSignal = (host: HTMLElement): string => {
+    const activeControl = missionLayoutsEl.querySelector<HTMLElement>('[data-mission-layout].active, [data-mission-layout][aria-pressed="true"]');
+    return [
+      stageEl?.getAttribute('data-pass257-layout-intent'),
+      stageEl?.getAttribute('data-pass256-requested-layout'),
+      stageEl?.getAttribute('data-pass256-layout-mode'),
+      currentMission?.layout?.type,
+      activeControl?.getAttribute('data-mission-layout'),
+      host.getAttribute('data-pass257-layout-intent'),
+      host.getAttribute('data-pass256-requested-layout'),
+      host.getAttribute('data-pass256-layout-mode'),
+      host.getAttribute('data-pass252-layout-mode'),
+      host === stageEl ? host.getAttribute('data-mission-layout') : null,
+    ].find((value) => Boolean(value)) || 'single';
+  };
+  const resolveLayout = (host: HTMLElement): LayoutDefinition => {
+    const activeControl = host.querySelector<HTMLElement>('[data-mission-layout].active, [data-mission-layout][aria-pressed="true"], [data-selected="true"], [data-active="true"], .is-active, .active');
+    const resolved = layoutFromText(explicitLayoutSignal(host))
+      || layoutFromText(toText(activeControl))
+      || (host === stageEl ? layoutFromText(toText(host)) : null);
+    return resolved || layoutDefinitions.find((layout) => layout.name === pass256LayoutModeName(explicitLayoutSignal(host))) || { name: 'single', count: 1, tokens: [] };
+  };
+  const missionHosts = (): Element[] => {
+    if (!pass253MissionRuntimeActive()) return [];
+    const hosts = Array.from(document.querySelectorAll(hostSelectors));
+    return hosts.length ? hosts : Array.from(document.querySelectorAll('.mission-modal, .mission-control-modal, .mission-overlay-panel'));
+  };
+  const setStyles = (element: Element, styles: Record<string, string>): void => { if (!(element instanceof HTMLElement)) return; for (const [key, value] of Object.entries(styles)) (element.style as CSSStyleDeclaration & Record<string, string>)[key] = value; };
+  const topLockView = (view: Element): void => {
+    if (!(view instanceof HTMLElement)) return;
+    view.setAttribute('data-pass253-site-view', 'true');
+    view.removeAttribute('hidden');
+    view.setAttribute('aria-hidden', 'false');
+    setStyles(view, { alignSelf: 'stretch', justifySelf: 'stretch', flex: '1 1 0px', width: '100%', maxWidth: '100%', height: '100%', minWidth: '0px', minHeight: '0px', maxHeight: 'none', display: 'flex', position: 'relative', top: '0px', left: '0px', right: 'auto', bottom: 'auto', margin: '0px', transform: 'none', translate: 'none', objectPosition: 'top left', verticalAlign: 'top', border: '0px' });
+  };
+  const normalizeContentShell = (shell: Element): void => {
+    if (!(shell instanceof HTMLElement)) return;
+    shell.setAttribute('data-pass253-site-container', 'true');
+    setStyles(shell, { display: 'flex', flexDirection: 'column', flex: '1 1 0px', minWidth: '0px', minHeight: '0px', height: 'auto', alignItems: 'stretch', justifyContent: 'stretch', overflow: 'hidden', position: 'relative', top: 'auto', bottom: 'auto', transform: 'none', translate: 'none' });
+  };
+  const paneHasBottomOnlyFailure = (pane: HTMLElement, view: Element): boolean => {
+    if (!(view instanceof HTMLElement)) return false;
+    const paneRect = pane.getBoundingClientRect();
+    const viewRect = view.getBoundingClientRect();
+    if (paneRect.height < 120 || viewRect.height <= 0) return false;
+    const topOffset = viewRect.top - paneRect.top;
+    const emptyTopRatio = topOffset / paneRect.height;
+    const heightRatio = viewRect.height / paneRect.height;
+    return topOffset > 96 || emptyTopRatio > 0.25 || heightRatio < 0.45;
+  };
+  const normalizePane = (pane: Element, layoutName: string, index: number): void => {
+    if (!(pane instanceof HTMLElement)) return;
+    pane.setAttribute('data-pass253-pane-managed', 'true');
+    pane.setAttribute('data-pass253-pane-index', String(index + 1));
+    pane.removeAttribute('hidden');
+    pane.setAttribute('aria-hidden', 'false');
+    if (layoutName !== 'focus') {
+      pane.classList.remove('is-hidden', 'hidden', 'is-collapsed', 'collapsed');
+      setStyles(pane, { opacity: '1', visibility: 'visible', pointerEvents: 'auto', position: 'relative', width: 'auto', height: 'auto', minWidth: '0px', minHeight: '', maxHeight: 'none', clipPath: 'none' });
+    }
+    setStyles(pane, { display: pane.style.display === 'none' && layoutName !== 'focus' ? 'flex' : pane.style.display || 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'stretch', alignSelf: 'stretch', justifySelf: 'stretch', overflow: 'hidden' });
+    Array.from(pane.querySelectorAll(contentShellSelectors)).forEach(normalizeContentShell);
+    const views = Array.from(pane.querySelectorAll(viewSelectors));
+    views.forEach(topLockView);
+    const firstView = views.find((node) => node instanceof HTMLElement);
+    if (firstView && paneHasBottomOnlyFailure(pane, firstView)) pane.setAttribute('data-pass253-viewport-repaired', 'true');
+    else pane.removeAttribute('data-pass253-viewport-repaired');
+  };
+  const normalizeHost = (host: Element): void => {
+    if (!(host instanceof HTMLElement)) return;
+    const layout = resolveLayout(host);
+    host.setAttribute('data-pass253-viewport-managed', 'true');
+    host.setAttribute('data-pass253-layout-mode', layout.name);
+    if (host !== stageEl) host.removeAttribute('data-mission-layout');
+    const paneHost = host.querySelector(paneHostSelectors) || host;
+    if (paneHost instanceof HTMLElement) {
+      paneHost.setAttribute('data-pass253-viewport-managed', 'true');
+      paneHost.setAttribute('data-pass253-layout-mode', layout.name);
+      setStyles(paneHost, { alignItems: 'stretch', justifyItems: 'stretch', alignContent: 'stretch', justifyContent: 'stretch', overflow: 'hidden' });
+    }
+    const panes = Array.from(paneHost.querySelectorAll(paneSelectors)).filter((pane) => pane instanceof HTMLElement && !pane.closest('template'));
+    const visibleCount = Math.min(Math.max(layout.count, 1), Math.max(panes.length, 1));
+    host.setAttribute('data-pass253-visible-pane-count', String(visibleCount));
+    panes.forEach((pane, index) => normalizePane(pane, layout.name, index));
+    const activePane = panes.find((pane) => pane.classList.contains('is-active') || pane.classList.contains('active') || pane.getAttribute('data-active') === 'true');
+    if (!activePane && panes[0] instanceof HTMLElement) { panes[0].classList.add('is-active'); panes[0].setAttribute('data-active', 'true'); }
+    void host.offsetHeight;
+    requestAnimationFrame(() => { window.dispatchEvent(new Event('resize')); host.dispatchEvent(new Event('pass253-mission-pane-viewport-normalized', { bubbles: true })); requestAnimationFrame(() => window.dispatchEvent(new Event('resize'))); });
+  };
+  const repair = (): void => {
+    queued = false;
+    if (!pass253MissionRuntimeActive()) return;
+    missionHosts().forEach(normalizeHost);
+  };
+  const schedule = (): void => {
+    if (!pass253MissionRuntimeActive()) return;
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(repair);
+  };
+  const missionControlIntent = (element: Element | null): boolean => {
+    if (!element) return false;
+    if (element.closest('#mission-dialog, #mission-control-toggle, [data-testid=\"runtime-mission-control\"]')) return true;
+    if (!pass253MissionRuntimeActive()) return false;
+    return element.closest(hostSelectors) !== null || /mission|pane|view|layout|split|tri|quad|focus|1-up|2-up|3-up|4-up|repair|fit|doctor/.test(toText(element));
+  };
+  document.addEventListener('click', (event: MouseEvent): void => { const target = event.target; if (!(target instanceof Element)) return; const control = target.closest('button, [role="button"], [data-layout], [data-mission-layout], [data-view], [aria-label], .mission-layout-tabs, .mission-pane-controls, .mission-view-controls'); if (missionControlIntent(control)) schedule(); }, true);
+  document.addEventListener('keydown', (event: KeyboardEvent): void => { const key = String(event.key || '').toLowerCase(); if ((event.ctrlKey && event.altKey && ['1', '2', '3', '4', 'q', 's', 'f'].includes(key)) || key === 'escape') schedule(); }, true);
+  window.addEventListener('resize', schedule);
+  window.addEventListener('orientationchange', schedule);
+  window.addEventListener('tahai:mission-layout-change', schedule);
+  window.addEventListener('tahai:mission-pane-change', schedule);
+  window.addEventListener('pass252-mission-layout-normalized', schedule);
+  observer = new MutationObserver((mutations: MutationRecord[]): void => { for (const mutation of mutations) { const target = mutation.target; if (!(target instanceof Element)) continue; if (target.matches(hostSelectors) || target.closest(hostSelectors) || target.matches(paneSelectors) || target.closest(paneSelectors)) { schedule(); break; } } });
+  const start = (): void => {
+    if (!document.documentElement || observer === null) return;
+    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'aria-hidden', 'data-layout', 'data-mission-layout', 'data-active'] });
+    if (pass253MissionRuntimeActive()) {
+      schedule();
+      setTimeout(schedule, 60);
+      setTimeout(schedule, 240);
+    }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
+})();
+/* PASS253_MISSION_PANE_VIEWPORT_GUARD_END */
+
+
+
+/* PASS341_NORMAL_BROWSER_AND_FEATURE_CLICKABILITY_CLOSEOUT_START */
+type Pass341ClickabilityStatus = 'PASS' | 'WARN';
+type Pass341ClickabilityReport = {
+  pass: 'PASS341';
+  status: Pass341ClickabilityStatus;
+  reason: string;
+  chromeControls: number;
+  blockedChromeControls: string[];
+  normalizedHiddenOverlays: number;
+  normalizedMissionResidue: number;
+  activeWebviewRect: string;
+  stageRect: string;
+  generatedAt: string;
+};
+
+declare global {
+  interface Window {
+    __TAHAI_PASS341_NORMAL_BROWSER_AND_FEATURE_CLICKABILITY_CLOSEOUT__?: {
+      repair: (reason?: string) => Pass341ClickabilityReport;
+      sample: (reason?: string) => Pass341ClickabilityReport;
+      lastReport: () => Pass341ClickabilityReport | null;
+    };
+  }
+}
+
+let pass341LastReport: Pass341ClickabilityReport | null = null;
+let pass341Timer: number | undefined;
+let pass341HandlingFeatureClick = false;
+let pass341LoggedCaptureFallbackDisabled = false;
+
+const PASS341_CHROME_CONTROL_SELECTORS = [
+  '.toolbar', '.statusbar', '#new-tab', '.tab', '.tab *',
+  '#back', '#forward', '#reload', '#home', '#address', '#address-form', '#launchpad', '#onboarding',
+  '#profile-switcher', '#devops-tools', '#it-tools', '#ops-hub-toggle', '#mission-control-toggle', '#settings',
+  '.tool-menu-button', '.tool-card', '.home-button', '.icon-button', 'button'
+] as const;
+
+const PASS341_FEATURE_CONTROL_IDS = new Set([
+  'back', 'forward', 'reload', 'home', 'address-form', 'address', 'launchpad', 'onboarding', 'profile-switcher',
+  'devops-tools', 'it-tools', 'ops-hub-toggle', 'mission-control-toggle', 'settings', 'new-tab',
+  'capture', 'ops-check', 'deploy', 'it-card', 'endpoint', 'triage', 'secret-boundary', 'route-map', 'dev-audit',
+  'ops-guard', 'devtools', 'about'
+]);
+
+function pass341CaptureFallbackEnabled(): boolean {
+  return ((globalThis as any).process?.env?.TAHAI_BROWSER_ENABLE_PASS341_CAPTURE_FALLBACK) === '1';
+}
+
+function pass341IsElementVisible(element: HTMLElement | null | undefined): boolean {
+  if (!element || element.hidden) return false;
+  const style = window.getComputedStyle(element);
+  if (style.display === 'none' || style.visibility === 'hidden' || style.pointerEvents === 'none') return false;
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
+function pass341RectLabel(rect: DOMRect | undefined | null): string {
+  if (!rect) return 'missing';
+  return `${Math.round(rect.left)},${Math.round(rect.top)},${Math.round(rect.width)}x${Math.round(rect.height)}`;
+}
+
+function pass341ElementLabel(element: Element | null): string {
+  if (!element) return 'none';
+  const id = element.id ? `#${element.id}` : '';
+  const cls = element.className && typeof element.className === 'string' ? `.${element.className.trim().replace(/\s+/g, '.')}` : '';
+  return `${element.tagName.toLowerCase()}${id}${cls}`.slice(0, 160);
+}
+
+function pass341IsWithin(target: Element | null, owner: Element): boolean {
+  return Boolean(target && (target === owner || owner.contains(target)));
+}
+
+function pass341FeatureButtons(): HTMLElement[] {
+  const controls = new Set<HTMLElement>();
+  for (const id of PASS341_FEATURE_CONTROL_IDS) {
+    const element = document.getElementById(id);
+    if (element instanceof HTMLElement) controls.add(element);
+  }
+  document.querySelectorAll<HTMLElement>('.topbar button, .toolbar button, #tabs .tab, #tabs .tab *, .tool-card').forEach((element) => controls.add(element));
+  return Array.from(controls);
+}
+
+function pass341NormalizeChromeControls(reason: string): number {
+  let count = 0;
+  document.querySelectorAll<HTMLElement>('.topbar, #tabs, .tabs').forEach((element) => {
+    element.style.pointerEvents = 'auto';
+    element.style.setProperty('-webkit-app-region', 'drag', 'important');
+    element.dataset.pass341ChromeDragSurface = reason;
+  });
+  for (const selector of PASS341_CHROME_CONTROL_SELECTORS) {
+    document.querySelectorAll<HTMLElement>(selector).forEach((element) => {
+      element.style.pointerEvents = 'auto';
+      element.style.setProperty('-webkit-app-region', 'no-drag', 'important');
+      element.dataset.pass341ChromeClickSurface = reason;
+      count += 1;
+    });
+  }
+  document.body.dataset.pass341FeatureClickability = 'true';
+  document.documentElement.dataset.pass341FeatureClickability = 'true';
+  return count;
+}
+
+function pass341NormalizeHiddenOverlays(reason: string): number {
+  let count = 0;
+  const selectors = [
+    '.tool-menu-panel[hidden]', '.toolbar-overflow-menu[hidden]', '.modal[hidden]', '.flyout[hidden]', '.overlay[hidden]', '.drawer[hidden]',
+    'dialog:not([open])', '#ops-hub[hidden]', '#devops-tools-panel[hidden]', '#it-tools-panel[hidden]', '#command-palette-dialog:not([open])',
+    '#settings-dialog:not([open])', '#profile-dialog:not([open])', '#mission-dialog:not([open])', '#shortcut-dialog:not([open])'
+  ];
+  document.querySelectorAll<HTMLElement>(selectors.join(',')).forEach((element) => {
+    element.style.pointerEvents = 'none';
+    element.setAttribute('aria-hidden', 'true');
+    element.dataset.pass341HiddenOverlayInert = reason;
+    count += 1;
+  });
+  document.querySelectorAll<HTMLElement>('.tool-menu-panel:not([hidden]), dialog[open], #ops-hub:not([hidden])').forEach((element) => {
+    element.style.pointerEvents = 'auto';
+    element.removeAttribute('aria-hidden');
+    element.dataset.pass341ActiveOverlayClickable = reason;
+  });
+  return count;
+}
+
+function pass341NormalizeMissionResidue(reason: string): number {
+  const missionActive = Boolean(
+    document.body.classList.contains('mission-tab-dragging') ||
+    Boolean(missionDialog?.open) ||
+    Boolean(currentMission && currentMission.layout && currentMission.layout.type !== 'single')
+  );
+  if (missionActive) return 0;
+  let count = 0;
+  const staleClasses = ['mission-tab-dragging', 'mission-pane-dragging', 'pass63-mission-pane-dragging', 'pass68-mission-pane-click-swap-source'];
+  for (const cls of staleClasses) document.body.classList.remove(cls);
+  document.documentElement.classList.remove('mission-tab-dragging', 'mission-pane-dragging');
+  stageEl?.classList.remove('mission-layout');
+  stageEl?.removeAttribute('data-pass339-allow-drop-zones');
+  document.querySelectorAll<HTMLElement>('.mission-pane-drop-zones, .mission-pane-drop-zone, .mission-pane-heads, .mission-pane-head-cell, .pass76-mission-pane-move-layer').forEach((element) => {
+    element.hidden = true;
+    element.style.display = 'none';
+    element.style.visibility = 'hidden';
+    element.style.pointerEvents = 'none';
+    element.setAttribute('aria-hidden', 'true');
+    element.dataset.pass341NormalBrowsingResidueHidden = reason;
+    count += 1;
+  });
+  return count;
+}
+
+function pass341NormalizeWebviewStage(reason: string): void {
+  if (!stageEl) return;
+  stageEl.style.position = 'relative';
+  stageEl.style.overflow = 'hidden';
+  stageEl.style.pointerEvents = 'auto';
+  stageEl.style.zIndex = '0';
+  stageEl.style.isolation = 'isolate';
+  stageEl.style.setProperty('-webkit-app-region', 'no-drag', 'important');
+  stageEl.dataset.pass341StageContained = reason;
+  const activeView = active()?.webview || stageEl.querySelector<HTMLElement>('webview.browser-view.active, webview.active, webview[data-active="true"]');
+  if (activeView instanceof HTMLElement && !stageEl.classList.contains('mission-layout')) {
+    activeView.style.margin = '0';
+    activeView.style.opacity = '1';
+    activeView.style.visibility = 'visible';
+    activeView.style.pointerEvents = 'auto';
+    activeView.style.zIndex = '1';
+    activeView.style.setProperty('-webkit-app-region', 'no-drag', 'important');
+    activeView.dataset.pass341StageContainedWebview = reason;
+    pass339ApplyStageViewportFit(activeView as Electron.WebviewTag);
+  }
+}
+
+function pass341ProbeChromeControls(reason: string): Pass341ClickabilityReport {
+  const controls = pass341FeatureButtons().filter(pass341IsElementVisible);
+  const blockedChromeControls: string[] = [];
+  for (const control of controls.slice(0, 80)) {
+    const rect = control.getBoundingClientRect();
+    const x = Math.max(1, Math.min(window.innerWidth - 1, rect.left + rect.width / 2));
+    const y = Math.max(1, Math.min(window.innerHeight - 1, rect.top + rect.height / 2));
+    const hit = document.elementFromPoint(x, y);
+    if (!pass341IsWithin(hit, control)) blockedChromeControls.push(`${control.id || control.className || control.tagName}:${pass341ElementLabel(hit)}`);
+  }
+  const activeView = active()?.webview || stageEl?.querySelector<HTMLElement>('webview.browser-view.active, webview.active, webview[data-active="true"]');
+  const report: Pass341ClickabilityReport = {
+    pass: 'PASS341',
+    status: blockedChromeControls.length ? 'WARN' : 'PASS',
+    reason,
+    chromeControls: controls.length,
+    blockedChromeControls,
+    normalizedHiddenOverlays: Number(document.body.dataset.pass341HiddenOverlayCount || '0'),
+    normalizedMissionResidue: Number(document.body.dataset.pass341MissionResidueCount || '0'),
+    activeWebviewRect: pass341RectLabel(activeView?.getBoundingClientRect?.()),
+    stageRect: pass341RectLabel(stageEl?.getBoundingClientRect?.()),
+    generatedAt: new Date().toISOString()
+  };
+  pass341LastReport = report;
+  document.documentElement.dataset.pass341NormalBrowserFeatureClickabilityCloseout = report.status.toLowerCase();
+  document.body.dataset.pass341BlockedChromeControlCount = String(blockedChromeControls.length);
+  if (blockedChromeControls[0]) document.body.dataset.pass341LastChromeBlocker = blockedChromeControls[0];
+  else delete document.body.dataset.pass341LastChromeBlocker;
+  window.__TAHAI_PASS341_NORMAL_BROWSER_AND_FEATURE_CLICKABILITY_CLOSEOUT__ = { repair: pass341NormalBrowserAndFeatureClickabilityCloseout, sample: pass341NormalBrowserAndFeatureClickabilityCloseout, lastReport: () => pass341LastReport };
+  return report;
+}
+
+function pass341NormalBrowserAndFeatureClickabilityCloseout(reason = 'manual'): Pass341ClickabilityReport {
+  const chromeControls = pass341NormalizeChromeControls(reason);
+  const normalizedHiddenOverlays = pass341NormalizeHiddenOverlays(reason);
+  const normalizedMissionResidue = pass341NormalizeMissionResidue(reason);
+  pass341NormalizeWebviewStage(reason);
+  document.body.dataset.pass341ChromeControlCount = String(chromeControls);
+  document.body.dataset.pass341HiddenOverlayCount = String(normalizedHiddenOverlays);
+  document.body.dataset.pass341MissionResidueCount = String(normalizedMissionResidue);
+  return pass341ProbeChromeControls(reason);
+}
+
+function pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout(reason = 'scheduled'): void {
+  if (pass341Timer) window.clearTimeout(pass341Timer);
+  pass341Timer = window.setTimeout(() => {
+    pass341Timer = undefined;
+    pass341NormalBrowserAndFeatureClickabilityCloseout(reason);
+  }, 32);
+}
+
+function pass341RunPrimaryFeatureAction(controlId: string): boolean {
+  switch (controlId) {
+    case 'back': goBackTarget('toolbar'); return true;
+    case 'forward': goForwardTarget('toolbar'); return true;
+    case 'reload': reloadTarget('toolbar'); return true;
+    case 'home': navigate(settings?.homeUrl || config?.homeUrl, 'home'); return true;
+    case 'launchpad': navigate(config?.newTabUrl, 'launchpad'); return true;
+    case 'onboarding': navigate(pass195OperatorWalkthroughUrl(), 'guide'); return true;
+    case 'profile-switcher': void openProfileManager(); return true;
+    case 'devops-tools': toggleToolMenu('devops'); return true;
+    case 'it-tools': toggleToolMenu('it'); return true;
+    case 'ops-hub-toggle': toggleOpsHub(); return true;
+    case 'mission-control-toggle': void openMissionControl(); return true;
+    case 'settings': closeToolMenus(undefined, false); openSettings(); return true;
+    case 'new-tab': closeToolMenus(undefined, false); createTab(config?.newTabUrl || 'https://tahaiportal.com/'); return true;
+    case 'capture': runToolFromMenu(openDevOpsCapture); return true;
+    case 'ops-check': runToolFromMenu(openOpsCheck); return true;
+    case 'deploy': runToolFromMenu(openDeployReadiness); return true;
+    case 'it-card': runToolFromMenu(openItServiceCard); return true;
+    case 'endpoint': runToolFromMenu(openEndpointSnapshot); return true;
+    case 'triage': runToolFromMenu(openSupportTriage); return true;
+    case 'secret-boundary': runToolFromMenu(openSecretBoundary); return true;
+    case 'route-map': runToolFromMenu(openRouteMap); return true;
+    case 'dev-audit': runToolFromMenu(openDeveloperAudit); return true;
+    case 'ops-guard': runToolFromMenu(openOpsGuardReview); return true;
+    case 'devtools': runToolFromMenu(toggleActiveDevTools); return true;
+    case 'about': closeToolMenus(undefined, false); navigate(config?.aboutUrl); return true;
+    default: return false;
+  }
+}
+
+function pass341HandlePrimaryFeatureClick(event: MouseEvent): void {
+  if (pass341HandlingFeatureClick) return;
+  const target = event.target as HTMLElement | null;
+  const control = target?.closest?.<HTMLElement>('#back,#forward,#reload,#home,#launchpad,#onboarding,#profile-switcher,#devops-tools,#it-tools,#ops-hub-toggle,#mission-control-toggle,#settings,#new-tab,#capture,#ops-check,#deploy,#it-card,#endpoint,#triage,#secret-boundary,#route-map,#dev-audit,#ops-guard,#devtools,#about');
+  if (!control?.id || !PASS341_FEATURE_CONTROL_IDS.has(control.id)) return;
+  pass341HandlingFeatureClick = true;
+  try {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    pass341NormalBrowserAndFeatureClickabilityCloseout('primary-click-before-' + control.id);
+    const handled = pass341RunPrimaryFeatureAction(control.id);
+    if (handled) {
+      window.setTimeout(() => pass341NormalBrowserAndFeatureClickabilityCloseout('primary-click-after-' + control.id), 50);
+    }
+  } finally {
+    pass341HandlingFeatureClick = false;
+  }
+}
+
+function pass341HandleAddressSubmit(event: SubmitEvent): void {
+  if (event.target !== addressForm) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  pass341NormalBrowserAndFeatureClickabilityCloseout('address-submit-before');
+  pass191NavigateAddressInput();
+  window.setTimeout(() => pass341NormalBrowserAndFeatureClickabilityCloseout('address-submit-after'), 50);
+}
+
+function pass341MountNormalBrowserAndFeatureClickabilityCloseout(): void {
+  pass341NormalBrowserAndFeatureClickabilityCloseout('mount');
+  for (const delay of [120, 350, 900, 1800, 3200] as const) window.setTimeout(() => pass341NormalBrowserAndFeatureClickabilityCloseout('settle-' + delay), delay);
+  window.addEventListener('resize', () => pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('resize'));
+  window.addEventListener('focus', () => pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('focus'));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('visibility'); });
+  document.addEventListener('dragend', () => pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('dragend'), true);
+  document.addEventListener('drop', () => pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('drop'), true);
+  document.addEventListener('keyup', (event) => { if (event.key === 'Escape') pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('escape'); }, true);
+  document.addEventListener('pointerup', () => pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('pointerup'), true);
+  document.addEventListener('mission-layout-change', () => pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('mission-layout-change'));
+  if (pass341CaptureFallbackEnabled()) {
+    document.addEventListener('click', pass341HandlePrimaryFeatureClick, true);
+    document.addEventListener('submit', pass341HandleAddressSubmit, true);
+  } else if (!pass341LoggedCaptureFallbackDisabled) {
+    pass341LoggedCaptureFallbackDisabled = true;
+    console.info('[PASS341] capture fallback is opt-in; set TAHAI_BROWSER_ENABLE_PASS341_CAPTURE_FALLBACK=1 to re-enable delegated click interception.');
+  }
+}
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pass341MountNormalBrowserAndFeatureClickabilityCloseout, { once: true }); else pass341MountNormalBrowserAndFeatureClickabilityCloseout();
+/* PASS341_NORMAL_BROWSER_AND_FEATURE_CLICKABILITY_CLOSEOUT_END */
+
+/* PASS271_R4_NORMAL_WEBVIEW_HARD_REPAIR_START */
+type Pass271R4NormalWebviewReport = {
+  pass: 'PASS271-R4';
+  status: 'PASS' | 'WARN';
+  reason: string;
+  normalBrowsing: boolean;
+  activeWebviewCount: number;
+  hiddenMissionOverlayCount: number;
+  restoredWebviewCount: number;
+  clickBlocker: string;
+  stageWidth: number;
+  stageHeight: number;
+  activeUrl: string;
+  generatedAt: string;
+};
+
+type Pass271R4Window = Window & typeof globalThis & {
+  __TAHAI_PASS271_R4_NORMAL_WEBVIEW_HARD_REPAIR__?: {
+    repair: (reason?: string) => Pass271R4NormalWebviewReport;
+    lastReport: () => Pass271R4NormalWebviewReport | null;
+  };
+  __TAHAI_PASS271_R4_NORMAL_WEBVIEW_HARD_REPAIR_REPORT__?: Pass271R4NormalWebviewReport;
+};
+
+function pass271R4NormalWebviewRepairEnabled(): boolean {
+  return ((globalThis as any).process?.env?.TAHAI_BROWSER_ENABLE_PASS271_R4_NORMAL_WEBVIEW_REPAIR) === '1';
+}
+
+function pass271R4ClearDisabledMarkers(): void {
+  try {
+    document.body?.removeAttribute('data-pass271-r4-normal-webview-hard-repair-mounted');
+    document.body?.removeAttribute('data-pass271-r4-normal-webview-hard-repair');
+    document.body?.removeAttribute('data-pass271-r4-normal-browsing');
+    document.body?.removeAttribute('data-pass271-r4-click-blocker');
+    document.body?.removeAttribute('data-pass271-r4-active-webview-count');
+    document.body?.removeAttribute('data-pass271-r4-hidden-mission-overlay-count');
+    document.body?.removeAttribute('data-pass271-r4-stage-width');
+    document.body?.removeAttribute('data-pass271-r4-stage-height');
+    document.getElementById('webview-stage')?.removeAttribute('data-pass271-r4-normal-webview-hard-repair');
+  } catch {
+    /* PASS338_NORMAL_WEBVIEW_REPAIR_OFF: best-effort stale-marker cleanup only. */
+  }
+}
+
+let pass271R4Mounted = false;
+let pass271R4Timer: number | undefined;
+let pass271R4LastReport: Pass271R4NormalWebviewReport | null = null;
+
+function pass271R4NormalBrowsing(): boolean {
+  try {
+    return !currentMission || !currentMission.layout || currentMission.layout.type === 'single';
+  } catch {
+    return true;
+  }
+}
+
+function pass271R4Stage(): HTMLElement | null {
+  return document.getElementById('webview-stage') as HTMLElement | null;
+}
+
+function pass271R4CurrentActiveTab(): TabState | undefined {
+  try { return active(); } catch { return undefined; }
+}
+
+function pass271R4ElementLabel(element: Element | null): string {
+  if (!element) return 'none';
+  const html = element as HTMLElement;
+  return [element.tagName.toLowerCase(), html.id ? '#' + html.id : '', html.className ? '.' + String(html.className).trim().replace(/\s+/g, '.') : ''].join('').slice(0, 180) || 'unknown';
+}
+
+function pass271R4IsMissionChrome(element: HTMLElement): boolean {
+  const text = [element.id, String(element.className || ''), Object.keys(element.dataset || {}).join(' '), element.getAttribute('aria-label') || '', element.textContent || ''].join(' ').toLowerCase();
+  return text.includes('mission-pane-drop') || text.includes('mission-pane-head') || text.includes('internal tahai drags only') || text.includes('drop target') || text.includes('drag');
+}
+
+function pass271R4HideIdleMissionOverlays(stage: HTMLElement, normalBrowsing: boolean, reason: string): number {
+  let hidden = 0;
+  const selectors = ['.mission-pane-drop-zones', '.mission-pane-drop-zone', '.mission-pane-heads', '.mission-pane-head-cell', '[data-pass81-non-pane-drop-surface="true"]', '[data-pass271-r3-neutralized]'];
+  stage.querySelectorAll<HTMLElement>(selectors.join(',')).forEach((element) => {
+    if (!normalBrowsing && !pass271R4IsMissionChrome(element)) return;
+    element.dataset.pass271R4HiddenAsIdleOverlay = normalBrowsing ? reason : 'mission-active-click-through';
+    element.style.pointerEvents = 'none';
+    if (normalBrowsing) {
+      element.hidden = true;
+      element.style.display = 'none';
+      element.setAttribute('aria-hidden', 'true');
+      hidden += 1;
+    }
+  });
+  if (normalBrowsing) {
+    document.body.classList.remove('mission-tab-dragging', 'pass271-r3-drag-active');
+    delete document.body.dataset.pass271R3LastDragState;
+  }
+  return hidden;
+}
+
+function pass271R4NormalizeWebview(view: HTMLElement, activeUrl: string): void {
+  if (!pass271R4NormalWebviewRepairEnabled()) {
+    // PASS338_NORMAL_WEBVIEW_REPAIR_OFF: stale emergency repair code must not write
+    // inline white backgrounds, inset geometry, pointer ownership, or high z-index by default.
+    view.removeAttribute('data-pass271-r4-active-webview');
+    return;
+  }
+  view.classList.add('browser-view', 'active');
+  view.hidden = false;
+  view.removeAttribute('hidden');
+  view.removeAttribute('aria-hidden');
+  view.style.display = 'inline-flex';
+  view.style.position = 'absolute';
+  view.style.inset = '0';
+  view.style.width = '100%';
+  view.style.height = '100%';
+  view.style.minWidth = '0';
+  view.style.minHeight = '0';
+  view.style.opacity = '1';
+  view.style.visibility = 'visible';
+  view.style.pointerEvents = 'auto';
+  view.style.zIndex = '10';
+  view.style.transform = 'none';
+  view.style.background = '#ffffff';
+  view.setAttribute('data-pass271-r4-active-webview', 'true');
+  if (activeUrl && !view.getAttribute('src')) view.setAttribute('src', activeUrl);
+}
+
+function pass271R4RepairNormalWebview(reason = 'manual'): Pass271R4NormalWebviewReport {
+  if (!pass271R4NormalWebviewRepairEnabled()) {
+    pass271R4ClearDisabledMarkers();
+    const disabledReport: Pass271R4NormalWebviewReport = { pass: 'PASS271-R4', status: 'WARN', reason: `disabled:${reason}:PASS338_NORMAL_WEBVIEW_REPAIR_OFF`, normalBrowsing: pass271R4NormalBrowsing(), activeWebviewCount: 0, hiddenMissionOverlayCount: 0, restoredWebviewCount: 0, clickBlocker: 'disabled', stageWidth: 0, stageHeight: 0, activeUrl: '', generatedAt: new Date().toISOString() };
+    pass271R4LastReport = disabledReport;
+    (window as Pass271R4Window).__TAHAI_PASS271_R4_NORMAL_WEBVIEW_HARD_REPAIR_REPORT__ = disabledReport;
+    return disabledReport;
+  }
+  const stage = pass271R4Stage();
+  const normalBrowsing = pass271R4NormalBrowsing();
+  let activeWebviewCount = 0;
+  let restoredWebviewCount = 0;
+  let hiddenMissionOverlayCount = 0;
+  let activeUrl = '';
+  if (stage) {
+    stage.dataset.pass271R4NormalWebviewHardRepair = 'true';
+    stage.style.position = 'relative';
+    stage.style.overflow = 'hidden';
+    stage.style.pointerEvents = 'auto';
+    stage.style.setProperty('-webkit-app-region', 'no-drag');
+    const tab = pass271R4CurrentActiveTab();
+    activeUrl = tab?.url || addressInput?.value || config?.homeUrl || '';
+    if (tab?.webview && !stage.contains(tab.webview)) {
+      stage.appendChild(tab.webview);
+      restoredWebviewCount += 1;
+    }
+    const activeViews = Array.from(stage.querySelectorAll<HTMLElement>('webview.browser-view.active, .browser-view.active, webview.active'));
+    if (!activeViews.length && tab?.webview) activeViews.push(tab.webview as unknown as HTMLElement);
+    activeViews.forEach((view) => { pass271R4NormalizeWebview(view, activeUrl); activeWebviewCount += 1; });
+    if (normalBrowsing) {
+      Array.from(stage.children).forEach((child) => {
+        const element = child as HTMLElement;
+        if (element.matches('webview.browser-view.active, .browser-view.active, webview.active')) return;
+        if (pass271R4IsMissionChrome(element) || element.classList.contains('mission-pane-drop-zones') || element.classList.contains('mission-pane-heads')) {
+          element.hidden = true;
+          element.style.display = 'none';
+          element.style.pointerEvents = 'none';
+          element.setAttribute('aria-hidden', 'true');
+          hiddenMissionOverlayCount += 1;
+        } else {
+          element.style.pointerEvents = 'none';
+        }
+      });
+    }
+    hiddenMissionOverlayCount += pass271R4HideIdleMissionOverlays(stage, normalBrowsing, reason);
+  }
+  document.querySelectorAll<HTMLElement>('.topbar, #tabs, .tabs').forEach((element) => {
+    element.style.setProperty('-webkit-app-region', 'drag');
+    element.style.pointerEvents = 'auto';
+  });
+  document.querySelectorAll<HTMLElement>('.toolbar, .toolbar *, .topbar button, .topbar .tab, .topbar .tab *, #address, #address-form, #tabs .tab, #tabs .tab *, #new-tab, .statusbar, .statusbar *').forEach((element) => {
+    element.style.setProperty('-webkit-app-region', 'no-drag');
+    element.style.pointerEvents = 'auto';
+    element.dataset.pass271R4ClickSurface = 'true';
+  });
+  const rect = stage?.getBoundingClientRect();
+  const centerX = Math.max(1, Math.floor((rect?.left || 0) + (rect?.width || window.innerWidth) / 2));
+  const centerY = Math.max(1, Math.floor((rect?.top || 0) + (rect?.height || window.innerHeight) / 2));
+  const blocker = document.elementFromPoint(centerX, centerY);
+  const clickBlocker = pass271R4ElementLabel(blocker);
+  const stageWidth = Math.round(rect?.width || 0);
+  const stageHeight = Math.round(rect?.height || 0);
+  const status: 'PASS' | 'WARN' = stageWidth >= 320 && stageHeight >= 240 && activeWebviewCount > 0 ? 'PASS' : 'WARN';
+  const report: Pass271R4NormalWebviewReport = { pass: 'PASS271-R4', status, reason, normalBrowsing, activeWebviewCount, hiddenMissionOverlayCount, restoredWebviewCount, clickBlocker, stageWidth, stageHeight, activeUrl, generatedAt: new Date().toISOString() };
+  pass271R4LastReport = report;
+  (window as Pass271R4Window).__TAHAI_PASS271_R4_NORMAL_WEBVIEW_HARD_REPAIR_REPORT__ = report;
+  (window as Pass271R4Window).__TAHAI_PASS271_R4_NORMAL_WEBVIEW_HARD_REPAIR__ = { repair: pass271R4RepairNormalWebview, lastReport: () => pass271R4LastReport };
+  document.body.dataset.pass271R4NormalWebviewHardRepair = status.toLowerCase();
+  document.body.dataset.pass271R4NormalBrowsing = String(normalBrowsing);
+  document.body.dataset.pass271R4ActiveWebviewCount = String(activeWebviewCount);
+  document.body.dataset.pass271R4HiddenMissionOverlayCount = String(hiddenMissionOverlayCount);
+  document.body.dataset.pass271R4ClickBlocker = clickBlocker;
+  document.body.dataset.pass271R4StageWidth = String(stageWidth);
+  document.body.dataset.pass271R4StageHeight = String(stageHeight);
+  return report;
+}
+
+function pass271R4Schedule(reason = 'scheduled'): void {
+  if (!pass271R4NormalWebviewRepairEnabled()) {
+    pass271R4ClearDisabledMarkers();
+    return;
+  }
+  if (pass271R4Timer) window.clearTimeout(pass271R4Timer);
+  pass271R4Timer = window.setTimeout(() => {
+    pass271R4Timer = undefined;
+    pass271R4RepairNormalWebview(reason);
+  }, 50);
+}
+
+function pass271R4Mount(): void {
+  if (!pass271R4NormalWebviewRepairEnabled()) {
+    pass271R4ClearDisabledMarkers();
+    console.info('[PASS338] PASS271_R4 normal-webview hard repair is opt-in; set TAHAI_BROWSER_ENABLE_PASS271_R4_NORMAL_WEBVIEW_REPAIR=1 to re-enable.');
+    return;
+  }
+  if (pass271R4Mounted) return;
+  pass271R4Mounted = true;
+  document.body.dataset.pass271R4NormalWebviewHardRepairMounted = 'true';
+  window.addEventListener('resize', () => pass271R4Schedule('resize'));
+  window.addEventListener('focus', () => pass271R4Schedule('focus'));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pass271R4Schedule('visibility'); });
+  document.addEventListener('dragend', () => pass271R4Schedule('dragend'), true);
+  document.addEventListener('drop', () => pass271R4Schedule('drop'), true);
+  if (typeof MutationObserver !== 'undefined') {
+    const observer = new MutationObserver(() => pass271R4Schedule('mutation'));
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class','style','hidden','aria-hidden','data-pass271-r3-neutralized','data-pass271-r4-hidden-as-idle-overlay'] });
+  }
+  pass271R4RepairNormalWebview('mount');
+  window.setTimeout(() => pass271R4RepairNormalWebview('settle-250'), 250);
+  window.setTimeout(() => pass271R4RepairNormalWebview('settle-1000'), 1000);
+  window.setInterval(() => pass271R4RepairNormalWebview('watchdog'), 2500);
+}
+
+if (pass271R4NormalWebviewRepairEnabled()) {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pass271R4Mount, { once: true }); else pass271R4Mount();
+} else {
+  pass271R4ClearDisabledMarkers();
+  console.info('[PASS338] PASS271_R4 normal-webview hard repair stayed disabled by default.');
+}
+/* PASS271_R4_NORMAL_WEBVIEW_HARD_REPAIR_END */

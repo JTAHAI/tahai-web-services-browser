@@ -1,0 +1,67 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+const targetVersion = '2.0.7';
+const skipDirs = new Set(['.git','node_modules','dist','release','release-msix','out','coverage','.vite','.next','build']);
+const rendererCandidates = ['src/renderer/app.ts','src/renderer/renderer.ts','src/renderer/index.ts','src/renderer/main.ts','src/renderer/app.tsx','src/renderer/index.tsx','src/renderer/app.js','src/renderer/renderer.js','renderer/app.js','renderer/renderer.js','app/renderer/app.js'];
+const fixturePath = path.join(root, 'tests', 'runtime', 'pass258-recipe-quad-runtime-fixtures.json');
+const requiredRecipeIds = ['dns-migration','cloudflare-cutover','github-actions-release','production-deployment','certificate-renewal','m365-user-offboarding','incident-triage','vendor-support-handoff'];
+const layoutSequence = ['single','split-horizontal','triple-top','triple-bottom','triple-left','triple-right','quad','focus','quad','single'];
+const allowedProtocols = new Set(['https:', 'tahai-browser:']);
+function rel(p) { return path.relative(root, p).split(path.sep).join('/'); }
+function readText(file) { try { return fs.readFileSync(file, 'utf8'); } catch { return ''; } }
+function walk(dir, matcher, acc = []) { let entries = []; try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return acc; } for (const entry of entries) { if (skipDirs.has(entry.name)) continue; const full = path.join(dir, entry.name); if (entry.isDirectory()) walk(full, matcher, acc); else if (matcher(full)) acc.push(full); } return acc; }
+function fail(message, details = []) { console.error('PASS258_RECIPE_QUAD_RUNTIME_CONTRACT=FAIL'); console.error(message); for (const detail of details) console.error('- ' + detail); process.exit(1); }
+function parseVersion(v) { const m = String(v || '').match(/^(\d+)\.(\d+)\.(\d+)(.*)$/); return m ? { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) } : null; }
+function versionAtLeast(actual, expected) { const a = parseVersion(actual); const e = parseVersion(expected); if (!a || !e) return false; if (a.major !== e.major) return a.major > e.major; if (a.minor !== e.minor) return a.minor > e.minor; return a.patch >= e.patch; }
+function findRendererFile() { for (const candidate of rendererCandidates) { const full = path.join(root, candidate); if (fs.existsSync(full) && readText(full).includes('PASS258_RECIPE_QUAD_RUNTIME_E2E_HARNESS_START')) return full; } const found = walk(root, (file) => /\.(ts|tsx|js|jsx)$/i.test(file)).filter((file) => readText(file).includes('PASS258_RECIPE_QUAD_RUNTIME_E2E_HARNESS_START')); return found[0] || null; }
+function parseJson(file) { try { return JSON.parse(readText(file)); } catch (error) { fail(file + ' is invalid JSON.', [String(error)]); } }
+function safeUrl(url) { let parsed; try { parsed = new URL(String(url)); } catch { return false; } if (!allowedProtocols.has(parsed.protocol)) return false; if (/[?&](access_token|refresh_token|id_token|api_key|client_secret)=/i.test(parsed.search)) return false; if (/authorization|bearer\s+|cookie:|set-cookie:|ghp_|github_pat_|aws_access_key_id|secret_access_key|begin private key/i.test(String(url))) return false; return true; }
+function expectedPaneCount(layout) { if (layout === 'quad') return 4; if (String(layout).startsWith('triple')) return 3; if (String(layout).startsWith('split')) return 2; return 1; }
+function bounds(layout, index, rect) { const width = Math.max(96, Math.round(rect.width)); const height = Math.max(96, Math.round(rect.height)); const halfW = Math.floor(width / 2); const halfH = Math.floor(height / 2); const thirdW = Math.floor(width / 3); const thirdH = Math.floor(height / 3); if (layout === 'quad') return { left: index % 2 === 0 ? 0 : halfW, top: index < 2 ? 0 : halfH, width: index % 2 === 0 ? halfW : width - halfW, height: index < 2 ? halfH : height - halfH }; if (layout === 'split-vertical') return { left: 0, top: index === 0 ? 0 : halfH, width, height: index === 0 ? halfH : height - halfH }; if (layout === 'split-horizontal') return { left: index === 0 ? 0 : halfW, top: 0, width: index === 0 ? halfW : width - halfW, height }; if (layout === 'triple-bottom') return index === 0 ? { left: 0, top: 0, width, height: height - thirdH } : { left: index === 1 ? 0 : halfW, top: height - thirdH, width: index === 1 ? halfW : width - halfW, height: thirdH }; if (layout === 'triple-left') return index === 0 ? { left: 0, top: 0, width: thirdW, height } : { left: thirdW, top: index === 1 ? 0 : halfH, width: width - thirdW, height: index === 1 ? halfH : height - halfH }; if (layout === 'triple-right') return index === 0 ? { left: width - thirdW, top: 0, width: thirdW, height } : { left: 0, top: index === 1 ? 0 : halfH, width: width - thirdW, height: index === 1 ? halfH : height - halfH }; if (layout === 'triple-top') return index === 0 ? { left: 0, top: 0, width, height: thirdH } : { left: index === 1 ? 0 : halfW, top: thirdH, width: index === 1 ? halfW : width - halfW, height: height - thirdH }; return { left: 0, top: 0, width, height }; }
+function assertGeometryHealthy(layout) { const count = expectedPaneCount(layout); const issues = []; for (let i = 0; i < count; i += 1) { const b = bounds(layout, i, { width: 1280, height: 720 }); if (b.width < 96 || b.height < 96 || b.left < 0 || b.top < 0) issues.push(layout + ':' + i + ':invalid-bounds'); if (layout !== 'triple-bottom' && layout !== 'split-vertical' && i === 0 && b.top !== 0) issues.push(layout + ':' + i + ':bottom-only-risk'); if (layout === 'quad' && i === 0 && (b.left !== 0 || b.top !== 0)) issues.push('quad:first-pane-not-top-left'); } return issues; }
+function buildScenario(recipe) { const expected = recipe.expectedPaneCount || expectedPaneCount(recipe.requestedLayout); const safeUrls = (recipe.safeUrls || []).filter((entry) => safeUrl(entry.url)); const hydrated = safeUrls.slice(0, expected); while (hydrated.length < expected) hydrated.push({ role: hydrated.length === expected - 1 ? 'evidence' : 'runbook', title: recipe.title + ' Local Placeholder', url: 'tahai-browser://local/pass258/' + recipe.id + '/placeholder-' + (hydrated.length + 1) }); const panes = hydrated.map((entry, index) => ({ paneId: 'pane-' + (index + 1), role: entry.role, title: entry.title, url: entry.url, runtimeTabId: recipe.id + '-runtime-tab-' + (index + 1), visible: true, hasWebview: true, fallbackPlaceholder: String(entry.url).startsWith('tahai-browser://local/pass258/'), geometryOk: true, webviewTopLeftOk: true, blackPane: false, bottomOnly: false })); return { recipe, selected: true, started: true, mission: { name: recipe.title, missionType: recipe.missionType, layout: recipe.requestedLayout, activePaneId: panes[0]?.paneId }, runbook: recipe.runbook, evidencePrompts: recipe.evidencePrompts, timeline: [{ type: 'recipe-start', recipeId: recipe.id, safeMetadataOnly: true }], panes, layoutSequence: layoutSequence.slice(), exportPreview: { profile: recipe.profile, redactionPreviewRequired: true, containsSecrets: false } }; }
+function assertScenario(s) { const failures = []; const recipe = s.recipe; if (!s.selected) failures.push('click-card/select-recipe-failed'); if (!s.started) failures.push('start-mission-failed'); if (!s.mission.name || !s.mission.missionType || s.mission.missionType !== recipe.missionType) failures.push('mission-fields-invalid'); if (!s.runbook?.objective || !s.runbook?.rollbackCondition || !Array.isArray(s.runbook?.checklist) || s.runbook.checklist.length < 3) failures.push('runbook-contract-invalid'); if (!Array.isArray(s.evidencePrompts) || s.evidencePrompts.length < 3) failures.push('evidence-prompts-invalid'); if (!s.timeline.some((event) => event.type === 'recipe-start' && event.recipeId === recipe.id && event.safeMetadataOnly)) failures.push('timeline-recipe-start-invalid'); if (s.panes.length !== expectedPaneCount(recipe.requestedLayout)) failures.push('pane-count-invalid'); for (const pane of s.panes) { if (!pane.runtimeTabId || !pane.visible || !pane.hasWebview) failures.push('pane-not-runtime-hydrated:' + pane.paneId); if (!safeUrl(pane.url)) failures.push('pane-url-unsafe:' + pane.paneId); if (!pane.geometryOk || !pane.webviewTopLeftOk || pane.blackPane || pane.bottomOnly) failures.push('pane-visual-health-invalid:' + pane.paneId); } for (const layout of layoutSequence) { if (!s.layoutSequence.includes(layout)) failures.push('layout-switch-missing:' + layout); failures.push(...assertGeometryHealthy(layout)); } if (!s.exportPreview || s.exportPreview.redactionPreviewRequired !== true || s.exportPreview.containsSecrets !== false) failures.push('export-preview-invalid'); return failures; }
+
+const pkgPath = path.join(root, 'package.json');
+if (!fs.existsSync(pkgPath)) fail('package.json not found.');
+const pkg = parseJson(pkgPath);
+if (!versionAtLeast(pkg.version, targetVersion)) fail('package.json version must be at least ' + targetVersion + '.', ['found ' + (pkg.version || 'missing')]);
+if (pkg.scripts?.['verify:pass-258-recipe-quad-runtime-contract'] !== 'node scripts/verify-pass258-recipe-quad-runtime-contract.mjs') fail('package.json is missing verify:pass-258-recipe-quad-runtime-contract script.');
+const renderer = findRendererFile();
+if (!renderer) fail('Renderer source with PASS258 runtime harness was not found.');
+const rendererText = readText(renderer);
+const missingRenderer = ['PASS258_RECIPE_QUAD_RUNTIME_E2E_HARNESS_START','PASS258_REQUIRED_RECIPE_IDS','PASS258_SAFE_PROTOCOLS','pass258IsSafeRecipeUrl','pass258BuildScenario','pass258AssertScenario','pass258RunRecipeQuadRuntimeContract','data-pass258-recipe-quad-runtime-contract','__TAHAI_PASS258_RECIPE_QUAD_RUNTIME_E2E__','__TAHAI_PASS258_RECIPE_QUAD_RUNTIME_REPORT__','exportPreview','redactionPreviewRequired'].filter((marker) => !rendererText.includes(marker));
+if (missingRenderer.length) fail('PASS258 renderer harness markers are missing.', missingRenderer);
+for (const marker of ['PASS254_MISSION_RECIPE_CLICK_CONTRACT','PASS255_RECIPE_PANE_HYDRATION','PASS256_QUAD_VIEW_STATE_MACHINE','PASS257_MISSION_PANE_GEOMETRY_ENGINE']) if (!rendererText.includes(marker)) fail('Prior runtime contract marker missing from renderer. Apply cumulative passes first.', [marker]);
+if (!fs.existsSync(fixturePath)) fail('PASS258 fixture file missing.', [rel(fixturePath)]);
+const fixtures = parseJson(fixturePath);
+if (fixtures.pass !== 'PASS258' || fixtures.schemaVersion !== 1) fail('PASS258 fixture schema/pass metadata invalid.');
+if (!Array.isArray(fixtures.layoutStressSequence) || layoutSequence.some((layout, i) => fixtures.layoutStressSequence[i] !== layout)) fail('PASS258 layout stress sequence is incomplete or out of order.');
+if (!Array.isArray(fixtures.recipes) || fixtures.recipes.length < requiredRecipeIds.length) fail('PASS258 recipes fixture list is incomplete.');
+const fixtureIds = fixtures.recipes.map((recipe) => recipe.id);
+const missingIds = requiredRecipeIds.filter((id) => !fixtureIds.includes(id));
+if (missingIds.length) fail('PASS258 required recipe fixtures are missing.', missingIds);
+const scenarioFailures = [];
+for (const recipe of fixtures.recipes) {
+  if (!recipe.id || !recipe.title || !recipe.missionType || !recipe.requestedLayout) scenarioFailures.push(recipe.id + ':metadata-missing');
+  if (!Array.isArray(recipe.safeUrls) || recipe.safeUrls.length < 1) scenarioFailures.push(recipe.id + ':safe-urls-missing');
+  for (const entry of recipe.safeUrls || []) if (!safeUrl(entry.url)) scenarioFailures.push(recipe.id + ':unsafe-url:' + entry.url);
+  if ((recipe.policyLocks || []).some((lock) => /direct-psa-api/i.test(lock)) && !String(recipe.id).includes('m365')) scenarioFailures.push(recipe.id + ':policy-lock-review-required');
+  const s = buildScenario(recipe);
+  scenarioFailures.push(...assertScenario(s).map((failure) => recipe.id + ':' + failure));
+}
+if (scenarioFailures.length) fail('PASS258 runtime harness fixture scenarios failed.', scenarioFailures.slice(0, 80));
+const forbiddenSource = walk(root, (file) => /\.(js|ts|tsx|jsx|json|md)$/i.test(file)).filter((file) => !rel(file).includes('node_modules')).flatMap((file) => { const text = readText(file); const hits = []; if (/fetch\(['\"]https:\/\/[^'\"]*(connectwise|autotask|halo|syncro|zendesk|freshservice)/i.test(text)) hits.push(rel(file) + ':direct-psa-fetch'); if (/(access_token|refresh_token|client_secret|api_key)=/i.test(text)) hits.push(rel(file) + ':secret-query-string'); return hits; });
+if (forbiddenSource.length) fail('PASS258 detected forbidden direct integration/secret patterns.', forbiddenSource);
+const generatedBad = walk(root, (file) => /\.(msix|msixupload|appx|appxupload|msi|exe|pfx|p12|cer|key|zip)$/i.test(file) && !/node_modules|release|release-msix|dist|out/.test(rel(file)));
+if (generatedBad.length) fail('Generated/package/certificate artifacts appear in source tree.', generatedBad.map(rel));
+console.log('PASS258_RECIPE_QUAD_RUNTIME_CONTRACT=PASS');
+console.log('PASS258_VERSION=' + pkg.version);
+console.log('PASS258_RENDERER_TARGET=' + rel(renderer));
+console.log('PASS258_FIXTURES=' + rel(fixturePath));
+console.log('PASS258_RECIPES=' + requiredRecipeIds.join(','));
+console.log('PASS258_LAYOUT_SEQUENCE=' + layoutSequence.join('>'));
+console.log('PASS258_ASSERTIONS=recipe-click-select-start,mission-fields,runbook-evidence-timeline,pane-count,runtime-tab-hydration,all-layout-switches,no-black-bottom-only-pane,export-preview,no-direct-psa-api,no-secrets,no-generated-artifacts');

@@ -1,7 +1,7 @@
 # PASS186 — Installed Mouse Navigation Proof Harness
 
 Completed: 2026-05-11
-Version remains `1.8.30`.
+Version remains `2.0.14`.
 Remaining enterprise hardening passes after this pass: 39.
 
 ## Hardened

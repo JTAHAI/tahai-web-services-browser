@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "verify:pass-309-crash-session-durability": "node scripts/verify-pass-309-crash-session-durability.mjs",
+    "verify:pass-310-enterprise-support-bundle-v3": "node scripts/verify-pass-310-enterprise-support-bundle-v3.mjs",
+    "verify:pass-311-performance-memory-soak": "node scripts/verify-pass-311-performance-memory-soak.mjs",
+    "verify:pass-312-sbom-vex-dependency-evidence": "node scripts/verify-pass-312-sbom-vex-dependency-evidence.mjs",
+    "verify:pass-313-signing-provenance-checksum-gate": "node scripts/verify-pass-313-signing-provenance-checksum-gate.mjs",
+    "verify:pass-314-windows-installer-enterprise-closeout": "node scripts/verify-pass-314-windows-installer-enterprise-closeout.mjs",
+    "verify:pass-315-linux-package-enterprise-closeout": "node scripts/verify-pass-315-linux-package-enterprise-closeout.mjs",
+    "verify:pass-316-enterprise-rc-ga-decision-gate": "node scripts/verify-pass-316-enterprise-rc-ga-decision-gate.mjs"
+  }
+}

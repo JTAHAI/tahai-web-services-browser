@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const read = (p) => fs.readFileSync(p, 'utf8');
 const pkg = JSON.parse(read('package.json'));
 const app = read('src/renderer/app.ts');
@@ -8,7 +9,7 @@ const summary = read('PASS_108_MISSION_PANE_MOVEMENT_OVERLAY_SUMMARY.md');
 const doc = read('docs/pass-108-mission-pane-movement-overlay.md');
 const failures = [];
 const need = (ok, msg) => { if (!ok) failures.push(msg); };
-const rb = String(pkg.scripts?.['verify:release-blockers'] || '');
+const rb = getReleaseBlockersContract(pkg);
 need(pkg.scripts?.['verify:pass-108-mission-pane-movement-overlay'] === 'node scripts/verify-pass-108-mission-pane-movement-overlay.mjs', 'package-script-missing');
 need(rb.includes('verify:pass-108-mission-pane-movement-overlay'), 'release-blockers-not-wired');
 need(app.includes('PASS108 Mission pane movement overlay'), 'pass108-source-marker-missing');

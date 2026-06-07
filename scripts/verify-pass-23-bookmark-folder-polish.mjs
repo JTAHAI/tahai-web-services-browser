@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -10,7 +11,7 @@ const bookmarks = read('src/renderer/chromium-bookmarks.ts');
 const css = read('src/renderer/styles/chromium-bookmarks.css');
 
 if (pkg.scripts?.['verify:pass-23-bookmark-folder-polish'] !== 'node scripts/verify-pass-23-bookmark-folder-polish.mjs') fail('package script missing');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-23-bookmark-folder-polish')) fail('release blockers do not include pass 23 verifier');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-23-bookmark-folder-polish')) fail('release blockers do not include pass 23 verifier');
 for (const marker of [
   'LAST_OPEN_FOLDER_KEY',
   'lastOpenFolder()',

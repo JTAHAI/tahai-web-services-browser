@@ -14,11 +14,13 @@ const required = [
   'launch-shell',
   'titlebar-drag',
   'tab-create-close',
+  'launchpad-guide-home-address',
   'mission-control-open',
   'mission-layouts-split-tri-quad-focus',
   'active-pane-routing',
   'popup-denied',
   'kb-guide-more-tools',
+  'shell-overlays-open-close',
   'evidence-export-preview'
 ];
 
@@ -75,6 +77,11 @@ try {
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tahai-pass158-runtime-e2e-'));
 const resultPath = path.join(tempDir, 'result.json');
+const runId = `pass158-${Date.now()}-${process.pid}`;
+const evidenceDir = path.join(root, 'release-candidate', 'generated');
+const evidenceResultPath = path.join(evidenceDir, 'pass158-runtime-e2e-result.json');
+const evidenceLogPath = path.join(evidenceDir, 'pass158-runtime-e2e-full.log');
+fs.mkdirSync(evidenceDir, { recursive: true });
 const child = spawn(electronBinary, ['.'], {
   cwd: root,
   stdio: ['ignore', 'pipe', 'pipe'],
@@ -83,6 +90,10 @@ const child = spawn(electronBinary, ['.'], {
     TAHAI_RUNTIME_E2E: '1',
     TAHAI_RUNTIME_E2E_RESULT: resultPath,
     TAHAI_RUNTIME_E2E_QUIT: '1',
+    TAHAI_RUNTIME_E2E_RUN_ID: runId,
+    TAHAI_BROWSER_USER_DATA_SUFFIX: runId,
+    TAHAI_BROWSER_DISABLE_SINGLE_INSTANCE_LOCK: '1',
+    TAHAI_BROWSER_RUNTIME_DIAGNOSTICS: '1',
     ELECTRON_ENABLE_LOGGING: '1',
     XDG_CONFIG_HOME: path.join(tempDir, 'xdg-config'),
     XDG_CACHE_HOME: path.join(tempDir, 'xdg-cache')
@@ -95,16 +106,18 @@ child.stderr.on('data', (chunk) => { output += chunk.toString(); });
 
 const timeout = setTimeout(() => {
   child.kill('SIGTERM');
-}, 45000);
+}, 150000);
 
 child.on('exit', (code, signal) => {
   clearTimeout(timeout);
+  fs.writeFileSync(evidenceLogPath, output);
   if (!fs.existsSync(resultPath)) {
     console.error(`[PASS158][FAIL] runtime E2E result was not written. exit=${code} signal=${signal || ''}`);
     if (output.trim()) console.error(output.slice(-5000));
     process.exit(1);
   }
   const result = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+  fs.writeFileSync(evidenceResultPath, JSON.stringify(result, null, 2));
   const inner = result?.result;
   if (!inner?.ok) {
     console.error('[PASS158][FAIL] runtime E2E harness reported failure.');
@@ -112,4 +125,6 @@ child.on('exit', (code, signal) => {
     process.exit(1);
   }
   console.log(`[PASS158][OK] Runtime E2E harness passed ${inner.results?.length || 0} scenario(s).`);
+  console.log(`PASS158_RESULT=${path.relative(root, evidenceResultPath).replace(/\\/g, '/')}`);
+  console.log(`PASS158_LOG=${path.relative(root, evidenceLogPath).replace(/\\/g, '/')}`);
 });

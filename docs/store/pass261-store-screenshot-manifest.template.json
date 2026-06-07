@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS261",
+  "versionTarget": "2.0.14",
+  "captureSource": "installed Windows app only for final Store screenshots",
+  "status": "TEMPLATE_PENDING_INSTALLED_APP_SCREENSHOTS",
+  "screenshots": [
+    {
+      "id": "normal-browser-mode",
+      "required": true,
+      "path": "REPLACE_WITH_SCREENSHOT_PATH",
+      "source": "installed-app",
+      "noSecrets": false,
+      "versionVisibleOrRecorded": false,
+      "notes": "Clean normal browsing surface."
+    },
+    {
+      "id": "mission-control-overview",
+      "required": true,
+      "path": "REPLACE_WITH_SCREENSHOT_PATH",
+      "source": "installed-app",
+      "noSecrets": false,
+      "versionVisibleOrRecorded": false,
+      "notes": "Mission Control overview without clutter."
+    },
+    {
+      "id": "quad-view-recipe-started",
+      "required": true,
+      "path": "REPLACE_WITH_SCREENSHOT_PATH",
+      "source": "installed-app",
+      "noSecrets": false,
+      "versionVisibleOrRecorded": false,
+      "notes": "Recipe started with useful panes, no black/bottom-only pane."
+    },
+    {
+      "id": "runbook-rail-and-evidence",
+      "required": true,
+      "path": "REPLACE_WITH_SCREENSHOT_PATH",
+      "source": "installed-app",
+      "noSecrets": false,
+      "versionVisibleOrRecorded": false,
+      "notes": "Runbook Rail plus evidence/export affordance."
+    },
+    {
+      "id": "operator-command-center",
+      "required": true,
+      "path": "REPLACE_WITH_SCREENSHOT_PATH",
+      "source": "installed-app",
+      "noSecrets": false,
+      "versionVisibleOrRecorded": false,
+      "notes": "Ctrl+K command center with target scope."
+    },
+    {
+      "id": "settings-about-unsigned-preview-truth",
+      "required": true,
+      "path": "REPLACE_WITH_SCREENSHOT_PATH",
+      "source": "installed-app",
+      "noSecrets": false,
+      "versionVisibleOrRecorded": false,
+      "notes": "Settings/About truth with no false signing or Store approval claims."
+    }
+  ],
+  "reviewRules": [
+    "No customer data, tokens, tenant IDs, private tickets, private emails, or live secrets.",
+    "No screenshot may imply Microsoft Store approval before approval exists.",
+    "No screenshot may show blank panes, bottom-only webviews, or orphaned active pane state.",
+    "Screenshots must represent the same package/version as the submission packet."
+  ]
+}

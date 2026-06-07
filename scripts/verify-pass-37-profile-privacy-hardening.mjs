@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const settings = readFileSync('src/main/settings.ts', 'utf8');
@@ -41,7 +42,7 @@ for (const token of ['settingDoNotTrack', 'settingThirdPartyCookies', 'settingRe
 }
 if (!versionAtLeast(pkg.version, '1.8.14')) failures.push('package version expected >= 1.8.14, found ' + pkg.version);
 if (!pkg.scripts?.['verify:pass-37-profile-privacy-hardening']) failures.push('package script missing verify:pass-37-profile-privacy-hardening');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-37-profile-privacy-hardening')) failures.push('pass37 verifier not wired into release blockers');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-37-profile-privacy-hardening')) failures.push('pass37 verifier not wired into release blockers');
 
 if (failures.length) {
   console.error('PASS37_PROFILE_PRIVACY_HARDENING_OK=0');

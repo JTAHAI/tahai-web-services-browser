@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS264",
+  "packName": "TAHAI Web Services Browser Store Submission Dry-Run Evidence Gate",
+  "status": "TEMPLATE_PENDING_REAL_DRY_RUN_EVIDENCE",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 1,
+  "generatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
+  "preparedBy": "REPLACE_WITH_OPERATOR_NAME",
+  "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
+  "packageVersion": "2.0.14",
+  "storeTruth": {
+    "microsoftStoreSubmissionClaim": "not-submitted",
+    "microsoftStoreApprovalClaim": "not-approved",
+    "dryRunOnly": true,
+    "noPartnerCenterUploadPerformed": true,
+    "noPublicGaClaim": true,
+    "directMsiExeSigningStatus": "unsigned-preview"
+  },
+  "priorGateResults": [
+    {
+      "pass": "PASS260",
+      "name": "Installed Recipe + Quad Store Smoke Evidence Gate",
+      "command": "npm run gate:pass-260-installed-recipe-quad-store-smoke",
+      "evidencePath": "release-candidate/store-submission/pass260-installed-recipe-quad-smoke-evidence.json",
+      "evidenceSha256": "REPLACE_WITH_64_HEX_SHA256_OF_EVIDENCE_FILE",
+      "gateOutputPath": "REPLACE_WITH_PATH_TO_CAPTURED_GATE_OUTPUT_OR_LOG",
+      "gatePassed": false,
+      "reviewed": false,
+      "notes": "PENDING_REAL_GATE_OUTPUT"
+    },
+    {
+      "pass": "PASS261",
+      "name": "Store Submission Packet Finalizer",
+      "command": "npm run gate:pass-261-store-submission-packet",
+      "evidencePath": "release-candidate/store-submission/pass261-store-submission-packet.json",
+      "evidenceSha256": "REPLACE_WITH_64_HEX_SHA256_OF_EVIDENCE_FILE",
+      "gateOutputPath": "REPLACE_WITH_PATH_TO_CAPTURED_GATE_OUTPUT_OR_LOG",
+      "gatePassed": false,
+      "reviewed": false,
+      "notes": "PENDING_REAL_GATE_OUTPUT"
+    },
+    {
+      "pass": "PASS262",
+      "name": "Store Asset Evidence Pack",
+      "command": "npm run gate:pass-262-store-asset-evidence-pack",
+      "evidencePath": "release-candidate/store-submission/pass262-store-asset-evidence-pack.json",
+      "evidenceSha256": "REPLACE_WITH_64_HEX_SHA256_OF_EVIDENCE_FILE",
+      "gateOutputPath": "REPLACE_WITH_PATH_TO_CAPTURED_GATE_OUTPUT_OR_LOG",
+      "gatePassed": false,
+      "reviewed": false,
+      "notes": "PENDING_REAL_GATE_OUTPUT"
+    },
+    {
+      "pass": "PASS263",
+      "name": "Store Listing Copy Truth Pack",
+      "command": "npm run gate:pass-263-store-listing-copy-truth-pack",
+      "evidencePath": "release-candidate/store-submission/pass263-store-listing-copy-truth-pack.json",
+      "evidenceSha256": "REPLACE_WITH_64_HEX_SHA256_OF_EVIDENCE_FILE",
+      "gateOutputPath": "REPLACE_WITH_PATH_TO_CAPTURED_GATE_OUTPUT_OR_LOG",
+      "gatePassed": false,
+      "reviewed": false,
+      "notes": "PENDING_REAL_GATE_OUTPUT"
+    }
+  ],
+  "dryRunReview": {
+    "pass260InstalledSmokeGatePassed": false,
+    "pass261PacketGatePassed": false,
+    "pass262AssetEvidenceGatePassed": false,
+    "pass263ListingCopyGatePassed": false,
+    "packageIdentityReviewed": false,
+    "publicUrlsReviewed": false,
+    "screenshotAssetsReviewed": false,
+    "hashesAndProvenanceReviewed": false,
+    "knownIssuesReviewed": false,
+    "noSecretReviewPassed": false,
+    "noFalseStoreClaimReviewPassed": false,
+    "dryRunCompletedWithoutSubmission": false,
+    "operatorReviewedDryRunReport": false
+  },
+  "partnerCenterDryRun": {
+    "reachedPartnerCenterDraftScreen": false,
+    "packageUploadStarted": false,
+    "packageUploadCompleted": false,
+    "submissionButtonClicked": false,
+    "submissionId": "NONE_NOT_SUBMITTED",
+    "reviewerNotesCopied": false,
+    "screenshotsMapped": false,
+    "listingCopyMapped": false,
+    "declarationsMapped": false,
+    "dryRunScreenshotsPath": "REPLACE_WITH_LOCAL_OR_RELEASE_CANDIDATE_PATH_IF_CAPTURED",
+    "dryRunNotes": "Document what was checked in Partner Center without clicking submit."
+  },
+  "crossChecks": {
+    "pass260Pass261Pass262Pass263AllPassed": false,
+    "packageVersionMatchesEvidence": false,
+    "sourceCommitMatchesEvidence": false,
+    "packageHashMatchesEvidence": false,
+    "publicUrlsAreHttpsAndLive": false,
+    "knownIssuesTruthMatchesListing": false,
+    "screenshotSlotCountMatchesAssets": false,
+    "noSecretsFoundInEvidence": false,
+    "noFalseClaimsFoundInEvidence": false
+  },
+  "prohibitedClaims": [
+    "submitted to microsoft store",
+    "microsoft store approved",
+    "store approved",
+    "store certified",
+    "available in the microsoft store",
+    "signed msi",
+    "signed exe",
+    "public ga",
+    "general availability",
+    "direct psa api",
+    "psa connector included",
+    "stores psa tokens",
+    "stores provider secrets"
+  ],
+  "goNoGo": {
+    "status": "NO_GO",
+    "reason": "Dry-run evidence is a template. Store submission remains blocked until all prior gates pass, the dry-run report is filled, no-submit truth is preserved, and operator approval exists.",
+    "readyForPartnerCenterSubmission": false,
+    "readyForPublicGA": false,
+    "readyForFinalHandoffFreeze": false,
+    "operatorApproved": false
+  }
+}

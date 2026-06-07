@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -7,7 +8,7 @@ const fail = (message) => { console.error(`[PASS118][FAIL] ${message}`); process
 const need = (condition, message) => { if (!condition) fail(message); };
 
 const pkg = JSON.parse(read('package.json'));
-const releaseBlockers = pkg.scripts?.['verify:release-blockers'] || '';
+const releaseBlockers = getReleaseBlockersContract(pkg);
 const html = read('src/renderer/index.html');
 const appTs = read('src/renderer/app.ts');
 const responsiveTs = read('src/renderer/responsive-toolbar.ts');

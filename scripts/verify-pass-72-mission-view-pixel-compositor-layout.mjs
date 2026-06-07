@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const root = process.cwd();
 const app = fs.readFileSync(path.join(root, 'src/renderer/app.ts'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'src/renderer/styles/browser.css'), 'utf8');
@@ -25,7 +26,7 @@ must(css, 'z-index: 1 !important;', 'pass72-webview-zindex-missing');
 must(css, '.mission-pane-heads { display: none !important;', 'pass72-head-overlay-hide-missing');
 must(css, 'backdrop-filter: none !important;', 'pass72-backdrop-filter-cleared-missing');
 must(pkg.scripts['verify:pass-72-mission-view-pixel-compositor-layout'] || '', 'verify-pass-72-mission-view-pixel-compositor-layout.mjs', 'pass72-script-not-registered');
-must(pkg.scripts['verify:release-blockers'] || '', 'verify:pass-72-mission-view-pixel-compositor-layout', 'pass72-not-in-release-blockers');
+must(getReleaseBlockersContract(pkg), 'verify:pass-72-mission-view-pixel-compositor-layout', 'pass72-not-in-release-blockers');
 const pixelBlock = css.slice(css.indexOf('PASS72 Mission View native compositor sizing'));
 if (/webview\.browser-view[\s\S]{0,700}display:\s*inline-flex/i.test(pixelBlock)) errors.push('pass72-webview-inline-flex-forbidden');
 if (/webview\.browser-view[\s\S]{0,700}transform:\s*(?!\s*none)/i.test(pixelBlock)) errors.push('pass72-webview-transform-forbidden');

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const root = process.cwd();
 const fail = (message) => { console.error(`TAHAI_BROWSER_DEVOPS_MISSION_RECIPES_VERIFY_FAIL=${message}`); process.exit(1); };
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -29,6 +30,6 @@ const css = read('src/renderer/styles/browser.css');
 for (const token of ['PASS 02 DevOps Mission Recipes', '.mission-recipe-card.devops', '.mission-recipe-card.it', '.mission-recipe-card.general']) if (!css.includes(token)) fail(`css missing token: ${token}`);
 const pkg = JSON.parse(read('package.json').replace(/^\uFEFF/, ''));
 if (pkg.scripts?.['verify:devops-mission-recipes'] !== 'node scripts/verify-devops-mission-recipes.mjs') fail('package.json missing verify:devops-mission-recipes script');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:devops-mission-recipes')) fail('verify:release-blockers does not include verify:devops-mission-recipes');
+if (!getReleaseBlockersContract(pkg).includes('verify:devops-mission-recipes')) fail('verify:release-blockers does not include verify:devops-mission-recipes');
 console.log('TAHAI_BROWSER_DEVOPS_MISSION_RECIPES_VERIFY=OK');
 process.exit(0);

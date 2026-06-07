@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -23,7 +24,7 @@ const pkg = json('package.json');
 const releaseTruth = read('src/shared/release-truth.ts');
 const aboutTruth = json('browser/about/release-truth.json');
 const gaManifest = json('docs/ga-release-manifest-pass150.json');
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 
 need(pkg.version === '1.8.30', `version must remain 1.8.30 for PASS150, found ${pkg.version}`);
 need(pkg.scripts?.['verify:pass-150-final-ship-candidate'] === 'node scripts/verify-pass-150-final-ship-candidate.mjs', 'package missing PASS150 verifier script');

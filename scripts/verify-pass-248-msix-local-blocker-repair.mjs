@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const failures = [];
@@ -24,11 +25,12 @@ function mustNotInclude(rel, needle, label = needle) {
 }
 
 const pkg = json('package.json');
+const expectedScript = `repair:store-tag:${pkg?.version || 'missing'}`;
 if (pkg) {
   const scripts = pkg.scripts || {};
-  if (scripts['repair:store-tag:v2.0.0'] !== 'node scripts/repair-store-v2-tag-to-head.mjs') failures.push('package.json missing repair:store-tag:v2.0.0 script');
+  if (scripts[expectedScript] !== 'node scripts/repair-store-v2-tag-to-head.mjs') failures.push(`package.json missing ${expectedScript} script`);
   if (scripts['verify:pass-248-msix-local-blocker-repair'] !== 'node scripts/verify-pass-248-msix-local-blocker-repair.mjs') failures.push('package.json missing PASS248 verifier script');
-  if (!String(scripts['verify:release-blockers'] || '').includes('verify:pass-248-msix-local-blocker-repair')) failures.push('verify:release-blockers must include PASS248 verifier');
+  if (!getReleaseBlockersContract(pkg).includes('verify:pass-248-msix-local-blocker-repair')) failures.push('verify:release-blockers must include PASS248 verifier');
 }
 
 const ps1 = read('packaging/windows/build-windows-msix.ps1');
@@ -44,9 +46,9 @@ for (const needle of [
   'C:\\dev\\browser\\app'
 ]) if (!ps1.includes(needle)) failures.push(`build-windows-msix.ps1 missing ${needle}`);
 
-mustInclude('scripts/verify-store-git-readiness.mjs', 'npm run repair:store-tag:v2.0.0');
+mustInclude('scripts/verify-store-git-readiness.mjs', 'repair:store-tag:${pkg.version}');
 mustInclude('scripts/verify-store-git-readiness.mjs', 'exists but points at');
-mustInclude('scripts/repair-store-v2-tag-to-head.mjs', "tagName = 'v2.0.0'");
+mustInclude('scripts/repair-store-v2-tag-to-head.mjs', 'const tagName = `v${pkg.version}`;');
 mustInclude('scripts/repair-store-v2-tag-to-head.mjs', "Working tree is not clean");
 mustInclude('scripts/repair-store-v2-tag-to-head.mjs', "tag', '-d', tagName");
 mustInclude('scripts/verify-pass-247-windows-store-msix-readiness.mjs', 'build-windows-msix.ps1 must start with param(');
@@ -77,4 +79,4 @@ if (failures.length) {
   for (const failure of failures) console.error(` - ${failure}`);
   process.exit(1);
 }
-console.log('[PASS248][OK] MSIX local blocker repair verified. PowerShell parse path, local v2.0.0 tag repair helper, and text-control-character sweep are clean.');
+console.log('[PASS248][OK] MSIX local blocker repair verified. PowerShell parse path, current-version store-tag repair helper, and text-control-character sweep are clean.');

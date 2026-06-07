@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function read(path) {
   return fs.readFileSync(path, 'utf8');
@@ -107,6 +108,6 @@ if (/scanAndRedact\(packet\.markdown\)/.test(store)) fail('main mission export m
 
 const pkg = JSON.parse(read('package.json'));
 if (pkg.scripts['verify:pass-91-evidence-export-redaction-handoff'] !== 'node scripts/verify-pass-91-evidence-export-redaction-handoff.mjs') fail('package.json missing PASS91 verifier script');
-if (!pkg.scripts['verify:release-blockers']?.includes('verify:pass-91-evidence-export-redaction-handoff')) fail('release blockers missing PASS91 verifier');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-91-evidence-export-redaction-handoff')) fail('release blockers missing PASS91 verifier');
 
 console.log('PASS91 evidence/export redaction handoff verification passed.');

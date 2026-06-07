@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS271",
+  "name": "Release Candidate Flagship Freeze Gate matrix",
+  "versionTarget": "2.0.14",
+  "requiredPriorPasses": [
+    "PASS267",
+    "PASS268",
+    "PASS269",
+    "PASS270"
+  ],
+  "sourceVerifierChain": [
+    "verify:pass-267-installed-mission-control-brutal-runtime-harness",
+    "verify:pass-268-webview-dom-ready-lifecycle-hardening",
+    "verify:pass-269-active-pane-routing-input-focus-regression-closeout",
+    "verify:pass-270-restored-maximized-small-window-visual-soak",
+    "verify:pass-271-release-candidate-flagship-freeze-gate"
+  ],
+  "manualRuntimeGates": [
+    "mission-control-loads-without-runtime-errors",
+    "mission-recipes-select-and-start",
+    "quad-tri-split-focus-layouts-preserve-visible-panes",
+    "webview-dom-ready-queue-has-no-early-command-error",
+    "active-pane-routing-targets-focused-pane",
+    "input-focus-recovers-from-overlays-and-webviews",
+    "restored-maximized-small-1080p-wide-visual-soak-passes",
+    "command-center-more-tools-mission-settings-kb-not-clipped",
+    "runbook-rail-evidence-pack-and-export-preview-pass",
+    "installed-windows-smoke-evidence-present",
+    "no-black-or-bottom-only-webview-panes",
+    "no-content-pane-sliver",
+    "no-orphaned-active-pane",
+    "known-issues-reviewed-no-flagship-release-blocker"
+  ],
+  "releaseTruth": {
+    "microsoftStoreSubmission": "not-submitted",
+    "microsoftStoreApproval": "not-approved",
+    "publicGaClaimAllowed": false,
+    "signedReleaseClaimAllowed": false,
+    "releaseCandidateFreezeAllowedWithEvidence": true,
+    "storeSubmissionAllowedByThisPass": false
+  },
+  "blockedClaims": [
+    "Microsoft Store approved",
+    "submitted to Microsoft Store",
+    "public GA",
+    "signed release",
+    "signed MSI",
+    "signed MSIX outside Store"
+  ]
+}

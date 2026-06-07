@@ -6,6 +6,7 @@ const root = process.cwd();
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const errors = [];
 const fail = (message) => errors.push(message);
+const normalizeManifestPath = (value) => String(value || '').replaceAll('\\', '/');
 
 const normalizeTarget = (value) => {
   const token = String(value || '').trim().toLowerCase();
@@ -63,6 +64,13 @@ if (manifest) {
       continue;
     }
     if (artifact.file !== expectedFile) fail(`Windows ${target} file must be canonical ${expectedFile}, found ${artifact.file}`);
+    const sourceArtifact = normalizeManifestPath(artifact.sourceArtifact);
+    if (target === 'nsis' && sourceArtifact !== `release/${expectedFile}`) {
+      fail(`Windows nsis sourceArtifact must be the top-level installer release/${expectedFile}, found ${artifact.sourceArtifact || 'missing'}`);
+    }
+    if (target === 'msi' && sourceArtifact !== `release/${expectedFile}`) {
+      fail(`Windows msi sourceArtifact must be the top-level installer release/${expectedFile}, found ${artifact.sourceArtifact || 'missing'}`);
+    }
     if (!/^[a-f0-9]{64}$/i.test(String(artifact.sha256 || ''))) fail(`Windows ${target} sha256 is invalid`);
     const artifactPath = path.join(handoffRoot, expectedFile);
     if (!fs.existsSync(artifactPath)) fail(`missing copied Windows ${target} handoff artifact: ${expectedFile}`);

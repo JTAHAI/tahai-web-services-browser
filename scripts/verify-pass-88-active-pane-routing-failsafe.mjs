@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -83,7 +84,7 @@ need(setActivePaneBlock[1].includes('pass88ScheduleActivePaneRoutingFailsafe'), 
 
 const requiredScript = String(pkg.scripts?.['verify:pass-88-active-pane-routing-failsafe'] || '');
 need(requiredScript.includes('verify-pass-88-active-pane-routing-failsafe.mjs'), 'package script missing PASS88 verifier');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-88-active-pane-routing-failsafe'), 'verify:release-blockers missing PASS88 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-88-active-pane-routing-failsafe'), 'verify:release-blockers missing PASS88 verifier');
 
 // PASS88 release-blocker hardening: source verifiers may be run after `npm ci`.
 // Check repository exclusion policy here; ZIP artifact exclusion is verified during packaging.

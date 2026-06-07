@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -58,7 +59,7 @@ const nonDropCount = (pass85NonDropList[1].match(/'[^']+'/g) || []).length;
 need(nonDropCount >= 16, `expected at least 16 non-drop surfaces, found ${nonDropCount}`);
 
 need(String(pkg.scripts?.['verify:pass-85-enterprise-contract-ledger'] || '').includes('verify-pass-85-enterprise-contract-ledger.mjs'), 'package script missing PASS85 verifier');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-85-enterprise-contract-ledger'), 'verify:release-blockers missing PASS85 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-85-enterprise-contract-ledger'), 'verify:release-blockers missing PASS85 verifier');
 
 // PASS88 release-blocker hardening: source verifiers may be run after `npm ci`.
 // Check repository exclusion policy here; ZIP artifact exclusion is verified during packaging.

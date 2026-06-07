@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
@@ -32,7 +33,7 @@ if (!failures.length) {
   const doc = read('docs/pass-166-runtime-css-state-alignment.md');
   const summary = read('PASS_166_RUNTIME_CSS_STATE_ALIGNMENT_SUMMARY.md');
   const pkg = JSON.parse(read('package.json'));
-  const releaseBlockers = pkg.scripts?.['verify:release-blockers'] || '';
+  const releaseBlockers = getReleaseBlockersContract(pkg);
 
   need(pkg.version === '1.8.30', 'PASS166 must not increment version without explicit approval');
   need(pkg.scripts?.['verify:pass-166-runtime-css-state-alignment'] === 'node scripts/verify-pass-166-runtime-css-state-alignment.mjs', 'package script missing PASS166 verifier');

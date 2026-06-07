@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const fail = (message) => {
@@ -22,7 +23,7 @@ const pkg = JSON.parse(read('package.json').replace(/^\uFEFF/, ''));
 if (pkg.scripts?.['verify:chromium-bookmarks'] !== 'node scripts/verify-chromium-bookmarks.mjs') {
   fail('package.json missing verify:chromium-bookmarks script');
 }
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:chromium-bookmarks')) {
+if (!getReleaseBlockersContract(pkg).includes('verify:chromium-bookmarks')) {
   fail('verify:release-blockers does not include verify:chromium-bookmarks');
 }
 

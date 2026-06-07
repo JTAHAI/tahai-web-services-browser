@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const repo = process.cwd();
 const failures = [];
@@ -64,7 +65,7 @@ const pkg = parseJson('package.json');
 if (pkg.scripts?.['verify:pass-232-webview-runtime-command-sweep-release-closeout'] !== 'node scripts/verify-pass-232-webview-runtime-command-sweep-release-closeout.mjs') {
   failures.push('package.json: verify:pass-232-webview-runtime-command-sweep-release-closeout script is missing or incorrect');
 }
-if (typeof pkg.scripts?.['verify:release-blockers'] !== 'string' || !pkg.scripts['verify:release-blockers'].includes('verify:pass-232-webview-runtime-command-sweep-release-closeout')) {
+if (typeof getReleaseBlockersContract(pkg) !== 'string' || !getReleaseBlockersContract(pkg).includes('verify:pass-232-webview-runtime-command-sweep-release-closeout')) {
   failures.push('package.json: verify:release-blockers must include PASS232 verifier');
 }
 

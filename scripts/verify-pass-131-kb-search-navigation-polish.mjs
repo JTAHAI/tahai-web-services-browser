@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const root = process.cwd();
 const failures = [];
 const rel = (p) => path.join(root, p);
@@ -98,7 +99,7 @@ if (!failures.length) {
   need(unlistedScreenshots.length === 0, `PASS135 permits only allowlisted KB screenshots; unlisted files found: ${unlistedScreenshots.join(', ')}`);
 
   need(pkg.scripts?.['verify:pass-131-kb-search-navigation-polish'] === 'node scripts/verify-pass-131-kb-search-navigation-polish.mjs', 'missing package script for PASS131');
-  need(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-131-kb-search-navigation-polish'), 'release blockers missing PASS131');
+  need(getReleaseBlockersContract(pkg).includes('verify:pass-131-kb-search-navigation-polish'), 'release blockers missing PASS131');
 }
 
 if (failures.length) {

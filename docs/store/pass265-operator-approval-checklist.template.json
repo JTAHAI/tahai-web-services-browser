@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS265",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 0,
+  "checklistName": "PASS265 Operator Approval Checklist",
+  "status": "TEMPLATE_PENDING_OPERATOR_REVIEW",
+  "sections": [
+    {
+      "section": "Evidence gates",
+      "required": true,
+      "items": [
+        {
+          "label": "npm run gate:pass-260-installed-recipe-quad-store-smoke",
+          "result": "PENDING",
+          "evidencePath": "release-candidate/store-submission/pass260-installed-recipe-quad-smoke-evidence.json"
+        },
+        {
+          "label": "npm run gate:pass-261-store-submission-packet",
+          "result": "PENDING",
+          "evidencePath": "release-candidate/store-submission/pass261-store-submission-packet.json"
+        },
+        {
+          "label": "npm run gate:pass-262-store-asset-evidence-pack",
+          "result": "PENDING",
+          "evidencePath": "release-candidate/store-submission/pass262-store-asset-evidence-pack.json"
+        },
+        {
+          "label": "npm run gate:pass-263-store-listing-copy-truth-pack",
+          "result": "PENDING",
+          "evidencePath": "release-candidate/store-submission/pass263-store-listing-copy-truth-pack.json"
+        },
+        {
+          "label": "npm run gate:pass-264-store-submission-dry-run-evidence",
+          "result": "PENDING",
+          "evidencePath": "release-candidate/store-submission/pass264-store-submission-dry-run-evidence.json"
+        }
+      ]
+    },
+    {
+      "section": "Truth posture",
+      "required": true,
+      "items": [
+        {
+          "label": "Microsoft Store not submitted",
+          "result": "PENDING"
+        },
+        {
+          "label": "Microsoft Store not approved",
+          "result": "PENDING"
+        },
+        {
+          "label": "No public GA claim",
+          "result": "PENDING"
+        },
+        {
+          "label": "No signed MSI/EXE claim unless separately evidenced",
+          "result": "PENDING"
+        },
+        {
+          "label": "No IT Docs backend/PSA connector claim",
+          "result": "PENDING"
+        },
+        {
+          "label": "No direct PSA API/secret storage claim",
+          "result": "PENDING"
+        }
+      ]
+    },
+    {
+      "section": "Operator decision",
+      "required": true,
+      "items": [
+        {
+          "label": "Known issues reviewed",
+          "result": "PENDING"
+        },
+        {
+          "label": "Public URLs reviewed",
+          "result": "PENDING"
+        },
+        {
+          "label": "Screenshots reviewed",
+          "result": "PENDING"
+        },
+        {
+          "label": "Package hashes reviewed",
+          "result": "PENDING"
+        },
+        {
+          "label": "Privacy/support/security URLs reviewed",
+          "result": "PENDING"
+        },
+        {
+          "label": "Partner Center manual submission decision recorded",
+          "result": "PENDING"
+        }
+      ]
+    }
+  ]
+}

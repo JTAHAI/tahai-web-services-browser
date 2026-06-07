@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -18,7 +19,7 @@ function versionAtLeast(actual, floor) {
 const required = [
   ['package version >= 1.8.8', versionAtLeast(pkg.version, '1.8.8')],
   ['pass32 release blocker script', typeof pkg.scripts?.['verify:pass-32-mission-readability'] === 'string'],
-  ['pass32 wired into release blockers', String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-32-mission-readability')],
+  ['pass32 wired into release blockers', getReleaseBlockersContract(pkg).includes('verify:pass-32-mission-readability')],
   ['mission readability marker', browserCss.includes('PASS 32: Mission Control readability repair')],
   ['mission grid areas', browserCss.includes('grid-template-areas') && browserCss.includes('"tabs runbook export"')],
   ['mission section area mapping', browserCss.includes('.mission-grid > .mission-section:nth-of-type(7) { grid-area: export; }')],

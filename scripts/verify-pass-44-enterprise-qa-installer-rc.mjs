@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const fail = (message) => {
@@ -64,7 +65,7 @@ const requiredScripts = [
   'release:friend:zip'
 ];
 for (const scriptName of requiredScripts) if (!pkg.scripts?.[scriptName]) fail(`missing-package-script:${scriptName}`);
-if (!pkg.scripts['verify:release-blockers'].includes('verify:pass-44-enterprise-qa-installer-rc')) fail('release-blockers-not-wired-to-pass44');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-44-enterprise-qa-installer-rc')) fail('release-blockers-not-wired-to-pass44');
 if (!pkg.scripts['release:rc:verify'].includes('verify:release-blockers')) fail('release-rc-verify-must-run-release-blockers');
 if (!pkg.scripts['release:rc:verify'].includes('audit:runtime')) fail('release-rc-verify-must-run-runtime-audit');
 if (!pkg.scripts['release:rc:verify'].includes('audit:buildchain')) fail('release-rc-verify-must-run-buildchain-audit');

@@ -1,6 +1,6 @@
 # PASS162 — Enterprise GA Decision Gate
 
-PASS162 closes the PASS153–PASS162 enterprise lane with a source-controlled decision gate instead of a false release claim.
+PASS162 closes the current enterprise lane with a source-controlled decision gate instead of a false release claim.
 
 ## Decision
 
@@ -64,8 +64,8 @@ npm run verify:release-blockers
 
 ## Acceptance
 
-- PASS162 runs after PASS161 and before the final build in `verify:release-blockers`.
-- All PASS150–PASS162 source gates remain wired.
+- PASS162 runs after PASS159 and before the final build in `verify:release-blockers`.
+- Current source gates remain wired: PASS159, PASS247-PASS250, PASS337-PASS341, and `test:runtime-e2e`.
 - The decision gate is explicit that enterprise GA is blocked until external package/install/manual evidence exists.
 - No generated release artifacts, SBOMs, provenance JSON, support bundles, installers, runtime profiles, or local evidence data are committed.
 - No IT Docs backend code, PSA connector code, direct PSA API calls, secrets, or provider credentials are added.

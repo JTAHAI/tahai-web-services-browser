@@ -1,4 +1,4 @@
-# Microsoft Store listing packet — TAHAI Web Services Browser 2.0.0
+# Microsoft Store listing packet — TAHAI Web Services Browser 2.0.14
 
 Submission status: **blocked** until installed smoke, Partner Center identity, package evidence, and live privacy/support links are verified.
 

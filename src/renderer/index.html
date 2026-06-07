@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: file:; frame-src https: file:; connect-src 'self'; base-uri 'self'; form-action 'self';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:; frame-src https: file:; connect-src 'self'; base-uri 'self'; form-action 'self';" />
   <title>TAHAI Web Services Browser</title>
   <link rel="stylesheet" href="./styles/browser.css" />
   <link rel="stylesheet" href="./styles/site-view-mission-rail.css" />
@@ -200,10 +200,10 @@
         <button type="button" data-mission-layout="focus" class="home-button secondary" title="Focus the active Mission Control pane" aria-label="Focus the active Mission Control pane">Focus</button>
         <button type="button" data-pass133-recover-view="true" class="home-button secondary mission-view-recover" title="Recover Mission View layout, clear stale pane move overlays, and repaint pane bounds" aria-label="Recover Mission Control view layout">Recover View</button>
         <span class="mission-pane-actions" aria-label="Send active tab to pane">
-          <button type="button" data-send-active-pane="pane-1" class="home-button secondary">Active &rarr; Pane 1</button>
-          <button type="button" data-send-active-pane="pane-2" class="home-button secondary">Pane 2</button>
-          <button type="button" data-send-active-pane="pane-3" class="home-button secondary">Pane 3</button>
-          <button type="button" data-send-active-pane="pane-4" class="home-button secondary">Pane 4</button>
+          <button type="button" data-send-active-pane="pane-1" class="home-button secondary" aria-label="Send the active browser tab to Mission Pane 1">Active &rarr; Pane 1</button>
+          <button type="button" data-send-active-pane="pane-2" class="home-button secondary" aria-label="Send the active browser tab to Mission Pane 2">Pane 2</button>
+          <button type="button" data-send-active-pane="pane-3" class="home-button secondary" aria-label="Send the active browser tab to Mission Pane 3">Pane 3</button>
+          <button type="button" data-send-active-pane="pane-4" class="home-button secondary" aria-label="Send the active browser tab to Mission Pane 4">Pane 4</button>
         </span>
       </section>
       <div class="mission-grid mission-workbench">
@@ -328,11 +328,13 @@
         <label class="check"><input id="setting-referrer" type="checkbox" /> Reduce cross-site referrers</label>
         <label class="check"><input id="setting-clear-on-exit" type="checkbox" /> Clear profile data on exit</label>
         <label class="check"><input id="setting-downloads" type="checkbox" /> Ask where to save each download</label>
+        <label class="check"><input id="setting-popups-as-tabs" type="checkbox" /> Open popups as new TAHAI tabs</label>
         <label class="check"><input id="setting-statusbar" type="checkbox" /> Show status bar</label>
       </section>
       <section class="settings-safety-copy" data-pass189-settings-public-copy="true" aria-label="Settings safety notes">
         <p class="settings-note">Settings are stored in your local app profile. Reset restores <strong>https://tahaiportal.com</strong> as the default home page.</p>
         <p class="settings-note permission-boundary-note" data-pass95-permission-boundary="true">Permission prompts remain locked down: camera, microphone, clipboard-read, geolocation, and notifications are denied unless the site is HTTPS or localhost and the matching setting is enabled.</p>
+        <p class="settings-note popup-boundary-note" data-pass271-r6-popup-as-tabs="true">Popup windows are handled by the main process and, when enabled, open as sanitized TAHAI tabs instead of unmanaged external popup windows. Unsafe popup URLs remain blocked.</p>
         <p class="settings-note download-boundary-note" data-pass96-download-boundary="true" data-pass97-local-path-boundary="true">Download status uses sanitized file names only. The browser does not expose local file paths to web pages, and executable or installer downloads are flagged before opening or sharing. Mission, profile, and evidence saves show safe labels instead of local paths.</p>
         <p class="settings-note drop-boundary-note" data-pass99-drop-boundary="true">Mission drag-and-drop accepts only internal TAHAI mission payloads. External files, URLs, HTML, and text drops are blocked before they reach Mission controls.</p>
         <p class="settings-note" data-pass100-active-capture-boundary="true">Active-page capture is redacted, URL-normalized, size-capped, and source-sanitized before preview, pinning, copy, save, or diagnostics use.</p>
@@ -681,4 +683,3 @@
   <script src="./responsive-toolbar.js"></script>
 </body>
 </html>
-

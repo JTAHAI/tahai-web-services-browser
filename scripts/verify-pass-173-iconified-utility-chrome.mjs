@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
@@ -29,7 +30,7 @@ if (!failures.length) {
   const doc = read('docs/pass-173-iconified-utility-chrome.md');
   const summary = read('PASS_173_ICONIFIED_UTILITY_CHROME_SUMMARY.md');
   const pkg = JSON.parse(read('package.json'));
-  const releaseBlockers = pkg.scripts?.['verify:release-blockers'] || '';
+  const releaseBlockers = getReleaseBlockersContract(pkg);
 
   need(pkg.version === '1.8.30', 'PASS173 must not increment version without explicit approval.');
   need(pkg.scripts?.['verify:pass-173-iconified-utility-chrome'] === 'node scripts/verify-pass-173-iconified-utility-chrome.mjs', 'package.json must expose PASS173 verifier.');

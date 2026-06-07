@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS264",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 1,
+  "requiredPriorGates": [
+    {
+      "pass": "PASS260",
+      "name": "Installed Recipe + Quad Store Smoke Evidence Gate",
+      "command": "npm run gate:pass-260-installed-recipe-quad-store-smoke",
+      "evidencePath": "release-candidate/store-submission/pass260-installed-recipe-quad-smoke-evidence.json",
+      "required": true
+    },
+    {
+      "pass": "PASS261",
+      "name": "Store Submission Packet Finalizer",
+      "command": "npm run gate:pass-261-store-submission-packet",
+      "evidencePath": "release-candidate/store-submission/pass261-store-submission-packet.json",
+      "required": true
+    },
+    {
+      "pass": "PASS262",
+      "name": "Store Asset Evidence Pack",
+      "command": "npm run gate:pass-262-store-asset-evidence-pack",
+      "evidencePath": "release-candidate/store-submission/pass262-store-asset-evidence-pack.json",
+      "required": true
+    },
+    {
+      "pass": "PASS263",
+      "name": "Store Listing Copy Truth Pack",
+      "command": "npm run gate:pass-263-store-listing-copy-truth-pack",
+      "evidencePath": "release-candidate/store-submission/pass263-store-listing-copy-truth-pack.json",
+      "required": true
+    }
+  ],
+  "requiredDryRunBooleans": [
+    "pass260InstalledSmokeGatePassed",
+    "pass261PacketGatePassed",
+    "pass262AssetEvidenceGatePassed",
+    "pass263ListingCopyGatePassed",
+    "packageIdentityReviewed",
+    "publicUrlsReviewed",
+    "screenshotAssetsReviewed",
+    "hashesAndProvenanceReviewed",
+    "knownIssuesReviewed",
+    "noSecretReviewPassed",
+    "noFalseStoreClaimReviewPassed",
+    "dryRunCompletedWithoutSubmission",
+    "operatorReviewedDryRunReport"
+  ],
+  "requiredCrossChecks": [
+    "pass260Pass261Pass262Pass263AllPassed",
+    "packageVersionMatchesEvidence",
+    "sourceCommitMatchesEvidence",
+    "packageHashMatchesEvidence",
+    "publicUrlsAreHttpsAndLive",
+    "knownIssuesTruthMatchesListing",
+    "screenshotSlotCountMatchesAssets",
+    "noSecretsFoundInEvidence",
+    "noFalseClaimsFoundInEvidence"
+  ],
+  "prohibitedClaims": [
+    "submitted to microsoft store",
+    "microsoft store approved",
+    "store approved",
+    "store certified",
+    "available in the microsoft store",
+    "signed msi",
+    "signed exe",
+    "public ga",
+    "general availability",
+    "direct psa api",
+    "psa connector included",
+    "stores psa tokens",
+    "stores provider secrets"
+  ],
+  "finalGateCandidatePath": "release-candidate/store-submission/pass264-store-submission-dry-run-evidence.json",
+  "nextPass": "PASS265 — Store Handoff Freeze + Operator Approval Packet"
+}

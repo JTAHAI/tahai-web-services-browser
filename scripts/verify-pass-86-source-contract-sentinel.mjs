@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -67,7 +68,7 @@ need(priorMountCount >= 5, `expected at least 5 prior mount flags, found ${prior
 
 const requiredScript = String(pkg.scripts?.['verify:pass-86-source-contract-sentinel'] || '');
 need(requiredScript.includes('verify-pass-86-source-contract-sentinel.mjs'), 'package script missing PASS86 verifier');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-86-source-contract-sentinel'), 'verify:release-blockers missing PASS86 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-86-source-contract-sentinel'), 'verify:release-blockers missing PASS86 verifier');
 
 // PASS88 release-blocker hardening: source verifiers may be run after `npm ci`.
 // Check repository exclusion policy here; ZIP artifact exclusion is verified during packaging.

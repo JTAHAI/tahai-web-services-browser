@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const app = fs.readFileSync('src/renderer/app.ts', 'utf8');
 const css = fs.readFileSync('src/renderer/styles/responsive-toolbar.css', 'utf8');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -11,5 +12,5 @@ if (!app.includes('document.body.dataset.commandToolbar')) fail('missing-command
 if (!css.includes('overflow-y: hidden !important')) fail('missing-vertical-scrollbar-ban');
 if (!css.includes('.tool-menu-back')) fail('missing-main-toolbar-button-style');
 if (!css.includes('scrollbar-width: none')) fail('missing-hidden-native-scrollbar-style');
-if (!pkg.scripts['verify:release-blockers'].includes('verify:pass-14-command-toolbar')) fail('release-blockers-missing-pass14');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-14-command-toolbar')) fail('release-blockers-missing-pass14');
 console.log('Pass 14 command toolbar verifier OK');

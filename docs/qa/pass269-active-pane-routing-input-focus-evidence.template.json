@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS269",
+  "title": "Active Pane Routing + Input/Focus Regression Closeout Evidence",
+  "versionTarget": "2.0.14",
+  "storeSubmission": "not-submitted",
+  "storeApproval": "not-approved",
+  "releaseClaim": "blocked-until-real-installed-evidence",
+  "evidenceStatus": "template-not-real-evidence",
+  "operatorApproval": false,
+  "installedPackage": {
+    "packageType": "msi-or-msix-installed-locally",
+    "version": "",
+    "sha256": "",
+    "sourceCommit": "",
+    "machine": "",
+    "windowsBuild": "",
+    "evidenceCapturedAt": ""
+  },
+  "routingMatrix": [
+    {
+      "surface": "normal-tab",
+      "inputs": [
+        "address-bar",
+        "toolbar-back",
+        "toolbar-forward",
+        "toolbar-reload",
+        "mouse-back",
+        "mouse-forward",
+        "alt-left",
+        "alt-right",
+        "ctrl-k-open-url"
+      ],
+      "result": "pending-real-evidence"
+    },
+    {
+      "surface": "split-active-pane",
+      "inputs": [
+        "address-bar",
+        "toolbar-back",
+        "toolbar-forward",
+        "toolbar-reload",
+        "mouse-back",
+        "mouse-forward",
+        "alt-left",
+        "alt-right",
+        "ctrl-k-open-url"
+      ],
+      "result": "pending-real-evidence"
+    },
+    {
+      "surface": "tri-active-pane",
+      "inputs": [
+        "address-bar",
+        "toolbar-back",
+        "toolbar-forward",
+        "toolbar-reload",
+        "mouse-back",
+        "mouse-forward",
+        "alt-left",
+        "alt-right",
+        "ctrl-k-open-url"
+      ],
+      "result": "pending-real-evidence"
+    },
+    {
+      "surface": "quad-active-pane",
+      "inputs": [
+        "address-bar",
+        "toolbar-back",
+        "toolbar-forward",
+        "toolbar-reload",
+        "mouse-back",
+        "mouse-forward",
+        "alt-left",
+        "alt-right",
+        "ctrl-k-open-url"
+      ],
+      "result": "pending-real-evidence"
+    },
+    {
+      "surface": "focus-pane",
+      "inputs": [
+        "enter-focus",
+        "restore-focus",
+        "address-bar",
+        "toolbar-back",
+        "toolbar-forward",
+        "reload"
+      ],
+      "result": "pending-real-evidence"
+    }
+  ],
+  "requiredAssertions": {
+    "exactlyOneRoutingTargetPerInput": false,
+    "noHiddenActivePane": false,
+    "noOrphanRoutingTarget": false,
+    "safeNoopWhenCannotNavigate": false,
+    "focusReturnsAfterOverlayClose": false,
+    "focusPaneRestoresPriorLayout": false,
+    "recipeStartDoesNotReplaceWrongPane": false,
+    "ctrlKDisplaysTargetScope": false,
+    "noUnhandledRendererErrors": false,
+    "noWebViewDomReadyMethodError": false,
+    "screenshotsAttached": false
+  },
+  "screenshots": [],
+  "knownIssuesTruth": "pending",
+  "operatorNotes": "Fill with real installed-app evidence before running the gate."
+}

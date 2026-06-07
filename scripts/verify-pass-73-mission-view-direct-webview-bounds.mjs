@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const app = fs.readFileSync('src/renderer/app.ts', 'utf8');
 const css = fs.readFileSync('src/renderer/styles/browser.css', 'utf8');
@@ -26,7 +27,7 @@ const requiredCssTokens = [
   'opacity: 1 !important',
   'cursor: grab !important'
 ];
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 const pass73Token = 'npm run verify:pass-73-mission-view-direct-webview-bounds';
 const finalBuildToken = 'npm run build';
 const missing = [];

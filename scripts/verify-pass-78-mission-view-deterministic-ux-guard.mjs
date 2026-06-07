@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const read = (path) => fs.readFileSync(path, 'utf8');
 const app = read('src/renderer/app.ts');
 const css = read('src/renderer/styles/browser.css');
 const pkg = JSON.parse(read('package.json'));
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 const errors = [];
 const need = (condition, message) => { if (!condition) errors.push(message); };
 need(pkg.scripts?.['verify:pass-78-mission-view-deterministic-ux-guard'] === 'node scripts/verify-pass-78-mission-view-deterministic-ux-guard.mjs', 'package-script-missing');

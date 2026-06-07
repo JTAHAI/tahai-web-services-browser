@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
 const errors = [];
@@ -9,7 +10,7 @@ const app = read('src/renderer/app.ts');
 const rail = read('src/renderer/site-view-mission-rail.ts');
 const summary = read('PASS_106_SITE_VIEW_TRIVIEW_BINDING_SUMMARY.md');
 const pkg = JSON.parse(read('package.json'));
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 
 need(pkg.scripts?.['verify:pass-106-site-view-triview-binding'] === 'node scripts/verify-pass-106-site-view-triview-binding.mjs', 'package-script-missing');
 need(releaseBlockers.includes('verify:pass-106-site-view-triview-binding'), 'release-blockers-not-wired');

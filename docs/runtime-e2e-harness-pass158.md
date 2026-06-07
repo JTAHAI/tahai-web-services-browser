@@ -6,7 +6,7 @@ PASS158 adds a source-tracked Electron runtime E2E harness for TAHAI Web Service
 
 Runtime regressions have repeatedly surfaced in browser chrome, Mission Control, tri-view/quad entry, active-pane routing, titlebar drag, Guide/KB access, popup behavior, and evidence export. PASS158 creates one bounded harness that can be run locally on a desktop session to exercise those surfaces after `npm run build`.
 
-The harness covers launch, tabs, panes, titlebar drag, popups, KB/Guide/More Tools, Mission Control, active-pane routing, and evidence export.
+The harness covers launch, tabs, panes, titlebar drag, popups, KB/Guide/More Tools, Mission Control, active-pane routing, and evidence export. The launch-shell scenario also proves the active guest viewport and guest document bottom fill the webview stage, preventing the portal footer/bottom line from floating above the view pane bottom.
 
 ## What PASS158 adds
 

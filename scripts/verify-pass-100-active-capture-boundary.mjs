@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS100 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -63,5 +64,5 @@ includes('PASS_100_ACTIVE_CAPTURE_BOUNDARY_SUMMARY.md',[
 ]);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-100-active-capture-boundary']==='node scripts/verify-pass-100-active-capture-boundary.mjs','package.json missing PASS100 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-100-active-capture-boundary'),'release blockers missing PASS100 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-100-active-capture-boundary'),'release blockers missing PASS100 verifier');
 console.log('PASS100 active capture boundary verification passed.');

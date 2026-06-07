@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS263",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 2,
+  "requiredCopyFields": [
+    "appName",
+    "shortDescription",
+    "longDescription",
+    "featureBullets",
+    "whatsNew",
+    "supportContact",
+    "privacyPolicyUrl",
+    "supportUrl",
+    "securityPolicyUrl",
+    "sourceRepoUrl",
+    "knownIssuesUrl",
+    "copyrightTrademarkNotice",
+    "storeReviewerNotes"
+  ],
+  "prohibitedClaims": [
+    "microsoft store approved",
+    "store approved",
+    "store certified",
+    "submitted to microsoft store",
+    "available in the microsoft store",
+    "signed msi",
+    "signed exe",
+    "public ga",
+    "general availability",
+    "direct psa integration",
+    "direct psa api",
+    "psa connector included",
+    "stores psa tokens",
+    "stores provider secrets",
+    "credential vault",
+    "automatic ticket writeback"
+  ],
+  "requiredTruthStatements": [
+    "Microsoft Store submission remains not-submitted until operator approval and Partner Center upload are complete.",
+    "Microsoft Store approval remains not-approved until Microsoft approves the package.",
+    "Direct MSI/EXE distribution remains unsigned-preview unless separate trusted signing evidence exists.",
+    "IT Docs and PSA references are browser-side contracts only in this repo.",
+    "The browser does not store PSA/API/provider secrets in mission files."
+  ],
+  "requiredPublicUrls": [
+    "browserLandingUrl",
+    "privacyPolicyUrl",
+    "supportUrl",
+    "securityPolicyUrl",
+    "sourceRepoUrl",
+    "knownIssuesUrl"
+  ],
+  "requiredReviewBooleans": [
+    "noFalseStoreSubmissionClaim",
+    "noFalseStoreApprovalClaim",
+    "noFalseSigningClaim",
+    "noPublicGaClaimWithoutGate",
+    "noDirectPsaOrSecretStorageClaim",
+    "noCustomerDataOrSecrets",
+    "screenshotsAndCopyConsistent",
+    "knownIssuesTruthMatchesDocs",
+    "operatorApprovedForPartnerCenterPaste"
+  ]
+}

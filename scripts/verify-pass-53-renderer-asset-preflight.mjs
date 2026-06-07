@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -56,7 +57,7 @@ function versionAtLeast(actual, minimum) {
 }
 if (!versionAtLeast(pkg.version, '1.8.27')) fail(`package version expected at least 1.8.27, found ${pkg.version}`);
 if (pkg.scripts?.['verify:pass-53-renderer-asset-preflight'] !== 'node scripts/verify-pass-53-renderer-asset-preflight.mjs') fail('package verifier script missing');
-if (!pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-53-renderer-asset-preflight')) fail('release blockers must include pass 53 verifier');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-53-renderer-asset-preflight')) fail('release blockers must include pass 53 verifier');
 
 console.log('PASS53_RENDERER_ASSET_PREFLIGHT_OK=1');
 process.exit(0);

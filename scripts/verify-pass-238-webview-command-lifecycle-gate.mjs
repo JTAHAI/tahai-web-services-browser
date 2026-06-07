@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const appPath = path.join(root, 'src', 'renderer', 'app.ts');
@@ -51,7 +52,7 @@ for (const pattern of forbiddenDirectPatterns) mustNotInclude(app, pattern, `dir
 if (pkg.scripts?.['verify:pass-238-webview-command-lifecycle-gate'] !== 'node scripts/verify-pass-238-webview-command-lifecycle-gate.mjs') {
   fail('package-script', 'package.json is missing verify:pass-238-webview-command-lifecycle-gate');
 }
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-238-webview-command-lifecycle-gate')) {
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-238-webview-command-lifecycle-gate')) {
   fail('release-blocker-wire', 'verify:release-blockers does not include PASS238 verifier');
 }
 

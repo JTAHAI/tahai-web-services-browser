@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS101 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -56,5 +57,5 @@ includes('PASS_101_SETTINGS_PERSISTENCE_BOUNDARY_SUMMARY.md',[
 ]);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-101-settings-persistence-boundary']==='node scripts/verify-pass-101-settings-persistence-boundary.mjs','package.json missing PASS101 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-101-settings-persistence-boundary'),'release blockers missing PASS101 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-101-settings-persistence-boundary'),'release blockers missing PASS101 verifier');
 console.log('PASS101 settings persistence boundary verification passed.');

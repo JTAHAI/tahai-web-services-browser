@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const fail = (message) => {
@@ -79,7 +80,7 @@ const requiredScripts = [
 for (const script of requiredScripts) {
   if (!pkg.scripts?.[script]) fail(`missing_npm_script:${script}`);
 }
-if (!pkg.scripts['verify:release-blockers'].includes('verify:pass-144-public-repo-supply-chain')) {
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-144-public-repo-supply-chain')) {
   fail('release_blockers_missing_pass144');
 }
 

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const fail = (m) => { console.error(`PASS40_OPSTOOLS_PACK1_FAIL=${m}`); process.exit(1); };
 const ops = fs.readFileSync('src/shared/ops-tools.ts','utf8');
 const doc = fs.readFileSync('docs/opstools-pack-1.md','utf8');
@@ -6,5 +7,5 @@ const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
 for (const s of ['json-format','yaml-clean','jwt-inspect','cidr-summary','curl-builder','runOpsTool','Do not include bearer tokens']) if (!ops.includes(s)) fail(`missing-${s}`);
 for (const s of ['JSON formatter','YAML cleaner','JWT inspector','IPv4 CIDR summary','curl builder','local Markdown']) if (!doc.includes(s)) fail(`doc-missing-${s}`);
 if (!pkg.scripts?.['verify:pass-40-opstools-pack-1']) fail('package-script-missing');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-40-opstools-pack-1')) fail('release-blockers-not-wired');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-40-opstools-pack-1')) fail('release-blockers-not-wired');
 console.log('PASS40_OPSTOOLS_PACK1_OK=1');

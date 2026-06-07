@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const root = process.cwd();
 const fail = (message) => { console.error(`PASS45_PUBLIC_RELEASE_CANDIDATE_FAIL=${message}`); process.exit(1); };
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -32,7 +33,7 @@ if (pkg.build?.removePackageScripts !== true) fail('removePackageScripts-must-re
 if (pkg.build?.nodeGypRebuild !== false) fail('nodeGypRebuild-must-remain-false');
 if (pkg.build?.compression !== 'maximum') fail('compression-must-remain-maximum');
 for (const scriptName of ['verify:public-repo','verify:release-blockers','verify:mission-tabs-security','verify:pass-45-public-release-candidate','release:public:verify','release:public:win','release:public:manifest','release:rc:win','package:win:release','release:friend:zip']) if (!pkg.scripts?.[scriptName]) fail(`missing-package-script:${scriptName}`);
-if (!pkg.scripts['verify:release-blockers'].includes('verify:pass-45-public-release-candidate')) fail('release-blockers-not-wired-to-pass45');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-45-public-release-candidate')) fail('release-blockers-not-wired-to-pass45');
 if (!pkg.scripts['release:public:verify'].includes('verify:release-blockers')) fail('release-public-verify-must-run-release-blockers');
 if (!pkg.scripts['release:public:verify'].includes('audit:runtime')) fail('release-public-verify-must-run-runtime-audit');
 if (!pkg.scripts['release:public:verify'].includes('audit:buildchain')) fail('release-public-verify-must-run-buildchain-audit');

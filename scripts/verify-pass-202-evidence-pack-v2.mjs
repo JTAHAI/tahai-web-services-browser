@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), 'utf8').replace(/^\uFEFF/, '');
@@ -21,8 +22,8 @@ const ok = (condition, message) => checks.push({ ok: Boolean(condition), message
 
 ok(pkg.version === '1.8.30', 'PASS202 must not increment version without explicit approval.');
 ok(pkg.scripts?.['verify:pass-202-evidence-pack-v2'] === 'node scripts/verify-pass-202-evidence-pack-v2.mjs', 'package.json exposes PASS202 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-202-evidence-pack-v2'), 'release-blockers chain includes PASS202 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-202-evidence-pack-v2') > pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-201-mission-timeline-v2'), 'PASS202 must run after PASS201.');
+ok(getReleaseBlockersContract(pkg).includes('verify:pass-202-evidence-pack-v2'), 'release-blockers chain includes PASS202 verifier.');
+ok(getReleaseBlockersContract(pkg).indexOf('verify:pass-202-evidence-pack-v2') > getReleaseBlockersContract(pkg).indexOf('verify:pass-201-mission-timeline-v2'), 'PASS202 must run after PASS201.');
 
 for (const file of [
   'src/shared/mission-evidence-pack-v2-contract.ts',

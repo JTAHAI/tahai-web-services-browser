@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
 const exists = (rel) => fs.existsSync(path.join(root, rel));
@@ -29,7 +30,7 @@ if (!failures.length) {
   const doc = read('docs/pass-164-mission-control-open-race.md');
   const summary = read('PASS_164_MISSION_CONTROL_OPEN_RACE_SUMMARY.md');
   const pkg = JSON.parse(read('package.json'));
-  const releaseBlockers = pkg.scripts?.['verify:release-blockers'] || '';
+  const releaseBlockers = getReleaseBlockersContract(pkg);
 
   need(pkg.version === '1.8.30', 'PASS164 must not increment version without explicit approval');
   need(pkg.scripts?.['verify:pass-164-mission-control-open-race'] === 'node scripts/verify-pass-164-mission-control-open-race.mjs', 'package script missing PASS164 verifier');

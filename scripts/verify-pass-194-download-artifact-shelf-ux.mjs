@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function read(path) { return fs.readFileSync(path, 'utf8'); }
 function fail(message) { console.error(`[PASS194][FAIL] ${message}`); process.exit(1); }
@@ -116,7 +117,7 @@ includesAll('PASS_194_DOWNLOAD_ARTIFACT_SHELF_UX_SUMMARY.md', [
 
 need(pkg.version === '1.8.30', 'version-must-not-change-without-explicit-approval');
 need(pkg.scripts?.['verify:pass-194-download-artifact-shelf-ux'] === 'node scripts/verify-pass-194-download-artifact-shelf-ux.mjs', 'package-script-missing');
-need(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-194-download-artifact-shelf-ux'), 'release-blockers-missing-pass194');
-need(pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-194-download-artifact-shelf-ux') > pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-193-bookmarks-admin-launch-reliability'), 'pass194-must-run-after-pass193');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-194-download-artifact-shelf-ux'), 'release-blockers-missing-pass194');
+need(getReleaseBlockersContract(pkg).indexOf('verify:pass-194-download-artifact-shelf-ux') > getReleaseBlockersContract(pkg).indexOf('verify:pass-193-bookmarks-admin-launch-reliability'), 'pass194-must-run-after-pass193');
 
 console.log('[PASS194][OK] Download and Artifact Shelf UX verified.');

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -13,7 +14,7 @@ const responsiveTs = read('src/renderer/responsive-toolbar.ts');
 const responsiveCss = read('src/renderer/styles/responsive-toolbar.css');
 const doc = read('docs/pass-180-primary-chrome-compact-recovery.md');
 const summary = read('PASS_180_PRIMARY_CHROME_COMPACT_RECOVERY_SUMMARY.md');
-const releaseBlockers = pkg.scripts?.['verify:release-blockers'] || '';
+const releaseBlockers = getReleaseBlockersContract(pkg);
 
 need(pkg.version === '1.8.30', 'PASS180 must not increment version without explicit approval.');
 need(pkg.scripts?.['verify:pass-180-primary-chrome-compact-recovery'] === 'node scripts/verify-pass-180-primary-chrome-compact-recovery.mjs', 'package.json must expose PASS180 verifier.');

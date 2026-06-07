@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS98 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -47,5 +48,5 @@ includes('PASS_98_SHELL_ORIGIN_BOUNDARY_SUMMARY.md',[
 ]);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-98-shell-origin-boundary']==='node scripts/verify-pass-98-shell-origin-boundary.mjs','package.json missing PASS98 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-98-shell-origin-boundary'),'release blockers missing PASS98 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-98-shell-origin-boundary'),'release blockers missing PASS98 verifier');
 console.log('PASS98 shell origin boundary verification passed.');

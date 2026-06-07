@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
@@ -30,7 +31,7 @@ if (!failures.length) {
   const doc = read('docs/pass-174-iconified-utility-chrome-hardening.md');
   const summary = read('PASS_174_ICONIFIED_UTILITY_CHROME_HARDENING_SUMMARY.md');
   const pkg = JSON.parse(read('package.json'));
-  const releaseBlockers = pkg.scripts?.['verify:release-blockers'] || '';
+  const releaseBlockers = getReleaseBlockersContract(pkg);
 
   need(pkg.version === '1.8.30', 'PASS174 must not increment version without explicit approval.');
   need(pkg.scripts?.['verify:pass-174-iconified-utility-chrome-hardening'] === 'node scripts/verify-pass-174-iconified-utility-chrome-hardening.mjs', 'package.json must expose PASS174 verifier.');

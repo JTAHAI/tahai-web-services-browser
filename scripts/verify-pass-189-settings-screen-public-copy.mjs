@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function read(path) { return fs.readFileSync(path, 'utf8'); }
 function fail(message) { console.error(`[PASS189][FAIL] ${message}`); process.exit(1); }
@@ -64,7 +65,7 @@ need(settingsCssArea, 'settings-css-area-not-found');
 need(!bannedCssVisibleContent.test(settingsCssArea), 'dev-language-in-settings-visible-css-content');
 
 need(pkg.scripts['verify:pass-189-settings-screen-public-copy'] === 'node scripts/verify-pass-189-settings-screen-public-copy.mjs', 'package-script-missing');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-189-settings-screen-public-copy'), 'release-blockers-missing-pass189');
-need(pkg.scripts['verify:release-blockers']?.indexOf('verify:pass-189-settings-screen-public-copy') > pkg.scripts['verify:release-blockers']?.indexOf('verify:pass-188-webview-focus-input-boundary'), 'pass189-must-run-after-pass188');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-189-settings-screen-public-copy'), 'release-blockers-missing-pass189');
+need(getReleaseBlockersContract(pkg).indexOf('verify:pass-189-settings-screen-public-copy') > getReleaseBlockersContract(pkg).indexOf('verify:pass-188-webview-focus-input-boundary'), 'pass189-must-run-after-pass188');
 
 console.log('[PASS189][OK] Settings screen public copy is free of visible PASS/dev language while preserving safety notes.');

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
@@ -33,7 +34,7 @@ for (const token of [
 }
 need(pkg.scripts?.['verify:package:linux'] === 'node scripts/verify-linux-installers.mjs', 'package verify:package:linux script should remain full-target default');
 need(pkg.scripts?.['verify:pass-125-linux-package-target-verifier'] === 'node scripts/verify-pass-125-linux-package-target-verifier.mjs', 'package missing PASS125 verifier');
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 const pass124Idx = releaseBlockers.indexOf('verify:pass-124-linux-rpm-toolchain-recovery');
 const pass125Idx = releaseBlockers.indexOf('verify:pass-125-linux-package-target-verifier');
 const buildIdx = releaseBlockers.lastIndexOf('npm run build');

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function fail(message) {
   console.error(`PASS24_BOOKMARK_FOLDER_HANDOFF_FAIL=${message}`);
@@ -31,6 +32,6 @@ for (const token of [
 }
 
 if (pkg.scripts?.['verify:pass-24-bookmark-folder-handoff'] !== 'node scripts/verify-pass-24-bookmark-folder-handoff.mjs') fail('package-script-missing');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-24-bookmark-folder-handoff')) fail('release-blockers-not-wired');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-24-bookmark-folder-handoff')) fail('release-blockers-not-wired');
 
 console.log('PASS24_BOOKMARK_FOLDER_HANDOFF_OK=1');

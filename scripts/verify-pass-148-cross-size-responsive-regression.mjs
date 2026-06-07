@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const errors = [];
@@ -16,7 +17,7 @@ const includesAll = (file, tokens) => {
 };
 
 const pkg = json('package.json');
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 
 need(pkg.version === '1.8.30', `version must remain 1.8.30 for PASS148, found ${pkg.version}`);
 need(pkg.scripts?.['evidence:cross-size-regression'] === 'node scripts/run-pass148-cross-size-responsive-regression.mjs', 'package missing evidence:cross-size-regression script');

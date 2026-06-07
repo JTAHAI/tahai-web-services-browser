@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 function read(path){return fs.readFileSync(path,'utf8');}
 function fail(message){console.error(`PASS99 verification failed: ${message}`);process.exit(1);}
 function need(condition,message){if(!condition)fail(message);}
@@ -51,5 +52,5 @@ includes('PASS_99_MISSION_DROP_BOUNDARY_SUMMARY.md',[
 ]);
 const pkg=JSON.parse(read('package.json'));
 need(pkg.scripts['verify:pass-99-mission-drop-boundary']==='node scripts/verify-pass-99-mission-drop-boundary.mjs','package.json missing PASS99 verifier script');
-need(pkg.scripts['verify:release-blockers']?.includes('verify:pass-99-mission-drop-boundary'),'release blockers missing PASS99 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-99-mission-drop-boundary'),'release blockers missing PASS99 verifier');
 console.log('PASS99 mission drop boundary verification passed.');

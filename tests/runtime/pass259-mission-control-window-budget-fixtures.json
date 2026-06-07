@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS259",
+  "name": "Mission Control UX Final Flagship Polish window budget fixtures",
+  "minimumWebsiteBudget": {
+    "width": 360,
+    "height": 260,
+    "ratio": 0.52
+  },
+  "windows": [
+    {
+      "id": "small-restored",
+      "width": 1024,
+      "height": 720,
+      "chromeReserveHeight": 172,
+      "sideRailReserveWidth": 256
+    },
+    {
+      "id": "restored-laptop",
+      "width": 1366,
+      "height": 768,
+      "chromeReserveHeight": 156,
+      "sideRailReserveWidth": 288
+    },
+    {
+      "id": "maximized-1080p",
+      "width": 1920,
+      "height": 1080,
+      "chromeReserveHeight": 164,
+      "sideRailReserveWidth": 320
+    },
+    {
+      "id": "wide-operator",
+      "width": 2560,
+      "height": 1440,
+      "chromeReserveHeight": 172,
+      "sideRailReserveWidth": 360
+    }
+  ],
+  "requiredRecipeCardSections": [
+    "what-opens",
+    "layout",
+    "runbook",
+    "evidence",
+    "recovery",
+    "policy-locks"
+  ],
+  "requiredUxFlags": [
+    "data-pass259-card-polished",
+    "data-pass259-useful-empty-pane",
+    "data-pass259-active-pane-clear",
+    "data-pass259-focus-restore-ready",
+    "data-pass259-website-budget-ok"
+  ]
+}

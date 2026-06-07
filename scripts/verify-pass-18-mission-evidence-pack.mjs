@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const app = fs.readFileSync('src/renderer/app.ts', 'utf8');
 const model = fs.readFileSync('src/renderer/mission-model.ts', 'utf8');
@@ -22,5 +23,5 @@ for (const token of ["buildMissionEvidencePack(mission, { profile: 'sanitized-ha
 for (const token of ['## Evidence index', 'const evidence = includeEvidence', 'rows(evidence']) if (!evidencePack.includes(token)) fail(`missing-evidence-pack-token:${token}`);
 for (const token of ['PASS 18 Mission Evidence Pack v2 styles', '.mission-evidence-actions']) if (!css.includes(token)) fail(`missing-css-token:${token}`);
 if (pkg.scripts?.['verify:pass-18-mission-evidence-pack'] !== 'node scripts/verify-pass-18-mission-evidence-pack.mjs') fail('missing-package-script');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-18-mission-evidence-pack')) fail('release-blockers-not-wired');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-18-mission-evidence-pack')) fail('release-blockers-not-wired');
 console.log('PASS18_MISSION_EVIDENCE_PACK_OK=1');

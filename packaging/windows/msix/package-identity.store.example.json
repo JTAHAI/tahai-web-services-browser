@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "status": "PARTNER_CENTER_PENDING",
+  "product": "TAHAI Web Services Browser",
+  "version": "2.0.14.0",
+  "architecture": "x64",
+  "identity": {
+    "name": "REPLACE_WITH_PARTNER_CENTER_PACKAGE_IDENTITY_NAME",
+    "publisher": "CN=REPLACE_WITH_PARTNER_CENTER_PUBLISHER_CERTIFICATE_SUBJECT",
+    "publisherDisplayName": "TAHAI Web Services",
+    "packageFamilyName": "REPLACE_WITH_PARTNER_CENTER_PACKAGE_FAMILY_NAME",
+    "storeProductId": "REPLACE_WITH_PARTNER_CENTER_STORE_PRODUCT_ID"
+  },
+  "notes": [
+    "Do not commit private Partner Center credentials, certificates, .pfx, private keys, or generated Store artifacts.",
+    "Replace these values only after reserving the app in Partner Center.",
+    "Direct MSI/EXE installers remain unsigned preview unless trusted signing is added."
+  ]
+}

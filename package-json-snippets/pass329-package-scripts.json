@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "verify:pass-329-runtime-lifecycle-geometry-sentry": "node scripts/verify-pass-329-runtime-lifecycle-geometry-sentry.mjs"
+  }
+}

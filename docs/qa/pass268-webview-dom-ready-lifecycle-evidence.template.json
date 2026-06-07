@@ -1,0 +1,100 @@
+{
+  "pass": "PASS268",
+  "schemaVersion": 1,
+  "passName": "WebView DOM-Ready Lifecycle Hardening",
+  "versionTarget": "2.0.14",
+  "packageVersion": "REPLACE_WITH_INSTALLED_PACKAGE_VERSION",
+  "status": "REPLACE_WITH_REAL_WEBVIEW_LIFECYCLE_EVIDENCE_STATUS",
+  "installedPackage": {
+    "packageInstalledForSmoke": false,
+    "installedAppVersionVisible": false,
+    "packageSha256": "REPLACE_WITH_SHA256",
+    "launchedFromInstalledShortcut": false
+  },
+  "lifecycleGuardProof": {
+    "guardInstalledInRenderer": false,
+    "existingWebviewsWrapped": false,
+    "newWebviewsWrappedByMutationObserver": false,
+    "domReadyTracked": false,
+    "removedOrDetachedTracked": false,
+    "renderProcessGoneTracked": false,
+    "safeNoOpBeforeDomReady": false,
+    "safeNoOpAfterDetach": false,
+    "methodExistenceChecked": false
+  },
+  "guardedMethodSmoke": [
+    {
+      "method": "goBack",
+      "beforeDomReadyNoOp": false,
+      "afterDomReadySafe": false,
+      "screenshotOrLogPath": "REPLACE_WITH_EVIDENCE_PATH"
+    },
+    {
+      "method": "goForward",
+      "beforeDomReadyNoOp": false,
+      "afterDomReadySafe": false,
+      "screenshotOrLogPath": "REPLACE_WITH_EVIDENCE_PATH"
+    },
+    {
+      "method": "reload",
+      "beforeDomReadyNoOp": false,
+      "afterDomReadySafe": false,
+      "screenshotOrLogPath": "REPLACE_WITH_EVIDENCE_PATH"
+    },
+    {
+      "method": "focus",
+      "beforeDomReadyNoOp": false,
+      "afterDomReadySafe": false,
+      "screenshotOrLogPath": "REPLACE_WITH_EVIDENCE_PATH"
+    },
+    {
+      "method": "loadURL",
+      "beforeDomReadyNoOp": false,
+      "afterDomReadySafe": false,
+      "screenshotOrLogPath": "REPLACE_WITH_EVIDENCE_PATH"
+    },
+    {
+      "method": "executeJavaScript",
+      "beforeDomReadyNoOp": false,
+      "afterDomReadySafe": false,
+      "screenshotOrLogPath": "REPLACE_WITH_EVIDENCE_PATH"
+    },
+    {
+      "method": "openDevTools",
+      "beforeDomReadyNoOp": false,
+      "afterDomReadySafe": false,
+      "screenshotOrLogPath": "REPLACE_WITH_EVIDENCE_PATH"
+    }
+  ],
+  "missionControlSmoke": {
+    "recipesLaunchedWithoutDomReadyError": false,
+    "splitTriQuadFocusSwitchingWithoutDomReadyError": false,
+    "resizeMaximizeRestoreWithoutDomReadyError": false,
+    "activePaneWebviewCommandsGuarded": false,
+    "evidencePreviewDoesNotCallDeadWebview": false,
+    "screenshotPath": "REPLACE_WITH_EVIDENCE_PATH"
+  },
+  "runtimeErrors": {
+    "noWebViewMustBeAttachedDomReadyError": false,
+    "noUnhandledRendererError": false,
+    "noUnhandledPromiseRejection": false,
+    "noConsoleNoiseAboveWarningBudget": false,
+    "logPath": "REPLACE_WITH_LOG_PATH"
+  },
+  "storeTruth": {
+    "microsoftStoreSubmissionClaim": "not-submitted",
+    "microsoftStoreApprovalClaim": "not-approved",
+    "publicGaClaim": false
+  },
+  "operatorApproval": {
+    "approvedWebViewLifecycleEvidence": false,
+    "approvedToProceedToPass269": false,
+    "approvedForPartnerCenterSubmission": false,
+    "approvedForPublicGA": false
+  },
+  "goNoGo": {
+    "readyForPass269": false,
+    "readyForPartnerCenterSubmission": false,
+    "readyForPublicGA": false
+  }
+}

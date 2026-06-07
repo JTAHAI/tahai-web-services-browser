@@ -1,6 +1,9 @@
+import { TAHAI_RELEASE_VERSION } from './release-truth';
+
 export const SIGNING_PROVENANCE_SBOM_PASS = 'PASS159' as const;
 export const SIGNING_PROVENANCE_SBOM_CONTRACT_ID = 'enterprise-signing-provenance-sbom-v1' as const;
 export const SIGNING_PROVENANCE_SBOM_SCHEMA_VERSION = 1 as const;
+const SIGNING_PROVENANCE_ARTIFACT_BASENAME = `TAHAI-Web-Services-Browser-${TAHAI_RELEASE_VERSION}-x64`;
 
 export type ReleaseArtifactKind = 'windows-exe' | 'windows-msi' | 'linux-appimage' | 'linux-deb' | 'linux-rpm' | 'source-zip' | 'sbom' | 'provenance-manifest';
 export type ReleaseSignatureState = 'unsigned-preview' | 'signed' | 'not-applicable';
@@ -37,35 +40,35 @@ export interface SigningProvenanceSbomContract {
 export const SIGNING_PROVENANCE_ARTIFACT_REQUIREMENTS: readonly SigningProvenanceArtifactRequirement[] = [
   {
     kind: 'windows-exe',
-    path: 'release/windows/TAHAI-Web-Services-Browser-1.8.30-x64.exe',
+    path: `release/windows/${SIGNING_PROVENANCE_ARTIFACT_BASENAME}.exe`,
     requiredSha256: true,
     requiredSignatureState: 'unsigned-preview',
     publishBesideArtifact: true
   },
   {
     kind: 'windows-msi',
-    path: 'release/windows/TAHAI-Web-Services-Browser-1.8.30-x64.msi',
+    path: `release/windows/${SIGNING_PROVENANCE_ARTIFACT_BASENAME}.msi`,
     requiredSha256: true,
     requiredSignatureState: 'unsigned-preview',
     publishBesideArtifact: true
   },
   {
     kind: 'linux-appimage',
-    path: 'release/linux/TAHAI-Web-Services-Browser-1.8.30-x64.AppImage',
+    path: `release/linux/${SIGNING_PROVENANCE_ARTIFACT_BASENAME}.AppImage`,
     requiredSha256: true,
     requiredSignatureState: 'not-applicable',
     publishBesideArtifact: true
   },
   {
     kind: 'linux-deb',
-    path: 'release/linux/TAHAI-Web-Services-Browser-1.8.30-x64.deb',
+    path: `release/linux/${SIGNING_PROVENANCE_ARTIFACT_BASENAME}.deb`,
     requiredSha256: true,
     requiredSignatureState: 'not-applicable',
     publishBesideArtifact: true
   },
   {
     kind: 'linux-rpm',
-    path: 'release/linux/TAHAI-Web-Services-Browser-1.8.30-x64.rpm',
+    path: `release/linux/${SIGNING_PROVENANCE_ARTIFACT_BASENAME}.rpm`,
     requiredSha256: true,
     requiredSignatureState: 'not-applicable',
     publishBesideArtifact: true

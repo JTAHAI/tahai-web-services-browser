@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const exists = (rel) => fs.existsSync(path.join(root, rel));
@@ -41,7 +42,7 @@ if (!failures.length) {
   need(doc.includes('1040') && doc.includes('760') && doc.includes('620') && doc.includes('560'), 'PASS132 doc must record thresholds');
   need(summary.includes('Version') && summary.includes('1.8.30 unchanged'), 'PASS132 summary must preserve version truth');
   need(pkg.scripts?.['verify:pass-132-mission-small-window-stress'] === 'node scripts/verify-pass-132-mission-small-window-stress.mjs', 'missing package script for PASS132');
-  need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-132-mission-small-window-stress'), 'release blockers missing PASS132 verifier');
+  need(getReleaseBlockersContract(pkg).includes('verify:pass-132-mission-small-window-stress'), 'release blockers missing PASS132 verifier');
 }
 if (failures.length) { console.error('PASS132 Mission small-window stress verification failed:'); for (const failure of failures) console.error(` - ${failure}`); process.exit(1); }
 console.log('PASS132 Mission small-window stress verification passed.');

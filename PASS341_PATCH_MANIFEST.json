@@ -1,0 +1,29 @@
+{
+  "pass": "PASS341",
+  "name": "Normal Browser and Feature Clickability Closeout",
+  "versionTarget": "2.0.14",
+  "scope": "browser-side only",
+  "files": [
+    "src/renderer/app.ts",
+    "src/renderer/styles/browser.css",
+    "scripts/verify-pass-339-normal-browsing-input-paint-closeout.mjs",
+    "scripts/verify-pass-340-chrome-input-hittest-closeout.mjs",
+    "scripts/verify-pass-341-normal-browser-and-feature-clickability-closeout.mjs",
+    "docs/qa/PASS340-CHROME-INPUT-HITTEST-CLOSEOUT.md",
+    "docs/qa/PASS341-NORMAL-BROWSER-AND-FEATURE-CLICKABILITY-CLOSEOUT.md",
+    "package.json"
+  ],
+  "summary": [
+    "Adds PASS341 normal-browser and feature clickability runtime owner.",
+    "Adds capture-phase primary feature click fallback for toolbar, Launchpad, Guide, profiles, DevOps, IT Tools, Ops Panel, Mission, Settings, New Tab, and major tool cards.",
+    "Reasserts hidden overlay inertness, Mission drag/drop residue cleanup, chrome no-drag/pointer-auto controls, and stage-contained webview geometry.",
+    "Adds fail-closed PASS341 verifier and QA doc."
+  ],
+  "securityGuardrails": [
+    "No unsafe allowpopups added.",
+    "No Node integration in remote content added.",
+    "No raw IPC exposure added.",
+    "No direct PSA/API/provider secrets added.",
+    "No Store, GA, or signed-release claim."
+  ]
+}

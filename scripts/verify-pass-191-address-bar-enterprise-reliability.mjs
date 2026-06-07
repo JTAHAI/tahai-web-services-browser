@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 function read(path) { return fs.readFileSync(path, 'utf8'); }
 function fail(message) { console.error(`[PASS191][FAIL] ${message}`); process.exit(1); }
@@ -14,8 +15,8 @@ const summary = read('PASS_191_ADDRESS_BAR_ENTERPRISE_RELIABILITY_SUMMARY.md');
 
 need(pkg.version === '1.8.30', 'version-must-not-change-without-explicit-approval');
 need(pkg.scripts?.['verify:pass-191-address-bar-enterprise-reliability'] === 'node scripts/verify-pass-191-address-bar-enterprise-reliability.mjs', 'package-script-missing');
-need(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-191-address-bar-enterprise-reliability'), 'release-blockers-missing-pass191');
-need(pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-191-address-bar-enterprise-reliability') > pkg.scripts?.['verify:release-blockers']?.indexOf('verify:pass-190-overlay-state-machine-closeout'), 'pass191-must-run-after-pass190');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-191-address-bar-enterprise-reliability'), 'release-blockers-missing-pass191');
+need(getReleaseBlockersContract(pkg).indexOf('verify:pass-191-address-bar-enterprise-reliability') > getReleaseBlockersContract(pkg).indexOf('verify:pass-190-overlay-state-machine-closeout'), 'pass191-must-run-after-pass190');
 
 for (const token of [
   'PASS191_ADDRESS_BAR_ENTERPRISE_RELIABILITY_VERSION',

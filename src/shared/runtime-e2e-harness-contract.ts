@@ -6,11 +6,13 @@ export type RuntimeE2eScenarioId =
   | 'launch-shell'
   | 'titlebar-drag'
   | 'tab-create-close'
+  | 'launchpad-guide-home-address'
   | 'mission-control-open'
   | 'mission-layouts-split-tri-quad-focus'
   | 'active-pane-routing'
   | 'popup-denied'
   | 'kb-guide-more-tools'
+  | 'shell-overlays-open-close'
   | 'evidence-export-preview';
 
 export type RuntimeE2eScenario = {
@@ -42,7 +44,7 @@ export const RUNTIME_E2E_SCENARIOS: readonly RuntimeE2eScenario[] = [
     label: 'Launch shell and renderer heartbeat',
     purpose: 'Prove the Electron shell reaches the strict renderer-ready marker and exposes expected app chrome.',
     selectors: ['html[data-tahai-shell-ready="1"]', '#webview-stage', '[data-testid="runtime-webview"]'],
-    assertions: ['renderer-ready-marker', 'stage-mounted', 'initial-webview-mounted'],
+    assertions: ['renderer-ready-marker', 'stage-mounted', 'initial-webview-mounted', 'active-webview-stage-viewport-fit', 'guest-window-height-fills-stage-budget', 'guest-document-bottom-fills-viewport'],
     destructive: false
   },
   {
@@ -59,6 +61,14 @@ export const RUNTIME_E2E_SCENARIOS: readonly RuntimeE2eScenario[] = [
     purpose: 'Exercise normal browser tab creation without breaking close buttons or active tab state.',
     selectors: ['[data-testid="runtime-new-tab"]', '[data-testid="runtime-browser-tab"]', '[data-testid="runtime-tab-close"]'],
     assertions: ['new-tab-increases-count', 'tab-close-remains-clickable', 'active-tab-survives'],
+    destructive: false
+  },
+  {
+    id: 'launchpad-guide-home-address',
+    label: 'Launchpad, Guide, Home, and address routing',
+    purpose: 'Verify the primary browser shell routes the active tab through Launchpad, Guide/KB, direct address entry, and Home.',
+    selectors: ['#launchpad', '#onboarding', '#home', '#address-form', '#address'],
+    assertions: ['launchpad-navigates-active-tab', 'guide-navigates-active-tab', 'address-submit-navigates-active-tab', 'home-navigates-active-tab'],
     destructive: false
   },
   {
@@ -102,6 +112,14 @@ export const RUNTIME_E2E_SCENARIOS: readonly RuntimeE2eScenario[] = [
     destructive: false
   },
   {
+    id: 'shell-overlays-open-close',
+    label: 'Shell overlays open and close cleanly',
+    purpose: 'Smoke test DevOps, IT, Ops Panel, Settings, Profiles, and Command Palette overlay ownership so closing them restores shell clickability.',
+    selectors: ['#devops-tools', '#it-tools', '#ops-hub-toggle', '#settings', '#profile-switcher', '#command-palette-dialog'],
+    assertions: ['devops-open-close', 'it-open-close', 'ops-hub-open-close', 'settings-open-close', 'profile-open-close', 'command-palette-open-close'],
+    destructive: false
+  },
+  {
     id: 'evidence-export-preview',
     label: 'Evidence export preview and redaction boundary',
     purpose: 'Create local mission evidence and confirm export preview surfaces stay redaction-controlled.',
@@ -134,5 +152,5 @@ export function getRuntimeE2eScenario(id: RuntimeE2eScenarioId): RuntimeE2eScena
 }
 
 export function runtimeE2eHarnessSummary(): string {
-  return `${RUNTIME_E2E_HARNESS_PASS} ${RUNTIME_E2E_HARNESS_CONTRACT_ID}: ${RUNTIME_E2E_SCENARIOS.length} Electron runtime scenarios for launch, tabs, panes, titlebar drag, popups, KB/Guide/More Tools, Mission Control, active-pane routing, and evidence export.`;
+  return `${RUNTIME_E2E_HARNESS_PASS} ${RUNTIME_E2E_HARNESS_CONTRACT_ID}: ${RUNTIME_E2E_SCENARIOS.length} Electron runtime scenarios for launch, tabs, launchpad/guide/home/address routing, titlebar drag, popups, shell overlays, Mission Control, active-pane routing, and evidence export.`;
 }

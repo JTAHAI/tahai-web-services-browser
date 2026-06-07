@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), 'utf8');
@@ -20,7 +21,7 @@ const summary = read('PASS_188_WEBVIEW_FOCUS_INPUT_BOUNDARY_SUMMARY.md');
 
 ok(pkg.version === '1.8.30', 'PASS188 must not increment version without explicit approval.');
 ok(pkg.scripts?.['verify:pass-188-webview-focus-input-boundary'] === 'node scripts/verify-pass-188-webview-focus-input-boundary.mjs', 'package.json exposes PASS188 verifier.');
-ok(pkg.scripts?.['verify:release-blockers']?.includes('verify:pass-188-webview-focus-input-boundary'), 'release-blockers chain includes PASS188 verifier.');
+ok(getReleaseBlockersContract(pkg).includes('verify:pass-188-webview-focus-input-boundary'), 'release-blockers chain includes PASS188 verifier.');
 
 for (const token of [
   'PASS188_WEBVIEW_FOCUS_INPUT_BOUNDARY_VERSION',

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\uFEFF/, '');
@@ -48,7 +49,7 @@ for (const token of [
 
 need(pkg.scripts?.['verify:linux-installer-handoff'] === 'node scripts/verify-linux-installer-handoff.mjs', 'package missing verify:linux-installer-handoff script');
 need(pkg.scripts?.['verify:pass-126-linux-rpm-handoff-manifest'] === 'node scripts/verify-pass-126-linux-rpm-handoff-manifest.mjs', 'package missing PASS126 verifier script');
-const releaseBlockers = String(pkg.scripts?.['verify:release-blockers'] || '');
+const releaseBlockers = getReleaseBlockersContract(pkg);
 const pass125Idx = releaseBlockers.indexOf('verify:pass-125-linux-package-target-verifier');
 const pass126Idx = releaseBlockers.indexOf('verify:pass-126-linux-rpm-handoff-manifest');
 const buildIdx = releaseBlockers.lastIndexOf('npm run build');

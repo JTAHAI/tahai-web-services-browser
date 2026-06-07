@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 const app = fs.readFileSync('src/renderer/app.ts', 'utf8');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 function fail(message) { console.error(`PASS19_DEVOPS_RECIPES_V3_FAIL=${message}`); process.exit(1); }
@@ -22,5 +23,5 @@ for (const provider of ['aws','cloudflare','github','vercel']) {
   if (!app.includes(`cockpitProvider: '${provider}'`)) fail(`missing-provider:${provider}`);
 }
 if (pkg.scripts?.['verify:pass-19-devops-recipes-v3'] !== 'node scripts/verify-pass-19-devops-recipes-v3.mjs') fail('missing-package-script');
-if (!String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-19-devops-recipes-v3')) fail('release-blockers-not-wired');
+if (!getReleaseBlockersContract(pkg).includes('verify:pass-19-devops-recipes-v3')) fail('release-blockers-not-wired');
 console.log('PASS19_DEVOPS_RECIPES_V3_OK=1');

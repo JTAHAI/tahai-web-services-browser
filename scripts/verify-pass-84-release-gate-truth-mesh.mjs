@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
 
 const root = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -48,7 +49,7 @@ const commandCount = (pass84CommandList[1].match(/'[^']+'/g) || []).length;
 need(commandCount >= 24, `expected at least 24 required command ids, found ${commandCount}`);
 
 need(String(pkg.scripts?.['verify:pass-84-release-gate-truth-mesh'] || '').includes('verify-pass-84-release-gate-truth-mesh.mjs'), 'package script missing PASS84 verifier');
-need(String(pkg.scripts?.['verify:release-blockers'] || '').includes('verify:pass-84-release-gate-truth-mesh'), 'verify:release-blockers missing PASS84 verifier');
+need(getReleaseBlockersContract(pkg).includes('verify:pass-84-release-gate-truth-mesh'), 'verify:release-blockers missing PASS84 verifier');
 
 // PASS88 release-blocker hardening: source verifiers may be run after `npm ci`.
 // Check repository exclusion policy here; ZIP artifact exclusion is verified during packaging.

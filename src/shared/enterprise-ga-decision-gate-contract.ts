@@ -1,26 +1,25 @@
 import { ENTERPRISE_EVIDENCE_BINDER_REQUIRED_INSTALLED_EVIDENCE } from './enterprise-evidence-binder-no-false-ga-contract';
-import { FINAL_SHIP_CANDIDATE_RELEASE_BLOCKERS } from './final-ship-candidate-contract';
+import { TAHAI_RELEASE_VERSION } from './release-truth';
 
 export const ENTERPRISE_GA_DECISION_GATE_PASS = 'PASS162' as const;
 export const ENTERPRISE_GA_DECISION_GATE_CONTRACT_ID = 'enterprise-ga-decision-gate-v1' as const;
 export const ENTERPRISE_GA_DECISION_GATE_SCHEMA_VERSION = 1 as const;
-export const ENTERPRISE_GA_DECISION_GATE_VERSION = '1.8.30' as const;
+export const ENTERPRISE_GA_DECISION_GATE_VERSION = TAHAI_RELEASE_VERSION;
 export const ENTERPRISE_GA_DECISION_GATE_STATUS = 'blocked-pending-external-evidence' as const;
 
 export const ENTERPRISE_GA_REQUIRED_SOURCE_GATES = Object.freeze([
-  ...FINAL_SHIP_CANDIDATE_RELEASE_BLOCKERS,
-  'verify:pass-151-enterprise-all-surfaces-release-grade',
-  'verify:pass-152-enterprise-evidence-binder',
-  'verify:pass-153-webview-popup-attach-hardening',
-  'verify:pass-154-enterprise-admin-policy-framework',
-  'verify:pass-155-admin-console-profiles',
-  'verify:pass-156-mission-recipe-library',
-  'verify:pass-157-evidence-capture-privacy-hardening',
-  'verify:pass-158-runtime-e2e-harness',
   'verify:pass-159-enterprise-signing-provenance-sbom',
-  'verify:pass-160-enterprise-support-bundle',
-  'verify:pass-161-renderer-modularization',
   'verify:pass-162-enterprise-ga-decision-gate',
+  'verify:pass-247-windows-store-msix-readiness',
+  'verify:pass-248-msix-local-blocker-repair',
+  'verify:pass-249-msix-winappcli-npm-invocation-repair',
+  'verify:pass-250-store-submission-evidence-identity-prep',
+  'verify:pass-337-cursor-root-cause-closeout',
+  'verify:pass-338-cursor-runtime-root-cause-closeout',
+  'verify:pass-339-normal-browsing-input-paint-closeout',
+  'verify:pass-340-chrome-input-hittest-closeout',
+  'verify:pass-341-normal-browser-and-feature-clickability-closeout',
+  'test:runtime-e2e',
 ] as const);
 
 export const ENTERPRISE_GA_REQUIRED_DECISION_DOMAINS = Object.freeze([

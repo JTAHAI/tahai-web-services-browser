@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS265",
+  "versionTarget": "2.0.14",
+  "remainingPassesAfterThisPass": 0,
+  "manifestName": "PASS265 Store Closeout Manifest",
+  "status": "TEMPLATE_PENDING_REAL_CLOSEOUT",
+  "requiredEvidence": [
+    {
+      "pass": "PASS260",
+      "name": "Installed Recipe + Quad Store Smoke Evidence Gate",
+      "command": "npm run gate:pass-260-installed-recipe-quad-store-smoke",
+      "evidencePath": "release-candidate/store-submission/pass260-installed-recipe-quad-smoke-evidence.json",
+      "required": true,
+      "sha256": "REPLACE_WITH_64_HEX_SHA256",
+      "gateOutputPath": "REPLACE_WITH_GATE_OUTPUT_PATH",
+      "reviewed": false
+    },
+    {
+      "pass": "PASS261",
+      "name": "Store Submission Packet Finalizer",
+      "command": "npm run gate:pass-261-store-submission-packet",
+      "evidencePath": "release-candidate/store-submission/pass261-store-submission-packet.json",
+      "required": true,
+      "sha256": "REPLACE_WITH_64_HEX_SHA256",
+      "gateOutputPath": "REPLACE_WITH_GATE_OUTPUT_PATH",
+      "reviewed": false
+    },
+    {
+      "pass": "PASS262",
+      "name": "Store Asset Evidence Pack",
+      "command": "npm run gate:pass-262-store-asset-evidence-pack",
+      "evidencePath": "release-candidate/store-submission/pass262-store-asset-evidence-pack.json",
+      "required": true,
+      "sha256": "REPLACE_WITH_64_HEX_SHA256",
+      "gateOutputPath": "REPLACE_WITH_GATE_OUTPUT_PATH",
+      "reviewed": false
+    },
+    {
+      "pass": "PASS263",
+      "name": "Store Listing Copy Truth Pack",
+      "command": "npm run gate:pass-263-store-listing-copy-truth-pack",
+      "evidencePath": "release-candidate/store-submission/pass263-store-listing-copy-truth-pack.json",
+      "required": true,
+      "sha256": "REPLACE_WITH_64_HEX_SHA256",
+      "gateOutputPath": "REPLACE_WITH_GATE_OUTPUT_PATH",
+      "reviewed": false
+    },
+    {
+      "pass": "PASS264",
+      "name": "Store Submission Dry-Run Evidence Gate",
+      "command": "npm run gate:pass-264-store-submission-dry-run-evidence",
+      "evidencePath": "release-candidate/store-submission/pass264-store-submission-dry-run-evidence.json",
+      "required": true,
+      "sha256": "REPLACE_WITH_64_HEX_SHA256",
+      "gateOutputPath": "REPLACE_WITH_GATE_OUTPUT_PATH",
+      "reviewed": false
+    }
+  ],
+  "requiredFinalPacket": "release-candidate/store-submission/pass265-store-handoff-freeze-operator-approval.json",
+  "finalGateCommand": "npm run gate:pass-265-store-handoff-freeze-operator-approval",
+  "storeSubmissionStatus": "not-submitted",
+  "storeApprovalStatus": "not-approved",
+  "closeoutNotes": "Fill this manifest only after real evidence exists. This source pass does not submit to Partner Center."
+}

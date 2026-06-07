@@ -6,7 +6,7 @@ param(
   [ValidateSet('nsis','msi','portable','unknown')]
   [string]$InstallerType = 'unknown',
   [string]$InstallerPath,
-  [string]$ExpectedVersion = '1.8.30',
+  [string]$ExpectedVersion = '2.0.14',
   [switch]$Launch,
   [switch]$Force,
   [string]$OutputDir = 'artifacts/windows-installed-smoke',
@@ -34,6 +34,27 @@ function Resolve-CandidateExe {
   return $null
 }
 
+function Get-Sha256Hex {
+  param([string]$PathValue)
+  $hashCommand = Get-Command Get-FileHash -ErrorAction SilentlyContinue
+  if ($hashCommand) {
+    return (Get-FileHash -LiteralPath $PathValue -Algorithm SHA256).Hash.ToLowerInvariant()
+  }
+
+  $stream = [System.IO.File]::OpenRead($PathValue)
+  try {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      $bytes = $sha.ComputeHash($stream)
+      return ([System.BitConverter]::ToString($bytes) -replace '-', '').ToLowerInvariant()
+    } finally {
+      $sha.Dispose()
+    }
+  } finally {
+    $stream.Dispose()
+  }
+}
+
 function Get-FileEvidence {
   param([string]$PathValue)
   if (-not $PathValue -or -not (Test-Path -LiteralPath $PathValue -PathType Leaf)) { return $null }
@@ -42,7 +63,7 @@ function Get-FileEvidence {
   [ordered]@{
     path = $item.FullName
     sizeBytes = $item.Length
-    sha256 = (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    sha256 = Get-Sha256Hex -PathValue $item.FullName
     productName = $version.ProductName
     productVersion = $version.ProductVersion
     fileVersion = $version.FileVersion
