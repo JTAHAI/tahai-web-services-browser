@@ -928,6 +928,8 @@ function installApplicationMenu(window: BrowserWindow): void {
         { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => sendMenuCommand(window, 'close-tab') },
         { type: 'separator' },
         { label: 'Open Location…', accelerator: 'CmdOrCtrl+L', click: () => sendMenuCommand(window, 'focus-address') },
+        { label: 'Copy Active Page URL', accelerator: 'CmdOrCtrl+Shift+U', click: () => sendMenuCommand(window, 'copy-url') },
+        { label: 'Open Active Page Externally', accelerator: 'Alt+Enter', click: () => sendMenuCommand(window, 'open-external') },
         { label: 'Save Page Evidence…', accelerator: 'CmdOrCtrl+Shift+E', click: () => sendMenuCommand(window, 'capture') },
         { type: 'separator' },
         { label: 'Print…', accelerator: 'CmdOrCtrl+P', click: () => sendMenuCommand(window, 'print') },
@@ -949,7 +951,7 @@ function installApplicationMenu(window: BrowserWindow): void {
         { type: 'separator' },
         { role: 'selectAll' },
         { type: 'separator' },
-        { label: 'Find in Page…', accelerator: 'CmdOrCtrl+F', click: () => sendMenuCommand(window, 'focus-address') }
+        { label: 'Find in Page…', accelerator: 'CmdOrCtrl+F', click: () => sendMenuCommand(window, 'find-page') }
       ]
     },
     {
@@ -958,9 +960,9 @@ function installApplicationMenu(window: BrowserWindow): void {
         { label: 'Reload This Page', accelerator: 'CmdOrCtrl+R', click: () => sendMenuCommand(window, 'reload') },
         { role: 'forceReload', label: 'Force Reload' },
         { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        { label: 'Reset Page Zoom', accelerator: 'CmdOrCtrl+0', click: () => sendMenuCommand(window, 'zoom-reset') },
+        { label: 'Zoom In Page', accelerator: 'CmdOrCtrl+Plus', click: () => sendMenuCommand(window, 'zoom-in') },
+        { label: 'Zoom Out Page', accelerator: 'CmdOrCtrl+-', click: () => sendMenuCommand(window, 'zoom-out') },
         { type: 'separator' },
         { role: 'togglefullscreen' },
         { type: 'separator' },
@@ -987,7 +989,9 @@ function installApplicationMenu(window: BrowserWindow): void {
       submenu: [
         { label: 'TAHAI Launchpad', click: () => sendMenuCommand(window, 'launchpad') },
         { label: 'TAHAI Portal', click: () => sendMenuCommand(window, 'home') },
-        { label: 'Guide / Knowledge Base', click: () => sendMenuCommand(window, 'guide') }
+        { label: 'Guide / Knowledge Base', click: () => sendMenuCommand(window, 'guide') },
+        { type: 'separator' },
+        { label: 'Open Bookmarks Workspace', click: () => sendMenuCommand(window, 'bookmarks') }
       ]
     },
     {
@@ -1005,11 +1009,13 @@ function installApplicationMenu(window: BrowserWindow): void {
       submenu: [
         { label: 'Open DevOps Tool Panel', accelerator: 'CmdOrCtrl+Alt+O', click: () => sendMenuCommand(window, 'open-devops-menu') },
         { label: 'Open IT Tools Panel', accelerator: 'CmdOrCtrl+Alt+I', click: () => sendMenuCommand(window, 'open-it-menu') },
+        { label: 'Open Browser Kit', accelerator: 'CmdOrCtrl+Alt+.', click: () => sendMenuCommand(window, 'open-browser-kit') },
         { label: 'Command Palette…', accelerator: 'CmdOrCtrl+K', click: () => sendMenuCommand(window, 'command-palette') },
         { label: 'Right-side Ops Panel', accelerator: 'CmdOrCtrl+Alt+H', click: () => sendMenuCommand(window, 'ops-hub') },
         { type: 'separator' },
         { label: 'Save Workspace Snapshot', click: () => sendMenuCommand(window, 'save-workspace') },
         { label: 'Pin Latest Evidence', click: () => sendMenuCommand(window, 'pin-evidence') },
+        { label: 'Focus Download Artifacts', click: () => sendMenuCommand(window, 'downloads') },
         { label: 'Build Evidence / Change Bundle', accelerator: 'CmdOrCtrl+Alt+B', click: () => sendMenuCommand(window, 'bundle') },
         { label: 'IT Docs / PSA Handoff Center', accelerator: 'CmdOrCtrl+Alt+Y', click: () => sendMenuCommand(window, 'handoff') },
         { label: 'Ops Guard / Redaction Review', accelerator: 'CmdOrCtrl+Alt+G', click: () => sendMenuCommand(window, 'ops-guard') },

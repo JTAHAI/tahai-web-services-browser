@@ -668,6 +668,14 @@ const devopsToolsButton = document.getElementById('devops-tools') as HTMLButtonE
 const itToolsButton = document.getElementById('it-tools') as HTMLButtonElement;
 const devopsToolsPanel = document.getElementById('devops-tools-panel') as HTMLElement;
 const itToolsPanel = document.getElementById('it-tools-panel') as HTMLElement;
+const browserKitButton = document.getElementById('browser-kit') as HTMLButtonElement;
+const browserKitPanel = document.getElementById('browser-kit-panel') as HTMLElement;
+const findBar = document.getElementById('find-bar') as HTMLElement;
+const findInput = document.getElementById('find-input') as HTMLInputElement;
+const findPrevButton = document.getElementById('find-prev') as HTMLButtonElement;
+const findNextButton = document.getElementById('find-next') as HTMLButtonElement;
+const findCloseButton = document.getElementById('find-close') as HTMLButtonElement;
+const findStatus = document.getElementById('find-status') as HTMLElement;
 const settingsButton = document.getElementById('settings') as HTMLButtonElement;
 const captureButton = document.getElementById('capture') as HTMLButtonElement;
 const opsCheckButton = document.getElementById('ops-check') as HTMLButtonElement;
@@ -1132,7 +1140,8 @@ let pass81LastDoctorSummary = '';
 
 const pass81RequiredSurfaceIds = [
   'tabs', 'webview-stage', 'address-form', 'address', 'back', 'forward', 'reload', 'home',
-  'devops-tools', 'devops-tools-panel', 'it-tools', 'it-tools-panel', 'ops-hub-toggle', 'ops-hub',
+  'devops-tools', 'devops-tools-panel', 'it-tools', 'it-tools-panel', 'browser-kit', 'browser-kit-panel', 'find-bar',
+  'ops-hub-toggle', 'ops-hub',
   'mission-control-toggle', 'mission-dialog', 'mission-list', 'mission-recipes', 'mission-tabs-list',
   'mission-evidence-list', 'mission-layouts', 'mission-runbook-list', 'command-palette-dialog',
   'command-palette-input', 'command-palette-list', 'shortcut-dialog', 'capture-dialog', 'ops-dialog',
@@ -1143,7 +1152,7 @@ const pass81RequiredSurfaceIds = [
 const pass81NonPaneDropSurfaceSelectors = [
   '#mission-recipes', '#mission-list', '#mission-tabs-list', '#mission-evidence-list', '#mission-runbook-list',
   '#mission-notes-list', '#runbook-steps', '#ops-hub-recipes', '#ops-hub-evidence', '#devops-tools-panel',
-  '#it-tools-panel', '#command-palette-dialog', '#shortcut-dialog', '#capture-dialog', '#bundle-dialog',
+  '#it-tools-panel', '#browser-kit-panel', '#command-palette-dialog', '#shortcut-dialog', '#capture-dialog', '#bundle-dialog',
   '#handoff-dialog', '#ops-guard-dialog'
 ];
 
@@ -1313,7 +1322,7 @@ function pass81HardenResponsiveOverflow(): Pass81SurfaceIssue[] {
   } else {
     document.body.classList.remove('pass81-shell-overflow-warning');
   }
-  for (const panel of [devopsToolsPanel, itToolsPanel].filter(Boolean)) {
+  for (const panel of [devopsToolsPanel, itToolsPanel, browserKitPanel].filter(Boolean)) {
     if (panel && !panel.dataset.pass81OverflowGuard) {
       panel.dataset.pass81OverflowGuard = 'true';
       panel.setAttribute('aria-live', 'polite');
@@ -1625,7 +1634,7 @@ function pass82MountEnterpriseSurfaceAssurance(): void {
 
 document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !event.defaultPrevented) {
-      const anyToolOpen = !devopsToolsPanel.hidden || !itToolsPanel.hidden;
+      const anyToolOpen = !devopsToolsPanel.hidden || !itToolsPanel.hidden || !browserKitPanel.hidden;
       if (anyToolOpen) {
         closeToolMenus(undefined, true);
         setStatus('Command toolbar closed', 'Esc returned focus to the main browser shell.');
@@ -1775,7 +1784,7 @@ function pass83EnsureDialogRecoveryContracts(): Pass83ContractIssue[] {
 
 function pass83EnsureToolbarAndPaneTruth(): Pass83ContractIssue[] {
   const issues: Pass83ContractIssue[] = [];
-  for (const [button, panel, label] of [[devopsToolsButton, devopsToolsPanel, 'DevOps tools'], [itToolsButton, itToolsPanel, 'IT tools']] as const) {
+  for (const [button, panel, label] of [[devopsToolsButton, devopsToolsPanel, 'DevOps tools'], [itToolsButton, itToolsPanel, 'IT tools'], [browserKitButton, browserKitPanel, 'Browser Kit']] as const) {
     const expanded = !panel.hidden;
     if (button.getAttribute('aria-expanded') !== String(expanded)) {
       button.setAttribute('aria-expanded', String(expanded));
@@ -2201,10 +2210,10 @@ const pass85CriticalSurfaceContracts: Array<[string, string, string]> = [
   ['mission-evidence', '#mission-evidence-list', 'Mission evidence list']
 ];
 
-const pass85NavigationContractIds = ['back', 'forward', 'reload', 'home', 'new-tab', 'address-form', 'launchpad', 'mission-control-toggle'];
+const pass85NavigationContractIds = ['back', 'forward', 'reload', 'home', 'new-tab', 'address-form', 'launchpad', 'mission-control-toggle', 'browser-kit'];
 const pass85NonDropSurfaceIds = [
   'mission-recipes', 'mission-runbook-list', 'mission-evidence-list', 'mission-tabs-list', 'mission-timeline',
-  'devops-tools-panel', 'it-tools-panel', 'ops-hub', 'command-palette-dialog', 'shortcut-dialog', 'settings-dialog',
+  'devops-tools-panel', 'it-tools-panel', 'browser-kit-panel', 'ops-hub', 'command-palette-dialog', 'shortcut-dialog', 'settings-dialog',
   'capture-dialog', 'ops-dialog', 'deploy-dialog', 'it-card-dialog', 'endpoint-dialog', 'triage-dialog',
   'route-map-dialog', 'dev-audit-dialog', 'bundle-dialog', 'handoff-dialog', 'ops-guard-dialog', 'profile-dialog'
 ];
@@ -2835,7 +2844,7 @@ const pass87RecoverySurfaces: Array<[string, string, string]> = [
 ];
 const pass87NavigationIds = ['back', 'forward', 'reload', 'home', 'address-form', 'address', 'launchpad', 'ops-hub-toggle', 'mission-control-toggle'];
 const pass87ToolActionIds = ['capture', 'ops-check', 'deploy', 'route-map', 'dev-audit', 'ops-guard', 'devtools', 'it-card', 'endpoint', 'triage', 'secret-boundary'];
-const pass87NonDropSelectors = ['#ops-hub', '#devops-tools-panel', '#it-tools-panel', '#devops-recipes', '#mission-recipes', '#mission-runbook-list', '#mission-evidence-list', '#mission-command-dock', 'dialog', '.tool-menu-panel', '.ops-hub-card'];
+const pass87NonDropSelectors = ['#ops-hub', '#devops-tools-panel', '#it-tools-panel', '#browser-kit-panel', '#devops-recipes', '#mission-recipes', '#mission-runbook-list', '#mission-evidence-list', '#mission-command-dock', 'dialog', '.tool-menu-panel', '.ops-hub-card'];
 
 function pass87Issue(id: string, level: Pass87RecoveryLevel, detail: string): Pass87RecoveryIssue {
   return { id, level, detail };
@@ -3563,7 +3572,7 @@ function pass188SurfaceForElement(element: Element | null | undefined): Pass188F
   if (!target) return 'unknown';
   if (target.closest('#address')) return 'address-bar';
   if (target.closest('#command-palette-dialog')) return 'command-palette';
-  if (target.closest('#devops-tools-panel,#it-tools-panel,.toolbar-overflow-menu')) return 'tool-menu';
+  if (target.closest('#devops-tools-panel,#it-tools-panel,#browser-kit-panel,.toolbar-overflow-menu')) return 'tool-menu';
   if (target.closest('#mission-dialog,#ops-hub,#settings-dialog,#profile-dialog,#capture-dialog,#ops-dialog,#bundle-dialog,#handoff-dialog,#guard-dialog,#shortcut-dialog')) return 'app-overlay';
   if (target.closest('.mission-pane-head')) return 'mission-pane-head';
   if (target.closest('.mission-pane-shell,[data-mission-pane-id]')) return 'mission-pane';
@@ -3609,7 +3618,7 @@ function pass188RepairFocusInputBoundaries(reason = 'scheduled'): void {
   document.body.dataset.pass188FocusInputBoundarySurfaces = PASS188_FOCUS_INPUT_BOUNDARY_SURFACES.join(',');
   addressInput.dataset.pass188FocusInputBoundary = 'address-bar';
   addressInput.dataset.pass188ShellAccelerator = 'ctrl-l-from-shell-or-webview';
-  for (const control of [backButton, forwardButton, reloadButton, homeButton, launchpadButton, missionControlButton, opsHubToggleButton, devopsToolsButton, itToolsButton, newTabButton]) {
+  for (const control of [backButton, forwardButton, reloadButton, homeButton, launchpadButton, missionControlButton, opsHubToggleButton, devopsToolsButton, itToolsButton, browserKitButton, newTabButton]) {
     if (control) pass188ApplyElementBoundary(control, 'toolbar', control.getAttribute('aria-label') || control.getAttribute('title') || 'Browser toolbar control');
   }
   pass188ApplyElementBoundary(stageEl, 'browser-shell', 'Browser webview stage');
@@ -3624,8 +3633,8 @@ function pass188RepairFocusInputBoundaries(reason = 'scheduled'): void {
   for (const head of Array.from(document.querySelectorAll<HTMLElement>('.mission-pane-head,[data-testid="runtime-mission-pane-focus"]'))) {
     pass188ApplyElementBoundary(head, 'mission-pane-head', head.getAttribute('aria-label') || 'Mission pane focus selector');
   }
-  for (const panel of [devopsToolsPanel, itToolsPanel, opsHub, missionDialog, settingsDialog, profileDialog, commandPaletteDialog, shortcutDialog].filter(Boolean) as HTMLElement[]) {
-    pass188ApplyElementBoundary(panel, panel === commandPaletteDialog ? 'command-palette' : panel === devopsToolsPanel || panel === itToolsPanel ? 'tool-menu' : 'app-overlay', panel.getAttribute('aria-label') || 'Application overlay focus boundary');
+  for (const panel of [devopsToolsPanel, itToolsPanel, browserKitPanel, opsHub, missionDialog, settingsDialog, profileDialog, commandPaletteDialog, shortcutDialog, findBar].filter(Boolean) as HTMLElement[]) {
+    pass188ApplyElementBoundary(panel, panel === commandPaletteDialog ? 'command-palette' : panel === devopsToolsPanel || panel === itToolsPanel || panel === browserKitPanel ? 'tool-menu' : 'app-overlay', panel.getAttribute('aria-label') || 'Application overlay focus boundary');
   }
   document.body.dataset.pass188FocusInputBoundaryHistoryCount = String(pass188FocusHistory.length);
   document.body.dataset.pass188LastRepairReason = reason;
@@ -4430,7 +4439,7 @@ function pass236MarkWebviewDomPending(webview: Electron.WebviewTag, tabId: strin
 
 
 const PASS238_WEBVIEW_COMMAND_LIFECYCLE_GATE = 'PASS238_WEBVIEW_COMMAND_LIFECYCLE_GATE';
-type Pass238WebviewCommand = 'canGoBack' | 'canGoForward' | 'goBack' | 'goForward' | 'reload' | 'print' | 'executeJavaScript' | 'setZoomFactor' | 'setVisualZoomLevelLimits' | 'isDevToolsOpened' | 'openDevTools' | 'closeDevTools';
+type Pass238WebviewCommand = 'canGoBack' | 'canGoForward' | 'goBack' | 'goForward' | 'reload' | 'print' | 'executeJavaScript' | 'findInPage' | 'stopFindInPage' | 'setZoomFactor' | 'setVisualZoomLevelLimits' | 'isDevToolsOpened' | 'openDevTools' | 'closeDevTools';
 function pass238RecordWebviewCommandLifecycle(command: Pass238WebviewCommand, label: string, outcome: string, detail?: unknown): void {
   const body = document.body;
   if (!body) return;
@@ -4488,6 +4497,45 @@ function pass238SafeWebviewCommand(webview: Electron.WebviewTag, command: 'goBac
     return true;
   } catch (error) {
     pass238RecordWebviewCommandLifecycle(command, label, pass236IsDomReadyLifecycleError(error) ? 'blocked:lifecycle-error' : 'failed', error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
+type Pass343FindableWebview = Electron.WebviewTag & {
+  findInPage?: (text: string, options?: Electron.FindInPageOptions) => number;
+  stopFindInPage?: (action?: 'clearSelection' | 'keepSelection' | 'activateSelection') => void;
+};
+
+function pass343SafeFindInPage(webview: Electron.WebviewTag, query: string, options: Electron.FindInPageOptions, label: string): boolean {
+  if (!pass238CanInvokeWebviewCommand(webview, 'findInPage', label)) return false;
+  try {
+    const fn = (webview as Pass343FindableWebview).findInPage;
+    if (typeof fn !== 'function') {
+      pass238RecordWebviewCommandLifecycle('findInPage', label, 'blocked:missing-command');
+      return false;
+    }
+    fn.call(webview, query, options);
+    pass238RecordWebviewCommandLifecycle('findInPage', label, 'ok');
+    return true;
+  } catch (error) {
+    pass238RecordWebviewCommandLifecycle('findInPage', label, pass236IsDomReadyLifecycleError(error) ? 'blocked:lifecycle-error' : 'failed', error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
+function pass343SafeStopFindInPage(webview: Electron.WebviewTag, label: string): boolean {
+  if (!pass238CanInvokeWebviewCommand(webview, 'stopFindInPage', label)) return false;
+  try {
+    const fn = (webview as Pass343FindableWebview).stopFindInPage;
+    if (typeof fn !== 'function') {
+      pass238RecordWebviewCommandLifecycle('stopFindInPage', label, 'blocked:missing-command');
+      return false;
+    }
+    fn.call(webview, 'clearSelection');
+    pass238RecordWebviewCommandLifecycle('stopFindInPage', label, 'ok');
+    return true;
+  } catch (error) {
+    pass238RecordWebviewCommandLifecycle('stopFindInPage', label, pass236IsDomReadyLifecycleError(error) ? 'blocked:lifecycle-error' : 'failed', error instanceof Error ? error.message : error);
     return false;
   }
 }
@@ -4645,6 +4693,12 @@ function createTab(url: string): string {
   button.addEventListener('contextmenu', (event) => openTabPaneQuickAssign(tabId, event));
 
   webview.addEventListener('page-title-updated', (event: any) => updateTab(tab, { title: sanitizeRemotePageTitle(event.title, titleFromUrl(tab.url)) }));
+  webview.addEventListener('found-in-page', (event: any) => {
+    if (tab.id !== activeTabId || findBar.hidden) return;
+    const activeMatch = Number(event?.result?.activeMatchOrdinal || 0);
+    const matches = Number(event?.result?.matches || 0);
+    findStatus.textContent = matches > 0 ? `${activeMatch}/${matches}` : 'No match';
+  });
   webview.addEventListener('did-start-loading', () => {
     if (tab.id === activeTabId && pass339IsNormalBrowsing()) pass339ApplyStageViewportFit(webview, 'webview-did-start-loading');
     pass236MarkWebviewDomPending(webview, tabId);
@@ -5296,7 +5350,7 @@ let pass340LoggedDisabled = false;
 const PASS340_CHROME_INPUT_SELECTORS = [
   '#back', '#forward', '#reload', '#home', '#address', '#launchpad', '#onboarding',
   '#profile-switcher', '#devops-tools', '#it-tools', '#ops-hub-toggle', '#mission-control-toggle',
-  '#settings', '#new-tab', '#tabs .tab.active', '#tabs .tab'
+  '#settings', '#browser-kit', '#new-tab', '#tabs .tab.active', '#tabs .tab'
 ];
 
 function pass340ChromeInputCloseoutEnabled(): boolean {
@@ -5653,7 +5707,7 @@ function tabForMissionPane(paneId: string | undefined): TabState | undefined {
 // route resolver first. It repairs hidden Mission panes, synchronizes activeTabId to
 // the visible active pane, records telemetry for verifier/manual QA, and fails closed
 // with a safe no-op status instead of silently affecting the wrong pane.
-type Pass134RouteIntent = 'address' | 'toolbar' | 'menu' | 'shortcut' | 'command' | 'mouse' | 'home' | 'launchpad' | 'guide' | 'about' | 'print' | 'devtools' | 'reload' | 'back' | 'forward';
+type Pass134RouteIntent = 'address' | 'toolbar' | 'menu' | 'shortcut' | 'command' | 'mouse' | 'home' | 'launchpad' | 'guide' | 'about' | 'print' | 'devtools' | 'reload' | 'back' | 'forward' | 'find' | 'zoom' | 'browser-kit';
 
 function pass134RouteIntentLabel(intent: Pass134RouteIntent): string {
   return intent.replace(/-/g, ' ');
@@ -7089,7 +7143,8 @@ async function chooseAndRestoreMissionById(missionId: string): Promise<void> {
   setStatus(mode === 'preview' ? 'Mission preview loaded' : mode === 'append' ? 'Mission opened alongside current tabs' : 'Mission replaced current tabs', result.mission.name);
 }
 
-type ToolMenuName = 'devops' | 'it';
+type PrimaryToolMenuName = 'devops' | 'it';
+type ToolMenuName = PrimaryToolMenuName | 'browser';
 type Pass116ChromeOverlaySource = 'more-tools' | 'command-toolbar' | 'ops-hub' | 'site-view' | 'mission-control' | 'settings' | 'command-palette' | 'profile-dialog' | 'shortcut-dialog';
 const COMMAND_TOOLBAR_LAST_LANE_KEY = 'tahai.commandToolbar.lastLane';
 const PASS116_CHROME_OVERLAY_OPEN_EVENT = 'tahai:chrome-overlay-open';
@@ -7222,7 +7277,7 @@ function pass118ActiveChromeOverlaySource(): Pass116ChromeOverlaySource | undefi
 
 function pass118OverlayIsActuallyOpen(source: Pass116ChromeOverlaySource): boolean {
   if (source === 'more-tools') return Boolean(document.getElementById('toolbar-overflow-menu') && !(document.getElementById('toolbar-overflow-menu') as HTMLElement).hidden);
-  if (source === 'command-toolbar') return Boolean((devopsToolsPanel && !devopsToolsPanel.hidden) || (itToolsPanel && !itToolsPanel.hidden));
+  if (source === 'command-toolbar') return Boolean((devopsToolsPanel && !devopsToolsPanel.hidden) || (itToolsPanel && !itToolsPanel.hidden) || (browserKitPanel && !browserKitPanel.hidden));
   if (source === 'ops-hub') return Boolean(opsHub && !opsHub.hidden);
   if (source === 'site-view') return document.body.classList.contains('site-view-rail-enabled');
   if (source === 'mission-control') return Boolean(missionDialog && (missionDialog.open || pass164MissionControlIsOpening()));
@@ -7376,11 +7431,11 @@ function pass121AuditOverlayScrollContainment(reason: Pass118OverlayCloseReason 
   for (const panel of pass122KnownOverlayPanels().filter(Boolean) as HTMLElement[]) if (!panel.dataset.pass121ScrollContainment) panel.dataset.pass121ScrollContainment = 'true';
 }
 function pass122KnownOverlayPanels(): Array<HTMLElement | null> {
-  return [document.getElementById('toolbar-overflow-menu') as HTMLElement | null, devopsToolsPanel, itToolsPanel, opsHub, document.getElementById('site-view-mission-rail') as HTMLElement | null, missionDialog as unknown as HTMLElement | null, settingsDialog as unknown as HTMLElement | null, commandPaletteDialog as unknown as HTMLElement | null, profileDialog as unknown as HTMLElement | null, shortcutDialog as unknown as HTMLElement | null];
+  return [document.getElementById('toolbar-overflow-menu') as HTMLElement | null, devopsToolsPanel, itToolsPanel, browserKitPanel, opsHub, document.getElementById('site-view-mission-rail') as HTMLElement | null, missionDialog as unknown as HTMLElement | null, settingsDialog as unknown as HTMLElement | null, commandPaletteDialog as unknown as HTMLElement | null, profileDialog as unknown as HTMLElement | null, shortcutDialog as unknown as HTMLElement | null];
 }
 function pass122OverlayPanelForSource(source: Pass116ChromeOverlaySource): HTMLElement | null {
   if (source === 'more-tools') return document.getElementById('toolbar-overflow-menu') as HTMLElement | null;
-  if (source === 'command-toolbar') return (devopsToolsPanel && !devopsToolsPanel.hidden ? devopsToolsPanel : itToolsPanel) || null;
+  if (source === 'command-toolbar') return [devopsToolsPanel, itToolsPanel, browserKitPanel].find((panel) => panel && !panel.hidden) || null;
   if (source === 'ops-hub') return opsHub;
   if (source === 'site-view') return document.getElementById('site-view-mission-rail') as HTMLElement | null;
   if (source === 'mission-control') return missionDialog as unknown as HTMLElement | null;
@@ -7562,31 +7617,32 @@ function pass116InstallChromeOverlayArbitration(): void {
 }
 
 function isToolMenuName(value: string | null): value is ToolMenuName {
-  return value === 'devops' || value === 'it';
+  return value === 'devops' || value === 'it' || value === 'browser';
 }
 
 function rememberToolLane(name: ToolMenuName): void {
+  if (name === 'browser') return;
   try { window.localStorage.setItem(COMMAND_TOOLBAR_LAST_LANE_KEY, name); } catch { /* localStorage may be unavailable in hardened sessions. */ }
 }
 
-function lastToolLane(): ToolMenuName {
+function lastToolLane(): PrimaryToolMenuName {
   try {
     const stored = window.localStorage.getItem(COMMAND_TOOLBAR_LAST_LANE_KEY);
-    if (isToolMenuName(stored)) return stored;
+    if (stored === 'devops' || stored === 'it') return stored;
   } catch { /* localStorage may be unavailable in hardened sessions. */ }
   return 'devops';
 }
 
 function toolMenuPair(name: ToolMenuName): { button: HTMLButtonElement; panel: HTMLElement } {
-  return name === 'devops'
-    ? { button: devopsToolsButton, panel: devopsToolsPanel }
-    : { button: itToolsButton, panel: itToolsPanel };
+  if (name === 'devops') return { button: devopsToolsButton, panel: devopsToolsPanel };
+  if (name === 'it') return { button: itToolsButton, panel: itToolsPanel };
+  return { button: browserKitButton, panel: browserKitPanel };
 }
 
 function closeToolMenus(except?: ToolMenuName, restoreFocus = false): void {
   let activeLane: ToolMenuName | undefined;
   let restoreTarget: HTMLButtonElement | null = null;
-  for (const name of ['devops', 'it'] as ToolMenuName[]) {
+  for (const name of ['devops', 'it', 'browser'] as ToolMenuName[]) {
     if (name === except) { activeLane = name; continue; }
     const { button, panel } = toolMenuPair(name);
     if (!panel.hidden && !restoreTarget) restoreTarget = button;
@@ -7602,11 +7658,15 @@ function closeToolMenus(except?: ToolMenuName, restoreFocus = false): void {
 }
 
 function commandToolbarLabel(name: ToolMenuName): string {
-  return name === 'devops' ? 'DevOps Command Toolbar' : 'IT Tools Command Toolbar';
+  if (name === 'devops') return 'DevOps Command Toolbar';
+  if (name === 'it') return 'IT Tools Command Toolbar';
+  return 'Browser Kit';
 }
 
 function commandToolbarShortcut(name: ToolMenuName): string {
-  return name === 'devops' ? 'Ctrl+Alt+O' : 'Ctrl+Alt+I';
+  if (name === 'devops') return 'Ctrl+Alt+O';
+  if (name === 'it') return 'Ctrl+Alt+I';
+  return 'Ctrl+Alt+.';
 }
 
 function scrollToolMenu(panel: HTMLElement, direction: -1 | 1): void {
@@ -8258,6 +8318,147 @@ function currentWorkspaceUrls(): string[] {
 
 function currentActiveUrl(): string {
   return active()?.url || addressInput.value || config?.homeUrl || 'https://tahaiportal.com';
+}
+
+const PASS343_BROWSER_KIT_CONTRACT = 'PASS343_IT_DEVOPS_PRIORITY_BROWSER_KIT';
+const PASS343_ZOOM_STEP = 0.1;
+const PASS343_ZOOM_MIN = 0.5;
+const PASS343_ZOOM_MAX = 2;
+
+function pass343ActiveTarget(intent: Pass134RouteIntent = 'browser-kit'): TabState | undefined {
+  return activeNavigationTarget(intent);
+}
+
+function pass343ActiveUrl(intent: Pass134RouteIntent = 'browser-kit'): string {
+  const target = pass343ActiveTarget(intent);
+  return target?.url || currentActiveUrl();
+}
+
+function pass343ClampZoom(value: number): number {
+  return Math.max(PASS343_ZOOM_MIN, Math.min(PASS343_ZOOM_MAX, Math.round(value * 10) / 10));
+}
+
+function pass343CurrentZoomFactor(webview: Electron.WebviewTag): number {
+  const stored = Number(webview.dataset.pass343BrowserZoomFactor || '1');
+  return Number.isFinite(stored) && stored > 0 ? stored : 1;
+}
+
+function setActivePageZoom(mode: 'in' | 'out' | 'reset'): void {
+  const tab = pass343ActiveTarget('zoom');
+  if (!tab) return pass134Noop('zoom', 'No active tab or visible Mission pane is available.');
+  const current = pass343CurrentZoomFactor(tab.webview);
+  const next = mode === 'reset' ? 1 : pass343ClampZoom(current + (mode === 'in' ? PASS343_ZOOM_STEP : -PASS343_ZOOM_STEP));
+  if (!pass238CanInvokeWebviewCommand(tab.webview, 'setZoomFactor', `zoom:${tab.id}:${mode}`)) {
+    pass134Noop('zoom', `${pass134TargetLabel(tab)} is not ready to zoom.`);
+    return;
+  }
+  try {
+    tab.webview.setZoomFactor(next);
+    tab.webview.dataset.pass343BrowserZoomFactor = String(next);
+    document.body.dataset.pass343LastBrowserKitAction = `zoom-${mode}:${next}`;
+    pass238RecordWebviewCommandLifecycle('setZoomFactor', `zoom:${tab.id}:${mode}`, 'ok', next);
+    setStatus(`Page zoom ${Math.round(next * 100)}%`, pass134TargetLabel(tab));
+  } catch (error) {
+    pass238RecordWebviewCommandLifecycle('setZoomFactor', `zoom:${tab.id}:${mode}`, 'failed', error instanceof Error ? error.message : error);
+    setStatus('Page zoom failed', error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function copyActivePageUrl(): Promise<void> {
+  const url = pass343ActiveUrl('browser-kit');
+  const copied = await window.tahaiBrowser.copyDevOpsCapture(url);
+  document.body.dataset.pass343LastBrowserKitAction = copied ? 'copy-url:ok' : 'copy-url:failed';
+  setStatus(copied ? 'Copied active page URL' : 'Copy URL failed', url);
+}
+
+async function openActivePageExternally(): Promise<void> {
+  const url = pass343ActiveUrl('browser-kit');
+  const opened = await window.tahaiBrowser.openExternal(url);
+  document.body.dataset.pass343LastBrowserKitAction = opened ? 'open-external:ok' : 'open-external:blocked';
+  setStatus(opened ? 'Opened active page externally' : 'External open blocked', opened ? url : 'Only safe external http/https URLs can leave the browser shell.');
+}
+
+function openBrowserBookmarks(): void {
+  const bookmarkButton = document.getElementById('chromium-bookmarks-button') as HTMLButtonElement | null;
+  if (bookmarkButton) {
+    bookmarkButton.click();
+    document.body.dataset.pass343LastBrowserKitAction = 'bookmarks:button';
+    setStatus('Bookmarks opened', 'Local bookmark workspace is available.');
+    return;
+  }
+  document.dispatchEvent(new CustomEvent(PASS164_MORE_TOOLS_ACTION_EVENT, { detail: { actionId: 'chromium-bookmarks-button', source: 'browser-kit' } }));
+  document.body.dataset.pass343LastBrowserKitAction = 'bookmarks:event';
+  setStatus('Bookmarks requested', 'If the bookmark workspace is still loading, open More Tools once it appears.');
+}
+
+function focusDownloadArtifacts(): void {
+  document.body.dataset.pass343LastBrowserKitAction = 'downloads';
+  if (!pass194DownloadArtifacts.length) {
+    artifactShelf.focus?.();
+    setStatus('No download artifacts yet', 'Completed downloads will appear in the status bar with checksum and folder reveal controls.');
+    return;
+  }
+  artifactShelf.tabIndex = -1;
+  artifactShelf.focus({ preventScroll: true });
+  setStatus('Download artifact shelf focused', `${pass194DownloadArtifacts.length} recent artifact(s) retained locally.`);
+}
+
+function openFindBar(query = findInput.value): void {
+  closeToolMenus(undefined, false);
+  findBar.hidden = false;
+  findBar.removeAttribute('aria-hidden');
+  findBar.dataset.pass343FindBar = PASS343_BROWSER_KIT_CONTRACT;
+  document.body.dataset.pass343LastBrowserKitAction = 'find-open';
+  findInput.value = query;
+  findStatus.textContent = query.trim() ? 'Searching' : 'Ready';
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('find-bar-open');
+  window.setTimeout(() => {
+    findInput.focus({ preventScroll: true });
+    findInput.select();
+  }, 0);
+  if (query.trim()) runFindInPage(true, false);
+}
+
+function closeFindBar(): void {
+  const tab = pass343ActiveTarget('find');
+  if (tab) pass343SafeStopFindInPage(tab.webview, `find:${tab.id}:close`);
+  findBar.hidden = true;
+  findBar.setAttribute('aria-hidden', 'true');
+  findStatus.textContent = 'Ready';
+  document.body.dataset.pass343LastBrowserKitAction = 'find-close';
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('find-bar-close');
+}
+
+function runFindInPage(forward = true, findNext = true): void {
+  const query = findInput.value.trim();
+  const tab = pass343ActiveTarget('find');
+  if (!tab) return pass134Noop('find', 'No active tab or visible Mission pane is available.');
+  if (!query) {
+    pass343SafeStopFindInPage(tab.webview, `find:${tab.id}:empty`);
+    findStatus.textContent = 'Ready';
+    return;
+  }
+  const ok = pass343SafeFindInPage(tab.webview, query, { forward, findNext, matchCase: false }, `find:${tab.id}:${forward ? 'next' : 'previous'}`);
+  findStatus.textContent = ok ? (forward ? 'Next' : 'Prev') : 'Not ready';
+  document.body.dataset.pass343LastBrowserKitAction = ok ? `find:${forward ? 'next' : 'previous'}` : 'find:not-ready';
+  if (!ok) setStatus('Find unavailable', `${pass134TargetLabel(tab)} is not ready for page search.`);
+}
+
+function runBrowserKitAction(action: string): void {
+  switch (action) {
+    case 'new-tab': closeToolMenus(undefined, false); createTab(config.newTabUrl); break;
+    case 'close-tab': closeToolMenus(undefined, false); closeTab(pass343ActiveTarget('browser-kit')?.id || activeTabId); break;
+    case 'find': openFindBar(); break;
+    case 'print': closeToolMenus(undefined, false); printTarget('print'); break;
+    case 'copy-url': closeToolMenus(undefined, false); void copyActivePageUrl(); break;
+    case 'open-external': closeToolMenus(undefined, false); void openActivePageExternally(); break;
+    case 'bookmarks': closeToolMenus(undefined, false); openBrowserBookmarks(); break;
+    case 'downloads': closeToolMenus(undefined, false); focusDownloadArtifacts(); break;
+    case 'zoom-in': closeToolMenus(undefined, false); setActivePageZoom('in'); break;
+    case 'zoom-out': closeToolMenus(undefined, false); setActivePageZoom('out'); break;
+    case 'zoom-reset': closeToolMenus(undefined, false); setActivePageZoom('reset'); break;
+    default: setStatus('Browser Kit action unavailable', action || 'unknown');
+  }
 }
 
 function toggleOpsHub(open = opsHub.hidden, restoreFocus = false): void {
@@ -11156,7 +11357,17 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     { id: 'secret-boundary', title: 'Secret Boundary', detail: 'Open Ops Guard and integration-secret boundary. No browser-side vault.', group: 'IT', shortcut: 'Ctrl+Alt+K', run: openSecretBoundary },
     { id: 'devops-menu', title: 'DevOps Tools Menu', detail: 'Open DevOps and developer flyout.', group: 'Tools', shortcut: 'Ctrl+Alt+O', run: () => openToolMenu('devops') },
     { id: 'it-menu', title: 'IT Tools Menu', detail: 'Open IT engineering flyout.', group: 'Tools', shortcut: 'Ctrl+Alt+I', run: () => openToolMenu('it') },
+    { id: 'browser-kit-menu', title: 'Browser Kit Menu', detail: 'Open daily-driver browser actions without demoting DevOps or IT lanes.', group: 'Browser Kit', shortcut: 'Ctrl+Alt+.', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => openToolMenu('browser') },
     { id: 'last-tool-menu', title: 'Reopen Last Command Toolbar', detail: 'Open whichever command lane was used last: DevOps or IT Tools.', group: 'Tools', shortcut: 'Ctrl+Alt+L', run: () => openLastToolMenu() },
+    { id: 'find-page', title: 'Find in Active Page', detail: 'Search text inside the active webview or active Mission pane.', group: 'Browser Kit', shortcut: 'Ctrl+F', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => openFindBar() },
+    { id: 'print-page', title: 'Print Active Page', detail: 'Print the active tab or active Mission pane webview.', group: 'Browser Kit', shortcut: 'Ctrl+P', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => printTarget('print') },
+    { id: 'copy-url', title: 'Copy Active URL', detail: 'Copy only the active page URL through the trusted local clipboard path.', group: 'Browser Kit', shortcut: 'Ctrl+Shift+U', target: 'Active URL', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => { void copyActivePageUrl(); } },
+    { id: 'open-external', title: 'Open Active Page Externally', detail: 'Open the active http/https page in the system default browser through the safe external-open boundary.', group: 'Browser Kit', shortcut: 'Alt+Enter', target: 'Active URL', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => { void openActivePageExternally(); } },
+    { id: 'browser-bookmarks', title: 'Open Bookmarks Workspace', detail: 'Open TAHAI local bookmarks, folders, and bookmark-to-Mission launches.', group: 'Browser Kit', target: 'Local bookmark workspace', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: openBrowserBookmarks },
+    { id: 'browser-downloads', title: 'Focus Download Artifacts', detail: 'Focus recent local download metadata, checksums, and reveal controls.', group: 'Browser Kit', target: 'Download artifact shelf', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: focusDownloadArtifacts },
+    { id: 'zoom-in', title: 'Zoom In Active Page', detail: 'Increase active webview zoom without resizing TAHAI chrome.', group: 'Browser Kit', shortcut: 'Ctrl++', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => setActivePageZoom('in') },
+    { id: 'zoom-out', title: 'Zoom Out Active Page', detail: 'Decrease active webview zoom without resizing TAHAI chrome.', group: 'Browser Kit', shortcut: 'Ctrl+-', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => setActivePageZoom('out') },
+    { id: 'zoom-reset', title: 'Reset Active Page Zoom', detail: 'Return active webview zoom to 100%.', group: 'Browser Kit', shortcut: 'Ctrl+0', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => setActivePageZoom('reset') },
     { id: 'capture', title: 'Capture DevOps Evidence', detail: 'Create Markdown evidence for tickets/runbooks.', group: 'Tools', shortcut: 'Ctrl+Shift+E', run: openDevOpsCapture },
     { id: 'ops-check', title: 'Run Ops Check', detail: 'HTTP and safe header readiness report.', group: 'Tools', shortcut: 'Ctrl+Shift+D', run: openOpsCheck },
     { id: 'deploy', title: 'Deploy Readiness', detail: 'Go/no-go, rollback, smoke checks, post-deploy matrix.', group: 'Tools', shortcut: 'Ctrl+Alt+R', run: openDeployReadiness },
@@ -13277,6 +13488,20 @@ function reloadForActiveProfile(): void {
   createTab(config.startupUrl || config.homeUrl);
 }
 
+function pass342ValidateProfileDialogViewport(reason: string): void {
+  if (!profileDialog.open) return;
+  const panel = profileDialog as unknown as HTMLElement;
+  const rect = panel.getBoundingClientRect();
+  document.body.dataset.pass342ProfileDialogViewportValidationReason = reason;
+  pass122CenteredModalDialogFitsViewport(panel, 'profile-dialog', rect, pass122ViewportHeight());
+}
+
+function pass342ScheduleProfileDialogViewportValidation(reason: string): void {
+  window.requestAnimationFrame(() => pass342ValidateProfileDialogViewport(`${reason}:raf`));
+  window.setTimeout(() => pass342ValidateProfileDialogViewport(`${reason}:settle-80`), 80);
+  window.setTimeout(() => pass342ValidateProfileDialogViewport(`${reason}:settle-260`), PASS122_OVERLAY_OPEN_SETTLE_MS + 20);
+}
+
 async function openProfileManager(): Promise<void> {
   pass190CloseRivalOverlays('profile-dialog');
   if (!profileDialog.open) profileDialog.showModal();
@@ -13284,6 +13509,7 @@ async function openProfileManager(): Promise<void> {
   pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('profile-open');
   await refreshProfiles(browserProfileState?.activeProfileId);
   window.requestAnimationFrame(() => pass122RunOverlayViewportReflow('viewport-reflow'));
+  pass342ScheduleProfileDialogViewportValidation('profile-open-after-hydration');
 }
 
 function closeProfileManager(restoreFocus = false): void {
@@ -13390,12 +13616,21 @@ function handleMenuCommand(command: string): void {
   if (command === 'handoff-psa') openHandoffCenter('psa');
   if (command === 'open-devops-menu') openToolMenu('devops');
   if (command === 'open-it-menu') openToolMenu('it');
+  if (command === 'open-browser-kit') openToolMenu('browser');
   if (command === 'open-last-tool-menu') openLastToolMenu();
   if (command === 'profiles') void openProfileManager();
   if (command === 'new-google-profile') void createProfileDraft('google');
   if (command === 'new-microsoft-profile') void createProfileDraft('microsoft');
   if (command === 'open-active-profile-folder') void openActiveProfileData();
   if (command === 'focus-address') { addressInput.focus(); addressInput.select(); }
+  if (command === 'find-page') openFindBar();
+  if (command === 'copy-url') void copyActivePageUrl();
+  if (command === 'open-external') void openActivePageExternally();
+  if (command === 'bookmarks') openBrowserBookmarks();
+  if (command === 'downloads') focusDownloadArtifacts();
+  if (command === 'zoom-in') setActivePageZoom('in');
+  if (command === 'zoom-out') setActivePageZoom('out');
+  if (command === 'zoom-reset') setActivePageZoom('reset');
   if (command === 'back') goBackTarget('menu');
   if (command === 'forward') goForwardTarget('menu');
   if (command === 'home') navigate(settings.homeUrl || config.homeUrl, 'home');
@@ -13710,12 +13945,37 @@ shortcutDialog.addEventListener('close', () => {
 closeShortcutsButton.addEventListener('click', () => closeKeyboardShortcuts(true));
 devopsToolsButton.addEventListener('click', (event) => { event.stopPropagation(); toggleToolMenu('devops'); });
 itToolsButton.addEventListener('click', (event) => { event.stopPropagation(); toggleToolMenu('it'); });
+browserKitButton.addEventListener('click', (event) => { event.stopPropagation(); toggleToolMenu('browser'); });
 devopsToolsButton.addEventListener('keydown', (event) => handleToolMenuButtonKeyboard('devops', event));
 itToolsButton.addEventListener('keydown', (event) => handleToolMenuButtonKeyboard('it', event));
+browserKitButton.addEventListener('keydown', (event) => handleToolMenuButtonKeyboard('browser', event));
 devopsToolsPanel.addEventListener('click', (event) => event.stopPropagation());
 itToolsPanel.addEventListener('click', (event) => event.stopPropagation());
+browserKitPanel.addEventListener('click', (event) => {
+  event.stopPropagation();
+  const button = eventClosest<HTMLButtonElement>(event, 'button[data-browser-kit-action]');
+  if (!button?.dataset.browserKitAction) return;
+  event.preventDefault();
+  runBrowserKitAction(button.dataset.browserKitAction);
+});
 devopsToolsPanel.addEventListener('keydown', (event) => handleToolMenuKeyboard('devops', event));
 itToolsPanel.addEventListener('keydown', (event) => handleToolMenuKeyboard('it', event));
+browserKitPanel.addEventListener('keydown', (event) => handleToolMenuKeyboard('browser', event));
+findBar.addEventListener('click', (event) => event.stopPropagation());
+findInput.addEventListener('input', () => runFindInPage(true, false));
+findInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    runFindInPage(!event.shiftKey, true);
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeFindBar();
+  }
+});
+findPrevButton.addEventListener('click', () => runFindInPage(false, true));
+findNextButton.addEventListener('click', () => runFindInPage(true, true));
+findCloseButton.addEventListener('click', () => closeFindBar());
 settingsButton.addEventListener('click', () => { closeToolMenus(undefined, false); openSettings(); });
 captureButton.addEventListener('click', () => runToolFromMenu(openDevOpsCapture));
 opsCheckButton.addEventListener('click', () => runToolFromMenu(openOpsCheck));
@@ -13744,6 +14004,10 @@ window.addEventListener(PASS193_BOOKMARK_MISSION_EVENT_NAME, (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !findBar.hidden) {
+    closeFindBar();
+    return;
+  }
   if (event.key === 'Escape') closeToolMenus(undefined, true);
 });
 closeSettingsButton.addEventListener('click', () => closeSettingsDialog(true));
@@ -14006,6 +14270,13 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key.toLowerCase() === 'd') { event.preventDefault(); event.stopPropagation(); pass78RunMissionViewDoctor('shortcut'); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key.toLowerCase() === 'r') { event.preventDefault(); event.stopPropagation(); pass78RepaintMissionView('shortcut'); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key.toLowerCase() === 's') { event.preventDefault(); event.stopPropagation(); pass81RunAllSurfaceDoctor('shortcut'); return; }
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openFindBar(); return; }
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'p') { event.preventDefault(); printTarget('print'); return; }
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'u') { event.preventDefault(); void copyActivePageUrl(); return; }
+  if (event.altKey && event.key === 'Enter') { event.preventDefault(); void openActivePageExternally(); return; }
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && (event.key === '+' || event.key === '=')) { event.preventDefault(); setActivePageZoom('in'); return; }
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key === '-') { event.preventDefault(); setActivePageZoom('out'); return; }
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key === '0') { event.preventDefault(); setActivePageZoom('reset'); return; }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openCommandPalette(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'h') { event.preventDefault(); toggleOpsHub(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'm') { event.preventDefault(); void openMissionControl(); }
@@ -14027,6 +14298,7 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'u') { event.preventDefault(); void startMissionFromRecipe('azure-release-cockpit', 'keyboard-shortcut'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key === '5') { event.preventDefault(); void startMissionFromRecipe('m365-change-cockpit', 'keyboard-shortcut'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'i') { event.preventDefault(); openToolMenu('it'); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && (event.key === '.' || event.code === 'Period')) { event.preventDefault(); openToolMenu('browser'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'l') { event.preventDefault(); openLastToolMenu(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && ['1','2','3','4'].includes(event.key)) { event.preventDefault(); setMissionActivePane('pane-' + event.key); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowLeft') { event.preventDefault(); swapActiveMissionPane(-1); }
@@ -14357,9 +14629,12 @@ function installPass158RuntimeE2eHarness(): void {
         pass158RuntimeE2eElement('[data-testid="runtime-guide-kb"]');
         pass158RuntimeE2eElement('[data-tool-menu="devops"]');
         pass158RuntimeE2eElement('[data-tool-menu="it"]');
+        pass158RuntimeE2eElement('[data-tool-menu="browser"]');
         pass158RuntimeE2eElement('#devops-tools-panel');
         pass158RuntimeE2eElement('#it-tools-panel');
-        return 'Guide/KB entry and DevOps/IT tool lanes are runtime-addressable';
+        pass158RuntimeE2eElement('#browser-kit-panel');
+        pass158RuntimeE2eElement('#find-bar');
+        return 'Guide/KB entry and DevOps/IT/Browser Kit tool lanes are runtime-addressable';
       });
 
       await step('shell-overlays-open-close', async () => {
@@ -14372,6 +14647,18 @@ function installPass158RuntimeE2eHarness(): void {
         if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not open');
         await pass158RuntimeE2eClick('#it-tools');
         if (!await pass158RuntimeE2eWaitFor(() => itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not close');
+
+        await pass158RuntimeE2eClick('#browser-kit');
+        if (!await pass158RuntimeE2eWaitFor(() => !browserKitPanel.hidden, 1200)) throw new Error('Browser Kit panel did not open');
+        await pass158RuntimeE2eClick('#browser-kit');
+        if (!await pass158RuntimeE2eWaitFor(() => browserKitPanel.hidden, 1200)) throw new Error('Browser Kit panel did not close');
+
+        await pass158RuntimeE2eClick('#browser-kit');
+        if (!await pass158RuntimeE2eWaitFor(() => !browserKitPanel.hidden, 1200)) throw new Error('Browser Kit panel did not reopen for Find');
+        await pass158RuntimeE2eClick('#browser-find');
+        if (!await pass158RuntimeE2eWaitFor(() => !findBar.hidden, 1200)) throw new Error('Find bar did not open from Browser Kit');
+        await pass158RuntimeE2eClick('#find-close');
+        if (!await pass158RuntimeE2eWaitFor(() => findBar.hidden, 1200)) throw new Error('Find bar did not close');
 
         await pass158RuntimeE2eClick('#ops-hub-toggle');
         if (!await pass158RuntimeE2eWaitFor(() => !opsHub.hidden, 1200)) throw new Error('Ops Panel did not open');
@@ -14401,7 +14688,7 @@ function installPass158RuntimeE2eHarness(): void {
 
         const clickability = pass341NormalBrowserAndFeatureClickabilityCloseout('pass158-shell-overlays-open-close');
         if (clickability.status !== 'PASS') throw new Error('shell clickability degraded after overlay open/close cycle');
-        return 'DevOps, IT, Ops Panel, Settings, Profiles, and Command Palette open and close cleanly';
+        return 'DevOps, IT, Browser Kit, Find, Ops Panel, Settings, Profiles, and Command Palette open and close cleanly';
       }, 15000);
 
       await step('evidence-export-preview', async () => {
@@ -16243,15 +16530,18 @@ let pass341LoggedCaptureFallbackDisabled = false;
 const PASS341_CHROME_CONTROL_SELECTORS = [
   '.toolbar', '.statusbar', '#new-tab', '.tab', '.tab *',
   '#back', '#forward', '#reload', '#home', '#address', '#address-form', '#launchpad', '#onboarding',
-  '#profile-switcher', '#devops-tools', '#it-tools', '#ops-hub-toggle', '#mission-control-toggle', '#settings',
+  '#profile-switcher', '#devops-tools', '#it-tools', '#browser-kit', '#ops-hub-toggle', '#mission-control-toggle', '#settings',
+  '#find-bar', '#find-input', '#find-prev', '#find-next', '#find-close',
   '.tool-menu-button', '.tool-card', '.home-button', '.icon-button', 'button'
 ] as const;
 
 const PASS341_FEATURE_CONTROL_IDS = new Set([
   'back', 'forward', 'reload', 'home', 'address-form', 'address', 'launchpad', 'onboarding', 'profile-switcher',
-  'devops-tools', 'it-tools', 'ops-hub-toggle', 'mission-control-toggle', 'settings', 'new-tab',
+  'devops-tools', 'it-tools', 'browser-kit', 'ops-hub-toggle', 'mission-control-toggle', 'settings', 'new-tab',
   'capture', 'ops-check', 'deploy', 'it-card', 'endpoint', 'triage', 'secret-boundary', 'route-map', 'dev-audit',
-  'ops-guard', 'devtools', 'about'
+  'ops-guard', 'devtools', 'about', 'browser-new-tab', 'browser-close-tab', 'browser-find', 'browser-print',
+  'browser-copy-url', 'browser-open-external', 'browser-bookmarks', 'browser-downloads', 'browser-zoom-out',
+  'browser-zoom-reset', 'browser-zoom-in'
 ]);
 
 function pass341CaptureFallbackEnabled(): boolean {
@@ -16316,7 +16606,7 @@ function pass341NormalizeHiddenOverlays(reason: string): number {
   let count = 0;
   const selectors = [
     '.tool-menu-panel[hidden]', '.toolbar-overflow-menu[hidden]', '.modal[hidden]', '.flyout[hidden]', '.overlay[hidden]', '.drawer[hidden]',
-    'dialog:not([open])', '#ops-hub[hidden]', '#devops-tools-panel[hidden]', '#it-tools-panel[hidden]', '#command-palette-dialog:not([open])',
+    'dialog:not([open])', '#ops-hub[hidden]', '#devops-tools-panel[hidden]', '#it-tools-panel[hidden]', '#browser-kit-panel[hidden]', '#find-bar[hidden]', '#command-palette-dialog:not([open])',
     '#settings-dialog:not([open])', '#profile-dialog:not([open])', '#mission-dialog:not([open])', '#shortcut-dialog:not([open])'
   ];
   document.querySelectorAll<HTMLElement>(selectors.join(',')).forEach((element) => {
@@ -16442,6 +16732,7 @@ function pass341RunPrimaryFeatureAction(controlId: string): boolean {
     case 'profile-switcher': void openProfileManager(); return true;
     case 'devops-tools': toggleToolMenu('devops'); return true;
     case 'it-tools': toggleToolMenu('it'); return true;
+    case 'browser-kit': toggleToolMenu('browser'); return true;
     case 'ops-hub-toggle': toggleOpsHub(); return true;
     case 'mission-control-toggle': void openMissionControl(); return true;
     case 'settings': closeToolMenus(undefined, false); openSettings(); return true;
@@ -16458,6 +16749,17 @@ function pass341RunPrimaryFeatureAction(controlId: string): boolean {
     case 'ops-guard': runToolFromMenu(openOpsGuardReview); return true;
     case 'devtools': runToolFromMenu(toggleActiveDevTools); return true;
     case 'about': closeToolMenus(undefined, false); navigate(config?.aboutUrl); return true;
+    case 'browser-new-tab': runBrowserKitAction('new-tab'); return true;
+    case 'browser-close-tab': runBrowserKitAction('close-tab'); return true;
+    case 'browser-find': runBrowserKitAction('find'); return true;
+    case 'browser-print': runBrowserKitAction('print'); return true;
+    case 'browser-copy-url': runBrowserKitAction('copy-url'); return true;
+    case 'browser-open-external': runBrowserKitAction('open-external'); return true;
+    case 'browser-bookmarks': runBrowserKitAction('bookmarks'); return true;
+    case 'browser-downloads': runBrowserKitAction('downloads'); return true;
+    case 'browser-zoom-out': runBrowserKitAction('zoom-out'); return true;
+    case 'browser-zoom-reset': runBrowserKitAction('zoom-reset'); return true;
+    case 'browser-zoom-in': runBrowserKitAction('zoom-in'); return true;
     default: return false;
   }
 }
@@ -16465,7 +16767,7 @@ function pass341RunPrimaryFeatureAction(controlId: string): boolean {
 function pass341HandlePrimaryFeatureClick(event: MouseEvent): void {
   if (pass341HandlingFeatureClick) return;
   const target = event.target as HTMLElement | null;
-  const control = target?.closest?.<HTMLElement>('#back,#forward,#reload,#home,#launchpad,#onboarding,#profile-switcher,#devops-tools,#it-tools,#ops-hub-toggle,#mission-control-toggle,#settings,#new-tab,#capture,#ops-check,#deploy,#it-card,#endpoint,#triage,#secret-boundary,#route-map,#dev-audit,#ops-guard,#devtools,#about');
+  const control = target?.closest?.<HTMLElement>('#back,#forward,#reload,#home,#launchpad,#onboarding,#profile-switcher,#devops-tools,#it-tools,#browser-kit,#ops-hub-toggle,#mission-control-toggle,#settings,#new-tab,#capture,#ops-check,#deploy,#it-card,#endpoint,#triage,#secret-boundary,#route-map,#dev-audit,#ops-guard,#devtools,#about,#browser-new-tab,#browser-close-tab,#browser-find,#browser-print,#browser-copy-url,#browser-open-external,#browser-bookmarks,#browser-downloads,#browser-zoom-out,#browser-zoom-reset,#browser-zoom-in');
   if (!control?.id || !PASS341_FEATURE_CONTROL_IDS.has(control.id)) return;
   pass341HandlingFeatureClick = true;
   try {

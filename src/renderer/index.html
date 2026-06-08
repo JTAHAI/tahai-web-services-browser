@@ -16,7 +16,7 @@
   data-pass180-primary-chrome-compact-recovery="true"
   data-pass181-compact-primary-ux-clarity="true"
   data-pass182-compact-hit-target-focus="true"
-  data-pass183-more-tools-overlay-collision-recovery="true" data-pass184-hidden-more-tools-focus-recovery="true" data-pass185-mouse-history-parity="true" data-pass192-titlebar-chrome-final="true">
+  data-pass183-more-tools-overlay-collision-recovery="true" data-pass184-hidden-more-tools-focus-recovery="true" data-pass185-mouse-history-parity="true" data-pass192-titlebar-chrome-final="true" data-pass343-it-devops-priority-browser-kit="true">
   <section id="boot-diagnostic" class="boot-diagnostic" aria-live="assertive">
     <div>
       <p class="eyebrow">TAHAI Browser Runtime Diagnostic</p>
@@ -92,6 +92,45 @@
       <button id="mission-control-toggle" class="home-button secondary mission-control-button pass180-primary-control" type="button" title="Open Mission Control (Ctrl+Alt+M)" aria-label="Open Mission Control" data-testid="runtime-mission-control"><span class="pass180-primary-icon" aria-hidden="true">M</span><span class="pass180-primary-label">Mission</span></button>
       <button id="settings" class="home-button secondary utility-chrome-button" type="button" title="Settings" aria-label="Open Settings" data-pass173-iconified="settings" data-pass173-tooltip="Settings"><span class="chrome-action-icon" aria-hidden="true">⚙</span><span class="chrome-action-label">Settings</span></button>
       <button id="about" class="home-button secondary utility-chrome-button" type="button" title="About" aria-label="Open About" data-pass173-iconified="about" data-pass173-tooltip="About"><span class="chrome-action-icon" aria-hidden="true">i</span><span class="chrome-action-label">About</span></button>
+      <div class="tool-flyout browser-kit-flyout" data-tool-menu="browser">
+        <button id="browser-kit" class="home-button secondary tool-menu-button browser utility-chrome-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="browser-kit-panel" title="Open Browser Kit daily-driver tools (Ctrl+Alt+.)" aria-label="Open Browser Kit" data-pass173-iconified="browser-kit" data-pass173-tooltip="Browser Kit"><span aria-hidden="true">&#9776;</span><span class="chrome-action-label">Browser Kit</span></button>
+        <section id="browser-kit-panel" class="tool-menu-panel browser-kit" role="menu" aria-label="Browser Kit daily-driver tools" hidden>
+          <header class="tool-menu-header">
+            <div>
+              <strong>Browser Kit</strong>
+              <span>Daily-driver browser actions. DevOps and IT lanes stay first-class.</span>
+            </div>
+          </header>
+          <div class="tool-menu-section">
+            <p>Navigation + tabs</p>
+            <button id="browser-new-tab" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="new-tab" title="Open a new TAHAI tab"><strong>New Tab</strong><kbd>Ctrl+T</kbd><span>Open the launchpad in a fresh isolated profile tab.</span></button>
+            <button id="browser-close-tab" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="close-tab" title="Close the active tab"><strong>Close Tab</strong><kbd>Ctrl+W</kbd><span>Close the active tab or active Mission pane tab.</span></button>
+            <button id="browser-find" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="find" title="Find text inside the active page"><strong>Find Page</strong><kbd>Ctrl+F</kbd><span>Search inside the active webview without stealing address navigation.</span></button>
+            <button id="browser-print" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="print" title="Print the active page"><strong>Print</strong><kbd>Ctrl+P</kbd><span>Print the active tab or active Mission pane.</span></button>
+          </div>
+          <div class="tool-menu-section compact">
+            <p>Page utilities</p>
+            <button id="browser-copy-url" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="copy-url" title="Copy the active page URL"><strong>Copy URL</strong><kbd>Ctrl+Shift+U</kbd><span>Copy only the active page URL through the trusted shell clipboard path.</span></button>
+            <button id="browser-open-external" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="open-external" title="Open active page in the system default browser"><strong>Open External</strong><kbd>Alt+Enter</kbd><span>Use the existing safe external-open allowlist for http/https pages.</span></button>
+            <button id="browser-bookmarks" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="bookmarks" title="Open the local bookmark workspace"><strong>Bookmarks</strong><kbd>Ctrl+B</kbd><span>Open TAHAI's local bookmark and folder launch workspace.</span></button>
+            <button id="browser-downloads" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="downloads" title="Focus recent download artifacts"><strong>Downloads</strong><kbd>Ctrl+J</kbd><span>Show the local artifact shelf for completed downloads and checksums.</span></button>
+          </div>
+          <div class="tool-menu-section compact">
+            <p>Page zoom</p>
+            <button id="browser-zoom-out" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="zoom-out" title="Zoom out active page"><strong>Zoom Out</strong><kbd>Ctrl+-</kbd><span>Decrease active webview zoom without changing app chrome size.</span></button>
+            <button id="browser-zoom-reset" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="zoom-reset" title="Reset active page zoom"><strong>Reset Zoom</strong><kbd>Ctrl+0</kbd><span>Return the active webview to 100% zoom.</span></button>
+            <button id="browser-zoom-in" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="zoom-in" title="Zoom in active page"><strong>Zoom In</strong><kbd>Ctrl++</kbd><span>Increase active webview zoom without changing app chrome size.</span></button>
+          </div>
+          <footer class="tool-menu-footer">&uarr;&darr; Move &middot; Enter Run &middot; Esc Close &middot; Ctrl+K Command Palette</footer>
+        </section>
+      </div>
+    </section>
+    <section id="find-bar" class="find-bar" aria-label="Find in active page" hidden>
+      <label class="find-field"><span>Find</span><input id="find-input" type="search" autocomplete="off" spellcheck="false" aria-label="Find in active page" /></label>
+      <button id="find-prev" class="icon-button" type="button" title="Previous match" aria-label="Previous match">&uarr;</button>
+      <button id="find-next" class="icon-button" type="button" title="Next match" aria-label="Next match">&darr;</button>
+      <span id="find-status" class="find-status" aria-live="polite">Ready</span>
+      <button id="find-close" class="icon-button" type="button" title="Close find bar" aria-label="Close find bar">&times;</button>
     </section>
     <main id="webview-stage" class="webview-stage" data-testid="runtime-webview-stage"></main>
     <aside id="ops-hub" class="ops-hub" aria-label="TAHAI Ops Panel" hidden>
