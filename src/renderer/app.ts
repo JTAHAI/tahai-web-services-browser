@@ -7103,6 +7103,7 @@ type Pass164MoreToolsActionId = 'about' | 'settings' | 'onboarding' | 'launchpad
 const PASS165_MORE_TOOLS_ACTION_IDS: readonly Pass164MoreToolsActionId[] = ['about', 'settings', 'onboarding', 'launchpad', 'ops-hub-toggle', 'site-view-rail-toggle', 'chromium-bookmark-star', 'chromium-bookmarks-button', 'profile-switcher'];
 const PASS165_MORE_TOOLS_SHELL_ACTION_IDS = new Set<Pass164MoreToolsActionId>(['about', 'settings', 'onboarding', 'launchpad', 'ops-hub-toggle', 'profile-switcher']);
 const PASS122_OVERLAY_OPEN_SETTLE_MS = 260;
+const PASS342_RESTORED_WINDOW_MODAL_DIALOG_VIEWPORT_CLOSEOUT = 'PASS342_RESTORED_WINDOW_MODAL_DIALOG_VIEWPORT_CLOSEOUT';
 // PASS168 overlay open-age stamp: every overlay open path must refresh viewport-settle timing.
 // PASS169 delayed overlay focus guard: stale focus timers must not refocus hidden/replaced overlays.
 // PASS170 restore-focus target guard: close-time restore timers must not jump focus into hidden/replaced controls.
@@ -7390,13 +7391,37 @@ function pass122OverlayPanelForSource(source: Pass116ChromeOverlaySource): HTMLE
   return null;
 }
 function pass122ViewportHeight(): number { return Math.round(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0); }
+function pass122ViewportWidth(): number { return Math.round(window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 0); }
 function pass122OverlayVisibleHeight(rect: DOMRect, source: Pass116ChromeOverlaySource, chromeTop: number, usableBottom: number): number {
   const usableTop = source === 'mission-control' ? 0 : Math.max(0, chromeTop - 32);
   return Math.max(0, Math.min(rect.bottom, usableBottom + 8) - Math.max(rect.top, usableTop));
 }
+function pass122IsCenteredModalDialogOverlay(panel: HTMLElement, source: Pass116ChromeOverlaySource): boolean {
+  const isDialogElement = panel instanceof HTMLDialogElement || panel.tagName.toLowerCase() === 'dialog' || typeof (panel as HTMLDialogElement).showModal === 'function';
+  return isDialogElement && (source === 'profile-dialog' || source === 'settings' || source === 'command-palette' || source === 'shortcut-dialog');
+}
+function pass122CenteredModalDialogFitsViewport(panel: HTMLElement, source: Pass116ChromeOverlaySource, rect: DOMRect, viewportHeight = pass122ViewportHeight()): boolean {
+  if (!pass122IsCenteredModalDialogOverlay(panel, source)) return false;
+  const viewportWidth = pass122ViewportWidth();
+  const shortEdge = Math.min(Math.max(1, viewportWidth), Math.max(1, viewportHeight));
+  const margin = Math.max(8, Math.min(24, Math.round(shortEdge * 0.03)));
+  const visibleHeight = Math.max(0, Math.min(rect.bottom, viewportHeight - margin + 8) - Math.max(rect.top, margin - 8));
+  const minVisibleHeight = Math.min(160, Math.max(96, Math.round(viewportHeight * 0.22)));
+  const rectWidth = Math.max(0, Math.round(rect.width || 0));
+  const rectHeight = Math.max(0, Math.round(rect.height || 0));
+  const fitsVertically = rectHeight <= Math.max(160, viewportHeight - margin * 2 + 16) && rect.bottom <= viewportHeight - margin + 16 && rect.top >= margin - 16 && visibleHeight >= minVisibleHeight;
+  const fitsHorizontally = rect.left >= margin - 16 && rect.right <= viewportWidth - margin + 16 && rectWidth >= Math.min(180, Math.max(120, Math.round(viewportWidth * 0.12)));
+  document.body.dataset.pass342RestoredWindowModalDialogViewportLastCheck = `${source}:${Math.round(rect.left)},${Math.round(rect.top)},${rectWidth}x${rectHeight}:viewport=${viewportWidth}x${viewportHeight}:visible=${Math.round(visibleHeight)}:v=${fitsVertically ? '1' : '0'}:h=${fitsHorizontally ? '1' : '0'}`;
+  if (fitsVertically && fitsHorizontally) {
+    panel.dataset.pass342RestoredWindowModalDialogViewportCloseout = PASS342_RESTORED_WINDOW_MODAL_DIALOG_VIEWPORT_CLOSEOUT;
+    document.body.dataset.pass342RestoredWindowModalDialogViewportCloseout = `${source}:${Math.round(rect.left)},${Math.round(rect.top)},${rectWidth}x${rectHeight}`;
+  }
+  return fitsVertically && fitsHorizontally;
+}
 function pass122OverlayHasScrollSafeViewport(panel: HTMLElement, source: Pass116ChromeOverlaySource, rect: DOMRect, chromeTop: number, usableBottom: number): boolean {
   const scrollSafe = panel.dataset.pass121ScrollContainment === 'true' || panel instanceof HTMLDialogElement || panel.classList.contains('toolbar-overflow-menu') || panel.classList.contains('tool-menu-panel') || panel.classList.contains('ops-hub') || panel.classList.contains('site-view-mission-rail') || panel.classList.contains('mission-dialog');
   if (!scrollSafe) return false;
+  if (pass122CenteredModalDialogFitsViewport(panel, source, rect, pass122ViewportHeight())) return true;
   const topOk = source === 'mission-control' ? rect.top >= -12 : rect.top >= chromeTop - 36;
   const bottomOk = source === 'mission-control' ? rect.bottom <= pass122ViewportHeight() + 12 : rect.top < usableBottom - 96;
   const visibleHeight = pass122OverlayVisibleHeight(rect, source, chromeTop, usableBottom);
@@ -7414,6 +7439,7 @@ function pass122OverlayFitsViewport(panel: HTMLElement, source: Pass116ChromeOve
   const bottom = Number(document.body.dataset.pass114OverlayBottom || 18);
   const usableBottom = viewportHeight - bottom;
   if (pass122OverlayHasScrollSafeViewport(panel, source, rect, chromeTop, usableBottom)) return true;
+  if (pass122CenteredModalDialogFitsViewport(panel, source, rect, viewportHeight)) return true;
   return rect.height <= Math.max(160, usableBottom - chromeTop + 8) && rect.bottom <= usableBottom + 8 && rect.top >= chromeTop - 24;
 }
 let pass122ViewportReflowTimer: number | undefined;
@@ -13257,6 +13283,7 @@ async function openProfileManager(): Promise<void> {
   pass190OpenOwnedOverlay('profile-dialog', profileDialog as unknown as HTMLElement, profileSwitcherButton);
   pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('profile-open');
   await refreshProfiles(browserProfileState?.activeProfileId);
+  window.requestAnimationFrame(() => pass122RunOverlayViewportReflow('viewport-reflow'));
 }
 
 function closeProfileManager(restoreFocus = false): void {
@@ -14063,6 +14090,10 @@ async function pass158RuntimeE2eClick(selector: string): Promise<void> {
   await new Promise((resolve) => window.setTimeout(resolve, 80));
 }
 
+function pass158RuntimeE2eDelay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function pass158RuntimeE2eResult(id: string, ok: boolean, detail: string): { id: string; ok: boolean; detail: string } {
   return { id, ok, detail };
 }
@@ -14354,6 +14385,10 @@ function installPass158RuntimeE2eHarness(): void {
 
         await pass158RuntimeE2eClick('#profile-switcher');
         if (!await pass158RuntimeE2eWaitFor(() => profileDialog.open, 1800)) throw new Error('Profile dialog did not open');
+        await pass158RuntimeE2eDelay(PASS122_OVERLAY_OPEN_SETTLE_MS + 260);
+        if (!profileDialog.open) throw new Error(`Profile dialog closed during restored-window viewport guard; action=${document.body.dataset.pass122LastReflowAction || 'unknown'} dismissed=${document.body.dataset.pass122DismissedOverlay || 'none'}`);
+        if (document.body.dataset.pass122DismissedOverlay === 'profile-dialog') throw new Error('PASS122 dismissed profile dialog during restored-window open stability check');
+        if (profileDialog.dataset.pass342RestoredWindowModalDialogViewportCloseout !== PASS342_RESTORED_WINDOW_MODAL_DIALOG_VIEWPORT_CLOSEOUT) throw new Error(`Profile dialog did not receive restored-window modal viewport closeout marker; lastCheck=${document.body.dataset.pass342RestoredWindowModalDialogViewportLastCheck || 'none'}; active=${document.body.dataset.pass116ActiveOverlay || 'none'}; action=${document.body.dataset.pass122LastReflowAction || 'none'}`);
         await pass158RuntimeE2eClick('#close-profile');
         if (!await pass158RuntimeE2eWaitFor(() => !profileDialog.open, 1200)) throw new Error('Profile dialog did not close');
 
