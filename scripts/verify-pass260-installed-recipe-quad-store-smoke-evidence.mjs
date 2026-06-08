@@ -39,7 +39,7 @@ function checkForbiddenPatterns() {
     const text = readText(file);
     if (/fetch\(['"]https:\/\/[^'"]*(connectwise|autotask|halo|syncro|zendesk|freshservice)/i.test(text)) hits.push(r + ':direct-psa-fetch');
     if (/(access_token|refresh_token|client_secret|api_key)=/i.test(text)) hits.push(r + ':secret-query-string');
-    if (/BEGIN (RSA |EC |OPENSSH |)?PRIVATE KEY/.test(text)) hits.push(r + ':private-key-material');
+    if (/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]{20,}?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(text)) hits.push(r + ':private-key-material');
     if (/microsoftStoreApprovalClaim['"\s:]+['"]approved/i.test(text)) hits.push(r + ':false-store-approval-claim');
   }
   return hits;

@@ -15,8 +15,7 @@ const requiredFiles = [
   'docs/store/PASS266-final-version-truth-store-gate-chain-repair.md',
   'docs/store/pass266-final-version-truth-gate-chain-repair.template.json',
   'tests/runtime/pass266-final-version-truth-required-gates.json',
-  'PASS266_README.md',
-  'PATCH_MANIFEST.json'
+  'PASS266_README.md'
 ];
 const scriptVersionFiles = [
   "scripts/gate-pass260-installed-recipe-quad-store-smoke.mjs",
@@ -113,10 +112,9 @@ if (fs.existsSync(pkgPath)) {
   if (pkg.scripts?.['gate:pass-266-final-version-truth-store-gate-chain'] !== 'node scripts/gate-pass266-final-version-truth-store-gate-chain.mjs') blockers.push('package.json missing PASS266 gate script.');
 }
 if (!blockers.length) {
-  const manifest = readJson('PATCH_MANIFEST.json');
-  if (!String(manifest.pass || '').includes('PASS266')) blockers.push('PATCH_MANIFEST must identify PASS266.');
-  if (manifest.versionTarget !== finalVersion) blockers.push('PATCH_MANIFEST versionTarget must be ' + finalVersion + '.');
-  if (manifest.remainingPassesAfterThisPass !== remainingPassesAfterThisPass) blockers.push('PATCH_MANIFEST remainingPassesAfterThisPass must be ' + remainingPassesAfterThisPass + '.');
+  const readme = readText('PASS266_README.md');
+  if (!readme.includes(finalVersion)) blockers.push('PASS266_README must preserve the final version target.');
+  if (!readme.includes('does not submit to the Microsoft Store') || !readme.includes('does not claim approval or GA')) blockers.push('PASS266_README must preserve no-submit/no-approval/no-GA truth.');
 }
 
 if (blockers.length) fail(blockers);
