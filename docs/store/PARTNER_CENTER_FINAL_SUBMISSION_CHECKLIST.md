@@ -17,7 +17,7 @@ This checklist is the human-facing Store packet review. It is intentionally fail
 
 - [ ] Partner Center app/package identity is reserved.
 - [ ] Package identity placeholders are removed from the actual submission package.
-- [ ] Package version matches `2.0.10` or the current final submission target.
+- [ ] Package version matches `2.0.14` or the current final submission target.
 - [ ] Package hash is recorded.
 - [ ] Generated Store artifacts are not committed to source.
 

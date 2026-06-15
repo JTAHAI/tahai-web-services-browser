@@ -36,14 +36,14 @@ This pass creates the fail-closed evidence lane for Microsoft Store submission r
 Set-Location C:\dev\browser\app
 node scripts\apply-pass250-store-submission-evidence-identity-prep.mjs
 npm run verify:pass-250-store-submission-evidence-identity-prep
-npm run store:evidence:capture
+npm run store:evidence:refresh
 npm run verify:store:submission
 ```
 
 Expected current result:
 
 - `verify:pass-250-store-submission-evidence-identity-prep` should pass after the apply script.
-- `store:evidence:capture` should write package inventory if local release outputs exist.
+- `store:evidence:refresh` should write ignored local package inventory plus fail-closed local Store evidence if release outputs exist.
 - `verify:store:submission` should fail until real Partner Center identity, listing, privacy/support URLs, installed smoke, package evidence, and known-issues truth are complete.
 
 ## Store-vs-direct distribution truth

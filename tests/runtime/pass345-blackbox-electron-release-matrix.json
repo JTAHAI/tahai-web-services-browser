@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "pass": "PASS345",
+  "name": "Black-Box Electron Release E2E Matrix",
+  "contractId": "pass345-blackbox-electron-release-e2e-v1",
+  "versionTarget": "2.0.14",
+  "purpose": "Drive the built Electron app from outside the renderer so release readiness is based on real clicks, real window sizes, real dialogs, and real webview geometry instead of renderer-only synthetic element.click coverage.",
+  "windowProfiles": [
+    {
+      "id": "restored-1460x940",
+      "width": 1460,
+      "height": 940,
+      "reason": "Default release candidate window size."
+    },
+    {
+      "id": "restored-1366x768",
+      "width": 1366,
+      "height": 768,
+      "reason": "Common laptop size that catches restored-window and profile dialog regressions."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "launch-shell-stage-webview",
+      "assertions": [
+        "renderer shell ready marker appears",
+        "active webview mounts",
+        "stage and active webview bounds stay aligned",
+        "guest DOM becomes ready",
+        "guest document bottom fills the viewport budget"
+      ]
+    },
+    {
+      "id": "primary-browser-routing",
+      "assertions": [
+        "Launchpad click routes the active tab",
+        "Guide click routes the active tab",
+        "Address bar Enter navigation works",
+        "Back, Forward, Reload, and Home are clickable"
+      ]
+    },
+    {
+      "id": "chrome-flyouts-and-dialogs",
+      "assertions": [
+        "DevOps opens and closes",
+        "IT Tools opens and closes",
+        "Ops Panel opens and closes",
+        "Settings opens and closes",
+        "Profile dialog opens and closes in restored windows",
+        "Ctrl+K opens and Escape closes the Command Palette"
+      ]
+    },
+    {
+      "id": "browser-kit-find-and-guest-click",
+      "assertions": [
+        "Browser Kit opens and closes",
+        "Find bar opens from Browser Kit and closes cleanly",
+        "Normal browsing leaves the guest webview clickable inside the stage"
+      ]
+    },
+    {
+      "id": "mission-control-layout-and-export",
+      "assertions": [
+        "Mission Control opens",
+        "Local mission creation works",
+        "Active tab can be added",
+        "Quad and Focus layouts remain selectable",
+        "Pin Active Pane populates export preview",
+        "Closing Mission Control restores normal browsing"
+      ]
+    }
+  ],
+  "requiredEvidencePaths": [
+    "release-candidate/generated/pass345-blackbox-electron-release-e2e/pass345-blackbox-electron-release-e2e-result.json",
+    "release-candidate/generated/pass345-blackbox-electron-release-e2e/pass345-blackbox-electron-release-e2e-summary.md"
+  ],
+  "securityTruth": [
+    "no allowpopups",
+    "no Node in remote content",
+    "no raw IPC exposure",
+    "no fake Store or GA approval claim"
+  ]
+}

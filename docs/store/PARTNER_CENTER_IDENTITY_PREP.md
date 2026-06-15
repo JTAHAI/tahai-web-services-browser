@@ -27,22 +27,18 @@ Record these values in the real Store evidence file, not in public docs if any v
 6. Run package evidence capture:
 
 ```powershell
-npm run store:evidence:capture
+npm run store:evidence:refresh
 ```
 
-7. Create the real evidence file:
+7. Create or update the real evidence file:
 
 ```powershell
-New-Item -ItemType Directory -Force .\release-candidate\store-submission | Out-Null
-Copy-Item .\docs\store\pass250-store-submission-readiness.template.json .\release-candidate\store-submission\store-submission-evidence.json
+$env:STORE_SUBMISSION_EVIDENCE = (Resolve-Path .\release-candidate\generated\store-submission\store-submission-evidence.generated.json)
+npm run verify:store:submission
 ```
 
 8. Fill the real evidence file with the final identity, URLs, listing, artifact hashes, installed-smoke result, and known-issues truth.
-9. Run:
-
-```powershell
-npm run verify:store:submission
-```
+9. Keep `release-candidate/store-submission/store-submission-evidence.json` as the sanitized source-controlled placeholder. If it drifts, run `npm run store:evidence:reset-placeholder`.
 
 ## Hard blockers
 

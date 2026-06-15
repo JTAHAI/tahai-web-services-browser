@@ -1281,6 +1281,15 @@ body.mission-tab-dragging .webview-stage.mission-layout .mission-pane-drop-zones
   justify-content: flex-start;
 }
 
+.mission-pane-head-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  pointer-events: none;
+}
+
 .mission-pane-head {
   pointer-events: auto;
   max-width: min(420px, calc(100% - 18px));
@@ -1324,6 +1333,30 @@ body.mission-tab-dragging .webview-stage.mission-layout .mission-pane-drop-zones
 
 .mission-pane-head:focus-visible {
   outline: 2px solid rgba(109,255,183,.82);
+  outline-offset: 2px;
+}
+
+.mission-pane-send {
+  pointer-events: auto;
+  margin-left: 8px;
+  padding: 5px 10px;
+  border: 1px solid rgba(96, 255, 218, 0.52);
+  border-radius: 999px;
+  color: rgba(228, 255, 249, 0.96);
+  background: rgba(2, 18, 24, 0.9);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.mission-pane-send:hover,
+.mission-pane-send:focus-visible {
+  border-color: rgba(96, 255, 218, 0.92);
+  background: rgba(4, 34, 31, 0.96);
+  outline: 2px solid rgba(96, 255, 218, 0.22);
   outline-offset: 2px;
 }
 

@@ -6,8 +6,8 @@ const root = process.cwd();
 const templatePath = path.join(root, 'docs', 'store', 'pass250-store-submission-readiness.template.json');
 const packageEvidencePath = path.join(root, 'release-candidate', 'generated', 'store-submission', 'package-evidence.generated.json');
 const generatedEvidenceDir = path.join(root, 'release-candidate', 'generated');
-const outputDir = path.join(root, 'release-candidate', 'store-submission');
-const outputPath = path.join(outputDir, 'store-submission-evidence.json');
+const outputDir = path.join(root, 'release-candidate', 'generated', 'store-submission');
+const outputPath = path.join(outputDir, 'store-submission-evidence.generated.json');
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -212,6 +212,7 @@ fs.writeFileSync(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
 
 console.log('STORE_SUBMISSION_EVIDENCE_INIT=PASS');
 console.log(`STORE_SUBMISSION_EVIDENCE=${rel(outputPath)}`);
+console.log('STORE_SUBMISSION_TRACKED_PLACEHOLDER=release-candidate/store-submission/store-submission-evidence.json');
 console.log(`STORE_SUBMISSION_ARTIFACT_CANDIDATES=${storeArtifacts.length}`);
 console.log(`STORE_SUBMISSION_CURRENT_VERSION_ARTIFACTS=${currentVersionStoreArtifacts.length}`);
 console.log(`STORE_SUBMISSION_PACKAGE_STATUS=${packageArtifactStatus}`);

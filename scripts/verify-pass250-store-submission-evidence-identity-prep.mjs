@@ -16,6 +16,7 @@ const requiredFiles = [
   'scripts/apply-pass250-store-submission-evidence-identity-prep.mjs',
   'scripts/capture-store-package-evidence.mjs',
   'scripts/init-store-submission-evidence.mjs',
+  'scripts/reset-store-submission-evidence-placeholder.mjs',
   'scripts/verify-pass250-store-submission-evidence-identity-prep.mjs',
   'scripts/verify-store-submission-gate.mjs',
   'scripts/create-pass250-full-source-zip.ps1'
@@ -24,6 +25,8 @@ const requiredScripts = [
   'pass250:apply',
   'store:evidence:capture',
   'store:evidence:init',
+  'store:evidence:refresh',
+  'store:evidence:reset-placeholder',
   'verify:pass-250-store-submission-evidence-identity-prep',
   'verify:store:submission',
   'source:zip:pass250'

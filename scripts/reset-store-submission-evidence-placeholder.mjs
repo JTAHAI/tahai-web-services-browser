@@ -1,0 +1,124 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const version = String(pkg.version || '').trim();
+const msixVersion = version ? `${version}.0` : null;
+const outputPath = path.join(root, 'release-candidate', 'store-submission', 'store-submission-evidence.json');
+
+const placeholder = {
+  schemaVersion: 1,
+  pass: 'PASS344',
+  product: pkg.productName || 'TAHAI Web Services Browser',
+  version,
+  submissionStatus: 'BLOCKED_PENDING_PARTNER_CENTER_IDENTITY_INSTALLED_SMOKE_AND_OPERATOR_REVIEW',
+  generatedBy: 'source-controlled-sanitized-placeholder',
+  generatedAt: null,
+  lastReviewedAt: null,
+  reviewedBy: null,
+  partnerCenterIdentity: {
+    status: 'PENDING',
+    appName: pkg.productName || 'TAHAI Web Services Browser',
+    packageIdentityName: 'PARTNER_CENTER_PENDING',
+    publisher: 'PARTNER_CENTER_PENDING',
+    publisherDisplayName: 'TAHAI Web Services',
+    packageFamilyName: 'PARTNER_CENTER_PENDING',
+    storeProductId: 'PARTNER_CENTER_PENDING',
+    manifestUpdated: false,
+    identitySource: 'packaging/windows/msix/package-identity.store.example.json',
+  },
+  privacySupport: {
+    status: 'PENDING_PUBLIC_URL_REVIEW',
+    privacyUrl: 'https://browser.tahai.net/privacy',
+    supportUrl: 'https://browser.tahai.net/support',
+    urlsPubliclyReachable: false,
+  },
+  listing: {
+    status: 'PENDING_SCREENSHOTS_AND_OPERATOR_REVIEW',
+    title: pkg.productName || 'TAHAI Web Services Browser',
+    shortDescription: 'An IT and DevOps command browser built for mission workspaces, secure multi-pane operations, runbooks, and evidence handoff.',
+    fullDescriptionReady: false,
+    screenshotsReady: false,
+    screenshotManifest: [],
+    ageAndContentNotesReady: false,
+    releaseNotesReady: false,
+  },
+  packageArtifact: {
+    status: 'BLOCKED_PENDING_FINAL_CLEAN_PACKAGE_EVIDENCE',
+    sourceCommit: 'PENDING_FINAL_CLEAN_RELEASE_COMMIT',
+    sourceTag: 'PENDING_FINAL_RELEASE_TAG',
+    sourceTagReview: 'PENDING_FINAL_TAG_AFTER_RELEASE_COMMIT',
+    workingTreeStatus: null,
+    workingTreeReview: 'PENDING_FINAL_CLEAN_TREE_AFTER_RELEASE_COMMIT',
+    packageEvidencePath: 'release-candidate/generated/store-submission/package-evidence.generated.json',
+    packageEvidenceGeneratedAt: null,
+    version,
+    msixVersion,
+    storePackageCandidateStatus: 'PENDING_GENERATED_SCAN_REVIEW',
+    artifactCount: 0,
+    currentVersionArtifactCount: 0,
+    legacyStoreArtifactCount: 0,
+    artifacts: [],
+    readinessNote: 'Tracked evidence is intentionally sanitized and fail-closed. Run npm run store:evidence:refresh to refresh ignored package evidence, then complete Partner Center identity, package review, installed smoke, and operator approval outside source before changing this file.',
+  },
+  installedSmoke: {
+    status: 'PENDING',
+    tester: null,
+    testedAt: null,
+    packageType: null,
+    checklist: {
+      appLaunches: 'PENDING',
+      normalBrowsingVisible: 'PENDING',
+      toolbarButtonsClickable: 'PENDING',
+      addressBarNavigation: 'PENDING',
+      launchpadGuideTools: 'PENDING',
+      missionControlLayouts: 'PENDING',
+      settingsProfiles: 'PENDING',
+      evidenceRedaction: 'PENDING',
+      noSecretsCaptured: 'PENDING',
+      uninstallOrReset: 'PENDING',
+    },
+  },
+  automatedInstalledRuntime: {
+    status: 'PENDING_GENERATED_EVIDENCE_REVIEW',
+    evidencePath: 'release-candidate/generated/',
+    contractId: null,
+    scenarioCount: 0,
+    passedScenarioCount: 0,
+    launchShellDetail: null,
+    documentBottomProof: null,
+    guestViewportProof: null,
+    caveat: 'Automated installed runtime E2E proof is supportive only; it does not replace the manual Store installed smoke checklist.',
+  },
+  knownIssues: {
+    status: 'PENDING_HUMAN_REVIEW',
+    knownIssuesDocument: 'docs/known-issues.md',
+    reviewedAt: null,
+    noHiddenBlockers: false,
+    directInstallerSigningTruth: 'unsigned-preview-unless-trusted-signing-added',
+    msixSideloadTruth: 'local unsigned/sideload MSIX may fail unless the package certificate/namespace is trusted',
+  },
+  releaseTruth: {
+    storeSubmissionClaim: 'blocked-not-submitted',
+    storeApprovalClaim: 'not-approved',
+    publicGaClaim: 'not-ga-from-this-evidence',
+    directMsiExeSigningStatus: 'unsigned-preview',
+    directMsixSigningStatus: 'sideload-test-only-unless-trusted-certificate',
+  },
+  nextRequiredActions: [
+    'Create or link the Microsoft Partner Center account and reserve or confirm the app identity.',
+    'Replace Partner Center placeholders only after app identity is available.',
+    'Build a final MSIX or MSIXUPLOAD from the final clean commit and refresh ignored package evidence.',
+    'Complete installed smoke on the packaged app and record PASS results only after manual verification.',
+    'Confirm public privacy and support URLs plus listing screenshot manifest.',
+    'Review known issues and release truth before changing submissionStatus to READY_FOR_PARTNER_CENTER_UPLOAD.',
+  ],
+};
+
+fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+fs.writeFileSync(outputPath, `${JSON.stringify(placeholder, null, 2)}\n`, 'utf8');
+console.log('STORE_SUBMISSION_PLACEHOLDER=PASS');
+console.log('STORE_SUBMISSION_PLACEHOLDER_OWNER=source-controlled-sanitized-placeholder');
+console.log(`STORE_SUBMISSION_PLACEHOLDER_PATH=${path.relative(root, outputPath).replace(/\\/g, '/')}`);

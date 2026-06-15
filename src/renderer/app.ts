@@ -4911,6 +4911,17 @@ function renderMissionPaneHeads(layout: MissionLayoutType, enabled: boolean): vo
     missionPaneHeads.className = 'mission-pane-heads';
     missionPaneHeads.setAttribute('aria-label', 'Mission pane focus controls');
     missionPaneHeads.addEventListener('click', (event) => {
+      const sendButton = eventClosest<HTMLButtonElement>(event, '[data-send-active-pane]');
+      if (sendButton?.dataset.sendActivePane) {
+        event.preventDefault();
+        const runtimeTab = active();
+        if (!runtimeTab) {
+          setStatus('Mission pane send unavailable', 'Open or focus a browser tab before routing it into a Mission pane.');
+          return;
+        }
+        upsertBrowserTabIntoMissionPane(runtimeTab.id, sendButton.dataset.sendActivePane, { activateLayout: true });
+        return;
+      }
       const button = eventClosest<HTMLButtonElement>(event, '[data-focus-mission-pane]');
       if (!button?.dataset.focusMissionPane) return;
       event.preventDefault();
@@ -4933,11 +4944,19 @@ function renderMissionPaneHeads(layout: MissionLayoutType, enabled: boolean): vo
     const title = runtimeTab?.title || missionTab?.title || 'Empty pane';
     const role = missionTab ? missionRoleLabel(missionTab.role) : 'Drop or send a tab';
     const activeClass = paneId === activePane ? ' active' : '';
+    const sendLabel = missionTab
+      ? 'Replace with active browser tab in ' + missionPaneLabel(paneId)
+      : 'Send active browser tab to ' + missionPaneLabel(paneId);
     return '<div class="mission-pane-head-cell" data-pane-id="' + escapeHtml(paneId) + '">' +
+      '<div class="mission-pane-head-actions">' +
       '<button type="button" class="mission-pane-head' + activeClass + '" data-testid="runtime-mission-pane-focus" data-focus-mission-pane="' + escapeHtml(paneId) + '" title="Focus ' + escapeHtml(missionPaneLabel(paneId)) + '">' +
       '<strong>' + escapeHtml(missionPaneLabel(paneId)) + '</strong>' +
       '<span>' + escapeHtml(role + ' · ' + title) + '</span>' +
       '</button>' +
+      '<button type="button" class="mission-pane-send" data-send-active-pane="' + escapeHtml(paneId) + '" title="' + escapeHtml(sendLabel) + '" aria-label="' + escapeHtml(sendLabel) + '">' +
+      'Send active' +
+      '</button>' +
+      '</div>' +
       '</div>';
   }).join('');
 }
@@ -6252,6 +6271,17 @@ function renderMissionLayout(): void {
     const paneId = normalizeMissionPaneId(missionTab.paneId);
     const runtimeTabId = missionRuntimeTabs.get(missionTab.tabId);
     if (runtimeTabId && visiblePanes.includes(paneId) && !runtimeByPane.has(paneId)) runtimeByPane.set(paneId, runtimeTabId);
+  }
+  const activeRuntimeTabId = runtimeByPane.get(activePaneId);
+  if (activeRuntimeTabId && activeTabId !== activeRuntimeTabId) {
+    const activeRuntimeTab = tabs.get(activeRuntimeTabId);
+    activeTabId = activeRuntimeTabId;
+    for (const tab of tabs.values()) tab.button.classList.toggle('active', tab.id === activeRuntimeTabId);
+    if (activeRuntimeTab) {
+      addressInput.value = activeRuntimeTab.url;
+      setStatus(activeRuntimeTab.title, securityLabel(activeRuntimeTab.url));
+    }
+    document.body.dataset.pass197ActiveRuntimeAligned = `${layout}:${activePaneId}:${activeRuntimeTabId}`;
   }
 
   if (!runtimeByPane.size) {

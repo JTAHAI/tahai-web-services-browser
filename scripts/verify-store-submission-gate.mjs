@@ -5,6 +5,7 @@ import path from 'node:path';
 const root = process.cwd();
 const candidatePaths = [
   process.env.STORE_SUBMISSION_EVIDENCE,
+  'release-candidate/generated/store-submission/store-submission-evidence.generated.json',
   'release-candidate/store-submission/store-submission-evidence.json',
   'release-candidate/store-submission/pass250-store-submission-evidence.json',
   'store-submission-evidence.json'
@@ -65,7 +66,7 @@ const evidencePath = findEvidenceFile();
 if (!evidencePath) {
   fail([
     'No real Store submission evidence JSON found.',
-    'Create release-candidate/store-submission/store-submission-evidence.json from docs/store/pass250-store-submission-readiness.template.json.',
+    'Run npm run store:evidence:refresh to create ignored local Store evidence, or set STORE_SUBMISSION_EVIDENCE to a real evidence JSON.',
     'Fill Partner Center identity, privacy/support URLs, listing assets, package artifact hashes, installed smoke, known-issues truth, and release-truth fields.'
   ]);
 }

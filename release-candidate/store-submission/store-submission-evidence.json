@@ -51,7 +51,7 @@
     "currentVersionArtifactCount": 0,
     "legacyStoreArtifactCount": 0,
     "artifacts": [],
-    "readinessNote": "Tracked evidence is intentionally sanitized and fail-closed. Run npm run store:evidence:capture to refresh ignored package evidence, then complete Partner Center identity, package review, installed smoke, and operator approval outside source before changing this file."
+    "readinessNote": "Tracked evidence is intentionally sanitized and fail-closed. Run npm run store:evidence:refresh to refresh ignored package evidence, then complete Partner Center identity, package review, installed smoke, and operator approval outside source before changing this file."
   },
   "installedSmoke": {
     "status": "PENDING",

@@ -82,6 +82,8 @@ const pass344Command = 'node scripts/verify-pass-344-microsoft-store-repo-cleanu
 const releaseContract = String(pkg.scripts?.['verify:release-blockers:contract'] || '');
 
 check('package-script-present', pkg.scripts?.[pass344Script] === pass344Command, `${pass344Script} must run ${pass344Command}`);
+check('store-evidence-refresh-script-present', pkg.scripts?.['store:evidence:refresh'] === 'npm run store:evidence:capture && npm run store:evidence:init', 'store:evidence:refresh must refresh ignored Store evidence');
+check('store-evidence-reset-placeholder-script-present', pkg.scripts?.['store:evidence:reset-placeholder'] === 'node scripts/reset-store-submission-evidence-placeholder.mjs', 'tracked Store placeholder must be resettable from source');
 check('release-contract-includes-pass344', releaseContract.includes(`npm run ${pass344Script}`), 'PASS344 must be wired into verify:release-blockers:contract');
 check('release-contract-order', ordered(releaseContract, 'verify:pass-343-it-devops-priority-browser-kit', pass344Script) && ordered(releaseContract, pass344Script, 'npm run build'), 'PASS344 runs after PASS343 and before build/runtime E2E');
 
@@ -95,6 +97,7 @@ check('store-source-files-present', [
   'release-candidate/store-submission/store-submission-evidence.json',
   'scripts/capture-store-package-evidence.mjs',
   'scripts/init-store-submission-evidence.mjs',
+  'scripts/reset-store-submission-evidence-placeholder.mjs',
   'scripts/verify-store-submission-gate.mjs',
 ].every(exists), 'Store/MSIX source, docs, evidence, and gates must exist');
 
@@ -132,10 +135,15 @@ check('package-evidence-generated-under-ignored-dir', captureScript.includes("re
 
 const initScript = read('scripts/init-store-submission-evidence.mjs');
 check('evidence-init-fail-closed', hasAll(initScript, ['BLOCKED_PENDING_PARTNER_CENTER_AND_CURRENT_MSIX', 'PENDING_CURRENT_STORE_PACKAGE_REVIEW', 'BLOCKED_NO_STORE_PACKAGE_ARTIFACT', 'automatedInstalledRuntime', 'does not replace the manual Store installed smoke checklist']), 'Store evidence init remains fail-closed and preserves manual smoke ownership');
+check('evidence-init-writes-generated-local-file', initScript.includes("release-candidate', 'generated', 'store-submission") && initScript.includes('store-submission-evidence.generated.json'), 'Store evidence init must write ignored local evidence, not tracked source state');
+
+const placeholderScript = read('scripts/reset-store-submission-evidence-placeholder.mjs');
+check('tracked-placeholder-reset-script-preserves-sanitized-owner', hasAll(placeholderScript, ['source-controlled-sanitized-placeholder', 'BLOCKED_PENDING_PARTNER_CENTER_IDENTITY_INSTALLED_SMOKE_AND_OPERATOR_REVIEW', 'package-evidence.generated.json']), 'tracked Store placeholder reset must preserve fail-closed source truth');
 
 const storeGate = read('scripts/verify-store-submission-gate.mjs');
 check('store-gate-requires-real-external-evidence', hasAll(storeGate, ['partnerCenterIdentity.status must be READY', 'privacySupport.urlsPubliclyReachable must be true', 'installedSmoke.status must be PASS', 'knownIssues.noHiddenBlockers must be true', 'STORE_APPROVAL_CLAIM=not-approved']), 'Store submission gate requires Partner Center, URL, installed smoke, and known-issues evidence');
 check('store-gate-no-false-approval-output', !/approved|submitted/i.test(storeGate.match(/STORE_APPROVAL_CLAIM=.*|STORE_SUBMISSION_CLAIM=.*/g)?.join('\n') || '') || storeGate.includes('not-approved'), 'Store gate output cannot claim approval');
+check('store-gate-prefers-generated-local-evidence', storeGate.includes('release-candidate/generated/store-submission/store-submission-evidence.generated.json'), 'Store gate must prefer ignored local evidence over tracked placeholder');
 
 const manifest = read('config/msix-manifest.template.xml');
 const identity = readJson('packaging/windows/msix/package-identity.store.example.json');
