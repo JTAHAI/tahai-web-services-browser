@@ -979,6 +979,10 @@ function installApplicationMenu(window: BrowserWindow): void {
       submenu: [
         { label: 'Back', accelerator: 'Alt+Left', click: () => sendMenuCommand(window, 'back') },
         { label: 'Forward', accelerator: 'Alt+Right', click: () => sendMenuCommand(window, 'forward') },
+        { label: 'Next Tab', accelerator: 'CmdOrCtrl+Tab', click: () => sendMenuCommand(window, 'next-tab') },
+        { label: 'Previous Tab', accelerator: 'CmdOrCtrl+Shift+Tab', click: () => sendMenuCommand(window, 'previous-tab') },
+        { label: 'Pin / Unpin Active Tab', accelerator: 'CmdOrCtrl+Alt+Shift+F', click: () => sendMenuCommand(window, 'pin-tab') },
+        { type: 'separator' },
         { label: 'Reopen Closed Tab', accelerator: 'CmdOrCtrl+Shift+T', click: () => sendMenuCommand(window, 'reopen-closed-tab') },
         { label: 'Duplicate Current Tab', accelerator: 'CmdOrCtrl+Alt+Shift+T', click: () => sendMenuCommand(window, 'duplicate-tab') },
         { label: 'Restore Last Session', click: () => sendMenuCommand(window, 'restore-session') },

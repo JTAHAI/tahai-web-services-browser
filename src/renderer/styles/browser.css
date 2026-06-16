@@ -21,6 +21,9 @@ body { background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,
 .tabs { display:flex; align-items:center; gap:6px; overflow:auto hidden; scrollbar-width:thin; }
 .tab { min-width:150px; max-width:240px; display:flex; align-items:center; gap:8px; padding:8px 9px; border:1px solid transparent; border-radius:12px; color:var(--muted); background:rgba(255,255,255,.035); cursor:pointer; }
 .tab.active { color:var(--text); border-color:var(--line); background:linear-gradient(180deg,rgba(119,219,255,.12),rgba(255,255,255,.035)); }
+.tab.pinned { border-color:rgba(96,255,218,.34); background:linear-gradient(180deg,rgba(96,255,218,.12),rgba(255,255,255,.035)); }
+.tab-pin { display:inline-flex; align-items:center; justify-content:center; flex:0 0 22px; width:22px; height:22px; border-radius:999px; color:rgba(96,255,218,.86); background:transparent; cursor:pointer; font-size:.82rem; line-height:1; }
+.tab-pin:hover,.tab-pin:focus-visible { background:rgba(96,255,218,.14); color:#dffff7; outline:1px solid rgba(96,255,218,.28); outline-offset:1px; }
 .tab-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.82rem; }
 .tab-close { margin-left:auto; border:0; background:transparent; color:inherit; cursor:pointer; font-size:1rem; }
 .toolbar { position:relative; z-index:40; display:grid; grid-template-columns:36px 36px 36px auto minmax(260px,1fr) repeat(10, auto); gap:8px; align-items:center; padding:8px 10px; background:rgba(5,12,22,.98); border-bottom:1px solid rgba(119,219,255,.16); overflow:visible; }
@@ -89,6 +92,13 @@ body { background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,
 .browser-kit-history-card.recently-closed { border-color:rgba(255,210,122,.30); }
 .browser-kit-empty { margin:0; }
 /* PASS346_BROWSER_HISTORY_SESSION_DAILY_DRIVER_END */
+/* PASS347_BROWSER_TAB_DAILY_DRIVER_AND_PROFILE_DIALOG_STABILITY_START */
+.tool-card.browser[data-browser-kit-action="pin-tab"] strong,
+.tool-card.browser[data-browser-kit-action="next-tab"] strong,
+.tool-card.browser[data-browser-kit-action="previous-tab"] strong { color:rgba(96,255,218,.92); }
+.tool-card.browser[data-browser-kit-action="pin-tab"][data-browser-kit-pinned-state="pinned"] { border-color:rgba(96,255,218,.54); box-shadow:0 0 22px rgba(96,255,218,.12), inset 0 0 18px rgba(96,255,218,.08); }
+.profile-dialog[data-pass347-profile-dialog-viewport] { margin:auto; }
+/* PASS347_BROWSER_TAB_DAILY_DRIVER_AND_PROFILE_DIALOG_STABILITY_END */
 .address-form { min-width:0; }
 #address { width:100%; height:34px; border-radius:999px; border:1px solid rgba(119,219,255,.18); background:#020813; color:var(--text); outline:none; padding:0 16px; font:inherit; box-shadow:inset 0 0 22px rgba(47,143,255,.08); }
 #address:focus { border-color:rgba(119,219,255,.55); box-shadow:0 0 0 4px rgba(119,219,255,.08), inset 0 0 22px rgba(47,143,255,.12); }
@@ -2717,6 +2727,18 @@ body[data-pass192-titlebar-chrome-final="true"] .tab-title {
   min-width: 0;
   flex: 1 1 auto;
 }
+body[data-pass192-titlebar-chrome-final="true"] .tab-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  -webkit-app-region: no-drag;
+  user-select: none;
+  touch-action: manipulation;
+}
 body[data-pass192-titlebar-chrome-final="true"] .tab-close {
   display: inline-flex;
   align-items: center;
@@ -2748,6 +2770,10 @@ body[data-pass192-titlebar-chrome-final="true"] .tab.pass192-active-titlebar-tab
 body[data-pass192-titlebar-overflow="overflowing"] .tabs {
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 34px), transparent 100%);
   mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 34px), transparent 100%);
+}
+body[data-pass192-titlebar-chrome-final="true"] .tab.pinned {
+  border-color: rgba(96,255,218,.38);
+  box-shadow: inset 0 -2px 0 rgba(96,255,218,.70), 0 0 16px rgba(96,255,218,.10);
 }
 body[data-pass192-titlebar-chrome-final="true"] .new-tab-control {
   -webkit-app-region: no-drag;

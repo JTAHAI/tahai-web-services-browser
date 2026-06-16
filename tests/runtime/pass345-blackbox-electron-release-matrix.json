@@ -68,6 +68,14 @@
       ]
     },
     {
+      "id": "browser-tab-pinning-and-switching",
+      "assertions": [
+        "Pin Active Tab keeps the tab at the front of the strip",
+        "Ctrl+Tab and Ctrl+Shift+Tab switch through visible tabs",
+        "Ctrl+1 focuses the first visible tab"
+      ]
+    },
+    {
       "id": "mission-control-layout-and-export",
       "assertions": [
         "Mission Control opens",

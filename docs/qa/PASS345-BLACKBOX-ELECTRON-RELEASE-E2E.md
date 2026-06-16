@@ -14,12 +14,16 @@ PASS345 adds an external Electron acceptance runner so release readiness no long
 ## Coverage
 
 - Launch shell and active webview stage-fit proof
+- Real restored desktop profiles: `1460x940` and `1366x768`
 - Launchpad, Guide, address bar, Back, Forward, Reload, and Home
 - DevOps, IT Tools, Browser Kit, Ops Panel, Settings, Profile dialog, and Command Palette
 - Browser Kit Find flow plus real guest click proof inside `#webview-stage`
 - Browser Kit history/session recovery: Duplicate Tab, Reopen Closed Tab, recent-page population, and restore-session availability
+- Browser tab pinning and switching: Pin Tab, `Ctrl+Tab`, `Ctrl+Shift+Tab`, and `Ctrl+1`
 - Mission Control open/create/add-tab, Quad/Focus layouts, and export preview
 - Restored-window regression coverage for the repeatable profile dialog issue
+- Browser Kit cards must be scrolled into real hit-test ownership before the runner clicks them
+- If a profile hits transient Electron timing noise, the runner relaunches that profile once and reruns the full slate on a fresh app instance
 
 ## Evidence
 

@@ -683,6 +683,11 @@
           window.setTimeout(() => { pass164MoreToolsActionInFlight = false; }, PASS164_MORE_TOOLS_ACTION_SETTLE_MS);
         }
       }
+      if (knownPass165Action) {
+        document.body.dataset.pass165MoreToolsImmediateClose = actionId;
+        closeMenu({ restoreFocus: false });
+        return;
+      }
       const closeDelay = (!unhandled || knownPass165Action) ? PASS164_MORE_TOOLS_ACTION_SETTLE_MS : PASS163_MORE_TOOLS_ACTION_CLOSE_DELAY_MS;
       window.setTimeout(() => {
         if (!menuEl || menuEl.hidden) return;

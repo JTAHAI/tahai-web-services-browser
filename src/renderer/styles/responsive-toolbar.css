@@ -222,6 +222,105 @@ body[data-command-toolbar="it"] .toolbar {
   .tool-menu-back { min-width: 126px; }
 }
 
+/* PASS347 Browser Kit daily-driver panel:
+   Browser Kit now carries enough tab/session actions that the shallow horizontal
+   rail hurts restored-window clickability. Keep DevOps/IT compact, but let
+   Browser Kit expand into a real grid so cards stay fully visible and clickable. */
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 12px;
+  max-height: min(560px, calc(100vh - var(--pass114-chrome-stack-top, 108px) - var(--pass114-overlay-bottom, 38px))) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  white-space: normal !important;
+  scrollbar-width: thin;
+  padding: 14px;
+}
+
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-header,
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-section,
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-section.compact,
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-footer {
+  grid-column: 1 / -1;
+}
+
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel [data-command-toolbar-scroll],
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel [data-command-toolbar-back] {
+  display: none !important;
+}
+
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-header {
+  display: grid;
+  gap: 6px;
+  align-self: stretch;
+  border-right: 0;
+  border-bottom: 1px solid rgba(119,219,255,.14);
+  padding: 4px 6px 12px;
+}
+
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-header span::after {
+  content: '';
+}
+
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-section,
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-section.compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-section p {
+  grid-column: 1 / -1;
+  max-width: none;
+  align-self: auto;
+  margin: 0;
+  white-space: normal;
+}
+
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-card,
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-card.browser {
+  width: 100%;
+  min-height: 72px;
+  flex: none;
+  grid-template-columns: minmax(86px,108px) max-content minmax(0,1fr);
+}
+
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel #browser-kit-history-list,
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel #browser-kit-closed-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 9px;
+}
+
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .browser-kit-history-card {
+  grid-template-columns: minmax(0,1fr);
+}
+
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-footer {
+  border-top: 1px solid rgba(119,219,255,.12);
+  padding: 10px 4px 0;
+  white-space: normal;
+  text-align: left;
+}
+
+@media (max-width: 920px) {
+  body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel {
+    top: var(--pass114-chrome-stack-top, 136px) !important;
+    max-height: min(520px, calc(100vh - var(--pass114-chrome-stack-top, 136px) - var(--pass114-overlay-bottom, 38px))) !important;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-section,
+  body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel .tool-menu-section.compact,
+  body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel #browser-kit-history-list,
+  body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel #browser-kit-closed-list {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+
 
 /* PASS114 chrome stack guard: all fixed browser overlays anchor below measured titlebar + toolbar height. */
 :root {

@@ -179,6 +179,7 @@ type TabState = {
   button: HTMLButtonElement;
   webview: Electron.WebviewTag;
   consoleMessages: ConsoleEntry[];
+  pinned: boolean;
   missionPaneId?: string;
 };
 
@@ -471,6 +472,12 @@ type ClosedTabEntry = {
   url: string;
   title: string;
   closedAt: string;
+  pinned?: boolean;
+};
+
+type SessionRecoveryTabSnapshot = {
+  url: string;
+  pinned?: boolean;
 };
 
 type SessionRecoverySnapshot = {
@@ -478,6 +485,7 @@ type SessionRecoverySnapshot = {
   profileName: string;
   activeUrl: string;
   urls: string[];
+  tabs?: SessionRecoveryTabSnapshot[];
   updatedAt: string;
 };
 
@@ -4277,12 +4285,25 @@ function pass192DecorateTabButton(tab: TabState): void {
   tab.button.dataset.pass192TitlebarTab = 'true';
   tab.button.dataset.pass192WindowDrag = 'no-drag-control';
   tab.button.dataset.pass192BrowserTabId = tab.id;
+  tab.button.dataset.browserTabPinned = String(Boolean(tab.pinned));
   tab.button.setAttribute('role', 'tab');
   tab.button.setAttribute('aria-selected', isActive ? 'true' : 'false');
   tab.button.setAttribute('tabindex', isActive ? '0' : '-1');
-  tab.button.setAttribute('aria-label', `${isActive ? 'Active tab' : 'Tab'}: ${tab.title}`);
-  tab.button.title = `Tab: ${tab.title}\n${tab.url}\nDrag into Mission panes, or right-click for pane assignment.`;
+  tab.button.setAttribute('aria-label', `${tab.pinned ? 'Pinned ' : ''}${isActive ? 'Active tab' : 'Tab'}: ${tab.title}`);
+  tab.button.title = `Tab: ${tab.title}\n${tab.url}\n${tab.pinned ? 'Pinned to the front of the strip.\n' : ''}Drag into Mission panes, or right-click for pane assignment.`;
   tab.button.classList.toggle('pass192-active-titlebar-tab', isActive);
+  tab.button.classList.toggle('pinned', tab.pinned);
+  const pin = tab.button.querySelector<HTMLElement>('.tab-pin');
+  if (pin) {
+    pin.dataset.pass192PinHitTarget = 'true';
+    pin.dataset.pass192WindowDrag = 'no-drag-control';
+    pin.setAttribute('role', 'button');
+    pin.setAttribute('aria-label', `${tab.pinned ? 'Unpin' : 'Pin'} tab: ${tab.title}`);
+    pin.setAttribute('title', `${tab.pinned ? 'Unpin' : 'Pin'} ${tab.title}`);
+    pin.setAttribute('tabindex', '-1');
+    pin.setAttribute('draggable', 'false');
+    pin.textContent = tab.pinned ? '★' : '☆';
+  }
   const close = tab.button.querySelector<HTMLElement>('.tab-close');
   if (close) {
     close.dataset.pass192CloseHitTarget = 'true';
@@ -4319,8 +4340,71 @@ function pass192ScheduleTitlebarChromeSync(reason = 'scheduled'): void {
   }, 60);
 }
 
+function browserTabsInVisualOrder(): TabState[] {
+  const ordered = Array.from(tabsEl.querySelectorAll<HTMLButtonElement>('.tab[data-browser-tab-id]'))
+    .map((button) => tabs.get(button.dataset.browserTabId || ''))
+    .filter((tab): tab is TabState => Boolean(tab));
+  return ordered.length ? ordered : Array.from(tabs.values());
+}
+
+function browserTabIdsInVisualOrder(): string[] {
+  return browserTabsInVisualOrder().map((tab) => tab.id);
+}
+
+function rebuildBrowserTabMap(order: TabState[]): void {
+  tabs.clear();
+  for (const tab of order) tabs.set(tab.id, tab);
+}
+
+function reorderBrowserTabs(reason = 'manual'): void {
+  const visual = browserTabsInVisualOrder();
+  if (!visual.length) return;
+  const index = new Map<string, number>(visual.map((tab, order) => [tab.id, order]));
+  const sorted = [...visual].sort((left, right) => {
+    if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
+    return (index.get(left.id) ?? 0) - (index.get(right.id) ?? 0);
+  });
+  for (const tab of sorted) tabsEl.appendChild(tab.button);
+  rebuildBrowserTabMap(sorted);
+  tabsEl.dataset.pass347LastTabReorderReason = reason;
+  tabsEl.dataset.pass347PinnedTabCount = String(sorted.filter((tab) => tab.pinned).length);
+  pass192SyncTitlebarChromeState(`pass347-${reason}`);
+}
+
+function browserAdjacentTabId(tabId: string, offset: number): string | undefined {
+  const ordered = browserTabsInVisualOrder();
+  if (!ordered.length) return undefined;
+  const currentIndex = Math.max(0, ordered.findIndex((tab) => tab.id === tabId));
+  const nextIndex = (currentIndex + offset + ordered.length) % ordered.length;
+  return ordered[nextIndex]?.id;
+}
+
+function setActiveRelativeTab(offset: number, reason = 'cycle'): boolean {
+  const nextTabId = browserAdjacentTabId(activeTabId, offset);
+  if (!nextTabId) return false;
+  setActive(nextTabId);
+  const target = tabs.get(nextTabId)?.button;
+  target?.focus({ preventScroll: false });
+  target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  document.body.dataset.pass347LastTabCycle = `${reason}:${offset > 0 ? 'next' : 'previous'}:${nextTabId}`;
+  return true;
+}
+
+function activateTabByOrdinal(ordinal: number, reason = 'ordinal'): boolean {
+  const ordered = browserTabsInVisualOrder();
+  if (!ordered.length || ordinal < 1 || ordinal > 9) return false;
+  const index = ordinal === 9 ? ordered.length - 1 : Math.min(ordered.length - 1, ordinal - 1);
+  const target = ordered[index];
+  if (!target) return false;
+  setActive(target.id);
+  target.button.focus({ preventScroll: false });
+  target.button.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  document.body.dataset.pass347LastTabCycle = `${reason}:ordinal-${ordinal}:${target.id}`;
+  return true;
+}
+
 function pass192FocusTabByOffset(offset: number): void {
-  const buttons = Array.from(tabs.values()).map((tab) => tab.button);
+  const buttons = browserTabsInVisualOrder().map((tab) => tab.button);
   if (!buttons.length) return;
   const currentIndex = Math.max(0, buttons.findIndex((button) => button === document.activeElement || button.dataset.browserTabId === activeTabId));
   const nextIndex = (currentIndex + offset + buttons.length) % buttons.length;
@@ -4406,9 +4490,34 @@ function updateTab(tab: TabState, patch: Partial<Pick<TabState, 'title' | 'url'>
   if (typeof config !== 'undefined') renderOpsHub();
 }
 
+function setBrowserTabPinned(tabId: string, pinned: boolean, reason = 'manual', announce = true): boolean {
+  const tab = tabs.get(tabId);
+  if (!tab || tab.pinned === pinned) return Boolean(tab);
+  tab.pinned = pinned;
+  pass192DecorateTabButton(tab);
+  reorderBrowserTabs(`pin-${reason}`);
+  renderBrowserKitDailyDriver();
+  scheduleSessionRecoverySnapshot(`pin-${reason}`);
+  document.body.dataset.pass347LastPinnedTabId = tabId;
+  document.body.dataset.pass347LastPinnedTabState = pinned ? 'pinned' : 'unpinned';
+  if (announce) setStatus(pinned ? 'Tab pinned' : 'Tab unpinned', tab.title);
+  return true;
+}
+
+function toggleBrowserTabPin(tabId = activeTabId, reason = 'manual', announce = true): boolean {
+  const tab = tabs.get(tabId);
+  if (!tab) return false;
+  return setBrowserTabPinned(tabId, !tab.pinned, reason, announce);
+}
+
 function closeTab(tabId: string): void {
   const tab = tabs.get(tabId);
   if (!tab) return;
+  const orderedBeforeClose = browserTabIdsInVisualOrder();
+  const closingIndex = orderedBeforeClose.indexOf(tabId);
+  const fallbackTabId = closingIndex >= 0
+    ? orderedBeforeClose[closingIndex + 1] || orderedBeforeClose[closingIndex - 1]
+    : orderedBeforeClose.at(-1);
   recordRecentlyClosedTab(tab);
   tab.button.remove();
   tab.webview.remove();
@@ -4417,7 +4526,7 @@ function closeTab(tabId: string): void {
   }
   tabs.delete(tabId);
   if (activeTabId === tabId) {
-    const next = Array.from(tabs.keys()).at(-1);
+    const next = fallbackTabId && tabs.has(fallbackTabId) ? fallbackTabId : browserTabIdsInVisualOrder().at(-1);
     if (next) setActive(next);
     else createTab(config.homeUrl);
   }
@@ -4651,7 +4760,7 @@ function createTab(url: string): string {
   button.dataset.testid = 'runtime-browser-tab';
   button.dataset.pass106SiteViewTabId = tabId;
   button.title = 'Drag this tab onto a Mission pane, or right-click for pane assignment.';
-  button.innerHTML = `<span class="tab-title"></span><span class="tab-close" role="button" tabindex="-1" draggable="false" title="Close tab" data-testid="runtime-tab-close" aria-label="Close tab">×</span>`;
+  button.innerHTML = `<span class="tab-pin" role="button" tabindex="-1" draggable="false" title="Pin tab" aria-label="Pin tab">☆</span><span class="tab-title"></span><span class="tab-close" role="button" tabindex="-1" draggable="false" title="Close tab" data-testid="runtime-tab-close" aria-label="Close tab">×</span>`;
   tabsEl.appendChild(button);
 
   const webview = document.createElement('webview') as Electron.WebviewTag;
@@ -4685,13 +4794,27 @@ function createTab(url: string): string {
     pass271R9ArmWebviewBlankSurfaceRecovery(webview, safeUrl, tabId);
   }
 
-  const tab: TabState = { id: tabId, title: titleFromUrl(safeUrl), url: safeUrl, button, webview, consoleMessages: [] };
+  const tab: TabState = { id: tabId, title: titleFromUrl(safeUrl), url: safeUrl, button, webview, consoleMessages: [], pinned: false };
   tabs.set(tabId, tab);
   updateTab(tab, { title: tab.title, url: safeUrl });
   recordBrowserHistoryEntry(safeUrl, tab.title, 'create-tab');
   pass192DecorateTabButton(tab);
 
+  const pinHitTarget = button.querySelector<HTMLElement>('.tab-pin');
   const closeHitTarget = button.querySelector<HTMLElement>('.tab-close');
+  pinHitTarget?.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  pinHitTarget?.addEventListener('dragstart', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  pinHitTarget?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleBrowserTabPin(tabId, 'tab-button');
+  });
   closeHitTarget?.addEventListener('pointerdown', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -4707,6 +4830,12 @@ function createTab(url: string): string {
   });
   button.addEventListener('click', (event) => {
     const target = eventTargetElement(event);
+    if (target?.closest('.tab-pin')) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleBrowserTabPin(tabId, 'tab-button');
+      return;
+    }
     if (target?.closest('.tab-close')) {
       event.preventDefault();
       event.stopPropagation();
@@ -4717,7 +4846,7 @@ function createTab(url: string): string {
   });
   button.addEventListener('dragstart', (event) => {
     const target = eventTargetElement(event);
-    if (target?.closest('.tab-close')) {
+    if (target?.closest('.tab-close, .tab-pin')) {
       event.preventDefault();
       event.stopPropagation();
       return;
@@ -7598,6 +7727,15 @@ function pass122RunOverlayViewportReflow(reason: Pass118OverlayCloseReason = 'vi
       pass122ScheduleOverlayViewportReflow('viewport-reflow');
       return;
     }
+    if (active === 'profile-dialog') {
+      pass347RepairProfileDialogViewport('pass122-viewport-reflow');
+      if (pass122OverlayOpenedAgeMs(active) < PASS347_PROFILE_DIALOG_EXTRA_SETTLE_MS) {
+        document.body.dataset.pass122LastReflowAction = 'deferred-profile-dialog-repair';
+        document.body.dataset.pass122DeferredOverlay = active;
+        pass122ScheduleOverlayViewportReflow('viewport-reflow');
+        return;
+      }
+    }
     document.body.dataset.pass122LastReflowAction = 'dismissed-clipped-overlay'; document.body.dataset.pass122DismissedOverlay = active; pass118AnnounceChromeOverlayClose('viewport-reflow', active, false); return;
   }
   document.body.dataset.pass122LastReflowAction = 'active-overlay-fits'; pass119AuditOverlayAriaContract(reason); pass120AuditOverlayPointerBoundary(reason); pass121AuditOverlayScrollContainment(reason);
@@ -7720,6 +7858,7 @@ function closeToolMenus(except?: ToolMenuName, restoreFocus = false): void {
     const { button, panel } = toolMenuPair(name);
     if (!panel.hidden && !restoreTarget) restoreTarget = button;
     panel.hidden = true;
+    if (name === 'browser') resetToolMenuScrollPosition(panel, 'close');
     button.setAttribute('aria-expanded', 'false');
     pass117ClearOverlayFocus('command-toolbar', panel, button, false);
   }
@@ -7740,6 +7879,10 @@ function commandToolbarShortcut(name: ToolMenuName): string {
   if (name === 'devops') return 'Ctrl+Alt+O';
   if (name === 'it') return 'Ctrl+Alt+I';
   return 'Ctrl+Alt+.';
+}
+
+function toolMenuUsesCommandRail(name: ToolMenuName): boolean {
+  return name !== 'browser';
 }
 
 function scrollToolMenu(panel: HTMLElement, direction: -1 | 1): void {
@@ -7802,6 +7945,17 @@ function ensureToolMenuBackButton(name: ToolMenuName): void {
   panel.insertBefore(back, anchor);
 }
 
+function clearToolMenuCommandRailChrome(panel: HTMLElement): void {
+  panel.querySelectorAll('[data-command-toolbar-scroll],[data-command-toolbar-back]').forEach((element) => element.remove());
+  panel.classList.remove('has-overflow');
+}
+
+function resetToolMenuScrollPosition(panel: HTMLElement, reason: string): void {
+  panel.scrollLeft = 0;
+  panel.scrollTop = 0;
+  panel.dataset.pass347LastScrollResetReason = reason;
+}
+
 function enrichToolCardTooltips(panel: HTMLElement): void {
   for (const card of Array.from(panel.querySelectorAll<HTMLButtonElement>('.tool-card'))) {
     const title = card.querySelector('strong')?.textContent?.trim() || 'Command';
@@ -7830,20 +7984,34 @@ function focusToolCard(name: ToolMenuName, direction: 'first' | 'last' = 'first'
 function openToolMenu(name: ToolMenuName, direction: 'first' | 'last' = 'first'): void {
   pass116AnnounceChromeOverlayOpen('command-toolbar');
   const { button, panel } = toolMenuPair(name);
-  ensureToolMenuScrollControls(name);
-  ensureToolMenuBackButton(name);
+  if (toolMenuUsesCommandRail(name)) {
+    ensureToolMenuScrollControls(name);
+    ensureToolMenuBackButton(name);
+  } else {
+    clearToolMenuCommandRailChrome(panel);
+  }
   if (name === 'browser') renderBrowserKitDailyDriver();
   enrichToolCardTooltips(panel);
   closeToolMenus(name);
   panel.hidden = false;
+  if (name === 'browser') resetToolMenuScrollPosition(panel, 'open');
   pass117MarkOverlayFocus('command-toolbar', panel, button);
-  panel.title = `${commandToolbarLabel(name)} · ${commandToolbarShortcut(name)} · Esc returns to Main Toolbar · arrows/Home/End move · PageUp/PageDown scroll.`;
+  panel.title = toolMenuUsesCommandRail(name)
+    ? `${commandToolbarLabel(name)} · ${commandToolbarShortcut(name)} · Esc returns to Main Toolbar · arrows/Home/End move · PageUp/PageDown scroll.`
+    : `${commandToolbarLabel(name)} · ${commandToolbarShortcut(name)} · Esc returns to Main Toolbar · Tab moves across actions · Enter runs the focused card.`;
   button.setAttribute('aria-expanded', 'true');
   document.body.dataset.commandToolbar = name;
   rememberToolLane(name);
-  setStatus(`${commandToolbarLabel(name)} active · Esc returns to Main Toolbar · arrows move · chevrons scroll.`);
-  focusToolCard(name, direction);
-  window.setTimeout(() => updateToolMenuScrollState(panel), 0);
+  setStatus(toolMenuUsesCommandRail(name)
+    ? `${commandToolbarLabel(name)} active · Esc returns to Main Toolbar · arrows move · chevrons scroll.`
+    : `${commandToolbarLabel(name)} active · Esc returns to Main Toolbar · daily-driver actions ready.`);
+  if (toolMenuUsesCommandRail(name)) {
+    focusToolCard(name, direction);
+    window.setTimeout(() => updateToolMenuScrollState(panel), 0);
+  } else {
+    panel.tabIndex = -1;
+    window.setTimeout(() => panel.focus({ preventScroll: true }), 0);
+  }
 }
 
 function openLastToolMenu(): void {
@@ -8388,12 +8556,19 @@ function activeProfileIdSafe(): string {
 }
 
 function currentWorkspaceUrls(): string[] {
-  const urls = Array.from(tabs.values()).map((tab) => tab.url).filter(Boolean);
+  const urls = browserTabsInVisualOrder().map((tab) => tab.url).filter(Boolean);
   return Array.from(new Set(urls)).slice(0, 32);
 }
 
 function currentSessionUrls(): string[] {
-  return Array.from(tabs.values()).map((tab) => tab.url).filter(Boolean).slice(0, 24);
+  return browserTabsInVisualOrder().map((tab) => tab.url).filter(Boolean).slice(0, 24);
+}
+
+function currentSessionTabSnapshots(): SessionRecoveryTabSnapshot[] {
+  return browserTabsInVisualOrder()
+    .filter((tab) => Boolean(tab.url))
+    .slice(0, 24)
+    .map((tab) => ({ url: tab.url, pinned: tab.pinned || undefined }));
 }
 
 function currentActiveUrl(): string {
@@ -8487,9 +8662,33 @@ function renderBrowserKitDailyDriver(): void {
   const history = readBrowserHistory(profileId).slice(0, 6);
   const recentlyClosed = readRecentlyClosedTabs(profileId).slice(0, 5);
   const sessionSnapshot = readSessionRecoverySnapshot(profileId);
+  const pinButton = document.getElementById('browser-pin-tab') as HTMLButtonElement | null;
+  const nextTabButton = document.getElementById('browser-next-tab') as HTMLButtonElement | null;
+  const previousTabButton = document.getElementById('browser-previous-tab') as HTMLButtonElement | null;
   const duplicateButton = document.getElementById('browser-duplicate-tab') as HTMLButtonElement | null;
   const reopenButton = document.getElementById('browser-reopen-closed-tab') as HTMLButtonElement | null;
   const restoreSessionButton = document.getElementById('browser-restore-session') as HTMLButtonElement | null;
+  const canCycleTabs = tabs.size > 1;
+  if (pinButton) {
+    const unavailable = !activeTab;
+    const label = activeTab?.pinned ? 'Unpin Tab' : 'Pin Tab';
+    const labelEl = pinButton.querySelector('strong');
+    if (labelEl) labelEl.textContent = label;
+    pinButton.disabled = unavailable;
+    pinButton.setAttribute('aria-disabled', String(unavailable));
+    pinButton.dataset.browserKitPinnedState = activeTab?.pinned ? 'pinned' : 'unpinned';
+    pinButton.title = unavailable
+      ? 'No active tab is available to pin'
+      : `${label} for ${compactText(activeTab.title, titleFromUrl(activeTab.url))}`;
+  }
+  if (nextTabButton) {
+    nextTabButton.disabled = !canCycleTabs;
+    nextTabButton.setAttribute('aria-disabled', String(!canCycleTabs));
+  }
+  if (previousTabButton) {
+    previousTabButton.disabled = !canCycleTabs;
+    previousTabButton.setAttribute('aria-disabled', String(!canCycleTabs));
+  }
   if (duplicateButton) {
     duplicateButton.disabled = !activeTab;
     duplicateButton.setAttribute('aria-disabled', String(!activeTab));
@@ -8516,6 +8715,8 @@ function renderBrowserKitDailyDriver(): void {
   browserKitPanel.dataset.pass346RecentHistoryCount = String(history.length);
   browserKitPanel.dataset.pass346RecentlyClosedCount = String(recentlyClosed.length);
   browserKitPanel.dataset.pass346SessionRestoreAvailable = String(Boolean(sessionSnapshot?.urls?.length));
+  browserKitPanel.dataset.pass347PinnedTabCount = String(browserTabsInVisualOrder().filter((tab) => tab.pinned).length);
+  browserKitPanel.dataset.pass347TabCycleAvailable = String(canCycleTabs);
   document.body.dataset.pass346RecentHistoryCount = String(history.length);
   document.body.dataset.pass346RecentlyClosedCount = String(recentlyClosed.length);
   enrichToolCardTooltips(browserKitPanel);
@@ -8530,13 +8731,15 @@ function scheduleSessionRecoverySnapshot(reason = 'scheduled'): void {
 }
 
 function persistSessionRecoverySnapshot(reason = 'auto'): void {
-  const urls = currentSessionUrls();
-  if (!urls.length) return;
+  const tabsInSession = currentSessionTabSnapshots();
+  const urls = tabsInSession.map((tab) => tab.url).filter(Boolean);
+  if (!tabsInSession.length) return;
   const snapshot: SessionRecoverySnapshot = {
     profileId: activeProfileIdSafe(),
     profileName: activeProfileLabel(),
     activeUrl: currentActiveUrl(),
     urls,
+    tabs: tabsInSession,
     updatedAt: new Date().toISOString()
   };
   writeSessionRecoverySnapshot(snapshot);
@@ -8579,7 +8782,7 @@ function refreshBrowserHistoryEntryTitle(url: string, title: string): void {
   renderBrowserKitDailyDriver();
 }
 
-function recordRecentlyClosedTab(tab: Pick<TabState, 'url' | 'title'>): void {
+function recordRecentlyClosedTab(tab: Pick<TabState, 'url' | 'title' | 'pinned'>): void {
   const safeUrl = sanitizeTabMetadataUrl(tab.url, trustedLocalUrls()) || '';
   if (!safeUrl) return;
   const profileId = activeProfileIdSafe();
@@ -8589,7 +8792,8 @@ function recordRecentlyClosedTab(tab: Pick<TabState, 'url' | 'title'>): void {
     profileId,
     url: safeUrl,
     title: sanitizeRemotePageTitle(tab.title, titleFromUrl(safeUrl)),
-    closedAt: new Date().toISOString()
+    closedAt: new Date().toISOString(),
+    pinned: tab.pinned || undefined
   };
   entries.unshift(next);
   writeRecentlyClosedTabs(entries, profileId);
@@ -8616,7 +8820,8 @@ function reopenClosedTab(closedId?: string): void {
     return;
   }
   closeToolMenus(undefined, false);
-  createTab(entry.url);
+  const reopenedTabId = createTab(entry.url);
+  if (entry.pinned) setBrowserTabPinned(reopenedTabId, true, 'reopen-closed', false);
   writeRecentlyClosedTabs(entries.filter((candidate) => candidate.id !== entry.id), profileId);
   document.body.dataset.pass343LastBrowserKitAction = 'reopen-closed-tab';
   renderBrowserKitDailyDriver();
@@ -8625,26 +8830,32 @@ function reopenClosedTab(closedId?: string): void {
 
 function restoreSessionRecoverySnapshot(): void {
   const snapshot = readSessionRecoverySnapshot();
-  if (!snapshot?.urls?.length) {
+  const sessionTabs = Array.isArray(snapshot?.tabs) && snapshot.tabs.length
+    ? snapshot.tabs.filter((entry) => typeof entry?.url === 'string')
+    : (snapshot?.urls || []).map((url) => ({ url, pinned: false }));
+  if (!sessionTabs.length) {
     setStatus('No saved session available', 'Continue browsing in this profile to seed session recovery.');
     renderBrowserKitDailyDriver();
     return;
   }
+  const recoverySnapshot = snapshot as SessionRecoverySnapshot;
   closeToolMenus(undefined, false);
   const existing = new Set(currentSessionUrls());
   const createdTabIds: string[] = [];
-  for (const url of snapshot.urls) {
-    if (existing.has(url)) continue;
-    createdTabIds.push(createTab(url));
-    existing.add(url);
+  for (const entry of sessionTabs) {
+    if (!entry?.url || existing.has(entry.url)) continue;
+    const createdTabId = createTab(entry.url);
+    if (entry.pinned) setBrowserTabPinned(createdTabId, true, 'restore-session', false);
+    createdTabIds.push(createdTabId);
+    existing.add(entry.url);
   }
-  const activeMatch = Array.from(tabs.values()).find((tab) => tab.url === snapshot.activeUrl);
+  const activeMatch = Array.from(tabs.values()).find((tab) => tab.url === recoverySnapshot.activeUrl);
   if (activeMatch) setActive(activeMatch.id);
   else if (createdTabIds.length) setActive(createdTabIds[createdTabIds.length - 1]);
   scheduleSessionRecoverySnapshot('restore-session');
   document.body.dataset.pass343LastBrowserKitAction = 'restore-session';
   renderBrowserKitDailyDriver();
-  setStatus(createdTabIds.length ? 'Session restored' : 'Session already open', `${snapshot.urls.length} saved tab(s) in ${snapshot.profileName}`);
+  setStatus(createdTabIds.length ? 'Session restored' : 'Session already open', `${recoverySnapshot.urls.length} saved tab(s) in ${recoverySnapshot.profileName}`);
 }
 
 const PASS343_BROWSER_KIT_CONTRACT = 'PASS343_IT_DEVOPS_PRIORITY_BROWSER_KIT';
@@ -8775,6 +8986,9 @@ function runBrowserKitAction(action: string, detail?: DOMStringMap): void {
   switch (action) {
     case 'new-tab': closeToolMenus(undefined, false); createTab(config.newTabUrl); break;
     case 'close-tab': closeToolMenus(undefined, false); closeTab(pass343ActiveTarget('browser-kit')?.id || activeTabId); break;
+    case 'pin-tab': closeToolMenus(undefined, false); toggleBrowserTabPin(activeTabId, 'browser-kit'); break;
+    case 'next-tab': closeToolMenus(undefined, false); setActiveRelativeTab(1, 'browser-kit'); break;
+    case 'previous-tab': closeToolMenus(undefined, false); setActiveRelativeTab(-1, 'browser-kit'); break;
     case 'duplicate-tab': duplicateActiveTab(); break;
     case 'reopen-closed-tab': reopenClosedTab(); break;
     case 'restore-session': restoreSessionRecoverySnapshot(); break;
@@ -8802,6 +9016,35 @@ function runBrowserKitAction(action: string, detail?: DOMStringMap): void {
     case 'zoom-reset': closeToolMenus(undefined, false); setActivePageZoom('reset'); break;
     default: setStatus('Browser Kit action unavailable', action || 'unknown');
   }
+}
+
+function bindBrowserKitStaticAction(buttonId: string): void {
+  const button = document.getElementById(buttonId) as HTMLButtonElement | null;
+  if (!button || button.dataset.pass347BrowserKitDirectBound === 'true') return;
+  button.dataset.pass347BrowserKitDirectBound = 'true';
+  let lastPointerActivationAt = 0;
+  const runBoundAction = (): void => {
+    const action = button.dataset.browserKitAction;
+    if (!action) return;
+    runBrowserKitAction(action, button.dataset);
+  };
+  button.addEventListener('pointerup', (event) => {
+    if (event.button !== 0) return;
+    lastPointerActivationAt = Date.now();
+    event.preventDefault();
+    event.stopPropagation();
+    runBoundAction();
+  });
+  button.addEventListener('click', (event) => {
+    if (Date.now() - lastPointerActivationAt < 400) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    runBoundAction();
+  });
 }
 
 function toggleOpsHub(open = opsHub.hidden, restoreFocus = false): void {
@@ -11702,6 +11945,9 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     { id: 'it-menu', title: 'IT Tools Menu', detail: 'Open IT engineering flyout.', group: 'Tools', shortcut: 'Ctrl+Alt+I', run: () => openToolMenu('it') },
     { id: 'browser-kit-menu', title: 'Browser Kit Menu', detail: 'Open daily-driver browser actions without demoting DevOps or IT lanes.', group: 'Browser Kit', shortcut: 'Ctrl+Alt+.', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => openToolMenu('browser') },
     { id: 'last-tool-menu', title: 'Reopen Last Command Toolbar', detail: 'Open whichever command lane was used last: DevOps or IT Tools.', group: 'Tools', shortcut: 'Ctrl+Alt+L', run: () => openLastToolMenu() },
+    { id: 'pin-tab', title: 'Pin / Unpin Active Tab', detail: 'Keep the active tab parked at the front of the strip or release it back into normal flow.', group: 'Browser Kit', shortcut: 'Ctrl+Alt+Shift+F', target: 'Active tab', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => toggleBrowserTabPin(activeTabId, 'command-palette') },
+    { id: 'next-tab', title: 'Next Tab', detail: 'Cycle forward through browser tabs in visual order.', group: 'Browser Kit', shortcut: 'Ctrl+Tab', target: 'Browser tab strip', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => setActiveRelativeTab(1, 'command-palette') },
+    { id: 'previous-tab', title: 'Previous Tab', detail: 'Cycle backward through browser tabs in visual order.', group: 'Browser Kit', shortcut: 'Ctrl+Shift+Tab', target: 'Browser tab strip', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => setActiveRelativeTab(-1, 'command-palette') },
     { id: 'duplicate-tab', title: 'Duplicate Active Tab', detail: 'Clone the active tab URL into a fresh TAHAI tab.', group: 'Browser Kit', shortcut: 'Ctrl+Alt+Shift+T', target: 'Active tab', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: duplicateActiveTab },
     { id: 'reopen-closed-tab', title: 'Reopen Closed Tab', detail: 'Recover the latest closed tab in the current profile lane.', group: 'Browser Kit', shortcut: 'Ctrl+Shift+T', target: 'Current profile session', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => reopenClosedTab() },
     { id: 'restore-session', title: 'Restore Last Session', detail: 'Reopen missing tabs from the last auto-saved session for the active profile.', group: 'Browser Kit', target: 'Current profile session', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: restoreSessionRecoverySnapshot },
@@ -13838,8 +14084,33 @@ function reloadForActiveProfile(): void {
   createTab(config.startupUrl || config.homeUrl);
 }
 
+const PASS347_BROWSER_TAB_DAILY_DRIVER_AND_PROFILE_DIALOG_STABILITY = 'PASS347_BROWSER_TAB_DAILY_DRIVER_AND_PROFILE_DIALOG_STABILITY';
+const PASS347_PROFILE_DIALOG_EXTRA_SETTLE_MS = 920;
+
+function pass347RepairProfileDialogViewport(reason: string): boolean {
+  const panel = profileDialog as unknown as HTMLElement | null;
+  if (!panel) return false;
+  const viewportWidth = Math.max(360, Math.round(window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 0));
+  const viewportHeight = Math.max(320, Math.round(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0));
+  const margin = Math.max(14, Math.min(24, Math.round(Math.min(viewportWidth, viewportHeight) * 0.03)));
+  const width = Math.max(320, Math.min(1140, viewportWidth - margin * 2));
+  const height = Math.max(360, Math.min(820, viewportHeight - margin * 2));
+  panel.style.width = `${width}px`;
+  panel.style.height = `${height}px`;
+  panel.style.maxWidth = `calc(100vw - ${margin * 2}px)`;
+  panel.style.maxHeight = `calc(100vh - ${margin * 2}px)`;
+  panel.style.margin = 'auto';
+  panel.dataset.pass347ProfileDialogViewport = PASS347_BROWSER_TAB_DAILY_DRIVER_AND_PROFILE_DIALOG_STABILITY;
+  panel.dataset.pass347ProfileDialogViewportReason = reason;
+  panel.dataset.pass347ProfileDialogViewportSize = `${width}x${height}`;
+  document.body.dataset.pass347BrowserTabDailyDriver = PASS347_BROWSER_TAB_DAILY_DRIVER_AND_PROFILE_DIALOG_STABILITY;
+  document.body.dataset.pass347ProfileDialogViewportReason = reason;
+  return true;
+}
+
 function pass342ValidateProfileDialogViewport(reason: string): void {
   if (!profileDialog.open) return;
+  pass347RepairProfileDialogViewport(`pass342-validate-${reason}`);
   const panel = profileDialog as unknown as HTMLElement;
   const rect = panel.getBoundingClientRect();
   document.body.dataset.pass342ProfileDialogViewportValidationReason = reason;
@@ -13854,10 +14125,13 @@ function pass342ScheduleProfileDialogViewportValidation(reason: string): void {
 
 async function openProfileManager(): Promise<void> {
   pass190CloseRivalOverlays('profile-dialog');
+  pass347RepairProfileDialogViewport('profile-open-before-show');
   if (!profileDialog.open) profileDialog.showModal();
+  pass347RepairProfileDialogViewport('profile-open-after-show');
   pass190OpenOwnedOverlay('profile-dialog', profileDialog as unknown as HTMLElement, profileSwitcherButton);
   pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('profile-open');
   await refreshProfiles(browserProfileState?.activeProfileId);
+  pass347RepairProfileDialogViewport('profile-open-after-refresh');
   window.requestAnimationFrame(() => pass122RunOverlayViewportReflow('viewport-reflow'));
   pass342ScheduleProfileDialogViewportValidation('profile-open-after-hydration');
 }
@@ -13974,6 +14248,9 @@ function handleMenuCommand(command: string): void {
   if (command === 'open-active-profile-folder') void openActiveProfileData();
   if (command === 'focus-address') { addressInput.focus(); addressInput.select(); }
   if (command === 'find-page') openFindBar();
+  if (command === 'pin-tab') toggleBrowserTabPin(activeTabId, 'menu');
+  if (command === 'next-tab') setActiveRelativeTab(1, 'menu');
+  if (command === 'previous-tab') setActiveRelativeTab(-1, 'menu');
   if (command === 'duplicate-tab') duplicateActiveTab();
   if (command === 'reopen-closed-tab') reopenClosedTab();
   if (command === 'restore-session') restoreSessionRecoverySnapshot();
@@ -14292,6 +14569,12 @@ settingsDialog.addEventListener('close', () => {
 profileDialog.addEventListener('close', () => {
   if (document.body.dataset.pass116ActiveOverlay === 'profile-dialog') pass118ClearChromeOverlayState('explicit-close', 'profile-dialog');
 });
+window.addEventListener('resize', () => {
+  if (profileDialog.open) pass347RepairProfileDialogViewport('window-resize');
+});
+window.visualViewport?.addEventListener('resize', () => {
+  if (profileDialog.open) pass347RepairProfileDialogViewport('visual-viewport-resize');
+});
 shortcutDialog.addEventListener('close', () => {
   if (document.body.dataset.pass116ActiveOverlay === 'shortcut-dialog') pass118ClearChromeOverlayState('explicit-close', 'shortcut-dialog');
 });
@@ -14304,6 +14587,25 @@ itToolsButton.addEventListener('keydown', (event) => handleToolMenuButtonKeyboar
 browserKitButton.addEventListener('keydown', (event) => handleToolMenuButtonKeyboard('browser', event));
 devopsToolsPanel.addEventListener('click', (event) => event.stopPropagation());
 itToolsPanel.addEventListener('click', (event) => event.stopPropagation());
+for (const buttonId of [
+  'browser-new-tab',
+  'browser-close-tab',
+  'browser-pin-tab',
+  'browser-next-tab',
+  'browser-previous-tab',
+  'browser-find',
+  'browser-print',
+  'browser-copy-url',
+  'browser-open-external',
+  'browser-bookmarks',
+  'browser-downloads',
+  'browser-zoom-out',
+  'browser-zoom-reset',
+  'browser-zoom-in',
+  'browser-duplicate-tab',
+  'browser-reopen-closed-tab',
+  'browser-restore-session',
+] as const) bindBrowserKitStaticAction(buttonId);
 browserKitPanel.addEventListener('click', (event) => {
   event.stopPropagation();
   const button = eventClosest<HTMLButtonElement>(event, 'button[data-browser-kit-action]');
@@ -14623,6 +14925,8 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key.toLowerCase() === 'd') { event.preventDefault(); event.stopPropagation(); pass78RunMissionViewDoctor('shortcut'); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key.toLowerCase() === 'r') { event.preventDefault(); event.stopPropagation(); pass78RepaintMissionView('shortcut'); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key.toLowerCase() === 's') { event.preventDefault(); event.stopPropagation(); pass81RunAllSurfaceDoctor('shortcut'); return; }
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key === 'Tab') { event.preventDefault(); event.stopPropagation(); setActiveRelativeTab(event.shiftKey ? -1 : 1, 'keyboard'); return; }
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && /^[1-9]$/.test(event.key)) { event.preventDefault(); event.stopPropagation(); activateTabByOrdinal(Number(event.key), 'keyboard'); return; }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openFindBar(); return; }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'p') { event.preventDefault(); printTarget('print'); return; }
   if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'u') { event.preventDefault(); void copyActivePageUrl(); return; }
@@ -14654,6 +14958,7 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'i') { event.preventDefault(); openToolMenu('it'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && (event.key === '.' || event.code === 'Period')) { event.preventDefault(); openToolMenu('browser'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key.toLowerCase() === 't') { event.preventDefault(); duplicateActiveTab(); return; }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); toggleBrowserTabPin(activeTabId, 'keyboard'); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'l') { event.preventDefault(); openLastToolMenu(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && ['1','2','3','4'].includes(event.key)) { event.preventDefault(); setMissionActivePane('pane-' + event.key); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowLeft') { event.preventDefault(); swapActiveMissionPane(-1); }
@@ -14944,6 +15249,30 @@ function installPass158RuntimeE2eHarness(): void {
         if (closeButtons < tabCount) throw new Error('tab close button count is lower than tab count');
         return `tab count grew from ${before} to ${tabCount}; close buttons present`;
       });
+
+      await step('tab-pinning-and-switching', async () => {
+        const before = document.querySelectorAll('[data-testid="runtime-browser-tab"]').length;
+        await pass158RuntimeE2eClick('[data-testid="runtime-new-tab"]');
+        if (!await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('[data-testid="runtime-browser-tab"]').length >= before + 1, 1800)) {
+          throw new Error('browser tab pinning precondition could not create another tab');
+        }
+        const pinnedCandidateId = activeTabId;
+        if (!pinnedCandidateId || !tabs.has(pinnedCandidateId)) throw new Error('no active tab was available to pin');
+        await pass158RuntimeE2eClickShellControl('browser-kit');
+        if (!await pass158RuntimeE2eWaitFor(() => !browserKitPanel.hidden, 1200)) throw new Error('Browser Kit did not open for tab pinning');
+        await pass158RuntimeE2eClick('#browser-pin-tab');
+        if (!await pass158RuntimeE2eWaitFor(() => Boolean(tabs.get(pinnedCandidateId)?.pinned), 1200)) throw new Error('active tab did not become pinned');
+        const ordered = browserTabsInVisualOrder();
+        if (ordered[0]?.id !== pinnedCandidateId) throw new Error('pinned tab did not move to the front of the strip');
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', ctrlKey: true, bubbles: true, cancelable: true }));
+        if (!await pass158RuntimeE2eWaitFor(() => activeTabId !== pinnedCandidateId, 1200)) throw new Error('Ctrl+Tab did not advance to the next tab');
+        const cycledTabId = activeTabId;
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+        if (!await pass158RuntimeE2eWaitFor(() => activeTabId === pinnedCandidateId, 1200)) throw new Error('Ctrl+Shift+Tab did not return to the pinned tab');
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', ctrlKey: true, bubbles: true, cancelable: true }));
+        if (!await pass158RuntimeE2eWaitFor(() => activeTabId === browserTabsInVisualOrder()[0]?.id, 1200)) throw new Error('Ctrl+1 did not focus the first visible tab');
+        return `pinned ${pinnedCandidateId} to the front; Ctrl+Tab reached ${cycledTabId || 'next-tab'}; Ctrl+Shift+Tab and Ctrl+1 restored first-tab focus`;
+      }, 15000);
 
       await step('launchpad-guide-home-address', async () => {
         const sameUrl = (expected: string): boolean => browserNavigationSafeUrl(active()?.url || addressInput.value || '') === browserNavigationSafeUrl(expected);
@@ -16968,9 +17297,10 @@ const PASS341_FEATURE_CONTROL_IDS = new Set([
   'back', 'forward', 'reload', 'home', 'address-form', 'address', 'launchpad', 'onboarding', 'profile-switcher',
   'devops-tools', 'it-tools', 'browser-kit', 'ops-hub-toggle', 'mission-control-toggle', 'settings', 'new-tab',
   'capture', 'ops-check', 'deploy', 'it-card', 'endpoint', 'triage', 'secret-boundary', 'route-map', 'dev-audit',
-  'ops-guard', 'devtools', 'about', 'browser-new-tab', 'browser-close-tab', 'browser-duplicate-tab', 'browser-reopen-closed-tab',
-  'browser-restore-session', 'browser-find', 'browser-print', 'browser-copy-url', 'browser-open-external', 'browser-bookmarks',
-  'browser-downloads', 'browser-zoom-out', 'browser-zoom-reset', 'browser-zoom-in'
+  'ops-guard', 'devtools', 'about', 'browser-new-tab', 'browser-close-tab', 'browser-pin-tab', 'browser-next-tab',
+  'browser-previous-tab', 'browser-duplicate-tab', 'browser-reopen-closed-tab', 'browser-restore-session', 'browser-find',
+  'browser-print', 'browser-copy-url', 'browser-open-external', 'browser-bookmarks', 'browser-downloads',
+  'browser-zoom-out', 'browser-zoom-reset', 'browser-zoom-in'
 ]);
 
 function pass341CaptureFallbackEnabled(): boolean {
@@ -17180,6 +17510,9 @@ function pass341RunPrimaryFeatureAction(controlId: string): boolean {
     case 'about': closeToolMenus(undefined, false); navigate(config?.aboutUrl); return true;
     case 'browser-new-tab': runBrowserKitAction('new-tab'); return true;
     case 'browser-close-tab': runBrowserKitAction('close-tab'); return true;
+    case 'browser-pin-tab': runBrowserKitAction('pin-tab'); return true;
+    case 'browser-next-tab': runBrowserKitAction('next-tab'); return true;
+    case 'browser-previous-tab': runBrowserKitAction('previous-tab'); return true;
     case 'browser-duplicate-tab': runBrowserKitAction('duplicate-tab'); return true;
     case 'browser-reopen-closed-tab': runBrowserKitAction('reopen-closed-tab'); return true;
     case 'browser-restore-session': runBrowserKitAction('restore-session'); return true;
@@ -17199,7 +17532,7 @@ function pass341RunPrimaryFeatureAction(controlId: string): boolean {
 function pass341HandlePrimaryFeatureClick(event: MouseEvent): void {
   if (pass341HandlingFeatureClick) return;
   const target = event.target as HTMLElement | null;
-  const control = target?.closest?.<HTMLElement>('#back,#forward,#reload,#home,#launchpad,#onboarding,#profile-switcher,#devops-tools,#it-tools,#browser-kit,#ops-hub-toggle,#mission-control-toggle,#settings,#new-tab,#capture,#ops-check,#deploy,#it-card,#endpoint,#triage,#secret-boundary,#route-map,#dev-audit,#ops-guard,#devtools,#about,#browser-new-tab,#browser-close-tab,#browser-duplicate-tab,#browser-reopen-closed-tab,#browser-restore-session,#browser-find,#browser-print,#browser-copy-url,#browser-open-external,#browser-bookmarks,#browser-downloads,#browser-zoom-out,#browser-zoom-reset,#browser-zoom-in');
+  const control = target?.closest?.<HTMLElement>('#back,#forward,#reload,#home,#launchpad,#onboarding,#profile-switcher,#devops-tools,#it-tools,#browser-kit,#ops-hub-toggle,#mission-control-toggle,#settings,#new-tab,#capture,#ops-check,#deploy,#it-card,#endpoint,#triage,#secret-boundary,#route-map,#dev-audit,#ops-guard,#devtools,#about,#browser-new-tab,#browser-close-tab,#browser-pin-tab,#browser-next-tab,#browser-previous-tab,#browser-duplicate-tab,#browser-reopen-closed-tab,#browser-restore-session,#browser-find,#browser-print,#browser-copy-url,#browser-open-external,#browser-bookmarks,#browser-downloads,#browser-zoom-out,#browser-zoom-reset,#browser-zoom-in');
   if (!control?.id || !PASS341_FEATURE_CONTROL_IDS.has(control.id)) return;
   pass341HandlingFeatureClick = true;
   try {

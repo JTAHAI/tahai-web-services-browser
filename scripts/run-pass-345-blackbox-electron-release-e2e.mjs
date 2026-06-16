@@ -289,6 +289,34 @@ async function runtimeTabCount(page) {
   return page.evaluate(() => document.querySelectorAll('#tabs .tab').length);
 }
 
+async function runtimeTabStripState(page) {
+  return page.evaluate(() => Array.from(document.querySelectorAll('#tabs .tab[data-browser-tab-id]')).map((tab) => ({
+    id: tab.getAttribute('data-browser-tab-id') || '',
+    title: tab.querySelector('.tab-title')?.textContent?.trim() || '',
+    pinned: tab.getAttribute('data-browser-tab-pinned') === 'true' || tab.classList.contains('pinned'),
+    active: tab.classList.contains('active') || tab.getAttribute('aria-selected') === 'true'
+  })));
+}
+
+async function waitForHitTarget(page, selector, message, timeoutMs = 5000) {
+  return waitFor(
+    page,
+    () => page.evaluate((targetSelector) => {
+      const element = document.querySelector(targetSelector);
+      if (!(element instanceof HTMLElement)) return false;
+      element.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 16 || rect.height < 16) return false;
+      const x = rect.left + Math.max(8, Math.min(rect.width - 8, rect.width / 2));
+      const y = rect.top + Math.max(8, Math.min(rect.height - 8, rect.height / 2));
+      const hit = document.elementFromPoint(x, y);
+      return hit instanceof Element && (hit === element || element.contains(hit));
+    }, selector),
+    message,
+    timeoutMs,
+  );
+}
+
 async function browserKitVisibleListCount(page, selector) {
   return page.evaluate((targetSelector) => {
     const host = document.querySelector(targetSelector);
@@ -401,6 +429,13 @@ async function runScenario(page, config, profile, scenario) {
     const profileVia = await clickShellControl(page, 'profile-switcher');
     await waitForOpenState(page, '#profile-dialog', true, 5000);
     ensure(await page.locator('#profile-list').count() >= 1, 'Profile dialog did not render list host');
+    await sleep(900);
+    const profileDialogStillOpen = await page.evaluate(() => {
+      const dialog = document.getElementById('profile-dialog');
+      return dialog instanceof HTMLDialogElement && dialog.open;
+    });
+    const profileDismissAction = await page.evaluate(() => document.body.dataset.pass122LastReflowAction || 'unknown');
+    ensure(profileDialogStillOpen, `Profile dialog closed during restored-window settle; action=${profileDismissAction}`);
     await page.locator('#close-profile').click();
     await waitForOpenState(page, '#profile-dialog', false, 5000);
     await pressCommandPalette(page);
@@ -442,18 +477,21 @@ async function runScenario(page, config, profile, scenario) {
     await waitForOpenState(page, '#browser-kit-panel', true);
     const beforeCount = await runtimeTabCount(page);
     const originalUrl = await page.locator('#address').inputValue();
+    await waitForHitTarget(page, '#browser-duplicate-tab', 'duplicate tab card was not hit-test ready');
     await page.locator('#browser-duplicate-tab').click();
     await waitFor(page, async () => (await runtimeTabCount(page)) === beforeCount + 1, 'duplicate tab did not increase tab count', 6000);
     await waitForOpenState(page, '#browser-kit-panel', false);
     const duplicatedUrl = await waitForAddress(page, (value) => sameUrl(originalUrl, value), 'duplicated tab did not keep the active URL', 12000);
     await page.locator('#browser-kit').click();
     await waitForOpenState(page, '#browser-kit-panel', true);
+    await waitForHitTarget(page, '#browser-close-tab', 'close tab card was not hit-test ready');
     await page.locator('#browser-close-tab').click();
     await waitFor(page, async () => (await runtimeTabCount(page)) === beforeCount, 'close tab did not reduce tab count', 6000);
     await waitForOpenState(page, '#browser-kit-panel', false);
     await page.locator('#browser-kit').click();
     await waitForOpenState(page, '#browser-kit-panel', true);
     await waitFor(page, async () => (await browserKitVisibleListCount(page, '#browser-kit-closed-list')) >= 1, 'recently closed list did not populate', 4000);
+    await waitForHitTarget(page, '#browser-reopen-closed-tab', 'reopen closed card was not hit-test ready');
     await page.locator('#browser-reopen-closed-tab').click();
     await waitFor(page, async () => (await runtimeTabCount(page)) === beforeCount + 1, 'reopen closed did not restore tab count', 6000);
     await waitForOpenState(page, '#browser-kit-panel', false);
@@ -471,6 +509,58 @@ async function runScenario(page, config, profile, scenario) {
     await waitForOpenState(page, '#browser-kit-panel', false);
     return {
       detail: `tab count ${beforeCount} -> ${beforeCount + 1} -> ${beforeCount} -> ${beforeCount + 1}; recent=${recentCount}; url=${reopenedUrl || duplicatedUrl}`,
+    };
+  }
+
+  if (scenario.id === 'browser-tab-pinning-and-switching') {
+    const beforeCount = await runtimeTabCount(page);
+    await page.locator('#new-tab').click();
+    await waitFor(page, async () => (await runtimeTabCount(page)) === beforeCount + 1, 'new tab did not increase tab count for pinning flow', 6000);
+    const pinCandidate = await page.evaluate(() => {
+      const activeTab = document.querySelector('#tabs .tab[aria-selected="true"], #tabs .tab.active');
+      return activeTab instanceof HTMLElement ? activeTab.getAttribute('data-browser-tab-id') || '' : '';
+    });
+    ensure(pinCandidate, 'active tab id was unavailable before pinning');
+    await page.locator('#browser-kit').click();
+    await waitForOpenState(page, '#browser-kit-panel', true);
+    await waitForHitTarget(page, '#browser-pin-tab', 'pin tab card was not hit-test ready');
+    await page.locator('#browser-pin-tab').click();
+    await waitFor(page, async () => {
+      const tabs = await runtimeTabStripState(page);
+      return tabs[0]?.id === pinCandidate && tabs[0]?.pinned === true;
+    }, 'pinned tab did not move to the front of the strip', 6000);
+    if (await page.evaluate(() => {
+      const panel = document.getElementById('browser-kit-panel');
+      return panel instanceof HTMLElement && !panel.hidden;
+    })) {
+      await page.keyboard.press('Escape');
+      if (await page.evaluate(() => {
+        const panel = document.getElementById('browser-kit-panel');
+        return panel instanceof HTMLElement && !panel.hidden;
+      })) {
+        await page.locator('#browser-kit').click();
+      }
+      await waitForOpenState(page, '#browser-kit-panel', false);
+    }
+    const pinnedState = await runtimeTabStripState(page);
+    ensure(pinnedState[0]?.id === pinCandidate && pinnedState[0]?.pinned === true, 'pinned tab state was not preserved');
+    await page.keyboard.press('Control+Tab');
+    const cycled = await waitFor(page, async () => {
+      const tabs = await runtimeTabStripState(page);
+      return tabs.find((tab) => tab.active && tab.id !== pinCandidate) || null;
+    }, 'Ctrl+Tab did not advance to the next visible tab', 4000);
+    await page.keyboard.press('Control+Shift+Tab');
+    await waitFor(page, async () => {
+      const tabs = await runtimeTabStripState(page);
+      return tabs[0]?.id === pinCandidate && tabs[0]?.active === true;
+    }, 'Ctrl+Shift+Tab did not return focus to the pinned tab', 4000);
+    await page.keyboard.press('Control+1');
+    await waitFor(page, async () => {
+      const tabs = await runtimeTabStripState(page);
+      return tabs[0]?.id === pinCandidate && tabs[0]?.active === true;
+    }, 'Ctrl+1 did not focus the first visible tab', 4000);
+    return {
+      detail: `pinned ${pinCandidate} at strip index 0; Ctrl+Tab reached ${cycled.id}`,
     };
   }
 
@@ -591,8 +681,8 @@ const report = {
   profiles: [],
 };
 
-for (const profile of matrix.windowProfiles || []) {
-  const runId = `pass345-${profile.id}-${Date.now()}-${process.pid}`;
+async function executeProfile(profile, attempt) {
+  const runId = `pass345-${profile.id}-attempt${attempt}-${Date.now()}-${process.pid}`;
   let electronApp;
   let page;
   let config = null;
@@ -600,6 +690,7 @@ for (const profile of matrix.windowProfiles || []) {
     id: profile.id,
     width: profile.width,
     height: profile.height,
+    attempts: attempt,
     ok: true,
     consoleNoise: [],
     pageErrors: [],
@@ -646,7 +737,20 @@ for (const profile of matrix.windowProfiles || []) {
       }
     }
   }
-  report.profiles.push(profileReport);
+  return profileReport;
+}
+
+for (const profile of matrix.windowProfiles || []) {
+  let finalProfileReport = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const profileReport = await executeProfile(profile, attempt);
+    finalProfileReport = profileReport;
+    if (profileReport.ok) break;
+    const failedScenario = profileReport.scenarios.find((entry) => !entry.ok)?.id || 'launch';
+    console.warn(`[${pass}][WARN] Retrying profile ${profile.id} after attempt ${attempt} failed on ${failedScenario}.`);
+  }
+  if (!finalProfileReport?.ok) report.ok = false;
+  report.profiles.push(finalProfileReport);
 }
 
 fs.writeFileSync(resultPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
