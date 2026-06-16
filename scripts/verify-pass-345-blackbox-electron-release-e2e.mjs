@@ -38,7 +38,7 @@ check('release-contract-order', ordered(releaseContract, 'verify:pass-344-micros
 
 check('matrix-pass-truth', matrix.pass === 'PASS345' && matrix.contractId === 'pass345-blackbox-electron-release-e2e-v1' && matrix.versionTarget === '2.0.14');
 check('matrix-window-profiles', Array.isArray(matrix.windowProfiles) && matrix.windowProfiles.some((entry) => entry.id === 'restored-1460x940') && matrix.windowProfiles.some((entry) => entry.id === 'restored-1366x768'));
-check('matrix-scenarios', Array.isArray(matrix.scenarios) && ['launch-shell-stage-webview', 'primary-browser-routing', 'chrome-flyouts-and-dialogs', 'browser-kit-find-and-guest-click', 'mission-control-layout-and-export'].every((id) => matrix.scenarios.some((entry) => entry.id === id)));
+check('matrix-scenarios', Array.isArray(matrix.scenarios) && ['launch-shell-stage-webview', 'primary-browser-routing', 'chrome-flyouts-and-dialogs', 'browser-kit-find-and-guest-click', 'browser-history-session-recovery', 'mission-control-layout-and-export'].every((id) => matrix.scenarios.some((entry) => entry.id === id)));
 check('matrix-evidence-paths', Array.isArray(matrix.requiredEvidencePaths) && matrix.requiredEvidencePaths.includes('release-candidate/generated/pass345-blackbox-electron-release-e2e/pass345-blackbox-electron-release-e2e-result.json') && matrix.requiredEvidencePaths.includes('release-candidate/generated/pass345-blackbox-electron-release-e2e/pass345-blackbox-electron-release-e2e-summary.md'));
 
 check('runner-uses-playwright-electron', runner.includes("import { _electron as electron } from 'playwright';") && runner.includes('await electron.launch(') && runner.includes('firstWindow()'));
@@ -46,6 +46,7 @@ check('runner-launches-built-app', runner.includes("dist', 'main', 'main.js") &&
 check('runner-real-window-profiles', runner.includes('BrowserWindow.getAllWindows()[0]') && runner.includes('win.setBounds({ width: size.width, height: size.height })'));
 check('runner-real-input-and-screenshots', runner.includes('clickShellControl(page,') && runner.includes("page.keyboard.press('Escape')") && runner.includes('page.mouse.click(') && runner.includes('page.screenshot({ path:'));
 check('runner-guest-click-proof', runner.includes('__pass345GuestClickCount') && runner.includes('executeJavaScript(') && runner.includes('guest click count did not increase'));
+check('runner-covers-history-session-recovery', runner.includes("scenario.id === 'browser-history-session-recovery'") && runner.includes('#browser-duplicate-tab') && runner.includes('#browser-reopen-closed-tab') && runner.includes('#browser-kit-history-list') && runner.includes('restore session was not available'));
 check('runner-writes-machine-readable-evidence', runner.includes('pass345-blackbox-electron-release-e2e-result.json') && runner.includes('pass345-blackbox-electron-release-e2e-summary.md'));
 check('runner-covers-profile-dialog-regression', runner.includes("'profile-switcher'") && runner.includes('#profile-dialog') && runner.includes("waitForOpenState(page, '#profile-dialog', true"));
 check('runner-covers-mission-export', runner.includes('#mission-pin-active-page') && runner.includes('mission-export-preview') && runner.includes('redaction-required-before-copy-save'));

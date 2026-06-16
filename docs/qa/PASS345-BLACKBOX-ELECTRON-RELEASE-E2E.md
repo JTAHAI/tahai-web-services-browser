@@ -17,6 +17,7 @@ PASS345 adds an external Electron acceptance runner so release readiness no long
 - Launchpad, Guide, address bar, Back, Forward, Reload, and Home
 - DevOps, IT Tools, Browser Kit, Ops Panel, Settings, Profile dialog, and Command Palette
 - Browser Kit Find flow plus real guest click proof inside `#webview-stage`
+- Browser Kit history/session recovery: Duplicate Tab, Reopen Closed Tab, recent-page population, and restore-session availability
 - Mission Control open/create/add-tab, Quad/Focus layouts, and export preview
 - Restored-window regression coverage for the repeatable profile dialog issue
 

@@ -979,6 +979,9 @@ function installApplicationMenu(window: BrowserWindow): void {
       submenu: [
         { label: 'Back', accelerator: 'Alt+Left', click: () => sendMenuCommand(window, 'back') },
         { label: 'Forward', accelerator: 'Alt+Right', click: () => sendMenuCommand(window, 'forward') },
+        { label: 'Reopen Closed Tab', accelerator: 'CmdOrCtrl+Shift+T', click: () => sendMenuCommand(window, 'reopen-closed-tab') },
+        { label: 'Duplicate Current Tab', accelerator: 'CmdOrCtrl+Alt+Shift+T', click: () => sendMenuCommand(window, 'duplicate-tab') },
+        { label: 'Restore Last Session', click: () => sendMenuCommand(window, 'restore-session') },
         { type: 'separator' },
         { label: 'Home', accelerator: 'Alt+Home', click: () => sendMenuCommand(window, 'home') },
         { label: 'TAHAI Launchpad', click: () => sendMenuCommand(window, 'launchpad') }

@@ -16,7 +16,7 @@
   data-pass180-primary-chrome-compact-recovery="true"
   data-pass181-compact-primary-ux-clarity="true"
   data-pass182-compact-hit-target-focus="true"
-  data-pass183-more-tools-overlay-collision-recovery="true" data-pass184-hidden-more-tools-focus-recovery="true" data-pass185-mouse-history-parity="true" data-pass192-titlebar-chrome-final="true" data-pass343-it-devops-priority-browser-kit="true">
+  data-pass183-more-tools-overlay-collision-recovery="true" data-pass184-hidden-more-tools-focus-recovery="true" data-pass185-mouse-history-parity="true" data-pass192-titlebar-chrome-final="true" data-pass343-it-devops-priority-browser-kit="true" data-pass346-browser-history-session-daily-driver="true">
   <section id="boot-diagnostic" class="boot-diagnostic" aria-live="assertive">
     <div>
       <p class="eyebrow">TAHAI Browser Runtime Diagnostic</p>
@@ -120,6 +120,20 @@
             <button id="browser-zoom-out" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="zoom-out" title="Zoom out active page"><strong>Zoom Out</strong><kbd>Ctrl+-</kbd><span>Decrease active webview zoom without changing app chrome size.</span></button>
             <button id="browser-zoom-reset" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="zoom-reset" title="Reset active page zoom"><strong>Reset Zoom</strong><kbd>Ctrl+0</kbd><span>Return the active webview to 100% zoom.</span></button>
             <button id="browser-zoom-in" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="zoom-in" title="Zoom in active page"><strong>Zoom In</strong><kbd>Ctrl++</kbd><span>Increase active webview zoom without changing app chrome size.</span></button>
+          </div>
+          <div class="tool-menu-section compact browser-kit-recovery-section">
+            <p>Session recovery</p>
+            <button id="browser-duplicate-tab" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="duplicate-tab" title="Duplicate the active tab"><strong>Duplicate Tab</strong><kbd>Ctrl+Alt+Shift+T</kbd><span>Clone the active URL into a fresh TAHAI tab without leaving the current work surface.</span></button>
+            <button id="browser-reopen-closed-tab" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="reopen-closed-tab" title="Reopen the most recently closed tab"><strong>Reopen Closed</strong><kbd>Ctrl+Shift+T</kbd><span>Recover the latest closed tab in the active profile lane.</span></button>
+            <button id="browser-restore-session" class="tool-card browser" type="button" role="menuitem" data-browser-kit-action="restore-session" title="Restore the last saved session for this profile"><strong>Restore Session</strong><span>Reopen missing tabs from the last auto-saved profile session without replacing current tabs.</span></button>
+          </div>
+          <div class="tool-menu-section compact browser-kit-history-section">
+            <p>Recent pages</p>
+            <div id="browser-kit-history-list" class="browser-kit-dynamic-list" aria-live="polite"></div>
+          </div>
+          <div class="tool-menu-section compact browser-kit-history-section">
+            <p>Recently closed</p>
+            <div id="browser-kit-closed-list" class="browser-kit-dynamic-list" aria-live="polite"></div>
           </div>
           <footer class="tool-menu-footer">&uarr;&darr; Move &middot; Enter Run &middot; Esc Close &middot; Ctrl+K Command Palette</footer>
         </section>

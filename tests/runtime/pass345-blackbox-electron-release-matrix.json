@@ -59,6 +59,15 @@
       ]
     },
     {
+      "id": "browser-history-session-recovery",
+      "assertions": [
+        "Duplicate Active Tab works from Browser Kit",
+        "Reopen Closed recovers the latest tab in the active profile",
+        "Recent pages and recently closed lists populate",
+        "Restore Session remains available from built app state"
+      ]
+    },
+    {
       "id": "mission-control-layout-and-export",
       "assertions": [
         "Mission Control opens",

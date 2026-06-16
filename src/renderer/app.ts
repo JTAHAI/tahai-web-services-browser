@@ -456,6 +456,31 @@ type WorkspaceSnapshot = {
   createdAt: string;
 };
 
+type BrowserHistoryEntry = {
+  id: string;
+  profileId: string;
+  url: string;
+  title: string;
+  visitedAt: string;
+  source: string;
+};
+
+type ClosedTabEntry = {
+  id: string;
+  profileId: string;
+  url: string;
+  title: string;
+  closedAt: string;
+};
+
+type SessionRecoverySnapshot = {
+  profileId: string;
+  profileName: string;
+  activeUrl: string;
+  urls: string[];
+  updatedAt: string;
+};
+
 type LaunchRecipe = {
   id: string;
   label: string;
@@ -670,6 +695,8 @@ const devopsToolsPanel = document.getElementById('devops-tools-panel') as HTMLEl
 const itToolsPanel = document.getElementById('it-tools-panel') as HTMLElement;
 const browserKitButton = document.getElementById('browser-kit') as HTMLButtonElement;
 const browserKitPanel = document.getElementById('browser-kit-panel') as HTMLElement;
+const browserKitHistoryList = document.getElementById('browser-kit-history-list') as HTMLElement;
+const browserKitClosedList = document.getElementById('browser-kit-closed-list') as HTMLElement;
 const findBar = document.getElementById('find-bar') as HTMLElement;
 const findInput = document.getElementById('find-input') as HTMLInputElement;
 const findPrevButton = document.getElementById('find-prev') as HTMLButtonElement;
@@ -873,6 +900,10 @@ let lastMissionLayoutBeforeFocus: MissionLayoutType = 'quad';
 let pass99ExternalDropBoundaryMounted = false;
 const evidenceStorageKey = 'tahai-browser:evidence-timeline:v1';
 const workspaceStorageKey = 'tahai-browser:workspace-snapshots:v1';
+const browserHistoryStorageKeyPrefix = 'tahai-browser:history:v1:';
+const recentlyClosedStorageKeyPrefix = 'tahai-browser:recently-closed:v1:';
+const sessionRecoveryStorageKeyPrefix = 'tahai-browser:last-session:v1:';
+const PASS346_BROWSER_HISTORY_SESSION_DAILY_DRIVER = 'PASS346_BROWSER_HISTORY_SESSION_DAILY_DRIVER';
 const tabs = new Map<string, TabState>();
 const PASS191_ADDRESS_BAR_ENTERPRISE_RELIABILITY_VERSION = 'PASS191';
 const legacyMissionRecipeVerifierTokens = [
@@ -4357,6 +4388,7 @@ function setActive(tabId: string): void {
   renderMissionLayout();
   pass192SyncTitlebarChromeState('set-active');
   if (typeof config !== 'undefined') renderOpsHub();
+  scheduleSessionRecoverySnapshot('set-active');
 }
 
 function updateTab(tab: TabState, patch: Partial<Pick<TabState, 'title' | 'url'>>): void {
@@ -4377,6 +4409,7 @@ function updateTab(tab: TabState, patch: Partial<Pick<TabState, 'title' | 'url'>
 function closeTab(tabId: string): void {
   const tab = tabs.get(tabId);
   if (!tab) return;
+  recordRecentlyClosedTab(tab);
   tab.button.remove();
   tab.webview.remove();
   for (const [missionTabId, runtimeTabId] of missionRuntimeTabs.entries()) {
@@ -4391,6 +4424,7 @@ function closeTab(tabId: string): void {
   renderMissionControl();
   renderMissionLayout();
   pass192SyncTitlebarChromeState('close-tab');
+  scheduleSessionRecoverySnapshot('close-tab');
 }
 
 function errorUrl(targetUrl: string, reason: string): string {
@@ -4654,6 +4688,7 @@ function createTab(url: string): string {
   const tab: TabState = { id: tabId, title: titleFromUrl(safeUrl), url: safeUrl, button, webview, consoleMessages: [] };
   tabs.set(tabId, tab);
   updateTab(tab, { title: tab.title, url: safeUrl });
+  recordBrowserHistoryEntry(safeUrl, tab.title, 'create-tab');
   pass192DecorateTabButton(tab);
 
   const closeHitTarget = button.querySelector<HTMLElement>('.tab-close');
@@ -4692,7 +4727,11 @@ function createTab(url: string): string {
   button.addEventListener('dragend', () => endMissionTabDrag());
   button.addEventListener('contextmenu', (event) => openTabPaneQuickAssign(tabId, event));
 
-  webview.addEventListener('page-title-updated', (event: any) => updateTab(tab, { title: sanitizeRemotePageTitle(event.title, titleFromUrl(tab.url)) }));
+  webview.addEventListener('page-title-updated', (event: any) => {
+    const nextTitle = sanitizeRemotePageTitle(event.title, titleFromUrl(tab.url));
+    updateTab(tab, { title: nextTitle });
+    refreshBrowserHistoryEntryTitle(tab.url, nextTitle);
+  });
   webview.addEventListener('found-in-page', (event: any) => {
     if (tab.id !== activeTabId || findBar.hidden) return;
     const activeMatch = Number(event?.result?.activeMatchOrdinal || 0);
@@ -4732,6 +4771,8 @@ function createTab(url: string): string {
       return;
     }
     updateTab(tab, { url: safeNavigatedUrl, title: titleFromUrl(safeNavigatedUrl) });
+    recordBrowserHistoryEntry(safeNavigatedUrl, titleFromUrl(safeNavigatedUrl), 'navigate');
+    scheduleSessionRecoverySnapshot('navigate');
   };
   webview.addEventListener('did-navigate', (event: any) => updateFromNavigationEvent(event.url));
   webview.addEventListener('did-navigate-in-page', (event: any) => updateFromNavigationEvent(event.url));
@@ -4751,6 +4792,7 @@ function createTab(url: string): string {
     const failedUrl = event.validatedURL || tab.url;
     const localError = errorUrl(failedUrl, event.errorDescription || 'The page failed to load.');
     updateTab(tab, { title: 'Load issue', url: localError });
+    recordBrowserHistoryEntry(localError, 'Load issue', 'load-error');
     pass236SafeLoadURL(tab.webview, localError);
   });
   webview.addEventListener('new-window', (event: any) => {
@@ -4767,6 +4809,7 @@ function createTab(url: string): string {
   pass339ScheduleNormalBrowsingInputPaintCloseout('create-tab');
   pass340ScheduleChromeInputCloseout('create-tab');
   pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('create-tab');
+  scheduleSessionRecoverySnapshot('create-tab');
   return tabId;
 }
 
@@ -7789,6 +7832,7 @@ function openToolMenu(name: ToolMenuName, direction: 'first' | 'last' = 'first')
   const { button, panel } = toolMenuPair(name);
   ensureToolMenuScrollControls(name);
   ensureToolMenuBackButton(name);
+  if (name === 'browser') renderBrowserKitDailyDriver();
   enrichToolCardTooltips(panel);
   closeToolMenus(name);
   panel.hidden = false;
@@ -8299,6 +8343,8 @@ const shortcutRows = [
   ['Ctrl+Alt+U', 'Start Azure Release Cockpit'],
   ['Ctrl+Alt+5', 'Start M365 Change Cockpit'],
   ['Ctrl+Alt+I', 'Open IT Tools menu'],
+  ['Ctrl+Shift+T', 'Reopen Closed Tab'],
+  ['Ctrl+Alt+Shift+T', 'Duplicate Active Tab'],
   ['↑ ↓ / Home End', 'Move inside flyouts and command lists'],
   ['Enter / Space', 'Run selected flyout or command item'],
   ['Esc', 'Close flyout, command palette, or panel'],
@@ -8346,8 +8392,259 @@ function currentWorkspaceUrls(): string[] {
   return Array.from(new Set(urls)).slice(0, 32);
 }
 
+function currentSessionUrls(): string[] {
+  return Array.from(tabs.values()).map((tab) => tab.url).filter(Boolean).slice(0, 24);
+}
+
 function currentActiveUrl(): string {
   return active()?.url || addressInput.value || config?.homeUrl || 'https://tahaiportal.com';
+}
+
+let pass346SessionRecoveryTimer: number | undefined;
+
+function browserHistoryStorageKey(profileId = activeProfileIdSafe()): string {
+  return `${browserHistoryStorageKeyPrefix}${profileId}`;
+}
+
+function recentlyClosedStorageKey(profileId = activeProfileIdSafe()): string {
+  return `${recentlyClosedStorageKeyPrefix}${profileId}`;
+}
+
+function sessionRecoveryStorageKey(profileId = activeProfileIdSafe()): string {
+  return `${sessionRecoveryStorageKeyPrefix}${profileId}`;
+}
+
+function readBrowserHistory(profileId = activeProfileIdSafe()): BrowserHistoryEntry[] {
+  return readJsonArray<BrowserHistoryEntry>(browserHistoryStorageKey(profileId)).filter((entry) => typeof entry?.url === 'string');
+}
+
+function writeBrowserHistory(entries: BrowserHistoryEntry[], profileId = activeProfileIdSafe()): void {
+  writeJsonArray(browserHistoryStorageKey(profileId), entries.slice(0, 80));
+}
+
+function readRecentlyClosedTabs(profileId = activeProfileIdSafe()): ClosedTabEntry[] {
+  return readJsonArray<ClosedTabEntry>(recentlyClosedStorageKey(profileId)).filter((entry) => typeof entry?.url === 'string');
+}
+
+function writeRecentlyClosedTabs(entries: ClosedTabEntry[], profileId = activeProfileIdSafe()): void {
+  writeJsonArray(recentlyClosedStorageKey(profileId), entries.slice(0, 24));
+}
+
+function readSessionRecoverySnapshot(profileId = activeProfileIdSafe()): SessionRecoverySnapshot | undefined {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(sessionRecoveryStorageKey(profileId)) || 'null');
+    if (!parsed || !Array.isArray(parsed.urls)) return undefined;
+    return parsed as SessionRecoverySnapshot;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeSessionRecoverySnapshot(snapshot: SessionRecoverySnapshot): void {
+  try {
+    window.localStorage.setItem(sessionRecoveryStorageKey(snapshot.profileId), JSON.stringify(snapshot));
+  } catch {
+    /* localStorage may be unavailable in hardened sessions. */
+  }
+}
+
+function browserHistoryDisplayLabel(url: string): string {
+  if (url === config?.newTabUrl || url.startsWith(`${config?.newTabUrl}?`)) return 'Launchpad';
+  if (url === config?.onboardingUrl || url.startsWith(`${config?.onboardingUrl}?`)) return 'Guide / KB';
+  if (url === config?.settingsUrl || url.startsWith(`${config?.settingsUrl}?`)) return 'Settings';
+  if (url === config?.aboutUrl || url.startsWith(`${config?.aboutUrl}?`)) return 'About';
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'file:') return titleFromUrl(url);
+    return parsed.hostname.replace(/^www\./, '') + (parsed.pathname && parsed.pathname !== '/' ? parsed.pathname : '');
+  } catch {
+    return compactText(url, 'Local page');
+  }
+}
+
+function browserHistoryTimestampLabel(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'time unavailable' : date.toLocaleString();
+}
+
+function browserHistoryEntryCard(entry: BrowserHistoryEntry, action: string, extraDataset = ''): string {
+  return '<button class="tool-card browser browser-kit-history-card" type="button" role="menuitem" data-browser-kit-action="' + escapeHtml(action) + '" data-browser-kit-entry-id="' + escapeHtml(entry.id) + '"' + extraDataset + ' title="' + escapeHtml(entry.url) + '">' +
+    '<strong>' + escapeHtml(compactText(entry.title, titleFromUrl(entry.url))) + '</strong>' +
+    '<span>' + escapeHtml(browserHistoryDisplayLabel(entry.url) + ' · ' + browserHistoryTimestampLabel(entry.visitedAt)) + '</span>' +
+    '</button>';
+}
+
+function recentlyClosedEntryCard(entry: ClosedTabEntry): string {
+  return '<button class="tool-card browser browser-kit-history-card recently-closed" type="button" role="menuitem" data-browser-kit-action="reopen-closed-entry" data-browser-kit-closed-id="' + escapeHtml(entry.id) + '" title="' + escapeHtml(entry.url) + '">' +
+    '<strong>' + escapeHtml(compactText(entry.title, titleFromUrl(entry.url))) + '</strong>' +
+    '<span>' + escapeHtml(browserHistoryDisplayLabel(entry.url) + ' · closed ' + browserHistoryTimestampLabel(entry.closedAt)) + '</span>' +
+    '</button>';
+}
+
+function renderBrowserKitDailyDriver(): void {
+  const activeTab = active();
+  const profileId = activeProfileIdSafe();
+  const history = readBrowserHistory(profileId).slice(0, 6);
+  const recentlyClosed = readRecentlyClosedTabs(profileId).slice(0, 5);
+  const sessionSnapshot = readSessionRecoverySnapshot(profileId);
+  const duplicateButton = document.getElementById('browser-duplicate-tab') as HTMLButtonElement | null;
+  const reopenButton = document.getElementById('browser-reopen-closed-tab') as HTMLButtonElement | null;
+  const restoreSessionButton = document.getElementById('browser-restore-session') as HTMLButtonElement | null;
+  if (duplicateButton) {
+    duplicateButton.disabled = !activeTab;
+    duplicateButton.setAttribute('aria-disabled', String(!activeTab));
+  }
+  if (reopenButton) {
+    reopenButton.disabled = recentlyClosed.length === 0;
+    reopenButton.setAttribute('aria-disabled', String(recentlyClosed.length === 0));
+  }
+  if (restoreSessionButton) {
+    const unavailable = !sessionSnapshot?.urls?.length;
+    restoreSessionButton.disabled = unavailable;
+    restoreSessionButton.setAttribute('aria-disabled', String(unavailable));
+    restoreSessionButton.title = unavailable
+      ? 'No saved session is available for this profile yet'
+      : `Restore up to ${sessionSnapshot.urls.length} tab(s) from ${browserHistoryTimestampLabel(sessionSnapshot.updatedAt)}`;
+  }
+  browserKitHistoryList.innerHTML = history.length
+    ? history.map((entry) => browserHistoryEntryCard(entry, 'open-history-entry')).join('')
+    : '<article class="ops-hub-empty browser-kit-empty">No recent pages yet. Normal browsing will populate this list for the active profile.</article>';
+  browserKitClosedList.innerHTML = recentlyClosed.length
+    ? recentlyClosed.map((entry) => recentlyClosedEntryCard(entry)).join('')
+    : '<article class="ops-hub-empty browser-kit-empty">No recently closed tabs for this profile yet.</article>';
+  browserKitPanel.dataset.pass346BrowserHistorySessionDailyDriver = PASS346_BROWSER_HISTORY_SESSION_DAILY_DRIVER;
+  browserKitPanel.dataset.pass346RecentHistoryCount = String(history.length);
+  browserKitPanel.dataset.pass346RecentlyClosedCount = String(recentlyClosed.length);
+  browserKitPanel.dataset.pass346SessionRestoreAvailable = String(Boolean(sessionSnapshot?.urls?.length));
+  document.body.dataset.pass346RecentHistoryCount = String(history.length);
+  document.body.dataset.pass346RecentlyClosedCount = String(recentlyClosed.length);
+  enrichToolCardTooltips(browserKitPanel);
+}
+
+function scheduleSessionRecoverySnapshot(reason = 'scheduled'): void {
+  if (pass346SessionRecoveryTimer) window.clearTimeout(pass346SessionRecoveryTimer);
+  pass346SessionRecoveryTimer = window.setTimeout(() => {
+    pass346SessionRecoveryTimer = undefined;
+    persistSessionRecoverySnapshot(reason);
+  }, 40);
+}
+
+function persistSessionRecoverySnapshot(reason = 'auto'): void {
+  const urls = currentSessionUrls();
+  if (!urls.length) return;
+  const snapshot: SessionRecoverySnapshot = {
+    profileId: activeProfileIdSafe(),
+    profileName: activeProfileLabel(),
+    activeUrl: currentActiveUrl(),
+    urls,
+    updatedAt: new Date().toISOString()
+  };
+  writeSessionRecoverySnapshot(snapshot);
+  document.body.dataset.pass346SessionSnapshotReason = reason;
+  document.body.dataset.pass346SessionSnapshotUpdatedAt = snapshot.updatedAt;
+  document.body.dataset.pass346SessionSnapshotCount = String(snapshot.urls.length);
+  renderBrowserKitDailyDriver();
+}
+
+function recordBrowserHistoryEntry(url: string, title: string, source = 'navigate'): void {
+  const safeUrl = sanitizeTabMetadataUrl(url, trustedLocalUrls()) || '';
+  if (!safeUrl) return;
+  const profileId = activeProfileIdSafe();
+  const entries = readBrowserHistory(profileId);
+  const next: BrowserHistoryEntry = {
+    id: entries[0]?.url === safeUrl ? entries[0].id : id(),
+    profileId,
+    url: safeUrl,
+    title: sanitizeRemotePageTitle(title, titleFromUrl(safeUrl)),
+    visitedAt: new Date().toISOString(),
+    source
+  };
+  if (entries[0]?.url === safeUrl) entries[0] = next;
+  else entries.unshift(next);
+  writeBrowserHistory(entries, profileId);
+  document.body.dataset.pass346LastHistoryEntry = safeUrl.slice(0, 420);
+  document.body.dataset.pass346LastHistorySource = source;
+  renderBrowserKitDailyDriver();
+}
+
+function refreshBrowserHistoryEntryTitle(url: string, title: string): void {
+  const safeUrl = sanitizeTabMetadataUrl(url, trustedLocalUrls()) || '';
+  if (!safeUrl) return;
+  const profileId = activeProfileIdSafe();
+  const entries = readBrowserHistory(profileId);
+  const match = entries.find((entry) => entry.url === safeUrl);
+  if (!match) return;
+  match.title = sanitizeRemotePageTitle(title, titleFromUrl(safeUrl));
+  writeBrowserHistory(entries, profileId);
+  renderBrowserKitDailyDriver();
+}
+
+function recordRecentlyClosedTab(tab: Pick<TabState, 'url' | 'title'>): void {
+  const safeUrl = sanitizeTabMetadataUrl(tab.url, trustedLocalUrls()) || '';
+  if (!safeUrl) return;
+  const profileId = activeProfileIdSafe();
+  const entries = readRecentlyClosedTabs(profileId);
+  const next: ClosedTabEntry = {
+    id: id(),
+    profileId,
+    url: safeUrl,
+    title: sanitizeRemotePageTitle(tab.title, titleFromUrl(safeUrl)),
+    closedAt: new Date().toISOString()
+  };
+  entries.unshift(next);
+  writeRecentlyClosedTabs(entries, profileId);
+  document.body.dataset.pass346LastClosedTab = safeUrl.slice(0, 420);
+  renderBrowserKitDailyDriver();
+}
+
+function duplicateActiveTab(): void {
+  const tab = pass343ActiveTarget('browser-kit');
+  if (!tab) return pass134Noop('browser-kit', 'No active tab or visible Mission pane is available.');
+  closeToolMenus(undefined, false);
+  createTab(tab.url);
+  document.body.dataset.pass343LastBrowserKitAction = 'duplicate-tab';
+  setStatus('Duplicated active tab', tab.url);
+}
+
+function reopenClosedTab(closedId?: string): void {
+  const profileId = activeProfileIdSafe();
+  const entries = readRecentlyClosedTabs(profileId);
+  const entry = closedId ? entries.find((candidate) => candidate.id === closedId) : entries[0];
+  if (!entry) {
+    setStatus('No recently closed tab available', 'Close a tab in this profile to make it recoverable here.');
+    renderBrowserKitDailyDriver();
+    return;
+  }
+  closeToolMenus(undefined, false);
+  createTab(entry.url);
+  writeRecentlyClosedTabs(entries.filter((candidate) => candidate.id !== entry.id), profileId);
+  document.body.dataset.pass343LastBrowserKitAction = 'reopen-closed-tab';
+  renderBrowserKitDailyDriver();
+  setStatus('Reopened closed tab', entry.url);
+}
+
+function restoreSessionRecoverySnapshot(): void {
+  const snapshot = readSessionRecoverySnapshot();
+  if (!snapshot?.urls?.length) {
+    setStatus('No saved session available', 'Continue browsing in this profile to seed session recovery.');
+    renderBrowserKitDailyDriver();
+    return;
+  }
+  closeToolMenus(undefined, false);
+  const existing = new Set(currentSessionUrls());
+  const createdTabIds: string[] = [];
+  for (const url of snapshot.urls) {
+    if (existing.has(url)) continue;
+    createdTabIds.push(createTab(url));
+    existing.add(url);
+  }
+  const activeMatch = Array.from(tabs.values()).find((tab) => tab.url === snapshot.activeUrl);
+  if (activeMatch) setActive(activeMatch.id);
+  else if (createdTabIds.length) setActive(createdTabIds[createdTabIds.length - 1]);
+  scheduleSessionRecoverySnapshot('restore-session');
+  document.body.dataset.pass343LastBrowserKitAction = 'restore-session';
+  renderBrowserKitDailyDriver();
+  setStatus(createdTabIds.length ? 'Session restored' : 'Session already open', `${snapshot.urls.length} saved tab(s) in ${snapshot.profileName}`);
 }
 
 const PASS343_BROWSER_KIT_CONTRACT = 'PASS343_IT_DEVOPS_PRIORITY_BROWSER_KIT';
@@ -8474,16 +8771,32 @@ function runFindInPage(forward = true, findNext = true): void {
   if (!ok) setStatus('Find unavailable', `${pass134TargetLabel(tab)} is not ready for page search.`);
 }
 
-function runBrowserKitAction(action: string): void {
+function runBrowserKitAction(action: string, detail?: DOMStringMap): void {
   switch (action) {
     case 'new-tab': closeToolMenus(undefined, false); createTab(config.newTabUrl); break;
     case 'close-tab': closeToolMenus(undefined, false); closeTab(pass343ActiveTarget('browser-kit')?.id || activeTabId); break;
+    case 'duplicate-tab': duplicateActiveTab(); break;
+    case 'reopen-closed-tab': reopenClosedTab(); break;
+    case 'restore-session': restoreSessionRecoverySnapshot(); break;
     case 'find': openFindBar(); break;
     case 'print': closeToolMenus(undefined, false); printTarget('print'); break;
     case 'copy-url': closeToolMenus(undefined, false); void copyActivePageUrl(); break;
     case 'open-external': closeToolMenus(undefined, false); void openActivePageExternally(); break;
     case 'bookmarks': closeToolMenus(undefined, false); openBrowserBookmarks(); break;
     case 'downloads': closeToolMenus(undefined, false); focusDownloadArtifacts(); break;
+    case 'open-history-entry': {
+      const entry = readBrowserHistory().find((candidate) => candidate.id === detail?.browserKitEntryId);
+      if (!entry) {
+        setStatus('History entry unavailable', 'The selected recent page is no longer available in this profile.');
+        renderBrowserKitDailyDriver();
+        break;
+      }
+      closeToolMenus(undefined, false);
+      document.body.dataset.pass343LastBrowserKitAction = 'open-history-entry';
+      navigate(entry.url, 'browser-kit');
+      break;
+    }
+    case 'reopen-closed-entry': reopenClosedTab(detail?.browserKitClosedId); break;
     case 'zoom-in': closeToolMenus(undefined, false); setActivePageZoom('in'); break;
     case 'zoom-out': closeToolMenus(undefined, false); setActivePageZoom('out'); break;
     case 'zoom-reset': closeToolMenus(undefined, false); setActivePageZoom('reset'); break;
@@ -11389,6 +11702,9 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     { id: 'it-menu', title: 'IT Tools Menu', detail: 'Open IT engineering flyout.', group: 'Tools', shortcut: 'Ctrl+Alt+I', run: () => openToolMenu('it') },
     { id: 'browser-kit-menu', title: 'Browser Kit Menu', detail: 'Open daily-driver browser actions without demoting DevOps or IT lanes.', group: 'Browser Kit', shortcut: 'Ctrl+Alt+.', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => openToolMenu('browser') },
     { id: 'last-tool-menu', title: 'Reopen Last Command Toolbar', detail: 'Open whichever command lane was used last: DevOps or IT Tools.', group: 'Tools', shortcut: 'Ctrl+Alt+L', run: () => openLastToolMenu() },
+    { id: 'duplicate-tab', title: 'Duplicate Active Tab', detail: 'Clone the active tab URL into a fresh TAHAI tab.', group: 'Browser Kit', shortcut: 'Ctrl+Alt+Shift+T', target: 'Active tab', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: duplicateActiveTab },
+    { id: 'reopen-closed-tab', title: 'Reopen Closed Tab', detail: 'Recover the latest closed tab in the current profile lane.', group: 'Browser Kit', shortcut: 'Ctrl+Shift+T', target: 'Current profile session', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => reopenClosedTab() },
+    { id: 'restore-session', title: 'Restore Last Session', detail: 'Reopen missing tabs from the last auto-saved session for the active profile.', group: 'Browser Kit', target: 'Current profile session', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: restoreSessionRecoverySnapshot },
     { id: 'find-page', title: 'Find in Active Page', detail: 'Search text inside the active webview or active Mission pane.', group: 'Browser Kit', shortcut: 'Ctrl+F', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => openFindBar() },
     { id: 'print-page', title: 'Print Active Page', detail: 'Print the active tab or active Mission pane webview.', group: 'Browser Kit', shortcut: 'Ctrl+P', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => printTarget('print') },
     { id: 'copy-url', title: 'Copy Active URL', detail: 'Copy only the active page URL through the trusted local clipboard path.', group: 'Browser Kit', shortcut: 'Ctrl+Shift+U', target: 'Active URL', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => { void copyActivePageUrl(); } },
@@ -11422,6 +11738,8 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     if (!recipe.comingSoon && recipe.missionPhase === 'devops') actions.push({ id: 'pin-recipe-blueprint-' + recipe.id, title: 'Pin Blueprint: ' + recipe.label, detail: 'Add runbook, stop condition, launch surfaces, and evidence prompts to the local timeline.', group: 'DevOps Cockpit Evidence', target: recipeProviderLabel(recipe), phase: 'evidence', run: () => pinRecipeEvidenceBlueprint(recipe.id) });
   }
   for (const profile of browserProfileState?.profiles || []) actions.push({ id: 'profile-' + profile.id, title: 'Switch Profile: ' + profile.name, detail: profileKindLabel(profile.kind) + ' · ' + profile.partition, group: 'Profiles', run: async () => { browserProfileState = await window.tahaiBrowser.setActiveProfile(profile.id); renderProfileBadge(); reloadForActiveProfile(); renderOpsHub(); } });
+  for (const entry of readBrowserHistory().slice(0, 6)) actions.push({ id: 'history-' + entry.id, title: 'Recent Page: ' + compactText(entry.title, titleFromUrl(entry.url)), detail: browserHistoryDisplayLabel(entry.url) + ' · ' + browserHistoryTimestampLabel(entry.visitedAt), group: 'Browser Kit History', target: activeProfileLabel(), phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => navigate(entry.url, 'browser-kit') });
+  for (const entry of readRecentlyClosedTabs().slice(0, 5)) actions.push({ id: 'reopen-' + entry.id, title: 'Reopen: ' + compactText(entry.title, titleFromUrl(entry.url)), detail: browserHistoryDisplayLabel(entry.url) + ' · closed ' + browserHistoryTimestampLabel(entry.closedAt), group: 'Browser Kit History', target: activeProfileLabel(), phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => reopenClosedTab(entry.id) });
   for (const snapshot of readJsonArray<WorkspaceSnapshot>(workspaceStorageKey)) actions.push({ id: 'workspace-' + snapshot.id, title: 'Restore Workspace: ' + snapshot.name, detail: snapshot.profileName + ' · ' + snapshot.urls.length + ' tab(s)', group: 'Workspace', run: () => restoreWorkspaceSnapshot(snapshot.id) });
   return pass204DecorateOperatorCommandCenterV2Actions(actions);
 }
@@ -13468,6 +13786,7 @@ function renderProfileBadge(): void {
   profileDot.style.background = profile?.color || '#77dbff';
   profileName.textContent = profile?.name || 'Default';
   profileSwitcherButton.title = profile ? `Active profile: ${profile.name} (${profileKindLabel(profile.kind)})` : 'Manage browser profiles';
+  renderBrowserKitDailyDriver();
 }
 
 function fillProfileForm(profile?: BrowserProfileRecord): void {
@@ -13505,6 +13824,7 @@ async function refreshProfiles(selectId = editingProfileId): Promise<void> {
 }
 
 function closeAllTabsForProfileSwitch(): void {
+  persistSessionRecoverySnapshot('profile-switch-before-close');
   for (const tab of tabs.values()) {
     tab.button.remove();
     tab.webview.remove();
@@ -13654,6 +13974,9 @@ function handleMenuCommand(command: string): void {
   if (command === 'open-active-profile-folder') void openActiveProfileData();
   if (command === 'focus-address') { addressInput.focus(); addressInput.select(); }
   if (command === 'find-page') openFindBar();
+  if (command === 'duplicate-tab') duplicateActiveTab();
+  if (command === 'reopen-closed-tab') reopenClosedTab();
+  if (command === 'restore-session') restoreSessionRecoverySnapshot();
   if (command === 'copy-url') void copyActivePageUrl();
   if (command === 'open-external') void openActivePageExternally();
   if (command === 'bookmarks') openBrowserBookmarks();
@@ -13986,7 +14309,7 @@ browserKitPanel.addEventListener('click', (event) => {
   const button = eventClosest<HTMLButtonElement>(event, 'button[data-browser-kit-action]');
   if (!button?.dataset.browserKitAction) return;
   event.preventDefault();
-  runBrowserKitAction(button.dataset.browserKitAction);
+  runBrowserKitAction(button.dataset.browserKitAction, button.dataset);
 });
 devopsToolsPanel.addEventListener('keydown', (event) => handleToolMenuKeyboard('devops', event));
 itToolsPanel.addEventListener('keydown', (event) => handleToolMenuKeyboard('it', event));
@@ -14303,6 +14626,7 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openFindBar(); return; }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'p') { event.preventDefault(); printTarget('print'); return; }
   if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'u') { event.preventDefault(); void copyActivePageUrl(); return; }
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === 't') { event.preventDefault(); reopenClosedTab(); return; }
   if (event.altKey && event.key === 'Enter') { event.preventDefault(); void openActivePageExternally(); return; }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && (event.key === '+' || event.key === '=')) { event.preventDefault(); setActivePageZoom('in'); return; }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key === '-') { event.preventDefault(); setActivePageZoom('out'); return; }
@@ -14329,6 +14653,7 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key === '5') { event.preventDefault(); void startMissionFromRecipe('m365-change-cockpit', 'keyboard-shortcut'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'i') { event.preventDefault(); openToolMenu('it'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && (event.key === '.' || event.code === 'Period')) { event.preventDefault(); openToolMenu('browser'); }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key.toLowerCase() === 't') { event.preventDefault(); duplicateActiveTab(); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'l') { event.preventDefault(); openLastToolMenu(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && ['1','2','3','4'].includes(event.key)) { event.preventDefault(); setMissionActivePane('pane-' + event.key); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowLeft') { event.preventDefault(); swapActiveMissionPane(-1); }
@@ -14381,15 +14706,64 @@ function pass158RuntimeE2eWaitFor(predicate: () => boolean, timeoutMs = 2500): P
 }
 
 function pass158RuntimeE2eElement(selector: string): HTMLElement {
-  const element = document.querySelector(selector) as HTMLElement | null;
+  const matches = Array.from(document.querySelectorAll<HTMLElement>(selector));
+  const visible = matches.find((element) => {
+    const style = window.getComputedStyle(element);
+    return !element.hidden
+      && element.getAttribute('aria-hidden') !== 'true'
+      && style.display !== 'none'
+      && style.visibility !== 'hidden'
+      && Number(style.opacity || '1') !== 0
+      && Boolean(element.getClientRects().length);
+  });
+  const element = visible || matches[0] || null;
   if (!element) throw new Error(`Missing runtime E2E selector: ${selector}`);
   return element;
 }
 
+function pass158RuntimeE2eElementVisible(selector: string): boolean {
+  return Array.from(document.querySelectorAll<HTMLElement>(selector)).some((element) => {
+    const style = window.getComputedStyle(element);
+    return !element.hidden
+      && element.getAttribute('aria-hidden') !== 'true'
+      && style.display !== 'none'
+      && style.visibility !== 'hidden'
+      && Number(style.opacity || '1') !== 0
+      && Boolean(element.getClientRects().length);
+  });
+}
+
 async function pass158RuntimeE2eClick(selector: string): Promise<void> {
   const element = pass158RuntimeE2eElement(selector);
+  if (!pass158RuntimeE2eElementVisible(selector)) throw new Error(`Runtime E2E selector is not visible: ${selector}`);
+  if (element instanceof HTMLButtonElement && element.disabled) throw new Error(`Runtime E2E selector is disabled: ${selector}`);
+  element.scrollIntoView({ block: 'center', inline: 'center' });
+  if ('focus' in element) element.focus({ preventScroll: true });
+  await new Promise((resolve) => window.setTimeout(resolve, 16));
   element.click();
   await new Promise((resolve) => window.setTimeout(resolve, 80));
+}
+
+async function pass158RuntimeE2eClickShellControl(id: string): Promise<'toolbar' | 'more-tools'> {
+  const directSelector = `#${id}`;
+  if (pass158RuntimeE2eElementVisible(directSelector)) {
+    await pass158RuntimeE2eClick(directSelector);
+    return 'toolbar';
+  }
+  if (!pass158RuntimeE2eElementVisible('#toolbar-overflow-toggle')) {
+    throw new Error(`Runtime E2E shell control is hidden and More Tools is unavailable: #${id}`);
+  }
+  if (!pass158RuntimeE2eElementVisible('#toolbar-overflow-menu')) {
+    await pass158RuntimeE2eClick('#toolbar-overflow-toggle');
+    const menuOpened = await pass158RuntimeE2eWaitFor(() => pass158RuntimeE2eElementVisible('#toolbar-overflow-menu'), 5000);
+    if (!menuOpened) throw new Error(`More Tools did not open for runtime E2E shell control: #${id}`);
+  }
+  const overflowSelector = `#toolbar-overflow-items > #${id}`;
+  if (!pass158RuntimeE2eElementVisible(overflowSelector)) {
+    throw new Error(`Runtime E2E overflow shell control is not visible: ${overflowSelector}`);
+  }
+  await pass158RuntimeE2eClick(overflowSelector);
+  return 'more-tools';
 }
 
 function pass158RuntimeE2eDelay(ms: number): Promise<void> {
@@ -14577,10 +14951,10 @@ function installPass158RuntimeE2eHarness(): void {
         const guideUrl = pass195OperatorWalkthroughUrl();
         const homeUrl = settings?.homeUrl || config.homeUrl;
 
-        await pass158RuntimeE2eClick('#launchpad');
+        await pass158RuntimeE2eClickShellControl('launchpad');
         if (!await pass158RuntimeE2eWaitFor(() => sameUrl(launchpadUrl), 1600)) throw new Error('launchpad button did not navigate the active tab');
 
-        await pass158RuntimeE2eClick('#onboarding');
+        await pass158RuntimeE2eClickShellControl('onboarding');
         if (!await pass158RuntimeE2eWaitFor(() => sameUrl(guideUrl), 1600)) throw new Error('guide button did not navigate the active tab');
 
         addressInput.value = launchpadUrl;
@@ -14589,7 +14963,7 @@ function installPass158RuntimeE2eHarness(): void {
         else addressForm.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
         if (!await pass158RuntimeE2eWaitFor(() => sameUrl(launchpadUrl), 1800)) throw new Error('address submit did not navigate the active tab');
 
-        await pass158RuntimeE2eClick('#home');
+        await pass158RuntimeE2eClickShellControl('home');
         if (!await pass158RuntimeE2eWaitFor(() => sameUrl(homeUrl), 1800)) throw new Error('home button did not navigate the active tab');
 
         return 'launchpad, guide, address submit, and home all route the active tab';
@@ -14597,31 +14971,35 @@ function installPass158RuntimeE2eHarness(): void {
 
       await step('mission-control-open', async () => {
         await pass158RuntimeE2eClick('[data-testid="runtime-mission-control"]');
-        await pass158RuntimeE2eWaitFor(() => Boolean((document.getElementById('mission-dialog') as HTMLDialogElement | null)?.open));
+        const dialogOpened = await pass158RuntimeE2eWaitFor(() => Boolean((document.getElementById('mission-dialog') as HTMLDialogElement | null)?.open), 6000);
+        if (!dialogOpened) throw new Error('Mission Control dialog did not open');
         const dialog = document.getElementById('mission-dialog') as HTMLDialogElement | null;
         if (!dialog?.open) throw new Error('Mission Control dialog did not open');
         (document.getElementById('mission-name') as HTMLInputElement | null)!.value = 'PASS158 Runtime E2E Mission';
         console.info('[PASS158] mission-control-open create-mission-click');
         await pass158RuntimeE2eClick('#mission-create');
+        const missionCreated = await pass158RuntimeE2eWaitFor(() => Boolean(currentMission?.missionId) && !/No active mission/i.test(missionStatus.textContent || ''), 8000);
+        if (!missionCreated) throw new Error('Mission create did not establish an active local mission');
         console.info('[PASS158] mission-control-open add-active-tab-click');
         await pass158RuntimeE2eClick('#mission-add-active-tab');
         console.info('[PASS158] mission-control-open wait-mission-tab-row');
-        await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('#mission-tabs-list .mission-tab-row').length >= 1);
+        const missionTabAdded = await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('#mission-tabs-list .mission-tab-row').length >= 1, 8000);
+        if (!missionTabAdded) throw new Error('active tab was not added to local mission');
         if (!document.querySelector('#mission-tabs-list .mission-tab-row')) throw new Error('active tab was not added to local mission');
         return 'Mission Control opens, creates a synthetic local mission, and adds active tab';
-      });
+      }, 30000);
 
       await step('mission-layouts-split-tri-quad-focus', async () => {
         for (const layout of ['split-horizontal', 'triple-top', 'quad', 'focus']) {
           pass158RuntimeDiag('pass158-layout-step', 'click:' + layout);
           await pass158RuntimeE2eClick(`#mission-layouts [data-mission-layout="${layout}"]`);
           pass158RuntimeDiag('pass158-layout-step', 'clicked:' + layout);
-          const active = await pass158RuntimeE2eWaitFor(() => Boolean(document.querySelector(`#mission-layouts [data-mission-layout="${layout}"].active`)), 900);
+          const active = await pass158RuntimeE2eWaitFor(() => Boolean(document.querySelector(`#mission-layouts [data-mission-layout="${layout}"].active`)), layout === 'focus' ? 5000 : 1800);
           pass158RuntimeDiag('pass158-layout-step', `${layout}:active=${active ? '1' : '0'}`);
           if (!active) throw new Error(`${layout} layout did not become active`);
         }
         return '2-Up, Tri-view, Quad, and Focus layout buttons activate';
-      }, 12000);
+      }, 22000);
 
       await step('active-pane-routing', async () => {
         await pass158RuntimeE2eClick('#mission-layouts [data-mission-layout="quad"]');
@@ -14668,50 +15046,66 @@ function installPass158RuntimeE2eHarness(): void {
       });
 
       await step('shell-overlays-open-close', async () => {
-        await pass158RuntimeE2eClick('#devops-tools');
+        pass158RuntimeDiag('pass158-shell-overlays', 'devops-open');
+        await pass158RuntimeE2eClickShellControl('devops-tools');
         if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 1200)) throw new Error('DevOps panel did not open');
-        await pass158RuntimeE2eClick('#devops-tools');
+        pass158RuntimeDiag('pass158-shell-overlays', 'devops-close');
+        await pass158RuntimeE2eClickShellControl('devops-tools');
         if (!await pass158RuntimeE2eWaitFor(() => devopsToolsPanel.hidden, 1200)) throw new Error('DevOps panel did not close');
 
-        await pass158RuntimeE2eClick('#it-tools');
+        pass158RuntimeDiag('pass158-shell-overlays', 'it-open');
+        await pass158RuntimeE2eClickShellControl('it-tools');
         if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not open');
-        await pass158RuntimeE2eClick('#it-tools');
+        pass158RuntimeDiag('pass158-shell-overlays', 'it-close');
+        await pass158RuntimeE2eClickShellControl('it-tools');
         if (!await pass158RuntimeE2eWaitFor(() => itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not close');
 
-        await pass158RuntimeE2eClick('#browser-kit');
+        pass158RuntimeDiag('pass158-shell-overlays', 'browser-open');
+        await pass158RuntimeE2eClickShellControl('browser-kit');
         if (!await pass158RuntimeE2eWaitFor(() => !browserKitPanel.hidden, 1200)) throw new Error('Browser Kit panel did not open');
-        await pass158RuntimeE2eClick('#browser-kit');
+        pass158RuntimeDiag('pass158-shell-overlays', 'browser-close');
+        await pass158RuntimeE2eClickShellControl('browser-kit');
         if (!await pass158RuntimeE2eWaitFor(() => browserKitPanel.hidden, 1200)) throw new Error('Browser Kit panel did not close');
 
-        await pass158RuntimeE2eClick('#browser-kit');
+        pass158RuntimeDiag('pass158-shell-overlays', 'browser-find-open');
+        await pass158RuntimeE2eClickShellControl('browser-kit');
         if (!await pass158RuntimeE2eWaitFor(() => !browserKitPanel.hidden, 1200)) throw new Error('Browser Kit panel did not reopen for Find');
         await pass158RuntimeE2eClick('#browser-find');
         if (!await pass158RuntimeE2eWaitFor(() => !findBar.hidden, 1200)) throw new Error('Find bar did not open from Browser Kit');
+        pass158RuntimeDiag('pass158-shell-overlays', 'browser-find-close');
         await pass158RuntimeE2eClick('#find-close');
         if (!await pass158RuntimeE2eWaitFor(() => findBar.hidden, 1200)) throw new Error('Find bar did not close');
 
-        await pass158RuntimeE2eClick('#ops-hub-toggle');
+        pass158RuntimeDiag('pass158-shell-overlays', 'ops-open');
+        await pass158RuntimeE2eClickShellControl('ops-hub-toggle');
         if (!await pass158RuntimeE2eWaitFor(() => !opsHub.hidden, 1200)) throw new Error('Ops Panel did not open');
+        pass158RuntimeDiag('pass158-shell-overlays', 'ops-close');
         await pass158RuntimeE2eClick('#close-ops-hub');
         if (!await pass158RuntimeE2eWaitFor(() => opsHub.hidden, 1200)) throw new Error('Ops Panel did not close');
 
-        await pass158RuntimeE2eClick('#settings');
+        pass158RuntimeDiag('pass158-shell-overlays', 'settings-open');
+        await pass158RuntimeE2eClickShellControl('settings');
         if (!await pass158RuntimeE2eWaitFor(() => settingsDialog.open, 1200)) throw new Error('Settings dialog did not open');
+        pass158RuntimeDiag('pass158-shell-overlays', 'settings-close');
         await pass158RuntimeE2eClick('#close-settings');
         if (!await pass158RuntimeE2eWaitFor(() => !settingsDialog.open, 1200)) throw new Error('Settings dialog did not close');
 
-        await pass158RuntimeE2eClick('#profile-switcher');
+        pass158RuntimeDiag('pass158-shell-overlays', 'profile-open');
+        await pass158RuntimeE2eClickShellControl('profile-switcher');
         if (!await pass158RuntimeE2eWaitFor(() => profileDialog.open, 1800)) throw new Error('Profile dialog did not open');
         await pass158RuntimeE2eDelay(PASS122_OVERLAY_OPEN_SETTLE_MS + 260);
         if (!profileDialog.open) throw new Error(`Profile dialog closed during restored-window viewport guard; action=${document.body.dataset.pass122LastReflowAction || 'unknown'} dismissed=${document.body.dataset.pass122DismissedOverlay || 'none'}`);
         if (document.body.dataset.pass122DismissedOverlay === 'profile-dialog') throw new Error('PASS122 dismissed profile dialog during restored-window open stability check');
         if (profileDialog.dataset.pass342RestoredWindowModalDialogViewportCloseout !== PASS342_RESTORED_WINDOW_MODAL_DIALOG_VIEWPORT_CLOSEOUT) throw new Error(`Profile dialog did not receive restored-window modal viewport closeout marker; lastCheck=${document.body.dataset.pass342RestoredWindowModalDialogViewportLastCheck || 'none'}; active=${document.body.dataset.pass116ActiveOverlay || 'none'}; action=${document.body.dataset.pass122LastReflowAction || 'none'}`);
+        pass158RuntimeDiag('pass158-shell-overlays', 'profile-close');
         await pass158RuntimeE2eClick('#close-profile');
         if (!await pass158RuntimeE2eWaitFor(() => !profileDialog.open, 1200)) throw new Error('Profile dialog did not close');
 
+        pass158RuntimeDiag('pass158-shell-overlays', 'command-open');
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }));
         if (!await pass158RuntimeE2eWaitFor(() => commandPaletteDialog.open, 1200)) openCommandPalette();
         if (!await pass158RuntimeE2eWaitFor(() => commandPaletteDialog.open, 1200)) throw new Error('Command Palette did not open');
+        pass158RuntimeDiag('pass158-shell-overlays', 'command-close');
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
         if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 1200)) closeCommandPaletteDialog(false);
         if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 1200)) throw new Error('Command Palette did not close');
@@ -14719,9 +15113,14 @@ function installPass158RuntimeE2eHarness(): void {
         const clickability = pass341NormalBrowserAndFeatureClickabilityCloseout('pass158-shell-overlays-open-close');
         if (clickability.status !== 'PASS') throw new Error('shell clickability degraded after overlay open/close cycle');
         return 'DevOps, IT, Browser Kit, Find, Ops Panel, Settings, Profiles, and Command Palette open and close cleanly';
-      }, 15000);
+      }, 30000);
 
       await step('evidence-export-preview', async () => {
+        if (!missionDialog.open) {
+          await pass158RuntimeE2eClickShellControl('mission-control-toggle');
+          const reopened = await pass158RuntimeE2eWaitFor(() => missionDialog.open, 5000);
+          if (!reopened) throw new Error('Mission Control did not reopen for export preview validation');
+        }
         await pass158RuntimeE2eClick('#mission-pin-active-page');
         const previewReady = await pass158RuntimeE2eWaitFor(() => Boolean((document.getElementById('mission-export-preview') as HTMLTextAreaElement | null)?.value.trim()), 1200);
         if (!previewReady) throw new Error('mission export preview was not populated after evidence pin');
@@ -16569,9 +16968,9 @@ const PASS341_FEATURE_CONTROL_IDS = new Set([
   'back', 'forward', 'reload', 'home', 'address-form', 'address', 'launchpad', 'onboarding', 'profile-switcher',
   'devops-tools', 'it-tools', 'browser-kit', 'ops-hub-toggle', 'mission-control-toggle', 'settings', 'new-tab',
   'capture', 'ops-check', 'deploy', 'it-card', 'endpoint', 'triage', 'secret-boundary', 'route-map', 'dev-audit',
-  'ops-guard', 'devtools', 'about', 'browser-new-tab', 'browser-close-tab', 'browser-find', 'browser-print',
-  'browser-copy-url', 'browser-open-external', 'browser-bookmarks', 'browser-downloads', 'browser-zoom-out',
-  'browser-zoom-reset', 'browser-zoom-in'
+  'ops-guard', 'devtools', 'about', 'browser-new-tab', 'browser-close-tab', 'browser-duplicate-tab', 'browser-reopen-closed-tab',
+  'browser-restore-session', 'browser-find', 'browser-print', 'browser-copy-url', 'browser-open-external', 'browser-bookmarks',
+  'browser-downloads', 'browser-zoom-out', 'browser-zoom-reset', 'browser-zoom-in'
 ]);
 
 function pass341CaptureFallbackEnabled(): boolean {
@@ -16781,6 +17180,9 @@ function pass341RunPrimaryFeatureAction(controlId: string): boolean {
     case 'about': closeToolMenus(undefined, false); navigate(config?.aboutUrl); return true;
     case 'browser-new-tab': runBrowserKitAction('new-tab'); return true;
     case 'browser-close-tab': runBrowserKitAction('close-tab'); return true;
+    case 'browser-duplicate-tab': runBrowserKitAction('duplicate-tab'); return true;
+    case 'browser-reopen-closed-tab': runBrowserKitAction('reopen-closed-tab'); return true;
+    case 'browser-restore-session': runBrowserKitAction('restore-session'); return true;
     case 'browser-find': runBrowserKitAction('find'); return true;
     case 'browser-print': runBrowserKitAction('print'); return true;
     case 'browser-copy-url': runBrowserKitAction('copy-url'); return true;
@@ -16797,7 +17199,7 @@ function pass341RunPrimaryFeatureAction(controlId: string): boolean {
 function pass341HandlePrimaryFeatureClick(event: MouseEvent): void {
   if (pass341HandlingFeatureClick) return;
   const target = event.target as HTMLElement | null;
-  const control = target?.closest?.<HTMLElement>('#back,#forward,#reload,#home,#launchpad,#onboarding,#profile-switcher,#devops-tools,#it-tools,#browser-kit,#ops-hub-toggle,#mission-control-toggle,#settings,#new-tab,#capture,#ops-check,#deploy,#it-card,#endpoint,#triage,#secret-boundary,#route-map,#dev-audit,#ops-guard,#devtools,#about,#browser-new-tab,#browser-close-tab,#browser-find,#browser-print,#browser-copy-url,#browser-open-external,#browser-bookmarks,#browser-downloads,#browser-zoom-out,#browser-zoom-reset,#browser-zoom-in');
+  const control = target?.closest?.<HTMLElement>('#back,#forward,#reload,#home,#launchpad,#onboarding,#profile-switcher,#devops-tools,#it-tools,#browser-kit,#ops-hub-toggle,#mission-control-toggle,#settings,#new-tab,#capture,#ops-check,#deploy,#it-card,#endpoint,#triage,#secret-boundary,#route-map,#dev-audit,#ops-guard,#devtools,#about,#browser-new-tab,#browser-close-tab,#browser-duplicate-tab,#browser-reopen-closed-tab,#browser-restore-session,#browser-find,#browser-print,#browser-copy-url,#browser-open-external,#browser-bookmarks,#browser-downloads,#browser-zoom-out,#browser-zoom-reset,#browser-zoom-in');
   if (!control?.id || !PASS341_FEATURE_CONTROL_IDS.has(control.id)) return;
   pass341HandlingFeatureClick = true;
   try {

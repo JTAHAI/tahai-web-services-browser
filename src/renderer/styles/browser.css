@@ -79,6 +79,16 @@ body { background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,
 .tool-card.route { border-color:rgba(0,221,255,.36); }
 .tool-card.developer { border-color:rgba(119,219,255,.42); }
 .tool-card.browser { border-color:rgba(96,255,218,.34); }
+.tool-card[disabled] { cursor:not-allowed; opacity:.56; transform:none !important; }
+.tool-card[disabled]:hover,.tool-card[disabled]:focus-visible { border-color:rgba(119,219,255,.18); background:rgba(255,255,255,.045); box-shadow:inset 0 0 18px rgba(119,219,255,.045); }
+/* PASS346_BROWSER_HISTORY_SESSION_DAILY_DRIVER_START */
+.browser-kit-dynamic-list { display:grid; gap:9px; }
+.browser-kit-history-card { grid-template-columns:minmax(0,1fr); min-height:74px; }
+.browser-kit-history-card strong { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.browser-kit-history-card span { display:block; }
+.browser-kit-history-card.recently-closed { border-color:rgba(255,210,122,.30); }
+.browser-kit-empty { margin:0; }
+/* PASS346_BROWSER_HISTORY_SESSION_DAILY_DRIVER_END */
 .address-form { min-width:0; }
 #address { width:100%; height:34px; border-radius:999px; border:1px solid rgba(119,219,255,.18); background:#020813; color:var(--text); outline:none; padding:0 16px; font:inherit; box-shadow:inset 0 0 22px rgba(47,143,255,.08); }
 #address:focus { border-color:rgba(119,219,255,.55); box-shadow:0 0 0 4px rgba(119,219,255,.08), inset 0 0 22px rgba(47,143,255,.12); }

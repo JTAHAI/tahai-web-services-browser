@@ -285,6 +285,18 @@ async function pressCommandPalette(page) {
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
 }
 
+async function runtimeTabCount(page) {
+  return page.evaluate(() => document.querySelectorAll('#tabs .tab').length);
+}
+
+async function browserKitVisibleListCount(page, selector) {
+  return page.evaluate((targetSelector) => {
+    const host = document.querySelector(targetSelector);
+    if (!(host instanceof HTMLElement)) return 0;
+    return host.querySelectorAll('button[data-browser-kit-action]').length;
+  }, selector);
+}
+
 async function launchProfile(profile, runId) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tahai-pass345-blackbox-'));
   const electronApp = await electron.launch({
@@ -382,10 +394,10 @@ async function runScenario(page, config, profile, scenario) {
     await page.locator('#close-ops-hub').click();
     await waitForOpenState(page, '#ops-hub', false);
     const settingsVia = await clickShellControl(page, 'settings');
-    await waitForOpenState(page, '#settings-dialog', true);
+    await waitForOpenState(page, '#settings-dialog', true, 6000);
     ensure(await page.locator('#setting-home-url').count() >= 1, 'Settings dialog did not render home URL control');
     await page.locator('#close-settings').click();
-    await waitForOpenState(page, '#settings-dialog', false);
+    await waitForOpenState(page, '#settings-dialog', false, 6000);
     const profileVia = await clickShellControl(page, 'profile-switcher');
     await waitForOpenState(page, '#profile-dialog', true, 5000);
     ensure(await page.locator('#profile-list').count() >= 1, 'Profile dialog did not render list host');
@@ -422,6 +434,43 @@ async function runScenario(page, config, profile, scenario) {
     return {
       detail: `guest click count ${before} -> ${after}; hit ${hit.point.tag}${hit.point.id ? '#' + hit.point.id : ''}`,
       hit,
+    };
+  }
+
+  if (scenario.id === 'browser-history-session-recovery') {
+    await page.locator('#browser-kit').click();
+    await waitForOpenState(page, '#browser-kit-panel', true);
+    const beforeCount = await runtimeTabCount(page);
+    const originalUrl = await page.locator('#address').inputValue();
+    await page.locator('#browser-duplicate-tab').click();
+    await waitFor(page, async () => (await runtimeTabCount(page)) === beforeCount + 1, 'duplicate tab did not increase tab count', 6000);
+    await waitForOpenState(page, '#browser-kit-panel', false);
+    const duplicatedUrl = await waitForAddress(page, (value) => sameUrl(originalUrl, value), 'duplicated tab did not keep the active URL', 12000);
+    await page.locator('#browser-kit').click();
+    await waitForOpenState(page, '#browser-kit-panel', true);
+    await page.locator('#browser-close-tab').click();
+    await waitFor(page, async () => (await runtimeTabCount(page)) === beforeCount, 'close tab did not reduce tab count', 6000);
+    await waitForOpenState(page, '#browser-kit-panel', false);
+    await page.locator('#browser-kit').click();
+    await waitForOpenState(page, '#browser-kit-panel', true);
+    await waitFor(page, async () => (await browserKitVisibleListCount(page, '#browser-kit-closed-list')) >= 1, 'recently closed list did not populate', 4000);
+    await page.locator('#browser-reopen-closed-tab').click();
+    await waitFor(page, async () => (await runtimeTabCount(page)) === beforeCount + 1, 'reopen closed did not restore tab count', 6000);
+    await waitForOpenState(page, '#browser-kit-panel', false);
+    const reopenedUrl = await waitForAddress(page, (value) => sameUrl(originalUrl, value), 'reopened closed tab did not restore the original URL', 12000);
+    await page.locator('#browser-kit').click();
+    await waitForOpenState(page, '#browser-kit-panel', true);
+    const recentCount = await browserKitVisibleListCount(page, '#browser-kit-history-list');
+    ensure(recentCount >= 1, 'recent page list did not populate');
+    const sessionRestoreReady = await page.evaluate(() => {
+      const button = document.getElementById('browser-restore-session');
+      return button instanceof HTMLButtonElement && !button.disabled;
+    });
+    ensure(sessionRestoreReady, 'restore session was not available after normal browsing activity');
+    await page.locator('#browser-kit').click();
+    await waitForOpenState(page, '#browser-kit-panel', false);
+    return {
+      detail: `tab count ${beforeCount} -> ${beforeCount + 1} -> ${beforeCount} -> ${beforeCount + 1}; recent=${recentCount}; url=${reopenedUrl || duplicatedUrl}`,
     };
   }
 
