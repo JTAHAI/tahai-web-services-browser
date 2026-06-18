@@ -187,6 +187,7 @@
     </aside>
     <footer id="statusbar" class="statusbar" aria-live="polite">
       <span id="status-text">TAHAI Web Services Browser</span>
+      <span id="status-context" class="status-context" aria-label="Browser context"></span>
       <span id="artifact-shelf" class="artifact-shelf" aria-label="Download artifact shelf" data-pass194-download-artifact-shelf="true"></span>
       <span id="security-text">Home: https://tahaiportal.com</span>
     </footer>
@@ -343,6 +344,7 @@
         <button id="close-command-palette" class="icon-button" type="button" title="Close Command Palette">&times;</button>
       </header>
       <label class="command-search"><span>Search missions, layouts, admin profiles, evidence, OpsTools, KB, and export commands</span><input id="command-palette-input" type="search" autocomplete="off" spellcheck="false" placeholder="Try: mission, quad, Azure, evidence, DNS, KB, export&hellip;" /></label>
+      <div id="command-palette-scopes" class="command-palette-scopes" role="toolbar" aria-label="Command scope filters"></div>
       <div id="command-palette-diagnostics" class="command-palette-diagnostics" data-pass204-operator-command-center-v2="true"></div>
       <div id="command-palette-list" class="command-palette-list" role="listbox" aria-label="Operator Command Center results"></div>
       <footer class="command-palette-footer">&uarr;&darr; Move &middot; Enter Run &middot; Esc Close &middot; Ctrl+K Toggle &middot; disabled commands explain why</footer>
@@ -377,8 +379,21 @@
         <article class="settings-overview-tile"><strong>Downloads</strong><span>Folder routing, prompts, secure transport guard</span></article>
         <article class="settings-overview-tile"><strong>Config</strong><span>Import, export, managed-policy awareness</span></article>
       </section>
+      <section class="settings-quickbar" aria-label="Settings navigation and filter">
+        <label class="settings-search"><span>Filter runtime settings</span><input id="settings-search" type="search" autocomplete="off" spellcheck="false" placeholder="Filter settings: zoom, downloads, cookies, popups..." /></label>
+        <div id="settings-nav" class="settings-nav" role="toolbar" aria-label="Settings sections">
+          <button type="button" class="settings-nav-chip active" data-settings-section-target="all">All</button>
+          <button type="button" class="settings-nav-chip" data-settings-section-target="navigation">Navigation</button>
+          <button type="button" class="settings-nav-chip" data-settings-section-target="shell">Shell</button>
+          <button type="button" class="settings-nav-chip" data-settings-section-target="permissions">Permissions</button>
+          <button type="button" class="settings-nav-chip" data-settings-section-target="privacy">Privacy</button>
+          <button type="button" class="settings-nav-chip" data-settings-section-target="downloads">Downloads</button>
+          <button type="button" class="settings-nav-chip" data-settings-section-target="configuration">Config</button>
+        </div>
+        <div id="settings-search-summary" class="settings-search-summary" aria-live="polite">6 sections</div>
+      </section>
       <section class="settings-section-grid">
-        <article class="settings-section-card">
+        <article class="settings-section-card" data-settings-section="navigation">
           <header class="settings-section-head">
             <div><strong>Navigation</strong><span>Startup, home, search, and page zoom</span></div>
           </header>
@@ -390,7 +405,7 @@
             <label class="field wide"><span>Zoom quick adjust</span><input id="setting-default-zoom-range" type="range" min="50" max="200" step="5" /></label>
           </div>
         </article>
-        <article class="settings-section-card">
+        <article class="settings-section-card" data-settings-section="shell">
           <header class="settings-section-head">
             <div><strong>Shell</strong><span>Browser chrome, launch behavior, and safe handoff routing</span></div>
           </header>
@@ -405,7 +420,7 @@
           </div>
           <p class="settings-card-note">Daily-driver mode hides TAHAI branding from the shell chrome. Workbench buttons can be tucked away for a cleaner browser feel without weakening security or removing the underlying tools from this install.</p>
         </article>
-        <article class="settings-section-card">
+        <article class="settings-section-card" data-settings-section="permissions">
           <header class="settings-section-head">
             <div><strong>Permissions</strong><span>Secure-origin prompts only</span></div>
           </header>
@@ -416,7 +431,7 @@
             <label class="check"><input id="setting-notifications" type="checkbox" /> Allow notification prompts</label>
           </div>
         </article>
-        <article class="settings-section-card">
+        <article class="settings-section-card" data-settings-section="privacy">
           <header class="settings-section-head">
             <div><strong>Privacy</strong><span>Request shaping and local data handling</span></div>
           </header>
@@ -427,7 +442,7 @@
             <label class="check"><input id="setting-clear-on-exit" type="checkbox" /> Clear profile data on exit</label>
           </div>
         </article>
-        <article class="settings-section-card">
+        <article class="settings-section-card" data-settings-section="downloads">
           <header class="settings-section-head">
             <div><strong>Downloads</strong><span>Prompting, folder routing, and secure transport</span></div>
           </header>
@@ -446,7 +461,7 @@
             </div>
           </div>
         </article>
-        <article class="settings-section-card">
+        <article class="settings-section-card" data-settings-section="configuration">
           <header class="settings-section-head">
             <div><strong>Configuration</strong><span>Import, export, and policy truth</span></div>
           </header>

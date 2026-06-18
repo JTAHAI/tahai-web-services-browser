@@ -546,6 +546,9 @@ type CommandPaletteAction = {
   run: () => void | Promise<void>;
 };
 
+type CommandPaletteScope = 'all' | 'browser' | 'mission' | 'evidence' | 'tools' | 'profiles';
+type SettingsSectionKey = 'all' | 'navigation' | 'shell' | 'permissions' | 'privacy' | 'downloads' | 'configuration';
+
 window.dispatchEvent(new CustomEvent('tahai-renderer-app-script'));
 
 window.addEventListener('error', (event) => {
@@ -689,6 +692,7 @@ function requestTextInput(options: TextInputOptions): Promise<string | null> {
 
 const commandPaletteDialog = document.getElementById('command-palette-dialog') as HTMLDialogElement;
 const commandPaletteInput = document.getElementById('command-palette-input') as HTMLInputElement;
+const commandPaletteScopes = document.getElementById('command-palette-scopes') as HTMLElement;
 const commandPaletteList = document.getElementById('command-palette-list') as HTMLElement;
 const commandPaletteDiagnostics = document.getElementById('command-palette-diagnostics') as HTMLElement;
 const closeCommandPaletteButton = document.getElementById('close-command-palette') as HTMLButtonElement;
@@ -730,10 +734,14 @@ const aboutButton = document.getElementById('about') as HTMLButtonElement;
 const newTabButton = document.getElementById('new-tab') as HTMLButtonElement;
 const statusBar = document.getElementById('statusbar') as HTMLElement;
 const statusText = document.getElementById('status-text') as HTMLElement;
+const statusContext = document.getElementById('status-context') as HTMLElement;
 const artifactShelf = document.getElementById('artifact-shelf') as HTMLElement;
 const securityText = document.getElementById('security-text') as HTMLElement;
 const settingsDialog = document.getElementById('settings-dialog') as HTMLDialogElement;
 const settingsForm = document.getElementById('settings-form') as HTMLFormElement;
+const settingsSearchInput = document.getElementById('settings-search') as HTMLInputElement;
+const settingsNav = document.getElementById('settings-nav') as HTMLElement;
+const settingsSearchSummary = document.getElementById('settings-search-summary') as HTMLElement;
 const settingHomeUrl = document.getElementById('setting-home-url') as HTMLInputElement;
 const settingStartup = document.getElementById('setting-startup') as HTMLSelectElement;
 const settingSearch = document.getElementById('setting-search') as HTMLSelectElement;
@@ -903,8 +911,10 @@ let latestOperationalHandoff: OperationalHandoffState | undefined;
 let latestItDocsCapabilities: ItDocsMissionCapabilities | undefined;
 let browserProfileState: BrowserProfileState | undefined;
 let editingProfileId = '';
+let settingsActiveSection: SettingsSectionKey = 'all';
 let commandPaletteActions: CommandPaletteAction[] = [];
 let commandPaletteIndex = 0;
+let commandPaletteScope: CommandPaletteScope = 'all';
 let pass242CommandPaletteIntentionalClose = false;
 let pass242CommandPaletteOpenGuardUntil = 0;
 let pass242CommandPaletteOpenEpoch = 0;
@@ -1169,6 +1179,139 @@ function securityLabel(url: string): string {
 function setStatus(message: string, detail?: string): void {
   statusText.textContent = sanitizeStatusMetadataText(message, '');
   if (detail) securityText.textContent = sanitizeStatusMetadataText(detail, '');
+  renderStatusContext();
+}
+
+const SETTINGS_SECTION_LABELS: Record<Exclude<SettingsSectionKey, 'all'>, string> = {
+  navigation: 'Navigation',
+  shell: 'Shell',
+  permissions: 'Permissions',
+  privacy: 'Privacy',
+  downloads: 'Downloads',
+  configuration: 'Config'
+};
+
+const COMMAND_PALETTE_SCOPE_LABELS: Record<CommandPaletteScope, string> = {
+  all: 'All',
+  browser: 'Browser',
+  mission: 'Mission',
+  evidence: 'Evidence',
+  tools: 'Tools',
+  profiles: 'Profiles'
+};
+
+function settingsSectionCards(): HTMLElement[] {
+  return Array.from(settingsForm.querySelectorAll<HTMLElement>('.settings-section-card[data-settings-section]'));
+}
+
+function settingsSectionLabel(key: SettingsSectionKey): string {
+  return key === 'all' ? 'All sections' : SETTINGS_SECTION_LABELS[key];
+}
+
+function settingsSectionSearchText(card: HTMLElement): string {
+  return compactText(card.textContent || '', '').toLowerCase();
+}
+
+function renderSettingsQuickbar(): void {
+  const query = settingsSearchInput?.value.trim().toLowerCase() || '';
+  const cards = settingsSectionCards();
+  let visibleCount = 0;
+  for (const card of cards) {
+    const section = (card.dataset.settingsSection || 'all') as SettingsSectionKey;
+    const matchesSection = settingsActiveSection === 'all' || section === settingsActiveSection;
+    const matchesQuery = !query || settingsSectionSearchText(card).includes(query);
+    const visible = matchesSection && matchesQuery;
+    card.hidden = !visible;
+    card.dataset.settingsFilterState = visible ? 'visible' : matchesSection ? 'query-hidden' : 'section-hidden';
+    if (visible) visibleCount += 1;
+  }
+  settingsNav.querySelectorAll<HTMLButtonElement>('[data-settings-section-target]').forEach((button) => {
+    const target = (button.dataset.settingsSectionTarget || 'all') as SettingsSectionKey;
+    const active = target === settingsActiveSection;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  const scopeLabel = settingsSectionLabel(settingsActiveSection);
+  settingsSearchSummary.textContent = query
+    ? `${visibleCount} section(s) shown for "${compactText(query, '').slice(0, 28)}"`
+    : settingsActiveSection === 'all'
+      ? `${visibleCount} sections ready`
+      : `${visibleCount} section in ${scopeLabel}`;
+  document.body.dataset.pass352SettingsQuickFilter = query || 'all';
+  document.body.dataset.pass352SettingsQuickSection = settingsActiveSection;
+}
+
+function focusSettingsSection(section: SettingsSectionKey): void {
+  settingsActiveSection = section;
+  renderSettingsQuickbar();
+  if (section === 'all') {
+    settingsSearchInput.focus({ preventScroll: true });
+    return;
+  }
+  const target = settingsForm.querySelector<HTMLElement>(`.settings-section-card[data-settings-section="${section}"]`);
+  if (!target || target.hidden) return;
+  target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  target.querySelector<HTMLElement>('input,select,button')?.focus({ preventScroll: true });
+}
+
+function commandPaletteScopeForAction(action: CommandPaletteAction): CommandPaletteScope {
+  if (action.group === 'Profiles' || action.family === 'profile') return 'profiles';
+  if (action.phase === 'mission' || action.family === 'mission' || action.family === 'layout') return 'mission';
+  if (action.phase === 'evidence' || action.family === 'evidence' || action.family === 'export') return 'evidence';
+  if (action.phase === 'devops' || action.phase === 'it' || action.family === 'opstool') return 'tools';
+  return 'browser';
+}
+
+function commandPaletteSearchScore(action: CommandPaletteAction, query: string): number {
+  if (!query) return action.id === (document.body.dataset.pass204LastCommand || '') ? 250 : 0;
+  const haystack = commandActionSearchText(action);
+  const title = action.title.toLowerCase();
+  const group = action.group.toLowerCase();
+  let score = 0;
+  if (title === query) score += 140;
+  if (title.startsWith(query)) score += 80;
+  if (title.includes(query)) score += 48;
+  if (group.includes(query)) score += 24;
+  if (haystack.includes(query)) score += Math.max(4, 18 - Math.min(16, haystack.indexOf(query)));
+  if (action.id === (document.body.dataset.pass204LastCommand || '')) score += 10;
+  if (!action.disabledReason) score += 3;
+  return score;
+}
+
+function renderCommandPaletteScopes(actions: CommandPaletteAction[], query: string): void {
+  const filtered = !query ? actions : actions.filter((action) => commandActionSearchText(action).includes(query));
+  const counts: Record<CommandPaletteScope, number> = { all: filtered.length, browser: 0, mission: 0, evidence: 0, tools: 0, profiles: 0 };
+  for (const action of filtered) counts[commandPaletteScopeForAction(action)] += 1;
+  commandPaletteScopes.innerHTML = (Object.keys(COMMAND_PALETTE_SCOPE_LABELS) as CommandPaletteScope[]).map((scope) => {
+    const active = scope === commandPaletteScope;
+    return `<button class="command-scope-chip${active ? ' active' : ''}" type="button" data-command-scope="${scope}" aria-pressed="${active}"><strong>${escapeHtml(COMMAND_PALETTE_SCOPE_LABELS[scope])}</strong><span>${counts[scope]}</span></button>`;
+  }).join('');
+}
+
+function statusContextChip(label: string, value: string, tone: 'default' | 'accent' | 'warn' = 'default'): string {
+  return `<span class="status-chip tone-${tone}"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></span>`;
+}
+
+function renderStatusContext(): void {
+  if (!statusContext) return;
+  const activeTab = active();
+  const surfaceMode = settings?.ui?.surfaceMode === 'daily-driver' ? 'Daily Driver' : 'Workbench';
+  const profile = browserProfileState?.activeProfile?.name || 'Default';
+  const zoomFactor = activeTab ? pass343CurrentZoomFactor(activeTab.webview) : pass349DefaultZoomFactor();
+  const zoom = `${Math.round(zoomFactor * 100)}%`;
+  const layout = currentMission && currentMission.layout.type !== 'single'
+    ? `${missionLayoutLabel(currentMission.layout.type)} · ${missionPaneLabel(currentMission.layout.activePaneId || 'pane-1')}`
+    : '1-Up';
+  const tabCount = `${tabs.size} tab${tabs.size === 1 ? '' : 's'}`;
+  const tone = currentMission && currentMission.layout.type !== 'single' ? 'accent' : 'default';
+  statusContext.innerHTML = [
+    statusContextChip('Mode', surfaceMode, settings?.ui?.surfaceMode === 'daily-driver' ? 'default' : 'accent'),
+    statusContextChip('Profile', compactText(profile, 'Default').slice(0, 16), 'default'),
+    statusContextChip('Tabs', tabCount, 'default'),
+    statusContextChip('Zoom', zoom, 'default'),
+    statusContextChip('Layout', layout, tone)
+  ].join('');
+  statusContext.dataset.pass352StatusContext = `${surfaceMode}|${profile}|${tabCount}|${zoom}|${layout}`;
 }
 
 function installPass99ExternalDropBoundary(): void {
@@ -4330,6 +4473,7 @@ function pass351ApplyBrowserSurfaceMode(): void {
 function applyUiSettings(): void {
   statusBar.hidden = settings?.ui?.showStatusBar === false;
   pass351ApplyBrowserSurfaceMode();
+  renderStatusContext();
 }
 
 let pass192TitlebarChromeMounted = false;
@@ -4550,6 +4694,7 @@ function setActive(tabId: string): void {
   renderMissionLayout();
   pass192SyncTitlebarChromeState('set-active');
   if (typeof config !== 'undefined') renderOpsHub();
+  renderBrowserKitDailyDriver();
   scheduleSessionRecoverySnapshot('set-active');
 }
 
@@ -4566,6 +4711,7 @@ function updateTab(tab: TabState, patch: Partial<Pick<TabState, 'title' | 'url'>
   updateMissionTabRuntimeFromBrowser(tab);
   pass192DecorateTabButton(tab);
   if (typeof config !== 'undefined') renderOpsHub();
+  renderBrowserKitDailyDriver();
 }
 
 function setBrowserTabPinned(tabId: string, pinned: boolean, reason = 'manual', announce = true): boolean {
@@ -4618,6 +4764,7 @@ function closeTab(tabId: string): void {
     if (next) setActive(next);
     else createTab(config.homeUrl);
   }
+  renderBrowserKitDailyDriver();
   renderMissionControl();
   renderMissionLayout();
   pass192SyncTitlebarChromeState('close-tab');
@@ -9078,6 +9225,7 @@ function renderBrowserKitDailyDriver(): void {
   document.body.dataset.pass346RecentHistoryCount = String(history.length);
   document.body.dataset.pass346RecentlyClosedCount = String(recentlyClosed.length);
   enrichToolCardTooltips(browserKitPanel);
+  renderStatusContext();
 }
 
 function scheduleSessionRecoverySnapshot(reason = 'scheduled'): void {
@@ -12431,10 +12579,20 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
 
 function renderCommandPalette(): void {
   const query = commandPaletteInput.value.trim().toLowerCase();
-  commandPaletteActions = buildCommandPaletteActions().filter((action) => !query || commandActionSearchText(action).includes(query));
+  const allActions = buildCommandPaletteActions();
+  renderCommandPaletteScopes(allActions, query);
+  commandPaletteActions = allActions
+    .filter((action) => (!query || commandActionSearchText(action).includes(query)) && (commandPaletteScope === 'all' || commandPaletteScopeForAction(action) === commandPaletteScope))
+    .map((action, index) => ({ action, index, score: commandPaletteSearchScore(action, query) }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .map((entry) => entry.action);
   if (commandPaletteIndex >= commandPaletteActions.length) commandPaletteIndex = Math.max(0, commandPaletteActions.length - 1);
-  const commandContracts = commandPaletteActions.map(pass204CommandContract);
-  if (commandPaletteDiagnostics) commandPaletteDiagnostics.innerHTML = '<strong>Operator Command Center v2</strong><span>' + escapeHtml(operatorCommandCenterV2Summary(commandContracts)) + '</span><em>' + escapeHtml('Ctrl+K · target scope + disabled reasons · redaction-aware export commands') + '</em>';
+  const commandContracts = allActions.map(pass204CommandContract);
+  if (commandPaletteDiagnostics) {
+    const visibleScopeLabel = COMMAND_PALETTE_SCOPE_LABELS[commandPaletteScope];
+    const visibleSummary = `${commandPaletteActions.length} shown in ${visibleScopeLabel}${query ? ` for "${compactText(query, '').slice(0, 24)}"` : ''}.`;
+    commandPaletteDiagnostics.innerHTML = '<strong>Operator Command Center v2</strong><span>' + escapeHtml(operatorCommandCenterV2Summary(commandContracts) + ' ' + visibleSummary) + '</span><em>' + escapeHtml('Ctrl+K · target scope + disabled reasons · redaction-aware export commands') + '</em>';
+  }
   commandPaletteList.innerHTML = commandPaletteActions.length ? commandPaletteActions.map((action, index) =>
     '<button class="command-row' + (index === commandPaletteIndex ? ' active' : '') + ' phase-' + escapeHtml(action.phase || 'all') + (action.disabledReason ? ' disabled' : '') + '" type="button" data-command-index="' + index + '" data-pass204-command-family="' + escapeHtml(action.family || 'browser') + '" data-pass204-target-scope="' + escapeHtml(action.targetScope || 'browser-shell') + '" data-pass204-disabled-reason="' + escapeHtml(action.disabledReason || '') + '" ' + (action.disabledReason ? 'aria-disabled="true"' : '') + '>' +
     '<span><strong>' + escapeHtml(action.title) + '</strong><small>' + escapeHtml(commandActionMeta(action)) + '</small>' +
@@ -12442,7 +12600,7 @@ function renderCommandPalette(): void {
     (action.disabledReason ? '<em class="command-target pass204-command-disabled">' + escapeHtml(action.disabledReason) + '</em>' : '') + '</span>' +
     (action.shortcut ? '<kbd>' + escapeHtml(action.shortcut) + '</kbd>' : '') +
     '</button>'
-  ).join('') : '<article class="command-empty">No matching command.</article>';
+  ).join('') : '<article class="command-empty">No matching command' + (commandPaletteScope === 'all' ? '.' : ` in ${escapeHtml(COMMAND_PALETTE_SCOPE_LABELS[commandPaletteScope])}.`) + '</article>';
   commandPaletteList.querySelector<HTMLButtonElement>('.command-row.active')?.scrollIntoView({ block: 'nearest' });
 }
 
@@ -12480,6 +12638,7 @@ function openCommandPalette(): void {
   pass348CaptureTransientOverlayReturn('command-palette');
   pass190CloseRivalOverlays('command-palette');
   commandPaletteInput.value = '';
+  commandPaletteScope = 'all';
   commandPaletteIndex = 0;
   renderCommandPalette();
   pass242CommandPaletteIntentionalClose = false;
@@ -12552,6 +12711,7 @@ function populateSettingsForm(): void {
   settingDownloadDirectoryLabel.textContent = settings.downloads.defaultDirectoryLabel || 'System Downloads folder';
   renderSettingsPolicyTruth();
   applySettingsManagedState();
+  renderSettingsQuickbar();
 }
 
 function settingsFromForm(): BrowserSettings {
@@ -12700,10 +12860,13 @@ function showSettingsResult(message: string): void {
 }
 
 function openSettings(): void {
+  settingsSearchInput.value = '';
+  settingsActiveSection = 'all';
   populateSettingsForm();
   pass190CloseRivalOverlays('settings');
   if (!settingsDialog.open) settingsDialog.showModal();
   pass190OpenOwnedOverlay('settings', settingsDialog as unknown as HTMLElement, settingsButton);
+  window.setTimeout(() => settingsSearchInput.focus({ preventScroll: true }), 0);
   pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('settings-open');
 }
 
@@ -15119,6 +15282,13 @@ missionTabsList.addEventListener('drop', (event) => {
 missionTabsList.addEventListener('change', (event) => { const select = eventClosest<HTMLSelectElement>(event, 'select[data-role-mission-tab]'); if (!select || !currentMission) return; const tab = currentMission.tabs.find((candidate) => candidate.tabId === select.dataset.roleMissionTab); if (tab && missionTabRoles.includes(select.value as MissionTabRole)) { tab.role = select.value as MissionTabRole; syncMissionLayoutPanes(); missionTimelineEvent('tab-role-set', tab.title, tab.role, { surface: 'browser-tabs', paneId: tab.paneId, tabId: tab.tabId }); renderMissionControl(); } });
 closeCommandPaletteButton.addEventListener('click', () => closeCommandPaletteDialog(true));
 commandPaletteInput.addEventListener('input', () => { commandPaletteIndex = 0; renderCommandPalette(); });
+commandPaletteScopes.addEventListener('click', (event) => {
+  const button = eventClosest<HTMLButtonElement>(event, '[data-command-scope]');
+  if (!button?.dataset.commandScope) return;
+  commandPaletteScope = button.dataset.commandScope as CommandPaletteScope;
+  commandPaletteIndex = 0;
+  renderCommandPalette();
+});
 commandPaletteList.addEventListener('click', (event) => {
   const button = eventClosest<HTMLButtonElement>(event, '.command-row');
   if (!button) return;
@@ -15148,6 +15318,18 @@ commandPaletteDialog.addEventListener('close', () => {
 });
 settingsDialog.addEventListener('close', () => {
   if (document.body.dataset.pass116ActiveOverlay === 'settings') pass118ClearChromeOverlayState('explicit-close', 'settings');
+});
+settingsSearchInput.addEventListener('input', () => renderSettingsQuickbar());
+settingsSearchInput.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !settingsSearchInput.value) return;
+  event.preventDefault();
+  settingsSearchInput.value = '';
+  renderSettingsQuickbar();
+});
+settingsNav.addEventListener('click', (event) => {
+  const button = eventClosest<HTMLButtonElement>(event, '[data-settings-section-target]');
+  if (!button?.dataset.settingsSectionTarget) return;
+  focusSettingsSection(button.dataset.settingsSectionTarget as SettingsSectionKey);
 });
 profileDialog.addEventListener('close', () => {
   if (document.body.dataset.pass116ActiveOverlay === 'profile-dialog') pass118ClearChromeOverlayState('explicit-close', 'profile-dialog');
