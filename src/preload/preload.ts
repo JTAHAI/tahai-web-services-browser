@@ -31,6 +31,8 @@ export type TahaiBrowserSettings = {
     defaultZoomPercent: number;
     launchToMaximized: boolean;
     confirmBeforeClosingMultipleTabs: boolean;
+    surfaceMode: 'tahai-workbench' | 'daily-driver';
+    showWorkbenchTools: boolean;
   };
   privacy: {
     sendDoNotTrack: boolean;

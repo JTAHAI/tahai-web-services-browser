@@ -32,7 +32,16 @@ export function fallbackBrowserConfig(): RendererBrowserConfig {
     searchProvider: 'google',
     permissions: { allowClipboardRead: false, allowMedia: true, allowGeolocation: false, allowNotifications: false },
     downloads: { askEveryTime: true, defaultDirectory: '', defaultDirectoryLabel: 'System Downloads folder', hasCustomDirectory: false, blockInsecureDownloads: true },
-    ui: { showStatusBar: true, openExternalLinksInNewTab: true, allowPopupsAsTabs: true, defaultZoomPercent: 100, launchToMaximized: false, confirmBeforeClosingMultipleTabs: false },
+    ui: {
+      showStatusBar: true,
+      openExternalLinksInNewTab: true,
+      allowPopupsAsTabs: true,
+      defaultZoomPercent: 100,
+      launchToMaximized: false,
+      confirmBeforeClosingMultipleTabs: false,
+      surfaceMode: 'tahai-workbench',
+      showWorkbenchTools: true
+    },
     privacy: { sendDoNotTrack: true, blockThirdPartyCookies: true, reduceCrossSiteReferrers: true, clearProfileDataOnExit: false },
   };
   return {

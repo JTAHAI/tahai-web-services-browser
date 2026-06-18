@@ -137,11 +137,30 @@ async function clickShellControl(page, id) {
     await activateElement(page, `#${id}`, 5000);
     return 'toolbar';
   }
+  if (id === 'onboarding') {
+    const guideQuick = await controlInfo(page, 'toolbar-guide-quick');
+    if (guideQuick?.visible) {
+      await activateElement(page, '#toolbar-guide-quick', 5000);
+      return 'guide-quick';
+    }
+  }
   const overflowToggle = await controlInfo(page, 'toolbar-overflow-toggle');
   ensure(overflowToggle?.visible, `#${id} is hidden and More Tools is unavailable`);
   if (!await overflowMenuOpen(page)) {
     await activateElement(page, '#toolbar-overflow-toggle', 5000);
     await waitForOpenState(page, '#toolbar-overflow-menu', true, 5000);
+  }
+  const refreshed = await controlInfo(page, id);
+  if (refreshed?.visible && !refreshed.inOverflow) {
+    await activateElement(page, `#${id}`, 5000);
+    return 'toolbar-after-overflow';
+  }
+  if (id === 'onboarding') {
+    const guideQuickAfterOpen = await controlInfo(page, 'toolbar-guide-quick');
+    if (guideQuickAfterOpen?.visible) {
+      await activateElement(page, '#toolbar-guide-quick', 5000);
+      return 'guide-quick';
+    }
   }
   const overflowSelector = `#toolbar-overflow-items > #${id}`;
   let lastError = null;

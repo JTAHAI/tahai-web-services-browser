@@ -126,6 +126,7 @@ body { background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,
 .settings-panel h2 { margin:3px 0 0; font-size:1.35rem; }
 .eyebrow { margin:0; color:var(--cyan); letter-spacing:.14em; text-transform:uppercase; font-size:.72rem; font-weight:900; }
 /* PASS350 settings daily-driver safe surface: keep shell/daily-driver toggles inside the managed Settings contract without weakening popup, IPC, or external-open boundaries. */
+/* PASS351 daily-driver surface toggle: let operators hide TAHAI branding and main-toolbar workbench chrome while keeping the browser security/runtime contract intact. */
 .settings-overview { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; padding:18px 24px 0; }
 .settings-overview-tile { border:1px solid rgba(119,219,255,.16); border-radius:18px; background:rgba(255,255,255,.035); padding:14px; display:grid; gap:6px; }
 .settings-overview-tile strong { color:var(--cyan); font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; }
@@ -150,6 +151,7 @@ body { background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,
 .settings-directory-pill strong,.settings-policy-panel strong { color:var(--cyan); font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; }
 .settings-directory-pill span,.settings-policy-panel span { color:var(--muted); font-size:.82rem; line-height:1.4; overflow-wrap:anywhere; }
 .settings-inline-actions { display:flex; gap:10px; flex-wrap:wrap; }
+.settings-card-note { margin:0; color:var(--muted); font-size:.8rem; line-height:1.5; }
 .settings-note { margin:0 24px 18px; color:var(--muted); line-height:1.55; }
 .settings-safety-copy { margin:0 0 2px; }
 .settings-safety-copy .settings-note { margin-left:24px; margin-right:24px; }
@@ -168,6 +170,15 @@ body { background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,
 .settings-result { margin-right:auto; color:var(--cyan); font-size:.83rem; min-width:140px; }
 @media (max-width:980px) { .settings-overview,.settings-section-grid,.settings-grid,.settings-check-grid { grid-template-columns:1fr; } }
 @media (max-width:760px) { .settings-actions { flex-wrap:wrap; justify-content:flex-start; } .settings-result { width:100%; } }
+
+body[data-pass351-browser-surface-mode="daily-driver"] .topbar .brand {
+  display: none !important;
+}
+
+body[data-pass351-browser-surface-mode="daily-driver"] .topbar {
+  grid-template-columns: minmax(0,1fr) auto !important;
+  padding-left: 12px;
+}
 
 
 .capture-dialog { width:min(1120px,calc(100vw - 42px)); height:min(820px,calc(100vh - 42px)); border:1px solid rgba(255,210,122,.30); border-radius:24px; padding:0; background:#050c17; color:var(--text); box-shadow:0 26px 130px rgba(0,0,0,.76),0 0 76px rgba(255,210,122,.14); }

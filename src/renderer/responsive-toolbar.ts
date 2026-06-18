@@ -45,6 +45,7 @@
   const PASS122_CHROME_STACK_REFLOW_EVENT = 'tahai:chrome-stack-reflow';
   const PASS123_OVERLAY_CYCLE_AUDIT_EVENT = 'tahai:chrome-overlay-cycle-audit';
   const PASS164_MORE_TOOLS_ACTION_EVENT = 'tahai:more-tools-action-request';
+  const PASS351_BROWSER_SURFACE_MODE_CHANGE_EVENT = 'tahai:browser-surface-mode-change';
   const PASS164_MORE_TOOLS_ACTION_SETTLE_MS = 180;
   const PASS174_TOOLTIP_ID = 'pass174-utility-tooltip';
   const PASS175_LEGACY_LAYOUT_REFRESH_VERIFIER_TOKEN = `pass174HideUtilityTooltip();
@@ -118,6 +119,28 @@
 
   function byId<T extends HTMLElement>(id: string): T | null { return document.getElementById(id) as T | null; }
   function setStatus(message: string): void { const status = byId<HTMLElement>('status-text'); if (status) status.textContent = message; }
+  function pass351OverflowItemVisible(item: ManagedItem): boolean {
+    if (item.element.hidden) return false;
+    if (item.element.closest('[hidden]')) return false;
+    return true;
+  }
+  function pass351ViewportReachable(element: HTMLElement | null): boolean {
+    if (!element || element.hidden || element.getAttribute('aria-hidden') === 'true') return false;
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) return false;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0
+      && rect.height > 0
+      && rect.left >= 0
+      && rect.top >= 0
+      && rect.right <= window.innerWidth
+      && rect.bottom <= window.innerHeight;
+  }
+  function pass351OverflowAnchorsReachViewport(): boolean {
+    if (buttonEl && !buttonEl.hidden && !pass351ViewportReachable(buttonEl)) return false;
+    if (guideQuickEl && !guideQuickEl.hidden && !pass351ViewportReachable(guideQuickEl)) return false;
+    return true;
+  }
 
   function pass174Clamp(value: number, min: number, max: number): number { return Math.min(max, Math.max(min, value)); }
   function pass174EnsureTooltip(): HTMLElement {
@@ -787,6 +810,7 @@
     const wasOpen = !menuEl.hidden;
     pass171BumpMoreToolsFocusEpoch('close');
     pass174HideUtilityTooltip();
+    pass351ResetMoreToolsScroll('close');
     menuEl.hidden = true;
     buttonEl.setAttribute('aria-expanded', 'false');
     pass117SetMenuFocusOpen(false);
@@ -833,6 +857,7 @@
     if (willOpen) {
       pass117MoreToolsOpener = buttonEl;
       pass116AnnounceMoreToolsOpen();
+      pass351ResetMoreToolsScroll('open');
     }
     menuEl.hidden = !willOpen;
     buttonEl.setAttribute('aria-expanded', String(!menuEl.hidden));
@@ -855,6 +880,18 @@
   function pass164MoreToolsActionId(element: HTMLElement): string {
     return element.id || element.dataset.pass113ChromeOverflowCandidate || element.dataset.opsAction || 'overflow-action';
   }
+  function pass351ResetMoreToolsScroll(reason: string): void {
+    if (menuEl) {
+      menuEl.scrollTop = 0;
+      menuEl.scrollLeft = 0;
+    }
+    const host = overflowItemsEl();
+    if (host) {
+      host.scrollTop = 0;
+      host.scrollLeft = 0;
+    }
+    document.body.dataset.pass351MoreToolsScrollReset = reason;
+  }
   function moveToMenu(item: ManagedItem): void {
     const host = overflowItemsEl();
     if (!host || item.element.parentElement === host) return;
@@ -874,7 +911,11 @@
     else item.element.removeAttribute('role');
     item.marker.parentElement?.insertBefore(item.element, item.marker.nextSibling);
   }
-  function sortedItems(): ManagedItem[] { return [...managed].sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id)); }
+  function sortedItems(): ManagedItem[] {
+    return [...managed]
+      .filter((item) => pass351OverflowItemVisible(item))
+      .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id));
+  }
   // PASS13 legacy verifier token preserved after PASS113 changes: if (width < 1280) return 2;
   function targetCountForWidth(width: number): number {
     if (width < 720) return 9;
@@ -968,6 +1009,16 @@
       document.body.dataset.pass177ForcedOverflow = 'false';
       document.body.dataset.pass177ForcedOverflowReason = 'not-needed';
     }
+    updateGuideQuickAnchor();
+    if (toolbar) toolbar.scrollLeft = 0;
+    let anchorGuard = 0;
+    while (target < sorted.length && !pass351OverflowAnchorsReachViewport() && anchorGuard < sorted.length) {
+      target += 1;
+      applyMenuTarget(target);
+      updateGuideQuickAnchor();
+      if (toolbar) toolbar.scrollLeft = 0;
+      anchorGuard += 1;
+    }
     pass177MeasureWebsitePaneBudget();
     pass179UpdateMoreToolsOverflowClarity(target, document.body.dataset.pass177ForcedOverflowReason || 'not-needed');
     buttonEl.hidden = target === 0;
@@ -1036,6 +1087,7 @@
     pass118InstallDismissRecovery();
     ensureShell(); pass181PreparePrimaryCompactControls(); pass182InstallCompactPrimaryFocusController(); pass183InstallMoreToolsOverlayCollisionRecovery(); pass184InstallHiddenMoreToolsFocusRecovery(); watchDynamicChromeControls(); pass178InstallViewportBudgetObserver(); relayout();
     window.addEventListener('resize', () => { scheduleRelayout(80); pass178ScheduleViewportBudgetAudit('window-resize', 140); });
+    document.addEventListener(PASS351_BROWSER_SURFACE_MODE_CHANGE_EVENT, () => scheduleRelayout(0));
     for (const delay of PASS113_RELAYOUT_DELAYS_MS) window.setTimeout(relayout, delay);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();

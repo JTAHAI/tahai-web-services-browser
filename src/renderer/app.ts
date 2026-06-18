@@ -702,6 +702,9 @@ const itToolsButton = document.getElementById('it-tools') as HTMLButtonElement;
 const devopsToolsPanel = document.getElementById('devops-tools-panel') as HTMLElement;
 const itToolsPanel = document.getElementById('it-tools-panel') as HTMLElement;
 const browserKitButton = document.getElementById('browser-kit') as HTMLButtonElement;
+const brandBlock = document.querySelector('.topbar .brand') as HTMLElement | null;
+const devopsToolsFlyout = devopsToolsButton.closest('.tool-flyout') as HTMLElement | null;
+const itToolsFlyout = itToolsButton.closest('.tool-flyout') as HTMLElement | null;
 const browserKitPanel = document.getElementById('browser-kit-panel') as HTMLElement;
 const browserKitHistoryList = document.getElementById('browser-kit-history-list') as HTMLElement;
 const browserKitClosedList = document.getElementById('browser-kit-closed-list') as HTMLElement;
@@ -736,6 +739,8 @@ const settingStartup = document.getElementById('setting-startup') as HTMLSelectE
 const settingSearch = document.getElementById('setting-search') as HTMLSelectElement;
 const settingDefaultZoom = document.getElementById('setting-default-zoom') as HTMLInputElement;
 const settingDefaultZoomRange = document.getElementById('setting-default-zoom-range') as HTMLInputElement;
+const settingSurfaceMode = document.getElementById('setting-surface-mode') as HTMLSelectElement;
+const settingShowWorkbenchTools = document.getElementById('setting-show-workbench-tools') as HTMLInputElement;
 const settingMedia = document.getElementById('setting-media') as HTMLInputElement;
 const settingClipboard = document.getElementById('setting-clipboard') as HTMLInputElement;
 const settingGeolocation = document.getElementById('setting-geolocation') as HTMLInputElement;
@@ -4267,8 +4272,64 @@ function pass81MountAllSurfaceGuard(): void {
   pass81ScheduleAllSurfaceDoctor('scheduled');
 }
 
+type Pass351BrowserSurfaceMode = 'tahai-workbench' | 'daily-driver';
+const PASS351_BROWSER_SURFACE_MODE_CHANGE_EVENT = 'tahai:browser-surface-mode-change';
+
+function pass351BrowserSurfaceMode(): Pass351BrowserSurfaceMode {
+  return settings?.ui?.surfaceMode === 'daily-driver' ? 'daily-driver' : 'tahai-workbench';
+}
+
+function pass351ShowWorkbenchChrome(): boolean {
+  return settings?.ui?.showWorkbenchTools !== false;
+}
+
+function pass351PreferredNewTabUrl(): string {
+  if (pass351BrowserSurfaceMode() === 'daily-driver' && !pass351ShowWorkbenchChrome()) {
+    return settings?.homeUrl || config?.homeUrl || 'https://tahaiportal.com';
+  }
+  return config?.newTabUrl || settings?.homeUrl || config?.homeUrl || 'https://tahaiportal.com';
+}
+
+function pass351SetSurfaceHidden(element: HTMLElement | null, hidden: boolean): void {
+  if (!element) return;
+  element.hidden = hidden;
+  element.setAttribute('aria-hidden', String(hidden));
+  if (hidden) element.dataset.pass351SurfaceHidden = 'true';
+  else delete element.dataset.pass351SurfaceHidden;
+}
+
+function pass351ApplyBrowserSurfaceMode(): void {
+  const surfaceMode = pass351BrowserSurfaceMode();
+  const showWorkbenchChrome = pass351ShowWorkbenchChrome();
+  document.body.dataset.pass351DailyDriverSurfaceToggle = 'true';
+  document.body.dataset.pass351BrowserSurfaceMode = surfaceMode;
+  document.body.dataset.pass351WorkbenchChrome = showWorkbenchChrome ? 'visible' : 'hidden';
+  document.documentElement.dataset.pass351BrowserSurfaceMode = surfaceMode;
+  pass351SetSurfaceHidden(brandBlock, surfaceMode === 'daily-driver');
+  pass351SetSurfaceHidden(devopsToolsFlyout, !showWorkbenchChrome);
+  pass351SetSurfaceHidden(itToolsFlyout, !showWorkbenchChrome);
+  pass351SetSurfaceHidden(launchpadButton, !showWorkbenchChrome);
+  pass351SetSurfaceHidden(onboardingButton, !showWorkbenchChrome);
+  pass351SetSurfaceHidden(opsHubToggleButton, !showWorkbenchChrome);
+  pass351SetSurfaceHidden(missionControlButton, !showWorkbenchChrome);
+  if (!showWorkbenchChrome) {
+    closeToolMenus(undefined, false);
+    if (!opsHub.hidden) toggleOpsHub(false, false);
+    if (missionDialog.open) closeMissionControl(false);
+  }
+  const title = surfaceMode === 'daily-driver' ? 'Web Browser' : (config?.productName || 'TAHAI Web Services Browser');
+  document.title = title;
+  const currentStatus = (statusText.textContent || '').trim();
+  if (!currentStatus || currentStatus === 'TAHAI Web Services Browser' || currentStatus === 'Web Browser') statusText.textContent = title;
+  document.dispatchEvent(new CustomEvent(PASS351_BROWSER_SURFACE_MODE_CHANGE_EVENT, {
+    detail: { surfaceMode, showWorkbenchChrome }
+  }));
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('pass351-browser-surface-mode');
+}
+
 function applyUiSettings(): void {
   statusBar.hidden = settings?.ui?.showStatusBar === false;
+  pass351ApplyBrowserSurfaceMode();
 }
 
 let pass192TitlebarChromeMounted = false;
@@ -7019,8 +7080,39 @@ function closeMissionControl(restoreFocus = false): void {
   if (document.body.dataset.pass117ActiveFocusScope === 'mission-control') delete document.body.dataset.pass117ActiveFocusScope;
   if (document.body.dataset.pass116ActiveOverlay === 'mission-control') pass118ClearChromeOverlayState('explicit-close', 'mission-control');
   if (missionDialog.open) missionDialog.close();
+  pass341RestoreNormalBrowsingFromMissionControl('mission-control-close');
   if (restoreFocus) pass170RestoreFocusToOpener('mission-control', pass117MissionControlOpener || missionControlButton);
   pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('mission-control-close');
+}
+
+function pass341RestoreNormalBrowsingFromMissionControl(reason = 'mission-control-close'): void {
+  pass70ClearTransientMissionPaneUiState();
+  pass76HideMissionPaneMoveLayer();
+  if (!currentMission) {
+    document.body.dataset.pass341MissionControlNormalMode = `${reason}:no-active-mission`;
+    renderMissionLayout();
+    return;
+  }
+  const previousLayout = currentMission.layout?.type || 'single';
+  if (previousLayout !== 'single') {
+    currentMission.layout.type = 'single';
+    currentMission.layout.activePaneId = 'pane-1';
+    currentMission.updatedAt = new Date().toISOString();
+    document.body.dataset.pass341MissionControlNormalMode = `${reason}:${previousLayout}->single`;
+    renderMissionControl();
+    renderMissionLayout();
+    document.dispatchEvent(new CustomEvent('mission-layout-change', {
+      detail: {
+        source: 'pass341',
+        reason,
+        layout: 'single',
+        previousLayout
+      }
+    }));
+    return;
+  }
+  document.body.dataset.pass341MissionControlNormalMode = `${reason}:single`;
+  renderMissionLayout();
 }
 
 function pass128UpdateMissionViewportMode(reason = 'open'): void {
@@ -9128,7 +9220,7 @@ function restoreSessionRecoverySnapshot(quietEmpty = false): boolean {
 }
 
 function configuredStartupUrl(): string {
-  if (settings?.startup === 'launchpad') return config?.newTabUrl || config?.homeUrl || 'https://tahaiportal.com';
+  if (settings?.startup === 'launchpad') return pass351PreferredNewTabUrl();
   return settings?.homeUrl || config?.homeUrl || 'https://tahaiportal.com';
 }
 
@@ -9291,7 +9383,7 @@ function runFindInPage(forward = true, findNext = true): void {
 
 function runBrowserKitAction(action: string, detail?: DOMStringMap): void {
   switch (action) {
-    case 'new-tab': closeToolMenus(undefined, false); createTab(config.newTabUrl); break;
+    case 'new-tab': closeToolMenus(undefined, false); createTab(pass351PreferredNewTabUrl()); break;
     case 'close-tab': {
       const targetTabId = pass343ActiveTarget('browser-kit')?.id || activeTabId;
       closeToolMenus(undefined, false);
@@ -12440,6 +12532,8 @@ function populateSettingsForm(): void {
   settingSearch.value = settings.searchProvider;
   settingDefaultZoom.value = String(settings.ui?.defaultZoomPercent || 100);
   settingDefaultZoomRange.value = String(settings.ui?.defaultZoomPercent || 100);
+  settingSurfaceMode.value = settings.ui?.surfaceMode === 'daily-driver' ? 'daily-driver' : 'tahai-workbench';
+  settingShowWorkbenchTools.checked = settings.ui?.showWorkbenchTools !== false;
   settingMedia.checked = settings.permissions.allowMedia;
   settingClipboard.checked = settings.permissions.allowClipboardRead;
   settingGeolocation.checked = settings.permissions.allowGeolocation;
@@ -12485,7 +12579,9 @@ function settingsFromForm(): BrowserSettings {
       allowPopupsAsTabs: settingPopupsAsTabs.checked,
       defaultZoomPercent: pass349ClampedZoomPercent(settingDefaultZoom.value),
       launchToMaximized: settingLaunchMaximized.checked,
-      confirmBeforeClosingMultipleTabs: settingConfirmCloseMultiTab.checked
+      confirmBeforeClosingMultipleTabs: settingConfirmCloseMultiTab.checked,
+      surfaceMode: settingSurfaceMode.value === 'daily-driver' ? 'daily-driver' : 'tahai-workbench',
+      showWorkbenchTools: settingShowWorkbenchTools.checked
     },
     privacy: {
       ...settings.privacy,
@@ -12538,6 +12634,8 @@ function pass349ManagedSettingLocked(key: string): boolean {
     case 'ui.defaultZoomPercent': return typeof locked?.ui?.defaultZoomPercent === 'number';
     case 'ui.launchToMaximized': return typeof locked?.ui?.launchToMaximized === 'boolean';
     case 'ui.confirmBeforeClosingMultipleTabs': return typeof locked?.ui?.confirmBeforeClosingMultipleTabs === 'boolean';
+    case 'ui.surfaceMode': return typeof locked?.ui?.surfaceMode === 'string';
+    case 'ui.showWorkbenchTools': return typeof locked?.ui?.showWorkbenchTools === 'boolean';
     case 'privacy.sendDoNotTrack': return typeof locked?.privacy?.sendDoNotTrack === 'boolean';
     case 'privacy.blockThirdPartyCookies': return typeof locked?.privacy?.blockThirdPartyCookies === 'boolean';
     case 'privacy.reduceCrossSiteReferrers': return typeof locked?.privacy?.reduceCrossSiteReferrers === 'boolean';
@@ -12572,6 +12670,8 @@ function applySettingsManagedState(): void {
   pass349MarkManagedSetting(settingSearch, pass349ManagedSettingLocked('searchProvider'));
   pass349MarkManagedSetting(settingDefaultZoom, pass349ManagedSettingLocked('ui.defaultZoomPercent'));
   pass349MarkManagedSetting(settingDefaultZoomRange, pass349ManagedSettingLocked('ui.defaultZoomPercent'));
+  pass349MarkManagedSetting(settingSurfaceMode, pass349ManagedSettingLocked('ui.surfaceMode'));
+  pass349MarkManagedSetting(settingShowWorkbenchTools, pass349ManagedSettingLocked('ui.showWorkbenchTools'));
   settingDefaultZoomRange.disabled = settingDefaultZoom.disabled;
   pass349MarkManagedSetting(settingMedia, pass349ManagedSettingLocked('permissions.allowMedia'));
   pass349MarkManagedSetting(settingClipboard, pass349ManagedSettingLocked('permissions.allowClipboardRead'));
@@ -14666,7 +14766,7 @@ function pass195OperatorWalkthroughUrl(): string {
 }
 
 function handleMenuCommand(command: string): void {
-  if (command === 'new-tab') createTab(config.newTabUrl);
+  if (command === 'new-tab') createTab(pass351PreferredNewTabUrl());
   if (command === 'close-tab') closeTab(activeTabId);
   if (command === 'settings') openSettings();
   if (command === 'command-palette') openCommandPalette();
@@ -15139,7 +15239,7 @@ bindStableToolCardAction(devAuditButton, openDeveloperAudit);
 bindStableToolCardAction(opsGuardButton, openOpsGuardReview);
 bindStableToolCardAction(devtoolsButton, toggleActiveDevTools);
 aboutButton.addEventListener('click', () => { closeToolMenus(undefined, false); navigate(config.aboutUrl); });
-newTabButton.addEventListener('click', () => { closeToolMenus(undefined, false); createTab(config.newTabUrl); });
+newTabButton.addEventListener('click', () => { closeToolMenus(undefined, false); createTab(pass351PreferredNewTabUrl()); });
 document.addEventListener('click', () => closeToolMenus());
 window.addEventListener(PASS193_BOOKMARK_MISSION_EVENT_NAME, (event) => {
   const rawDetail = (event as CustomEvent<BookmarkFolderMissionDetail>).detail || {};
@@ -15491,7 +15591,7 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowRight') { event.preventDefault(); swapActiveMissionPane(1); }
   if (event.ctrlKey && event.key.toLowerCase() === 'l') { event.preventDefault(); addressInput.focus(); addressInput.select(); }
   if (event.ctrlKey && event.key.toLowerCase() === 'r') { event.preventDefault(); reloadTarget('shortcut'); }
-  if (event.ctrlKey && event.key.toLowerCase() === 't') { event.preventDefault(); createTab(config.newTabUrl); }
+  if (event.ctrlKey && event.key.toLowerCase() === 't') { event.preventDefault(); createTab(pass351PreferredNewTabUrl()); }
   if (event.ctrlKey && event.key.toLowerCase() === 'w') { event.preventDefault(); closeTab(activeTabId); }
   if (event.ctrlKey && event.key === ',') { event.preventDefault(); openSettings(); }
   if (event.ctrlKey && event.key === '/') { event.preventDefault(); openKeyboardShortcuts(); }
@@ -15619,11 +15719,15 @@ function pass158RuntimeE2eHitTargetDetail(selector: string): string {
   ].join(' ; ');
 }
 
+function pass158RuntimeE2eHitTargetSummary(selectors: string[]): string {
+  return selectors.map((selector) => `${selector} => ${pass158RuntimeE2eHitTargetDetail(selector)}`).join(' || ');
+}
+
 async function pass158RuntimeE2eClick(selector: string): Promise<void> {
   const element = pass158RuntimeE2eElement(selector);
   if (!pass158RuntimeE2eElementVisible(selector)) throw new Error(`Runtime E2E selector is not visible: ${selector}`);
   if (element instanceof HTMLButtonElement && element.disabled) throw new Error(`Runtime E2E selector is disabled: ${selector}`);
-  element.scrollIntoView({ block: 'center', inline: 'center' });
+  element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   if ('focus' in element) element.focus({ preventScroll: true });
   await new Promise((resolve) => window.setTimeout(resolve, 16));
   if (!await pass158RuntimeE2eWaitFor(() => pass158RuntimeE2eElementHitTargetReady(selector), 1800)) {
@@ -15639,17 +15743,48 @@ async function pass158RuntimeE2eClickShellControl(id: string): Promise<'toolbar'
     await pass158RuntimeE2eClick(directSelector);
     return 'toolbar';
   }
+  if (id === 'onboarding' && pass158RuntimeE2eElementVisible('#toolbar-guide-quick')) {
+    await pass158RuntimeE2eClick('#toolbar-guide-quick');
+    return 'guide-quick' as 'toolbar';
+  }
   if (!pass158RuntimeE2eElementVisible('#toolbar-overflow-toggle')) {
     throw new Error(`Runtime E2E shell control is hidden and More Tools is unavailable: #${id}`);
   }
   if (!pass158RuntimeE2eElementVisible('#toolbar-overflow-menu')) {
+    const toggleReady = await pass158RuntimeE2eWaitFor(() => (
+      pass158RuntimeE2eElementHitTargetReady('#toolbar-overflow-toggle')
+      || pass158RuntimeE2eElementHitTargetReady(directSelector)
+    ), 5000);
+    if (!toggleReady) {
+      throw new Error(`Runtime E2E More Tools opener is not ready for shell control: #${id} :: ${pass158RuntimeE2eHitTargetSummary([directSelector, '#toolbar-overflow-toggle'])}`);
+    }
+    if (pass158RuntimeE2eElementHitTargetReady(directSelector)) {
+      await pass158RuntimeE2eClick(directSelector);
+      return 'toolbar';
+    }
     await pass158RuntimeE2eClick('#toolbar-overflow-toggle');
     const menuOpened = await pass158RuntimeE2eWaitFor(() => pass158RuntimeE2eElementVisible('#toolbar-overflow-menu'), 5000);
     if (!menuOpened) throw new Error(`More Tools did not open for runtime E2E shell control: #${id}`);
   }
+  if (pass158RuntimeE2eElementVisible(directSelector)) {
+    await pass158RuntimeE2eClick(directSelector);
+    return 'toolbar';
+  }
+  if (id === 'onboarding' && pass158RuntimeE2eElementVisible('#toolbar-guide-quick')) {
+    await pass158RuntimeE2eClick('#toolbar-guide-quick');
+    return 'guide-quick' as 'toolbar';
+  }
   const overflowSelector = `#toolbar-overflow-items > #${id}`;
-  if (!pass158RuntimeE2eElementVisible(overflowSelector)) {
-    throw new Error(`Runtime E2E overflow shell control is not visible: ${overflowSelector}`);
+  const overflowReady = await pass158RuntimeE2eWaitFor(() => (
+    pass158RuntimeE2eElementHitTargetReady(overflowSelector)
+    || (pass158RuntimeE2eElementVisible(directSelector) && !document.getElementById(id)?.classList.contains('in-toolbar-overflow'))
+  ), 5000);
+  if (!overflowReady) {
+    throw new Error(`Runtime E2E overflow shell control is not ready: ${overflowSelector} :: ${pass158RuntimeE2eHitTargetSummary([directSelector, overflowSelector, '#toolbar-overflow-toggle'])}`);
+  }
+  if (pass158RuntimeE2eElementVisible(directSelector) && !document.getElementById(id)?.classList.contains('in-toolbar-overflow')) {
+    await pass158RuntimeE2eClick(directSelector);
+    return 'toolbar';
   }
   await pass158RuntimeE2eClick(overflowSelector);
   return 'more-tools';
@@ -15940,7 +16075,7 @@ function installPass158RuntimeE2eHarness(): void {
         await pass158RuntimeE2eClick('#close-mission');
         if (!await pass158RuntimeE2eWaitFor(() => !missionDialog.open, 2000)) throw new Error('Mission Control did not close back to normal browsing after active-pane routing');
         const clickability = pass341NormalBrowserAndFeatureClickabilityCloseout('pass158-active-pane-routing');
-        if (clickability.status !== 'PASS') throw new Error('normal browsing did not recover after Mission Control close');
+        if (clickability.status !== 'PASS') throw new Error('normal browsing did not recover after Mission Control close :: ' + (clickability.blockedChromeControls.slice(0, 5).join(' | ') || 'unknown blocker') + ' :: ' + pass158RuntimeE2eHitTargetSummary(['#back', '#forward', '#reload', '#home']));
         return 'pane send controls, focus controls, and active-pane marker are present, then Mission Control restores normal browsing';
       }, 12000);
 
@@ -16028,7 +16163,7 @@ function installPass158RuntimeE2eHarness(): void {
         if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 1200)) throw new Error('Command Palette did not close');
 
         const clickability = pass341NormalBrowserAndFeatureClickabilityCloseout('pass158-shell-overlays-open-close');
-        if (clickability.status !== 'PASS') throw new Error('shell clickability degraded after overlay open/close cycle');
+        if (clickability.status !== 'PASS') throw new Error('shell clickability degraded after overlay open/close cycle :: ' + (clickability.blockedChromeControls.slice(0, 5).join(' | ') || 'unknown blocker') + ' :: ' + pass158RuntimeE2eHitTargetSummary(['#back', '#forward', '#reload', '#home', '#profile-switcher', '#toolbar-overflow-toggle']));
         return 'DevOps, IT, Browser Kit, Find, Ops Panel, Settings, Profiles, and Command Palette open and close cleanly';
       }, 30000);
 
@@ -16080,7 +16215,7 @@ function installPass158RuntimeE2eHarness(): void {
         await pass158RuntimeE2eClick('#close-ops-hub');
         if (!await pass158RuntimeE2eWaitFor(() => opsHub.hidden, 1600)) throw new Error('Ops Panel did not close after action-card checks');
         const clickability = pass341NormalBrowserAndFeatureClickabilityCloseout('pass158-tool-card-dialog-actions');
-        if (clickability.status !== 'PASS') throw new Error('normal browsing did not recover after tool-card dialog actions');
+        if (clickability.status !== 'PASS') throw new Error('normal browsing did not recover after tool-card dialog actions :: ' + (clickability.blockedChromeControls.slice(0, 5).join(' | ') || 'unknown blocker') + ' :: ' + pass158RuntimeE2eHitTargetSummary(['#back', '#forward', '#reload', '#home', '#toolbar-guide-quick', '#toolbar-overflow-toggle']));
         return 'Capture, Ops Check, IT Card, Endpoint, Command Palette, and Shortcuts cards open real surfaces and recover cleanly';
       }, 30000);
 
@@ -17952,7 +18087,12 @@ function pass341IsElementVisible(element: HTMLElement | null | undefined): boole
   const style = window.getComputedStyle(element);
   if (style.display === 'none' || style.visibility === 'hidden' || style.pointerEvents === 'none') return false;
   const rect = element.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0;
+  return rect.width > 0
+    && rect.height > 0
+    && rect.right > 0
+    && rect.bottom > 0
+    && rect.left < window.innerWidth
+    && rect.top < window.innerHeight;
 }
 
 function pass341RectLabel(rect: DOMRect | undefined | null): string {
@@ -18047,6 +18187,24 @@ function pass341NormalizeMissionResidue(reason: string): number {
   return count;
 }
 
+function pass341NormalizeDocumentViewport(reason: string): void {
+  document.documentElement.style.overflowX = 'hidden';
+  document.documentElement.style.overflowY = 'hidden';
+  document.body.style.overflowX = 'hidden';
+  document.body.style.overflowY = 'hidden';
+  document.documentElement.scrollLeft = 0;
+  document.documentElement.scrollTop = 0;
+  document.body.scrollLeft = 0;
+  document.body.scrollTop = 0;
+  const toolbar = document.querySelector<HTMLElement>('.toolbar');
+  if (toolbar) {
+    toolbar.scrollLeft = 0;
+    toolbar.scrollTop = 0;
+  }
+  if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+  document.body.dataset.pass341ViewportNormalized = reason;
+}
+
 function pass341NormalizeWebviewStage(reason: string): void {
   if (!stageEl) return;
   stageEl.style.position = 'relative';
@@ -18102,6 +18260,7 @@ function pass341ProbeChromeControls(reason: string): Pass341ClickabilityReport {
 }
 
 function pass341NormalBrowserAndFeatureClickabilityCloseout(reason = 'manual'): Pass341ClickabilityReport {
+  pass341NormalizeDocumentViewport(reason);
   const chromeControls = pass341NormalizeChromeControls(reason);
   const normalizedHiddenOverlays = pass341NormalizeHiddenOverlays(reason);
   const normalizedMissionResidue = pass341NormalizeMissionResidue(reason);
@@ -18135,7 +18294,7 @@ function pass341RunPrimaryFeatureAction(controlId: string): boolean {
     case 'ops-hub-toggle': toggleOpsHub(); return true;
     case 'mission-control-toggle': void openMissionControl(); return true;
     case 'settings': closeToolMenus(undefined, false); openSettings(); return true;
-    case 'new-tab': closeToolMenus(undefined, false); createTab(config?.newTabUrl || 'https://tahaiportal.com/'); return true;
+    case 'new-tab': closeToolMenus(undefined, false); createTab(pass351PreferredNewTabUrl()); return true;
     case 'capture': runToolFromMenu(openDevOpsCapture); return true;
     case 'ops-check': runToolFromMenu(openOpsCheck); return true;
     case 'deploy': runToolFromMenu(openDeployReadiness); return true;

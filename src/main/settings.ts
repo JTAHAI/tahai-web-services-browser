@@ -9,6 +9,7 @@ export const DEFAULT_HOME_URL = 'https://tahaiportal.com';
 
 export type SearchProvider = 'google' | 'duckduckgo' | 'bing' | 'brave' | 'startpage';
 export type StartupMode = 'home' | 'launchpad' | 'restore-session';
+export type BrowserSurfaceMode = 'tahai-workbench' | 'daily-driver';
 
 export type TahaiBrowserSettings = {
   homeUrl: string;
@@ -32,6 +33,8 @@ export type TahaiBrowserSettings = {
     defaultZoomPercent: number;
     launchToMaximized: boolean;
     confirmBeforeClosingMultipleTabs: boolean;
+    surfaceMode: BrowserSurfaceMode;
+    showWorkbenchTools: boolean;
   };
   privacy: {
     sendDoNotTrack: boolean;
@@ -66,7 +69,9 @@ export const DEFAULT_BROWSER_SETTINGS: TahaiBrowserSettings = {
     allowPopupsAsTabs: true,
     defaultZoomPercent: 100,
     launchToMaximized: false,
-    confirmBeforeClosingMultipleTabs: false
+    confirmBeforeClosingMultipleTabs: false,
+    surfaceMode: 'tahai-workbench',
+    showWorkbenchTools: true
   },
   privacy: {
     sendDoNotTrack: true,
@@ -93,6 +98,12 @@ function cleanSearchProvider(value: unknown): SearchProvider {
 
 function cleanStartup(value: unknown): StartupMode {
   return value === 'launchpad' || value === 'restore-session' || value === 'home' ? value : DEFAULT_BROWSER_SETTINGS.startup;
+}
+
+function cleanSurfaceMode(value: unknown): BrowserSurfaceMode {
+  return value === 'daily-driver' || value === 'tahai-workbench'
+    ? value
+    : DEFAULT_BROWSER_SETTINGS.ui.surfaceMode;
 }
 
 function cleanBoolean(value: unknown, fallback: boolean): boolean {
@@ -137,7 +148,9 @@ export function sanitizeSettings(value: unknown): TahaiBrowserSettings {
       allowPopupsAsTabs: cleanBoolean(rawUi.allowPopupsAsTabs, DEFAULT_BROWSER_SETTINGS.ui.allowPopupsAsTabs),
       defaultZoomPercent: cleanZoomPercent(rawUi.defaultZoomPercent, DEFAULT_BROWSER_SETTINGS.ui.defaultZoomPercent),
       launchToMaximized: cleanBoolean(rawUi.launchToMaximized, DEFAULT_BROWSER_SETTINGS.ui.launchToMaximized),
-      confirmBeforeClosingMultipleTabs: cleanBoolean(rawUi.confirmBeforeClosingMultipleTabs, DEFAULT_BROWSER_SETTINGS.ui.confirmBeforeClosingMultipleTabs)
+      confirmBeforeClosingMultipleTabs: cleanBoolean(rawUi.confirmBeforeClosingMultipleTabs, DEFAULT_BROWSER_SETTINGS.ui.confirmBeforeClosingMultipleTabs),
+      surfaceMode: cleanSurfaceMode(rawUi.surfaceMode),
+      showWorkbenchTools: cleanBoolean(rawUi.showWorkbenchTools, DEFAULT_BROWSER_SETTINGS.ui.showWorkbenchTools)
     },
     privacy: {
       sendDoNotTrack: cleanBoolean(rawPrivacy.sendDoNotTrack, DEFAULT_BROWSER_SETTINGS.privacy.sendDoNotTrack),

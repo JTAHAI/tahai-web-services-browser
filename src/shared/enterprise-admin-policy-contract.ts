@@ -59,6 +59,8 @@ export type EnterpriseAdminLockedSettings = {
     defaultZoomPercent?: number;
     launchToMaximized?: boolean;
     confirmBeforeClosingMultipleTabs?: boolean;
+    surfaceMode?: 'tahai-workbench' | 'daily-driver';
+    showWorkbenchTools?: boolean;
   };
   privacy?: {
     sendDoNotTrack?: boolean;
@@ -276,12 +278,14 @@ function cleanLockedSettings(value: unknown): EnterpriseAdminLockedSettings {
   if (typeof blockInsecureDownloads === 'boolean') cleanDownloads.blockInsecureDownloads = blockInsecureDownloads;
   if (Object.keys(cleanDownloads).length) locked.downloads = cleanDownloads;
   const cleanUi: NonNullable<EnterpriseAdminLockedSettings['ui']> = {};
-  for (const key of ['showStatusBar', 'openExternalLinksInNewTab', 'allowPopupsAsTabs', 'launchToMaximized', 'confirmBeforeClosingMultipleTabs'] as const) {
+  for (const key of ['showStatusBar', 'openExternalLinksInNewTab', 'allowPopupsAsTabs', 'launchToMaximized', 'confirmBeforeClosingMultipleTabs', 'showWorkbenchTools'] as const) {
     const next = cleanOptionalBoolean(ui[key]);
     if (typeof next === 'boolean') cleanUi[key] = next;
   }
   const defaultZoomPercent = cleanOptionalZoomPercent(ui.defaultZoomPercent);
   if (typeof defaultZoomPercent === 'number') cleanUi.defaultZoomPercent = defaultZoomPercent;
+  const surfaceMode = cleanEnum(ui.surfaceMode, ['tahai-workbench', 'daily-driver'] as const, 'tahai-workbench');
+  if (typeof ui.surfaceMode === 'string') cleanUi.surfaceMode = surfaceMode;
   if (Object.keys(cleanUi).length) locked.ui = cleanUi;
   const cleanPrivacy: NonNullable<EnterpriseAdminLockedSettings['privacy']> = {};
   for (const key of ['sendDoNotTrack', 'blockThirdPartyCookies', 'reduceCrossSiteReferrers', 'clearProfileDataOnExit'] as const) {

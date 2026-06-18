@@ -16,7 +16,7 @@
   data-pass180-primary-chrome-compact-recovery="true"
   data-pass181-compact-primary-ux-clarity="true"
   data-pass182-compact-hit-target-focus="true"
-  data-pass183-more-tools-overlay-collision-recovery="true" data-pass184-hidden-more-tools-focus-recovery="true" data-pass185-mouse-history-parity="true" data-pass192-titlebar-chrome-final="true" data-pass343-it-devops-priority-browser-kit="true" data-pass346-browser-history-session-daily-driver="true" data-pass347-browser-tab-daily-driver="true" data-pass350-settings-daily-driver-safe-surface="true">
+  data-pass183-more-tools-overlay-collision-recovery="true" data-pass184-hidden-more-tools-focus-recovery="true" data-pass185-mouse-history-parity="true" data-pass192-titlebar-chrome-final="true" data-pass343-it-devops-priority-browser-kit="true" data-pass346-browser-history-session-daily-driver="true" data-pass347-browser-tab-daily-driver="true" data-pass350-settings-daily-driver-safe-surface="true" data-pass351-daily-driver-surface-toggle="true">
   <section id="boot-diagnostic" class="boot-diagnostic" aria-live="assertive">
     <div>
       <p class="eyebrow">TAHAI Browser Runtime Diagnostic</p>
@@ -395,12 +395,15 @@
             <div><strong>Shell</strong><span>Browser chrome, launch behavior, and safe handoff routing</span></div>
           </header>
           <div class="settings-check-grid">
+            <label class="field wide"><span>Browser surface</span><select id="setting-surface-mode"><option value="tahai-workbench">TAHAI workbench</option><option value="daily-driver">Daily-driver browser</option></select></label>
+            <label class="check"><input id="setting-show-workbench-tools" type="checkbox" /> Show TAHAI workbench buttons in the main toolbar</label>
             <label class="check"><input id="setting-statusbar" type="checkbox" /> Show status bar</label>
             <label class="check"><input id="setting-popups-as-tabs" type="checkbox" /> Open popups as new TAHAI tabs</label>
             <label class="check"><input id="setting-open-external-in-tab" type="checkbox" /> Keep safe external handoffs inside new TAHAI tabs</label>
             <label class="check"><input id="setting-launch-maximized" type="checkbox" /> Launch maximized next time</label>
             <label class="check"><input id="setting-confirm-close-multi-tab" type="checkbox" /> Confirm before closing when multiple tabs are open</label>
           </div>
+          <p class="settings-card-note">Daily-driver mode hides TAHAI branding from the shell chrome. Workbench buttons can be tucked away for a cleaner browser feel without weakening security or removing the underlying tools from this install.</p>
         </article>
         <article class="settings-section-card">
           <header class="settings-section-head">
