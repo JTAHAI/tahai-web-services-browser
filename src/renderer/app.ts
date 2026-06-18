@@ -15687,6 +15687,10 @@ function pass158RuntimeE2eHitTargetDetail(selector: string): string {
   if (!element) return `missing=${selector}`;
   const style = window.getComputedStyle(element);
   const rect = element.getBoundingClientRect();
+  const overflowMenu = element.closest<HTMLElement>('#toolbar-overflow-menu');
+  const overflowHost = element.closest<HTMLElement>('#toolbar-overflow-items');
+  const overflowMenuRect = overflowMenu?.getBoundingClientRect();
+  const overflowHostRect = overflowHost?.getBoundingClientRect();
   const points = [
     { label: 'center', x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
     { label: 'top-left', x: rect.left + 8, y: rect.top + 8 },
@@ -15715,6 +15719,15 @@ function pass158RuntimeE2eHitTargetDetail(selector: string): string {
     `activeOverlay=${document.body.dataset.pass116ActiveOverlay || 'none'}`,
     `focusScope=${document.body.dataset.pass117ActiveFocusScope || 'none'}`,
     `openDialogs=${openDialogs || 'none'}`,
+    `inlineStyle=${element.getAttribute('style') || 'none'}`,
+    `computedWidth=${style.width}`,
+    `overflowParent=${pass341ElementLabel(element.parentElement)}`,
+    `overflowMenuRect=${overflowMenuRect ? pass341RectLabel(overflowMenuRect) : 'none'}`,
+    `overflowHostRect=${overflowHostRect ? pass341RectLabel(overflowHostRect) : 'none'}`,
+    `overflowHostScroll=${overflowHost ? `${overflowHost.scrollLeft},${overflowHost.scrollTop}` : 'none'}`,
+    `moreToolsClamp=${document.body.dataset.pass352MoreToolsViewportClamp || 'none'}`,
+    `moreToolsClampRect=${document.body.dataset.pass352MoreToolsViewportRect || 'none'}`,
+    `toolbarLayout=${document.body.dataset.pass352ToolbarLayoutSignature || 'none'}`,
     hits
   ].join(' ; ');
 }
@@ -15737,9 +15750,14 @@ async function pass158RuntimeE2eClick(selector: string): Promise<void> {
   await new Promise((resolve) => window.setTimeout(resolve, 80));
 }
 
+function pass158RuntimeE2eShellControlInOverflow(id: string): boolean {
+  const element = document.getElementById(id);
+  return Boolean(element?.classList.contains('in-toolbar-overflow') || element?.parentElement?.id === 'toolbar-overflow-items');
+}
+
 async function pass158RuntimeE2eClickShellControl(id: string): Promise<'toolbar' | 'more-tools'> {
   const directSelector = `#${id}`;
-  if (pass158RuntimeE2eElementVisible(directSelector)) {
+  if (pass158RuntimeE2eElementVisible(directSelector) && !pass158RuntimeE2eShellControlInOverflow(id)) {
     await pass158RuntimeE2eClick(directSelector);
     return 'toolbar';
   }
@@ -15758,7 +15776,7 @@ async function pass158RuntimeE2eClickShellControl(id: string): Promise<'toolbar'
     if (!toggleReady) {
       throw new Error(`Runtime E2E More Tools opener is not ready for shell control: #${id} :: ${pass158RuntimeE2eHitTargetSummary([directSelector, '#toolbar-overflow-toggle'])}`);
     }
-    if (pass158RuntimeE2eElementHitTargetReady(directSelector)) {
+    if (pass158RuntimeE2eElementHitTargetReady(directSelector) && !pass158RuntimeE2eShellControlInOverflow(id)) {
       await pass158RuntimeE2eClick(directSelector);
       return 'toolbar';
     }
@@ -15766,7 +15784,7 @@ async function pass158RuntimeE2eClickShellControl(id: string): Promise<'toolbar'
     const menuOpened = await pass158RuntimeE2eWaitFor(() => pass158RuntimeE2eElementVisible('#toolbar-overflow-menu'), 5000);
     if (!menuOpened) throw new Error(`More Tools did not open for runtime E2E shell control: #${id}`);
   }
-  if (pass158RuntimeE2eElementVisible(directSelector)) {
+  if (pass158RuntimeE2eElementVisible(directSelector) && !pass158RuntimeE2eShellControlInOverflow(id)) {
     await pass158RuntimeE2eClick(directSelector);
     return 'toolbar';
   }
@@ -15777,12 +15795,12 @@ async function pass158RuntimeE2eClickShellControl(id: string): Promise<'toolbar'
   const overflowSelector = `#toolbar-overflow-items > #${id}`;
   const overflowReady = await pass158RuntimeE2eWaitFor(() => (
     pass158RuntimeE2eElementHitTargetReady(overflowSelector)
-    || (pass158RuntimeE2eElementVisible(directSelector) && !document.getElementById(id)?.classList.contains('in-toolbar-overflow'))
+    || (pass158RuntimeE2eElementVisible(directSelector) && !pass158RuntimeE2eShellControlInOverflow(id))
   ), 5000);
   if (!overflowReady) {
     throw new Error(`Runtime E2E overflow shell control is not ready: ${overflowSelector} :: ${pass158RuntimeE2eHitTargetSummary([directSelector, overflowSelector, '#toolbar-overflow-toggle'])}`);
   }
-  if (pass158RuntimeE2eElementVisible(directSelector) && !document.getElementById(id)?.classList.contains('in-toolbar-overflow')) {
+  if (pass158RuntimeE2eElementVisible(directSelector) && !pass158RuntimeE2eShellControlInOverflow(id)) {
     await pass158RuntimeE2eClick(directSelector);
     return 'toolbar';
   }

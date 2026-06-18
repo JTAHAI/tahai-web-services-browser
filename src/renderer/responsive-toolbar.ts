@@ -54,6 +54,7 @@
   const PASS177_MAX_CHROME_VIEWPORT_SHARE = 0.38;
   const PASS178_VIEWPORT_BUDGET_AUDIT_DELAYS_MS = [0, 90, 260, 760];
   const PASS178_VIEWPORT_OBSERVER_RELAYOUT_COOLDOWN_MS = 180;
+  const PASS352_RELAYOUT_EPSILON_PX = 4;
   const PASS179_OVERFLOW_COUNT_BADGE_ID = 'toolbar-overflow-count';
   const PASS180_PRIMARY_COMPACT_WIDTH_PX = 980;
   const PASS181_COMPACT_UX_SUMMARY_ID = 'toolbar-compact-ux-summary';
@@ -116,12 +117,14 @@
   let pass183OverlayCollisionObserver: MutationObserver | null = null;
   let pass183OverlayCollisionTimer = 0;
   let pass184HiddenMenuFocusRepairTimer = 0;
+  let pass352LastLayoutSignature = '';
 
   function byId<T extends HTMLElement>(id: string): T | null { return document.getElementById(id) as T | null; }
   function setStatus(message: string): void { const status = byId<HTMLElement>('status-text'); if (status) status.textContent = message; }
   function pass351OverflowItemVisible(item: ManagedItem): boolean {
     if (item.element.hidden) return false;
-    if (item.element.closest('[hidden]')) return false;
+    const hiddenAncestor = item.element.closest<HTMLElement>('[hidden]');
+    if (hiddenAncestor && hiddenAncestor !== menuEl) return false;
     return true;
   }
   function pass351ViewportReachable(element: HTMLElement | null): boolean {
@@ -140,6 +143,15 @@
     if (buttonEl && !buttonEl.hidden && !pass351ViewportReachable(buttonEl)) return false;
     if (guideQuickEl && !guideQuickEl.hidden && !pass351ViewportReachable(guideQuickEl)) return false;
     return true;
+  }
+  function pass352SetOverflowAnchorReserved(reserved: boolean): void {
+    if (!buttonEl) return;
+    buttonEl.hidden = false;
+    buttonEl.dataset.pass352OverflowAnchorReserved = reserved ? 'true' : 'false';
+  }
+  function pass352StableToolbarOverflow(toolbar: HTMLElement | null): boolean {
+    if (!toolbar) return false;
+    return toolbar.scrollWidth > toolbar.clientWidth + PASS352_RELAYOUT_EPSILON_PX || addressWidth() < PASS113_MIN_ADDRESS_WIDTH;
   }
 
   function pass174Clamp(value: number, min: number, max: number): number { return Math.min(max, Math.max(min, value)); }
@@ -361,7 +373,7 @@
     }
     pass178ViewportMutationObserver = new MutationObserver(() => {
       for (const node of pass178ViewportBudgetNodes()) pass178ViewportBudgetObserver?.observe(node);
-      pass178ScheduleViewportBudgetAudit('chrome-mutation', 80);
+      pass178ScheduleViewportBudgetAudit('chrome-mutation', 120);
     });
     pass178ViewportMutationObserver.observe(document.body, { attributes: true, childList: true, subtree: false, attributeFilter: ['class', 'style', 'hidden', 'data-command-toolbar'] });
     const appShell = document.querySelector<HTMLElement>('.app-shell');
@@ -863,6 +875,9 @@
     buttonEl.setAttribute('aria-expanded', String(!menuEl.hidden));
     pass117SetMenuFocusOpen(!menuEl.hidden);
     if (!menuEl.hidden) {
+      pass352ClampMoreToolsViewport('toggle-open');
+      requestAnimationFrame(() => pass352ClampMoreToolsViewport('toggle-open-raf'));
+      window.setTimeout(() => pass352ClampMoreToolsViewport('toggle-open-settle'), 80);
       pass117FocusFirstMenuItem();
       pass183ScheduleMoreToolsOverlayCollisionAudit('more-tools-open', 0);
     } else closeMenu({ restoreFocus: true });
@@ -892,6 +907,49 @@
     }
     document.body.dataset.pass351MoreToolsScrollReset = reason;
   }
+  function pass352ClampMoreToolsViewport(reason: string): void {
+    if (!menuEl || menuEl.hidden) return;
+    const viewportWidth = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+    const viewportHeight = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+    const margin = 14;
+    const width = Math.max(280, Math.min(420, viewportWidth - margin * 2));
+    const top = Math.min(Math.max(margin, chromeStackTop()), Math.max(margin, viewportHeight - 120));
+    menuEl.style.width = `${Math.round(width)}px`;
+    menuEl.style.maxWidth = `calc(100vw - ${margin * 2}px)`;
+    menuEl.style.top = `${Math.round(top)}px`;
+    menuEl.style.right = `${margin}px`;
+    menuEl.style.left = 'auto';
+    menuEl.style.zIndex = '2147483200';
+    const rect = menuEl.getBoundingClientRect();
+    if (rect.left < margin || rect.right > viewportWidth - margin) {
+      const left = Math.max(margin, Math.min(viewportWidth - rect.width - margin, viewportWidth - width - margin));
+      menuEl.style.left = `${Math.round(left)}px`;
+      menuEl.style.right = 'auto';
+    }
+    const host = overflowItemsEl();
+    if (host) {
+      host.style.boxSizing = 'border-box';
+      host.style.width = '100%';
+      host.style.minWidth = '0';
+      host.style.maxWidth = '100%';
+      host.style.overflowX = 'hidden';
+      host.querySelectorAll<HTMLElement>(':scope > .in-toolbar-overflow').forEach((element) => {
+        element.style.boxSizing = 'border-box';
+        element.style.position = 'relative';
+        element.style.left = 'auto';
+        element.style.right = 'auto';
+        element.style.transform = 'none';
+        element.style.marginLeft = '0';
+        element.style.marginRight = '0';
+        element.style.width = '100%';
+        element.style.minWidth = '0';
+        element.style.maxWidth = '100%';
+      });
+    }
+    const settled = menuEl.getBoundingClientRect();
+    document.body.dataset.pass352MoreToolsViewportClamp = reason;
+    document.body.dataset.pass352MoreToolsViewportRect = `${Math.round(settled.left)},${Math.round(settled.top)},${Math.round(settled.width)},${Math.round(settled.height)}`;
+  }
   function moveToMenu(item: ManagedItem): void {
     const host = overflowItemsEl();
     if (!host || item.element.parentElement === host) return;
@@ -899,6 +957,16 @@
     item.element.dataset.pass113ChromeOverflowState = 'menu';
     item.element.dataset.pass174MoreToolsMenuRole = 'menuitem';
     item.element.setAttribute('role', 'menuitem');
+    item.element.style.boxSizing = 'border-box';
+    item.element.style.position = 'relative';
+    item.element.style.left = 'auto';
+    item.element.style.right = 'auto';
+    item.element.style.transform = 'none';
+    item.element.style.marginLeft = '0';
+    item.element.style.marginRight = '0';
+    item.element.style.width = '100%';
+    item.element.style.minWidth = '0';
+    item.element.style.maxWidth = '100%';
     host.appendChild(item.element);
   }
   function restoreToToolbar(item: ManagedItem): void {
@@ -909,6 +977,16 @@
     delete item.element.dataset.pass174MoreToolsMenuRole;
     if (item.toolbarRole) item.element.setAttribute('role', item.toolbarRole);
     else item.element.removeAttribute('role');
+    item.element.style.removeProperty('box-sizing');
+    item.element.style.removeProperty('position');
+    item.element.style.removeProperty('left');
+    item.element.style.removeProperty('right');
+    item.element.style.removeProperty('transform');
+    item.element.style.removeProperty('margin-left');
+    item.element.style.removeProperty('margin-right');
+    item.element.style.removeProperty('width');
+    item.element.style.removeProperty('min-width');
+    item.element.style.removeProperty('max-width');
     item.marker.parentElement?.insertBefore(item.element, item.marker.nextSibling);
   }
   function sortedItems(): ManagedItem[] {
@@ -931,6 +1009,13 @@
     const sorted = sortedItems();
     const menuIds = new Set(sorted.slice(0, target).map((item) => item.id));
     for (const item of managed) menuIds.has(item.id) ? moveToMenu(item) : restoreToToolbar(item);
+  }
+  function pass352CommitOverflowVisibility(target: number): void {
+    if (!buttonEl) return;
+    buttonEl.hidden = target === 0;
+    buttonEl.dataset.pass352OverflowAnchorReserved = 'false';
+    document.body.dataset.pass352RestoredWindowToolbarStability = 'true';
+    document.body.dataset.pass352ToolbarOverflowAnchor = target > 0 ? 'visible' : 'hidden';
   }
   function pass179UpdateMoreToolsOverflowClarity(target: number, forcedReason: string): void {
     if (!buttonEl) return;
@@ -992,11 +1077,16 @@
     const toolbar = document.querySelector<HTMLElement>('.toolbar');
     const sorted = sortedItems();
     let target = Math.min(sorted.length, targetCountForWidth(window.innerWidth));
+    pass352SetOverflowAnchorReserved(target > 0);
     applyMenuTarget(target);
     if (toolbar) {
       let guard = 0;
-      while ((toolbar.scrollWidth > toolbar.clientWidth + 4 || addressWidth() < PASS113_MIN_ADDRESS_WIDTH) && target < sorted.length && guard < sorted.length) {
-        target += 1; applyMenuTarget(target); guard += 1;
+      while (pass352StableToolbarOverflow(toolbar) && target < sorted.length && guard < sorted.length) {
+        target += 1;
+        pass352SetOverflowAnchorReserved(true);
+        applyMenuTarget(target);
+        if (toolbar) toolbar.scrollLeft = 0;
+        guard += 1;
       }
     }
     const pass177Budget = pass177MeasureWebsitePaneBudget();
@@ -1014,6 +1104,7 @@
     let anchorGuard = 0;
     while (target < sorted.length && !pass351OverflowAnchorsReachViewport() && anchorGuard < sorted.length) {
       target += 1;
+      pass352SetOverflowAnchorReserved(true);
       applyMenuTarget(target);
       updateGuideQuickAnchor();
       if (toolbar) toolbar.scrollLeft = 0;
@@ -1021,7 +1112,8 @@
     }
     pass177MeasureWebsitePaneBudget();
     pass179UpdateMoreToolsOverflowClarity(target, document.body.dataset.pass177ForcedOverflowReason || 'not-needed');
-    buttonEl.hidden = target === 0;
+    pass352CommitOverflowVisibility(target);
+    if (menuEl && !menuEl.hidden) pass352ClampMoreToolsViewport('relayout');
     document.body.classList.toggle('toolbar-overflow-active', target > 0);
     document.body.dataset.toolbarOverflowCount = String(target);
     document.body.dataset.pass113ChromeAddressWidth = String(Math.round(addressWidth()));
@@ -1032,6 +1124,11 @@
     updateChromeStackVars();
     updateGuideQuickAnchor();
     document.body.classList.toggle('toolbar-no-native-scrollbars', true);
+    const signature = `${window.innerWidth}x${window.innerHeight}:${target}:${document.body.dataset.pass180PrimaryChromeCompactMode}:${Math.round(addressWidth())}`;
+    document.body.dataset.pass352ToolbarLayoutSignature = signature;
+    if (signature === pass352LastLayoutSignature) document.body.dataset.pass352ToolbarLayoutStable = 'true';
+    else document.body.dataset.pass352ToolbarLayoutStable = 'settling';
+    pass352LastLayoutSignature = signature;
     if (target === 0) closeMenu({ restoreFocus: false });
     if (target > 0) {
       pass176StabilizeOpenMoreToolsFocus('relayout');

@@ -28,19 +28,30 @@
   position: fixed;
   top: 108px;
   right: 14px;
-  z-index: 140;
+  left: auto;
+  z-index: 2147483200;
   width: min(380px, calc(100vw - 28px));
+  max-width: calc(100vw - 28px);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  box-sizing: border-box;
   gap: 10px;
   padding: 12px;
   border: 1px solid rgba(119,219,255,.30);
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(7,16,31,.99), rgba(2,5,11,.99));
   box-shadow: 0 24px 92px rgba(0,0,0,.74), 0 0 52px rgba(47,143,255,.15);
+  pointer-events: auto;
+  overflow-x: hidden !important;
+  overflow-y: auto;
 }
 .toolbar-overflow-menu[hidden] { display: none; }
 .toolbar-overflow-header {
   display: grid;
+  min-width: 0;
+  width: 100%;
+  justify-self: stretch;
+  box-sizing: border-box;
   gap: 3px;
   padding: 2px 2px 8px;
   border-bottom: 1px solid rgba(119,219,255,.14);
@@ -51,7 +62,14 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  justify-self: stretch;
+  box-sizing: border-box;
+  overflow: hidden;
 }
+#toolbar-overflow-items > .in-toolbar-overflow { max-width: 100%; }
 .toolbar-overflow-menu .home-button, .toolbar-overflow-menu .icon-button {
   width: 100%;
   min-width: 0;
@@ -227,10 +245,11 @@ body[data-command-toolbar="it"] .toolbar {
 }
 
 #browser-kit-panel.tool-menu-panel {
-  position: absolute !important;
+  position: fixed !important;
   left: auto !important;
-  right: 0 !important;
-  top: calc(100% + 10px) !important;
+  right: 14px !important;
+  top: var(--pass114-chrome-stack-top, 96px) !important;
+  z-index: 2147483200 !important;
   width: min(470px, calc(100vw - 28px)) !important;
   max-width: min(470px, calc(100vw - 28px)) !important;
   max-height: min(690px, calc(100vh - 126px)) !important;
@@ -1388,4 +1407,143 @@ body[data-pass184-hidden-more-tools-focus-state="repaired"] #toolbar-overflow-to
 }
 body[data-pass184-hidden-more-tools-focus-state="repaired"] .statusbar {
   box-shadow: inset 0 1px 0 rgba(109,255,183,.12);
+}
+
+/* PASS352 — Restored-window DevOps/IT rail readability.
+   Keep the operator rails fast and horizontal, but stop restored windows from
+   compressing cards into a 94px strip where labels and descriptions become
+   unreadable. Maximized windows keep the denser command-lane feel. */
+@media (max-width: 1500px), (max-height: 860px) {
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit),
+  body[data-pass114-chrome-stack-guard="true"][data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit) {
+    top: var(--pass114-chrome-stack-top, 96px) !important;
+    max-height: min(224px, calc(100dvh - var(--pass114-chrome-stack-top, 112px) - 40px)) !important;
+    min-height: 118px !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 12px 14px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin !important;
+  }
+
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit)::-webkit-scrollbar {
+    display: block !important;
+    width: 8px !important;
+    height: 8px !important;
+  }
+
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit)::-webkit-scrollbar-track {
+    background: rgba(2, 9, 15, .84) !important;
+    border-radius: 999px !important;
+  }
+
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit)::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, rgba(96, 255, 218, .42), rgba(119, 219, 255, .58)) !important;
+    border: 2px solid rgba(2, 9, 15, .84) !important;
+    border-radius: 999px !important;
+  }
+
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit)::-webkit-scrollbar-corner {
+    background: rgba(2, 9, 15, .84) !important;
+  }
+
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit) .tool-menu-header {
+    flex-basis: 198px !important;
+    align-self: stretch !important;
+  }
+
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit) .tool-card {
+    flex-basis: 246px !important;
+    width: 246px !important;
+    min-height: 78px !important;
+    grid-template-columns: minmax(78px, 98px) minmax(0, 1fr) !important;
+    align-content: start !important;
+    gap: 7px !important;
+    padding: 10px 12px !important;
+  }
+
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit) .tool-card strong,
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit) .tool-card kbd,
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit) .tool-card span {
+    min-width: 0 !important;
+  }
+
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit) .tool-card span {
+    -webkit-line-clamp: 3 !important;
+    line-height: 1.25 !important;
+  }
+
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit) .tool-menu-footer {
+    flex-basis: 230px !important;
+  }
+}
+
+@media (max-width: 920px), (max-height: 700px) {
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit),
+  body[data-pass114-chrome-stack-guard="true"][data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit) {
+    max-height: min(270px, calc(100dvh - var(--pass114-chrome-stack-top, 112px) - 28px)) !important;
+    min-height: 132px !important;
+  }
+
+  body[data-pass352-restored-window-toolbar-stability="true"] .tool-menu-panel:not(.browser-kit) .tool-card {
+    flex-basis: 232px !important;
+    width: 232px !important;
+  }
+}
+
+/* PASS352 — More Tools viewport closeout.
+   Moved toolbar controls are menu rows, not toolbar-width artifacts. Keep them
+   inside the fixed More Tools panel so restored-window clicks cannot land on
+   the webview behind the chrome. */
+body[data-pass352-restored-window-toolbar-stability="true"] .toolbar-overflow-menu:not([hidden]),
+body[data-pass352-more-tools-viewport-clamp] .toolbar-overflow-menu:not([hidden]) {
+  grid-template-columns: minmax(0, 1fr) !important;
+  box-sizing: border-box !important;
+  left: auto !important;
+  right: 14px !important;
+  max-width: calc(100vw - 28px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  pointer-events: auto !important;
+}
+
+body[data-pass352-restored-window-toolbar-stability="true"] #toolbar-overflow-items,
+body[data-pass352-more-tools-viewport-clamp] #toolbar-overflow-items {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  justify-self: stretch !important;
+  overflow-x: hidden !important;
+}
+
+body[data-pass352-restored-window-toolbar-stability="true"] #toolbar-overflow-items > .in-toolbar-overflow,
+body[data-pass352-restored-window-toolbar-stability="true"] #toolbar-overflow-items > .utility-chrome-button.in-toolbar-overflow,
+body[data-pass352-restored-window-toolbar-stability="true"] #toolbar-overflow-items > .home-button.in-toolbar-overflow,
+body[data-pass352-more-tools-viewport-clamp] #toolbar-overflow-items > .in-toolbar-overflow,
+body[data-pass352-more-tools-viewport-clamp] #toolbar-overflow-items > .utility-chrome-button.in-toolbar-overflow,
+body[data-pass352-more-tools-viewport-clamp] #toolbar-overflow-items > .home-button.in-toolbar-overflow {
+  box-sizing: border-box !important;
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  transform: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  justify-content: flex-start !important;
+}
+
+body[data-pass352-restored-window-toolbar-stability="true"] #browser-kit-panel.tool-menu-panel:not([hidden]),
+body[data-pass347-browser-tab-daily-driver="true"] #browser-kit-panel.tool-menu-panel:not([hidden]) {
+  position: fixed !important;
+  top: var(--pass114-chrome-stack-top, 96px) !important;
+  right: 14px !important;
+  left: auto !important;
+  z-index: 2147483200 !important;
+  pointer-events: auto !important;
+  -webkit-app-region: no-drag !important;
 }
