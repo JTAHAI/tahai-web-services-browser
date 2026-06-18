@@ -14,6 +14,7 @@ const required = [
   'launch-shell',
   'titlebar-drag',
   'tab-create-close',
+  'tab-pinning-and-switching',
   'launchpad-guide-home-address',
   'mission-control-open',
   'mission-layouts-split-tri-quad-focus',
@@ -21,6 +22,7 @@ const required = [
   'popup-denied',
   'kb-guide-more-tools',
   'shell-overlays-open-close',
+  'tool-card-dialog-actions',
   'evidence-export-preview'
 ];
 

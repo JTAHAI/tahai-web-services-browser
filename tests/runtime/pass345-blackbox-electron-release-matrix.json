@@ -51,6 +51,15 @@
       ]
     },
     {
+      "id": "tool-card-dialog-actions",
+      "assertions": [
+        "DevOps Capture and Ops Check cards open real dialogs",
+        "IT Card and Endpoint cards open real dialogs",
+        "Ops Panel Command Palette and Shortcuts cards open real overlays",
+        "Normal browsing still recovers after tool-card actions"
+      ]
+    },
+    {
       "id": "browser-kit-find-and-guest-click",
       "assertions": [
         "Browser Kit opens and closes",

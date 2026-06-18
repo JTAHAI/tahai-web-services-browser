@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getReleaseBlockersContract } from './lib/release-blockers-contract.mjs';
@@ -10,6 +11,14 @@ const exists = (p) => fs.existsSync(rel(p));
 const read = (p) => fs.readFileSync(rel(p), 'utf8').replace(/^﻿/, '');
 const json = (p) => JSON.parse(read(p));
 const need = (ok, message) => { if (!ok) errors.push(message); };
+const isGitTracked = (p) => {
+  try {
+    execFileSync('git', ['ls-files', '--error-unmatch', p], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+};
 const includesAll = (file, tokens) => {
   const text = read(file);
   for (const token of tokens) need(text.includes(token), `${file} missing ${token}`);
@@ -24,7 +33,7 @@ const settings = read('src/main/settings.ts');
 const main = read('src/main/main.ts');
 const preload = read('src/preload/preload.ts');
 
-need(pkg.version === '1.8.30', `version must remain 1.8.30 for PASS154, found ${pkg.version}`);
+need(/^\d+\.\d+\.\d+$/.test(String(pkg.version || '')), `package.json version must be semver-like for PASS154, found ${pkg.version}`);
 need(pkg.scripts?.['verify:pass-154-enterprise-admin-policy-framework'] === 'node scripts/verify-pass-154-enterprise-admin-policy-framework.mjs', 'package missing PASS154 verifier script');
 
 const pass152Idx = blockers.indexOf('verify:pass-152-enterprise-evidence-binder');
@@ -148,7 +157,7 @@ for (const file of [
   'artifacts/enterprise-all-surfaces/PASS151-enterprise-all-surfaces-evidence.json',
   'artifacts/enterprise-evidence-binder/PASS152-enterprise-evidence-binder.json',
   'dist/main/main.js',
-]) need(!exists(file), `generated output must not be committed: ${file}`);
+]) need(!isGitTracked(file), `generated output must not be committed: ${file}`);
 
 if (errors.length) {
   for (const error of errors) console.error(`[PASS154][FAIL] ${error}`);

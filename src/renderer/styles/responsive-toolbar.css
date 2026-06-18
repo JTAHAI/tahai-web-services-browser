@@ -88,7 +88,7 @@ body[data-command-toolbar="it"] .toolbar {
   overflow: visible !important;
 }
 .tool-flyout { position: static !important; }
-.tool-menu-panel {
+.tool-menu-panel:not(.browser-kit) {
   position: fixed !important;
   left: 14px !important;
   right: 14px !important;
@@ -108,7 +108,7 @@ body[data-command-toolbar="it"] .toolbar {
   padding: 10px 12px;
   border-radius: 18px;
 }
-.tool-menu-panel::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.tool-menu-panel:not(.browser-kit)::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .tool-menu-panel[hidden] { display: none !important; }
 .tool-menu-back {
   position: sticky;
@@ -120,7 +120,7 @@ body[data-command-toolbar="it"] .toolbar {
   background: linear-gradient(180deg, rgba(119,219,255,.16), rgba(7,16,31,.98));
   box-shadow: 14px 0 22px rgba(2,7,14,.94);
 }
-.tool-menu-header {
+.tool-menu-panel:not(.browser-kit) .tool-menu-header {
   flex: 0 0 178px;
   margin: 0;
   padding: 4px 10px;
@@ -128,12 +128,12 @@ body[data-command-toolbar="it"] .toolbar {
   border-right: 1px solid rgba(119,219,255,.14);
   align-self: center;
 }
-.tool-menu-header span::after {
+.tool-menu-panel:not(.browser-kit) .tool-menu-header span::after {
   content: ' · Esc returns';
   color: rgba(119,219,255,.85);
 }
-.tool-menu-section,
-.tool-menu-section.compact {
+.tool-menu-panel:not(.browser-kit) .tool-menu-section,
+.tool-menu-panel:not(.browser-kit) .tool-menu-section.compact {
   display: flex;
   align-items: stretch;
   gap: 8px;
@@ -141,27 +141,27 @@ body[data-command-toolbar="it"] .toolbar {
   padding: 0 !important;
   border: 0 !important;
 }
-.tool-menu-section p {
+.tool-menu-panel:not(.browser-kit) .tool-menu-section p {
   flex: 0 0 auto;
   align-self: center;
   max-width: 92px;
   white-space: normal;
   line-height: 1.1;
 }
-.tool-menu-panel .tool-card {
+.tool-menu-panel:not(.browser-kit) .tool-card {
   flex: 0 0 224px;
   width: 224px;
   min-height: 58px;
   grid-template-columns: minmax(70px, 88px) minmax(0, 1fr);
 }
-.tool-menu-panel .tool-card span {
+.tool-menu-panel:not(.browser-kit) .tool-card span {
   white-space: normal;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.tool-menu-footer {
+.tool-menu-panel:not(.browser-kit) .tool-menu-footer {
   flex: 0 0 184px;
   align-self: center;
   white-space: normal;
@@ -169,9 +169,9 @@ body[data-command-toolbar="it"] .toolbar {
   color: rgba(219,241,255,.7);
 }
 @media (max-width: 920px) {
-  .tool-menu-panel { top: 136px !important; max-height: 104px !important; }
-  .tool-menu-header { flex-basis: 150px; }
-  .tool-menu-panel .tool-card { flex-basis: 202px; width: 202px; }
+  .tool-menu-panel:not(.browser-kit) { top: 136px !important; max-height: 104px !important; }
+  .tool-menu-panel:not(.browser-kit) .tool-menu-header { flex-basis: 150px; }
+  .tool-menu-panel:not(.browser-kit) .tool-card { flex-basis: 202px; width: 202px; }
 }
 
 /* PASS 16 Toolbar Polish: chevron lane scrolling, stronger focus affordance, and keyboard discoverability without vertical rails. */
@@ -196,8 +196,8 @@ body[data-command-toolbar="it"] .toolbar {
   opacity: .34;
   cursor: default;
 }
-.tool-menu-panel.has-overflow::before,
-.tool-menu-panel.has-overflow::after {
+.tool-menu-panel:not(.browser-kit).has-overflow::before,
+.tool-menu-panel:not(.browser-kit).has-overflow::after {
   content: '';
   position: sticky;
   z-index: 3;
@@ -205,9 +205,9 @@ body[data-command-toolbar="it"] .toolbar {
   flex: 0 0 1px;
   pointer-events: none;
 }
-.tool-menu-panel.has-overflow::before { left: 34px; box-shadow: 12px 0 18px rgba(2,7,14,.72); }
-.tool-menu-panel.has-overflow::after { right: 34px; box-shadow: -12px 0 18px rgba(2,7,14,.72); }
-.tool-menu-panel .tool-card:focus-visible,
+.tool-menu-panel:not(.browser-kit).has-overflow::before { left: 34px; box-shadow: 12px 0 18px rgba(2,7,14,.72); }
+.tool-menu-panel:not(.browser-kit).has-overflow::after { right: 34px; box-shadow: -12px 0 18px rgba(2,7,14,.72); }
+.tool-menu-panel:not(.browser-kit) .tool-card:focus-visible,
 .tool-menu-back:focus-visible,
 .command-toolbar-chevron:focus-visible {
   outline: 2px solid rgba(119,219,255,.92);
@@ -220,6 +220,94 @@ body[data-command-toolbar="it"] .toolbar {
 @media (max-width: 920px) {
   .command-toolbar-chevron { flex-basis: 30px; width: 30px; min-width: 30px; }
   .tool-menu-back { min-width: 126px; }
+}
+
+.browser-kit-flyout {
+  position: relative !important;
+}
+
+#browser-kit-panel.tool-menu-panel {
+  position: absolute !important;
+  left: auto !important;
+  right: 0 !important;
+  top: calc(100% + 10px) !important;
+  width: min(470px, calc(100vw - 28px)) !important;
+  max-width: min(470px, calc(100vw - 28px)) !important;
+  max-height: min(690px, calc(100vh - 126px)) !important;
+  min-height: 0 !important;
+  display: block !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  white-space: normal !important;
+  padding: 14px !important;
+  border-radius: 22px !important;
+}
+
+#browser-kit-panel [data-command-toolbar-scroll],
+#browser-kit-panel [data-command-toolbar-back] {
+  display: none !important;
+}
+
+#browser-kit-panel .tool-menu-header {
+  display: grid !important;
+  margin: 0 0 12px !important;
+  padding: 3px 3px 12px !important;
+  border-right: 0 !important;
+  border-bottom: 1px solid rgba(119,219,255,.14) !important;
+  align-self: auto !important;
+}
+
+#browser-kit-panel .tool-menu-header span::after {
+  content: '' !important;
+}
+
+#browser-kit-panel .tool-menu-section,
+#browser-kit-panel .tool-menu-section.compact {
+  display: grid !important;
+  gap: 9px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+#browser-kit-panel .tool-menu-section + .tool-menu-section,
+#browser-kit-panel .tool-menu-section.compact + .tool-menu-section,
+#browser-kit-panel .tool-menu-section.compact + .tool-menu-section.compact {
+  margin-top: 13px !important;
+  padding-top: 13px !important;
+  border-top: 1px solid rgba(119,219,255,.12) !important;
+}
+
+#browser-kit-panel .tool-menu-section p {
+  margin: 0 2px 2px !important;
+  max-width: none !important;
+  line-height: 1.2 !important;
+}
+
+#browser-kit-panel .tool-card {
+  width: 100% !important;
+  min-height: 72px !important;
+  display: grid !important;
+  grid-template-columns: minmax(86px, 108px) max-content minmax(0, 1fr) !important;
+  align-items: center !important;
+  column-gap: 12px !important;
+  row-gap: 6px !important;
+}
+
+#browser-kit-panel .tool-card > kbd {
+  justify-self: start !important;
+  max-width: 112px !important;
+}
+
+#browser-kit-panel .tool-card > span {
+  display: block !important;
+  white-space: normal !important;
+  overflow: hidden !important;
+}
+
+#browser-kit-panel .tool-menu-footer {
+  display: block !important;
+  margin-top: 13px !important;
 }
 
 /* PASS347 Browser Kit daily-driver panel:

@@ -8,6 +8,7 @@ import type { BrowserDownloadState } from '../shared/download-boundary';
 import { createDownloadStatePayload, downloadRiskWarning, sanitizeDownloadFilename } from '../shared/download-boundary';
 import { createDownloadArtifactId, sanitizeDownloadArtifactId } from '../shared/download-boundary';
 import { TAHAI_BLOCKED_RUNTIME_PROTOCOLS, isTrustedTahaiRendererEventChannel } from '../shared/electron-security-contract';
+import { readEnterpriseAdminPolicy } from './enterprise-admin-policy';
 
 
 const DOWNLOAD_ARTIFACT_SHELF_LIMIT = 32;
@@ -75,6 +76,22 @@ function defaultDownloadPath(filename: string): string {
   const settings = readBrowserSettings();
   const base = safeDownloadDirectory(settings.downloads.defaultDirectory);
   return path.join(base, sanitizeDownloadFilename(filename));
+}
+
+function shouldBlockDownloadSource(sourceUrl: string): boolean {
+  const settings = readBrowserSettings();
+  const managedPolicyState = readEnterpriseAdminPolicy();
+  const managedPolicy = managedPolicyState.policy;
+  const enforceSecureDownload = settings.downloads.blockInsecureDownloads === true || (managedPolicyState.managed && managedPolicy.downloads.blockExternalHttpDownloads === true);
+  if (!enforceSecureDownload) return false;
+  try {
+    const parsed = new URL(sourceUrl);
+    if (parsed.protocol !== 'http:') return false;
+    const host = parsed.hostname.toLowerCase();
+    return !['localhost', '127.0.0.1', '::1', '[::1]'].includes(host);
+  } catch {
+    return true;
+  }
 }
 
 function sanitizeSelectedDownloadPath(selectedPath: string, fallbackFilename: string): string {
@@ -200,6 +217,15 @@ export async function hardenSession(ses: Session): Promise<void> {
     const artifactId = createDownloadArtifactId({ filename, sourceUrl, startedAt });
     const warning = downloadRiskWarning(filename, item.getMimeType());
     const payloadBase = { artifactId, startedAt, filename, sourceUrl, mimeType, warning };
+    if (shouldBlockDownloadSource(sourceUrl)) {
+      item.cancel();
+      sendDownloadState(webContents, createDownloadStatePayload({
+        ...payloadBase,
+        state: 'cancelled',
+        detail: 'Blocked insecure HTTP download. Use HTTPS or disable the secure-download setting if policy allows it.'
+      }));
+      return;
+    }
     if (!settings.downloads.askEveryTime) {
       item.setSavePath(defaultDownloadPath(filename));
       sendDownloadState(webContents, createDownloadStatePayload({ state: 'started', filename, sourceUrl, warning, artifactId, startedAt, mimeType, detail: 'Saving to configured downloads folder. Local path hidden from renderer.' }));

@@ -20,6 +20,7 @@ PASS345 adds an external Electron acceptance runner so release readiness no long
 - Browser Kit Find flow plus real guest click proof inside `#webview-stage`
 - Browser Kit history/session recovery: Duplicate Tab, Reopen Closed Tab, recent-page population, and restore-session availability
 - Browser tab pinning and switching: Pin Tab, `Ctrl+Tab`, `Ctrl+Shift+Tab`, and `Ctrl+1`
+- Representative TAHAI tool cards: DevOps `Capture` and `Ops Check`, IT `IT Card` and `Endpoint`, plus Ops Panel `Command Palette` and `Shortcuts`
 - Mission Control open/create/add-tab, Quad/Focus layouts, and export preview
 - Restored-window regression coverage for the repeatable profile dialog issue
 - Browser Kit cards must be scrolled into real hit-test ownership before the runner clicks them

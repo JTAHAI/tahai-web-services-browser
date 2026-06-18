@@ -734,6 +734,8 @@ const settingsForm = document.getElementById('settings-form') as HTMLFormElement
 const settingHomeUrl = document.getElementById('setting-home-url') as HTMLInputElement;
 const settingStartup = document.getElementById('setting-startup') as HTMLSelectElement;
 const settingSearch = document.getElementById('setting-search') as HTMLSelectElement;
+const settingDefaultZoom = document.getElementById('setting-default-zoom') as HTMLInputElement;
+const settingDefaultZoomRange = document.getElementById('setting-default-zoom-range') as HTMLInputElement;
 const settingMedia = document.getElementById('setting-media') as HTMLInputElement;
 const settingClipboard = document.getElementById('setting-clipboard') as HTMLInputElement;
 const settingGeolocation = document.getElementById('setting-geolocation') as HTMLInputElement;
@@ -743,8 +745,19 @@ const settingThirdPartyCookies = document.getElementById('setting-third-party-co
 const settingReduceReferrers = document.getElementById('setting-referrer') as HTMLInputElement;
 const settingClearOnExit = document.getElementById('setting-clear-on-exit') as HTMLInputElement;
 const settingDownloads = document.getElementById('setting-downloads') as HTMLInputElement;
+const settingBlockInsecureDownloads = document.getElementById('setting-block-insecure-downloads') as HTMLInputElement;
 const settingPopupsAsTabs = document.getElementById('setting-popups-as-tabs') as HTMLInputElement;
+const settingOpenExternalInTab = document.getElementById('setting-open-external-in-tab') as HTMLInputElement;
+const settingLaunchMaximized = document.getElementById('setting-launch-maximized') as HTMLInputElement;
+const settingConfirmCloseMultiTab = document.getElementById('setting-confirm-close-multi-tab') as HTMLInputElement;
 const settingStatusBar = document.getElementById('setting-statusbar') as HTMLInputElement;
+const settingDownloadDirectoryLabel = document.getElementById('setting-download-directory-label') as HTMLElement;
+const chooseDownloadDirectoryButton = document.getElementById('choose-download-directory') as HTMLButtonElement;
+const resetDownloadDirectoryButton = document.getElementById('reset-download-directory') as HTMLButtonElement;
+const importSettingsFileButton = document.getElementById('import-settings-file') as HTMLButtonElement;
+const exportSettingsFileButton = document.getElementById('export-settings-file') as HTMLButtonElement;
+const settingsPolicyTitle = document.getElementById('settings-policy-title') as HTMLElement;
+const settingsPolicySummary = document.getElementById('settings-policy-summary') as HTMLElement;
 const settingsResult = document.getElementById('settings-result') as HTMLElement;
 const closeSettingsButton = document.getElementById('close-settings') as HTMLButtonElement;
 const resetSettingsButton = document.getElementById('reset-settings') as HTMLButtonElement;
@@ -890,6 +903,8 @@ let commandPaletteIndex = 0;
 let pass242CommandPaletteIntentionalClose = false;
 let pass242CommandPaletteOpenGuardUntil = 0;
 let pass242CommandPaletteOpenEpoch = 0;
+let pass348TransientOverlayReturnSource: Pass116ChromeOverlaySource | undefined;
+let pass348TransientOverlayReturnOwner: Pass116ChromeOverlaySource | undefined;
 const PASS242_COMMAND_PALETTE_FLASH_GUARD_MS = 700;
 let currentMission: MissionState | undefined;
 const pass204OperatorCommandCenterV2 = installOperatorCommandCenterV2(() => currentMission);
@@ -1078,6 +1093,8 @@ function searchUrl(value: string): string {
   const q = encodeURIComponent(value);
   if (settings?.searchProvider === 'duckduckgo') return `https://duckduckgo.com/?q=${q}`;
   if (settings?.searchProvider === 'bing') return `https://www.bing.com/search?q=${q}`;
+  if (settings?.searchProvider === 'brave') return `https://search.brave.com/search?q=${q}`;
+  if (settings?.searchProvider === 'startpage') return `https://www.startpage.com/do/search?query=${q}`;
   return `https://www.google.com/search?q=${q}`;
 }
 
@@ -4495,6 +4512,7 @@ function setBrowserTabPinned(tabId: string, pinned: boolean, reason = 'manual', 
   if (!tab || tab.pinned === pinned) return Boolean(tab);
   tab.pinned = pinned;
   pass192DecorateTabButton(tab);
+  if (pinned) tabsEl.prepend(tab.button);
   reorderBrowserTabs(`pin-${reason}`);
   renderBrowserKitDailyDriver();
   scheduleSessionRecoverySnapshot(`pin-${reason}`);
@@ -4513,6 +4531,15 @@ function toggleBrowserTabPin(tabId = activeTabId, reason = 'manual', announce = 
 function closeTab(tabId: string): void {
   const tab = tabs.get(tabId);
   if (!tab) return;
+  const openTabCount = browserTabIdsInVisualOrder().length;
+  if (settings?.ui?.confirmBeforeClosingMultipleTabs === true && openTabCount > 1) {
+    const approved = window.confirm(`Close "${tab.title}"?\n\n${openTabCount} tabs are currently open in this profile.`);
+    document.body.dataset.pass350LastMultiTabClosePrompt = approved ? 'accepted' : 'dismissed';
+    if (!approved) {
+      setStatus('Tab close cancelled', `${openTabCount} tabs remain open in this profile.`);
+      return;
+    }
+  }
   const orderedBeforeClose = browserTabIdsInVisualOrder();
   const closingIndex = orderedBeforeClose.indexOf(tabId);
   const fallbackTabId = closingIndex >= 0
@@ -4885,6 +4912,7 @@ function createTab(url: string): string {
   });
   webview.addEventListener('dom-ready', () => {
     pass236MarkWebviewDomReady(webview, tabId);
+    pass349ApplyDefaultZoomToTab(tab, 'dom-ready');
     if (tab.id === activeTabId && pass339IsNormalBrowsing()) pass339ApplyStageViewportFit(webview, 'webview-dom-ready');
     pass74ScheduleMissionPaneRelayoutRetries('load');
     pass339ScheduleNormalBrowsingInputPaintCloseout('webview-dom-ready');
@@ -5092,6 +5120,7 @@ function renderMissionPaneHeads(layout: MissionLayoutType, enabled: boolean): vo
           return;
         }
         upsertBrowserTabIntoMissionPane(runtimeTab.id, sendButton.dataset.sendActivePane, { activateLayout: true });
+        setMissionActivePane(sendButton.dataset.sendActivePane);
         return;
       }
       const button = eventClosest<HTMLButtonElement>(event, '[data-focus-mission-pane]');
@@ -6948,14 +6977,38 @@ function pass176KeepActiveMissionLayoutVisible(reason: string): void {
   document.body.dataset.pass176CompactMissionLayoutState = 'active-layout-scrolled';
 }
 
-async function refreshMissionStore(): Promise<void> {
+type MissionStoreRefreshResult = {
+  ok: boolean;
+  missions: MissionState[];
+  error?: string;
+  timedOut?: boolean;
+};
+
+async function refreshMissionStore(timeoutMs = 2500): Promise<MissionStoreRefreshResult> {
   console.info('[MISSION] refresh-store:start');
-  const result = await pass158RuntimeE2eStepTimeout('mission-store-list', () => window.tahaiBrowser.listMissions(), 2500);
-  console.info(`[MISSION] refresh-store:done ok=${result.ok ? '1' : '0'} count=${result.missions.length}`);
-  missionStore = result.ok ? result.missions : [];
-  console.info('[MISSION] refresh-store:render');
-  renderMissionControl();
-  console.info('[MISSION] refresh-store:rendered');
+  try {
+    const result = await pass158RuntimeE2eStepTimeout('mission-store-list', () => window.tahaiBrowser.listMissions(), timeoutMs);
+    console.info(`[MISSION] refresh-store:done ok=${result.ok ? '1' : '0'} count=${result.missions.length}`);
+    missionStore = result.ok ? result.missions : [];
+    console.info('[MISSION] refresh-store:render');
+    renderMissionControl();
+    console.info('[MISSION] refresh-store:rendered');
+    return {
+      ok: result.ok,
+      missions: missionStore
+    };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error || 'Mission store unavailable');
+    console.warn(`[MISSION] refresh-store:soft-fail ${detail}`);
+    missionStore = Array.isArray(missionStore) ? missionStore : [];
+    renderMissionControl();
+    return {
+      ok: false,
+      missions: missionStore,
+      error: detail,
+      timedOut: /timed out/i.test(detail)
+    };
+  }
 }
 
 function closeMissionControl(restoreFocus = false): void {
@@ -7056,9 +7109,6 @@ async function openMissionControl(): Promise<void> {
     if (!missionTypeSelect.options.length) {
       missionTypeSelect.innerHTML = missionTypes.map((type) => '<option value="' + type + '">' + type.replace(/-/g, ' ') + '</option>').join('');
     }
-    await refreshMissionStore();
-    console.info(`[MISSION] open:store-ready run=${openRun}`);
-    if (openRun !== pass164MissionControlOpenRun) return;
     renderMissionControl();
     console.info(`[MISSION] open:rendered run=${openRun}`);
     missionDialog.dataset.pass117FocusScope = 'mission-control';
@@ -7072,7 +7122,17 @@ async function openMissionControl(): Promise<void> {
     console.info(`[MISSION] open:dialog-shown run=${openRun} mode=${missionDialog.dataset.pass128ShowMode || 'unknown'} open=${missionDialog.open ? '1' : '0'}`);
     pass190OpenOwnedOverlay('mission-control', missionDialog as unknown as HTMLElement, missionControlButton);
     pass164FinishMissionControlOpen(openRun, 'open');
+    pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('mission-control-open');
     console.info(`[MISSION] open:done run=${openRun}`);
+    const refreshResult = await refreshMissionStore();
+    console.info(`[MISSION] open:store-ready run=${openRun} ok=${refreshResult.ok ? '1' : '0'} count=${refreshResult.missions.length}`);
+    if (openRun !== pass164MissionControlOpenRun) return;
+    if (!refreshResult.ok) {
+      document.body.dataset.pass164MissionControlOpenDegraded = refreshResult.timedOut ? 'mission-store-timeout' : 'mission-store-soft-fail';
+      setStatus('Mission Control opened with cached missions', refreshResult.error || 'Saved Mission list is still loading.');
+    } else {
+      delete document.body.dataset.pass164MissionControlOpenDegraded;
+    }
   } catch (error) {
     pass164FinishMissionControlOpen(openRun, 'blocked');
     console.warn(`[MISSION] open:blocked run=${openRun} ${error instanceof Error ? error.message : String(error || 'unknown error')}`);
@@ -7347,7 +7407,7 @@ async function chooseAndRestoreMissionById(missionId: string): Promise<void> {
 
 type PrimaryToolMenuName = 'devops' | 'it';
 type ToolMenuName = PrimaryToolMenuName | 'browser';
-type Pass116ChromeOverlaySource = 'more-tools' | 'command-toolbar' | 'ops-hub' | 'site-view' | 'mission-control' | 'settings' | 'command-palette' | 'profile-dialog' | 'shortcut-dialog';
+type Pass116ChromeOverlaySource = 'more-tools' | 'command-toolbar' | 'ops-hub' | 'site-view' | 'mission-control' | 'settings' | 'command-palette' | 'profile-dialog' | 'shortcut-dialog' | 'tool-dialog';
 const COMMAND_TOOLBAR_LAST_LANE_KEY = 'tahai.commandToolbar.lastLane';
 const PASS116_CHROME_OVERLAY_OPEN_EVENT = 'tahai:chrome-overlay-open';
 const PASS118_CHROME_OVERLAY_CLOSE_EVENT = 'tahai:chrome-overlay-close-all';
@@ -7355,7 +7415,9 @@ const PASS122_CHROME_STACK_REFLOW_EVENT = 'tahai:chrome-stack-reflow';
 const PASS123_OVERLAY_CYCLE_AUDIT_EVENT = 'tahai:chrome-overlay-cycle-audit';
 const PASS164_MORE_TOOLS_ACTION_EVENT = 'tahai:more-tools-action-request';
 const PASS190_OVERLAY_STATE_MACHINE_VERSION = 'PASS190';
-const PASS190_OVERLAY_OWNERS: readonly Pass116ChromeOverlaySource[] = ['more-tools', 'command-toolbar', 'ops-hub', 'site-view', 'mission-control', 'settings', 'command-palette', 'profile-dialog', 'shortcut-dialog'];
+const PASS190_OVERLAY_OWNERS: readonly Pass116ChromeOverlaySource[] = ['more-tools', 'command-toolbar', 'ops-hub', 'site-view', 'mission-control', 'settings', 'command-palette', 'profile-dialog', 'shortcut-dialog', 'tool-dialog'];
+const PASS348_TRANSIENT_OVERLAY_SOURCES = new Set<Pass116ChromeOverlaySource>(['command-palette', 'shortcut-dialog']);
+const PASS348_RETURNABLE_OVERLAY_OWNERS = new Set<Pass116ChromeOverlaySource>(['ops-hub', 'mission-control', 'settings', 'profile-dialog']);
 type Pass164MoreToolsActionId = 'about' | 'settings' | 'onboarding' | 'launchpad' | 'ops-hub-toggle' | 'site-view-rail-toggle' | 'chromium-bookmark-star' | 'chromium-bookmarks-button' | 'profile-switcher';
 const PASS165_MORE_TOOLS_ACTION_IDS: readonly Pass164MoreToolsActionId[] = ['about', 'settings', 'onboarding', 'launchpad', 'ops-hub-toggle', 'site-view-rail-toggle', 'chromium-bookmark-star', 'chromium-bookmarks-button', 'profile-switcher'];
 const PASS165_MORE_TOOLS_SHELL_ACTION_IDS = new Set<Pass164MoreToolsActionId>(['about', 'settings', 'onboarding', 'launchpad', 'ops-hub-toggle', 'profile-switcher']);
@@ -7404,6 +7466,72 @@ function pass190OverlayOwnerFrom(value: unknown): Pass116ChromeOverlaySource | u
   return typeof value === 'string' && (PASS190_OVERLAY_OWNERS as readonly string[]).includes(value) ? value as Pass116ChromeOverlaySource : undefined;
 }
 
+function pass349ToolDialogs(): HTMLDialogElement[] {
+  return [
+    captureDialog,
+    opsDialog,
+    deployDialog,
+    itCardDialog,
+    endpointDialog,
+    triageDialog,
+    bundleDialog,
+    handoffDialog,
+    opsGuardDialog,
+    routeMapDialog,
+    devAuditDialog
+  ];
+}
+
+function pass349PreferredToolDialogOpener(dialog: HTMLDialogElement): HTMLElement | null {
+  if (dialog === captureDialog) return captureButton;
+  if (dialog === opsDialog) return opsCheckButton;
+  if (dialog === deployDialog) return deployButton;
+  if (dialog === itCardDialog) return itCardButton;
+  if (dialog === endpointDialog) return endpointButton;
+  if (dialog === triageDialog) return triageButton;
+  if (dialog === routeMapDialog) return routeMapButton;
+  if (dialog === devAuditDialog) return devAuditButton;
+  return null;
+}
+
+function pass349ActiveToolDialog(): HTMLDialogElement | null {
+  return pass349ToolDialogs().find((dialog) => dialog?.open) || null;
+}
+
+function pass349CloseToolDialogs(restoreFocus = false): void {
+  for (const dialog of pass349ToolDialogs()) {
+    if (!dialog.open) continue;
+    const opener = pass349PreferredToolDialogOpener(dialog);
+    pass117ClearOverlayFocus('tool-dialog', dialog as unknown as HTMLElement, opener, false);
+    dialog.close();
+    if (restoreFocus && opener) pass170RestoreFocusToOpener('tool-dialog', opener);
+  }
+  if (document.body.dataset.pass116ActiveOverlay === 'tool-dialog') pass118ClearChromeOverlayState('explicit-close', 'tool-dialog');
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('tool-dialog-close');
+}
+
+function pass349OpenToolDialog(dialog: HTMLDialogElement, focusTarget?: HTMLElement | null, opener?: HTMLElement | null): void {
+  pass190CloseRivalOverlays('tool-dialog');
+  if (!dialog.open) dialog.showModal();
+  pass190OpenOwnedOverlay('tool-dialog', dialog as unknown as HTMLElement, opener || pass349PreferredToolDialogOpener(dialog));
+  if (focusTarget) {
+    window.setTimeout(() => {
+      if (!dialog.open || focusTarget.closest('dialog') !== dialog) return;
+      focusTarget.focus({ preventScroll: true });
+      if (focusTarget instanceof HTMLTextAreaElement || focusTarget instanceof HTMLInputElement) focusTarget.setSelectionRange(0, 0);
+    }, 0);
+  }
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout(`tool-dialog-open-${dialog.id || 'unknown'}`);
+}
+
+function pass349HandleToolDialogClosed(dialog: HTMLDialogElement): void {
+  pass117ClearOverlayFocus('tool-dialog', dialog as unknown as HTMLElement, pass349PreferredToolDialogOpener(dialog), false);
+  if (document.body.dataset.pass116ActiveOverlay === 'tool-dialog' && pass349ActiveToolDialog() === null) {
+    pass118ClearChromeOverlayState('explicit-close', 'tool-dialog');
+  }
+  pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout(`tool-dialog-closed-${dialog.id || 'unknown'}`);
+}
+
 function pass190RecordOverlayTransition(source: Pass116ChromeOverlaySource, state: 'opening' | 'open' | 'closing' | 'closed', reason: string): void {
   document.body.dataset.pass190OverlayStateMachine = 'true';
   document.body.dataset.pass190OverlayStateMachineVersion = PASS190_OVERLAY_STATE_MACHINE_VERSION;
@@ -7448,15 +7576,16 @@ function pass190CloseRivalOverlays(source: Pass116ChromeOverlaySource): void {
   document.body.dataset.pass190OverlayStateMachine = 'true';
   document.body.dataset.pass190OverlayRivalCloseFor = source;
   if (source !== 'command-toolbar') closeToolMenus(undefined, false);
+  if (source !== 'tool-dialog') pass349CloseToolDialogs(false);
   if (source !== 'ops-hub' && opsHub && !opsHub.hidden) {
     opsHub.hidden = true;
     pass117ClearOverlayFocus('ops-hub', opsHub, opsHubToggleButton, false);
   }
   if (source !== 'mission-control' && missionDialog && missionDialog.open) closeMissionControl(false);
   if (source !== 'settings' && settingsDialog && settingsDialog.open) closeSettingsDialog(false);
-  if (source !== 'command-palette' && commandPaletteDialog && commandPaletteDialog.open) closeCommandPaletteDialog(false);
+  if (source !== 'command-palette' && commandPaletteDialog && commandPaletteDialog.open) closeCommandPaletteDialog(false, false);
   if (source !== 'profile-dialog' && profileDialog && profileDialog.open) closeProfileManager(false);
-  if (source !== 'shortcut-dialog' && shortcutDialog && shortcutDialog.open) closeKeyboardShortcuts(false);
+  if (source !== 'shortcut-dialog' && shortcutDialog && shortcutDialog.open) closeKeyboardShortcuts(false, false);
 }
 
 function pass190OpenOwnedOverlay(source: Pass116ChromeOverlaySource, panel: HTMLElement, opener?: HTMLElement | null): void {
@@ -7477,9 +7606,52 @@ function pass118ActiveChromeOverlaySource(): Pass116ChromeOverlaySource | undefi
   return pass190OverlayOwnerFrom(document.body.dataset.pass116ActiveOverlay);
 }
 
+function pass348ClearTransientOverlayReturn(source?: Pass116ChromeOverlaySource): void {
+  if (source && pass348TransientOverlayReturnSource !== source) return;
+  pass348TransientOverlayReturnSource = undefined;
+  pass348TransientOverlayReturnOwner = undefined;
+  delete document.body.dataset.pass348OverlayReturnSource;
+  delete document.body.dataset.pass348OverlayReturnOwner;
+}
+
+function pass348CaptureTransientOverlayReturn(source: Pass116ChromeOverlaySource, owner = pass118ActiveChromeOverlaySource()): void {
+  if (!PASS348_TRANSIENT_OVERLAY_SOURCES.has(source) || !owner || owner === source || !PASS348_RETURNABLE_OVERLAY_OWNERS.has(owner)) {
+    pass348ClearTransientOverlayReturn(source);
+    return;
+  }
+  pass348TransientOverlayReturnSource = source;
+  pass348TransientOverlayReturnOwner = owner;
+  document.body.dataset.pass348OverlayReturnSource = source;
+  document.body.dataset.pass348OverlayReturnOwner = owner;
+}
+
+function pass348RestoreTransientOverlayOwner(source: Pass116ChromeOverlaySource): boolean {
+  if (pass348TransientOverlayReturnSource !== source) return false;
+  const owner = pass348TransientOverlayReturnOwner;
+  pass348ClearTransientOverlayReturn(source);
+  if (!owner || pass118ActiveChromeOverlaySource()) return false;
+  switch (owner) {
+    case 'ops-hub':
+      if (opsHub.hidden) toggleOpsHub(true, false);
+      return true;
+    case 'mission-control':
+      if (!missionDialog.open) void openMissionControl();
+      return true;
+    case 'settings':
+      if (!settingsDialog.open) openSettings();
+      return true;
+    case 'profile-dialog':
+      if (!profileDialog.open) void openProfileManager();
+      return true;
+    default:
+      return false;
+  }
+}
+
 function pass118OverlayIsActuallyOpen(source: Pass116ChromeOverlaySource): boolean {
   if (source === 'more-tools') return Boolean(document.getElementById('toolbar-overflow-menu') && !(document.getElementById('toolbar-overflow-menu') as HTMLElement).hidden);
   if (source === 'command-toolbar') return Boolean((devopsToolsPanel && !devopsToolsPanel.hidden) || (itToolsPanel && !itToolsPanel.hidden) || (browserKitPanel && !browserKitPanel.hidden));
+  if (source === 'tool-dialog') return Boolean(pass349ActiveToolDialog());
   if (source === 'ops-hub') return Boolean(opsHub && !opsHub.hidden);
   if (source === 'site-view') return document.body.classList.contains('site-view-rail-enabled');
   if (source === 'mission-control') return Boolean(missionDialog && (missionDialog.open || pass164MissionControlIsOpening()));
@@ -7633,11 +7805,25 @@ function pass121AuditOverlayScrollContainment(reason: Pass118OverlayCloseReason 
   for (const panel of pass122KnownOverlayPanels().filter(Boolean) as HTMLElement[]) if (!panel.dataset.pass121ScrollContainment) panel.dataset.pass121ScrollContainment = 'true';
 }
 function pass122KnownOverlayPanels(): Array<HTMLElement | null> {
-  return [document.getElementById('toolbar-overflow-menu') as HTMLElement | null, devopsToolsPanel, itToolsPanel, browserKitPanel, opsHub, document.getElementById('site-view-mission-rail') as HTMLElement | null, missionDialog as unknown as HTMLElement | null, settingsDialog as unknown as HTMLElement | null, commandPaletteDialog as unknown as HTMLElement | null, profileDialog as unknown as HTMLElement | null, shortcutDialog as unknown as HTMLElement | null];
+  return [
+    document.getElementById('toolbar-overflow-menu') as HTMLElement | null,
+    devopsToolsPanel,
+    itToolsPanel,
+    browserKitPanel,
+    opsHub,
+    document.getElementById('site-view-mission-rail') as HTMLElement | null,
+    missionDialog as unknown as HTMLElement | null,
+    settingsDialog as unknown as HTMLElement | null,
+    commandPaletteDialog as unknown as HTMLElement | null,
+    profileDialog as unknown as HTMLElement | null,
+    shortcutDialog as unknown as HTMLElement | null,
+    ...pass349ToolDialogs().map((dialog) => dialog as unknown as HTMLElement | null)
+  ];
 }
 function pass122OverlayPanelForSource(source: Pass116ChromeOverlaySource): HTMLElement | null {
   if (source === 'more-tools') return document.getElementById('toolbar-overflow-menu') as HTMLElement | null;
   if (source === 'command-toolbar') return [devopsToolsPanel, itToolsPanel, browserKitPanel].find((panel) => panel && !panel.hidden) || null;
+  if (source === 'tool-dialog') return pass349ActiveToolDialog() as unknown as HTMLElement | null;
   if (source === 'ops-hub') return opsHub;
   if (source === 'site-view') return document.getElementById('site-view-mission-rail') as HTMLElement | null;
   if (source === 'mission-control') return missionDialog as unknown as HTMLElement | null;
@@ -7775,6 +7961,7 @@ function pass118InstallOverlayDismissRecovery(): void {
     const reason = event instanceof CustomEvent && typeof event.detail?.reason === 'string' ? event.detail.reason as Pass118OverlayCloseReason : 'unknown';
     const restoreFocus = !(event instanceof CustomEvent) || event.detail?.restoreFocus !== false;
     if (!source || source === 'command-toolbar') closeToolMenus(undefined, restoreFocus);
+    if ((!source || source === 'tool-dialog') && pass349ActiveToolDialog()) pass349CloseToolDialogs(restoreFocus);
     if ((!source || source === 'ops-hub') && opsHub && !opsHub.hidden) toggleOpsHub(false, restoreFocus);
     if ((!source || source === 'mission-control') && missionDialog && missionDialog.open) closeMissionControl(restoreFocus);
     if ((!source || source === 'settings') && settingsDialog && settingsDialog.open) closeSettingsDialog(restoreFocus);
@@ -7956,13 +8143,32 @@ function resetToolMenuScrollPosition(panel: HTMLElement, reason: string): void {
   panel.dataset.pass347LastScrollResetReason = reason;
 }
 
+function toolCardTooltipBaseTitle(card: HTMLButtonElement, title: string, shortcut: string, detail: string): string {
+  const rawTitle = (card.getAttribute('title') || '').trim();
+  for (const prefix of [
+    shortcut ? `${title} (${shortcut}) — ` : '',
+    shortcut ? `${title} (${shortcut})` : '',
+    `${title} — `,
+    title
+  ]) {
+    if (prefix && rawTitle.startsWith(prefix)) {
+      const nextBase = rawTitle.slice(prefix.length).trim();
+      if (nextBase) return nextBase;
+    }
+  }
+  return rawTitle || detail || title;
+}
+
 function enrichToolCardTooltips(panel: HTMLElement): void {
   for (const card of Array.from(panel.querySelectorAll<HTMLButtonElement>('.tool-card'))) {
     const title = card.querySelector('strong')?.textContent?.trim() || 'Command';
-    const shortcut = card.querySelector('kbd')?.textContent?.trim();
-    const detail = card.querySelector('span')?.textContent?.trim();
-    const base = card.getAttribute('title') || detail || title;
-    card.title = shortcut ? `${title} (${shortcut}) — ${base}` : `${title} — ${base}`;
+    const shortcut = card.querySelector('kbd')?.textContent?.trim() || '';
+    const detail = card.querySelector('span')?.textContent?.trim() || '';
+    const base = toolCardTooltipBaseTitle(card, title, shortcut, detail);
+    card.dataset.pass347ToolCardTooltipBase = base;
+    card.title = shortcut
+      ? (base === title ? `${title} (${shortcut})` : `${title} (${shortcut}) — ${base}`)
+      : (base === title ? title : `${title} — ${base}`);
   }
 }
 
@@ -8106,6 +8312,66 @@ function handleToolMenuButtonKeyboard(name: ToolMenuName, event: KeyboardEvent):
 function runToolFromMenu(action: () => void | Promise<void>): void {
   closeToolMenus(undefined, false);
   void action();
+}
+
+const PASS345_TOOL_CARD_ACTIVATION_DEDUPE_MS = 420;
+
+function pass345ClearToolCardPointerArm(button: HTMLButtonElement): void {
+  delete button.dataset.pass345ToolCardPointerArmed;
+  delete button.dataset.pass345ToolCardPointerType;
+}
+
+function pass345ToolCardCanActivate(button: HTMLButtonElement): boolean {
+  return !button.disabled && !button.hidden && button.getAttribute('aria-hidden') !== 'true' && Boolean(button.getClientRects().length);
+}
+
+function pass345RunToolCardAction(button: HTMLButtonElement, action: () => void | Promise<void>, source: 'click' | 'pointerup' | 'keyboard'): void {
+  const now = Date.now();
+  const lastActivationAt = Number(button.dataset.pass345ToolCardLastActivationAt || '0');
+  if ((now - lastActivationAt) < PASS345_TOOL_CARD_ACTIVATION_DEDUPE_MS) {
+    button.dataset.pass345ToolCardLastActivationSource = `${source}:dedup`;
+    return;
+  }
+  button.dataset.pass345ToolCardLastActivationAt = String(now);
+  button.dataset.pass345ToolCardLastActivationSource = source;
+  runToolFromMenu(action);
+}
+
+function bindStableToolCardAction(button: HTMLButtonElement | null, action: () => void | Promise<void>): void {
+  if (!button || button.dataset.pass345ToolCardDirectBound === 'true') return;
+  button.dataset.pass345ToolCardDirectBound = 'true';
+  button.addEventListener('pointerdown', (event) => {
+    if (!pass345ToolCardCanActivate(button) || event.button !== 0 || !event.isPrimary) return;
+    button.dataset.pass345ToolCardPointerArmed = String(event.pointerId);
+    button.dataset.pass345ToolCardPointerType = event.pointerType || 'mouse';
+  });
+  button.addEventListener('pointercancel', () => pass345ClearToolCardPointerArm(button));
+  button.addEventListener('pointerup', (event) => {
+    const armedPointerId = button.dataset.pass345ToolCardPointerArmed;
+    pass345ClearToolCardPointerArm(button);
+    if (!pass345ToolCardCanActivate(button) || event.button !== 0 || !event.isPrimary || armedPointerId !== String(event.pointerId)) return;
+    const hit = document.elementFromPoint(event.clientX, event.clientY);
+    if (!(hit instanceof Element) || !(hit === button || button.contains(hit))) {
+      button.dataset.pass345ToolCardLastActivationSource = 'pointerup:off-target';
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    pass345RunToolCardAction(button, action, 'pointerup');
+  });
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!pass345ToolCardCanActivate(button)) return;
+    pass345RunToolCardAction(button, action, 'click');
+  });
+  button.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!pass345ToolCardCanActivate(button)) return;
+    pass345RunToolCardAction(button, action, 'keyboard');
+  });
 }
 
 const pass155AdminConsoleProfiles = ADMIN_CONSOLE_PROFILES;
@@ -8828,15 +9094,17 @@ function reopenClosedTab(closedId?: string): void {
   setStatus('Reopened closed tab', entry.url);
 }
 
-function restoreSessionRecoverySnapshot(): void {
+function restoreSessionRecoverySnapshot(quietEmpty = false): boolean {
   const snapshot = readSessionRecoverySnapshot();
   const sessionTabs = Array.isArray(snapshot?.tabs) && snapshot.tabs.length
     ? snapshot.tabs.filter((entry) => typeof entry?.url === 'string')
     : (snapshot?.urls || []).map((url) => ({ url, pinned: false }));
   if (!sessionTabs.length) {
-    setStatus('No saved session available', 'Continue browsing in this profile to seed session recovery.');
-    renderBrowserKitDailyDriver();
-    return;
+    if (!quietEmpty) {
+      setStatus('No saved session available', 'Continue browsing in this profile to seed session recovery.');
+      renderBrowserKitDailyDriver();
+    }
+    return false;
   }
   const recoverySnapshot = snapshot as SessionRecoverySnapshot;
   closeToolMenus(undefined, false);
@@ -8856,6 +9124,17 @@ function restoreSessionRecoverySnapshot(): void {
   document.body.dataset.pass343LastBrowserKitAction = 'restore-session';
   renderBrowserKitDailyDriver();
   setStatus(createdTabIds.length ? 'Session restored' : 'Session already open', `${recoverySnapshot.urls.length} saved tab(s) in ${recoverySnapshot.profileName}`);
+  return true;
+}
+
+function configuredStartupUrl(): string {
+  if (settings?.startup === 'launchpad') return config?.newTabUrl || config?.homeUrl || 'https://tahaiportal.com';
+  return settings?.homeUrl || config?.homeUrl || 'https://tahaiportal.com';
+}
+
+function openConfiguredStartupSurface(): void {
+  if (settings?.startup === 'restore-session' && restoreSessionRecoverySnapshot(true)) return;
+  createTab(configuredStartupUrl());
 }
 
 const PASS343_BROWSER_KIT_CONTRACT = 'PASS343_IT_DEVOPS_PRIORITY_BROWSER_KIT';
@@ -8881,11 +9160,32 @@ function pass343CurrentZoomFactor(webview: Electron.WebviewTag): number {
   return Number.isFinite(stored) && stored > 0 ? stored : 1;
 }
 
+function pass349ApplyDefaultZoomToTab(tab: TabState, reason: string): boolean {
+  const next = pass343ClampZoom(pass349DefaultZoomFactor());
+  if (!pass238CanInvokeWebviewCommand(tab.webview, 'setZoomFactor', `default-zoom:${tab.id}:${reason}`)) return false;
+  try {
+    tab.webview.setZoomFactor(next);
+    tab.webview.dataset.pass343BrowserZoomFactor = String(next);
+    tab.webview.dataset.pass349DefaultZoomReason = reason;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function pass349ApplyDefaultZoomToAllTabs(reason: string, announce = false): void {
+  let changedCount = 0;
+  for (const tab of tabs.values()) {
+    if (pass349ApplyDefaultZoomToTab(tab, reason)) changedCount += 1;
+  }
+  if (announce && changedCount) setStatus(`Default page zoom ${pass349ClampedZoomPercent(settings?.ui?.defaultZoomPercent || 100)}%`, `${changedCount} tab(s) updated.`);
+}
+
 function setActivePageZoom(mode: 'in' | 'out' | 'reset'): void {
   const tab = pass343ActiveTarget('zoom');
   if (!tab) return pass134Noop('zoom', 'No active tab or visible Mission pane is available.');
   const current = pass343CurrentZoomFactor(tab.webview);
-  const next = mode === 'reset' ? 1 : pass343ClampZoom(current + (mode === 'in' ? PASS343_ZOOM_STEP : -PASS343_ZOOM_STEP));
+  const next = mode === 'reset' ? pass343ClampZoom(pass349DefaultZoomFactor()) : pass343ClampZoom(current + (mode === 'in' ? PASS343_ZOOM_STEP : -PASS343_ZOOM_STEP));
   if (!pass238CanInvokeWebviewCommand(tab.webview, 'setZoomFactor', `zoom:${tab.id}:${mode}`)) {
     pass134Noop('zoom', `${pass134TargetLabel(tab)} is not ready to zoom.`);
     return;
@@ -8911,6 +9211,13 @@ async function copyActivePageUrl(): Promise<void> {
 
 async function openActivePageExternally(): Promise<void> {
   const url = pass343ActiveUrl('browser-kit');
+  if (settings?.ui?.openExternalLinksInNewTab !== false && /^https?:/i.test(url)) {
+    const tabId = createTab(url);
+    setActive(tabId);
+    document.body.dataset.pass343LastBrowserKitAction = 'open-external:tab';
+    setStatus('Opened active page in a new TAHAI tab', url);
+    return;
+  }
   const opened = await window.tahaiBrowser.openExternal(url);
   document.body.dataset.pass343LastBrowserKitAction = opened ? 'open-external:ok' : 'open-external:blocked';
   setStatus(opened ? 'Opened active page externally' : 'External open blocked', opened ? url : 'Only safe external http/https URLs can leave the browser shell.');
@@ -8985,8 +9292,18 @@ function runFindInPage(forward = true, findNext = true): void {
 function runBrowserKitAction(action: string, detail?: DOMStringMap): void {
   switch (action) {
     case 'new-tab': closeToolMenus(undefined, false); createTab(config.newTabUrl); break;
-    case 'close-tab': closeToolMenus(undefined, false); closeTab(pass343ActiveTarget('browser-kit')?.id || activeTabId); break;
-    case 'pin-tab': closeToolMenus(undefined, false); toggleBrowserTabPin(activeTabId, 'browser-kit'); break;
+    case 'close-tab': {
+      const targetTabId = pass343ActiveTarget('browser-kit')?.id || activeTabId;
+      closeToolMenus(undefined, false);
+      closeTab(targetTabId);
+      break;
+    }
+    case 'pin-tab': {
+      const targetTabId = pass343ActiveTarget('browser-kit')?.id || activeTabId;
+      closeToolMenus(undefined, false);
+      toggleBrowserTabPin(targetTabId, 'browser-kit');
+      break;
+    }
     case 'next-tab': closeToolMenus(undefined, false); setActiveRelativeTab(1, 'browser-kit'); break;
     case 'previous-tab': closeToolMenus(undefined, false); setActiveRelativeTab(-1, 'browser-kit'); break;
     case 'duplicate-tab': duplicateActiveTab(); break;
@@ -9022,25 +9339,12 @@ function bindBrowserKitStaticAction(buttonId: string): void {
   const button = document.getElementById(buttonId) as HTMLButtonElement | null;
   if (!button || button.dataset.pass347BrowserKitDirectBound === 'true') return;
   button.dataset.pass347BrowserKitDirectBound = 'true';
-  let lastPointerActivationAt = 0;
   const runBoundAction = (): void => {
     const action = button.dataset.browserKitAction;
     if (!action) return;
     runBrowserKitAction(action, button.dataset);
   };
-  button.addEventListener('pointerup', (event) => {
-    if (event.button !== 0) return;
-    lastPointerActivationAt = Date.now();
-    event.preventDefault();
-    event.stopPropagation();
-    runBoundAction();
-  });
   button.addEventListener('click', (event) => {
-    if (Date.now() - lastPointerActivationAt < 400) {
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
     event.preventDefault();
     event.stopPropagation();
     runBoundAction();
@@ -9486,9 +9790,7 @@ function openChangeBundleComposer(): void {
   latestChangeBundle = bundle;
   renderBundleSummary(bundle);
   bundleMarkdown.value = bundle.markdown;
-  if (!bundleDialog.open) bundleDialog.showModal();
-  bundleMarkdown.focus();
-  bundleMarkdown.setSelectionRange(0, 0);
+  pass349OpenToolDialog(bundleDialog, bundleMarkdown, null);
   renderOpsHub();
   setStatus('Evidence / Change Bundle ready', 'Copy or save for TAHAI IT Docs now; PSA handoff fields are staged for IT Docs-routed writeback.');
   missionTimelineEventIfActive('tool-run', 'Evidence / Change Bundle built', 'Operator bundle generated from local evidence and tool outputs.', { surface: 'operator-tools', paneId: activeMissionPaneId() });
@@ -9779,9 +10081,7 @@ function setHandoffTarget(target: OperationalHandoffTarget): void {
 function openHandoffCenter(target: OperationalHandoffTarget = 'it-docs'): void {
   closeToolMenus();
   setHandoffTarget(target);
-  if (!handoffDialog.open) handoffDialog.showModal();
-  handoffMarkdown.focus();
-  handoffMarkdown.setSelectionRange(0, 0);
+  pass349OpenToolDialog(handoffDialog, handoffMarkdown, null);
   setStatus('TAHAI handoff ready', handoffTargetLabel(target));
   missionTimelineEventIfActive('tool-run', 'Handoff Center packet built', handoffTargetLabel(target), { surface: 'operator-tools', paneId: activeMissionPaneId() });
   void refreshItDocsCapabilityState().then(() => { if (handoffDialog.open) setHandoffTarget(target); });
@@ -9889,9 +10189,7 @@ function openOpsGuardReview(): void {
   renderOpsGuardSummary(latestOpsGuard);
   opsGuardMarkdown.value = latestOpsGuard.markdown;
   opsGuardRedacted.value = latestOpsGuard.redactedMarkdown;
-  if (!opsGuardDialog.open) opsGuardDialog.showModal();
-  opsGuardMarkdown.focus();
-  opsGuardMarkdown.setSelectionRange(0, 0);
+  pass349OpenToolDialog(opsGuardDialog, opsGuardMarkdown, null);
   setStatus('Ops Guard review ready', latestOpsGuard.highRiskCount ? 'High-risk findings require review.' : 'Copy redacted output when ready.');
   missionTimelineEventIfActive('tool-run', 'Ops Guard review completed', latestOpsGuard.highRiskCount ? 'High-risk findings require review.' : 'Redacted output ready.', { surface: 'operator-tools', paneId: activeMissionPaneId() });
 }
@@ -10257,6 +10555,44 @@ function pass254EnsureRecipeCardActions(card: HTMLElement, recipe: LaunchRecipe)
       }
     });
   }
+
+  actions.querySelectorAll<HTMLButtonElement>('.pass254-recipe-select, [data-pass254-select-mission-recipe-id]').forEach((button) => {
+    let lastTriggerAt = 0;
+    const trigger = (event: Event, reason: string): void => {
+      const now = Date.now();
+      if (now - lastTriggerAt < 120) return;
+      lastTriggerAt = now;
+      event.preventDefault();
+      event.stopPropagation();
+      pass254SelectMissionRecipe(recipe.id, reason);
+    };
+    button.type = 'button';
+    if (!button.classList.contains('home-button')) button.classList.add('home-button');
+    if (!button.classList.contains('secondary')) button.classList.add('secondary');
+    button.dataset.pass254SelectMissionRecipeId = recipe.id;
+    button.onpointerup = (event) => trigger(event, 'direct-select-pointer');
+    button.onclick = (event) => trigger(event, 'direct-select-button');
+  });
+
+  actions.querySelectorAll<HTMLButtonElement>('.pass254-recipe-start, [data-pass254-start-mission-recipe-id], [data-start-mission-recipe-id]').forEach((button) => {
+    let lastTriggerAt = 0;
+    const trigger = (event: Event, reason: string): void => {
+      const now = Date.now();
+      if (now - lastTriggerAt < 120) return;
+      lastTriggerAt = now;
+      event.preventDefault();
+      event.stopPropagation();
+      void pass254StartMissionFromRecipe(recipe.id);
+      document.body.dataset.pass254MissionRecipeClickContract = reason;
+    };
+    button.type = 'button';
+    if (!button.classList.contains('home-button')) button.classList.add('home-button');
+    if (!button.classList.contains('primary')) button.classList.add('primary');
+    button.dataset.pass254StartMissionRecipeId = recipe.id;
+    button.dataset.startMissionRecipeId = recipe.id;
+    button.onpointerup = (event) => trigger(event, 'direct-start-pointer');
+    button.onclick = (event) => trigger(event, 'direct-start-button');
+  });
 }
 
 function pass254RecipeCardsInContainer(): HTMLElement[] {
@@ -10328,6 +10664,7 @@ function pass254AnnotateMissionRecipeCards(reason = 'annotate'): void {
 
 function pass254EnsureRecipePreviewHost(): HTMLElement | null {
   if (!missionRecipes) return null;
+  const recipesSection = missionRecipes.closest('.mission-recipes-section') as HTMLElement | null;
   let host = document.getElementById('pass254-mission-recipe-preview') as HTMLElement | null;
   if (!host) {
     host = document.createElement('section');
@@ -10336,6 +10673,7 @@ function pass254EnsureRecipePreviewHost(): HTMLElement | null {
     host.setAttribute('aria-live', 'polite');
     missionRecipes.parentElement?.insertBefore(host, missionRecipes);
   }
+  if (recipesSection) recipesSection.dataset.pass254RecipePreviewHost = 'true';
   return host;
 }
 
@@ -10555,6 +10893,12 @@ function pass254MountMissionRecipeClickContract(): void {
     pass254ObserveMissionRecipeContainer();
   }
   window.setTimeout(() => pass254AnnotateMissionRecipeCards('mount'), 0);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', pass254MountMissionRecipeClickContract, { once: true });
+} else {
+  pass254MountMissionRecipeClickContract();
 }
 /* PASS254_MISSION_RECIPE_CLICK_CONTRACT_END */
 
@@ -11754,17 +12098,20 @@ async function startMissionFromBookmarkFolder(detail: BookmarkFolderMissionDetai
 
 function openKeyboardShortcuts(): void {
   shortcutList.innerHTML = shortcutRows.map(([keys, action]) => '<article><kbd>' + escapeHtml(keys) + '</kbd><span>' + escapeHtml(action) + '</span></article>').join('');
+  pass348CaptureTransientOverlayReturn('shortcut-dialog');
   pass190CloseRivalOverlays('shortcut-dialog');
   if (!shortcutDialog.open) shortcutDialog.showModal();
   pass190OpenOwnedOverlay('shortcut-dialog', shortcutDialog as unknown as HTMLElement, null);
   pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('shortcuts-open');
 }
 
-function closeKeyboardShortcuts(restoreFocus = false): void {
+function closeKeyboardShortcuts(restoreFocus = false, restoreOwner = true): void {
   pass117ClearOverlayFocus('shortcut-dialog', shortcutDialog as unknown as HTMLElement, null, false);
   if (shortcutDialog.open) shortcutDialog.close();
   if (document.body.dataset.pass116ActiveOverlay === 'shortcut-dialog') pass118ClearChromeOverlayState('explicit-close', 'shortcut-dialog');
-  if (restoreFocus) addressInput.focus();
+  const restoredOwner = restoreOwner ? pass348RestoreTransientOverlayOwner('shortcut-dialog') : false;
+  if (!restoreOwner) pass348ClearTransientOverlayReturn('shortcut-dialog');
+  if (restoreFocus && !restoredOwner) addressInput.focus();
   pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('shortcuts-close');
 }
 
@@ -11913,25 +12260,25 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     { id: 'mission-focus-pane', title: 'Toggle Mission Focus Pane', detail: 'Maximize the active mission pane without losing Quad/Split context.', group: 'Mission View', shortcut: 'Ctrl+Alt+F', target: 'Active pane', phase: 'mission', run: () => toggleMissionFocusPane() },
     { id: 'mission-view-doctor', title: 'Mission View Doctor', detail: 'Repair stale pane state, direct webview bounds, and command-dock selection drift.', group: 'Mission View', shortcut: 'Ctrl+Alt+Shift+D', target: 'Mission panes', phase: 'mission', run: () => pass78RunMissionViewDoctor('command-palette') },
     { id: 'mission-view-repaint-fit', title: 'Mission Repaint / Fit', detail: 'Force exact viewport sizing for all visible Mission panes.', group: 'Mission View', shortcut: 'Ctrl+Alt+Shift+R', target: 'Mission panes', phase: 'mission', run: () => pass78RepaintMissionView('command-palette') },
-    { id: 'all-surface-doctor', title: 'All-Surface Doctor', detail: 'Inspect and repair shell chrome, command lanes, dialogs, evidence exports, mission drop boundaries, active-pane routing, webview security, and accessibility.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+S', target: 'All browser surfaces', phase: 'browser', run: () => pass81RunAllSurfaceDoctor('command-palette') },
+    { id: 'all-surface-doctor', title: 'All-Surface Doctor', detail: 'Inspect and repair shell chrome, command lanes, dialogs, evidence exports, mission drop boundaries, active-pane routing, webview security, and accessibility.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+S', target: 'All browser surfaces', phase: 'browser', run: () => { void pass81RunAllSurfaceDoctor('command-palette'); } },
     { id: 'copy-all-surface-doctor', title: 'Copy All-Surface Doctor Report', detail: 'Copy a redaction-scanned report of shell, Mission, evidence, export, routing, and webview surface findings.', group: 'Browser', target: 'All browser surfaces', phase: 'browser', run: pass81CopyAllSurfaceDoctor },
-    { id: 'enterprise-surface-assurance', title: 'Enterprise Surface Assurance', detail: 'Inspect command registry, shortcut collisions, evidence/export boundaries, shell links, status live regions, Mission drop contracts, and webview routing hygiene.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+A', target: 'All browser surfaces', phase: 'browser', run: () => pass82RunEnterpriseSurfaceAssurance('command-palette') },
+    { id: 'enterprise-surface-assurance', title: 'Enterprise Surface Assurance', detail: 'Inspect command registry, shortcut collisions, evidence/export boundaries, shell links, status live regions, Mission drop contracts, and webview routing hygiene.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+A', target: 'All browser surfaces', phase: 'browser', run: () => { void pass82RunEnterpriseSurfaceAssurance('command-palette'); } },
     { id: 'copy-enterprise-surface-assurance', title: 'Copy Enterprise Surface Assurance Report', detail: 'Copy a redaction-scanned PASS82 assurance report for release QA and operator troubleshooting.', group: 'Browser', target: 'All browser surfaces', phase: 'browser', run: pass82CopyEnterpriseSurfaceAssurance },
-    { id: 'operator-safety-contract', title: 'Operator Safety Contract', detail: 'Redaction-gate copy/save actions and inspect dialogs, toolbar state, pane truth, launch recipes, and runtime fault visibility.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+M', target: 'All operator surfaces', phase: 'browser', run: () => pass83RunOperatorSafetyContract('command-palette') },
+    { id: 'operator-safety-contract', title: 'Operator Safety Contract', detail: 'Redaction-gate copy/save actions and inspect dialogs, toolbar state, pane truth, launch recipes, and runtime fault visibility.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+M', target: 'All operator surfaces', phase: 'browser', run: () => { void pass83RunOperatorSafetyContract('command-palette'); } },
     { id: 'copy-operator-safety-contract', title: 'Copy Operator Safety Contract Report', detail: 'Copy a redaction-scanned PASS83 report for operator QA and release evidence.', group: 'Browser', target: 'All operator surfaces', phase: 'browser', run: pass83CopyOperatorSafetyContract },
-    { id: 'release-gate-truth-mesh', title: 'Release Gate Truth Mesh', detail: 'Audit guard mounts, commands, shortcuts, exports, panes, recipes, and release-facing status truth.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+V', target: 'All browser release gates', phase: 'browser', run: () => pass84RunReleaseGateTruthMesh('command-palette') },
+    { id: 'release-gate-truth-mesh', title: 'Release Gate Truth Mesh', detail: 'Audit guard mounts, commands, shortcuts, exports, panes, recipes, and release-facing status truth.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+V', target: 'All browser release gates', phase: 'browser', run: () => { void pass84RunReleaseGateTruthMesh('command-palette'); } },
     { id: 'copy-release-gate-truth-mesh', title: 'Copy Release Gate Truth Mesh Report', detail: 'Copy a redaction-scanned PASS84 release-gate truth report for QA and handoff evidence.', group: 'Browser', target: 'All browser release gates', phase: 'browser', run: pass84CopyReleaseGateTruthMesh },
-    { id: 'enterprise-contract-ledger', title: 'Enterprise Contract Ledger', detail: 'Audit and repair shell, navigation, pane, recipe, dialog, command, and redaction contracts as one release ledger.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+L', target: 'All browser enterprise contracts', phase: 'browser', run: () => pass85RunEnterpriseContractLedger('command-palette') },
+    { id: 'enterprise-contract-ledger', title: 'Enterprise Contract Ledger', detail: 'Audit and repair shell, navigation, pane, recipe, dialog, command, and redaction contracts as one release ledger.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+L', target: 'All browser enterprise contracts', phase: 'browser', run: () => { void pass85RunEnterpriseContractLedger('command-palette'); } },
     { id: 'copy-enterprise-contract-ledger', title: 'Copy Enterprise Contract Ledger Report', detail: 'Copy a redaction-scanned PASS85 enterprise contract ledger for QA, support, and release handoff.', group: 'Browser', target: 'All browser enterprise contracts', phase: 'browser', run: pass85CopyEnterpriseContractLedger },
-    { id: 'source-contract-sentinel', title: 'Source Contract Sentinel', detail: 'Fail-closed audit for command IDs, shortcuts, recipes, panes, webviews, redaction outputs, dialogs, status truth, and prior guard mounts.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+X', target: 'All browser source contracts', phase: 'browser', run: () => pass86RunSourceContractSentinel('command-palette') },
+    { id: 'source-contract-sentinel', title: 'Source Contract Sentinel', detail: 'Fail-closed audit for command IDs, shortcuts, recipes, panes, webviews, redaction outputs, dialogs, status truth, and prior guard mounts.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+X', target: 'All browser source contracts', phase: 'browser', run: () => { void pass86RunSourceContractSentinel('command-palette'); } },
     { id: 'copy-source-contract-sentinel', title: 'Copy Source Contract Sentinel Report', detail: 'Copy a redaction-scanned PASS86 source contract sentinel report for QA, release gates, and operator support.', group: 'Browser', target: 'All browser source contracts', phase: 'browser', run: pass86CopySourceContractSentinel },
-    { id: 'operator-recovery-mesh', title: 'Operator Recovery Mesh', detail: 'Source-true recovery audit for navigation, address routing, tool actions, non-drop boundaries, commands, shortcuts, panes, webviews, evidence outputs, dialogs, and runtime truth.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+O', target: 'All operator recovery surfaces', phase: 'browser', run: () => pass87RunOperatorRecoveryMesh('command-palette') },
+    { id: 'operator-recovery-mesh', title: 'Operator Recovery Mesh', detail: 'Source-true recovery audit for navigation, address routing, tool actions, non-drop boundaries, commands, shortcuts, panes, webviews, evidence outputs, dialogs, and runtime truth.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+O', target: 'All operator recovery surfaces', phase: 'browser', run: () => { void pass87RunOperatorRecoveryMesh('command-palette'); } },
     { id: 'copy-operator-recovery-mesh', title: 'Copy Operator Recovery Mesh Report', detail: 'Copy a redaction-scanned PASS87 operator recovery report for QA, support, and release handoff.', group: 'Browser', target: 'All operator recovery surfaces', phase: 'browser', run: pass87CopyOperatorRecoveryMesh },
-    { id: 'active-pane-routing-failsafe', title: 'Active Pane Routing Failsafe', detail: 'Repair address, toolbar, mouse button, and command routing so every action targets the visible active Mission pane.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+P', target: 'Active Mission pane routing', phase: 'browser', run: () => pass88RunActivePaneRoutingFailsafe('command-palette') },
+    { id: 'active-pane-routing-failsafe', title: 'Active Pane Routing Failsafe', detail: 'Repair address, toolbar, mouse button, and command routing so every action targets the visible active Mission pane.', group: 'Browser', shortcut: 'Ctrl+Alt+Shift+P', target: 'Active Mission pane routing', phase: 'browser', run: () => { void pass88RunActivePaneRoutingFailsafe('command-palette'); } },
     { id: 'copy-active-pane-routing-report', title: 'Copy Active Pane Routing Report', detail: 'Copy a redaction-scanned PASS88 active-pane routing report for QA, support, and release handoff.', group: 'Browser', target: 'Active Mission pane routing', phase: 'browser', run: pass88CopyActivePaneRoutingReport },
-    { id: 'mission-pane-restore-failsafe', title: 'Mission Pane Restore Failsafe', detail: 'Promote layouts when pane moves would hide the target, repair focus/restore drift, and clear stale pane drag/drop overlays.', group: 'Mission View', shortcut: 'Ctrl+Alt+Shift+G', target: 'Mission layout restore and pane movement', phase: 'mission', run: () => pass89RunMissionPaneRestoreFailsafe('command-palette') },
+    { id: 'mission-pane-restore-failsafe', title: 'Mission Pane Restore Failsafe', detail: 'Promote layouts when pane moves would hide the target, repair focus/restore drift, and clear stale pane drag/drop overlays.', group: 'Mission View', shortcut: 'Ctrl+Alt+Shift+G', target: 'Mission layout restore and pane movement', phase: 'mission', run: () => { void pass89RunMissionPaneRestoreFailsafe('command-palette'); } },
     { id: 'copy-mission-pane-restore-report', title: 'Copy Mission Pane Restore Report', detail: 'Copy a redaction-scanned PASS89 report covering hidden-pane promotion, focus restore, move controls, and stale overlay recovery.', group: 'Mission View', target: 'Mission layout restore and pane movement', phase: 'mission', run: pass89CopyMissionPaneRestoreReport },
-    { id: 'launch-recipe-failsafe', title: 'Launch Recipe Failsafe', detail: 'Validate Launch Recipe cards, bookmark-mission source paths, connector-required blocks, safe URL plans, and Command Center launch commands before any profile switch or tab closure.', group: 'Mission Recipe', shortcut: 'Ctrl+Alt+Shift+Y', target: 'Launch recipes and bookmarked Mission launches', phase: 'mission', run: () => pass90RunLaunchRecipeFailsafe('command-palette') },
+    { id: 'launch-recipe-failsafe', title: 'Launch Recipe Failsafe', detail: 'Validate Launch Recipe cards, bookmark-mission source paths, connector-required blocks, safe URL plans, and Command Center launch commands before any profile switch or tab closure.', group: 'Mission Recipe', shortcut: 'Ctrl+Alt+Shift+Y', target: 'Launch recipes and bookmarked Mission launches', phase: 'mission', run: () => { void pass90RunLaunchRecipeFailsafe('command-palette'); } },
     { id: 'copy-launch-recipe-failsafe-report', title: 'Copy Launch Recipe Failsafe Report', detail: 'Copy a redaction-scanned PASS90 report covering recipe URL plans, disabled connector recipes, command coverage, and Mission launch safety.', group: 'Mission Recipe', target: 'Launch recipes and bookmarked Mission launches', phase: 'mission', run: pass90CopyLaunchRecipeFailsafeReport },
     { id: 'save-workspace', title: 'Save Workspace Snapshot', detail: 'Save current tabs and active profile context.', group: 'Workspace', run: saveWorkspaceSnapshot },
     { id: 'pin-evidence', title: 'Pin Latest Evidence', detail: 'Add current tool output to the local evidence timeline.', group: 'Evidence', run: pinLatestEvidence },
@@ -11945,12 +12292,12 @@ function buildCommandPaletteActions(): CommandPaletteAction[] {
     { id: 'it-menu', title: 'IT Tools Menu', detail: 'Open IT engineering flyout.', group: 'Tools', shortcut: 'Ctrl+Alt+I', run: () => openToolMenu('it') },
     { id: 'browser-kit-menu', title: 'Browser Kit Menu', detail: 'Open daily-driver browser actions without demoting DevOps or IT lanes.', group: 'Browser Kit', shortcut: 'Ctrl+Alt+.', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => openToolMenu('browser') },
     { id: 'last-tool-menu', title: 'Reopen Last Command Toolbar', detail: 'Open whichever command lane was used last: DevOps or IT Tools.', group: 'Tools', shortcut: 'Ctrl+Alt+L', run: () => openLastToolMenu() },
-    { id: 'pin-tab', title: 'Pin / Unpin Active Tab', detail: 'Keep the active tab parked at the front of the strip or release it back into normal flow.', group: 'Browser Kit', shortcut: 'Ctrl+Alt+Shift+F', target: 'Active tab', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => toggleBrowserTabPin(activeTabId, 'command-palette') },
-    { id: 'next-tab', title: 'Next Tab', detail: 'Cycle forward through browser tabs in visual order.', group: 'Browser Kit', shortcut: 'Ctrl+Tab', target: 'Browser tab strip', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => setActiveRelativeTab(1, 'command-palette') },
-    { id: 'previous-tab', title: 'Previous Tab', detail: 'Cycle backward through browser tabs in visual order.', group: 'Browser Kit', shortcut: 'Ctrl+Shift+Tab', target: 'Browser tab strip', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => setActiveRelativeTab(-1, 'command-palette') },
+    { id: 'pin-tab', title: 'Pin / Unpin Active Tab', detail: 'Keep the active tab parked at the front of the strip or release it back into normal flow.', group: 'Browser Kit', shortcut: 'Ctrl+Alt+Shift+F', target: 'Active tab', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => { void toggleBrowserTabPin(activeTabId, 'command-palette'); } },
+    { id: 'next-tab', title: 'Next Tab', detail: 'Cycle forward through browser tabs in visual order.', group: 'Browser Kit', shortcut: 'Ctrl+Tab', target: 'Browser tab strip', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => { void setActiveRelativeTab(1, 'command-palette'); } },
+    { id: 'previous-tab', title: 'Previous Tab', detail: 'Cycle backward through browser tabs in visual order.', group: 'Browser Kit', shortcut: 'Ctrl+Shift+Tab', target: 'Browser tab strip', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => { void setActiveRelativeTab(-1, 'command-palette'); } },
     { id: 'duplicate-tab', title: 'Duplicate Active Tab', detail: 'Clone the active tab URL into a fresh TAHAI tab.', group: 'Browser Kit', shortcut: 'Ctrl+Alt+Shift+T', target: 'Active tab', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: duplicateActiveTab },
     { id: 'reopen-closed-tab', title: 'Reopen Closed Tab', detail: 'Recover the latest closed tab in the current profile lane.', group: 'Browser Kit', shortcut: 'Ctrl+Shift+T', target: 'Current profile session', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => reopenClosedTab() },
-    { id: 'restore-session', title: 'Restore Last Session', detail: 'Reopen missing tabs from the last auto-saved session for the active profile.', group: 'Browser Kit', target: 'Current profile session', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: restoreSessionRecoverySnapshot },
+    { id: 'restore-session', title: 'Restore Last Session', detail: 'Reopen missing tabs from the last auto-saved session for the active profile.', group: 'Browser Kit', target: 'Current profile session', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => { void restoreSessionRecoverySnapshot(); } },
     { id: 'find-page', title: 'Find in Active Page', detail: 'Search text inside the active webview or active Mission pane.', group: 'Browser Kit', shortcut: 'Ctrl+F', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => openFindBar() },
     { id: 'print-page', title: 'Print Active Page', detail: 'Print the active tab or active Mission pane webview.', group: 'Browser Kit', shortcut: 'Ctrl+P', target: 'Active tab or pane', phase: 'browser', family: 'browser', targetScope: 'active-tab', run: () => printTarget('print') },
     { id: 'copy-url', title: 'Copy Active URL', detail: 'Copy only the active page URL through the trusted local clipboard path.', group: 'Browser Kit', shortcut: 'Ctrl+Shift+U', target: 'Active URL', phase: 'browser', family: 'browser', targetScope: 'browser-shell', run: () => { void copyActivePageUrl(); } },
@@ -12038,6 +12385,7 @@ function openCommandPalette(): void {
     pass242FocusCommandPaletteInput(pass242CommandPaletteOpenEpoch);
     return;
   }
+  pass348CaptureTransientOverlayReturn('command-palette');
   pass190CloseRivalOverlays('command-palette');
   commandPaletteInput.value = '';
   commandPaletteIndex = 0;
@@ -12053,13 +12401,15 @@ function openCommandPalette(): void {
   pass242FocusCommandPaletteInput(pass242CommandPaletteOpenEpoch);
 }
 
-function closeCommandPaletteDialog(restoreFocus = false): void {
+function closeCommandPaletteDialog(restoreFocus = false, restoreOwner = true): void {
   pass242CommandPaletteIntentionalClose = true;
   commandPaletteDialog.dataset.pass242FlashGuard = 'intentional-close';
   pass117ClearOverlayFocus('command-palette', commandPaletteDialog as unknown as HTMLElement, null, false);
   if (commandPaletteDialog.open) commandPaletteDialog.close();
   if (document.body.dataset.pass116ActiveOverlay === 'command-palette') pass118ClearChromeOverlayState('explicit-close', 'command-palette');
-  if (restoreFocus) addressInput.focus();
+  const restoredOwner = restoreOwner ? pass348RestoreTransientOverlayOwner('command-palette') : false;
+  if (!restoreOwner) pass348ClearTransientOverlayReturn('command-palette');
+  if (restoreFocus && !restoredOwner) addressInput.focus();
   pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('command-palette-close');
 }
 
@@ -12077,7 +12427,7 @@ function runCommandPaletteAction(index = commandPaletteIndex): void {
     renderCommandPalette();
     return;
   }
-  closeCommandPaletteDialog(false);
+  closeCommandPaletteDialog(false, false);
   document.body.dataset.pass204LastCommand = action.id;
   document.body.dataset.pass204LastCommandScope = action.targetScope || 'browser-shell';
   void action.run();
@@ -12088,6 +12438,8 @@ function populateSettingsForm(): void {
   settingHomeUrl.value = settings.homeUrl;
   settingStartup.value = settings.startup;
   settingSearch.value = settings.searchProvider;
+  settingDefaultZoom.value = String(settings.ui?.defaultZoomPercent || 100);
+  settingDefaultZoomRange.value = String(settings.ui?.defaultZoomPercent || 100);
   settingMedia.checked = settings.permissions.allowMedia;
   settingClipboard.checked = settings.permissions.allowClipboardRead;
   settingGeolocation.checked = settings.permissions.allowGeolocation;
@@ -12097,16 +12449,23 @@ function populateSettingsForm(): void {
   settingReduceReferrers.checked = settings.privacy?.reduceCrossSiteReferrers !== false;
   settingClearOnExit.checked = settings.privacy?.clearProfileDataOnExit === true;
   settingDownloads.checked = settings.downloads.askEveryTime;
+  settingBlockInsecureDownloads.checked = settings.downloads.blockInsecureDownloads === true;
   settingPopupsAsTabs.checked = settings.ui?.allowPopupsAsTabs !== false;
+  settingOpenExternalInTab.checked = settings.ui?.openExternalLinksInNewTab !== false;
+  settingLaunchMaximized.checked = settings.ui?.launchToMaximized === true;
+  settingConfirmCloseMultiTab.checked = settings.ui?.confirmBeforeClosingMultipleTabs === true;
   settingStatusBar.checked = settings.ui.showStatusBar;
+  settingDownloadDirectoryLabel.textContent = settings.downloads.defaultDirectoryLabel || 'System Downloads folder';
+  renderSettingsPolicyTruth();
+  applySettingsManagedState();
 }
 
 function settingsFromForm(): BrowserSettings {
-  const nextSearchProvider: BrowserSettings['searchProvider'] = settingSearch.value === 'duckduckgo' || settingSearch.value === 'bing' ? settingSearch.value : 'google';
+  const nextSearchProvider: BrowserSettings['searchProvider'] = ['duckduckgo', 'bing', 'brave', 'startpage'].includes(settingSearch.value) ? settingSearch.value as BrowserSettings['searchProvider'] : 'google';
   return {
     ...settings,
     homeUrl: settingHomeUrl.value.trim() || 'https://tahaiportal.com',
-    startup: settingStartup.value === 'launchpad' ? 'launchpad' : 'home',
+    startup: settingStartup.value === 'launchpad' || settingStartup.value === 'restore-session' ? settingStartup.value : 'home',
     searchProvider: nextSearchProvider,
     permissions: {
       allowMedia: settingMedia.checked,
@@ -12116,12 +12475,17 @@ function settingsFromForm(): BrowserSettings {
     },
     downloads: {
       ...settings.downloads,
-      askEveryTime: settingDownloads.checked
+      askEveryTime: settingDownloads.checked,
+      blockInsecureDownloads: settingBlockInsecureDownloads.checked
     },
     ui: {
       ...settings.ui,
       showStatusBar: settingStatusBar.checked,
-      allowPopupsAsTabs: settingPopupsAsTabs.checked
+      openExternalLinksInNewTab: settingOpenExternalInTab.checked,
+      allowPopupsAsTabs: settingPopupsAsTabs.checked,
+      defaultZoomPercent: pass349ClampedZoomPercent(settingDefaultZoom.value),
+      launchToMaximized: settingLaunchMaximized.checked,
+      confirmBeforeClosingMultipleTabs: settingConfirmCloseMultiTab.checked
     },
     privacy: {
       ...settings.privacy,
@@ -12131,6 +12495,103 @@ function settingsFromForm(): BrowserSettings {
       clearProfileDataOnExit: settingClearOnExit.checked
     }
   };
+}
+
+function pass349ClampedZoomPercent(value: unknown): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 100;
+  return Math.max(50, Math.min(200, Math.round(numeric)));
+}
+
+function pass349DefaultZoomFactor(): number {
+  return pass349ClampedZoomPercent(settings?.ui?.defaultZoomPercent || 100) / 100;
+}
+
+function pass349SyncZoomInputs(value: unknown): void {
+  const percent = pass349ClampedZoomPercent(value);
+  settingDefaultZoom.value = String(percent);
+  settingDefaultZoomRange.value = String(percent);
+}
+
+function pass349SettingsPolicy() {
+  return config?.adminPolicy?.policy;
+}
+
+function pass349ManagedSettingLocked(key: string): boolean {
+  const managed = config?.adminPolicy?.managed === true;
+  const policy = pass349SettingsPolicy();
+  const locked = policy?.lockedSettings;
+  switch (key) {
+    case 'homeUrl': return typeof locked?.homeUrl === 'string';
+    case 'startup': return typeof locked?.startup === 'string';
+    case 'searchProvider': return typeof locked?.searchProvider === 'string';
+    case 'permissions.allowMedia': return typeof locked?.permissions?.allowMedia === 'boolean';
+    case 'permissions.allowClipboardRead': return typeof locked?.permissions?.allowClipboardRead === 'boolean';
+    case 'permissions.allowGeolocation': return typeof locked?.permissions?.allowGeolocation === 'boolean';
+    case 'permissions.allowNotifications': return typeof locked?.permissions?.allowNotifications === 'boolean';
+    case 'downloads.askEveryTime': return typeof locked?.downloads?.askEveryTime === 'boolean' || (managed && typeof policy?.downloads?.askEveryTimeLocked === 'boolean');
+    case 'downloads.defaultDirectory': return typeof locked?.downloads?.defaultDirectory === 'string';
+    case 'downloads.blockInsecureDownloads': return typeof locked?.downloads?.blockInsecureDownloads === 'boolean' || (managed && policy?.downloads?.blockExternalHttpDownloads === true);
+    case 'ui.showStatusBar': return typeof locked?.ui?.showStatusBar === 'boolean';
+    case 'ui.openExternalLinksInNewTab': return typeof locked?.ui?.openExternalLinksInNewTab === 'boolean';
+    case 'ui.allowPopupsAsTabs': return typeof locked?.ui?.allowPopupsAsTabs === 'boolean';
+    case 'ui.defaultZoomPercent': return typeof locked?.ui?.defaultZoomPercent === 'number';
+    case 'ui.launchToMaximized': return typeof locked?.ui?.launchToMaximized === 'boolean';
+    case 'ui.confirmBeforeClosingMultipleTabs': return typeof locked?.ui?.confirmBeforeClosingMultipleTabs === 'boolean';
+    case 'privacy.sendDoNotTrack': return typeof locked?.privacy?.sendDoNotTrack === 'boolean';
+    case 'privacy.blockThirdPartyCookies': return typeof locked?.privacy?.blockThirdPartyCookies === 'boolean';
+    case 'privacy.reduceCrossSiteReferrers': return typeof locked?.privacy?.reduceCrossSiteReferrers === 'boolean';
+    case 'privacy.clearProfileDataOnExit': return typeof locked?.privacy?.clearProfileDataOnExit === 'boolean';
+    default: return false;
+  }
+}
+
+function pass349MarkManagedSetting(element: HTMLElement | null, locked: boolean): void {
+  const host = element?.closest<HTMLElement>('.field,.check,.settings-directory-pill,.settings-policy-panel');
+  if (!host) return;
+  if (locked) host.dataset.managedSetting = 'true';
+  else delete host.dataset.managedSetting;
+  if ('disabled' in (element || {})) (element as HTMLInputElement | HTMLButtonElement | HTMLSelectElement).disabled = locked;
+}
+
+function renderSettingsPolicyTruth(): void {
+  const state = config?.adminPolicy;
+  if (!state) return;
+  const warningCount = Array.isArray(state.warnings) ? state.warnings.length : 0;
+  const errorCount = Array.isArray(state.errors) ? state.errors.length : 0;
+  const lockCount = Object.keys(state.policy?.lockedSettings || {}).length;
+  settingsPolicyTitle.textContent = state.managed ? `Managed policy: ${state.policy.policyName}` : 'Local settings';
+  settingsPolicySummary.textContent = state.managed
+    ? `${lockCount} locked setting group(s) · ${warningCount} warning(s) · ${errorCount} error(s) · source ${state.sourceLabel}`
+    : 'Settings are stored locally for this browser profile and can be imported or exported as JSON.';
+}
+
+function applySettingsManagedState(): void {
+  pass349MarkManagedSetting(settingHomeUrl, pass349ManagedSettingLocked('homeUrl'));
+  pass349MarkManagedSetting(settingStartup, pass349ManagedSettingLocked('startup'));
+  pass349MarkManagedSetting(settingSearch, pass349ManagedSettingLocked('searchProvider'));
+  pass349MarkManagedSetting(settingDefaultZoom, pass349ManagedSettingLocked('ui.defaultZoomPercent'));
+  pass349MarkManagedSetting(settingDefaultZoomRange, pass349ManagedSettingLocked('ui.defaultZoomPercent'));
+  settingDefaultZoomRange.disabled = settingDefaultZoom.disabled;
+  pass349MarkManagedSetting(settingMedia, pass349ManagedSettingLocked('permissions.allowMedia'));
+  pass349MarkManagedSetting(settingClipboard, pass349ManagedSettingLocked('permissions.allowClipboardRead'));
+  pass349MarkManagedSetting(settingGeolocation, pass349ManagedSettingLocked('permissions.allowGeolocation'));
+  pass349MarkManagedSetting(settingNotifications, pass349ManagedSettingLocked('permissions.allowNotifications'));
+  pass349MarkManagedSetting(settingDoNotTrack, pass349ManagedSettingLocked('privacy.sendDoNotTrack'));
+  pass349MarkManagedSetting(settingThirdPartyCookies, pass349ManagedSettingLocked('privacy.blockThirdPartyCookies'));
+  pass349MarkManagedSetting(settingReduceReferrers, pass349ManagedSettingLocked('privacy.reduceCrossSiteReferrers'));
+  pass349MarkManagedSetting(settingClearOnExit, pass349ManagedSettingLocked('privacy.clearProfileDataOnExit'));
+  pass349MarkManagedSetting(settingDownloads, pass349ManagedSettingLocked('downloads.askEveryTime'));
+  pass349MarkManagedSetting(settingBlockInsecureDownloads, pass349ManagedSettingLocked('downloads.blockInsecureDownloads'));
+  pass349MarkManagedSetting(settingOpenExternalInTab, pass349ManagedSettingLocked('ui.openExternalLinksInNewTab'));
+  pass349MarkManagedSetting(settingPopupsAsTabs, pass349ManagedSettingLocked('ui.allowPopupsAsTabs'));
+  pass349MarkManagedSetting(settingLaunchMaximized, pass349ManagedSettingLocked('ui.launchToMaximized'));
+  pass349MarkManagedSetting(settingConfirmCloseMultiTab, pass349ManagedSettingLocked('ui.confirmBeforeClosingMultipleTabs'));
+  pass349MarkManagedSetting(settingStatusBar, pass349ManagedSettingLocked('ui.showStatusBar'));
+  const directoryLocked = pass349ManagedSettingLocked('downloads.defaultDirectory');
+  pass349MarkManagedSetting(settingDownloadDirectoryLabel, directoryLocked);
+  chooseDownloadDirectoryButton.disabled = directoryLocked;
+  resetDownloadDirectoryButton.disabled = directoryLocked;
 }
 
 function showSettingsResult(message: string): void {
@@ -12374,9 +12835,7 @@ async function openDevOpsCapture(): Promise<void> {
     const markdown = buildDevOpsCaptureMarkdown(page, tab);
     latestCapture = { markdown, sourceUrl: activeCaptureSourceUrl(page.url, tab.url) };
     captureMarkdown.value = markdown;
-    if (!captureDialog.open) captureDialog.showModal();
-    captureMarkdown.focus();
-    captureMarkdown.setSelectionRange(0, 0);
+    pass349OpenToolDialog(captureDialog, captureMarkdown, captureButton);
     setStatus('DevOps evidence note ready', 'Copy or save as Markdown.');
     missionTimelineEventIfActive('tool-run', 'DevOps Evidence Capture completed', 'Active page captured into local operator tool output.', { surface: 'operator-tools', paneId: activeMissionPaneId() });
   } catch (error) {
@@ -12502,7 +12961,7 @@ async function openOpsCheck(): Promise<void> {
   setStatus('Running URL Ops Check...', tab.url);
   opsSummary.innerHTML = '<article class="ops-card info"><strong>Checking</strong><span>Collecting HTTP headers and page context…</span></article>';
   opsMarkdown.value = '';
-  if (!opsDialog.open) opsDialog.showModal();
+  pass349OpenToolDialog(opsDialog, opsMarkdown, opsCheckButton);
   try {
     const [diagnostics, rawPage] = await Promise.all([
       window.tahaiBrowser.runUrlDiagnostics(tab.url),
@@ -12513,8 +12972,6 @@ async function openOpsCheck(): Promise<void> {
     latestOpsCheck = { markdown, sourceUrl: activeCaptureSourceUrl(diagnostics.normalizedUrl, tab.url), diagnostics };
     renderOpsSummary(diagnostics);
     opsMarkdown.value = markdown;
-    opsMarkdown.focus();
-    opsMarkdown.setSelectionRange(0, 0);
     setStatus('URL Ops Check ready', diagnostics.ok ? 'Operational checks passed or informational.' : 'Review warnings/failures in report.');
     missionTimelineEventIfActive('tool-run', 'URL Ops Check completed', diagnostics.ok ? 'Operational checks passed or informational.' : 'Review warnings or failures in report.', { surface: 'operator-tools', paneId: activeMissionPaneId() });
   } catch (error) {
@@ -12663,7 +13120,7 @@ async function openDeployReadiness(): Promise<void> {
   setStatus('Creating Deploy Readiness report...', tab.url);
   deploySummary.innerHTML = '<article class="ops-card info"><strong>Building</strong><span>Collecting safe URL/header, page smoke, and console signals…</span></article>';
   deployMarkdown.value = '';
-  if (!deployDialog.open) deployDialog.showModal();
+  pass349OpenToolDialog(deployDialog, deployMarkdown, deployButton);
   try {
     const [diagnostics, rawPage] = await Promise.all([
       window.tahaiBrowser.runUrlDiagnostics(tab.url),
@@ -12675,8 +13132,6 @@ async function openDeployReadiness(): Promise<void> {
     latestDeployReadiness = { markdown, sourceUrl: activeCaptureSourceUrl(diagnostics.normalizedUrl || page?.url, tab.url), diagnostics, page, consoleMessages: messages };
     renderDeploySummary(diagnostics, page, messages);
     deployMarkdown.value = markdown;
-    deployMarkdown.focus();
-    deployMarkdown.setSelectionRange(0, 0);
     setStatus('Deploy Readiness report ready', 'Copy or save as Markdown for a release, change, or rollback ticket.');
     missionTimelineEventIfActive('tool-run', 'Deploy Readiness report completed', 'Release/change readiness report generated locally.', { surface: 'operator-tools', paneId: activeMissionPaneId() });
   } catch (error) {
@@ -12825,7 +13280,7 @@ async function openItServiceCard(): Promise<void> {
   setStatus('Creating IT Service Card...', tab.url);
   itCardSummary.innerHTML = '<article class="ops-card info"><strong>Building</strong><span>Collecting DNS, safe HTTP headers, and active page context…</span></article>';
   itCardMarkdown.value = '';
-  if (!itCardDialog.open) itCardDialog.showModal();
+  pass349OpenToolDialog(itCardDialog, itCardMarkdown, itCardButton);
   try {
     const [diagnostics, ops, rawPage] = await Promise.all([
       window.tahaiBrowser.runItServiceCardDiagnostics(tab.url),
@@ -12837,8 +13292,6 @@ async function openItServiceCard(): Promise<void> {
     latestItCard = { markdown, sourceUrl: activeCaptureSourceUrl(diagnostics.normalizedUrl, tab.url), diagnostics };
     renderItCardSummary(diagnostics, ops);
     itCardMarkdown.value = markdown;
-    itCardMarkdown.focus();
-    itCardMarkdown.setSelectionRange(0, 0);
     setStatus('IT Service Card ready', 'Copy or save as Markdown for TAHAI IT Docs / runbooks.');
     missionTimelineEventIfActive('tool-run', 'IT Service Card completed', 'Service ownership and operational context report generated locally.', { surface: 'operator-tools', paneId: activeMissionPaneId() });
   } catch (error) {
@@ -13063,7 +13516,7 @@ async function openEndpointSnapshot(): Promise<void> {
   setStatus('Creating Endpoint Snapshot...', tab.url);
   endpointSummary.innerHTML = '<article class="ops-card info"><strong>Building</strong><span>Collecting safe browser/client environment signals…</span></article>';
   endpointMarkdown.value = '';
-  if (!endpointDialog.open) endpointDialog.showModal();
+  pass349OpenToolDialog(endpointDialog, endpointMarkdown, endpointButton);
   try {
     const canCheckHttp = /^https?:\/\//i.test(tab.url);
     const [rawSnapshot, ops] = await Promise.all([
@@ -13075,8 +13528,6 @@ async function openEndpointSnapshot(): Promise<void> {
     latestEndpoint = { markdown, sourceUrl: activeCaptureSourceUrl(snapshot.url, tab.url), snapshot, ops };
     renderEndpointSummary(snapshot, ops);
     endpointMarkdown.value = markdown;
-    endpointMarkdown.focus();
-    endpointMarkdown.setSelectionRange(0, 0);
     setStatus('Endpoint Snapshot ready', 'Copy or save as Markdown for helpdesk, IT Docs, or endpoint runbooks.');
     missionTimelineEventIfActive('tool-run', 'Endpoint Snapshot completed', 'Safe endpoint/browser profile generated locally.', { surface: 'operator-tools', paneId: activeMissionPaneId() });
   } catch (error) {
@@ -13314,7 +13765,7 @@ async function openSupportTriage(): Promise<void> {
   setStatus('Creating Support Triage packet...', tab.url);
   triageSummary.innerHTML = '<article class="ops-card info"><strong>Building</strong><span>Collecting safe endpoint, page, HTTP, and console signals…</span></article>';
   triageMarkdown.value = '';
-  if (!triageDialog.open) triageDialog.showModal();
+  pass349OpenToolDialog(triageDialog, triageMarkdown, triageButton);
   try {
     const canCheckHttp = /^https?:\/\//i.test(tab.url);
     const [rawEndpoint, rawPage, ops] = await Promise.all([
@@ -13329,8 +13780,6 @@ async function openSupportTriage(): Promise<void> {
     latestTriage = { markdown, sourceUrl: activeCaptureSourceUrl(page?.url || endpoint.url, tab.url), endpoint, ops, page, consoleMessages: messages };
     renderTriageSummary(endpoint, ops, page, messages);
     triageMarkdown.value = markdown;
-    triageMarkdown.focus();
-    triageMarkdown.setSelectionRange(0, 0);
     setStatus('Support Triage packet ready', 'Copy or save as Markdown for helpdesk, escalation, or TAHAI IT Docs.');
     missionTimelineEventIfActive('tool-run', 'Support Triage packet completed', 'Support triage packet generated locally.', { surface: 'operator-tools', paneId: activeMissionPaneId() });
   } catch (error) {
@@ -13648,7 +14097,7 @@ async function openRouteMap(): Promise<void> {
   setStatus('Creating Route Map...', tab.url);
   routeMapSummary.innerHTML = '<article class="ops-card info"><strong>Mapping</strong><span>Collecting route, form, resource, and API-like surface signals…</span></article>';
   routeMapMarkdown.value = '';
-  if (!routeMapDialog.open) routeMapDialog.showModal();
+  pass349OpenToolDialog(routeMapDialog, routeMapMarkdown, routeMapButton);
   try {
     const raw = await pass238SafeExecuteJavaScript<Partial<RouteMapPage>>(tab.webview, routeMapScript(), true, `route-map:${tab.id}`, {}) as Partial<RouteMapPage>;
     const map = normalizeRouteMapPage(raw, tab);
@@ -13656,8 +14105,6 @@ async function openRouteMap(): Promise<void> {
     latestRouteMap = { markdown, sourceUrl: activeCaptureSourceUrl(map.url, tab.url), map };
     renderRouteMapSummary(map);
     routeMapMarkdown.value = markdown;
-    routeMapMarkdown.focus();
-    routeMapMarkdown.setSelectionRange(0, 0);
     setStatus('Route Map ready', 'Copy or save as Markdown for PRs, docs, or runbooks.');
     missionTimelineEventIfActive('tool-run', 'Route Map completed', 'Route/form/resource surface map generated locally.', { surface: 'operator-tools', paneId: activeMissionPaneId() });
   } catch (error) {
@@ -13988,7 +14435,7 @@ async function openDeveloperAudit(): Promise<void> {
   setStatus('Running Developer Audit...', tab.title);
   devAuditSummary.innerHTML = '<article class="ops-card info"><strong>Auditing</strong><span>Collecting console signal, resource timing, and page quality signals…</span></article>';
   devAuditMarkdown.value = '';
-  if (!devAuditDialog.open) devAuditDialog.showModal();
+  pass349OpenToolDialog(devAuditDialog, devAuditMarkdown, devAuditButton);
   try {
     const raw = await pass238SafeExecuteJavaScript<Partial<DevAuditPage>>(tab.webview, devAuditScript(), true, `developer-audit:${tab.id}`, {}) as Partial<DevAuditPage>;
     const page = normalizeDevAuditPage(raw, tab);
@@ -13997,8 +14444,6 @@ async function openDeveloperAudit(): Promise<void> {
     latestDevAudit = { markdown, sourceUrl: activeCaptureSourceUrl(page.url, tab.url), page, consoleMessages: messages };
     renderDevAuditSummary(page, messages);
     devAuditMarkdown.value = markdown;
-    devAuditMarkdown.focus();
-    devAuditMarkdown.setSelectionRange(0, 0);
     setStatus('Developer Audit ready', 'Copy or save as Markdown for a bug report, PR, or runbook.');
     missionTimelineEventIfActive('tool-run', 'Developer Audit completed', 'Console/resource/page quality audit generated locally.', { surface: 'operator-tools', paneId: activeMissionPaneId() });
   } catch (error) {
@@ -14081,7 +14526,7 @@ function closeAllTabsForProfileSwitch(): void {
 
 function reloadForActiveProfile(): void {
   closeAllTabsForProfileSwitch();
-  createTab(config.startupUrl || config.homeUrl);
+  openConfiguredStartupSurface();
 }
 
 const PASS347_BROWSER_TAB_DAILY_DRIVER_AND_PROFILE_DIALOG_STABILITY = 'PASS347_BROWSER_TAB_DAILY_DRIVER_AND_PROFILE_DIALOG_STABILITY';
@@ -14425,6 +14870,7 @@ missionLayoutsEl.addEventListener('click', (event) => {
     const tab = active();
     if (tab) {
       upsertBrowserTabIntoMissionPane(tab.id, paneButton.dataset.sendActivePane, { activateLayout: true });
+      setMissionActivePane(paneButton.dataset.sendActivePane);
       pass107ScheduleMissionViewportSettle('mission-send-active-pane');
     }
   }
@@ -14444,7 +14890,44 @@ missionTimeline.addEventListener('click', (event) => {
   renderMissionControl();
 });
 
-missionRecipes.addEventListener('click', (event) => { const button = eventClosest<HTMLButtonElement>(event, '[data-start-mission-recipe-id]'); if (button?.dataset.startMissionRecipeId) void startMissionFromRecipe(button.dataset.startMissionRecipeId, 'mission-control'); });
+missionRecipes.addEventListener('click', (event) => {
+  const startButton = eventClosest<HTMLButtonElement>(event, '[data-pass254-start-mission-recipe-id], [data-start-mission-recipe-id]');
+  if (startButton) {
+    const recipeId = startButton.dataset.pass254StartMissionRecipeId || startButton.dataset.startMissionRecipeId || pass254RecipeIdFromElement(startButton);
+    if (recipeId) {
+      event.preventDefault();
+      event.stopPropagation();
+      void pass254StartMissionFromRecipe(recipeId);
+      return;
+    }
+  }
+  const selectButton = eventClosest<HTMLButtonElement>(event, '[data-pass254-select-mission-recipe-id]');
+  if (selectButton) {
+    const recipeId = selectButton.dataset.pass254SelectMissionRecipeId || pass254RecipeIdFromElement(selectButton);
+    if (recipeId) {
+      event.preventDefault();
+      event.stopPropagation();
+      pass254SelectMissionRecipe(recipeId, 'mission-recipes-click');
+      return;
+    }
+  }
+  const recipeCard = eventClosest<HTMLElement>(event, '[data-pass254-recipe-id], [data-recipe-id], .mission-recipe-card, .recipe-card, .launch-recipe-card');
+  if (!recipeCard) return;
+  const recipeId = pass254RecipeIdFromElement(recipeCard);
+  if (!recipeId) return;
+  pass254SelectMissionRecipe(recipeId, 'mission-recipes-card');
+});
+missionRecipes.addEventListener('keydown', (event) => {
+  const recipeCard = eventClosest<HTMLElement>(event, '[data-pass254-recipe-id], [data-recipe-id], .mission-recipe-card, .recipe-card, .launch-recipe-card');
+  if (!recipeCard) return;
+  const key = (event as KeyboardEvent).key;
+  if (key !== 'Enter' && key !== ' ') return;
+  const recipeId = pass254RecipeIdFromElement(recipeCard);
+  if (!recipeId) return;
+  event.preventDefault();
+  event.stopPropagation();
+  pass254SelectMissionRecipe(recipeId, 'mission-recipes-keydown');
+});
 missionRunbookObjective.addEventListener('change', updateMissionRunbookFromFields);
 missionRunbookRollback.addEventListener('change', updateMissionRunbookFromFields);
 missionRunbookStepInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addMissionRunbookStep(); } });
@@ -14578,6 +15061,18 @@ window.visualViewport?.addEventListener('resize', () => {
 shortcutDialog.addEventListener('close', () => {
   if (document.body.dataset.pass116ActiveOverlay === 'shortcut-dialog') pass118ClearChromeOverlayState('explicit-close', 'shortcut-dialog');
 });
+for (const dialog of pass349ToolDialogs()) {
+  dialog.addEventListener('close', () => pass349HandleToolDialogClosed(dialog));
+  dialog.addEventListener('cancel', (event) => {
+    if (document.body.dataset.pass116ActiveOverlay !== 'tool-dialog') return;
+    event.preventDefault();
+    pass349CloseToolDialogs(true);
+  });
+}
+shortcutDialog.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  closeKeyboardShortcuts(true);
+});
 closeShortcutsButton.addEventListener('click', () => closeKeyboardShortcuts(true));
 devopsToolsButton.addEventListener('click', (event) => { event.stopPropagation(); toggleToolMenu('devops'); });
 itToolsButton.addEventListener('click', (event) => { event.stopPropagation(); toggleToolMenu('it'); });
@@ -14632,17 +15127,17 @@ findPrevButton.addEventListener('click', () => runFindInPage(false, true));
 findNextButton.addEventListener('click', () => runFindInPage(true, true));
 findCloseButton.addEventListener('click', () => closeFindBar());
 settingsButton.addEventListener('click', () => { closeToolMenus(undefined, false); openSettings(); });
-captureButton.addEventListener('click', () => runToolFromMenu(openDevOpsCapture));
-opsCheckButton.addEventListener('click', () => runToolFromMenu(openOpsCheck));
-deployButton.addEventListener('click', () => runToolFromMenu(openDeployReadiness));
-itCardButton.addEventListener('click', () => runToolFromMenu(openItServiceCard));
-endpointButton.addEventListener('click', () => runToolFromMenu(openEndpointSnapshot));
-triageButton.addEventListener('click', () => runToolFromMenu(openSupportTriage));
-secretBoundaryButton.addEventListener('click', () => runToolFromMenu(openSecretBoundary));
-routeMapButton.addEventListener('click', () => runToolFromMenu(openRouteMap));
-devAuditButton.addEventListener('click', () => runToolFromMenu(openDeveloperAudit));
-opsGuardButton.addEventListener('click', () => runToolFromMenu(openOpsGuardReview));
-devtoolsButton.addEventListener('click', () => runToolFromMenu(toggleActiveDevTools));
+bindStableToolCardAction(captureButton, openDevOpsCapture);
+bindStableToolCardAction(opsCheckButton, openOpsCheck);
+bindStableToolCardAction(deployButton, openDeployReadiness);
+bindStableToolCardAction(itCardButton, openItServiceCard);
+bindStableToolCardAction(endpointButton, openEndpointSnapshot);
+bindStableToolCardAction(triageButton, openSupportTriage);
+bindStableToolCardAction(secretBoundaryButton, openSecretBoundary);
+bindStableToolCardAction(routeMapButton, openRouteMap);
+bindStableToolCardAction(devAuditButton, openDeveloperAudit);
+bindStableToolCardAction(opsGuardButton, openOpsGuardReview);
+bindStableToolCardAction(devtoolsButton, toggleActiveDevTools);
 aboutButton.addEventListener('click', () => { closeToolMenus(undefined, false); navigate(config.aboutUrl); });
 newTabButton.addEventListener('click', () => { closeToolMenus(undefined, false); createTab(config.newTabUrl); });
 document.addEventListener('click', () => closeToolMenus());
@@ -14683,15 +15178,15 @@ deleteProfileButton.addEventListener('click', () => { void deleteSelectedProfile
 clearSelectedProfileDataButton.addEventListener('click', () => { void clearSelectedProfileData(); });
 openActiveProfileDataButton.addEventListener('click', () => { void openActiveProfileData(); });
 openProfileButton.addEventListener('click', async () => { await window.tahaiBrowser.openUserData(); showSettingsResult('Opened app profile folder.'); });
-closeCaptureButton.addEventListener('click', () => captureDialog.close());
-closeOpsButton.addEventListener('click', () => opsDialog.close());
-closeDeployButton.addEventListener('click', () => deployDialog.close());
-closeItCardButton.addEventListener('click', () => itCardDialog.close());
-closeEndpointButton.addEventListener('click', () => endpointDialog.close());
-closeTriageButton.addEventListener('click', () => triageDialog.close());
+closeCaptureButton.addEventListener('click', () => pass349CloseToolDialogs(true));
+closeOpsButton.addEventListener('click', () => pass349CloseToolDialogs(true));
+closeDeployButton.addEventListener('click', () => pass349CloseToolDialogs(true));
+closeItCardButton.addEventListener('click', () => pass349CloseToolDialogs(true));
+closeEndpointButton.addEventListener('click', () => pass349CloseToolDialogs(true));
+closeTriageButton.addEventListener('click', () => pass349CloseToolDialogs(true));
 // PASS246: route map and developer audit tool dialogs must close from their header X controls.
-closeRouteMapButton.addEventListener('click', () => routeMapDialog.close());
-closeDevAuditButton.addEventListener('click', () => devAuditDialog.close());
+closeRouteMapButton.addEventListener('click', () => pass349CloseToolDialogs(true));
+closeDevAuditButton.addEventListener('click', () => pass349CloseToolDialogs(true));
 copyCaptureButton.addEventListener('click', async () => {
   const markdown = captureMarkdown.value.trim() || latestCapture?.markdown || '';
   if (!markdown) { showCaptureResult('Nothing to copy.'); return; }
@@ -14804,7 +15299,7 @@ saveDevAuditButton.addEventListener('click', async () => {
   else if (result.canceled) showDevAuditResult('Save cancelled.');
   else showDevAuditResult('Save failed.');
 });
-closeBundleButton.addEventListener('click', () => bundleDialog.close());
+closeBundleButton.addEventListener('click', () => pass349CloseToolDialogs(true));
 copyBundleButton.addEventListener('click', async () => {
   const markdown = bundleMarkdown.value.trim() || latestChangeBundle?.markdown || '';
   if (!markdown) { showBundleResult('Nothing to copy.'); return; }
@@ -14821,7 +15316,7 @@ saveBundleButton.addEventListener('click', async () => {
   else if (result.canceled) showBundleResult('Save cancelled.');
   else showBundleResult('Save failed.');
 });
-closeHandoffButton.addEventListener('click', () => handoffDialog.close());
+closeHandoffButton.addEventListener('click', () => pass349CloseToolDialogs(true));
 handoffTargetButtons.forEach((button) => {
   button.addEventListener('click', () => setHandoffTarget(button.dataset.handoffTarget === 'psa' ? 'psa' : 'it-docs'));
 });
@@ -14874,7 +15369,7 @@ openItDocsFromHandoffButton.addEventListener('click', async () => {
   if (!opened) void openLaunchRecipe('tahai-it-docs', 'mission-control');
 });
 openPsaFromHandoffButton.addEventListener('click', () => { void openLaunchRecipe('tahai-psa', 'mission-control'); });
-closeOpsGuardButton.addEventListener('click', () => opsGuardDialog.close());
+closeOpsGuardButton.addEventListener('click', () => pass349CloseToolDialogs(true));
 copyOpsGuardButton.addEventListener('click', async () => {
   const markdown = opsGuardMarkdown.value.trim() || latestOpsGuard?.markdown || '';
   if (!markdown) { showOpsGuardResult('Nothing to copy.'); return; }
@@ -14910,16 +15405,47 @@ resetSettingsButton.addEventListener('click', async () => {
   settings = await window.tahaiBrowser.resetSettings();
   populateSettingsForm();
   applyUiSettings();
+  pass349ApplyDefaultZoomToAllTabs('settings-reset', false);
   showSettingsResult('Settings reset.');
 });
 settingsForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  settings = await window.tahaiBrowser.updateSettings(settingsFromForm());
+  const nextSettings = settingsFromForm();
+  const launchModeChanged = Boolean(nextSettings.ui?.launchToMaximized) !== Boolean(settings?.ui?.launchToMaximized);
+  settings = await window.tahaiBrowser.updateSettings(nextSettings);
   config.homeUrl = settings.homeUrl;
   populateSettingsForm();
   applyUiSettings();
-  showSettingsResult('Settings saved.');
+  pass349ApplyDefaultZoomToAllTabs('settings-save', true);
+  showSettingsResult(launchModeChanged ? 'Settings saved. Launch mode applies on next start.' : 'Settings saved.');
 });
+chooseDownloadDirectoryButton.addEventListener('click', async () => {
+  settings = await window.tahaiBrowser.chooseDownloadDirectory();
+  populateSettingsForm();
+  showSettingsResult(settings.downloads.hasCustomDirectory ? 'Download folder updated.' : 'Using system Downloads folder.');
+});
+resetDownloadDirectoryButton.addEventListener('click', async () => {
+  settings = await window.tahaiBrowser.resetDownloadDirectory();
+  populateSettingsForm();
+  showSettingsResult('Using system Downloads folder.');
+});
+importSettingsFileButton.addEventListener('click', async () => {
+  const result = await window.tahaiBrowser.importSettingsFile();
+  if (result.settings) {
+    settings = result.settings;
+    config.homeUrl = settings.homeUrl;
+    populateSettingsForm();
+    applyUiSettings();
+    pass349ApplyDefaultZoomToAllTabs('settings-import', true);
+  }
+  showSettingsResult(result.message);
+});
+exportSettingsFileButton.addEventListener('click', async () => {
+  const result = await window.tahaiBrowser.exportSettingsFile();
+  showSettingsResult(result.message);
+});
+settingDefaultZoom.addEventListener('input', () => pass349SyncZoomInputs(settingDefaultZoom.value));
+settingDefaultZoomRange.addEventListener('input', () => pass349SyncZoomInputs(settingDefaultZoomRange.value));
 
 window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key.toLowerCase() === 'd') { event.preventDefault(); event.stopPropagation(); pass78RunMissionViewDoctor('shortcut'); return; }
@@ -15038,6 +15564,61 @@ function pass158RuntimeE2eElementVisible(selector: string): boolean {
   });
 }
 
+function pass158RuntimeE2eElementHitTargetReady(selector: string): boolean {
+  return Array.from(document.querySelectorAll<HTMLElement>(selector)).some((element) => {
+    const style = window.getComputedStyle(element);
+    if (element.hidden
+      || element.getAttribute('aria-hidden') === 'true'
+      || style.display === 'none'
+      || style.visibility === 'hidden'
+      || Number(style.opacity || '1') === 0
+      || !element.getClientRects().length) return false;
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 12 || rect.height < 12) return false;
+    const x = rect.left + Math.max(6, Math.min(rect.width - 6, rect.width / 2));
+    const y = rect.top + Math.max(6, Math.min(rect.height - 6, rect.height / 2));
+    const hit = document.elementFromPoint(x, y);
+    return hit instanceof Element && (hit === element || element.contains(hit));
+  });
+}
+
+function pass158RuntimeE2eHitTargetDetail(selector: string): string {
+  const element = document.querySelector<HTMLElement>(selector);
+  if (!element) return `missing=${selector}`;
+  const style = window.getComputedStyle(element);
+  const rect = element.getBoundingClientRect();
+  const points = [
+    { label: 'center', x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+    { label: 'top-left', x: rect.left + 8, y: rect.top + 8 },
+    { label: 'top-right', x: rect.right - 8, y: rect.top + 8 },
+    { label: 'bottom-left', x: rect.left + 8, y: rect.bottom - 8 },
+    { label: 'bottom-right', x: rect.right - 8, y: rect.bottom - 8 },
+  ].map((point) => ({
+    label: point.label,
+    x: Math.max(1, Math.min(window.innerWidth - 1, point.x)),
+    y: Math.max(1, Math.min(window.innerHeight - 1, point.y)),
+  }));
+  const hits = points.map((point) => {
+    const hit = document.elementFromPoint(point.x, point.y);
+    return `${point.label}:${Math.round(point.x)},${Math.round(point.y)}=>${pass341ElementLabel(hit)}`;
+  }).join(' | ');
+  const openDialogs = Array.from(document.querySelectorAll<HTMLDialogElement>('dialog[open]'))
+    .map((dialog) => dialog.id || pass341ElementLabel(dialog))
+    .join(',');
+  return [
+    `target=${pass341ElementLabel(element)}`,
+    `rect=${pass341RectLabel(rect)}`,
+    `display=${style.display}`,
+    `visibility=${style.visibility}`,
+    `opacity=${style.opacity}`,
+    `pointer=${style.pointerEvents}`,
+    `activeOverlay=${document.body.dataset.pass116ActiveOverlay || 'none'}`,
+    `focusScope=${document.body.dataset.pass117ActiveFocusScope || 'none'}`,
+    `openDialogs=${openDialogs || 'none'}`,
+    hits
+  ].join(' ; ');
+}
+
 async function pass158RuntimeE2eClick(selector: string): Promise<void> {
   const element = pass158RuntimeE2eElement(selector);
   if (!pass158RuntimeE2eElementVisible(selector)) throw new Error(`Runtime E2E selector is not visible: ${selector}`);
@@ -15045,6 +15626,9 @@ async function pass158RuntimeE2eClick(selector: string): Promise<void> {
   element.scrollIntoView({ block: 'center', inline: 'center' });
   if ('focus' in element) element.focus({ preventScroll: true });
   await new Promise((resolve) => window.setTimeout(resolve, 16));
+  if (!await pass158RuntimeE2eWaitFor(() => pass158RuntimeE2eElementHitTargetReady(selector), 1800)) {
+    throw new Error(`Runtime E2E selector is not hit-test ready: ${selector} :: ${pass158RuntimeE2eHitTargetDetail(selector)}`);
+  }
   element.click();
   await new Promise((resolve) => window.setTimeout(resolve, 80));
 }
@@ -15353,7 +15937,11 @@ function installPass158RuntimeE2eHarness(): void {
         const headReady = await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('[data-testid="runtime-mission-pane-focus"]').length >= 2, 1600);
         if (!headReady) throw new Error('mission pane focus controls did not render');
         if (!document.querySelector('.mission-active-pane')) throw new Error('active pane marker missing');
-        return 'pane send controls, focus controls, and active-pane marker are present';
+        await pass158RuntimeE2eClick('#close-mission');
+        if (!await pass158RuntimeE2eWaitFor(() => !missionDialog.open, 2000)) throw new Error('Mission Control did not close back to normal browsing after active-pane routing');
+        const clickability = pass341NormalBrowserAndFeatureClickabilityCloseout('pass158-active-pane-routing');
+        if (clickability.status !== 'PASS') throw new Error('normal browsing did not recover after Mission Control close');
+        return 'pane send controls, focus controls, and active-pane marker are present, then Mission Control restores normal browsing';
       }, 12000);
 
       await step('popup-denied', () => {
@@ -15444,6 +16032,58 @@ function installPass158RuntimeE2eHarness(): void {
         return 'DevOps, IT, Browser Kit, Find, Ops Panel, Settings, Profiles, and Command Palette open and close cleanly';
       }, 30000);
 
+      await step('tool-card-dialog-actions', async () => {
+        await pass158RuntimeE2eClickShellControl('devops-tools');
+        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 1200)) throw new Error('DevOps panel did not open for tool-card checks');
+        await pass158RuntimeE2eClick('#capture');
+        if (!await pass158RuntimeE2eWaitFor(() => captureDialog.open, 2000)) throw new Error('Capture card did not open Capture dialog');
+        pass158RuntimeE2eElement('#capture-markdown');
+        await pass158RuntimeE2eClick('#close-capture');
+        if (!await pass158RuntimeE2eWaitFor(() => !captureDialog.open, 1600)) throw new Error('Capture dialog did not close');
+
+        await pass158RuntimeE2eClickShellControl('devops-tools');
+        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 1200)) throw new Error('DevOps panel did not reopen for Ops Check card');
+        await pass158RuntimeE2eClick('#ops-check');
+        if (!await pass158RuntimeE2eWaitFor(() => opsDialog.open, 2400)) throw new Error('Ops Check card did not open Ops dialog');
+        pass158RuntimeE2eElement('#ops-markdown');
+        await pass158RuntimeE2eClick('#close-ops');
+        if (!await pass158RuntimeE2eWaitFor(() => !opsDialog.open, 1600)) throw new Error('Ops dialog did not close');
+
+        await pass158RuntimeE2eClickShellControl('it-tools');
+        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not open for tool-card checks');
+        await pass158RuntimeE2eClick('#it-card');
+        if (!await pass158RuntimeE2eWaitFor(() => itCardDialog.open, 2000)) throw new Error('IT Card did not open the IT Service Card dialog');
+        pass158RuntimeE2eElement('#it-card-markdown');
+        await pass158RuntimeE2eClick('#close-it-card');
+        if (!await pass158RuntimeE2eWaitFor(() => !itCardDialog.open, 1600)) throw new Error('IT Service Card dialog did not close');
+
+        await pass158RuntimeE2eClickShellControl('it-tools');
+        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not reopen for Endpoint card');
+        await pass158RuntimeE2eClick('#endpoint');
+        if (!await pass158RuntimeE2eWaitFor(() => endpointDialog.open, 2400)) throw new Error('Endpoint card did not open the Endpoint Snapshot dialog');
+        pass158RuntimeE2eElement('#endpoint-markdown');
+        await pass158RuntimeE2eClick('#close-endpoint');
+        if (!await pass158RuntimeE2eWaitFor(() => !endpointDialog.open, 1600)) throw new Error('Endpoint Snapshot dialog did not close');
+
+        await pass158RuntimeE2eClickShellControl('ops-hub-toggle');
+        if (!await pass158RuntimeE2eWaitFor(() => !opsHub.hidden, 1200)) throw new Error('Ops Panel did not open for action-card checks');
+        await pass158RuntimeE2eClick('[data-ops-action="command"]');
+        if (!await pass158RuntimeE2eWaitFor(() => commandPaletteDialog.open, 1600)) throw new Error('Ops Panel Command Palette card did not open the Command Palette');
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 1600)) throw new Error('Command Palette did not close after Ops Panel card action');
+
+        await pass158RuntimeE2eClick('[data-ops-action="shortcuts"]');
+        if (!await pass158RuntimeE2eWaitFor(() => shortcutDialog.open, 1600)) throw new Error('Ops Panel Shortcuts card did not open the shortcut dialog');
+        await pass158RuntimeE2eClick('#close-shortcuts');
+        if (!await pass158RuntimeE2eWaitFor(() => !shortcutDialog.open, 1600)) throw new Error('Shortcut dialog did not close after Ops Panel card action');
+
+        await pass158RuntimeE2eClick('#close-ops-hub');
+        if (!await pass158RuntimeE2eWaitFor(() => opsHub.hidden, 1600)) throw new Error('Ops Panel did not close after action-card checks');
+        const clickability = pass341NormalBrowserAndFeatureClickabilityCloseout('pass158-tool-card-dialog-actions');
+        if (clickability.status !== 'PASS') throw new Error('normal browsing did not recover after tool-card dialog actions');
+        return 'Capture, Ops Check, IT Card, Endpoint, Command Palette, and Shortcuts cards open real surfaces and recover cleanly';
+      }, 30000);
+
       await step('evidence-export-preview', async () => {
         if (!missionDialog.open) {
           await pass158RuntimeE2eClickShellControl('mission-control-toggle');
@@ -15481,7 +16121,7 @@ loadBrowserConfigWithRuntimeFallback().then((loaded) => {
   renderOpsHub();
   installPass99ExternalDropBoundary();
   void refreshMissionStore();
-  createTab(config.startupUrl || config.homeUrl);
+  openConfiguredStartupSurface();
   markRendererShellReady();
   console.info('[PASS158] auto-run-direct config-loaded');
   void pass158MaybeAutoRunRuntimeE2e('config-loaded');
@@ -15496,7 +16136,7 @@ loadBrowserConfigWithRuntimeFallback().then((loaded) => {
   renderProfileBadge();
   renderOpsHub();
   installPass99ExternalDropBoundary();
-  createTab(config.homeUrl);
+  openConfiguredStartupSurface();
   markRendererShellReady();
   console.info('[PASS158] auto-run-direct fallback-config-loaded');
   void pass158MaybeAutoRunRuntimeE2e('fallback-config-loaded');

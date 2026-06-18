@@ -7,7 +7,7 @@ import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { readBrowserSettings, resetBrowserSettings, settingsForRenderer, writeBrowserSettings } from './settings';
+import { readBrowserSettings, resetBrowserSettings, setBrowserDownloadDirectory, settingsForRenderer, writeBrowserSettings, writeBrowserSettingsWithOptions } from './settings';
 import { hardenSession, revealDownloadArtifact } from './runtime-security';
 import { runFirstLaunchChecks } from './first-run';
 import { copyMissionExport, deleteMission, listMissions, loadMission, previewMissionExport, saveMission, saveMissionExport } from './mission-store';
@@ -28,6 +28,7 @@ import { RUNTIME_E2E_HARNESS_PASS } from '../shared/runtime-e2e-harness-contract
 import { ENTERPRISE_SUPPORT_BUNDLE_PASS } from '../shared/enterprise-support-bundle-contract';
 import { getEnterpriseAdminPolicyForRenderer, getEnterpriseAdminPolicySummary } from './enterprise-admin-policy';
 import { copyEnterpriseSupportBundle, previewEnterpriseSupportBundle, saveEnterpriseSupportBundle } from './enterprise-support-bundle';
+import { shouldRejectSettingsFileSize } from '../shared/settings-boundary';
 
 const PRODUCT_NAME = TAHAI_PRODUCT_NAME;
 const SOURCE_DEFAULT_HOME_URL = TAHAI_DEFAULT_HOME_URL;
@@ -1119,6 +1120,7 @@ function titleBarChromeOptions() {
 }
 
 function createWindow(): BrowserWindow {
+  const startupSettings = readBrowserSettings();
   const window = new BrowserWindow({
     icon: getTahaiBrowserIconPath(),
     width: 1460,
@@ -1171,6 +1173,9 @@ function createWindow(): BrowserWindow {
   if (process.platform !== 'darwin') {
     window.setAutoHideMenuBar(true);
     window.setMenuBarVisibility(false);
+  }
+  if (startupSettings.ui.launchToMaximized) {
+    window.maximize();
   }
 
   window.webContents.setWindowOpenHandler(({ url }) => {
@@ -1291,6 +1296,55 @@ assertTrustedIpcChannel('tahai-browser:update-settings');
 ipcMain.handle('tahai-browser:update-settings', (event, next) => { assertTrustedBrowserShellIpc(event); return settingsForRenderer(writeBrowserSettings(next)); });
 assertTrustedIpcChannel('tahai-browser:reset-settings');
 ipcMain.handle('tahai-browser:reset-settings', (event) => { assertTrustedBrowserShellIpc(event); return settingsForRenderer(resetBrowserSettings()); });
+assertTrustedIpcChannel('tahai-browser:choose-download-directory');
+ipcMain.handle('tahai-browser:choose-download-directory', async (event) => {
+  assertTrustedBrowserShellIpc(event);
+  const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  const result = owner
+    ? await dialog.showOpenDialog(owner, { title: 'Choose default download folder', properties: ['openDirectory', 'createDirectory'] })
+    : await dialog.showOpenDialog({ title: 'Choose default download folder', properties: ['openDirectory', 'createDirectory'] });
+  if (result.canceled || !result.filePaths?.[0]) return settingsForRenderer(readBrowserSettings());
+  return settingsForRenderer(setBrowserDownloadDirectory(result.filePaths[0]));
+});
+assertTrustedIpcChannel('tahai-browser:reset-download-directory');
+ipcMain.handle('tahai-browser:reset-download-directory', (event) => {
+  assertTrustedBrowserShellIpc(event);
+  return settingsForRenderer(setBrowserDownloadDirectory(''));
+});
+assertTrustedIpcChannel('tahai-browser:export-settings-file');
+ipcMain.handle('tahai-browser:export-settings-file', async (event) => {
+  assertTrustedBrowserShellIpc(event);
+  const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  const saveOptions: Electron.SaveDialogOptions = {
+    title: 'Export TAHAI Browser settings',
+    defaultPath: 'tahai-browser-settings.json',
+    buttonLabel: 'Export Settings',
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  };
+  const result = owner ? await dialog.showSaveDialog(owner, saveOptions) : await dialog.showSaveDialog(saveOptions);
+  if (result.canceled || !result.filePath) return { ok: false, canceled: true, message: 'Settings export canceled.' };
+  fs.writeFileSync(result.filePath, `${JSON.stringify(readBrowserSettings(), null, 2)}\n`, 'utf8');
+  return { ok: true, canceled: false, message: localFilesystemHandoffLabel('browser-config') };
+});
+assertTrustedIpcChannel('tahai-browser:import-settings-file');
+ipcMain.handle('tahai-browser:import-settings-file', async (event) => {
+  assertTrustedBrowserShellIpc(event);
+  const owner = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  const result = owner
+    ? await dialog.showOpenDialog(owner, { title: 'Import TAHAI Browser settings', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] })
+    : await dialog.showOpenDialog({ title: 'Import TAHAI Browser settings', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] });
+  const targetPath = result.canceled ? '' : String(result.filePaths?.[0] || '');
+  if (!targetPath) return { ok: false, canceled: true, message: 'Settings import canceled.' };
+  try {
+    const stat = fs.statSync(targetPath);
+    if (shouldRejectSettingsFileSize(stat.size)) return { ok: false, canceled: false, message: 'Settings file was invalid or too large.' };
+    const parsed = JSON.parse(fs.readFileSync(targetPath, 'utf8'));
+    const next = settingsForRenderer(writeBrowserSettingsWithOptions(parsed, { preserveDownloadDirectory: false }));
+    return { ok: true, canceled: false, message: localFilesystemHandoffLabel('browser-config'), settings: next };
+  } catch (error) {
+    return { ok: false, canceled: false, message: error instanceof Error ? error.message : 'Settings import failed.' };
+  }
+});
 assertTrustedIpcChannel('tahai-browser:reveal-download-artifact');
 ipcMain.handle('tahai-browser:reveal-download-artifact', async (event, artifactId: string) => { assertTrustedBrowserShellIpc(event); return revealDownloadArtifact(artifactId); });
 type ClearBrowsingDataScope = 'active-profile' | 'selected-profile' | 'all-profiles';

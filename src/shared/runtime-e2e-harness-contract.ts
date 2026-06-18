@@ -6,6 +6,7 @@ export type RuntimeE2eScenarioId =
   | 'launch-shell'
   | 'titlebar-drag'
   | 'tab-create-close'
+  | 'tab-pinning-and-switching'
   | 'launchpad-guide-home-address'
   | 'mission-control-open'
   | 'mission-layouts-split-tri-quad-focus'
@@ -13,6 +14,7 @@ export type RuntimeE2eScenarioId =
   | 'popup-denied'
   | 'kb-guide-more-tools'
   | 'shell-overlays-open-close'
+  | 'tool-card-dialog-actions'
   | 'evidence-export-preview';
 
 export type RuntimeE2eScenario = {
@@ -61,6 +63,14 @@ export const RUNTIME_E2E_SCENARIOS: readonly RuntimeE2eScenario[] = [
     purpose: 'Exercise normal browser tab creation without breaking close buttons or active tab state.',
     selectors: ['[data-testid="runtime-new-tab"]', '[data-testid="runtime-browser-tab"]', '[data-testid="runtime-tab-close"]'],
     assertions: ['new-tab-increases-count', 'tab-close-remains-clickable', 'active-tab-survives'],
+    destructive: false
+  },
+  {
+    id: 'tab-pinning-and-switching',
+    label: 'Pin and switch browser tabs',
+    purpose: 'Keep Browser Kit daily-driver tab pinning and keyboard cycling covered by the runtime harness.',
+    selectors: ['#browser-kit', '#browser-pin-tab', '[data-testid="runtime-browser-tab"]'],
+    assertions: ['pin-active-tab', 'ctrl-tab-cycles-visible-tabs', 'ctrl-shift-tab-restores-pinned-tab', 'ctrl-1-focuses-first-visible-tab'],
     destructive: false
   },
   {
@@ -120,6 +130,14 @@ export const RUNTIME_E2E_SCENARIOS: readonly RuntimeE2eScenario[] = [
     destructive: false
   },
   {
+    id: 'tool-card-dialog-actions',
+    label: 'Representative tool cards open real surfaces',
+    purpose: 'Exercise representative DevOps, IT, and Ops Panel action cards so the harness proves actual tool clicks, not only flyout visibility.',
+    selectors: ['#capture', '#ops-check', '#it-card', '#endpoint', '[data-ops-action="command"]', '[data-ops-action="shortcuts"]'],
+    assertions: ['capture-dialog-open-close', 'ops-check-dialog-open-close', 'it-card-dialog-open-close', 'endpoint-dialog-open-close', 'ops-command-card-open-close', 'ops-shortcuts-card-open-close'],
+    destructive: false
+  },
+  {
     id: 'evidence-export-preview',
     label: 'Evidence export preview and redaction boundary',
     purpose: 'Create local mission evidence and confirm export preview surfaces stay redaction-controlled.',
@@ -152,5 +170,5 @@ export function getRuntimeE2eScenario(id: RuntimeE2eScenarioId): RuntimeE2eScena
 }
 
 export function runtimeE2eHarnessSummary(): string {
-  return `${RUNTIME_E2E_HARNESS_PASS} ${RUNTIME_E2E_HARNESS_CONTRACT_ID}: ${RUNTIME_E2E_SCENARIOS.length} Electron runtime scenarios for launch, tabs, launchpad/guide/home/address routing, titlebar drag, popups, shell overlays, Mission Control, active-pane routing, and evidence export.`;
+  return `${RUNTIME_E2E_HARNESS_PASS} ${RUNTIME_E2E_HARNESS_CONTRACT_ID}: ${RUNTIME_E2E_SCENARIOS.length} Electron runtime scenarios for launch, tabs, Browser Kit tab pinning, launchpad/guide/home/address routing, titlebar drag, popups, shell overlays, representative tool cards, Mission Control, active-pane routing, and evidence export.`;
 }

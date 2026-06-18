@@ -49,6 +49,7 @@ const scenarioIds = [
   'launch-shell',
   'titlebar-drag',
   'tab-create-close',
+  'tab-pinning-and-switching',
   'launchpad-guide-home-address',
   'mission-control-open',
   'mission-layouts-split-tri-quad-focus',
@@ -56,6 +57,7 @@ const scenarioIds = [
   'popup-denied',
   'kb-guide-more-tools',
   'shell-overlays-open-close',
+  'tool-card-dialog-actions',
   'evidence-export-preview'
 ];
 for (const id of scenarioIds) need(contract.includes(`id: '${id}'`), `PASS158 contract missing scenario ${id}`);
@@ -69,11 +71,15 @@ const app = includesAll('src/renderer/app.ts', [
   'runtimeE2eHarnessSummary',
   'installPass158RuntimeE2eHarness',
   'window.__TAHAI_RUNTIME_E2E__',
+  'tab-pinning-and-switching',
   'mission-layouts-split-tri-quad-focus',
   'popup-denied',
   'kb-guide-more-tools',
   'shell-overlays-open-close',
+  'tool-card-dialog-actions',
   'evidence-export-preview',
+  'pass158RuntimeE2eElementHitTargetReady',
+  'Runtime E2E selector is not hit-test ready',
   'pass158-guest-viewport',
   'guest viewport',
   'document bottom',
@@ -154,7 +160,9 @@ for (const id of scenarioIds) need(plan.scenarioIds.includes(id), `runtime E2E p
 includesAll('docs/runtime-e2e-harness-pass158.md', [
   'PASS158',
   'Runtime E2E Harness',
-  'launch, tabs, panes, titlebar drag, popups, KB/Guide/More Tools, Mission Control, active-pane routing, and evidence export',
+  'Browser Kit tab pinning/cycling',
+  'representative DevOps/IT/Ops action cards',
+  'Runtime clicks now fail closed if a control is visible in the DOM but does not own its hit target',
   'npm run test:runtime-e2e:plan',
   'npm run test:runtime-e2e',
   'TAHAI_RUNTIME_E2E=1',

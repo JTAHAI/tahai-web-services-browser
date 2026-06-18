@@ -9,8 +9,8 @@ import type { FirstRunOperatorMilestone } from '../shared/first-run-operator-wal
 
 export type TahaiBrowserSettings = {
   homeUrl: string;
-  startup: 'home' | 'launchpad';
-  searchProvider: 'google' | 'duckduckgo' | 'bing';
+  startup: 'home' | 'launchpad' | 'restore-session';
+  searchProvider: 'google' | 'duckduckgo' | 'bing' | 'brave' | 'startpage';
   permissions: {
     allowClipboardRead: boolean;
     allowMedia: boolean;
@@ -20,11 +20,17 @@ export type TahaiBrowserSettings = {
   downloads: {
     askEveryTime: boolean;
     defaultDirectory: string;
+    defaultDirectoryLabel: string;
+    hasCustomDirectory: boolean;
+    blockInsecureDownloads: boolean;
   };
   ui: {
     showStatusBar: boolean;
     openExternalLinksInNewTab: boolean;
     allowPopupsAsTabs: boolean;
+    defaultZoomPercent: number;
+    launchToMaximized: boolean;
+    confirmBeforeClosingMultipleTabs: boolean;
   };
   privacy: {
     sendDoNotTrack: boolean;
@@ -108,6 +114,13 @@ export type ClearBrowsingDataResult = {
   clearedProfileIds: string[];
   clearedPartitions: string[];
   error: string;
+};
+
+export type BrowserConfigFileResult = {
+  ok: boolean;
+  canceled: boolean;
+  message: string;
+  settings?: TahaiBrowserSettings;
 };
 
 export type BrowserProfileKind = 'local' | 'google' | 'microsoft' | 'work' | 'client';
@@ -255,6 +268,10 @@ contextBridge.exposeInMainWorld('tahaiBrowser', {
   saveEnterpriseSupportBundle: (): Promise<EnterpriseSupportBundleResult> => ipcRenderer.invoke('tahai-browser:save-enterprise-support-bundle'),
   updateSettings: (settings: TahaiBrowserSettings): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:update-settings', settings),
   resetSettings: (): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:reset-settings'),
+  chooseDownloadDirectory: (): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:choose-download-directory'),
+  resetDownloadDirectory: (): Promise<TahaiBrowserSettings> => ipcRenderer.invoke('tahai-browser:reset-download-directory'),
+  exportSettingsFile: (): Promise<BrowserConfigFileResult> => ipcRenderer.invoke('tahai-browser:export-settings-file'),
+  importSettingsFile: (): Promise<BrowserConfigFileResult> => ipcRenderer.invoke('tahai-browser:import-settings-file'),
   revealDownloadArtifact: (artifactId: string): Promise<DownloadArtifactRevealResult> => ipcRenderer.invoke('tahai-browser:reveal-download-artifact', artifactId),
   clearBrowsingData: (options?: ClearBrowsingDataOptions): Promise<ClearBrowsingDataResult> => ipcRenderer.invoke('tahai-browser:clear-browsing-data', options),
   openUserData: (): Promise<boolean> => ipcRenderer.invoke('tahai-browser:open-user-data'),

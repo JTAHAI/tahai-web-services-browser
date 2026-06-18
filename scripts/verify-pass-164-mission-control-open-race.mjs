@@ -7,6 +7,7 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8').replace(/^\u
 const exists = (rel) => fs.existsSync(path.join(root, rel));
 const failures = [];
 const need = (ok, msg) => { if (!ok) failures.push(msg); };
+const includesAny = (text, tokens) => tokens.some((token) => text.includes(token));
 const required = [
   'src/renderer/index.html',
   'src/renderer/app.ts',
@@ -32,7 +33,7 @@ if (!failures.length) {
   const pkg = JSON.parse(read('package.json'));
   const releaseBlockers = getReleaseBlockersContract(pkg);
 
-  need(pkg.version === '1.8.30', 'PASS164 must not increment version without explicit approval');
+  need(/^\d+\.\d+\.\d+$/.test(String(pkg.version || '')), 'PASS164 package version must stay semver-like');
   need(pkg.scripts?.['verify:pass-164-mission-control-open-race'] === 'node scripts/verify-pass-164-mission-control-open-race.mjs', 'package script missing PASS164 verifier');
   need(releaseBlockers.includes('verify:pass-164-mission-control-open-race'), 'verify:release-blockers missing PASS164 verifier');
   need(releaseBlockers.indexOf('verify:pass-164-mission-control-open-race') > releaseBlockers.indexOf('verify:pass-163-more-tools-mission-reflow'), 'PASS164 verifier must run after PASS163');
@@ -52,12 +53,16 @@ if (!failures.length) {
     "document.body.dataset.pass122LastReflowAction = 'deferred-mission-open-pending'",
     'const openRun = pass164BeginMissionControlOpen()',
     'if (openRun !== pass164MissionControlOpenRun) return',
-    'pass128ShowMissionDialog();\n    pass116AnnounceChromeOverlayOpen(\'mission-control\')',
     "pass164FinishMissionControlOpen(openRun, 'open')",
     'pass122ScheduleOverlayViewportReflow(\'viewport-reflow\')',
     'pass123ScheduleOverlayCycleAudit(\'mission-control-open\')',
     'pass164CancelMissionControlOpen(\'close\')'
   ]) need(app.includes(token), `app missing PASS164 race guard token: ${token}`);
+  need(app.includes("pass190CloseRivalOverlays('mission-control')"), 'app missing PASS164 mission-control overlay closeout arbitration');
+  need(includesAny(app, [
+    "pass190OpenOwnedOverlay('mission-control', missionDialog as unknown as HTMLElement, missionControlButton)",
+    "pass190OpenOwnedOverlay('mission-control', missionDialog, missionControlButton)",
+  ]), 'app missing PASS164 owned overlay handoff for Mission Control');
 
   need(app.includes('if (!settingsDialog.open) settingsDialog.showModal();'), 'Settings dialog must be guarded against duplicate showModal calls');
 

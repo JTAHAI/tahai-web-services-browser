@@ -134,20 +134,20 @@ async function clickShellControl(page, id) {
   const state = await controlInfo(page, id);
   ensure(state, `missing shell control #${id}`);
   if (state.visible) {
-    await page.locator(`#${id}`).click();
+    await activateElement(page, `#${id}`, 5000);
     return 'toolbar';
   }
   const overflowToggle = await controlInfo(page, 'toolbar-overflow-toggle');
   ensure(overflowToggle?.visible, `#${id} is hidden and More Tools is unavailable`);
   if (!await overflowMenuOpen(page)) {
-    await page.locator('#toolbar-overflow-toggle').click();
+    await activateElement(page, '#toolbar-overflow-toggle', 5000);
     await waitForOpenState(page, '#toolbar-overflow-menu', true, 5000);
   }
   const overflowSelector = `#toolbar-overflow-items > #${id}`;
   let lastError = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     if (!await overflowMenuOpen(page)) {
-      await page.locator('#toolbar-overflow-toggle').click();
+      await activateElement(page, '#toolbar-overflow-toggle', 5000);
       await waitForOpenState(page, '#toolbar-overflow-menu', true, 5000);
     }
     await page.waitForFunction((selector) => {
@@ -156,7 +156,7 @@ async function clickShellControl(page, id) {
       const style = window.getComputedStyle(element);
       return !element.hidden && element.getAttribute('aria-hidden') !== 'true' && style.display !== 'none' && style.visibility !== 'hidden' && Boolean(element.getClientRects().length);
     }, overflowSelector, { timeout: 5000 });
-    await page.locator(overflowSelector).click();
+    await activateElement(page, overflowSelector, 5000);
     try {
       await waitForOverflowActionDispatch(page, id, 5000);
       return 'more-tools';
@@ -317,6 +317,67 @@ async function waitForHitTarget(page, selector, message, timeoutMs = 5000) {
   );
 }
 
+async function activateElement(page, selector, timeoutMs = 5000) {
+  await page.evaluate(async ({ targetSelector, timeoutMs }) => {
+    const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const visible = (element) => {
+      const style = window.getComputedStyle(element);
+      return !element.hidden
+        && element.getAttribute('aria-hidden') !== 'true'
+        && style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && Number(style.opacity || '1') !== 0
+        && Boolean(element.getClientRects().length);
+    };
+    const hitTargetReady = (element) => {
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 16 || rect.height < 16) return false;
+      const x = rect.left + Math.max(8, Math.min(rect.width - 8, rect.width / 2));
+      const y = rect.top + Math.max(8, Math.min(rect.height - 8, rect.height / 2));
+      const hit = document.elementFromPoint(x, y);
+      return hit instanceof Element && (hit === element || element.contains(hit));
+    };
+    const detail = (element) => {
+      const rect = element.getBoundingClientRect();
+      const x = rect.left + Math.max(8, Math.min(rect.width - 8, rect.width / 2));
+      const y = rect.top + Math.max(8, Math.min(rect.height - 8, rect.height / 2));
+      const hit = document.elementFromPoint(x, y);
+      const hitName = hit instanceof Element ? `${hit.tagName.toLowerCase()}#${hit.id || ''}.${Array.from(hit.classList || []).slice(0, 3).join('.')}` : 'none';
+      return `selector=${targetSelector} rect=${Math.round(rect.width)}x${Math.round(rect.height)} at ${Math.round(rect.left)},${Math.round(rect.top)} hit=${hitName}`;
+    };
+
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const element = document.querySelector(targetSelector);
+      if (element instanceof HTMLElement && visible(element)) {
+        if (element instanceof HTMLButtonElement && element.disabled) {
+          throw new Error(`activateElement target is disabled: ${targetSelector}`);
+        }
+        element.scrollIntoView({ block: 'center', inline: 'center' });
+        if ('focus' in element) element.focus({ preventScroll: true });
+        await sleep(16);
+        if (hitTargetReady(element)) {
+          element.click();
+          await sleep(80);
+          return;
+        }
+      }
+      await sleep(120);
+    }
+
+    const current = document.querySelector(targetSelector);
+    if (current instanceof HTMLElement) {
+      throw new Error(`activateElement timed out: ${detail(current)}`);
+    }
+    throw new Error(`activateElement timed out: selector missing ${targetSelector}`);
+  }, { targetSelector: selector, timeoutMs });
+}
+
+async function clickHitTarget(page, selector, message, timeoutMs = 5000) {
+  await waitForHitTarget(page, selector, message, timeoutMs);
+  await activateElement(page, selector, timeoutMs);
+}
+
 async function browserKitVisibleListCount(page, selector) {
   return page.evaluate((targetSelector) => {
     const host = document.querySelector(targetSelector);
@@ -447,10 +508,64 @@ async function runScenario(page, config, profile, scenario) {
     };
   }
 
+  if (scenario.id === 'tool-card-dialog-actions') {
+    const devopsVia = await clickShellControl(page, 'devops-tools');
+    await waitForOpenState(page, '#devops-tools-panel', true);
+    await clickHitTarget(page, '#capture', 'Capture card was not hit-test ready');
+    await waitForOpenState(page, '#capture-dialog', true, 6000);
+    ensure(await page.locator('#capture-markdown').count() >= 1, 'Capture dialog did not render its markdown surface');
+    await page.locator('#close-capture').click();
+    await waitForOpenState(page, '#capture-dialog', false, 6000);
+
+    await clickShellControl(page, 'devops-tools');
+    await waitForOpenState(page, '#devops-tools-panel', true);
+    await clickHitTarget(page, '#ops-check', 'Ops Check card was not hit-test ready');
+    await waitForOpenState(page, '#ops-dialog', true, 6000);
+    ensure(await page.locator('#ops-markdown').count() >= 1, 'Ops Check dialog did not render its markdown surface');
+    await page.locator('#close-ops').click();
+    await waitForOpenState(page, '#ops-dialog', false, 6000);
+
+    const itVia = await clickShellControl(page, 'it-tools');
+    await waitForOpenState(page, '#it-tools-panel', true);
+    await clickHitTarget(page, '#it-card', 'IT Card was not hit-test ready');
+    await waitForOpenState(page, '#it-card-dialog', true, 6000);
+    ensure(await page.locator('#it-card-markdown').count() >= 1, 'IT Service Card dialog did not render its markdown surface');
+    await page.locator('#close-it-card').click();
+    await waitForOpenState(page, '#it-card-dialog', false, 6000);
+
+    await clickShellControl(page, 'it-tools');
+    await waitForOpenState(page, '#it-tools-panel', true);
+    await clickHitTarget(page, '#endpoint', 'Endpoint card was not hit-test ready');
+    await waitForOpenState(page, '#endpoint-dialog', true, 6000);
+    ensure(await page.locator('#endpoint-markdown').count() >= 1, 'Endpoint Snapshot dialog did not render its markdown surface');
+    await page.locator('#close-endpoint').click();
+    await waitForOpenState(page, '#endpoint-dialog', false, 6000);
+
+    const opsVia = await clickShellControl(page, 'ops-hub-toggle');
+    await waitForOpenState(page, '#ops-hub', true);
+    await clickHitTarget(page, '[data-ops-action="command"]', 'Ops Panel Command Palette card was not hit-test ready');
+    await waitForOpenState(page, '#command-palette-dialog', true, 6000);
+    await page.keyboard.press('Escape');
+    await waitForOpenState(page, '#command-palette-dialog', false, 6000);
+    await clickHitTarget(page, '[data-ops-action="shortcuts"]', 'Ops Panel Shortcuts card was not hit-test ready');
+    await waitForOpenState(page, '#shortcut-dialog', true, 6000);
+    await page.locator('#close-shortcuts').click();
+    await waitForOpenState(page, '#shortcut-dialog', false, 6000);
+    await page.locator('#close-ops-hub').click();
+    await waitForOpenState(page, '#ops-hub', false, 6000);
+
+    await clickShellControl(page, 'launchpad');
+    await waitForAddress(page, (value) => sameUrl(config.newTabUrl, value), 'normal browsing did not recover after tool-card actions', 12000);
+    await waitForActiveWebview(page, 12000);
+    return {
+      detail: `tool cards via devops ${devopsVia}, it ${itVia}, ops ${opsVia} opened real dialogs and browsing recovered`,
+    };
+  }
+
   if (scenario.id === 'browser-kit-find-and-guest-click') {
     await page.locator('#browser-kit').click();
     await waitForOpenState(page, '#browser-kit-panel', true);
-    await page.locator('#browser-find').click();
+    await clickHitTarget(page, '#browser-find', 'Browser Kit Find card was not hit-test ready');
     await waitForOpenState(page, '#find-bar', true);
     await page.locator('#find-close').click();
     await waitForOpenState(page, '#find-bar', false);
@@ -477,22 +592,19 @@ async function runScenario(page, config, profile, scenario) {
     await waitForOpenState(page, '#browser-kit-panel', true);
     const beforeCount = await runtimeTabCount(page);
     const originalUrl = await page.locator('#address').inputValue();
-    await waitForHitTarget(page, '#browser-duplicate-tab', 'duplicate tab card was not hit-test ready');
-    await page.locator('#browser-duplicate-tab').click();
+    await clickHitTarget(page, '#browser-duplicate-tab', 'duplicate tab card was not hit-test ready');
     await waitFor(page, async () => (await runtimeTabCount(page)) === beforeCount + 1, 'duplicate tab did not increase tab count', 6000);
     await waitForOpenState(page, '#browser-kit-panel', false);
     const duplicatedUrl = await waitForAddress(page, (value) => sameUrl(originalUrl, value), 'duplicated tab did not keep the active URL', 12000);
     await page.locator('#browser-kit').click();
     await waitForOpenState(page, '#browser-kit-panel', true);
-    await waitForHitTarget(page, '#browser-close-tab', 'close tab card was not hit-test ready');
-    await page.locator('#browser-close-tab').click();
+    await clickHitTarget(page, '#browser-close-tab', 'close tab card was not hit-test ready');
     await waitFor(page, async () => (await runtimeTabCount(page)) === beforeCount, 'close tab did not reduce tab count', 6000);
     await waitForOpenState(page, '#browser-kit-panel', false);
     await page.locator('#browser-kit').click();
     await waitForOpenState(page, '#browser-kit-panel', true);
     await waitFor(page, async () => (await browserKitVisibleListCount(page, '#browser-kit-closed-list')) >= 1, 'recently closed list did not populate', 4000);
-    await waitForHitTarget(page, '#browser-reopen-closed-tab', 'reopen closed card was not hit-test ready');
-    await page.locator('#browser-reopen-closed-tab').click();
+    await clickHitTarget(page, '#browser-reopen-closed-tab', 'reopen closed card was not hit-test ready');
     await waitFor(page, async () => (await runtimeTabCount(page)) === beforeCount + 1, 'reopen closed did not restore tab count', 6000);
     await waitForOpenState(page, '#browser-kit-panel', false);
     const reopenedUrl = await waitForAddress(page, (value) => sameUrl(originalUrl, value), 'reopened closed tab did not restore the original URL', 12000);
@@ -523,8 +635,7 @@ async function runScenario(page, config, profile, scenario) {
     ensure(pinCandidate, 'active tab id was unavailable before pinning');
     await page.locator('#browser-kit').click();
     await waitForOpenState(page, '#browser-kit-panel', true);
-    await waitForHitTarget(page, '#browser-pin-tab', 'pin tab card was not hit-test ready');
-    await page.locator('#browser-pin-tab').click();
+    await clickHitTarget(page, '#browser-pin-tab', 'pin tab card was not hit-test ready');
     await waitFor(page, async () => {
       const tabs = await runtimeTabStripState(page);
       return tabs[0]?.id === pinCandidate && tabs[0]?.pinned === true;

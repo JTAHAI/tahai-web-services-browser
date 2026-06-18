@@ -1,6 +1,6 @@
 {
   "product": "TAHAI Web Services Browser",
-  "version": "0.18.0",
+  "version": "2.0.14",
   "defaultHome": "https://tahaiportal.com",
   "startup": "home",
   "searchProvider": "google",
@@ -12,11 +12,16 @@
   },
   "downloads": {
     "askEveryTime": true,
-    "defaultDirectory": ""
+    "defaultDirectory": "",
+    "blockInsecureDownloads": true
   },
   "ui": {
     "showStatusBar": true,
-    "openExternalLinksInNewTab": true
+    "openExternalLinksInNewTab": true,
+    "allowPopupsAsTabs": true,
+    "defaultZoomPercent": 100,
+    "launchToMaximized": false,
+    "confirmBeforeClosingMultipleTabs": false
   },
   "enterpriseControls": {
     "homepageCanBeChangedByUser": true,

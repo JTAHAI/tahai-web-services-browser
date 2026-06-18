@@ -1,7 +1,7 @@
 import type { ItDocsMissionCapabilities } from '../shared/itdocs-contract';
 import type { EnterpriseAdminPolicyState } from '../shared/enterprise-admin-policy-contract';
 import type { EnterpriseSupportBundleResult } from '../shared/enterprise-support-bundle-contract';
-import type { BrowserProfileInput, BrowserProfileState, BrowserProfileUpdateInput, ClearBrowsingDataOptions, ClearBrowsingDataResult, DevOpsCaptureSaveResult, DownloadArtifactRevealResult, DownloadState, ItServiceCardDiagnostics, MissionApiDeleteResult, MissionApiExportResult, MissionApiListResult, MissionApiLoadResult, MissionApiSaveResult, MissionApiState, OpsUrlDiagnostics, RuntimeControlState, RuntimeE2eRendererReport, TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
+import type { BrowserConfigFileResult, BrowserProfileInput, BrowserProfileState, BrowserProfileUpdateInput, ClearBrowsingDataOptions, ClearBrowsingDataResult, DevOpsCaptureSaveResult, DownloadArtifactRevealResult, DownloadState, ItServiceCardDiagnostics, MissionApiDeleteResult, MissionApiExportResult, MissionApiListResult, MissionApiLoadResult, MissionApiSaveResult, MissionApiState, OpsUrlDiagnostics, RuntimeControlState, RuntimeE2eRendererReport, TahaiBrowserConfig, TahaiBrowserSettings } from '../preload/preload';
 import type { Pass188InputBoundaryPayload } from '../shared/webview-focus-input-boundary-contract';
 
 declare global {
@@ -22,6 +22,10 @@ declare global {
       saveEnterpriseSupportBundle: () => Promise<EnterpriseSupportBundleResult>;
       updateSettings: (settings: TahaiBrowserSettings) => Promise<TahaiBrowserSettings>;
       resetSettings: () => Promise<TahaiBrowserSettings>;
+      chooseDownloadDirectory: () => Promise<TahaiBrowserSettings>;
+      resetDownloadDirectory: () => Promise<TahaiBrowserSettings>;
+      exportSettingsFile: () => Promise<BrowserConfigFileResult>;
+      importSettingsFile: () => Promise<BrowserConfigFileResult>;
       revealDownloadArtifact: (artifactId: string) => Promise<DownloadArtifactRevealResult>;
       clearBrowsingData: (options?: ClearBrowsingDataOptions) => Promise<ClearBrowsingDataResult>;
       openUserData: () => Promise<boolean>;

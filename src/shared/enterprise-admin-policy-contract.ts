@@ -39,8 +39,8 @@ export type EnterprisePolicyUpdateChannel = 'manual-release' | 'locked-manual-re
 
 export type EnterpriseAdminLockedSettings = {
   homeUrl?: string;
-  startup?: 'home' | 'launchpad';
-  searchProvider?: 'google' | 'duckduckgo' | 'bing';
+  startup?: 'home' | 'launchpad' | 'restore-session';
+  searchProvider?: 'google' | 'duckduckgo' | 'bing' | 'brave' | 'startpage';
   permissions?: {
     allowClipboardRead?: boolean;
     allowMedia?: boolean;
@@ -50,10 +50,15 @@ export type EnterpriseAdminLockedSettings = {
   downloads?: {
     askEveryTime?: boolean;
     defaultDirectory?: string;
+    blockInsecureDownloads?: boolean;
   };
   ui?: {
     showStatusBar?: boolean;
     openExternalLinksInNewTab?: boolean;
+    allowPopupsAsTabs?: boolean;
+    defaultZoomPercent?: number;
+    launchToMaximized?: boolean;
+    confirmBeforeClosingMultipleTabs?: boolean;
   };
   privacy?: {
     sendDoNotTrack?: boolean;
@@ -190,6 +195,12 @@ function cleanOptionalBoolean(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
 }
 
+function cleanOptionalZoomPercent(value: unknown): number | undefined {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return undefined;
+  return Math.max(50, Math.min(200, Math.round(numeric)));
+}
+
 function cleanEnum<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.includes(value as T) ? value as T : fallback;
 }
@@ -248,8 +259,8 @@ function cleanLockedSettings(value: unknown): EnterpriseAdminLockedSettings {
   const locked: EnterpriseAdminLockedSettings = {};
   const homeUrl = cleanOptionalHomeUrl(raw.homeUrl);
   if (homeUrl) locked.homeUrl = homeUrl;
-  if (raw.startup === 'home' || raw.startup === 'launchpad') locked.startup = raw.startup;
-  if (raw.searchProvider === 'google' || raw.searchProvider === 'duckduckgo' || raw.searchProvider === 'bing') locked.searchProvider = raw.searchProvider;
+  if (raw.startup === 'home' || raw.startup === 'launchpad' || raw.startup === 'restore-session') locked.startup = raw.startup;
+  if (raw.searchProvider === 'google' || raw.searchProvider === 'duckduckgo' || raw.searchProvider === 'bing' || raw.searchProvider === 'brave' || raw.searchProvider === 'startpage') locked.searchProvider = raw.searchProvider;
   const cleanPermissions: NonNullable<EnterpriseAdminLockedSettings['permissions']> = {};
   for (const key of ['allowClipboardRead', 'allowMedia', 'allowGeolocation', 'allowNotifications'] as const) {
     const next = cleanOptionalBoolean(permissions[key]);
@@ -261,12 +272,16 @@ function cleanLockedSettings(value: unknown): EnterpriseAdminLockedSettings {
   if (typeof askEveryTime === 'boolean') cleanDownloads.askEveryTime = askEveryTime;
   const defaultDirectory = cleanString(downloads.defaultDirectory, MAX_ENTERPRISE_ADMIN_POLICY_STRING_CHARS);
   if (defaultDirectory && !SECRETISH_POLICY_TEXT.test(defaultDirectory)) cleanDownloads.defaultDirectory = defaultDirectory;
+  const blockInsecureDownloads = cleanOptionalBoolean(downloads.blockInsecureDownloads);
+  if (typeof blockInsecureDownloads === 'boolean') cleanDownloads.blockInsecureDownloads = blockInsecureDownloads;
   if (Object.keys(cleanDownloads).length) locked.downloads = cleanDownloads;
   const cleanUi: NonNullable<EnterpriseAdminLockedSettings['ui']> = {};
-  for (const key of ['showStatusBar', 'openExternalLinksInNewTab'] as const) {
+  for (const key of ['showStatusBar', 'openExternalLinksInNewTab', 'allowPopupsAsTabs', 'launchToMaximized', 'confirmBeforeClosingMultipleTabs'] as const) {
     const next = cleanOptionalBoolean(ui[key]);
     if (typeof next === 'boolean') cleanUi[key] = next;
   }
+  const defaultZoomPercent = cleanOptionalZoomPercent(ui.defaultZoomPercent);
+  if (typeof defaultZoomPercent === 'number') cleanUi.defaultZoomPercent = defaultZoomPercent;
   if (Object.keys(cleanUi).length) locked.ui = cleanUi;
   const cleanPrivacy: NonNullable<EnterpriseAdminLockedSettings['privacy']> = {};
   for (const key of ['sendDoNotTrack', 'blockThirdPartyCookies', 'reduceCrossSiteReferrers', 'clearProfileDataOnExit'] as const) {
@@ -331,6 +346,9 @@ export function applyEnterpriseAdminPolicyToSettings<T extends { [key: string]: 
   }
   if (typeof policy.downloads.askEveryTimeLocked === 'boolean') {
     merged.downloads = { ...(plainRecord(merged.downloads)), askEveryTime: policy.downloads.askEveryTimeLocked };
+  }
+  if (policy.downloads.blockExternalHttpDownloads) {
+    merged.downloads = { ...(plainRecord(merged.downloads)), blockInsecureDownloads: true };
   }
   return merged as T;
 }

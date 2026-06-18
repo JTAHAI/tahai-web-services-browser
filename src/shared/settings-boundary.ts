@@ -11,9 +11,16 @@ const LOCAL_HTTP_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 export type SettingsDownloadBoundary = {
   askEveryTime: boolean;
   defaultDirectory: string;
+  blockInsecureDownloads: boolean;
 };
 
-export type RendererSafeDownloads = SettingsDownloadBoundary;
+export type RendererSafeDownloads = {
+  askEveryTime: boolean;
+  defaultDirectory: string;
+  defaultDirectoryLabel: string;
+  hasCustomDirectory: boolean;
+  blockInsecureDownloads: boolean;
+};
 
 function cleanSettingsString(value: unknown, maxChars: number): string {
   return String(value ?? '').replace(CONTROL_AND_BIDI, '').trim().slice(0, maxChars);
@@ -42,9 +49,15 @@ export function sanitizeSettingsDirectoryValue(value: unknown): string {
 }
 
 export function rendererSafeDownloadSettings(downloads: SettingsDownloadBoundary): RendererSafeDownloads {
+  const raw = sanitizeSettingsDirectoryValue(downloads.defaultDirectory);
+  const parts = raw.split(/[\\/]+/).filter(Boolean);
+  const basename = parts.at(-1) || '';
   return {
     askEveryTime: downloads.askEveryTime === true,
-    defaultDirectory: ''
+    defaultDirectory: '',
+    defaultDirectoryLabel: basename ? `Custom folder: ${basename}` : 'System Downloads folder',
+    hasCustomDirectory: Boolean(basename),
+    blockInsecureDownloads: downloads.blockInsecureDownloads === true
   };
 }
 

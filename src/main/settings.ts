@@ -1,14 +1,14 @@
 import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import { rendererSafeDownloadSettings, sanitizeSettingsDirectoryValue, sanitizeSettingsHomeUrl, shouldRejectSettingsFileSize } from '../shared/settings-boundary';
+import { rendererSafeDownloadSettings, sanitizeSettingsDirectoryValue, sanitizeSettingsHomeUrl, shouldRejectSettingsFileSize, type RendererSafeDownloads } from '../shared/settings-boundary';
 import { applyEnterpriseAdminPolicyToSettings } from '../shared/enterprise-admin-policy-contract';
 import { readEnterpriseAdminPolicy } from './enterprise-admin-policy';
 
 export const DEFAULT_HOME_URL = 'https://tahaiportal.com';
 
-export type SearchProvider = 'google' | 'duckduckgo' | 'bing';
-export type StartupMode = 'home' | 'launchpad';
+export type SearchProvider = 'google' | 'duckduckgo' | 'bing' | 'brave' | 'startpage';
+export type StartupMode = 'home' | 'launchpad' | 'restore-session';
 
 export type TahaiBrowserSettings = {
   homeUrl: string;
@@ -23,11 +23,15 @@ export type TahaiBrowserSettings = {
   downloads: {
     askEveryTime: boolean;
     defaultDirectory: string;
+    blockInsecureDownloads: boolean;
   };
   ui: {
     showStatusBar: boolean;
     openExternalLinksInNewTab: boolean;
     allowPopupsAsTabs: boolean;
+    defaultZoomPercent: number;
+    launchToMaximized: boolean;
+    confirmBeforeClosingMultipleTabs: boolean;
   };
   privacy: {
     sendDoNotTrack: boolean;
@@ -35,6 +39,10 @@ export type TahaiBrowserSettings = {
     reduceCrossSiteReferrers: boolean;
     clearProfileDataOnExit: boolean;
   };
+};
+
+export type TahaiBrowserRendererSettings = Omit<TahaiBrowserSettings, 'downloads'> & {
+  downloads: RendererSafeDownloads;
 };
 
 export const DEFAULT_BROWSER_SETTINGS: TahaiBrowserSettings = {
@@ -49,12 +57,16 @@ export const DEFAULT_BROWSER_SETTINGS: TahaiBrowserSettings = {
   },
   downloads: {
     askEveryTime: true,
-    defaultDirectory: ''
+    defaultDirectory: '',
+    blockInsecureDownloads: true
   },
   ui: {
     showStatusBar: true,
     openExternalLinksInNewTab: true,
-    allowPopupsAsTabs: true
+    allowPopupsAsTabs: true,
+    defaultZoomPercent: 100,
+    launchToMaximized: false,
+    confirmBeforeClosingMultipleTabs: false
   },
   privacy: {
     sendDoNotTrack: true,
@@ -74,15 +86,23 @@ export function getSettingsPath(): string {
 
 
 function cleanSearchProvider(value: unknown): SearchProvider {
-  return value === 'duckduckgo' || value === 'bing' || value === 'google' ? value : DEFAULT_BROWSER_SETTINGS.searchProvider;
+  return value === 'duckduckgo' || value === 'bing' || value === 'brave' || value === 'startpage' || value === 'google'
+    ? value
+    : DEFAULT_BROWSER_SETTINGS.searchProvider;
 }
 
 function cleanStartup(value: unknown): StartupMode {
-  return value === 'launchpad' || value === 'home' ? value : DEFAULT_BROWSER_SETTINGS.startup;
+  return value === 'launchpad' || value === 'restore-session' || value === 'home' ? value : DEFAULT_BROWSER_SETTINGS.startup;
 }
 
 function cleanBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function cleanZoomPercent(value: unknown, fallback: number): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(50, Math.min(200, Math.round(numeric)));
 }
 
 function plainRecord(value: unknown): Record<string, unknown> {
@@ -108,12 +128,16 @@ export function sanitizeSettings(value: unknown): TahaiBrowserSettings {
     },
     downloads: {
       askEveryTime: cleanBoolean(rawDownloads.askEveryTime, DEFAULT_BROWSER_SETTINGS.downloads.askEveryTime),
-      defaultDirectory: sanitizeSettingsDirectoryValue(rawDownloads.defaultDirectory)
+      defaultDirectory: sanitizeSettingsDirectoryValue(rawDownloads.defaultDirectory),
+      blockInsecureDownloads: cleanBoolean(rawDownloads.blockInsecureDownloads, DEFAULT_BROWSER_SETTINGS.downloads.blockInsecureDownloads)
     },
     ui: {
       showStatusBar: cleanBoolean(rawUi.showStatusBar, DEFAULT_BROWSER_SETTINGS.ui.showStatusBar),
       openExternalLinksInNewTab: cleanBoolean(rawUi.openExternalLinksInNewTab, DEFAULT_BROWSER_SETTINGS.ui.openExternalLinksInNewTab),
-      allowPopupsAsTabs: cleanBoolean(rawUi.allowPopupsAsTabs, DEFAULT_BROWSER_SETTINGS.ui.allowPopupsAsTabs)
+      allowPopupsAsTabs: cleanBoolean(rawUi.allowPopupsAsTabs, DEFAULT_BROWSER_SETTINGS.ui.allowPopupsAsTabs),
+      defaultZoomPercent: cleanZoomPercent(rawUi.defaultZoomPercent, DEFAULT_BROWSER_SETTINGS.ui.defaultZoomPercent),
+      launchToMaximized: cleanBoolean(rawUi.launchToMaximized, DEFAULT_BROWSER_SETTINGS.ui.launchToMaximized),
+      confirmBeforeClosingMultipleTabs: cleanBoolean(rawUi.confirmBeforeClosingMultipleTabs, DEFAULT_BROWSER_SETTINGS.ui.confirmBeforeClosingMultipleTabs)
     },
     privacy: {
       sendDoNotTrack: cleanBoolean(rawPrivacy.sendDoNotTrack, DEFAULT_BROWSER_SETTINGS.privacy.sendDoNotTrack),
@@ -125,7 +149,10 @@ export function sanitizeSettings(value: unknown): TahaiBrowserSettings {
 }
 
 function applyManagedSettingsPolicy(settings: TahaiBrowserSettings): TahaiBrowserSettings {
-  return sanitizeSettings(applyEnterpriseAdminPolicyToSettings(settings, readEnterpriseAdminPolicy().policy));
+  const state = readEnterpriseAdminPolicy();
+  return state.managed
+    ? sanitizeSettings(applyEnterpriseAdminPolicyToSettings(settings, state.policy))
+    : sanitizeSettings(settings);
 }
 
 export function readBrowserSettings(): TahaiBrowserSettings {
@@ -147,9 +174,15 @@ function persistBrowserSettings(cleaned: TahaiBrowserSettings): TahaiBrowserSett
 }
 
 export function writeBrowserSettings(next: unknown): TahaiBrowserSettings {
+  return writeBrowserSettingsWithOptions(next);
+}
+
+export function writeBrowserSettingsWithOptions(next: unknown, options?: { preserveDownloadDirectory?: boolean }): TahaiBrowserSettings {
   const current = readBrowserSettings();
   const cleaned = applyManagedSettingsPolicy(sanitizeSettings(next));
-  if (!readEnterpriseAdminPolicy().policy.lockedSettings.downloads?.defaultDirectory) cleaned.downloads.defaultDirectory = current.downloads.defaultDirectory;
+  if (options?.preserveDownloadDirectory !== false && !readEnterpriseAdminPolicy().policy.lockedSettings.downloads?.defaultDirectory) {
+    cleaned.downloads.defaultDirectory = current.downloads.defaultDirectory;
+  }
   return persistBrowserSettings(cleaned);
 }
 
@@ -157,7 +190,19 @@ export function resetBrowserSettings(): TahaiBrowserSettings {
   return persistBrowserSettings(applyManagedSettingsPolicy({ ...DEFAULT_BROWSER_SETTINGS, downloads: { ...DEFAULT_BROWSER_SETTINGS.downloads } }));
 }
 
-export function settingsForRenderer(settings: TahaiBrowserSettings): TahaiBrowserSettings {
+export function setBrowserDownloadDirectory(nextDirectory: string): TahaiBrowserSettings {
+  if (readEnterpriseAdminPolicy().policy.lockedSettings.downloads?.defaultDirectory) return readBrowserSettings();
+  const current = readBrowserSettings();
+  return persistBrowserSettings(applyManagedSettingsPolicy({
+    ...current,
+    downloads: {
+      ...current.downloads,
+      defaultDirectory: sanitizeSettingsDirectoryValue(nextDirectory)
+    }
+  }));
+}
+
+export function settingsForRenderer(settings: TahaiBrowserSettings): TahaiBrowserRendererSettings {
   return {
     ...settings,
     downloads: rendererSafeDownloadSettings(settings.downloads)

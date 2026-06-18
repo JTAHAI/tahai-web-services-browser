@@ -16,7 +16,7 @@
   data-pass180-primary-chrome-compact-recovery="true"
   data-pass181-compact-primary-ux-clarity="true"
   data-pass182-compact-hit-target-focus="true"
-  data-pass183-more-tools-overlay-collision-recovery="true" data-pass184-hidden-more-tools-focus-recovery="true" data-pass185-mouse-history-parity="true" data-pass192-titlebar-chrome-final="true" data-pass343-it-devops-priority-browser-kit="true" data-pass346-browser-history-session-daily-driver="true" data-pass347-browser-tab-daily-driver="true">
+  data-pass183-more-tools-overlay-collision-recovery="true" data-pass184-hidden-more-tools-focus-recovery="true" data-pass185-mouse-history-parity="true" data-pass192-titlebar-chrome-final="true" data-pass343-it-devops-priority-browser-kit="true" data-pass346-browser-history-session-daily-driver="true" data-pass347-browser-tab-daily-driver="true" data-pass350-settings-daily-driver-safe-surface="true">
   <section id="boot-diagnostic" class="boot-diagnostic" aria-live="assertive">
     <div>
       <p class="eyebrow">TAHAI Browser Runtime Diagnostic</p>
@@ -371,26 +371,96 @@
         </div>
         <button id="close-settings" class="icon-button" type="button" title="Close settings">&times;</button>
       </header>
-      <section class="settings-grid">
-        <label class="field wide"><span>Home page</span><input id="setting-home-url" type="url" required /></label>
-        <label class="field"><span>Startup</span><select id="setting-startup"><option value="home">Home page</option><option value="launchpad">TAHAI Launchpad</option></select></label>
-        <label class="field"><span>Search fallback</span><select id="setting-search"><option value="google">Google</option><option value="duckduckgo">DuckDuckGo</option><option value="bing">Bing</option></select></label>
-        <label class="check"><input id="setting-media" type="checkbox" /> Allow camera/microphone prompts</label>
-        <label class="check"><input id="setting-clipboard" type="checkbox" /> Allow clipboard-read prompts</label>
-        <label class="check"><input id="setting-geolocation" type="checkbox" /> Allow geolocation prompts</label>
-        <label class="check"><input id="setting-notifications" type="checkbox" /> Allow notification prompts</label>
-        <label class="check"><input id="setting-dnt" type="checkbox" /> Send Do Not Track / GPC headers</label>
-        <label class="check"><input id="setting-third-party-cookies" type="checkbox" /> Block third-party Cookie headers</label>
-        <label class="check"><input id="setting-referrer" type="checkbox" /> Reduce cross-site referrers</label>
-        <label class="check"><input id="setting-clear-on-exit" type="checkbox" /> Clear profile data on exit</label>
-        <label class="check"><input id="setting-downloads" type="checkbox" /> Ask where to save each download</label>
-        <label class="check"><input id="setting-popups-as-tabs" type="checkbox" /> Open popups as new TAHAI tabs</label>
-        <label class="check"><input id="setting-statusbar" type="checkbox" /> Show status bar</label>
+      <section class="settings-overview" aria-label="Browser settings overview">
+        <article class="settings-overview-tile"><strong>Shell</strong><span>Tabs, status, zoom, startup, search</span></article>
+        <article class="settings-overview-tile"><strong>Privacy</strong><span>Permissions, cookies, referrers, clear on exit</span></article>
+        <article class="settings-overview-tile"><strong>Downloads</strong><span>Folder routing, prompts, secure transport guard</span></article>
+        <article class="settings-overview-tile"><strong>Config</strong><span>Import, export, managed-policy awareness</span></article>
+      </section>
+      <section class="settings-section-grid">
+        <article class="settings-section-card">
+          <header class="settings-section-head">
+            <div><strong>Navigation</strong><span>Startup, home, search, and page zoom</span></div>
+          </header>
+          <div class="settings-grid">
+            <label class="field wide"><span>Home page</span><input id="setting-home-url" type="url" required /></label>
+            <label class="field"><span>Startup</span><select id="setting-startup"><option value="home">Home page</option><option value="launchpad">TAHAI Launchpad</option><option value="restore-session">Restore last session</option></select></label>
+            <label class="field"><span>Search fallback</span><select id="setting-search"><option value="google">Google</option><option value="duckduckgo">DuckDuckGo</option><option value="bing">Bing</option><option value="brave">Brave Search</option><option value="startpage">Startpage</option></select></label>
+            <label class="field"><span>Default page zoom</span><input id="setting-default-zoom" type="number" min="50" max="200" step="5" /></label>
+            <label class="field wide"><span>Zoom quick adjust</span><input id="setting-default-zoom-range" type="range" min="50" max="200" step="5" /></label>
+          </div>
+        </article>
+        <article class="settings-section-card">
+          <header class="settings-section-head">
+            <div><strong>Shell</strong><span>Browser chrome, launch behavior, and safe handoff routing</span></div>
+          </header>
+          <div class="settings-check-grid">
+            <label class="check"><input id="setting-statusbar" type="checkbox" /> Show status bar</label>
+            <label class="check"><input id="setting-popups-as-tabs" type="checkbox" /> Open popups as new TAHAI tabs</label>
+            <label class="check"><input id="setting-open-external-in-tab" type="checkbox" /> Keep safe external handoffs inside new TAHAI tabs</label>
+            <label class="check"><input id="setting-launch-maximized" type="checkbox" /> Launch maximized next time</label>
+            <label class="check"><input id="setting-confirm-close-multi-tab" type="checkbox" /> Confirm before closing when multiple tabs are open</label>
+          </div>
+        </article>
+        <article class="settings-section-card">
+          <header class="settings-section-head">
+            <div><strong>Permissions</strong><span>Secure-origin prompts only</span></div>
+          </header>
+          <div class="settings-check-grid">
+            <label class="check"><input id="setting-media" type="checkbox" /> Allow camera and microphone prompts</label>
+            <label class="check"><input id="setting-clipboard" type="checkbox" /> Allow clipboard-read prompts</label>
+            <label class="check"><input id="setting-geolocation" type="checkbox" /> Allow geolocation prompts</label>
+            <label class="check"><input id="setting-notifications" type="checkbox" /> Allow notification prompts</label>
+          </div>
+        </article>
+        <article class="settings-section-card">
+          <header class="settings-section-head">
+            <div><strong>Privacy</strong><span>Request shaping and local data handling</span></div>
+          </header>
+          <div class="settings-check-grid">
+            <label class="check"><input id="setting-dnt" type="checkbox" /> Send Do Not Track and GPC headers</label>
+            <label class="check"><input id="setting-third-party-cookies" type="checkbox" /> Block third-party Cookie headers</label>
+            <label class="check"><input id="setting-referrer" type="checkbox" /> Reduce cross-site referrers</label>
+            <label class="check"><input id="setting-clear-on-exit" type="checkbox" /> Clear profile data on exit</label>
+          </div>
+        </article>
+        <article class="settings-section-card">
+          <header class="settings-section-head">
+            <div><strong>Downloads</strong><span>Prompting, folder routing, and secure transport</span></div>
+          </header>
+          <div class="settings-check-grid">
+            <label class="check"><input id="setting-downloads" type="checkbox" /> Ask where to save each download</label>
+            <label class="check"><input id="setting-block-insecure-downloads" type="checkbox" /> Block insecure HTTP downloads</label>
+          </div>
+          <div class="settings-directory-row">
+            <div class="settings-directory-pill">
+              <strong>Download folder</strong>
+              <span id="setting-download-directory-label">System Downloads folder</span>
+            </div>
+            <div class="settings-inline-actions">
+              <button id="choose-download-directory" type="button" class="home-button secondary">Choose Folder</button>
+              <button id="reset-download-directory" type="button" class="home-button secondary">Use System Default</button>
+            </div>
+          </div>
+        </article>
+        <article class="settings-section-card">
+          <header class="settings-section-head">
+            <div><strong>Configuration</strong><span>Import, export, and policy truth</span></div>
+          </header>
+          <div class="settings-policy-panel">
+            <strong id="settings-policy-title">Local settings</strong>
+            <span id="settings-policy-summary">Settings are stored locally for this browser profile.</span>
+          </div>
+          <div class="settings-inline-actions">
+            <button id="import-settings-file" type="button" class="home-button secondary">Import Settings</button>
+            <button id="export-settings-file" type="button" class="home-button secondary">Export Settings</button>
+          </div>
+        </article>
       </section>
       <section class="settings-safety-copy" data-pass189-settings-public-copy="true" aria-label="Settings safety notes">
         <p class="settings-note">Settings are stored in your local app profile. Reset restores <strong>https://tahaiportal.com</strong> as the default home page.</p>
         <p class="settings-note permission-boundary-note" data-pass95-permission-boundary="true">Permission prompts remain locked down: camera, microphone, clipboard-read, geolocation, and notifications are denied unless the site is HTTPS or localhost and the matching setting is enabled.</p>
-        <p class="settings-note popup-boundary-note" data-pass271-r6-popup-as-tabs="true">Popup windows are handled by the main process and, when enabled, open as sanitized TAHAI tabs instead of unmanaged external popup windows. Unsafe popup URLs remain blocked.</p>
+        <p class="settings-note popup-boundary-note" data-pass271-r6-popup-as-tabs="true">Popup windows are handled by the main process and, when enabled, open as sanitized TAHAI tabs instead of unmanaged external popup windows. Safe external handoffs can stay inside TAHAI tabs, and unsafe popup URLs remain blocked.</p>
         <p class="settings-note download-boundary-note" data-pass96-download-boundary="true" data-pass97-local-path-boundary="true">Download status uses sanitized file names only. The browser does not expose local file paths to web pages, and executable or installer downloads are flagged before opening or sharing. Mission, profile, and evidence saves show safe labels instead of local paths.</p>
         <p class="settings-note drop-boundary-note" data-pass99-drop-boundary="true">Mission drag-and-drop accepts only internal TAHAI mission payloads. External files, URLs, HTML, and text drops are blocked before they reach Mission controls.</p>
         <p class="settings-note" data-pass100-active-capture-boundary="true">Active-page capture is redacted, URL-normalized, size-capped, and source-sanitized before preview, pinning, copy, save, or diagnostics use.</p>
@@ -402,7 +472,7 @@
       <footer class="settings-actions">
         <button id="clear-data" type="button" class="home-button secondary">Clear active profile data</button>
         <button id="clear-all-data" type="button" class="home-button danger">Clear all profile data</button>
-        <button id="open-profile" type="button" class="home-button secondary">Open profile folder</button>
+        <button id="open-profile" type="button" class="home-button secondary">Open app data</button>
         <span id="settings-result" class="settings-result" aria-live="polite"></span>
         <button id="reset-settings" type="button" class="home-button secondary">Reset</button>
         <button id="save-settings" type="submit" class="home-button">Save</button>

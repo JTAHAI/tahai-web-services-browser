@@ -40,7 +40,7 @@
   height: 100% !important;
   min-height: 0 !important;
   display: grid !important;
-  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto !important;
+  grid-template-rows: auto auto auto auto auto auto auto minmax(0, 1fr) auto !important;
   overflow: hidden !important;
   padding: 0 !important;
 }
@@ -597,7 +597,7 @@
 
   .mission-panel {
     overflow: auto !important;
-    grid-template-rows: auto auto auto auto auto auto auto !important;
+    grid-template-rows: auto auto auto auto auto auto auto minmax(0, 1fr) auto !important;
   }
 
   .mission-form {
@@ -854,7 +854,7 @@ body.mission-compact-viewport .mission-dialog,
 body.mission-compact-viewport .mission-panel,
 .mission-dialog[data-pass128-mission-viewport="compact"] .mission-panel {
   overflow: auto !important;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto !important;
+  grid-template-rows: auto auto auto auto auto auto auto minmax(0, 1fr) auto !important;
 }
 
 body.mission-compact-viewport .mission-panel > header,
@@ -1021,7 +1021,7 @@ body.mission-small-window-stress .mission-dialog,
 body.mission-small-window-stress .mission-panel,
 .mission-dialog[data-pass132-mission-viewport="compact"] .mission-panel,
 .mission-dialog[data-pass132-mission-viewport="micro"] .mission-panel {
-  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto !important;
+  grid-template-rows: auto auto auto auto auto auto auto minmax(0, 1fr) auto !important;
   overflow: auto !important;
   overscroll-behavior: contain !important;
 }
@@ -2311,11 +2311,18 @@ body.mission-micro-window-stress .mission-timeline-v2-event,
   gap: 0 !important;
 }
 
+.ops-panel.mission-panel {
+  display: grid !important;
+  grid-template-rows: auto auto auto auto auto auto auto minmax(0, 1fr) auto !important;
+  overflow: hidden !important;
+}
+
 .mission-evidence-section > .ops-hub-section-title {
   flex: 0 0 auto !important;
   position: sticky !important;
   top: 0 !important;
   z-index: 8 !important;
+  order: 0 !important;
 }
 
 .mission-evidence-v2-diagnostics,
@@ -2345,7 +2352,28 @@ body.mission-micro-window-stress .mission-timeline-v2-event,
   flex: 0 0 auto !important;
 }
 
+.mission-evidence-section .mission-evidence-actions {
+  order: 1 !important;
+}
+
+.mission-evidence-section .mission-evidence-profile {
+  order: 2 !important;
+}
+
+.mission-evidence-section .mission-evidence-note {
+  order: 3 !important;
+}
+
+.mission-evidence-section .mission-evidence-v2-diagnostics {
+  order: 4 !important;
+}
+
+.mission-evidence-section .mission-redaction-ux-v2-preview {
+  order: 5 !important;
+}
+
 #mission-evidence-list {
+  order: 6 !important;
   flex: 1 1 auto !important;
   min-height: 78px !important;
   margin-bottom: 14px !important;
@@ -2387,4 +2415,334 @@ body.mission-micro-window-stress .mission-timeline-v2-event,
   .mission-redaction-ux-v2-preview {
     max-height: 70px !important;
   }
+}
+
+@media (max-height: 960px) {
+  .ops-panel.mission-panel {
+    display: grid !important;
+    grid-template-rows: auto auto auto auto auto auto auto minmax(0, 1fr) auto !important;
+  }
+
+  .mission-workbench {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    grid-template-rows: minmax(220px, auto) minmax(230px, auto) minmax(220px, auto) minmax(180px, auto) !important;
+    grid-template-areas:
+      "evidence export"
+      "recipes runbook"
+      "tabs runbook"
+      "saved timeline" !important;
+    overflow: auto !important;
+  }
+
+  .mission-evidence-section .mission-evidence-actions {
+    position: sticky !important;
+    top: 46px !important;
+    z-index: 7 !important;
+    padding-top: 8px !important;
+    background: linear-gradient(180deg, rgba(5, 18, 26, .98), rgba(5, 18, 26, .84)) !important;
+  }
+
+  .mission-export-section {
+    grid-template-rows: auto auto minmax(120px, 1fr) !important;
+  }
+}
+
+/* PASS348 — Mission Control workbench usability closeout.
+   Recipe cards must never own tiny nested scrollbars, compact Mission windows should
+   use available width instead of shrinking to unreadable cards, and preview/list rows
+   need explicit sizing once recipe previews are injected above the recipe list. */
+:root {
+  --pass348-mission-recipe-card-min: 18.75rem;
+}
+
+.mission-command-deck {
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)) !important;
+}
+
+.mission-command-card {
+  min-height: 78px !important;
+}
+
+.mission-recipes-section[data-pass254-recipe-preview-host="true"] {
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+}
+
+.mission-recipes-section[data-pass254-recipe-preview-host="true"] #pass254-mission-recipe-preview {
+  grid-row: 2 !important;
+}
+
+.mission-recipes-section[data-pass254-recipe-preview-host="true"] #mission-recipes {
+  grid-row: 3 !important;
+}
+
+#pass254-mission-recipe-preview {
+  margin: 12px 14px 0 !important;
+  min-height: 0 !important;
+  max-height: min(34vh, 360px) !important;
+  overflow: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+.mission-export-section {
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+}
+
+.mission-export-section #mission-export-preview {
+  width: auto !important;
+  height: auto !important;
+  margin-top: 0 !important;
+}
+
+#mission-recipes {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--pass348-mission-recipe-card-min)), 1fr)) !important;
+  align-content: start !important;
+  align-items: start !important;
+  gap: 14px !important;
+  padding: 0 8px 12px 0 !important;
+}
+
+#mission-recipes .mission-recipe-filter-summary,
+#mission-recipes > .ops-hub-empty {
+  grid-column: 1 / -1 !important;
+}
+
+#mission-recipes .mission-recipe-filter-summary {
+  min-height: 0 !important;
+  padding: 10px 12px !important;
+  gap: 4px !important;
+}
+
+#mission-recipes .mission-recipe-filter-summary span {
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+  overflow: hidden !important;
+}
+
+#mission-recipes .mission-recipe-card,
+#mission-recipes .mission-recipe-card[data-pass259-card-polished="true"] {
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 12px !important;
+  padding: 16px 18px 18px !important;
+  overflow: visible !important;
+}
+
+#mission-recipes .mission-recipe-card::after {
+  display: none !important;
+}
+
+#mission-recipes .mission-recipe-card strong {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 8px !important;
+}
+
+#mission-recipes .mission-recipe-card .ops-hub-recipe-title,
+#mission-recipes .mission-recipe-card > span,
+#mission-recipes .mission-recipe-card .ops-hub-recipe-detail {
+  display: -webkit-box !important;
+  max-height: none !important;
+  padding-right: 0 !important;
+  overflow: hidden !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+}
+
+#mission-recipes .mission-recipe-card .ops-hub-recipe-title {
+  line-height: 1.3 !important;
+}
+
+#mission-recipes .mission-recipe-card.pass254-selected-recipe .ops-hub-recipe-title,
+#mission-recipes .mission-recipe-card.pass254-selected-recipe > span,
+#mission-recipes .mission-recipe-card.pass254-selected-recipe .ops-hub-recipe-detail,
+#mission-recipes .mission-recipe-card[aria-selected="true"] .ops-hub-recipe-title,
+#mission-recipes .mission-recipe-card[aria-selected="true"] > span,
+#mission-recipes .mission-recipe-card[aria-selected="true"] .ops-hub-recipe-detail,
+#mission-recipes .mission-recipe-card:focus-within .ops-hub-recipe-title,
+#mission-recipes .mission-recipe-card:focus-within > span,
+#mission-recipes .mission-recipe-card:focus-within .ops-hub-recipe-detail {
+  display: block !important;
+  overflow: visible !important;
+  -webkit-line-clamp: unset !important;
+}
+
+#mission-recipes .recipe-chip {
+  justify-self: start !important;
+  max-width: 100% !important;
+}
+
+#mission-recipes .pass254-recipe-contract-detail {
+  display: none !important;
+}
+
+#mission-recipes .mission-recipe-card.pass254-selected-recipe .pass254-recipe-contract-detail,
+#mission-recipes .mission-recipe-card[aria-selected="true"] .pass254-recipe-contract-detail,
+#mission-recipes .mission-recipe-card:focus-within .pass254-recipe-contract-detail {
+  display: block !important;
+}
+
+#mission-recipes .pass254-recipe-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  margin-top: auto !important;
+  position: relative !important;
+  z-index: 2 !important;
+  pointer-events: auto !important;
+}
+
+#mission-recipes .pass254-recipe-actions > button {
+  min-width: 0 !important;
+  min-height: 38px !important;
+  padding: 0 10px !important;
+  justify-content: center !important;
+  white-space: normal !important;
+  border: 1px solid rgba(119,219,255,.24) !important;
+  border-radius: 12px !important;
+  background: rgba(4,18,28,.88) !important;
+  color: var(--mission-text) !important;
+  cursor: pointer !important;
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+#mission-recipes .pass254-recipe-actions > button:hover,
+#mission-recipes .pass254-recipe-actions > button:focus-visible {
+  border-color: rgba(109,255,183,.58) !important;
+  box-shadow: 0 0 0 3px rgba(109,255,183,.10) !important;
+  outline: none !important;
+}
+
+#mission-recipes .pass254-recipe-actions .pass254-recipe-start {
+  border-color: rgba(109,255,183,.46) !important;
+  background: linear-gradient(180deg, rgba(109,255,183,.24), rgba(4,18,16,.96)) !important;
+}
+
+#mission-recipes .pass259-recipe-card-sections {
+  display: none !important;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)) !important;
+  gap: 8px !important;
+}
+
+#mission-recipes .mission-recipe-card.pass254-selected-recipe .pass259-recipe-card-sections,
+#mission-recipes .mission-recipe-card[aria-selected="true"] .pass259-recipe-card-sections,
+#mission-recipes .mission-recipe-card:focus-within .pass259-recipe-card-sections {
+  display: grid !important;
+}
+
+#mission-recipes .pass259-recipe-card-sections section {
+  align-content: start !important;
+}
+
+@media (max-height: 960px) {
+  .mission-panel > header {
+    min-height: 54px !important;
+    padding: 10px 18px !important;
+  }
+
+  .mission-form {
+    gap: 8px !important;
+    padding: 10px 18px !important;
+  }
+
+  .mission-status {
+    min-height: 0 !important;
+    padding: 7px 18px !important;
+  }
+
+  .mission-status span {
+    font-size: .74rem !important;
+  }
+
+  .mission-command-deck {
+    gap: 8px !important;
+    padding: 9px 18px !important;
+  }
+
+  .mission-command-card {
+    min-height: 62px !important;
+    padding: 8px 10px !important;
+  }
+
+  .mission-command-card strong {
+    font-size: .82rem !important;
+  }
+
+  .mission-command-card em {
+    font-size: .66rem !important;
+  }
+
+  .mission-ops-strip {
+    display: none !important;
+  }
+
+  .mission-layouts {
+    min-height: 40px !important;
+    gap: 6px !important;
+    padding: 6px 18px !important;
+  }
+
+  .mission-pane-actions::before {
+    display: none !important;
+  }
+
+  .mission-layouts .home-button,
+  .mission-pane-actions .home-button {
+    min-height: 30px !important;
+    font-size: .68rem !important;
+  }
+
+  .mission-workbench {
+    gap: 12px !important;
+    padding: 10px 18px 14px !important;
+  }
+}
+
+body.mission-small-window-stress .mission-command-deck,
+body.mission-micro-window-stress .mission-command-deck,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-command-deck,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-command-deck {
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)) !important;
+}
+
+body.mission-small-window-stress .mission-workbench,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-workbench,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-workbench {
+  gap: 12px !important;
+  padding: 12px 14px 18px !important;
+}
+
+body.mission-small-window-stress .mission-section,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-section,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-section {
+  min-height: clamp(240px, 50dvh, 420px) !important;
+  scroll-margin-top: 138px !important;
+}
+
+body.mission-small-window-stress .mission-recipes-section,
+.mission-dialog[data-pass132-mission-viewport="compact"] .mission-recipes-section {
+  min-height: clamp(360px, 74dvh, 760px) !important;
+}
+
+body.mission-micro-window-stress .mission-recipes-section,
+.mission-dialog[data-pass132-mission-viewport="micro"] .mission-recipes-section {
+  min-height: clamp(320px, 68dvh, 640px) !important;
+}
+
+body.mission-small-window-stress #mission-recipes,
+.mission-dialog[data-pass132-mission-viewport="compact"] #mission-recipes {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)) !important;
+}
+
+body.mission-micro-window-stress #mission-recipes,
+.mission-dialog[data-pass132-mission-viewport="micro"] #mission-recipes {
+  grid-template-columns: 1fr !important;
+}
+
+body.mission-micro-window-stress #mission-recipes .pass254-recipe-actions,
+.mission-dialog[data-pass132-mission-viewport="micro"] #mission-recipes .pass254-recipe-actions {
+  grid-template-columns: 1fr !important;
 }
