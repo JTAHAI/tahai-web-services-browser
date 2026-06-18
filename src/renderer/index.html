@@ -221,7 +221,7 @@
         <button id="mission-make-quad" type="button" class="home-button secondary">Make Quad From Tabs</button>
         <button id="mission-save" type="button" class="home-button secondary">Save Local</button>
       </form>
-      <section id="mission-status" class="mission-status" aria-live="polite"><strong>No active mission</strong><span>Create a local Mission Tab set or restore one from disk.</span></section>
+      <section id="mission-status" class="mission-status" aria-live="polite"><strong id="mission-status-title">No active mission</strong><span id="mission-status-detail">Create a local Mission Tab set or restore one from disk.</span></section>
       <section id="mission-command-deck" class="mission-command-deck" aria-label="Mission Control command deck" data-pass196-mission-control-ia="true">
         <article class="mission-command-card mission-command-identity" data-pass196-card="identity"><span>Mission</span><strong>No active mission</strong><em>Local-only workspace</em></article>
         <article class="mission-command-card" data-pass196-card="active-pane"><span>Active pane</span><strong>Pane 1</strong><em>Navigation target</em></article>
@@ -265,11 +265,11 @@
       </section>
       <div class="mission-grid mission-workbench">
         <section class="mission-section mission-tabs-section">
-          <div class="ops-hub-section-title"><strong>Mission tabs</strong><span>Role + pane routing</span></div>
+          <div class="ops-hub-section-title"><strong>Mission tabs</strong><span id="mission-tabs-meta">Role + pane routing</span></div>
           <div id="mission-tabs-list" class="ops-hub-list"></div>
         </section>
         <section class="mission-section runbook mission-runbook-section">
-          <div class="ops-hub-section-title"><strong>Runbook rail</strong><span>Checklist + local notes</span></div>
+          <div class="ops-hub-section-title"><strong>Runbook rail</strong><span id="mission-runbook-meta">Checklist + local notes</span></div>
           <div class="mission-runbook-editor">
             <label class="field wide"><span>Objective</span><input id="mission-runbook-objective" type="text" maxlength="500" placeholder="What must be accomplished before this mission closes?" /></label>
             <label class="field wide"><span>Rollback / stop condition</span><textarea id="mission-runbook-rollback" maxlength="500" placeholder="When to stop, roll back, or escalate."></textarea></label>
@@ -290,15 +290,15 @@
           </div>
         </section>
         <section class="mission-section mission-recipes-section">
-          <div class="ops-hub-section-title"><strong>Mission recipes</strong><span>Admin console profiles</span></div>
+          <div class="ops-hub-section-title"><strong>Mission recipes</strong><span id="mission-recipes-meta">Admin console profiles</span></div>
           <div id="mission-recipes" class="ops-hub-list"></div>
         </section>
         <section class="mission-section mission-saved-section">
-          <div class="ops-hub-section-title"><strong>Saved missions</strong><span>Validated local JSON</span></div>
+          <div class="ops-hub-section-title"><strong>Saved missions</strong><span id="mission-saved-meta">Validated local JSON</span></div>
           <div id="mission-list" class="ops-hub-list"></div>
         </section>
         <section class="mission-section mission-evidence-section" data-pass202-mission-evidence-pack-v2="true">
-          <div class="ops-hub-section-title"><strong>Evidence Pack v2</strong><span>Active pane · all panes · export profiles</span></div>
+          <div class="ops-hub-section-title"><strong>Evidence Pack v2</strong><span id="mission-evidence-meta">Active pane · all panes · export profiles</span></div>
           <article id="mission-evidence-diagnostics" class="mission-evidence-v2-diagnostics" data-pass202-mission-evidence-pack-v2="diagnostics"><strong>Evidence Pack v2</strong><span>No evidence captured yet.</span><em>Explicit local captures only.</em></article>
           <article id="mission-redaction-preview" class="mission-redaction-ux-v2-preview" data-pass203-evidence-redaction-ux-v2="preview"><strong>Redaction UX v2</strong><span>No redaction findings detected yet.</span><em>Detections explain what was redacted, why, and what remains blocked from unredacted export.</em></article>
           <label class="field mission-evidence-profile"><span>Export profile</span><select id="mission-export-profile" aria-label="Mission evidence export profile">
@@ -318,11 +318,11 @@
           <div id="mission-evidence-list" class="ops-hub-list compact"></div>
         </section>
         <section class="mission-section mission-timeline-section">
-          <div class="ops-hub-section-title"><strong>Timeline</strong><span>Local activity · filterable v2</span></div>
+          <div class="ops-hub-section-title"><strong>Timeline</strong><span id="mission-timeline-meta">Local activity · filterable v2</span></div>
           <div id="mission-timeline" class="ops-hub-list" data-pass201-mission-timeline-v2="true"></div>
         </section>
         <section class="mission-section export mission-export-section">
-          <div class="ops-hub-section-title"><strong>Export preview</strong><span>Validated redacted packet</span></div>
+          <div class="ops-hub-section-title"><strong>Export preview</strong><span id="mission-export-meta">Validated redacted packet</span></div>
           <div class="mission-export-actions">
             <button id="mission-copy-export" type="button" class="home-button secondary">Copy Redacted Packet</button>
             <button id="mission-save-export" type="button" class="home-button secondary">Save Redacted Packet</button>

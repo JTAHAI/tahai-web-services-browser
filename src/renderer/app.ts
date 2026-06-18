@@ -593,8 +593,17 @@ const missionForm = document.getElementById('mission-form') as HTMLFormElement;
 const missionNameInput = document.getElementById('mission-name') as HTMLInputElement;
 const missionTypeSelect = document.getElementById('mission-type') as HTMLSelectElement;
 const missionStatus = document.getElementById('mission-status') as HTMLElement;
+const missionStatusTitle = document.getElementById('mission-status-title') as HTMLElement;
+const missionStatusDetail = document.getElementById('mission-status-detail') as HTMLElement;
 const missionCommandDeck = document.getElementById('mission-command-deck') as HTMLElement;
 const missionCompactJumpbar = document.getElementById('mission-compact-jumpbar') as HTMLElement;
+const missionTabsMeta = document.getElementById('mission-tabs-meta') as HTMLElement;
+const missionRunbookMeta = document.getElementById('mission-runbook-meta') as HTMLElement;
+const missionRecipesMeta = document.getElementById('mission-recipes-meta') as HTMLElement;
+const missionSavedMeta = document.getElementById('mission-saved-meta') as HTMLElement;
+const missionEvidenceMeta = document.getElementById('mission-evidence-meta') as HTMLElement;
+const missionTimelineMeta = document.getElementById('mission-timeline-meta') as HTMLElement;
+const missionExportMeta = document.getElementById('mission-export-meta') as HTMLElement;
 const missionList = document.getElementById('mission-list') as HTMLElement;
 const missionRecipes = document.getElementById('mission-recipes') as HTMLElement;
 const missionTabsList = document.getElementById('mission-tabs-list') as HTMLElement;
@@ -7028,6 +7037,26 @@ function renderMissionCommandDeck(mission: MissionState | null, invariantIssueCo
   missionCommandDeck.dataset.pass196Layout = mission?.layout.type || 'single';
 }
 
+function missionSectionMetaText(target: HTMLElement | null, message: string): void {
+  if (target) target.textContent = message;
+}
+
+function renderMissionSectionMeta(mission: MissionState | null, invariantIssueCount: number): void {
+  const runbook = mission ? ensureMissionRunbook(mission) : null;
+  const evidenceProfile = (runbook?.exportProfile || 'sanitized-handoff') as MissionEvidenceExportProfile;
+  const visiblePaneCount = mission ? missionVisiblePaneIds(mission.layout.type).length : 1;
+  const readyRecipeCount = premiumLaunchRecipes.filter((recipe) => !recipe.comingSoon).length;
+  const timelineCount = mission?.timeline.length || 0;
+  const evidenceCount = mission ? ensureMissionEvidence(mission).length : 0;
+  missionSectionMetaText(missionTabsMeta, mission ? `${mission.tabs.length} tab(s) · ${visiblePaneCount} visible pane(s)` : 'Role + pane routing');
+  missionSectionMetaText(missionRunbookMeta, runbook ? `${runbook.steps.length} step(s) · ${runbook.validationSteps.length} validation check(s)` : 'Checklist + local notes');
+  missionSectionMetaText(missionRecipesMeta, `${readyRecipeCount} launch recipe(s) ready`);
+  missionSectionMetaText(missionSavedMeta, `${missionStore.length} saved local mission(s)`);
+  missionSectionMetaText(missionEvidenceMeta, mission ? `${evidenceCount} pinned · ${missionEvidencePackV2ProfileLabel(evidenceProfile)}` : 'Active pane · all panes · export profiles');
+  missionSectionMetaText(missionTimelineMeta, mission ? `${timelineCount} event(s) · ${missionTimelineV2ActiveFilter.replace(/-/g, ' ')}` : 'Local activity · filterable v2');
+  missionSectionMetaText(missionExportMeta, mission ? `${missionEvidencePackV2ProfileLabel(evidenceProfile)} · ${invariantIssueCount ? `${invariantIssueCount} guard issue(s)` : 'preview ready'}` : 'Validated redacted packet');
+}
+
 function renderMissionControl(): void {
   if (!missionDialog) return;
   const mission = currentMission ?? null;
@@ -7035,10 +7064,14 @@ function renderMissionControl(): void {
   missionTypeSelect.value = mission?.missionType || missionTypeSelect.value || 'generic';
   const pass92InvariantIssues = mission ? missionStateInvariantIssues(mission).filter((issue) => issue.severity === 'block') : [];
   document.body.classList.toggle('pass92-mission-invariant-warning', pass92InvariantIssues.length > 0);
-  missionStatus.innerHTML = mission
-    ? '<strong>' + escapeHtml(mission.name) + '</strong><span>Local Only · ' + escapeHtml(missionLayoutLabel(mission.layout.type)) + ' · active ' + escapeHtml(missionPaneLabel(mission.layout.activePaneId || 'pane-1')) + ' · ' + mission.tabs.length + ' mission tab(s) · ' + ensureMissionEvidence(mission).length + ' evidence item(s)' + (pass92InvariantIssues.length ? ' · Mission state guard requires save/restore repair' : '') + '</span>'
-    : '<strong>No active mission</strong><span>Create a local Mission Tab set or restore one from disk.</span>';
+  missionStatusTitle.textContent = mission ? mission.name : 'No active mission';
+  missionStatusDetail.textContent = mission
+    ? `Local only · ${missionLayoutLabel(mission.layout.type)} · active ${missionPaneLabel(mission.layout.activePaneId || 'pane-1')} · ${mission.tabs.length} mission tab(s) · ${ensureMissionEvidence(mission).length} evidence item(s)${pass92InvariantIssues.length ? ' · Mission state guard requires save/restore repair' : ''}`
+    : 'Create a local Mission Tab set or restore one from disk.';
+  missionStatus.dataset.pass354MissionReady = mission ? 'true' : 'false';
+  missionStatus.dataset.pass354MissionInvariant = pass92InvariantIssues.length ? 'repair' : 'ok';
   renderMissionCommandDeck(mission, pass92InvariantIssues.length);
+  renderMissionSectionMeta(mission, pass92InvariantIssues.length);
   missionTabsList.innerHTML = mission?.tabs.length ? mission.tabs.map((tab) =>
     '<article class="mission-tab-row" draggable="true" data-drag-mission-tab="' + escapeHtml(tab.tabId) + '">' +
     '<button type="button" data-focus-mission-tab="' + escapeHtml(tab.tabId) + '" aria-label="Focus mission tab ' + escapeHtml(tab.title) + ' in ' + escapeHtml(missionPaneLabel(tab.paneId)) + '"><strong>' + (tab.pinned ? '★ ' : '') + escapeHtml(tab.title) + '</strong><span>' + escapeHtml(tab.url) + '</span></button>' +

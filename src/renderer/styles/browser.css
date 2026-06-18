@@ -5336,3 +5336,357 @@ body[data-pass352-restored-window-toolbar-stability="true"] #ops-hub .ops-hub-ca
     text-align: left;
   }
 }
+
+/* PASS354 Mission Control usability closeout: fix implicit panel rows, restore visible scroll rails,
+   and make recipes/runbook/timeline readable in restored and maximized windows. */
+.mission-panel {
+  grid-template-rows: auto auto auto auto auto auto auto minmax(0,1fr) auto !important;
+}
+
+.mission-status {
+  display: grid !important;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) !important;
+  align-items: center !important;
+  gap: 6px 14px !important;
+  min-height: 52px !important;
+  padding: 10px 22px !important;
+  background: linear-gradient(180deg, rgba(109,255,183,.08), rgba(119,219,255,.02)) !important;
+}
+
+.mission-status strong {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  color: #f5fffb !important;
+  font-size: .95rem !important;
+  line-height: 1.2;
+}
+
+.mission-status span {
+  min-width: 0;
+  color: #d7e7f1 !important;
+  font-size: .79rem !important;
+  line-height: 1.42 !important;
+  white-space: normal !important;
+}
+
+.mission-status[data-pass354-mission-ready="true"] strong::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  margin-right: 10px;
+  border-radius: 999px;
+  background: rgba(96,255,218,.92);
+  box-shadow: 0 0 18px rgba(96,255,218,.34);
+}
+
+.mission-status[data-pass354-mission-invariant="repair"] {
+  border-bottom-color: rgba(255,210,122,.30) !important;
+}
+
+.mission-command-deck {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  padding: 12px 22px !important;
+  border-bottom: 1px solid rgba(109,255,183,.10);
+  background: linear-gradient(180deg, rgba(255,255,255,.020), rgba(255,255,255,.010));
+}
+
+.mission-command-card {
+  min-height: 84px;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 12px 13px;
+  border: 1px solid rgba(109,255,183,.16);
+  border-radius: 18px;
+  background: rgba(4,14,20,.74);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+}
+
+.mission-command-card span {
+  color: #8fffd2;
+  font-size: .66rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.mission-command-card strong {
+  color: #ffffff;
+  font-size: .92rem;
+  line-height: 1.24;
+}
+
+.mission-command-card em {
+  color: #c5d7e4;
+  font-style: normal;
+  font-size: .76rem;
+  line-height: 1.38;
+}
+
+.mission-compact-jumpbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 22px !important;
+  border-bottom: 1px solid rgba(109,255,183,.10);
+  background: rgba(2,11,15,.56);
+}
+
+.mission-compact-jumpbar[hidden] {
+  display: none !important;
+}
+
+.mission-compact-jumpbar .home-button.active {
+  border-color: rgba(96,255,218,.58) !important;
+  color: rgba(96,255,218,.94) !important;
+  background: linear-gradient(180deg, rgba(96,255,218,.16), rgba(7,16,31,.96)) !important;
+}
+
+.mission-ops-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 12px 22px !important;
+  border-bottom: 1px solid rgba(109,255,183,.10);
+}
+
+.mission-ops-strip article {
+  min-height: 68px;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 11px 12px;
+  border: 1px solid rgba(119,219,255,.14);
+  border-radius: 16px;
+  background: rgba(4,14,20,.70);
+}
+
+.mission-ops-strip strong {
+  color: #eafff5;
+  font-size: .76rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.mission-ops-strip span {
+  color: #c6d7e3;
+  font-size: .76rem;
+  line-height: 1.38;
+}
+
+.mission-layouts {
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin !important;
+  scrollbar-gutter: stable both-edges;
+}
+
+.mission-layouts .home-button,
+.mission-pane-actions .home-button {
+  white-space: nowrap;
+}
+
+.mission-workbench {
+  grid-template-columns: minmax(360px, 1.04fr) minmax(390px, 1fr) minmax(340px, .92fr) !important;
+  grid-template-rows: minmax(240px, .74fr) minmax(240px, .76fr) minmax(220px, .72fr) !important;
+  grid-template-areas:
+    "recipes runbook export"
+    "recipes runbook evidence"
+    "tabs saved timeline" !important;
+  gap: 14px !important;
+  padding: 14px 22px 16px !important;
+  overflow: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-gutter: stable both-edges;
+}
+
+.mission-section,
+.mission-section.runbook,
+.mission-section.export {
+  min-height: 220px !important;
+}
+
+.mission-section .ops-hub-section-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.mission-section .ops-hub-section-title span {
+  white-space: normal !important;
+  line-height: 1.35 !important;
+}
+
+.mission-section .ops-hub-list,
+#mission-recipes,
+#mission-list,
+#mission-tabs-list,
+#mission-runbook-list,
+#mission-notes-list,
+#mission-evidence-list,
+#mission-timeline,
+#mission-export-preview,
+.mission-runbook-editor .ops-hub-list {
+  scrollbar-width: auto !important;
+  scrollbar-gutter: stable both-edges;
+}
+
+.mission-section .ops-hub-list::-webkit-scrollbar,
+#mission-recipes::-webkit-scrollbar,
+#mission-list::-webkit-scrollbar,
+#mission-tabs-list::-webkit-scrollbar,
+#mission-runbook-list::-webkit-scrollbar,
+#mission-notes-list::-webkit-scrollbar,
+#mission-evidence-list::-webkit-scrollbar,
+#mission-timeline::-webkit-scrollbar,
+#mission-export-preview::-webkit-scrollbar,
+.mission-runbook-editor .ops-hub-list::-webkit-scrollbar,
+.mission-workbench::-webkit-scrollbar,
+.mission-layouts::-webkit-scrollbar {
+  width: 12px !important;
+  height: 12px !important;
+  display: block !important;
+}
+
+.mission-section .ops-hub-list::-webkit-scrollbar-thumb,
+#mission-recipes::-webkit-scrollbar-thumb,
+#mission-list::-webkit-scrollbar-thumb,
+#mission-tabs-list::-webkit-scrollbar-thumb,
+#mission-runbook-list::-webkit-scrollbar-thumb,
+#mission-notes-list::-webkit-scrollbar-thumb,
+#mission-evidence-list::-webkit-scrollbar-thumb,
+#mission-timeline::-webkit-scrollbar-thumb,
+#mission-export-preview::-webkit-scrollbar-thumb,
+.mission-runbook-editor .ops-hub-list::-webkit-scrollbar-thumb,
+.mission-workbench::-webkit-scrollbar-thumb,
+.mission-layouts::-webkit-scrollbar-thumb {
+  border-width: 3px !important;
+}
+
+#mission-recipes {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+#mission-recipes .mission-recipe-card {
+  min-height: 132px !important;
+}
+
+#mission-recipes .mission-recipe-card span {
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 4 !important;
+  overflow: hidden !important;
+}
+
+.mission-tab-row {
+  grid-template-columns: minmax(0, 1.2fr) minmax(132px, 168px) auto auto auto !important;
+  min-height: 74px !important;
+  align-items: start !important;
+}
+
+.mission-tab-row > button:first-child {
+  align-content: start;
+}
+
+.mission-tab-row select,
+.mission-tab-row .home-button {
+  min-height: 38px;
+}
+
+.mission-runbook-editor {
+  grid-template-rows: auto auto auto minmax(112px, .64fr) minmax(118px, .68fr) auto minmax(110px, .62fr) !important;
+}
+
+.mission-runbook-step,
+.mission-runbook-v2-row,
+.mission-timeline-v2-event,
+.mission-evidence-v2-item {
+  min-height: 62px;
+}
+
+.mission-timeline-v2-filterbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-block: 2px 6px;
+  background: linear-gradient(180deg, rgba(3,10,15,.96), rgba(3,10,15,.72));
+}
+
+.mission-timeline-v2-filter {
+  min-height: 32px;
+  border-radius: 999px;
+  padding: 0 10px;
+}
+
+#mission-export-preview {
+  min-height: 220px !important;
+  line-height: 1.62 !important;
+}
+
+@media (max-width: 1480px) {
+  .mission-workbench {
+    grid-template-columns: minmax(320px, 1fr) minmax(340px, 1fr) minmax(320px, .9fr) !important;
+    grid-template-areas:
+      "recipes runbook export"
+      "tabs runbook evidence"
+      "saved timeline timeline" !important;
+  }
+}
+
+@media (max-width: 1180px) {
+  .mission-panel {
+    grid-template-rows: auto auto auto auto auto auto auto auto auto !important;
+    overflow: auto !important;
+  }
+
+  .mission-workbench {
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: auto !important;
+    grid-template-areas:
+      "recipes recipes"
+      "runbook runbook"
+      "tabs evidence"
+      "saved timeline"
+      "export export" !important;
+    overflow: visible !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .mission-status {
+    grid-template-columns: 1fr !important;
+  }
+
+  .mission-command-deck,
+  .mission-ops-strip {
+    grid-template-columns: 1fr !important;
+  }
+
+  .mission-workbench {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "recipes"
+      "runbook"
+      "tabs"
+      "evidence"
+      "saved"
+      "timeline"
+      "export" !important;
+  }
+
+  #mission-recipes {
+    grid-template-columns: 1fr !important;
+  }
+
+  .mission-tab-row {
+    grid-template-columns: 1fr !important;
+  }
+}
