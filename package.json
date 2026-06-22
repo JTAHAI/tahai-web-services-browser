@@ -370,11 +370,11 @@
     "verify:pass-345-blackbox-electron-release-e2e": "node scripts/verify-pass-345-blackbox-electron-release-e2e.mjs"
   },
   "devDependencies": {
-    "@types/node": "20.19.39",
-    "electron": "41.3.0",
-    "electron-builder": "26.8.1",
-    "playwright": "1.60.0",
-    "typescript": "5.9.3"
+    "@types/node": "26.0.0",
+    "electron": "42.4.1",
+    "electron-builder": "26.15.3",
+    "playwright": "1.61.0",
+    "typescript": "6.0.3"
   },
   "build": {
     "appId": "com.tahai.webservices.browser",
