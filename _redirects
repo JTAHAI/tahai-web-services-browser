@@ -1,0 +1,8 @@
+/download /downloads/ 301
+/download/ /downloads/ 301
+/downloads /downloads/ 301
+/download/* /downloads/ 301
+/downloads/releases/* /downloads/ 301
+/privacy-policy /privacy/ 301
+/code-signing /code-signing-policy/ 301
+/signing /code-signing-policy/ 301

@@ -1,47 +1,7 @@
-# Code signing policy
+# TAHAI Web Services Browser Distribution Policy
 
-TAHAI Web Services Browser intends to use open-source code signing for Windows releases.
+The Microsoft Store is the official Windows distribution lane for TAHAI Web Services Browser.
 
-Free code signing provided by SignPath.io, certificate by SignPath Foundation.
+Historical direct-download installers, test packages, checksum boards, and release manifests are no longer published through browser.tahai.net.
 
-## Project
-
-- Project name: TAHAI Web Services Browser
-- Repository: https://github.com/JTAHAI/tahai-web-services-browser
-- Website: https://browser.tahai.net
-- License: Apache-2.0
-
-## Team roles
-
-Because this project is currently maintained by a single maintainer, the current roles are:
-
-- Committer: Justin Tahai / JTAHAI
-- Reviewer: Justin Tahai / JTAHAI
-- Signing approver: Justin Tahai / JTAHAI
-
-As the project grows, these roles may be expanded to additional trusted maintainers.
-
-## Signing scope
-
-The signing workflow is intended only for official TAHAI Web Services Browser release artifacts built from this public source repository.
-
-Unsigned local builds, forks, modified distributions, and third-party builds are not official TAHAI Web Services releases.
-
-## Privacy policy
-
-This browser may connect to websites and services specifically requested by the user or configured by the person installing or operating it.
-
-This program will not transfer information to other networked systems unless specifically requested by the user or the person installing or operating it.
-
-Third-party websites, provider consoles, AI services, cloud services, and browser destinations opened by the user remain governed by their own privacy policies.
-
-## Release integrity
-
-Official release artifacts should be published with checksums and tied to a public repository commit, tag, or GitHub release.
-
-## PASS159 — signing, provenance, and SBOM truth
-
-PASS159 adds a No false signing claim rule. A release may only be called signed when the artifact was actually signed by the approved signing lane and the signing evidence is published with the release materials. Until that lane is active, Windows packages must remain clearly labeled as unsigned preview artifacts.
-
-Every public enterprise release must publish a release provenance manifest and SBOM beside the artifacts. The provenance manifest must record the public commit or tag, version, package-lock SHA-256, artifact filenames, SHA256 checksums, and signing status. The SBOM must be generated from the exact `package-lock.json` used for the release build and must include the package-lock SHA-256.
-
+The public GitHub repository remains available for source inspection and development. A locally built copy is separate from the official Microsoft Store package and must not be represented as an official Store release.

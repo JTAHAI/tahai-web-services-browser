@@ -1,0 +1,12 @@
+# TAHAI Web Services Browser
+
+Primary site: https://browser.tahai.net/
+Official Windows installation: https://apps.microsoft.com/detail/9PJ1RHFW9GL8?hl=en-us&gl=US&ocid=pdpshare
+GitHub repository: https://github.com/JTAHAI/tahai-web-services-browser
+Privacy: https://browser.tahai.net/privacy/
+
+TAHAI Web Services Browser is a Chromium-compatible IT and DevOps command browser. Its flagship Mission Control system combines Mission Tabs, multi-pane Mission Views, operational tools, runbooks, timelines, and evidence capture.
+
+The Microsoft Store is the current official Windows distribution lane. Historical preview installers, release-candidate downloads, test packages, checksum boards, and old build manifests have been removed from browser.tahai.net.
+
+The open-source repository remains available for review and development. Source builds are separate from the official Microsoft Store package.
