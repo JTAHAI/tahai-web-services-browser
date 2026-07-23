@@ -12,3 +12,9 @@ Expected copied files from Google Drive / My Drive / Websites / TWS - REBUILT:
 - `Go_to_tahaijtformecom_revi_cropped.mp4`
 
 The start page is built to load these real copied assets when present and fall back cleanly when they are not present.
+
+## Approved TAHAI Browser artwork
+
+- `tws-square-logo.png` and `SQUARE.png` are byte-for-byte copies of the approved square PNG.
+- `tws-browser-brand-wide.png` is a byte-for-byte copy of the approved full branding PNG.
+- These files must not be redrawn, traced, regenerated, cropped, resized, or converted.

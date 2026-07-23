@@ -43,15 +43,11 @@ Capture clean screenshots at production resolution. Do not include customer data
 
 ## Privacy URL
 
-Placeholder until final public URL is confirmed:
-
 - `https://browser.tahai.net/privacy`
 
 ## Support URL
 
-Placeholder until final public URL is confirmed:
-
-- `https://browser.tahai.net/support`
+- `https://github.com/JTAHAI/tahai-web-services-browser/issues`
 
 ## Release notes draft
 

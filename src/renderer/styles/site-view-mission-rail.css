@@ -478,3 +478,137 @@ body[data-site-view-rail-density="compact"] .site-view-rail-meta {
 body[data-site-view-rail-density="compact"] .site-view-rail-meta strong {
   font-size: .78rem;
 }
+
+/* PASS 07 Site View alert rail compaction.
+   Keep the rail useful as a glance panel instead of a full-height thumbnail wall.
+   The preview remains visual, but the card body uses more compact rows so more
+   sites and alerts fit in the same restored window without clipping the main stage. */
+:root {
+  --pass360-site-view-rail-width: 304px;
+}
+
+body[data-site-view-rail-density="large"] {
+  --pass360-site-view-rail-width: 360px;
+}
+
+.site-view-mission-rail {
+  width: min(var(--pass360-site-view-rail-width), calc(100vw - 24px));
+}
+
+body.site-view-rail-enabled .webview-stage {
+  margin-left: min(var(--pass360-site-view-rail-width), calc(100vw - 24px));
+}
+
+body.site-view-rail-enabled.site-view-rail-right .webview-stage {
+  margin-left: 0;
+  margin-right: min(var(--pass360-site-view-rail-width), calc(100vw - 24px));
+}
+
+body.site-view-rail-enabled .site-view-mission-rail,
+body.site-view-rail-enabled.site-view-rail-right .site-view-mission-rail {
+  pointer-events: auto;
+}
+
+.site-view-rail-tools {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.site-view-rail-tools .site-view-rail-count {
+  grid-column: 1 / -1;
+}
+
+.site-view-rail-page {
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 8px;
+}
+
+.site-view-rail-preview {
+  min-height: 72px;
+  max-height: 92px;
+  aspect-ratio: 1.35;
+  border-radius: 12px;
+}
+
+.site-view-rail-fallback {
+  min-height: 72px;
+  padding: 10px;
+}
+
+.site-view-rail-meta {
+  align-content: start;
+  gap: 3px 6px;
+}
+
+.site-view-rail-meta strong {
+  white-space: normal;
+  line-height: 1.15;
+  font-size: .80rem;
+}
+
+.site-view-rail-meta span:not(.site-view-rail-status) {
+  white-space: normal;
+  line-height: 1.15;
+  font-size: .70rem;
+}
+
+.site-view-rail-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  padding: 0 8px 8px;
+}
+
+.site-view-rail-action {
+  height: 26px;
+  font-size: .66rem;
+}
+
+body[data-site-view-rail-density="compact"] .site-view-rail-card {
+  padding: 6px;
+}
+
+body[data-site-view-rail-density="compact"] .site-view-rail-preview {
+  min-height: 64px;
+  max-height: 84px;
+}
+
+body[data-site-view-rail-density="compact"] .site-view-rail-fallback {
+  min-height: 64px;
+}
+
+@media (max-width: 900px), (max-height: 820px) {
+  :root {
+    --pass360-site-view-rail-width: 268px;
+  }
+
+  .site-view-mission-rail {
+    top: 132px;
+    bottom: 18px;
+  }
+}
+
+@media (max-width: 640px), (max-height: 700px) {
+  .site-view-rail-toggle {
+    display: inline-flex;
+  }
+
+  .site-view-mission-rail {
+    left: 9px;
+    right: 9px;
+    width: auto;
+    border-radius: 20px;
+  }
+
+  body.site-view-rail-right .site-view-mission-rail {
+    left: 9px;
+    right: 9px;
+    border-radius: 20px;
+  }
+
+  body.site-view-rail-enabled .webview-stage,
+  body.site-view-rail-enabled.site-view-rail-right .webview-stage {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}

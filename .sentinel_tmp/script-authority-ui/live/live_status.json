@@ -1,0 +1,21 @@
+﻿{
+    "status":  "blocked",
+    "parse_status":  "blocked",
+    "preview_state":  "blocked",
+    "current_file":  "",
+    "active_failure_class":  "requirements_parse_failed",
+    "failure_class":  "requirements_parse_failed",
+    "recovery_hint":  "Day runner finished; inspect queue_runner_summary.json and latest one-button proof for details.",
+    "model_lane":  "qwen2.5-coder:32b",
+    "proof_path":  "d:\\dev\\sentinel_proof_green_git_baseline - Copy\\.sentinel_tmp\\day-night-runner\\run-20260711-124308",
+    "next_safe_action":  "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\\dev\\sentinel_proof_green_git_baseline - Copy\\scripts\\sentinel_code_app_day_night_runner.ps1\" -SentinelRepo \"d:\\dev\\sentinel_proof_green_git_baseline - Copy\" -TargetRepo \"D:\\dev\\browser\\app\" -RequirementsFile \"\" -Model \"qwen2.5-coder:32b\" -ModelTimeoutSeconds 1800 -MaxJobs 999 -MaxHours 12 -MaxCyclesPerJob 24 -MaxRepairAttempts 6 -MaxConsecutiveBlocked 0 -IdleStopMinutes 60 -NoProgressStopMinutes 120 -ProofRoot \"d:\\dev\\sentinel_proof_green_git_baseline - Copy\\.sentinel_tmp\\day-night-runner\" -JobQueueDir \"D:\\dev\\browser\\app\\.sentinel_tmp\\buildroom_queue_runs\\20260711_124308_restart_the_overnight_queue_on_the_correct_repo\" -AllowAutonomousMutation -StatusOnly",
+    "latest_raw_output_path":  "D:\\dev\\browser\\app\\.sentinel_tmp\\script-authority-ui\\live\\live_raw_stream.txt",
+    "latest_candidate_excerpt_path":  "D:\\dev\\browser\\app\\.sentinel_tmp\\script-authority-ui\\live\\live_candidate_excerpt.txt",
+    "latest_current_file_path":  "D:\\dev\\browser\\app\\.sentinel_tmp\\script-authority-ui\\live\\live_current_file.txt",
+    "latest_code_lines_path":  "D:\\dev\\browser\\app\\.sentinel_tmp\\script-authority-ui\\live\\live_code_lines.txt",
+    "pause_requested":  false,
+    "stop_requested":  false,
+    "child_pid":  0,
+    "artifact_tail":  "",
+    "updated_at_utc":  "2026-07-11T16:43:19.2456130Z"
+}

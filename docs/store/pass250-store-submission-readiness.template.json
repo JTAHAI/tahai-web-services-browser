@@ -20,7 +20,7 @@
   "privacySupport": {
     "status": "PENDING",
     "privacyUrl": "https://browser.tahai.net/privacy",
-    "supportUrl": "https://browser.tahai.net/support",
+    "supportUrl": "https://github.com/JTAHAI/tahai-web-services-browser/issues",
     "urlsPubliclyReachable": false
   },
   "listing": {

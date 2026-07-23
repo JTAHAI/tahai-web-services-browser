@@ -90,6 +90,7 @@ check('release-contract-order', ordered(releaseContract, 'verify:pass-343-it-dev
 check('store-source-files-present', [
   'config/msix-manifest.template.xml',
   'packaging/windows/build-windows-msix.ps1',
+  'packaging/windows/msix/package-identity.store.json',
   'packaging/windows/msix/package-identity.store.example.json',
   'docs/store/PARTNER_CENTER_FINAL_SUBMISSION_CHECKLIST.md',
   'docs/store/PARTNER_CENTER_IDENTITY_PREP.md',
@@ -146,9 +147,10 @@ check('store-gate-no-false-approval-output', !/approved|submitted/i.test(storeGa
 check('store-gate-prefers-generated-local-evidence', storeGate.includes('release-candidate/generated/store-submission/store-submission-evidence.generated.json'), 'Store gate must prefer ignored local evidence over tracked placeholder');
 
 const manifest = read('config/msix-manifest.template.xml');
-const identity = readJson('packaging/windows/msix/package-identity.store.example.json');
-check('msix-version-tracks-package-json', manifest.includes(`Version="${msixVersion}"`) && identity.version === msixVersion, `MSIX version must be ${msixVersion}`);
-check('partner-center-identity-remains-placeholder-until-real-account', manifest.includes('Placeholder') && identity.status === 'PARTNER_CENTER_PENDING' && JSON.stringify(identity).includes('REPLACE_WITH_PARTNER_CENTER'), 'source must not fake Partner Center identity before reservation');
+const identity = readJson('packaging/windows/msix/package-identity.store.json');
+check('msix-version-tracks-package-json', manifest.includes(`__TAHAI_MSIX_PACKAGE_VERSION__`) || manifest.includes(`Version="${msixVersion}"`), `MSIX version must be ${msixVersion}`);
+check('partner-center-identity-is-reserved-in-source-of-truth', identity.name === 'TAHAIWebServices.TAHAIWebServicesBrowser' && identity.publisher === 'CN=D75EE668-B409-45ED-87E5-E37AA5FE3868' && identity.publisherDisplayName === 'TAHAI Web Services' && identity.storeId === '9PJ1RHFW9GL8', 'source of truth identity must match the reserved Partner Center values');
+check('msix-manifest-uses-safe-identity-tokens-or-real-values', !manifest.includes('TAHAI Web Services Placeholder') && !manifest.includes('REPLACE_WITH_PARTNER_CENTER') && !manifest.includes('PARTNER_CENTER_PENDING') && (manifest.includes('__TAHAI_MSIX_PACKAGE_IDENTITY_NAME__') || manifest.includes('TAHAIWebServices.TAHAIWebServicesBrowser')) && (manifest.includes('__TAHAI_MSIX_PACKAGE_IDENTITY_PUBLISHER__') || manifest.includes('CN=D75EE668-B409-45ED-87E5-E37AA5FE3868')), 'source must use safe identity tokens or the real reserved identity, never the placeholder publisher');
 check('msix-manifest-capabilities-minimal', manifest.includes('Name="runFullTrust"') && manifest.includes('Name="internetClient"') && !/broadFileSystemAccess|enterpriseAuthentication|privateNetworkClientServer/i.test(manifest), 'MSIX capabilities remain minimal for a full-trust browser shell');
 
 const main = read('src/main/main.ts');

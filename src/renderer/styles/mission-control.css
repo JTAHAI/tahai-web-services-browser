@@ -237,7 +237,11 @@
     "saved export timeline" !important;
   gap: 14px !important;
   padding: 14px 22px 16px !important;
-  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  scrollbar-width: thin !important;
+  scrollbar-gutter: stable both-edges;
 }
 
 .mission-tabs-section { grid-area: tabs !important; }
@@ -3174,4 +3178,331 @@ body[data-pass121-overlay-scroll-containment="true"] .mission-dialog,
     min-width: auto !important;
     width: auto !important;
   }
+}
+
+/* PASS355 — Mission Recipes restored-window containment closeout.
+   Keep the late Mission stylesheet from squeezing the recipe library back into
+   unreadable multi-column cards at restored/laptop widths. */
+@media (max-width: 1700px), (max-height: 920px) {
+  body.mission-small-window-stress .mission-recipes-section[data-pass254-recipe-preview-host="true"] #mission-recipes,
+  .mission-dialog[data-pass132-mission-viewport="compact"] .mission-recipes-section[data-pass254-recipe-preview-host="true"] #mission-recipes,
+  .mission-dialog[data-pass132-mission-viewport="micro"] .mission-recipes-section[data-pass254-recipe-preview-host="true"] #mission-recipes,
+  body.mission-small-window-stress #mission-recipes,
+  .mission-dialog[data-pass132-mission-viewport="compact"] #mission-recipes,
+  .mission-dialog[data-pass132-mission-viewport="micro"] #mission-recipes {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.mission-small-window-stress #mission-recipes,
+  .mission-dialog[data-pass132-mission-viewport="compact"] #mission-recipes,
+  .mission-dialog[data-pass132-mission-viewport="micro"] #mission-recipes {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  body.mission-small-window-stress #mission-recipes .mission-recipe-card,
+  .mission-dialog[data-pass132-mission-viewport="compact"] #mission-recipes .mission-recipe-card,
+  .mission-dialog[data-pass132-mission-viewport="micro"] #mission-recipes .mission-recipe-card {
+    min-height: 162px !important;
+    overflow: hidden !important;
+    padding: 14px 16px 16px 18px !important;
+  }
+
+  body.mission-small-window-stress #mission-recipes .mission-recipe-card strong,
+  .mission-dialog[data-pass132-mission-viewport="compact"] #mission-recipes .mission-recipe-card strong,
+  .mission-dialog[data-pass132-mission-viewport="micro"] #mission-recipes .mission-recipe-card strong {
+    grid-template-columns: minmax(0, 1fr) max-content !important;
+    gap: 8px !important;
+  }
+
+  body.mission-small-window-stress #mission-recipes .ops-hub-recipe-detail,
+  .mission-dialog[data-pass132-mission-viewport="compact"] #mission-recipes .ops-hub-recipe-detail,
+  .mission-dialog[data-pass132-mission-viewport="micro"] #mission-recipes .ops-hub-recipe-detail {
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+    overflow: hidden !important;
+  }
+
+  body.mission-small-window-stress #mission-recipes .pass254-recipe-actions,
+  .mission-dialog[data-pass132-mission-viewport="compact"] #mission-recipes .pass254-recipe-actions,
+  .mission-dialog[data-pass132-mission-viewport="micro"] #mission-recipes .pass254-recipe-actions {
+    margin-top: 0.35rem !important;
+    gap: 8px !important;
+  }
+
+  body.mission-small-window-stress #mission-recipes .pass254-recipe-actions > button,
+  .mission-dialog[data-pass132-mission-viewport="compact"] #mission-recipes .pass254-recipe-actions > button,
+  .mission-dialog[data-pass132-mission-viewport="micro"] #mission-recipes .pass254-recipe-actions > button {
+    min-height: 36px !important;
+    min-width: 0 !important;
+    padding: 0 12px !important;
+    white-space: normal !important;
+  }
+}
+
+/* PASS356 — Mission Control restored-window stack closeout.
+   Short or mid-width windows should favor a single readable column over squeezing
+   the workbench into a dense dashboard that causes recipe bleed and clipped cards. */
+@media (max-width: 1700px), (max-height: 920px) {
+  .mission-workbench {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto !important;
+    grid-template-areas:
+      "recipes"
+      "runbook"
+      "tabs"
+      "evidence"
+      "export"
+      "saved"
+      "timeline" !important;
+    align-content: start !important;
+    gap: 12px !important;
+    overflow: auto !important;
+  }
+
+  .mission-section,
+  .mission-section.runbook,
+  .mission-section.export {
+    min-height: 0 !important;
+  }
+
+  .mission-recipes-section,
+  .mission-runbook-section,
+  .mission-tabs-section,
+  .mission-evidence-section,
+  .mission-saved-section,
+  .mission-timeline-section,
+  .mission-export-section {
+    min-height: 220px !important;
+  }
+
+  #mission-recipes {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    padding-right: 4px !important;
+  }
+
+  #mission-recipes .mission-recipe-card {
+    min-height: 152px !important;
+    overflow: hidden !important;
+    padding: 14px 16px 16px 18px !important;
+  }
+
+  #mission-recipes .pass254-recipe-actions {
+    margin-top: auto !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+#mission-recipes .pass254-recipe-actions > button {
+  min-width: 0 !important;
+  width: 100% !important;
+  white-space: normal !important;
+}
+
+/* PASS357 — Mission Recipes structural bleed elimination.
+   Keep the recipe list in normal document flow so selected recipe cards can grow
+   without spilling into the next row or stealing hit targets from neighboring cards. */
+#mission-recipes {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+  grid-template-columns: none !important;
+  grid-template-rows: none !important;
+  grid-auto-flow: row !important;
+  grid-auto-columns: auto !important;
+  align-content: flex-start !important;
+}
+
+#mission-recipes > .ops-hub-empty,
+#mission-recipes > .mission-recipe-filter-summary,
+#mission-recipes > .ops-hub-row,
+#mission-recipes > .mission-recipe-card {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#mission-recipes .mission-recipe-card,
+#mission-recipes .mission-recipe-card[data-pass259-card-polished="true"] {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  align-self: stretch !important;
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: visible !important;
+  gap: 10px !important;
+  padding: 16px 18px 18px !important;
+}
+
+#mission-recipes .mission-recipe-card::after {
+  display: none !important;
+}
+
+#mission-recipes .mission-recipe-card strong {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: flex-start !important;
+  min-width: 0 !important;
+  gap: 8px !important;
+}
+
+#mission-recipes .mission-recipe-card .ops-hub-recipe-title,
+#mission-recipes .mission-recipe-card .recipe-chip,
+#mission-recipes .mission-recipe-card > span,
+#mission-recipes .mission-recipe-card .ops-hub-recipe-detail,
+#mission-recipes .pass254-recipe-contract-detail,
+#mission-recipes .pass259-recipe-card-sections {
+  min-width: 0 !important;
+}
+
+#mission-recipes .recipe-chip {
+  justify-self: start !important;
+  max-width: 100% !important;
+}
+
+#mission-recipes .pass254-recipe-actions {
+  position: static !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  z-index: auto !important;
+}
+
+#mission-recipes .pass254-recipe-actions > button {
+  flex: 1 1 160px !important;
+  min-width: 0 !important;
+  width: auto !important;
+  white-space: normal !important;
+}
+
+#mission-recipes .pass259-recipe-card-sections {
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)) !important;
+  gap: 8px !important;
+}
+
+/* PASS359 — Restored-window caption-safe Mission viewport.
+   Keep compact Mission Control away from the Windows caption buttons and resize
+   edge so the close control and outer Mission scrollbar stay usable. */
+:root {
+  --pass359-mission-dialog-edge-inset: 16px;
+  --pass359-mission-caption-top-inset: calc(var(--pass113-titlebar-chrome-height, 44px) + 12px);
+}
+
+.mission-panel > header {
+  padding-inline-end: max(24px, min(26vw, calc(var(--pass113-titlebar-caption-reserve, 168px) + 20px))) !important;
+}
+
+#close-mission {
+  position: relative !important;
+  z-index: 6 !important;
+  flex: 0 0 auto !important;
+  pointer-events: auto !important;
+}
+
+@media (max-width: 1500px), (max-height: 860px) {
+  .mission-dialog,
+  body[data-pass121-overlay-scroll-containment="true"] .mission-dialog {
+    position: fixed !important;
+    left: 50% !important;
+    top: var(--pass359-mission-caption-top-inset) !important;
+    transform: translateX(-50%) !important;
+    margin: 0 !important;
+    width: min(1780px, calc(100vw - (var(--pass359-mission-dialog-edge-inset) * 2))) !important;
+    height: min(1010px, calc(100dvh - var(--pass359-mission-caption-top-inset) - var(--pass359-mission-dialog-edge-inset))) !important;
+    max-width: calc(100vw - (var(--pass359-mission-dialog-edge-inset) * 2)) !important;
+    max-height: calc(100dvh - var(--pass359-mission-caption-top-inset) - var(--pass359-mission-dialog-edge-inset)) !important;
+  }
+
+  .mission-panel,
+  .ops-panel.mission-panel {
+    scrollbar-gutter: stable both-edges !important;
+  }
+
+  .mission-panel > header {
+    padding-top: 10px !important;
+    padding-right: max(28px, min(28vw, calc(var(--pass113-titlebar-caption-reserve, 168px) + 20px))) !important;
+  }
+}
+
+  #pass254-mission-recipe-preview {
+    max-height: min(28vh, 280px) !important;
+  }
+}
+
+/* PASS358 — Mission Recipes universal flow enforcement.
+   Keep the recipe list in document flow even when the viewport is large enough
+   to re-activate wider Mission Control grids, so cards never collapse back into
+   fixed-height rows or overlap one another. */
+#mission-recipes {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+  grid-template-columns: none !important;
+  grid-template-rows: none !important;
+  grid-auto-flow: row !important;
+  grid-auto-columns: auto !important;
+  align-content: flex-start !important;
+}
+
+#mission-recipes > .ops-hub-empty,
+#mission-recipes > .mission-recipe-filter-summary,
+#mission-recipes > .ops-hub-row,
+#mission-recipes > .mission-recipe-card {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#mission-recipes .mission-recipe-card,
+#mission-recipes .mission-recipe-card[data-pass259-card-polished="true"] {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  align-self: stretch !important;
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: visible !important;
+  gap: 10px !important;
+  padding: 16px 18px 18px !important;
+}
+
+#mission-recipes .pass254-recipe-actions {
+  position: static !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  z-index: auto !important;
+}
+
+#mission-recipes .pass254-recipe-actions > button {
+  flex: 1 1 160px !important;
+  min-width: 0 !important;
+  width: auto !important;
+  white-space: normal !important;
+}
+
+#mission-recipes .pass259-recipe-card-sections {
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)) !important;
+  gap: 8px !important;
 }

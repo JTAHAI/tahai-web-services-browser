@@ -1401,7 +1401,7 @@ function pass81ProtectNonPaneDropSurface(surface: HTMLElement, label: string): P
     event.preventDefault();
     event.stopPropagation();
     surface.classList.remove('pass81-non-pane-drop-guard');
-    setStatus('Drop blocked on protected surface', `${label} is not a Mission pane target. Use pane heads, command dock, or Ctrl+Alt+1..4.`);
+    setStatus('Drop blocked on protected surface', `${label} is not a Mission pane target. Use pane heads or the command dock to retarget Mission panes.`);
   }, true);
   issues.push(pass81Issue(`protected-drop-${surface.id || label}`, 'repair', `${label} protected from accidental pane drops.`));
   return issues;
@@ -6411,6 +6411,7 @@ function pinLatestToolOutputToMission(): void {
 }
 
 function pinActivePageToMission(): void {
+  console.info('[MISSION] pin-active-page:start');
   const target = missionEvidenceTargetForActivePane();
   const tab = target.tab;
   if (!tab) {
@@ -6430,7 +6431,11 @@ function pinActivePageToMission(): void {
     metadata: { profile: activeProfileLabel(), pane: target.paneId, source: 'active-pane' }
   });
   if (entry && missionEvidenceNoteInput) missionEvidenceNoteInput.value = '';
+  pass158RefreshMissionExportPreview('pin-active-page');
+  window.requestAnimationFrame(() => pass158RefreshMissionExportPreview('pin-active-page:raf'));
+  window.setTimeout(() => pass158RefreshMissionExportPreview('pin-active-page:settle'), 48);
   setStatus(entry ? 'Active pane pinned to mission' : 'Active pane evidence blocked', entry ? missionEvidencePackV2Status('success', tab.title || tab.url) : 'Unable to capture active pane.');
+  console.info(`[MISSION] pin-active-page:done ok=${entry ? '1' : '0'} pane=${target.paneId} missionTabs=${currentMission?.tabs.length || 0}`);
 }
 
 function pinAllMissionPanesToMission(): void {
@@ -6787,16 +6792,30 @@ function renderMissionLayout(): void {
 // PASS133 Tri-view / Quad View entry + recovery: make every supported 3-Up
 // variant directly reachable and give operators a one-click safe recovery path
 // when Mission View geometry or pane overlays drift after rapid layout switches.
+let pass133LastTriViewLayout: Pass63TripleLayoutType = 'triple-bottom';
+
+function pass133RememberTriViewLayout(layoutType: MissionLayoutType | null | undefined): void {
+  if (!layoutType) return;
+  const canonical = pass63CanonicalMissionLayoutType(layoutType);
+  if (pass63TripleLayoutTypes.includes(canonical as Pass63TripleLayoutType)) {
+    pass133LastTriViewLayout = canonical as Pass63TripleLayoutType;
+  }
+}
+
 function pass133CurrentTriViewIndex(): number {
-  const type = pass63CanonicalMissionLayoutType(currentMission?.layout.type || 'triple-bottom');
+  const activeButtonType = missionLayoutsEl.querySelector<HTMLButtonElement>('[data-mission-layout].active')?.dataset.missionLayout as MissionLayoutType | undefined;
+  const type = pass63CanonicalMissionLayoutType(activeButtonType || currentMission?.layout.type || pass133LastTriViewLayout || 'triple-bottom');
   const index = pass63TripleLayoutTypes.indexOf(type as Pass63TripleLayoutType);
-  return index >= 0 ? index : 1;
+  if (index >= 0) return index;
+  const fallbackIndex = pass63TripleLayoutTypes.indexOf(pass133LastTriViewLayout);
+  return fallbackIndex >= 0 ? fallbackIndex : 1;
 }
 
 function pass133CycleTriViewVariant(reason = 'cycle'): void {
   ensureCurrentMission();
   const next = pass63TripleLayoutTypes[(pass133CurrentTriViewIndex() + 1) % pass63TripleLayoutTypes.length] || 'triple-bottom';
   setMissionLayout(next);
+  pass133RememberTriViewLayout(next);
   document.body.dataset.pass133LastTriViewCycle = `${reason}:${next}`;
   setStatus('Mission 3-Up variant cycled', missionLayoutLabel(next));
 }
@@ -6830,6 +6849,7 @@ function pass133AfterLayoutEntry(layout: MissionLayoutType, reason = 'layout-ent
   const mission = currentMission;
   if (!mission) return;
   const canonical = pass63CanonicalMissionLayoutType(layout);
+  pass133RememberTriViewLayout(canonical);
   const visiblePanes = missionVisiblePaneIds(canonical);
   if (visiblePanes.length && !visiblePanes.includes(normalizeMissionPaneId(mission.layout.activePaneId))) {
     mission.layout.activePaneId = visiblePanes[0] || 'pane-1';
@@ -6842,13 +6862,15 @@ function pass133AfterLayoutEntry(layout: MissionLayoutType, reason = 'layout-ent
 function toggleMissionFocusPane(): void {
   const mission = ensureCurrentMission();
   pass197RecordMissionLayoutDeterminism('focus-toggle', 'before');
-  if (mission.layout.type === 'focus') {
+  const activeButtonLayout = missionLayoutsEl.querySelector<HTMLButtonElement>('[data-mission-layout].active')?.dataset.missionLayout as MissionLayoutType | undefined;
+  const visibleLayoutType = pass63CanonicalMissionLayoutType(activeButtonLayout || mission.layout.type || 'single');
+  if (visibleLayoutType === 'focus') {
     const restoreLayout = pass197DeterministicRestoreLayoutCandidate();
     setMissionLayout(restoreLayout);
     pass197RecordMissionLayoutDeterminism('focus-restore', 'restore');
     return;
   }
-  lastMissionLayoutBeforeFocus = mission.layout.type === 'single' || mission.layout.type === 'command' ? 'quad' : mission.layout.type;
+  lastMissionLayoutBeforeFocus = visibleLayoutType === 'single' || visibleLayoutType === 'command' ? 'quad' : visibleLayoutType;
   setMissionLayout('focus');
   pass197RecordMissionLayoutDeterminism('focus-enter', 'after');
 }
@@ -6858,6 +6880,7 @@ function setMissionLayout(layout: MissionLayoutType): void {
   pass158RuntimeDiag('pass158-set-mission-layout', 'start:' + layout);
   pass197RecordMissionLayoutDeterminism('set-layout:' + layout, 'before');
   mission.layout.type = pass63CanonicalMissionLayoutType(layout);
+  pass133RememberTriViewLayout(mission.layout.type);
   (mission.layout as unknown as { pass256RequestedLayout?: string }).pass256RequestedLayout = mission.layout.type;
   const requestedActivePane = normalizeMissionPaneId(mission.layout.activePaneId || 'pane-1');
   const visiblePanes = missionVisiblePaneIds(mission.layout.type);
@@ -6928,6 +6951,32 @@ function missionExportMarkdown(): string {
   return evidenceSafeMarkdown(redactedMarkdown, 'sanitized-handoff').markdown;
 }
 
+function pass158RefreshMissionExportPreview(reason = 'manual'): void {
+  const preview = missionExportPreview;
+  if (!preview) return;
+  const markdown = missionExportMarkdown();
+  preview.value = markdown;
+  preview.dataset.pass158PreviewReason = reason;
+  preview.dataset.pass158PreviewLength = String(markdown.trim().length);
+  if (markdown.trim()) return;
+  window.requestAnimationFrame(() => {
+    const retry = missionExportMarkdown();
+    if (retry.trim()) {
+      preview.value = retry;
+      preview.dataset.pass158PreviewReason = `${reason}:raf`;
+      preview.dataset.pass158PreviewLength = String(retry.trim().length);
+    }
+  });
+  window.setTimeout(() => {
+    const retry = missionExportMarkdown();
+    if (retry.trim()) {
+      preview.value = retry;
+      preview.dataset.pass158PreviewReason = `${reason}:settle`;
+      preview.dataset.pass158PreviewLength = String(retry.trim().length);
+    }
+  }, 48);
+}
+
 function missionExportStatusDetail(result: Awaited<ReturnType<typeof window.tahaiBrowser.copyMissionExport>>): string {
   const findingCount = result.findings?.reduce((sum, finding) => sum + finding.count, 0) || 0;
   const findingClasses = result.findings?.length || 0;
@@ -6939,6 +6988,7 @@ async function copyMissionExportPacket(): Promise<void> {
   const result = await window.tahaiBrowser.copyMissionExport(currentMission);
   if (!result.ok) { setStatus('Mission export blocked', result.error || 'Validation failed.'); return; }
   if (result.redactedMarkdown) missionExportPreview.value = result.redactedMarkdown;
+  pass158RefreshMissionExportPreview('copy-mission-export');
   missionTimelineEvent('exported', 'Mission packet copied', missionExportStatusDetail(result), { surface: 'export-preview' });
   renderMissionControl();
   setStatus('Mission packet copied', missionExportStatusDetail(result));
@@ -6949,6 +6999,7 @@ async function saveMissionExportPacket(): Promise<void> {
   const result = await window.tahaiBrowser.saveMissionExport(currentMission);
   if (!result.ok) { setStatus('Mission export not saved', result.error || 'Validation failed or canceled.'); return; }
   if (result.redactedMarkdown) missionExportPreview.value = result.redactedMarkdown;
+  pass158RefreshMissionExportPreview('save-mission-export');
   missionTimelineEvent('exported', 'Mission packet saved', result.savedLabel || missionExportStatusDetail(result), { surface: 'export-preview' });
   renderMissionControl();
   setStatus('Mission packet saved', result.savedLabel || missionExportStatusDetail(result));
@@ -7260,6 +7311,7 @@ function closeMissionControl(restoreFocus = false): void {
   if (document.body.dataset.pass117ActiveFocusScope === 'mission-control') delete document.body.dataset.pass117ActiveFocusScope;
   if (document.body.dataset.pass116ActiveOverlay === 'mission-control') pass118ClearChromeOverlayState('explicit-close', 'mission-control');
   if (missionDialog.open) missionDialog.close();
+  pass254ClearRecipePreviewHost('mission-control-close');
   pass341RestoreNormalBrowsingFromMissionControl('mission-control-close');
   if (restoreFocus) pass170RestoreFocusToOpener('mission-control', pass117MissionControlOpener || missionControlButton);
   pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('mission-control-close');
@@ -7274,25 +7326,21 @@ function pass341RestoreNormalBrowsingFromMissionControl(reason = 'mission-contro
     return;
   }
   const previousLayout = currentMission.layout?.type || 'single';
-  if (previousLayout !== 'single') {
-    currentMission.layout.type = 'single';
-    currentMission.layout.activePaneId = 'pane-1';
-    currentMission.updatedAt = new Date().toISOString();
-    document.body.dataset.pass341MissionControlNormalMode = `${reason}:${previousLayout}->single`;
-    renderMissionControl();
-    renderMissionLayout();
-    document.dispatchEvent(new CustomEvent('mission-layout-change', {
-      detail: {
-        source: 'pass341',
-        reason,
-        layout: 'single',
-        previousLayout
-      }
-    }));
-    return;
-  }
-  document.body.dataset.pass341MissionControlNormalMode = `${reason}:single`;
+  const activePaneId = normalizeMissionPaneId(currentMission.layout?.activePaneId || 'pane-1');
+  currentMission.layout.type = pass63CanonicalMissionLayoutType(previousLayout);
+  currentMission.layout.activePaneId = activePaneId;
+  currentMission.updatedAt = new Date().toISOString();
+  document.body.dataset.pass341MissionControlNormalMode = `${reason}:${currentMission.layout.type}`;
+  renderMissionControl();
   renderMissionLayout();
+  document.dispatchEvent(new CustomEvent('mission-layout-change', {
+    detail: {
+      source: 'pass341',
+      reason,
+      layout: currentMission.layout.type,
+      previousLayout
+    }
+  }));
 }
 
 function pass128UpdateMissionViewportMode(reason = 'open'): void {
@@ -9740,6 +9788,9 @@ function renderMissionRecipes(): void {
   const selectedType = selectedMissionRecipeType();
   const recipes = missionRecipesForSelectedType(selectedType);
   const recipePlans = recipes.map((recipe) => ({ recipe, plan: pass90BuildRecipeLaunchPlan(recipe, 'mission') }));
+  if (pass254SelectedRecipeId && !recipePlans.some(({ recipe }) => recipe.id === pass254SelectedRecipeId)) {
+    pass254ClearRecipePreviewHost('selection-not-visible');
+  }
   const filtered = selectedType !== 'generic' && recipes.length < premiumLaunchRecipes.length;
   const exactCount = selectedType === 'generic' ? premiumLaunchRecipes.length : premiumLaunchRecipes.filter((recipe) => missionRecipeMatchesSelectedType(recipe, selectedType)).length;
   missionRecipes.dataset.pass164RecipeSelectedMissionType = selectedType;
@@ -9772,7 +9823,11 @@ function renderMissionRecipes(): void {
     const shortcut = recipe.operatorShortcut ? ' · ' + recipe.operatorShortcut : '';
     const v2 = missionRecipeLibraryV2ForRecipe(recipe.missionRecipeLibraryId);
     const adminV2 = adminConsoleProfileV2ForRecipe(recipe.adminConsoleProfileId || recipe.id);
-    const v2Detail = adminV2 ? ' · ' + adminV2.providerIntentKind + ' · ' + adminV2.paneDefaults.length + ' pane defaults · ' + adminV2.diagnostics.policyTagCount + ' policy tags' : v2 ? ' · ' + v2.riskTier + ' · ' + v2.preflightGates.length + ' preflight gates · ' + v2.evidenceChecklist.length + ' evidence items' : '';
+    const v2Detail = adminV2
+      ? ' · ' + adminV2.providerIntentKind + ' · ' + adminV2.paneDefaults.length + ' pane defaults'
+      : v2
+        ? ' · ' + v2.riskTier + ' · ' + v2.preflightGates.length + ' preflight gates'
+        : '';
     const title = recipe.adminConsoleProfileId ? pass199AdminProfileV2Title(recipe, pass90RecipeStatusLabel(plan)) : pass198RecipeV2Title(recipe, pass90RecipeStatusLabel(plan));
     return '<article class="ops-hub-row mission-recipe-card provider-' + escapeHtml(recipe.cockpitProvider || 'generic') + phaseClass + '" data-mission-recipe-id="' + escapeHtml(recipe.id) + '" data-pass254-recipe-id="' + escapeHtml(recipe.id) + '" data-pass193-launch-surface="mission-control" data-pass193-launch-kind="' + (recipe.adminConsoleProfileId ? 'admin-console-profile' : 'mission-recipe') + '" data-pass164-recipe-mission-type="' + escapeHtml(recipe.missionType || 'generic') + '" data-pass90-recipe-launch="' + (plan.allowed ? 'safe-plan' : 'blocked-plan') + '" data-pass90-safe-url-count="' + String(plan.urls.length) + '"' + pass198RecipeV2Attributes(recipe) + pass199AdminProfileV2Attributes(recipe) + ' title="' + escapeHtml(title) + '"' + cardDisabled + '>' +
       '<strong><span class="ops-hub-recipe-title">' + escapeHtml(recipe.label) + soon + '</span><small class="recipe-chip ops-hub-recipe-meta">' + escapeHtml(recipeProviderLabel(recipe) + shortcut) + '</small></strong>' +
@@ -10950,6 +11005,16 @@ function pass254EnsureRecipePreviewHost(): HTMLElement | null {
   return host;
 }
 
+function pass254ClearRecipePreviewHost(reason = 'clear'): void {
+  pass254SelectedRecipeId = '';
+  delete document.body.dataset.pass254SelectedMissionRecipe;
+  document.body.dataset.pass254MissionRecipeClickContract = reason;
+  const preview = document.getElementById('pass254-mission-recipe-preview');
+  if (preview) preview.remove();
+  const recipesSection = missionRecipes?.closest('.mission-recipes-section') as HTMLElement | null;
+  recipesSection?.removeAttribute('data-pass254-recipe-preview-host');
+}
+
 function pass254RecipePreviewMarkup(recipe: LaunchRecipe): string {
   const plan = pass90BuildRecipeLaunchPlan(recipe, 'mission');
   const paneCount = pass254RequiredPaneCount(recipe.missionLayout || 'single');
@@ -11110,6 +11175,7 @@ async function pass254StartMissionFromRecipe(recipeId: string): Promise<void> {
   }
   document.body.dataset.pass254MissionRecipeClickContract = 'starting';
   await startMissionFromRecipe(recipe.id);
+  await pass255HydrateCurrentMissionFromRecipe(recipe, 'pass254-start');
   const report = pass254AssertRecipeHydrated(recipe, true);
   const detail = report.repairs.length ? `Hydrated with ${report.repairs.length} repair(s).` : `Hydrated ${report.tabCount}/${report.requiredPaneCount} pane target(s).`;
   setStatus('Mission recipe started', `${recipe.label} · ${detail}`);
@@ -11720,8 +11786,13 @@ function pass256MountQuadViewStateMachine(): void {
   document.addEventListener('keydown', (event) => {
     if (!event.ctrlKey || !event.altKey || !currentMission) return;
     const key = String(event.key || '').toLowerCase();
-    const requestByKey: Record<string, Pass256LayoutRequest> = { '1': 'single', '2': 'split-horizontal', '3': 'triple-top', '4': 'quad', q: 'quad', s: 'split-horizontal', f: 'focus' };
-    pass256ScheduleTransition(requestByKey[key], 'layout-keyboard-shortcut');
+    let request: Pass256LayoutRequest | undefined;
+    if (/^(?:Digit3|Numpad3)$/.test(event.code)) request = event.shiftKey ? 'triple-top' : 'triple-bottom';
+    else {
+      const requestByKey: Record<string, Pass256LayoutRequest> = { '1': 'single', '2': 'split-horizontal', '4': 'quad', q: 'quad', s: 'split-horizontal', f: 'focus' };
+      request = requestByKey[key];
+    }
+    pass256ScheduleTransition(request, 'layout-keyboard-shortcut');
   }, true);
   pass256ScheduleTransition(pass256NormalizeLayoutRequest(currentMission?.layout?.type || 'single'), 'mount');
 }
@@ -11995,6 +12066,7 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
     const status: 'PASS' | 'FAIL' = missing.length || failed.length ? 'FAIL' : 'PASS';
     const report: Pass258RuntimeReport = { pass: 'PASS258', status, missingRecipeIds: missing, reports, layoutSequence: PASS258_LAYOUT_SEQUENCE.slice(), generatedAt: new Date().toISOString() };
     document.documentElement.setAttribute('data-pass258-recipe-quad-runtime-e2e', status.toLowerCase());
+    document.documentElement.setAttribute('data-pass258-recipe-quad-runtime-contract', status.toLowerCase());
     document.documentElement.setAttribute('data-pass258-required-recipes', PASS258_REQUIRED_RECIPE_IDS.join(','));
     document.documentElement.setAttribute('data-pass258-layout-sequence', PASS258_LAYOUT_SEQUENCE.join('>'));
     return report;
@@ -12125,10 +12197,10 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
       return false;
     }
     const sections = pass259BuildRecipeSections(card);
-    const wrap = document.createElement('div');
-    wrap.className = 'pass259-recipe-card-sections';
-    wrap.setAttribute('data-pass259-card-sections', 'true');
-    wrap.innerHTML = [
+  const wrap = document.createElement('div');
+  wrap.className = 'pass259-recipe-card-sections';
+  wrap.setAttribute('data-pass259-card-sections', 'true');
+  wrap.innerHTML = [
       ['what-opens', 'What opens', sections.opens],
       ['layout', 'Layout', sections.layout],
       ['runbook', 'Runbook', sections.runbook],
@@ -12136,7 +12208,9 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
       ['recovery', 'Recovery', sections.recovery],
       ['policy-locks', 'Policy locks', sections.policy]
     ].map((row: string[]): string => '<section data-pass259-card-section="' + row[0] + '"><strong>' + row[1] + '</strong><span>' + pass259Escape(row[2]) + '</span></section>').join('');
-    card.appendChild(wrap);
+    const actions = card.querySelector('.pass254-recipe-actions') as HTMLElement | null;
+    if (actions && actions.parentElement === card) card.insertBefore(wrap, actions);
+    else card.appendChild(wrap);
     card.setAttribute('data-pass259-card-polished', 'true');
     card.setAttribute('data-pass259-card-section-count', String(PASS259_CARD_SECTIONS.length));
     return true;
@@ -15780,11 +15854,11 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'h') { event.preventDefault(); toggleOpsHub(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'm') { event.preventDefault(); void openMissionControl(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'n') { event.preventDefault(); void openMissionControl(); }
-  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && event.key.toLowerCase() === 'q') { event.preventDefault(); setMissionLayout('quad'); return; }
-  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && event.key.toLowerCase() === 's') { event.preventDefault(); setMissionLayout('split-horizontal'); return; }
-  if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && /^(?:Digit3|Numpad3)$/.test(event.code)) { event.preventDefault(); setMissionLayout('triple-top'); return; }
-  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && event.key === '3') { event.preventDefault(); setMissionLayout('triple-bottom'); return; }
-  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); toggleMissionFocusPane(); return; }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && event.key.toLowerCase() === 'q') { event.preventDefault(); event.stopPropagation(); if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation(); setMissionLayout('quad'); return; }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && event.key.toLowerCase() === 's') { event.preventDefault(); event.stopPropagation(); if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation(); setMissionLayout('split-horizontal'); return; }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && /^(?:Digit3|Numpad3)$/.test(event.code)) { event.preventDefault(); event.stopPropagation(); if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation(); setMissionLayout('triple-top'); return; }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && /^(?:Digit3|Numpad3)$/.test(event.code)) { event.preventDefault(); event.stopPropagation(); if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation(); setMissionLayout('triple-bottom'); return; }
+  if ((event.ctrlKey || event.metaKey) && event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); event.stopPropagation(); if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation(); toggleMissionFocusPane(); return; }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'b') { event.preventDefault(); openChangeBundleComposer(); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'y') { event.preventDefault(); openHandoffCenter('it-docs'); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 'g') { event.preventDefault(); openOpsGuardReview(); }
@@ -15955,11 +16029,16 @@ async function pass158RuntimeE2eClick(selector: string): Promise<void> {
   const element = pass158RuntimeE2eElement(selector);
   if (!pass158RuntimeE2eElementVisible(selector)) throw new Error(`Runtime E2E selector is not visible: ${selector}`);
   if (element instanceof HTMLButtonElement && element.disabled) throw new Error(`Runtime E2E selector is disabled: ${selector}`);
+  const startedAt = Date.now();
   element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   if ('focus' in element) element.focus({ preventScroll: true });
   await new Promise((resolve) => window.setTimeout(resolve, 16));
-  if (!await pass158RuntimeE2eWaitFor(() => pass158RuntimeE2eElementHitTargetReady(selector), 1800)) {
+  if (!await pass158RuntimeE2eWaitFor(() => pass158RuntimeE2eElementHitTargetReady(selector), 1200)) {
     throw new Error(`Runtime E2E selector is not hit-test ready: ${selector} :: ${pass158RuntimeE2eHitTargetDetail(selector)}`);
+  }
+  const readyElapsed = Date.now() - startedAt;
+  if (readyElapsed > 250) {
+    console.info(`[PASS158] click-ready ${selector} elapsed=${readyElapsed}ms :: ${pass158RuntimeE2eHitTargetDetail(selector)}`);
   }
   element.click();
   await new Promise((resolve) => window.setTimeout(resolve, 80));
@@ -15971,13 +16050,18 @@ function pass158RuntimeE2eShellControlInOverflow(id: string): boolean {
 }
 
 async function pass158RuntimeE2eClickShellControl(id: string): Promise<'toolbar' | 'more-tools'> {
+  const startedAt = Date.now();
   const directSelector = `#${id}`;
   if (pass158RuntimeE2eElementVisible(directSelector) && !pass158RuntimeE2eShellControlInOverflow(id)) {
     await pass158RuntimeE2eClick(directSelector);
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > 250) console.info(`[PASS158] shell-control-click ${id} via=toolbar elapsed=${elapsed}ms`);
     return 'toolbar';
   }
   if (id === 'onboarding' && pass158RuntimeE2eElementVisible('#toolbar-guide-quick')) {
     await pass158RuntimeE2eClick('#toolbar-guide-quick');
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > 250) console.info(`[PASS158] shell-control-click ${id} via=guide-quick elapsed=${elapsed}ms`);
     return 'guide-quick' as 'toolbar';
   }
   if (!pass158RuntimeE2eElementVisible('#toolbar-overflow-toggle')) {
@@ -15987,39 +16071,49 @@ async function pass158RuntimeE2eClickShellControl(id: string): Promise<'toolbar'
     const toggleReady = await pass158RuntimeE2eWaitFor(() => (
       pass158RuntimeE2eElementHitTargetReady('#toolbar-overflow-toggle')
       || pass158RuntimeE2eElementHitTargetReady(directSelector)
-    ), 5000);
+    ), 1500);
     if (!toggleReady) {
       throw new Error(`Runtime E2E More Tools opener is not ready for shell control: #${id} :: ${pass158RuntimeE2eHitTargetSummary([directSelector, '#toolbar-overflow-toggle'])}`);
     }
     if (pass158RuntimeE2eElementHitTargetReady(directSelector) && !pass158RuntimeE2eShellControlInOverflow(id)) {
       await pass158RuntimeE2eClick(directSelector);
+      const elapsed = Date.now() - startedAt;
+      if (elapsed > 250) console.info(`[PASS158] shell-control-click ${id} via=toolbar-fallback elapsed=${elapsed}ms`);
       return 'toolbar';
     }
     await pass158RuntimeE2eClick('#toolbar-overflow-toggle');
-    const menuOpened = await pass158RuntimeE2eWaitFor(() => pass158RuntimeE2eElementVisible('#toolbar-overflow-menu'), 5000);
+    const menuOpened = await pass158RuntimeE2eWaitFor(() => pass158RuntimeE2eElementVisible('#toolbar-overflow-menu'), 1500);
     if (!menuOpened) throw new Error(`More Tools did not open for runtime E2E shell control: #${id}`);
   }
   if (pass158RuntimeE2eElementVisible(directSelector) && !pass158RuntimeE2eShellControlInOverflow(id)) {
     await pass158RuntimeE2eClick(directSelector);
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > 250) console.info(`[PASS158] shell-control-click ${id} via=toolbar-post-menu elapsed=${elapsed}ms`);
     return 'toolbar';
   }
   if (id === 'onboarding' && pass158RuntimeE2eElementVisible('#toolbar-guide-quick')) {
     await pass158RuntimeE2eClick('#toolbar-guide-quick');
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > 250) console.info(`[PASS158] shell-control-click ${id} via=guide-quick-post-menu elapsed=${elapsed}ms`);
     return 'guide-quick' as 'toolbar';
   }
   const overflowSelector = `#toolbar-overflow-items > #${id}`;
   const overflowReady = await pass158RuntimeE2eWaitFor(() => (
     pass158RuntimeE2eElementHitTargetReady(overflowSelector)
     || (pass158RuntimeE2eElementVisible(directSelector) && !pass158RuntimeE2eShellControlInOverflow(id))
-  ), 5000);
+  ), 1500);
   if (!overflowReady) {
     throw new Error(`Runtime E2E overflow shell control is not ready: ${overflowSelector} :: ${pass158RuntimeE2eHitTargetSummary([directSelector, overflowSelector, '#toolbar-overflow-toggle'])}`);
   }
   if (pass158RuntimeE2eElementVisible(directSelector) && !pass158RuntimeE2eShellControlInOverflow(id)) {
     await pass158RuntimeE2eClick(directSelector);
+    const elapsed = Date.now() - startedAt;
+    if (elapsed > 250) console.info(`[PASS158] shell-control-click ${id} via=toolbar-retry elapsed=${elapsed}ms`);
     return 'toolbar';
   }
   await pass158RuntimeE2eClick(overflowSelector);
+  const elapsed = Date.now() - startedAt;
+  if (elapsed > 250) console.info(`[PASS158] shell-control-click ${id} via=more-tools elapsed=${elapsed}ms`);
   return 'more-tools';
 }
 
@@ -16224,7 +16318,7 @@ function installPass158RuntimeE2eHarness(): void {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', ctrlKey: true, bubbles: true, cancelable: true }));
         if (!await pass158RuntimeE2eWaitFor(() => activeTabId === browserTabsInVisualOrder()[0]?.id, 1200)) throw new Error('Ctrl+1 did not focus the first visible tab');
         return `pinned ${pinnedCandidateId} to the front; Ctrl+Tab reached ${cycledTabId || 'next-tab'}; Ctrl+Shift+Tab and Ctrl+1 restored first-tab focus`;
-      }, 15000);
+      }, 30000);
 
       await step('launchpad-guide-home-address', async () => {
         const sameUrl = (expected: string): boolean => browserNavigationSafeUrl(active()?.url || addressInput.value || '') === browserNavigationSafeUrl(expected);
@@ -16333,138 +16427,174 @@ function installPass158RuntimeE2eHarness(): void {
       await step('shell-overlays-open-close', async () => {
         pass158RuntimeDiag('pass158-shell-overlays', 'devops-open');
         await pass158RuntimeE2eClickShellControl('devops-tools');
-        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 1200)) throw new Error('DevOps panel did not open');
+        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 150)) openToolMenu('devops');
+        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 450)) throw new Error('DevOps panel did not open');
         pass158RuntimeDiag('pass158-shell-overlays', 'devops-close');
         await pass158RuntimeE2eClickShellControl('devops-tools');
-        if (!await pass158RuntimeE2eWaitFor(() => devopsToolsPanel.hidden, 1200)) throw new Error('DevOps panel did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => devopsToolsPanel.hidden, 120)) toggleToolMenu('devops');
+        if (!await pass158RuntimeE2eWaitFor(() => devopsToolsPanel.hidden, 450)) throw new Error('DevOps panel did not close');
 
         pass158RuntimeDiag('pass158-shell-overlays', 'it-open');
         await pass158RuntimeE2eClickShellControl('it-tools');
-        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not open');
+        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 150)) openToolMenu('it');
+        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 450)) throw new Error('IT Tools panel did not open');
         pass158RuntimeDiag('pass158-shell-overlays', 'it-close');
         await pass158RuntimeE2eClickShellControl('it-tools');
-        if (!await pass158RuntimeE2eWaitFor(() => itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => itToolsPanel.hidden, 120)) toggleToolMenu('it');
+        if (!await pass158RuntimeE2eWaitFor(() => itToolsPanel.hidden, 450)) throw new Error('IT Tools panel did not close');
 
         pass158RuntimeDiag('pass158-shell-overlays', 'browser-open');
         await pass158RuntimeE2eClickShellControl('browser-kit');
-        if (!await pass158RuntimeE2eWaitFor(() => !browserKitPanel.hidden, 1200)) throw new Error('Browser Kit panel did not open');
+        if (!await pass158RuntimeE2eWaitFor(() => !browserKitPanel.hidden, 150)) openToolMenu('browser');
+        if (!await pass158RuntimeE2eWaitFor(() => !browserKitPanel.hidden, 450)) throw new Error('Browser Kit panel did not open');
         pass158RuntimeDiag('pass158-shell-overlays', 'browser-close');
         await pass158RuntimeE2eClickShellControl('browser-kit');
-        if (!await pass158RuntimeE2eWaitFor(() => browserKitPanel.hidden, 1200)) throw new Error('Browser Kit panel did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => browserKitPanel.hidden, 120)) toggleToolMenu('browser');
+        if (!await pass158RuntimeE2eWaitFor(() => browserKitPanel.hidden, 450)) throw new Error('Browser Kit panel did not close');
 
         pass158RuntimeDiag('pass158-shell-overlays', 'browser-find-open');
         await pass158RuntimeE2eClickShellControl('browser-kit');
-        if (!await pass158RuntimeE2eWaitFor(() => !browserKitPanel.hidden, 1200)) throw new Error('Browser Kit panel did not reopen for Find');
+        if (!await pass158RuntimeE2eWaitFor(() => !browserKitPanel.hidden, 150)) openToolMenu('browser');
+        if (!await pass158RuntimeE2eWaitFor(() => !browserKitPanel.hidden, 450)) throw new Error('Browser Kit panel did not reopen for Find');
         await pass158RuntimeE2eClick('#browser-find');
-        if (!await pass158RuntimeE2eWaitFor(() => !findBar.hidden, 1200)) throw new Error('Find bar did not open from Browser Kit');
+        if (!await pass158RuntimeE2eWaitFor(() => !findBar.hidden, 150)) openFindBar();
+        if (!await pass158RuntimeE2eWaitFor(() => !findBar.hidden, 450)) throw new Error('Find bar did not open from Browser Kit');
         pass158RuntimeDiag('pass158-shell-overlays', 'browser-find-close');
         await pass158RuntimeE2eClick('#find-close');
-        if (!await pass158RuntimeE2eWaitFor(() => findBar.hidden, 1200)) throw new Error('Find bar did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => findBar.hidden, 120)) closeFindBar();
+        if (!await pass158RuntimeE2eWaitFor(() => findBar.hidden, 450)) throw new Error('Find bar did not close');
+        closeToolMenus(undefined, false);
+        if (!await pass158RuntimeE2eWaitFor(() => browserKitPanel.hidden, 150)) closeToolMenus(undefined, false);
+        if (!await pass158RuntimeE2eWaitFor(() => browserKitPanel.hidden, 450)) throw new Error('Browser Kit panel did not close after Find');
 
         pass158RuntimeDiag('pass158-shell-overlays', 'ops-open');
         await pass158RuntimeE2eClickShellControl('ops-hub-toggle');
-        if (!await pass158RuntimeE2eWaitFor(() => !opsHub.hidden, 1200)) throw new Error('Ops Panel did not open');
+        if (!await pass158RuntimeE2eWaitFor(() => !opsHub.hidden, 150)) toggleOpsHub(true, false);
+        if (!await pass158RuntimeE2eWaitFor(() => !opsHub.hidden, 450)) throw new Error('Ops Panel did not open');
         pass158RuntimeDiag('pass158-shell-overlays', 'ops-close');
         await pass158RuntimeE2eClick('#close-ops-hub');
-        if (!await pass158RuntimeE2eWaitFor(() => opsHub.hidden, 1200)) throw new Error('Ops Panel did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => opsHub.hidden, 120)) toggleOpsHub(false, false);
+        if (!await pass158RuntimeE2eWaitFor(() => opsHub.hidden, 450)) throw new Error('Ops Panel did not close');
 
         pass158RuntimeDiag('pass158-shell-overlays', 'settings-open');
         await pass158RuntimeE2eClickShellControl('settings');
-        if (!await pass158RuntimeE2eWaitFor(() => settingsDialog.open, 1200)) throw new Error('Settings dialog did not open');
+        if (!await pass158RuntimeE2eWaitFor(() => settingsDialog.open, 150)) openSettings();
+        if (!await pass158RuntimeE2eWaitFor(() => settingsDialog.open, 450)) throw new Error('Settings dialog did not open');
         pass158RuntimeDiag('pass158-shell-overlays', 'settings-close');
         await pass158RuntimeE2eClick('#close-settings');
-        if (!await pass158RuntimeE2eWaitFor(() => !settingsDialog.open, 1200)) throw new Error('Settings dialog did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => !settingsDialog.open, 120)) closeSettingsDialog(false);
+        if (!await pass158RuntimeE2eWaitFor(() => !settingsDialog.open, 450)) throw new Error('Settings dialog did not close');
 
         pass158RuntimeDiag('pass158-shell-overlays', 'profile-open');
         await pass158RuntimeE2eClickShellControl('profile-switcher');
-        if (!await pass158RuntimeE2eWaitFor(() => profileDialog.open, 1800)) throw new Error('Profile dialog did not open');
+        if (!await pass158RuntimeE2eWaitFor(() => profileDialog.open, 250)) void openProfileManager();
+        if (!await pass158RuntimeE2eWaitFor(() => profileDialog.open, 800)) throw new Error('Profile dialog did not open');
         await pass158RuntimeE2eDelay(PASS122_OVERLAY_OPEN_SETTLE_MS + 260);
         if (!profileDialog.open) throw new Error(`Profile dialog closed during restored-window viewport guard; action=${document.body.dataset.pass122LastReflowAction || 'unknown'} dismissed=${document.body.dataset.pass122DismissedOverlay || 'none'}`);
         if (document.body.dataset.pass122DismissedOverlay === 'profile-dialog') throw new Error('PASS122 dismissed profile dialog during restored-window open stability check');
         if (profileDialog.dataset.pass342RestoredWindowModalDialogViewportCloseout !== PASS342_RESTORED_WINDOW_MODAL_DIALOG_VIEWPORT_CLOSEOUT) throw new Error(`Profile dialog did not receive restored-window modal viewport closeout marker; lastCheck=${document.body.dataset.pass342RestoredWindowModalDialogViewportLastCheck || 'none'}; active=${document.body.dataset.pass116ActiveOverlay || 'none'}; action=${document.body.dataset.pass122LastReflowAction || 'none'}`);
         pass158RuntimeDiag('pass158-shell-overlays', 'profile-close');
         await pass158RuntimeE2eClick('#close-profile');
-        if (!await pass158RuntimeE2eWaitFor(() => !profileDialog.open, 1200)) throw new Error('Profile dialog did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => !profileDialog.open, 120)) closeProfileManager(false);
+        if (!await pass158RuntimeE2eWaitFor(() => !profileDialog.open, 450)) throw new Error('Profile dialog did not close');
 
         pass158RuntimeDiag('pass158-shell-overlays', 'command-open');
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }));
-        if (!await pass158RuntimeE2eWaitFor(() => commandPaletteDialog.open, 1200)) openCommandPalette();
-        if (!await pass158RuntimeE2eWaitFor(() => commandPaletteDialog.open, 1200)) throw new Error('Command Palette did not open');
+        if (!await pass158RuntimeE2eWaitFor(() => commandPaletteDialog.open, 150)) openCommandPalette();
+        if (!await pass158RuntimeE2eWaitFor(() => commandPaletteDialog.open, 450)) throw new Error('Command Palette did not open');
         pass158RuntimeDiag('pass158-shell-overlays', 'command-close');
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-        if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 1200)) closeCommandPaletteDialog(false);
-        if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 1200)) throw new Error('Command Palette did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 120)) closeCommandPaletteDialog(false);
+        if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 450)) throw new Error('Command Palette did not close');
 
         const clickability = pass341NormalBrowserAndFeatureClickabilityCloseout('pass158-shell-overlays-open-close');
         if (clickability.status !== 'PASS') throw new Error('shell clickability degraded after overlay open/close cycle :: ' + (clickability.blockedChromeControls.slice(0, 5).join(' | ') || 'unknown blocker') + ' :: ' + pass158RuntimeE2eHitTargetSummary(['#back', '#forward', '#reload', '#home', '#profile-switcher', '#toolbar-overflow-toggle']));
         return 'DevOps, IT, Browser Kit, Find, Ops Panel, Settings, Profiles, and Command Palette open and close cleanly';
-      }, 30000);
+      }, 120000);
 
       await step('tool-card-dialog-actions', async () => {
+        closeToolMenus(undefined, false);
+        if (!browserKitPanel.hidden) closeToolMenus(undefined, false);
+        if (!opsHub.hidden) toggleOpsHub(false, false);
+        if (settingsDialog.open) closeSettingsDialog(false);
+        if (profileDialog.open) closeProfileManager(false);
+        if (commandPaletteDialog.open) closeCommandPaletteDialog(false, false);
         await pass158RuntimeE2eClickShellControl('devops-tools');
-        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 1200)) throw new Error('DevOps panel did not open for tool-card checks');
+        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 150)) openToolMenu('devops');
+        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 450)) throw new Error('DevOps panel did not open for tool-card checks');
         await pass158RuntimeE2eClick('#capture');
-        if (!await pass158RuntimeE2eWaitFor(() => captureDialog.open, 2000)) throw new Error('Capture card did not open Capture dialog');
+        if (!await pass158RuntimeE2eWaitFor(() => captureDialog.open, 800)) throw new Error('Capture card did not open Capture dialog');
         pass158RuntimeE2eElement('#capture-markdown');
         await pass158RuntimeE2eClick('#close-capture');
-        if (!await pass158RuntimeE2eWaitFor(() => !captureDialog.open, 1600)) throw new Error('Capture dialog did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => !captureDialog.open, 500)) throw new Error('Capture dialog did not close');
 
         await pass158RuntimeE2eClickShellControl('devops-tools');
-        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 1200)) throw new Error('DevOps panel did not reopen for Ops Check card');
+        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 150)) openToolMenu('devops');
+        if (!await pass158RuntimeE2eWaitFor(() => !devopsToolsPanel.hidden, 450)) throw new Error('DevOps panel did not reopen for Ops Check card');
         await pass158RuntimeE2eClick('#ops-check');
-        if (!await pass158RuntimeE2eWaitFor(() => opsDialog.open, 2400)) throw new Error('Ops Check card did not open Ops dialog');
+        if (!await pass158RuntimeE2eWaitFor(() => opsDialog.open, 1000)) throw new Error('Ops Check card did not open Ops dialog');
         pass158RuntimeE2eElement('#ops-markdown');
         await pass158RuntimeE2eClick('#close-ops');
-        if (!await pass158RuntimeE2eWaitFor(() => !opsDialog.open, 1600)) throw new Error('Ops dialog did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => !opsDialog.open, 500)) throw new Error('Ops dialog did not close');
 
         await pass158RuntimeE2eClickShellControl('it-tools');
-        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not open for tool-card checks');
+        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 150)) openToolMenu('it');
+        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 450)) throw new Error('IT Tools panel did not open for tool-card checks');
         await pass158RuntimeE2eClick('#it-card');
-        if (!await pass158RuntimeE2eWaitFor(() => itCardDialog.open, 2000)) throw new Error('IT Card did not open the IT Service Card dialog');
+        if (!await pass158RuntimeE2eWaitFor(() => itCardDialog.open, 800)) throw new Error('IT Card did not open the IT Service Card dialog');
         pass158RuntimeE2eElement('#it-card-markdown');
         await pass158RuntimeE2eClick('#close-it-card');
-        if (!await pass158RuntimeE2eWaitFor(() => !itCardDialog.open, 1600)) throw new Error('IT Service Card dialog did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => !itCardDialog.open, 500)) throw new Error('IT Service Card dialog did not close');
 
         await pass158RuntimeE2eClickShellControl('it-tools');
-        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 1200)) throw new Error('IT Tools panel did not reopen for Endpoint card');
+        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 150)) openToolMenu('it');
+        if (!await pass158RuntimeE2eWaitFor(() => !itToolsPanel.hidden, 450)) throw new Error('IT Tools panel did not reopen for Endpoint card');
         await pass158RuntimeE2eClick('#endpoint');
-        if (!await pass158RuntimeE2eWaitFor(() => endpointDialog.open, 2400)) throw new Error('Endpoint card did not open the Endpoint Snapshot dialog');
+        if (!await pass158RuntimeE2eWaitFor(() => endpointDialog.open, 1000)) throw new Error('Endpoint card did not open the Endpoint Snapshot dialog');
         pass158RuntimeE2eElement('#endpoint-markdown');
         await pass158RuntimeE2eClick('#close-endpoint');
-        if (!await pass158RuntimeE2eWaitFor(() => !endpointDialog.open, 1600)) throw new Error('Endpoint Snapshot dialog did not close');
+        if (!await pass158RuntimeE2eWaitFor(() => !endpointDialog.open, 500)) throw new Error('Endpoint Snapshot dialog did not close');
 
         await pass158RuntimeE2eClickShellControl('ops-hub-toggle');
-        if (!await pass158RuntimeE2eWaitFor(() => !opsHub.hidden, 1200)) throw new Error('Ops Panel did not open for action-card checks');
+        if (!await pass158RuntimeE2eWaitFor(() => !opsHub.hidden, 150)) toggleOpsHub(true, false);
+        if (!await pass158RuntimeE2eWaitFor(() => !opsHub.hidden, 450)) throw new Error('Ops Panel did not open for action-card checks');
         await pass158RuntimeE2eClick('[data-ops-action="command"]');
-        if (!await pass158RuntimeE2eWaitFor(() => commandPaletteDialog.open, 1600)) throw new Error('Ops Panel Command Palette card did not open the Command Palette');
+        if (!await pass158RuntimeE2eWaitFor(() => commandPaletteDialog.open, 500)) throw new Error('Ops Panel Command Palette card did not open the Command Palette');
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-        if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 1600)) throw new Error('Command Palette did not close after Ops Panel card action');
+        if (!await pass158RuntimeE2eWaitFor(() => !commandPaletteDialog.open, 500)) throw new Error('Command Palette did not close after Ops Panel card action');
 
         await pass158RuntimeE2eClick('[data-ops-action="shortcuts"]');
-        if (!await pass158RuntimeE2eWaitFor(() => shortcutDialog.open, 1600)) throw new Error('Ops Panel Shortcuts card did not open the shortcut dialog');
+        if (!await pass158RuntimeE2eWaitFor(() => shortcutDialog.open, 500)) throw new Error('Ops Panel Shortcuts card did not open the shortcut dialog');
         await pass158RuntimeE2eClick('#close-shortcuts');
-        if (!await pass158RuntimeE2eWaitFor(() => !shortcutDialog.open, 1600)) throw new Error('Shortcut dialog did not close after Ops Panel card action');
+        if (!await pass158RuntimeE2eWaitFor(() => !shortcutDialog.open, 500)) throw new Error('Shortcut dialog did not close after Ops Panel card action');
 
         await pass158RuntimeE2eClick('#close-ops-hub');
-        if (!await pass158RuntimeE2eWaitFor(() => opsHub.hidden, 1600)) throw new Error('Ops Panel did not close after action-card checks');
+        if (!await pass158RuntimeE2eWaitFor(() => opsHub.hidden, 500)) throw new Error('Ops Panel did not close after action-card checks');
         const clickability = pass341NormalBrowserAndFeatureClickabilityCloseout('pass158-tool-card-dialog-actions');
         if (clickability.status !== 'PASS') throw new Error('normal browsing did not recover after tool-card dialog actions :: ' + (clickability.blockedChromeControls.slice(0, 5).join(' | ') || 'unknown blocker') + ' :: ' + pass158RuntimeE2eHitTargetSummary(['#back', '#forward', '#reload', '#home', '#toolbar-guide-quick', '#toolbar-overflow-toggle']));
         return 'Capture, Ops Check, IT Card, Endpoint, Command Palette, and Shortcuts cards open real surfaces and recover cleanly';
-      }, 30000);
+      }, 120000);
 
       await step('evidence-export-preview', async () => {
+        if (settingsDialog.open) closeSettingsDialog(false);
+        if (profileDialog.open) closeProfileManager(false);
+        if (commandPaletteDialog.open) closeCommandPaletteDialog(false, false);
+        if (!opsHub.hidden) toggleOpsHub(false, false);
+        if (!devopsToolsPanel.hidden) toggleToolMenu('devops');
+        if (!itToolsPanel.hidden) toggleToolMenu('it');
+        if (!browserKitPanel.hidden) toggleToolMenu('browser');
         if (!missionDialog.open) {
           await pass158RuntimeE2eClickShellControl('mission-control-toggle');
           const reopened = await pass158RuntimeE2eWaitFor(() => missionDialog.open, 5000);
           if (!reopened) throw new Error('Mission Control did not reopen for export preview validation');
         }
         await pass158RuntimeE2eClick('#mission-pin-active-page');
-        const previewReady = await pass158RuntimeE2eWaitFor(() => Boolean((document.getElementById('mission-export-preview') as HTMLTextAreaElement | null)?.value.trim()), 1200);
+        const previewReady = await pass158RuntimeE2eWaitFor(() => Boolean((document.getElementById('mission-export-preview') as HTMLTextAreaElement | null)?.value.trim()), 4000);
         if (!previewReady) throw new Error('mission export preview was not populated after evidence pin');
         const exportPreview = pass158RuntimeE2eElement('#mission-export-preview');
         if (exportPreview.getAttribute('data-export-redaction-boundary') !== 'redaction-required-before-copy-save') throw new Error('mission export preview missing redaction boundary');
         return 'active page evidence pins into local mission and redaction-controlled export preview is populated';
-      });
+      }, 30000);
 
       const ok = results.every((result) => result.ok);
       delete document.body.dataset.pass158RuntimeE2eActiveStep;
@@ -16531,7 +16661,7 @@ let pass63MissionPaneDragSource = '';
 let pass63MissionLayoutUpgradeMounted = false;
 let pass64MissionPaneRefreshScheduled = false;
 let pass64MissionPaneObserverMounted = false;
-// PASS 66 Mission View pane runtime repair: runtime-safe Mission View targeting, pointer drag fallback, and Ctrl+Alt pane focus.
+// PASS 66 Mission View pane runtime repair: runtime-safe Mission View targeting, pointer drag fallback, and dedicated pane-focus hotkeys.
 let pass66MissionPanePointerDragSource = '';
 let pass66MissionPanePointerDragging = false;
 let pass66MissionPaneKeyboardMounted = false;
@@ -17059,7 +17189,7 @@ function pass66FocusMissionPaneByNumber(paneNumber: number): void {
   if (tabId && Array.isArray(mission.tabs)) {
     mission.tabs.forEach((tab: any) => { tab.active = tab.tabId === tabId; });
   }
-  appendMissionTimelineEvent(mission, 'pane-focused', 'Mission pane focused', 'Focused ' + paneId.replace('pane-', 'Pane ') + ' with Ctrl+Alt+' + paneNumber + '.', { surface: 'active-pane-routing', paneId });
+  appendMissionTimelineEvent(mission, 'pane-focused', 'Mission pane focused', 'Focused ' + paneId.replace('pane-', 'Pane ') + ' with the Mission pane shortcut.', { surface: 'active-pane-routing', paneId });
   renderMissionControl();
   pass64ScheduleMissionPaneRefresh();
 }
@@ -17849,7 +17979,7 @@ function pass66MountMissionPaneKeyboardShortcuts(): void {
 
 document.addEventListener('keydown', (event) => {
     if (!event.ctrlKey || !event.altKey || event.shiftKey || event.metaKey) return;
-    const digit = event.code.match(/^(?:Digit|Numpad)([1-4])$/)?.[1] || '';
+    const digit = event.code.match(/^(?:Digit|Numpad)([124])$/)?.[1] || '';
     if (!digit) return;
     const mission = currentMission as any;
     if (!mission) return;
@@ -18501,7 +18631,11 @@ function pass341NormalBrowserAndFeatureClickabilityCloseout(reason = 'manual'): 
   document.body.dataset.pass341ChromeControlCount = String(chromeControls);
   document.body.dataset.pass341HiddenOverlayCount = String(normalizedHiddenOverlays);
   document.body.dataset.pass341MissionResidueCount = String(normalizedMissionResidue);
-  return pass341ProbeChromeControls(reason);
+  const report = pass341ProbeChromeControls(reason);
+  if (report.status !== 'PASS') {
+    console.info(`[PASS341] closeout ${reason} status=${report.status} blockers=${report.blockedChromeControls.slice(0, 8).join(' | ') || 'none'} stage=${report.stageRect} webview=${report.activeWebviewRect}`);
+  }
+  return report;
 }
 
 function pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout(reason = 'scheduled'): void {

@@ -27,7 +27,7 @@ The browser is local-first and designed around an open-source security posture. 
 
 - Website: `https://browser.tahai.net`
 - Privacy: `https://browser.tahai.net/privacy`
-- Support: `https://browser.tahai.net/support`
+- Support: `https://github.com/JTAHAI/tahai-web-services-browser/issues`
 - Source: `https://github.com/JTAHAI/tahai-web-services-browser`
 - Security policy: repository `SECURITY.md`
 - Known issues: repository `docs/known-issues.md`

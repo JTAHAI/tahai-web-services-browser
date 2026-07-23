@@ -10,7 +10,7 @@
     "The browser is local-first and intentionally does not store PSA/API/provider secrets. IT Docs and PSA features are browser-side references/contracts unless connected through authorized server-side services later."
   ],
   "category": "Developer tools / Productivity",
-  "supportUrl": "https://browser.tahai.net/support",
+  "supportUrl": "https://github.com/JTAHAI/tahai-web-services-browser/issues",
   "privacyUrl": "https://browser.tahai.net/privacy",
   "websiteUrl": "https://browser.tahai.net",
   "openSourceUrl": "https://github.com/JTAHAI/tahai-web-services-browser",

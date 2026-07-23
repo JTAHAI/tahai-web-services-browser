@@ -1,0 +1,77 @@
+﻿{
+    "required_model_enforced":  true,
+    "fallback_attempted":  false,
+    "generated_at_utc":  "2026-07-11T16:43:18.5010708Z",
+    "deterministic_fallback_used":  false,
+    "live_preview_state_path":  "d:\\dev\\sentinel_proof_green_git_baseline - Copy\\.sentinel_tmp\\app-code-one-button-20260711-124311\\live_preview_state.json",
+    "sentinel_repo":  "d:\\dev\\sentinel_proof_green_git_baseline - Copy",
+    "target_dirty_files":  [
+
+                           ],
+    "keep_alive_requested":  "12h",
+    "selected_model":  "qwen2.5-coder:32b",
+    "fallback_changed_files":  [
+
+                               ],
+    "controller_repo":  "d:\\dev\\sentinel_proof_green_git_baseline - Copy",
+    "primary_blocker":  "none",
+    "self_correction_action":  "none",
+    "failure_class":  "requirements_parse_failed",
+    "runtime_artifact_root":  "d:\\dev\\sentinel_proof_green_git_baseline - Copy\\.sentinel_tmp",
+    "target_mutated":  false,
+    "status":  "missing",
+    "deterministic_fallback_reason":  "",
+    "rollback_target":  "",
+    "target_dirty_unrelated_files":  [
+
+                                     ],
+    "required_model":  "qwen2.5-coder:32b",
+    "final_implementation_model":  "qwen2.5-coder:32b",
+    "proof_bundle_path":  "d:\\dev\\sentinel_proof_green_git_baseline - Copy\\.sentinel_tmp\\app-code-one-button-20260711-124311",
+    "run_status_path":  "d:\\dev\\sentinel_proof_green_git_baseline - Copy\\.sentinel_tmp\\app-code-one-button-20260711-124311\\run_status.json",
+    "helper_models_used":  [
+
+                           ],
+    "repo_firewall_status":  "pass",
+    "gate_ledger_path":  "d:\\dev\\sentinel_proof_green_git_baseline - Copy\\.sentinel_tmp\\app-code-one-button-20260711-124311\\gate_ledger.json",
+    "preview_state_path":  "d:\\dev\\sentinel_proof_green_git_baseline - Copy\\.sentinel_tmp\\app-code-one-button-20260711-124311\\live_preview_state.json",
+    "requested_model":  "qwen2.5-coder:32b",
+    "verification_failure_class":  "none",
+    "target_dirty_owned_files":  [
+
+                                 ],
+    "project_lane_contamination":  false,
+    "file_updates":  [
+
+                     ],
+    "model_policy_decision":  "pending",
+    "verification_exit_codes":  {
+
+                                },
+    "self_correction_recovered":  false,
+    "executed_verification_commands":  [
+
+                                       ],
+    "rollback_performed":  false,
+    "target_repo":  "D:\\dev\\browser\\app",
+    "candidate_failure_class":  "none",
+    "skipped_verification_commands":  [
+
+                                      ],
+    "model_warmup_status":  "not_started",
+    "fallback_allowed":  false,
+    "active_failure_class":  "requirements_parse_failed",
+    "required_verification_commands":  [
+
+                                       ],
+    "no_silent_fallback":  true,
+    "fallback_candidate_path":  "",
+    "skip_reason":  "Missing section: Owned path hints / Owned files for feature feat-001.",
+    "fallback_validation_status":  "not_applicable",
+    "model_repair_abandoned_reason":  "",
+    "fallback_used":  false,
+    "dirty_policy_decision":  "unknown",
+    "target_runtime_pollution_paths":  [
+
+                                       ]
+}

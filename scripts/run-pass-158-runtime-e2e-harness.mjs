@@ -2,8 +2,36 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+
+function isWslRuntime() {
+  return process.platform === 'linux'
+    && (Boolean(process.env.WSL_DISTRO_NAME) || Boolean(process.env.WSL_INTEROP) || os.release().toLowerCase().includes('microsoft'));
+}
+
+function reenterUnderWindowsNodeIfNeeded() {
+  if (!isWslRuntime()) return;
+  if (process.env.TAHAI_RUNTIME_E2E_WINDOWS_REENTRY === '1') return;
+  const windowsNode = '/mnt/c/Program Files/nodejs/node.exe';
+  if (!fs.existsSync(windowsNode)) return;
+  const script = path.relative(process.cwd(), fileURLToPath(import.meta.url));
+  const result = spawnSync(windowsNode, [script, ...process.argv.slice(2)], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      TAHAI_RUNTIME_E2E_WINDOWS_REENTRY: '1',
+    },
+    stdio: 'inherit',
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  process.exit(typeof result.status === 'number' ? result.status : 1);
+}
+
+reenterUnderWindowsNodeIfNeeded();
 
 const root = process.cwd();
 const args = new Set(process.argv.slice(2));
@@ -108,7 +136,7 @@ child.stderr.on('data', (chunk) => { output += chunk.toString(); });
 
 const timeout = setTimeout(() => {
   child.kill('SIGTERM');
-}, 150000);
+}, 240000);
 
 child.on('exit', (code, signal) => {
   clearTimeout(timeout);

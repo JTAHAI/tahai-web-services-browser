@@ -1,0 +1,4 @@
+﻿{"event":"runner_started","status":"started","failure_class":"none","updated_at_utc":"2026-07-11T16:43:10.3994421Z"}
+{"event":"job_child_started","status":"running","failure_class":"none","updated_at_utc":"2026-07-11T16:43:10.4382597Z"}
+{"event":"runner_proof_observed","status":"blocked","failure_class":"queued_job_failed","updated_at_utc":"2026-07-11T16:43:18.7768052Z"}
+{"event":"runner_finished","status":"blocked","failure_class":"requirements_parse_failed","updated_at_utc":"2026-07-11T16:43:19.2456130Z"}

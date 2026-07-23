@@ -2,7 +2,36 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { _electron as electron } from 'playwright';
+
+function isWslRuntime() {
+  return process.platform === 'linux'
+    && (Boolean(process.env.WSL_DISTRO_NAME) || Boolean(process.env.WSL_INTEROP) || os.release().toLowerCase().includes('microsoft'));
+}
+
+function reenterUnderWindowsNodeIfNeeded() {
+  if (!isWslRuntime()) return;
+  if (process.env.TAHAI_BLACKBOX_E2E_WINDOWS_REENTRY === '1') return;
+  const windowsNode = '/mnt/c/Program Files/nodejs/node.exe';
+  if (!fs.existsSync(windowsNode)) return;
+  const windowsScript = path.relative(process.cwd(), fileURLToPath(import.meta.url));
+  const result = spawnSync(windowsNode, [windowsScript, ...process.argv.slice(2)], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      TAHAI_BLACKBOX_E2E_WINDOWS_REENTRY: '1',
+    },
+    stdio: 'inherit',
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  process.exit(typeof result.status === 'number' ? result.status : 1);
+}
+
+reenterUnderWindowsNodeIfNeeded();
 
 const root = process.cwd();
 const args = new Set(process.argv.slice(2));
@@ -850,13 +879,11 @@ async function executeProfile(profile, attempt) {
           /* best-effort failure evidence */
         }
         profileReport.ok = false;
-        report.ok = false;
       }
       profileReport.scenarios.push(scenarioReport);
     }
   } catch (error) {
     profileReport.ok = false;
-    report.ok = false;
     profileReport.pageErrors.push(error instanceof Error ? error.stack || error.message : String(error || 'unknown launch failure'));
   } finally {
     if (electronApp) {
@@ -882,6 +909,8 @@ for (const profile of matrix.windowProfiles || []) {
   if (!finalProfileReport?.ok) report.ok = false;
   report.profiles.push(finalProfileReport);
 }
+
+report.ok = report.profiles.every((profile) => Boolean(profile && profile.ok));
 
 fs.writeFileSync(resultPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 fs.writeFileSync(summaryPath, summaryMarkdown(report), 'utf8');

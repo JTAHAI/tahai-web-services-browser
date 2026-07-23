@@ -17,7 +17,7 @@
   inset: auto -12% -45% 34%;
   height: 220px;
   pointer-events: none;
-  background: radial-gradient(circle, rgba(119, 219, 255, .16), transparent 66%);
+  background: radial-gradient(circle, rgba(0, 212, 245, .14), transparent 66%);
 }
 
 .hero-copy {

@@ -69,7 +69,7 @@ export const EVIDENCE_CAPTURE_PRIVACY_SENSITIVE_HOSTS: readonly string[] = [
   'docs.tahaiportal.com'
 ] as const;
 
-// Explicitly guarded families: Authorization, Set-Cookie, client_secret, refresh_token, access_token, BEGIN PRIVATE KEY.
+// Explicitly guarded families: Authorization, Set-Cookie, client_secret, refresh_token, access_token, private-key material.
 const SENSITIVE_METADATA_KEY_RE = /(?:authorization|cookie|set-cookie|token|secret|password|passwd|pwd|api[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|id[_-]?token|session|csrf|xsrf|saml|assertion|private[_-]?key)/i;
 const IDENTIFIER_PATH_SEGMENT_RE = /(?:^[A-Za-z0-9_-]{28,}$|^[0-9a-f]{24,}$|^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$|^\d{9,}$|^[^/@\s]+@[^/@\s]+\.[^/@\s]+$)/i;
 

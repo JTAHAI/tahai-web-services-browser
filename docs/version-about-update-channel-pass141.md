@@ -17,9 +17,9 @@ PASS141 closes the release-truth gap between `package.json`, runtime config, the
 | Product | TAHAI Web Services Browser |
 | Bundle lane | TAHAI—SENTINEL Browser |
 | Current version | `2.0.14` |
-| Current release pass | `PASS341` |
+| Current release pass | `PASS328` |
 | Release channel | `public-rc` |
-| Release phase | `browser-runtime-clickability-recovery` |
+| Release phase | `enterprise-profile-ux-ga-lane` |
 | Update channel | `manual-release` |
 | Signing status | Unsigned preview until the approved code-signing lane is active |
 | Download origin | `https://browser.tahai.net` |
