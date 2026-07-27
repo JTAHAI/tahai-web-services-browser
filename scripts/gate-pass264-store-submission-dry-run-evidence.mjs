@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 const root = process.cwd();
-const requiredVersion = '2.0.14';
+const requiredVersion = '2.0.18';
 const remainingPassesAfterThisPass = 1;
 const dryRunCandidates = [
   path.join(root, 'release-candidate', 'store-submission', 'pass264-store-submission-dry-run-evidence.json'),

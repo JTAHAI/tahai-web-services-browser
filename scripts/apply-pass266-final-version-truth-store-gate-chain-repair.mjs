@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const pass = 'PASS266';
-const finalVersion = '2.0.14';
+const finalVersion = '2.0.18';
 const remainingPassesAfterThisPass = 5;
 const oldVersionPattern = /2\.0\.(9|10|11|12|13)/g;
 const filesToPatch = [
@@ -70,16 +70,16 @@ writeJson('docs/store/pass266-final-version-truth-gate-chain-repair.template.jso
   "pass": "PASS266",
   "packName": "TAHAI Browser Final Version Truth + Store Gate Chain Repair",
   "status": "TEMPLATE_PENDING_REAL_FINAL_VERSION_EVIDENCE",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "remainingPassesAfterThisPass": 5,
   "generatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
   "preparedBy": "REPLACE_WITH_OPERATOR_NAME",
   "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
-  "packageVersion": "2.0.14",
+  "packageVersion": "2.0.18",
   "repairScope": {
     "pass260ThroughPass265UseOneFinalPackageVersion": true,
     "historicalPassProvenancePreserved": true,
-    "finalEvidencePackageVersion": "2.0.14",
+    "finalEvidencePackageVersion": "2.0.18",
     "noStoreSubmissionPerformedByThisPass": true,
     "storeSubmissionStatus": "not-submitted",
     "storeApprovalStatus": "not-approved"
@@ -112,7 +112,7 @@ writeJson('docs/store/pass266-final-version-truth-gate-chain-repair.template.jso
       "pass": "PASS260",
       "requiredGate": "npm run gate:pass-260-installed-recipe-quad-store-smoke",
       "evidencePath": "release-candidate/store-submission/pass260-installed-recipe-quad-smoke-evidence.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     },
@@ -120,7 +120,7 @@ writeJson('docs/store/pass266-final-version-truth-gate-chain-repair.template.jso
       "pass": "PASS261",
       "requiredGate": "npm run gate:pass-261-store-submission-packet",
       "evidencePath": "release-candidate/store-submission/pass261-store-submission-packet.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     },
@@ -128,7 +128,7 @@ writeJson('docs/store/pass266-final-version-truth-gate-chain-repair.template.jso
       "pass": "PASS262",
       "requiredGate": "npm run gate:pass-262-store-asset-evidence-pack",
       "evidencePath": "release-candidate/store-submission/pass262-store-asset-evidence-pack.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     },
@@ -136,7 +136,7 @@ writeJson('docs/store/pass266-final-version-truth-gate-chain-repair.template.jso
       "pass": "PASS263",
       "requiredGate": "npm run gate:pass-263-store-listing-copy-truth-pack",
       "evidencePath": "release-candidate/store-submission/pass263-store-listing-copy-truth-pack.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     },
@@ -144,7 +144,7 @@ writeJson('docs/store/pass266-final-version-truth-gate-chain-repair.template.jso
       "pass": "PASS264",
       "requiredGate": "npm run gate:pass-264-store-submission-dry-run-evidence",
       "evidencePath": "release-candidate/store-submission/pass264-store-submission-dry-run-evidence.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     },
@@ -152,7 +152,7 @@ writeJson('docs/store/pass266-final-version-truth-gate-chain-repair.template.jso
       "pass": "PASS265",
       "requiredGate": "npm run gate:pass-265-store-handoff-freeze-operator-approval",
       "evidencePath": "release-candidate/store-submission/pass265-store-handoff-freeze-operator-approval.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     }
@@ -186,10 +186,10 @@ writeJson('docs/store/pass266-final-version-truth-gate-chain-repair.template.jso
 writeJson('tests/runtime/pass266-final-version-truth-required-gates.json', {
   "schemaVersion": 1,
   "pass": "PASS266",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "remainingPassesAfterThisPass": 5,
   "name": "PASS266 Final Package Version Matrix",
-  "finalPackageVersion": "2.0.14",
+  "finalPackageVersion": "2.0.18",
   "repairedPasses": [
     "PASS260",
     "PASS261",
@@ -241,8 +241,8 @@ writeJson('tests/runtime/pass266-final-version-truth-required-gates.json', {
     "tests/runtime/pass265-store-handoff-freeze-required-gates.json"
   ]
 });
-writeFile('docs/store/PASS266-final-version-truth-store-gate-chain-repair.md', "# PASS266 \u2014 Final Version Truth + Store Gate Chain Repair\n\nTarget final package version: `2.0.14`\n\nRemaining release-confidence hardening passes after PASS266: **5**.\n\nPASS266 repairs the Store evidence chain so PASS260 through PASS265 prove one installed package version instead of a stale ladder of pass-version targets.\n\n## What this pass repairs\n\n- PASS260 installed Recipe + Quad smoke gate now requires final package version `2.0.14`.\n- PASS261 Store submission packet gate now requires final package version `2.0.14`.\n- PASS262 Store asset evidence gate now requires final package version `2.0.14`.\n- PASS263 Store listing copy truth gate now requires final package version `2.0.14`.\n- PASS264 Store dry-run evidence gate now requires final package version `2.0.14`.\n- PASS265 handoff freeze gate remains on final package version `2.0.14`.\n- PASS260-PASS264 verifiers and templates are aligned to the same final package version.\n- A new PASS266 fail-closed version-truth gate blocks release confidence unless the operator records the repair review.\n\n## What this pass does not do\n\n- It does **not** submit to Microsoft Store.\n- It does **not** claim Microsoft Store approval.\n- It does **not** claim public GA.\n- It does **not** claim signed MSI/EXE status.\n- It does **not** add IT Docs backend code, PSA connector code, direct PSA API calls, or provider secrets.\n\n## Commands\n\n```powershell\nSet-Location C:\\dev\browser\u0007pp\nnode scripts\u0007pply-pass266-final-version-truth-store-gate-chain-repair.mjs\nnpm run verify:pass-266-final-version-truth-store-gate-chain-repair\nnpm run gate:pass-266-final-version-truth-store-gate-chain\n```\n\nThe PASS266 gate expects real evidence at:\n\n`release-candidate/store-submission/pass266-final-version-truth-gate-chain-repair.json`\n\nUse the template at:\n\n`docs/store/pass266-final-version-truth-gate-chain-repair.template.json`\n\n## Next pass\n\nPASS267 \u2014 Installed Mission Control Brutal Runtime Harness.\n");
-writeFile('PASS266_README.md', "# PASS266 \u2014 Final Version Truth + Store Gate Chain Repair\n\nVersion target: **2.0.14**\n\nRemaining release-confidence hardening passes after PASS266: **5**\n\n## Apply\n\n```powershell\nSet-Location C:\\dev\browser\u0007pp\nnode scripts\u0007pply-pass266-final-version-truth-store-gate-chain-repair.mjs\nnpm run verify:pass-266-final-version-truth-store-gate-chain-repair\n```\n\n## Gate when real evidence exists\n\n```powershell\nnpm run gate:pass-266-final-version-truth-store-gate-chain\n```\n\nPASS266 fixes final version truth drift across PASS260-PASS265. It does not submit to the Microsoft Store and does not claim approval or GA.\n");
+writeFile('docs/store/PASS266-final-version-truth-store-gate-chain-repair.md', "# PASS266 \u2014 Final Version Truth + Store Gate Chain Repair\n\nTarget final package version: `2.0.18`\n\nRemaining release-confidence hardening passes after PASS266: **5**.\n\nPASS266 repairs the Store evidence chain so PASS260 through PASS265 prove one installed package version instead of a stale ladder of pass-version targets.\n\n## What this pass repairs\n\n- PASS260 installed Recipe + Quad smoke gate now requires final package version `2.0.18`.\n- PASS261 Store submission packet gate now requires final package version `2.0.18`.\n- PASS262 Store asset evidence gate now requires final package version `2.0.18`.\n- PASS263 Store listing copy truth gate now requires final package version `2.0.18`.\n- PASS264 Store dry-run evidence gate now requires final package version `2.0.18`.\n- PASS265 handoff freeze gate remains on final package version `2.0.18`.\n- PASS260-PASS264 verifiers and templates are aligned to the same final package version.\n- A new PASS266 fail-closed version-truth gate blocks release confidence unless the operator records the repair review.\n\n## What this pass does not do\n\n- It does **not** submit to Microsoft Store.\n- It does **not** claim Microsoft Store approval.\n- It does **not** claim public GA.\n- It does **not** claim signed MSI/EXE status.\n- It does **not** add IT Docs backend code, PSA connector code, direct PSA API calls, or provider secrets.\n\n## Commands\n\n```powershell\nSet-Location C:\\dev\browser\u0007pp\nnode scripts\u0007pply-pass266-final-version-truth-store-gate-chain-repair.mjs\nnpm run verify:pass-266-final-version-truth-store-gate-chain-repair\nnpm run gate:pass-266-final-version-truth-store-gate-chain\n```\n\nThe PASS266 gate expects real evidence at:\n\n`release-candidate/store-submission/pass266-final-version-truth-gate-chain-repair.json`\n\nUse the template at:\n\n`docs/store/pass266-final-version-truth-gate-chain-repair.template.json`\n\n## Next pass\n\nPASS267 \u2014 Installed Mission Control Brutal Runtime Harness.\n");
+writeFile('PASS266_README.md', "# PASS266 \u2014 Final Version Truth + Store Gate Chain Repair\n\nVersion target: **2.0.18**\n\nRemaining release-confidence hardening passes after PASS266: **5**\n\n## Apply\n\n```powershell\nSet-Location C:\\dev\browser\u0007pp\nnode scripts\u0007pply-pass266-final-version-truth-store-gate-chain-repair.mjs\nnpm run verify:pass-266-final-version-truth-store-gate-chain-repair\n```\n\n## Gate when real evidence exists\n\n```powershell\nnpm run gate:pass-266-final-version-truth-store-gate-chain\n```\n\nPASS266 fixes final version truth drift across PASS260-PASS265. It does not submit to the Microsoft Store and does not claim approval or GA.\n");
 
 const pkgPath = path.join(root, 'package.json');
 let packageUpdated = false;
@@ -296,7 +296,7 @@ Public repo:
 https://github.com/JTAHAI/tahai-web-services-browser
 
 Current version target after PASS266:
-2.0.14
+2.0.18
 
 Latest patch ZIP:
 TAHAI-browser-pass266-final-version-truth-store-gate-chain-repair-cumulative-patch-20260514.zip
@@ -317,7 +317,7 @@ Hard scope:
 Only browser-side work in this repo. IT Docs and PSA integrations remain browser-side contracts/references only. No IT Docs backend code. No PSA connector code. No direct PSA API calls. No PSA/API/provider secrets in browser code or mission files.
 
 Store posture:
-Microsoft Store submission remains not-submitted and not-approved. PASS266 only repairs final version truth so PASS260-PASS265 can prove one installed package version: 2.0.14.
+Microsoft Store submission remains not-submitted and not-approved. PASS266 only repairs final version truth so PASS260-PASS265 can prove one installed package version: 2.0.18.
 
 Run after overlay:
 Set-Location C:\dev\browser\app

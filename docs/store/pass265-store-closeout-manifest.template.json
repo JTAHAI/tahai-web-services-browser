@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pass": "PASS265",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "remainingPassesAfterThisPass": 0,
   "manifestName": "PASS265 Store Closeout Manifest",
   "status": "TEMPLATE_PENDING_REAL_CLOSEOUT",

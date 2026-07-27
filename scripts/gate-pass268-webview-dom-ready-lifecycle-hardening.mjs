@@ -11,7 +11,7 @@ if (!fs.existsSync(evidencePath)) fail('Missing real WebView lifecycle evidence.
 const evidence = parseJson(evidencePath);
 const blockers = [];
 if (evidence.pass !== 'PASS268') blockers.push('pass must be PASS268');
-if (evidence.versionTarget !== '2.0.14' || evidence.packageVersion !== '2.0.14') blockers.push('versionTarget/packageVersion must both be 2.0.14');
+if (evidence.versionTarget !== '2.0.18' || evidence.packageVersion !== '2.0.18') blockers.push('versionTarget/packageVersion must both be 2.0.18');
 if (evidence.status !== 'REAL_WEBVIEW_DOM_READY_LIFECYCLE_EVIDENCE_COMPLETE') blockers.push('status must be REAL_WEBVIEW_DOM_READY_LIFECYCLE_EVIDENCE_COMPLETE');
 const installed = evidence.installedPackage || {};
 for (const key of ['packageInstalledForSmoke','installedAppVersionVisible','launchedFromInstalledShortcut']) if (installed[key] !== true) blockers.push(`installedPackage.${key} must be true`);
@@ -47,5 +47,5 @@ if ((evidence.goNoGo || {}).readyForPublicGA === true) blockers.push('goNoGo.rea
 if (blockers.length) fail('PASS268 real WebView lifecycle evidence is incomplete or unsafe.', blockers.slice(0, 120));
 console.log('PASS268_WEBVIEW_DOM_READY_LIFECYCLE_GATE=PASS');
 console.log('PASS268_EVIDENCE=' + rel(evidencePath));
-console.log('PASS268_VERSION=2.0.14');
+console.log('PASS268_VERSION=2.0.18');
 console.log('PASS268_NEXT_PASS=PASS269_Active_Pane_Routing_Input_Focus_Regression_Closeout');

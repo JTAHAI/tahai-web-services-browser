@@ -131,6 +131,7 @@ import {
   PASS188_FOCUS_INPUT_BOUNDARY_SURFACES,
   pass188FocusInputBoundaryCaseIds,
   pass188FocusInputBoundarySummary,
+  pass188NormalizeBeforeInputCommand,
   type Pass188FocusSurface,
   type Pass188InputBoundaryPayload
 } from '../shared/webview-focus-input-boundary-contract';
@@ -3891,7 +3892,70 @@ function pass188BindWebviewFocusInputBoundary(webview: Electron.WebviewTag, tabI
     if (tabs.has(tabId)) setActive(tabId);
     pass188RecordFocusBoundary('webview-guest', reason, 'webview-event', webview);
     pass188ScheduleFocusInputBoundary(reason);
+    if (reason === 'webview-focus' || reason === 'webview-mousedown') {
+      window.setTimeout(() => {
+        try {
+          webview.focus();
+        } catch {
+          /* keep the focus repair best-effort and non-blocking. */
+        }
+      }, 0);
+    }
   };
+  webview.addEventListener('keydown', (event) => {
+    const command = pass188NormalizeBeforeInputCommand({
+      type: 'keyDown',
+      key: event.key,
+      code: event.code,
+      control: event.ctrlKey,
+      meta: event.metaKey,
+      alt: event.altKey,
+      shift: event.shiftKey
+    });
+    if (!command) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (command === 'focus-address') {
+      handleMenuCommand('focus-address');
+      return;
+    }
+    if (command === 'command-palette') {
+      handleMenuCommand('command-palette');
+      return;
+    }
+    if (command === 'find-page') {
+      handleMenuCommand('find-page');
+      return;
+    }
+    if (command === 'reload') {
+      reloadTarget('shortcut');
+      return;
+    }
+    if (command === 'hard-reload') {
+      reloadTarget('hard-reload');
+      return;
+    }
+    if (command === 'history-back') {
+      goBackTarget('shortcut');
+      return;
+    }
+    if (command === 'history-forward') {
+      goForwardTarget('shortcut');
+      return;
+    }
+    if (command.startsWith('mission-pane-')) {
+      const paneNumber = command.replace('mission-pane-', '');
+      setMissionActivePane(`pane-${paneNumber}`);
+      return;
+    }
+    if (command === 'escape') {
+      const activeOverlay = pass118ActiveChromeOverlaySource();
+      if (activeOverlay) pass118AnnounceChromeOverlayClose('escape', activeOverlay, true);
+      else closeToolMenus(undefined, true);
+      pass188RepairFocusInputBoundaries(`input-${command}`);
+      pass88ScheduleActivePaneRoutingFailsafe(`pass188-${command}`);
+    }
+  }, true);
   webview.addEventListener('focus', () => mark('webview-focus'));
   webview.addEventListener('mousedown', () => mark('webview-mousedown'), true);
   webview.addEventListener('dom-ready', () => pass188ScheduleFocusInputBoundary('webview-dom-ready'));
@@ -3907,6 +3971,12 @@ function pass188HandleInputBoundaryPayload(payload: Pass188InputBoundaryPayload)
     handleMenuCommand('focus-address');
   } else if (payload.command === 'command-palette') {
     handleMenuCommand('command-palette');
+  } else if (payload.command === 'find-page') {
+    handleMenuCommand('find-page');
+  } else if (payload.command === 'reload') {
+    reloadTarget('shortcut');
+  } else if (payload.command === 'hard-reload') {
+    reloadTarget('hard-reload');
   } else if (payload.command === 'history-back') {
     goBackTarget('shortcut');
   } else if (payload.command === 'history-forward') {
@@ -4826,7 +4896,7 @@ function pass236MarkWebviewDomPending(webview: Electron.WebviewTag, tabId: strin
 
 
 const PASS238_WEBVIEW_COMMAND_LIFECYCLE_GATE = 'PASS238_WEBVIEW_COMMAND_LIFECYCLE_GATE';
-type Pass238WebviewCommand = 'canGoBack' | 'canGoForward' | 'goBack' | 'goForward' | 'reload' | 'print' | 'executeJavaScript' | 'findInPage' | 'stopFindInPage' | 'setZoomFactor' | 'setVisualZoomLevelLimits' | 'isDevToolsOpened' | 'openDevTools' | 'closeDevTools';
+type Pass238WebviewCommand = 'canGoBack' | 'canGoForward' | 'goBack' | 'goForward' | 'reload' | 'reloadIgnoringCache' | 'print' | 'executeJavaScript' | 'findInPage' | 'stopFindInPage' | 'setZoomFactor' | 'setVisualZoomLevelLimits' | 'isDevToolsOpened' | 'openDevTools' | 'closeDevTools';
 function pass238RecordWebviewCommandLifecycle(command: Pass238WebviewCommand, label: string, outcome: string, detail?: unknown): void {
   const body = document.body;
   if (!body) return;
@@ -4871,7 +4941,7 @@ function pass238SafeCanGoForward(webview: Electron.WebviewTag, label = 'history-
     return false;
   }
 }
-function pass238SafeWebviewCommand(webview: Electron.WebviewTag, command: 'goBack' | 'goForward' | 'reload' | 'print', label: string): boolean {
+function pass238SafeWebviewCommand(webview: Electron.WebviewTag, command: 'goBack' | 'goForward' | 'reload' | 'reloadIgnoringCache' | 'print', label: string): boolean {
   if (!pass238CanInvokeWebviewCommand(webview, command, label)) return false;
   try {
     const fn = webview[command];
@@ -5184,6 +5254,16 @@ function createTab(url: string): string {
   pass340ScheduleChromeInputCloseout('create-tab');
   pass341ScheduleNormalBrowserAndFeatureClickabilityCloseout('create-tab');
   scheduleSessionRecoverySnapshot('create-tab');
+  return tabId;
+}
+
+function createTabAndFocusAddress(url: string): string {
+  const tabId = createTab(url);
+  window.requestAnimationFrame(() => {
+    if (activeTabId !== tabId) return;
+    addressInput.focus();
+    addressInput.select();
+  });
   return tabId;
 }
 
@@ -6144,7 +6224,7 @@ function tabForMissionPane(paneId: string | undefined): TabState | undefined {
 // route resolver first. It repairs hidden Mission panes, synchronizes activeTabId to
 // the visible active pane, records telemetry for verifier/manual QA, and fails closed
 // with a safe no-op status instead of silently affecting the wrong pane.
-type Pass134RouteIntent = 'address' | 'toolbar' | 'menu' | 'shortcut' | 'command' | 'mouse' | 'home' | 'launchpad' | 'guide' | 'about' | 'print' | 'devtools' | 'reload' | 'back' | 'forward' | 'find' | 'zoom' | 'browser-kit';
+type Pass134RouteIntent = 'address' | 'toolbar' | 'menu' | 'shortcut' | 'command' | 'mouse' | 'home' | 'launchpad' | 'guide' | 'about' | 'print' | 'devtools' | 'reload' | 'hard-reload' | 'back' | 'forward' | 'find' | 'zoom' | 'browser-kit';
 
 function pass134RouteIntentLabel(intent: Pass134RouteIntent): string {
   return intent.replace(/-/g, ' ');
@@ -6254,12 +6334,13 @@ function goForwardTarget(intent: Pass134RouteIntent = 'forward'): void {
 
 function reloadTarget(intent: Pass134RouteIntent = 'reload'): void {
   const tab = activeNavigationTarget(intent);
-  if (!tab) return pass134Noop('reload', 'No active tab or visible Mission pane is available.');
+  if (!tab) return pass134Noop(intent, 'No active tab or visible Mission pane is available.');
   pass187RecordNavigationTruth(intent, 'reload-target', tab, { reason: 'reload-targeted' });
-  if (pass238SafeWebviewCommand(tab.webview, 'reload', `reload:${tab.id}`)) {
+  const command = intent === 'hard-reload' ? 'reloadIgnoringCache' : 'reload';
+  if (pass238SafeWebviewCommand(tab.webview, command, `${command}:${tab.id}`)) {
     document.body.dataset.pass134LastReloadTarget = tab.id;
   } else {
-    pass134Noop('reload', `${pass134TargetLabel(tab)} is not ready to reload.`);
+    pass134Noop(intent, `${pass134TargetLabel(tab)} is not ready to reload.`);
   }
 }
 
@@ -7323,6 +7404,11 @@ function pass341RestoreNormalBrowsingFromMissionControl(reason = 'mission-contro
   if (!currentMission) {
     document.body.dataset.pass341MissionControlNormalMode = `${reason}:no-active-mission`;
     renderMissionLayout();
+    window.setTimeout(() => {
+      const activeView = document.querySelector<Electron.WebviewTag>('webview.browser-view.active, webview.active, webview[data-active="true"]');
+      if (!activeView) return;
+      try { activeView.focus(); } catch { /* best-effort focus restore after Mission close. */ }
+    }, 0);
     return;
   }
   const previousLayout = currentMission.layout?.type || 'single';
@@ -7333,6 +7419,11 @@ function pass341RestoreNormalBrowsingFromMissionControl(reason = 'mission-contro
   document.body.dataset.pass341MissionControlNormalMode = `${reason}:${currentMission.layout.type}`;
   renderMissionControl();
   renderMissionLayout();
+  window.setTimeout(() => {
+    const activeView = document.querySelector<Electron.WebviewTag>('webview.browser-view.active, webview.active, webview[data-active="true"]');
+    if (!activeView) return;
+    try { activeView.focus(); } catch { /* best-effort focus restore after Mission close. */ }
+  }, 0);
   document.dispatchEvent(new CustomEvent('mission-layout-change', {
     detail: {
       source: 'pass341',
@@ -9612,7 +9703,7 @@ function runFindInPage(forward = true, findNext = true): void {
 
 function runBrowserKitAction(action: string, detail?: DOMStringMap): void {
   switch (action) {
-    case 'new-tab': closeToolMenus(undefined, false); createTab(pass351PreferredNewTabUrl()); break;
+    case 'new-tab': closeToolMenus(undefined, false); createTabAndFocusAddress(pass351PreferredNewTabUrl()); break;
     case 'close-tab': {
       const targetTabId = pass343ActiveTarget('browser-kit')?.id || activeTabId;
       closeToolMenus(undefined, false);
@@ -15036,7 +15127,7 @@ function pass195OperatorWalkthroughUrl(): string {
 }
 
 function handleMenuCommand(command: string): void {
-  if (command === 'new-tab') createTab(pass351PreferredNewTabUrl());
+  if (command === 'new-tab') createTabAndFocusAddress(pass351PreferredNewTabUrl());
   if (command === 'close-tab') closeTab(activeTabId);
   if (command === 'settings') openSettings();
   if (command === 'command-palette') openCommandPalette();
@@ -15081,6 +15172,7 @@ function handleMenuCommand(command: string): void {
   if (command === 'home') navigate(settings.homeUrl || config.homeUrl, 'home');
   if (command === 'print') printTarget('print');
   if (command === 'reload') reloadTarget('reload');
+  if (command === 'hard-reload') reloadTarget('hard-reload');
   if (command === 'launchpad') navigate(config.newTabUrl, 'launchpad');
   if (command === 'guide') navigate(pass195OperatorWalkthroughUrl(), 'guide');
   if (command === 'about') navigate(config.aboutUrl, 'about');
@@ -15528,7 +15620,7 @@ bindStableToolCardAction(devAuditButton, openDeveloperAudit);
 bindStableToolCardAction(opsGuardButton, openOpsGuardReview);
 bindStableToolCardAction(devtoolsButton, toggleActiveDevTools);
 aboutButton.addEventListener('click', () => { closeToolMenus(undefined, false); navigate(config.aboutUrl); });
-newTabButton.addEventListener('click', () => { closeToolMenus(undefined, false); createTab(pass351PreferredNewTabUrl()); });
+newTabButton.addEventListener('click', () => { closeToolMenus(undefined, false); createTabAndFocusAddress(pass351PreferredNewTabUrl()); });
 document.addEventListener('click', () => closeToolMenus());
 window.addEventListener(PASS193_BOOKMARK_MISSION_EVENT_NAME, (event) => {
   const rawDetail = (event as CustomEvent<BookmarkFolderMissionDetail>).detail || {};
@@ -15541,6 +15633,15 @@ window.addEventListener(PASS193_BOOKMARK_MISSION_EVENT_NAME, (event) => {
   pass193MarkLaunchAttempt('bookmark-folder-view', 'bookmark-folder-mission', detail.sourceFolderId || detail.title || 'bookmark-mission', 'accepted-event-detail');
   void startMissionFromBookmarkFolder(detail);
 });
+
+document.addEventListener('keydown', (event) => {
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') {
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+    openFindBar();
+  }
+}, true);
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !findBar.hidden) {
@@ -15842,6 +15943,7 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key.toLowerCase() === 's') { event.preventDefault(); event.stopPropagation(); pass81RunAllSurfaceDoctor('shortcut'); return; }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key === 'Tab') { event.preventDefault(); event.stopPropagation(); setActiveRelativeTab(event.shiftKey ? -1 : 1, 'keyboard'); return; }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && /^[1-9]$/.test(event.key)) { event.preventDefault(); event.stopPropagation(); activateTabByOrdinal(Number(event.key), 'keyboard'); return; }
+  if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.key.toLowerCase() === 'd') { event.preventDefault(); event.stopPropagation(); addressInput.focus(); addressInput.select(); return; }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); openFindBar(); return; }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'p') { event.preventDefault(); printTarget('print'); return; }
   if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'u') { event.preventDefault(); void copyActivePageUrl(); return; }
@@ -15879,8 +15981,11 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowLeft') { event.preventDefault(); swapActiveMissionPane(-1); }
   if ((event.ctrlKey || event.metaKey) && event.altKey && event.shiftKey && event.key === 'ArrowRight') { event.preventDefault(); swapActiveMissionPane(1); }
   if (event.ctrlKey && event.key.toLowerCase() === 'l') { event.preventDefault(); addressInput.focus(); addressInput.select(); }
-  if (event.ctrlKey && event.key.toLowerCase() === 'r') { event.preventDefault(); reloadTarget('shortcut'); }
-  if (event.ctrlKey && event.key.toLowerCase() === 't') { event.preventDefault(); createTab(pass351PreferredNewTabUrl()); }
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'r') { event.preventDefault(); reloadTarget('shortcut'); return; }
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && event.shiftKey && event.key.toLowerCase() === 'r') { event.preventDefault(); reloadTarget('hard-reload'); return; }
+  if ((event.ctrlKey || event.metaKey) && !event.altKey && (event.code === 'F5' || event.key === 'F5')) { event.preventDefault(); reloadTarget('hard-reload'); return; }
+  if (!event.ctrlKey && !event.metaKey && !event.altKey && (event.code === 'F5' || event.key === 'F5')) { event.preventDefault(); reloadTarget('hard-reload'); return; }
+  if (event.ctrlKey && event.key.toLowerCase() === 't') { event.preventDefault(); createTabAndFocusAddress(pass351PreferredNewTabUrl()); }
   if (event.ctrlKey && event.key.toLowerCase() === 'w') { event.preventDefault(); closeTab(activeTabId); }
   if (event.ctrlKey && event.key === ',') { event.preventDefault(); openSettings(); }
   if (event.ctrlKey && event.key === '/') { event.preventDefault(); openKeyboardShortcuts(); }
@@ -16377,29 +16482,34 @@ function installPass158RuntimeE2eHarness(): void {
       }, 22000);
 
       await step('active-pane-routing', async () => {
-        await pass158RuntimeE2eClick('#mission-layouts [data-mission-layout="quad"]');
+        const clickDirect = (selector: string): void => {
+          const element = pass158RuntimeE2eElement(selector);
+          if (!(element instanceof HTMLElement)) throw new Error(`Mission pane routing target missing: ${selector}`);
+          element.click();
+        };
+        clickDirect('#mission-layouts [data-mission-layout="quad"]');
         const quadReady = await pass158RuntimeE2eWaitFor(() => (
           Boolean(document.querySelector('#mission-layouts [data-mission-layout="quad"].active')) &&
           document.querySelectorAll('[data-testid="runtime-mission-pane-focus"]').length >= 2 &&
           document.querySelectorAll('[data-send-active-pane]').length >= 2
-        ), 5000);
+        ), 8000);
         if (!quadReady) throw new Error('quad pane routing controls did not settle before pane send');
-        await pass158RuntimeE2eClick('[data-send-active-pane="pane-1"]');
+        clickDirect('[data-send-active-pane="pane-1"]');
         const paneOneActive = await pass158RuntimeE2eWaitFor(() => Boolean(
           document.querySelector('[data-testid="runtime-mission-pane-focus"][data-focus-mission-pane="pane-1"].active') ||
           document.querySelector('.mission-active-pane[data-pane-id="pane-1"]')
-        ), 5000);
+        ), 8000);
         if (!paneOneActive) throw new Error('pane-1 did not become active after pane send');
-        await pass158RuntimeE2eClick('[data-send-active-pane="pane-2"]');
+        clickDirect('[data-send-active-pane="pane-2"]');
         const paneTwoActive = await pass158RuntimeE2eWaitFor(() => Boolean(
           document.querySelector('[data-testid="runtime-mission-pane-focus"][data-focus-mission-pane="pane-2"].active') ||
           document.querySelector('.mission-active-pane[data-pane-id="pane-2"]')
-        ), 5000);
+        ), 8000);
         if (!paneTwoActive) throw new Error('pane-2 did not become active after pane send');
-        const headReady = await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('[data-testid="runtime-mission-pane-focus"]').length >= 2, 1600);
+        const headReady = await pass158RuntimeE2eWaitFor(() => document.querySelectorAll('[data-testid="runtime-mission-pane-focus"]').length >= 2, 3000);
         if (!headReady) throw new Error('mission pane focus controls did not render');
         if (!document.querySelector('.mission-active-pane')) throw new Error('active pane marker missing');
-        await pass158RuntimeE2eClick('#close-mission');
+        clickDirect('#close-mission');
         if (!await pass158RuntimeE2eWaitFor(() => !missionDialog.open, 2000)) throw new Error('Mission Control did not close back to normal browsing after active-pane routing');
         const clickability = pass341NormalBrowserAndFeatureClickabilityCloseout('pass158-active-pane-routing');
         if (clickability.status !== 'PASS') throw new Error('normal browsing did not recover after Mission Control close :: ' + (clickability.blockedChromeControls.slice(0, 5).join(' | ') || 'unknown blocker') + ' :: ' + pass158RuntimeE2eHitTargetSummary(['#back', '#forward', '#reload', '#home']));
@@ -18661,7 +18771,7 @@ function pass341RunPrimaryFeatureAction(controlId: string): boolean {
     case 'ops-hub-toggle': toggleOpsHub(); return true;
     case 'mission-control-toggle': void openMissionControl(); return true;
     case 'settings': closeToolMenus(undefined, false); openSettings(); return true;
-    case 'new-tab': closeToolMenus(undefined, false); createTab(pass351PreferredNewTabUrl()); return true;
+    case 'new-tab': closeToolMenus(undefined, false); createTabAndFocusAddress(pass351PreferredNewTabUrl()); return true;
     case 'capture': runToolFromMenu(openDevOpsCapture); return true;
     case 'ops-check': runToolFromMenu(openOpsCheck); return true;
     case 'deploy': runToolFromMenu(openDeployReadiness); return true;

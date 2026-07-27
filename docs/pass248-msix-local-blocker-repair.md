@@ -7,8 +7,8 @@ PASS248 closes the first local execution blockers in the Microsoft Store/MSIX la
 PowerShell parser blocker repaired: `build-windows-msix.ps1` now starts directly with `param(...)`.
 
 
-- `git tag -a v2.0.14 ...` failed because `v2.0.14` already existed.
-- `npm run verify:store:git` correctly failed because the current `HEAD` was not tagged `v2.0.14`.
+- `git tag -a v2.0.18 ...` failed because `v2.0.18` already existed.
+- `npm run verify:store:git` correctly failed because the current `HEAD` was not tagged `v2.0.18`.
 - `npm run package:win:msix` failed before doing packaging because `build-windows-msix.ps1` did not parse in Windows PowerShell.
 
 ## Repair
@@ -31,7 +31,7 @@ npm run build
 git status --short
 git add .
 git commit -m "PASS248: repair MSIX local blockers"
-npm run repair:store-tag:2.0.14
+npm run repair:store-tag:2.0.18
 npm run verify:store:git
 npm run package:win:msix
 ```

@@ -16,7 +16,10 @@ export type Pass188FocusSurface =
 export type Pass188InputBoundaryCommand =
   | 'focus-address'
   | 'command-palette'
+  | 'find-page'
   | 'escape'
+  | 'reload'
+  | 'hard-reload'
   | 'history-back'
   | 'history-forward'
   | 'mission-pane-1'
@@ -57,7 +60,10 @@ export type Pass188FocusInputBoundaryCase = {
 export const PASS188_FOCUS_INPUT_BOUNDARY_COMMANDS: readonly Pass188InputBoundaryCommand[] = [
   'focus-address',
   'command-palette',
+  'find-page',
   'escape',
+  'reload',
+  'hard-reload',
   'history-back',
   'history-forward',
   'mission-pane-1',
@@ -153,6 +159,12 @@ export function pass188NormalizeBeforeInputCommand(input: Pass188BeforeInputLike
   const hasPrimary = Boolean(input.control || input.meta);
   if (hasPrimary && !input.alt && key === 'l') return 'focus-address';
   if (hasPrimary && !input.alt && key === 'k') return 'command-palette';
+  if (hasPrimary && !input.alt && key === 'f') return 'find-page';
+  if (hasPrimary && !input.alt && !input.shift && key === 'r') return 'reload';
+  if (!hasPrimary && input.alt && key === 'd') return 'focus-address';
+  if (!input.alt && (code === 'F5' || key === 'f5')) return 'hard-reload';
+  if (hasPrimary && !input.alt && input.shift && key === 'r') return 'hard-reload';
+  if (hasPrimary && !input.alt && (code === 'F5' || key === 'f5')) return 'hard-reload';
   if (key === 'escape') return 'escape';
   if (input.alt && !hasPrimary && key === 'arrowleft') return 'history-back';
   if (input.alt && !hasPrimary && key === 'arrowright') return 'history-forward';

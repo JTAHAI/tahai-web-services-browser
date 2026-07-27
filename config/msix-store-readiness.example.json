@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "pass": "PASS247",
   "productName": "TAHAI Web Services Browser",
-  "version": "2.0.14",
+  "version": "2.0.18",
   "packageFamilyPlaceholder": "TAHAIWebServices.TAHAIWebServicesBrowser_placeholder",
   "identity": {
     "name": "TAHAIWebServices.TAHAIWebServicesBrowser",
@@ -34,7 +34,7 @@
     "npm run package:win:msix"
   ],
   "blockedUntil": [
-    "clean git status and v2.0.14 tag are verified on the real repo",
+    "clean git status and v2.0.18 tag are verified on the real repo",
     "installed Windows smoke evidence is produced from the installed package",
     "Partner Center app name/package identity is reserved",
     "final Store publisher identity replaces placeholders",

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-/* PASS265 — Store Handoff Freeze + Operator Approval Packet + 2.0.14 */
+/* PASS265 — Store Handoff Freeze + Operator Approval Packet + 2.0.18 */
 import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
 const pass = 'PASS265';
-const targetVersion = '2.0.14';
+const targetVersion = '2.0.18';
 const remainingPassesAfterThisPass = 0;
 const handoffTemplatePath = path.join(root, 'docs', 'store', 'pass265-store-handoff-freeze-operator-approval.template.json');
 const closeoutManifestTemplatePath = path.join(root, 'docs', 'store', 'pass265-store-closeout-manifest.template.json');

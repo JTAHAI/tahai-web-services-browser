@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 const root=process.cwd();
 const evidencePath=process.env.PASS271_EVIDENCE || path.join(root,'release-candidate/evidence/pass271-release-candidate-flagship-freeze-evidence.json');
-const versionTarget='2.0.14';
+const versionTarget='2.0.18';
 function fail(message, details=[]){ console.error('PASS271_GATE=BLOCKED'); console.error(message); for (const d of details) console.error(`- ${d}`); process.exit(1); }
 if (!fs.existsSync(evidencePath)) fail('Real PASS271 release-candidate freeze evidence file is missing.', [`Expected: ${evidencePath}`]);
 let evidence;

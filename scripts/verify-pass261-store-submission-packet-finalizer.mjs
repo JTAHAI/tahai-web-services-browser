@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const requiredVersion = '2.0.14';
+const requiredVersion = '2.0.18';
 const packetTemplatePath = path.join(root, 'docs', 'store', 'pass261-store-submission-packet.template.json');
 const screenshotManifestPath = path.join(root, 'docs', 'store', 'pass261-store-screenshot-manifest.template.json');
 const docsPath = path.join(root, 'docs', 'store', 'PASS261-store-submission-packet-finalizer.md');

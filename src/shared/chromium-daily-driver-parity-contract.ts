@@ -82,7 +82,7 @@ export const DAILY_DRIVER_BEHAVIORS: DailyDriverBehavior[] = [
     label: 'Reload Page',
     description: 'Reload the current page.',
     status: 'implemented',
-    shortcut: 'Ctrl+R / F5',
+    shortcut: 'Ctrl+R / F5 / Ctrl+Shift+R',
     domId: 'reload',
   },
   {
@@ -96,7 +96,7 @@ export const DAILY_DRIVER_BEHAVIORS: DailyDriverBehavior[] = [
     label: 'Address / Search Bar',
     description: 'Navigate to a URL or search the web from the address bar.',
     status: 'implemented',
-    shortcut: 'Ctrl+L',
+    shortcut: 'Ctrl+L / Alt+D',
     domId: 'address',
   },
   {

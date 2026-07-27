@@ -1,6 +1,6 @@
 {
   "pass": "PASS270",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "windowProfiles": [
     { "id": "restored-compact-1280x720", "width": 1280, "height": 720, "minimumWebsiteBudgetPx": 360 },
     { "id": "small-laptop-1366x768", "width": 1366, "height": 768, "minimumWebsiteBudgetPx": 400 },

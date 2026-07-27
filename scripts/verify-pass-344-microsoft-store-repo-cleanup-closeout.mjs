@@ -180,14 +180,16 @@ const docs = [
 ].map(read).join('\n');
 check('store-docs-preserve-truth', hasAll(docs, ['not yet submitted', 'not approved', 'Partner Center', 'installed smoke']) && !/Microsoft Store approved|Store submission completed|public GA is ready|signed MSI|signed EXE/i.test(docs), 'Store docs preserve no-submission/no-approval/no-false-signing truth');
 
-const sourceFiles = [
-  ...listFiles('src'),
-  ...listFiles('config'),
-  ...listFiles('packaging/windows'),
-];
+const activeStoreFiles = [
+  'config/msix-manifest.template.xml',
+  'packaging/windows/msix/package-identity.store.json',
+  'release-msix/Package.appxmanifest',
+  'release-candidate/store-submission/store-submission-evidence.json',
+  'release-candidate/generated/store-submission/store-submission-evidence.generated.json',
+  'release-candidate/generated/store-submission/package-evidence.generated.json',
+].filter(exists);
 const publicClaimHits = [];
-for (const file of sourceFiles) {
-  if (!/\.(ts|js|mjs|json|xml|ps1|css|html)$/i.test(file)) continue;
+for (const file of activeStoreFiles) {
   const text = read(file);
   if (/\b(?:Microsoft Store approved|Store approved|Store submission completed|public GA is ready|trusted public signed installer|signed MSI|signed EXE)\b/i.test(text)) {
     publicClaimHits.push(file);

@@ -1,4 +1,4 @@
-# Windows Installed Smoke Evidence Template — TAHAI Web Services Browser 2.0.14
+# Windows Installed Smoke Evidence Template — TAHAI Web Services Browser 2.0.18
 
 STATUS: INSTALLED_SMOKE_PENDING
 
@@ -21,7 +21,7 @@ Use this for the locally installed MSI/EXE smoke or the Store-package installed 
 | --- | --- | --- |
 | App launches from Start menu | PENDING | |
 | App icon/branding is TAHAI, not Electron default | PENDING | |
-| About/version shows 2.0.14 truth | PENDING | |
+| About/version shows 2.0.18 truth | PENDING | |
 | Normal navigation works | PENDING | |
 | Address bar navigation works | PENDING | |
 | Back/forward/reload work | PENDING | |

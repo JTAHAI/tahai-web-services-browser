@@ -1,6 +1,6 @@
 # PASS263 — Store Listing Copy Truth Pack
 
-Target version: `2.0.14`
+Target version: `2.0.18`
 
 Remaining passes after PASS263: **2**.
 

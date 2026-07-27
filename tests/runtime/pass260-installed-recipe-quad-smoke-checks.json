@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "pass": "PASS260",
   "name": "Installed Recipe + Quad Store Smoke Evidence Gate",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "evidenceFile": "release-candidate/store-submission/pass260-installed-recipe-quad-smoke-evidence.json",
   "storePosture": "BLOCKED_UNTIL_REAL_INSTALLED_RECIPE_QUAD_SMOKE_EVIDENCE",
   "requiredEnvironment": {

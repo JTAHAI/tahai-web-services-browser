@@ -1,6 +1,6 @@
 {
   "product": "TAHAI Web Services Browser",
-  "version": "2.0.14",
+  "version": "2.0.18",
   "defaultHome": "https://tahaiportal.com",
   "startup": "home",
   "searchProvider": "google",

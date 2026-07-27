@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const pass = 'PASS270';
-const versionTarget = '2.0.14';
+const versionTarget = '2.0.18';
 const remainingPassesAfterThisPass = 1;
 const skipDirs = new Set(['.git','node_modules','dist','release','release-msix','out','coverage','.vite','.next','build']);
 const packageScripts = {
@@ -70,7 +70,7 @@ function pass270RendererBlock(){ return `
 /* PASS270_RESTORED_MAXIMIZED_SMALL_WINDOW_VISUAL_SOAK_START */
 const PASS270_VISUAL_SOAK = Object.freeze({
   pass: 'PASS270',
-  versionTarget: '2.0.14',
+  versionTarget: '2.0.18',
   reason: 'Release-confidence visual soak for restored, maximized, small laptop, 1080p, and wide windows.',
   profiles: ['restored-compact-1280x720','small-laptop-1366x768','1080p-1920x1080','wide-2560x1440','maximized-available-screen'],
   surfaces: ['mission-control','mission-recipes','mission-cards','split-view','tri-view','quad-view','focus-pane','webview-panes','runbook-rail','evidence-pack','command-center','more-tools','devops-tools','it-tools','settings','kb-guide'],
@@ -175,7 +175,7 @@ function pass270RunVisualSoak(root = document) {
   const activePane = pass270ActivePaneHealth(root);
   const report = {
     pass: 'PASS270',
-    versionTarget: '2.0.14',
+    versionTarget: '2.0.18',
     viewport: { width: window.innerWidth || 0, height: window.innerHeight || 0, screenAvailWidth: window.screen?.availWidth || 0, screenAvailHeight: window.screen?.availHeight || 0 },
     websiteBudget,
     missionCardOverlaps: pass270FindOverlaps(missionCards),

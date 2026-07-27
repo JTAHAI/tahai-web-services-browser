@@ -2,7 +2,7 @@
   "pass": "PASS268",
   "schemaVersion": 1,
   "passName": "WebView DOM-Ready Lifecycle Hardening",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "packageVersion": "REPLACE_WITH_INSTALLED_PACKAGE_VERSION",
   "status": "REPLACE_WITH_REAL_WEBVIEW_LIFECYCLE_EVIDENCE_STATUS",
   "installedPackage": {

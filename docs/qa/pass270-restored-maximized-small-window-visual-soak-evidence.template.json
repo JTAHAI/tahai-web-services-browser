@@ -1,14 +1,14 @@
 {
   "pass": "PASS270",
   "passName": "Restored/Maximized/Small-Window Visual Soak",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "storeSubmission": "not-submitted",
   "storeApproval": "not-approved",
   "publicGaClaim": false,
   "signedReleaseClaim": false,
   "operatorApproval": false,
   "installedPackage": {
-    "version": "2.0.14",
+    "version": "2.0.18",
     "packageType": "msi-or-installed-preview",
     "sha256": "REPLACE_WITH_64_CHAR_SHA256",
     "sourceCommit": "REPLACE_WITH_SOURCE_COMMIT"

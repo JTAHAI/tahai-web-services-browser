@@ -1,4 +1,4 @@
-﻿import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell, session, IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, shell, session, IpcMainInvokeEvent } from 'electron';
 import type { WebContents } from 'electron';
 import { createBrowserProfile, deleteBrowserProfile, listBrowserProfiles, profileDataPath, profileSessionPartitions, setActiveBrowserProfile, updateBrowserProfile } from './profile-manager';
 import * as dns from 'node:dns/promises';
@@ -42,6 +42,39 @@ const WINDOWS_TITLEBAR_CAPTION_RESERVE_PX = 168;
 const TAHAI_RUNTIME_DIAGNOSTIC_MODE = process.env.TAHAI_BROWSER_RUNTIME_DIAGNOSTICS === '1' || process.env.TAHAI_RUNTIME_E2E === '1';
 const TAHAI_SINGLE_INSTANCE_LOCK_DISABLED = process.env.TAHAI_BROWSER_DISABLE_SINGLE_INSTANCE_LOCK === '1' || process.env.TAHAI_RUNTIME_E2E === '1';
 const TAHAI_USER_DATA_SUFFIX = String(process.env.TAHAI_BROWSER_USER_DATA_SUFFIX || process.env.TAHAI_RUNTIME_E2E_RUN_ID || '').trim();
+let mainWindow: BrowserWindow | null = null;
+
+function isMainProcessPipeError(error: unknown): boolean {
+  const err = error as NodeJS.ErrnoException | undefined;
+  return Boolean(err && (err.code === 'EPIPE' || err.code === 'ERR_STREAM_DESTROYED'));
+}
+
+function installMainProcessConsoleGuards(): void {
+  const original = {
+    log: console.log.bind(console),
+    info: console.info.bind(console),
+    warn: console.warn.bind(console),
+    error: console.error.bind(console)
+  };
+  const wrap = <T extends unknown[]>(method: keyof typeof original) => (...args: T): void => {
+    try {
+      original[method](...args);
+    } catch (error) {
+      if (isMainProcessPipeError(error)) return;
+      throw error;
+    }
+  };
+  console.log = wrap('log');
+  console.info = wrap('info');
+  console.warn = wrap('warn');
+  console.error = wrap('error');
+  const swallowStreamError = (error: unknown): void => {
+    if (!isMainProcessPipeError(error)) throw error;
+  };
+  process.stdout.on('error', swallowStreamError);
+  process.stderr.on('error', swallowStreamError);
+}
+installMainProcessConsoleGuards();
 
 // PASS271-R9: Windows/Electron can leave guest webview surfaces white/non-interactive
 // when GPU compositing wedges. Disable hardware acceleration for the release-confidence
@@ -594,6 +627,23 @@ function installPass153WebContentsPopupBoundary(): void {
   });
 }
 
+
+let pass341GlobalFindShortcutRegistered = false;
+
+function installPass341GlobalFindShortcutFallback(): void {
+  if (pass341GlobalFindShortcutRegistered) return;
+  pass341GlobalFindShortcutRegistered = globalShortcut.register('CommandOrControl+F', () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const fallbackWindow = focusedWindow && !focusedWindow.isDestroyed()
+      ? focusedWindow
+      : BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed());
+    if (!fallbackWindow) return;
+    sendMenuCommand(fallbackWindow, 'find-page');
+  });
+  if (!pass341GlobalFindShortcutRegistered) {
+    console.warn('[PASS341] global shortcut fallback registration failed for CommandOrControl+F');
+  }
+}
 function enforcePass153WebviewAttachBoundary(window: BrowserWindow): void {
   window.webContents.on('will-attach-webview', (event, webPreferences, params) => {
     const decision = hardenWebviewAttachOptions(
@@ -1146,7 +1196,7 @@ function createWindow(): BrowserWindow {
     window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
       const safeMessage = String(message || '').replace(/\s+/g, ' ').slice(0, 900);
       const safeSource = String(sourceId || '').slice(0, 260);
-      console.info(`[TAHAI_RENDERER_CONSOLE] level=${level} line=${line || 0} source=${safeSource} message=${safeMessage}`);
+      tahaiLogRuntimeDiagnostic('renderer-console', `level=${level} line=${line || 0} source=${safeSource} message=${safeMessage}`);
     });
     window.webContents.on('did-start-loading', () => tahaiLogRuntimeDiagnostic('renderer', 'did-start-loading'));
     window.webContents.on('did-stop-loading', () => tahaiLogRuntimeDiagnostic('renderer', 'did-stop-loading'));
@@ -1195,6 +1245,10 @@ function createWindow(): BrowserWindow {
     pass185RouteBrowserHistoryAppCommand(event, command, window, window.webContents);
   });
 
+  window.on('closed', () => {
+    if (mainWindow === window) mainWindow = null;
+  });
+  mainWindow = window;
   return window;
 }
 
@@ -1509,13 +1563,13 @@ app.setPath('userData', tahaiUserDataPath);
 tahaiLogRuntimeDiagnostic('userData', tahaiUserDataPath);
 
 const gotLock = TAHAI_SINGLE_INSTANCE_LOCK_DISABLED ? true : app.requestSingleInstanceLock();
-if (!gotLock) {
+  if (!gotLock) {
   tahaiLogRuntimeDiagnostic('single-instance-lock', 'lock-denied');
   app.quit();
 } else {
   if (TAHAI_SINGLE_INSTANCE_LOCK_DISABLED) tahaiLogRuntimeDiagnostic('single-instance-lock', 'disabled-for-runtime-diagnostics');
   app.on('second-instance', () => {
-    const [window] = BrowserWindow.getAllWindows();
+    const window = mainWindow && !mainWindow.isDestroyed() ? mainWindow : BrowserWindow.getAllWindows()[0];
     if (window) {
       if (window.isMinimized()) window.restore();
       window.focus();
@@ -1552,12 +1606,21 @@ app.whenReady().then(async () => {
       await hardenSession(session.fromPartition(partition));
     }
     createWindow();
+    installPass341GlobalFindShortcutFallback();
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      if (!mainWindow || mainWindow.isDestroyed()) createWindow();
     });
   }).catch(() => app.quit());
 }
 
+
+app.on('will-quit', () => {
+  try {
+    globalShortcut.unregisterAll();
+  } catch {
+    /* best-effort cleanup only. */
+  }
+});
 app.on('before-quit', (event) => {
   if (!readBrowserSettings().privacy.clearProfileDataOnExit) return;
   event.preventDefault();
@@ -1566,7 +1629,6 @@ app.on('before-quit', (event) => {
     app.quit();
   });
 });
-
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

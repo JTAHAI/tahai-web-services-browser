@@ -50,7 +50,7 @@ export const WINDOWS_INSTALLED_SMOKE_CHECKLIST: readonly WindowsSmokeChecklistIt
   {
     id: 'about-version-truth',
     label: 'About/version/update-channel truth is visible',
-    evidenceRequired: 'Screenshot or note showing v2.0.14, public-rc, manual-release, and unsigned preview truth.',
+    evidenceRequired: 'Screenshot or note showing v2.0.18, public-rc, manual-release, and unsigned preview truth.',
     passCondition: 'About page and release truth do not claim silent auto-update, signing, or GA status prematurely.',
   },
   {
@@ -120,7 +120,7 @@ export const WINDOWS_INSTALLED_SMOKE_REQUIRED_DOC_TOKENS = [
   'Windows manual smoke checklist',
   'evidence runner',
   'installed app',
-  'v2.0.14',
+  'v2.0.18',
   'manual-release',
   'unsigned preview',
   'Guide/KB',

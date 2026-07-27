@@ -10,11 +10,11 @@ let evidence;
 try { evidence=JSON.parse(fs.readFileSync(evidencePath,'utf8')); } catch { fail('PASS269 evidence file is not valid JSON.'); }
 const problems=[];
 if (evidence.pass !== 'PASS269') problems.push('pass must equal PASS269');
-if (evidence.versionTarget !== '2.0.14') problems.push('versionTarget must equal 2.0.14');
+if (evidence.versionTarget !== '2.0.18') problems.push('versionTarget must equal 2.0.18');
 if (evidence.storeSubmission !== 'not-submitted') problems.push('storeSubmission must remain not-submitted');
 if (evidence.storeApproval !== 'not-approved') problems.push('storeApproval must remain not-approved');
 if (evidence.operatorApproval !== true) problems.push('operatorApproval must be true');
-if (!evidence.installedPackage?.version || evidence.installedPackage.version !== '2.0.14') problems.push('installedPackage.version must be 2.0.14');
+if (!evidence.installedPackage?.version || evidence.installedPackage.version !== '2.0.18') problems.push('installedPackage.version must be 2.0.18');
 if (!/^[a-f0-9]{64}$/i.test(String(evidence.installedPackage?.sha256||''))) problems.push('installedPackage.sha256 must be a SHA256 hash');
 if (!String(evidence.installedPackage?.sourceCommit||'').trim()) problems.push('installedPackage.sourceCommit is required');
 const assertions=evidence.requiredAssertions||{};

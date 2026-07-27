@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "pass": "PASS250",
   "product": "TAHAI Web Services Browser",
-  "version": "2.0.14",
+  "version": "2.0.18",
   "submissionStatus": "BLOCKED",
   "lastReviewedAt": null,
   "reviewedBy": null,
@@ -36,7 +36,7 @@
   "packageArtifact": {
     "status": "PENDING",
     "sourceCommit": "PARTNER_CENTER_PENDING",
-    "sourceTag": "v2.0.14",
+    "sourceTag": "v2.0.18",
     "artifacts": []
   },
   "installedSmoke": {

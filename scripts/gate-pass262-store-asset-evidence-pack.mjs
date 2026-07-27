@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const requiredVersion = '2.0.14';
+const requiredVersion = '2.0.18';
 const requiredScreenshotSlots = ['normal-browser-mode','mission-control-overview','quad-view-recipe-started','tri-view-layout-routing','split-view-active-pane-routing','runbook-rail-and-evidence','operator-command-center','settings-about-unsigned-preview-truth'];
 const requiredListingAssets = ['store-square-logo','store-app-icon','store-listing-hero-or-promotional-image','store-screenshot-set','public-landing-page-preview-image'];
 const requiredPublicUrls = ['browserLandingUrl','privacyPolicyUrl','supportUrl','securityPolicyUrl','sourceRepoUrl','releaseNotesOrKnownIssuesUrl'];

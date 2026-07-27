@@ -58,4 +58,4 @@ updatePackageScript();
 console.log(`${pass}_APPLY=PASS`);
 console.log(`${pass}_R1_VERIFIER_WINDOWS_PATH_REPAIR=PASS`);
 console.log(`${pass}_PACKAGE_SCRIPT=updated`);
-console.log(`${pass}_VERSION=2.0.14`);
+console.log(`${pass}_VERSION=2.0.18`);

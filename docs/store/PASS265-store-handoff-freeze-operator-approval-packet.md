@@ -1,6 +1,6 @@
 # PASS265 — Store Handoff Freeze + Operator Approval Packet
 
-Target version: `2.0.14`
+Target version: `2.0.18`
 
 Remaining passes after PASS265: **0**.
 

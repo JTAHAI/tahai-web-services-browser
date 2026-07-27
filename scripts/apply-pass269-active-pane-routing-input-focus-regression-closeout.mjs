@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const pass = 'PASS269';
-const versionTarget = '2.0.14';
+const versionTarget = '2.0.18';
 const remainingPassesAfterThisPass = 2;
 const skipDirs = new Set(['.git','node_modules','dist','release','release-msix','out','coverage','.vite','.next','build']);
 const packageScripts = {
@@ -64,7 +64,7 @@ function pass269Block(){ return `
 /* PASS269_ACTIVE_PANE_ROUTING_INPUT_FOCUS_CLOSEOUT_START */
 const PASS269_ACTIVE_PANE_ROUTING_INPUT_FOCUS = Object.freeze({
   pass: 'PASS269',
-  versionTarget: '2.0.14',
+  versionTarget: '2.0.18',
   reason: 'Every input must resolve to exactly one active tab or Mission pane target before release.',
   inputs: ['address-bar','toolbar-back','toolbar-forward','toolbar-reload','toolbar-stop','mouse-button-4','mouse-button-5','alt-left','alt-right','ctrl-k-command','ctrl-alt-pane-focus','recipe-start','overlay-close-focus-return'],
   layouts: ['single','split-horizontal','split-vertical','triple-top','triple-bottom','triple-left','triple-right','quad','focus']

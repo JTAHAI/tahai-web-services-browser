@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "pass": "PASS271",
   "name": "Release Candidate Flagship Freeze Gate matrix",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "requiredPriorPasses": [
     "PASS267",
     "PASS268",

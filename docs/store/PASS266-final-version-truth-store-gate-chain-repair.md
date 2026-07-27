@@ -1,6 +1,6 @@
 # PASS266 — Final Version Truth + Store Gate Chain Repair
 
-Target final package version: `2.0.14`
+Target final package version: `2.0.18`
 
 Remaining release-confidence hardening passes after PASS266: **5**.
 
@@ -8,12 +8,12 @@ PASS266 repairs the Store evidence chain so PASS260 through PASS265 prove one in
 
 ## What this pass repairs
 
-- PASS260 installed Recipe + Quad smoke gate now requires final package version `2.0.14`.
-- PASS261 Store submission packet gate now requires final package version `2.0.14`.
-- PASS262 Store asset evidence gate now requires final package version `2.0.14`.
-- PASS263 Store listing copy truth gate now requires final package version `2.0.14`.
-- PASS264 Store dry-run evidence gate now requires final package version `2.0.14`.
-- PASS265 handoff freeze gate remains on final package version `2.0.14`.
+- PASS260 installed Recipe + Quad smoke gate now requires final package version `2.0.18`.
+- PASS261 Store submission packet gate now requires final package version `2.0.18`.
+- PASS262 Store asset evidence gate now requires final package version `2.0.18`.
+- PASS263 Store listing copy truth gate now requires final package version `2.0.18`.
+- PASS264 Store dry-run evidence gate now requires final package version `2.0.18`.
+- PASS265 handoff freeze gate remains on final package version `2.0.18`.
 - PASS260-PASS264 verifiers and templates are aligned to the same final package version.
 - A new PASS266 fail-closed version-truth gate blocks release confidence unless the operator records the repair review.
 

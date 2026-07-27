@@ -3,7 +3,7 @@
   "pass": "PASS261",
   "packetName": "TAHAI Web Services Browser Microsoft Store Submission Packet",
   "status": "BLOCKED_PENDING_PASS260_INSTALLED_SMOKE_AND_OPERATOR_REVIEW",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "generatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
   "preparedBy": "REPLACE_WITH_OPERATOR_NAME",
   "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
@@ -44,7 +44,7 @@
     ],
     "screenshotsCapturedFromInstalledApp": false,
     "screenshotsContainNoSecrets": false,
-    "screenshotsMatchVersion": "2.0.14"
+    "screenshotsMatchVersion": "2.0.18"
   },
   "pass260InstalledSmokeEvidence": {
     "required": true,

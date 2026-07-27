@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pass": "PASS262",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "storePosture": "NOT_SUBMITTED_NOT_APPROVED_ASSET_EVIDENCE_ONLY",
   "requiredScreenshotSlots": [
     "normal-browser-mode",

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const requiredVersion = '2.0.14';
+const requiredVersion = '2.0.18';
 const assetPackTemplatePath = path.join(root, 'docs', 'store', 'pass262-store-asset-evidence-pack.template.json');
 const listingImageChecklistPath = path.join(root, 'docs', 'store', 'pass262-store-listing-image-checklist.template.json');
 const publicUrlReviewPath = path.join(root, 'docs', 'store', 'pass262-public-url-review.template.json');

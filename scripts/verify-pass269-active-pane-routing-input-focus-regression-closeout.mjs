@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 const root=process.cwd();
-const versionTarget='2.0.14';
+const versionTarget='2.0.18';
 const requiredFiles=[
   'docs/qa/PASS269-active-pane-routing-input-focus-regression-closeout.md',
   'docs/qa/pass269-active-pane-routing-input-focus-evidence.template.json',

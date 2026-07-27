@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const pass = 'PASS266';
-const finalVersion = '2.0.14';
+const finalVersion = '2.0.18';
 const remainingPassesAfterThisPass = 5;
 const oldVersionRegex = /2\.0\.(9|10|11|12|13)/;
 const requiredFiles = [

@@ -1,6 +1,6 @@
 # PASS264 — Store Submission Dry-Run Evidence Gate
 
-Target version: `2.0.14`
+Target version: `2.0.18`
 
 Remaining passes after PASS264: **1**.
 

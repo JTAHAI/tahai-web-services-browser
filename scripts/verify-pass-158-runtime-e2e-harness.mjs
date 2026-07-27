@@ -126,7 +126,7 @@ const runner = includesAll('scripts/run-pass-158-runtime-e2e-harness.mjs', [
   'Runtime E2E harness passed'
 ]);
 
-need(pkg.version === '2.0.14', `version must remain 2.0.14 for PASS158 closeout, found ${pkg.version}`);
+need(pkg.version === '2.0.18', `version must remain 2.0.18 for PASS158 closeout, found ${pkg.version}`);
 need(pkg.scripts?.['verify:pass-158-runtime-e2e-harness'] === 'node scripts/verify-pass-158-runtime-e2e-harness.mjs', 'package missing PASS158 verifier script');
 need(pkg.scripts?.['test:runtime-e2e'] === 'node scripts/run-pass-158-runtime-e2e-harness.mjs --run', 'package missing live runtime E2E script');
 need(pkg.scripts?.['test:runtime-e2e:plan'] === 'node scripts/run-pass-158-runtime-e2e-harness.mjs', 'package missing source-only runtime E2E plan script');

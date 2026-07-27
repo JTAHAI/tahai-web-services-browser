@@ -1,4 +1,4 @@
-# Partner Center Identity Prep — TAHAI Web Services Browser 2.0.14
+# Partner Center Identity Prep — TAHAI Web Services Browser 2.0.18
 
 STATUS: PARTNER_CENTER_IDENTITY_PENDING
 
@@ -15,7 +15,7 @@ Record these values in the real Store evidence file, not in public docs if any v
 - Package family name.
 - Store product ID, if available.
 - Architecture target: x64.
-- Version: `2.0.14.0` for the Store package lane unless explicitly changed.
+- Version: `2.0.18.0` for the Store package lane unless explicitly changed.
 
 ## Manifest replacement workflow
 

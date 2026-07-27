@@ -3,16 +3,16 @@
   "pass": "PASS266",
   "packName": "TAHAI Browser Final Version Truth + Store Gate Chain Repair",
   "status": "TEMPLATE_PENDING_REAL_FINAL_VERSION_EVIDENCE",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "remainingPassesAfterThisPass": 5,
   "generatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
   "preparedBy": "REPLACE_WITH_OPERATOR_NAME",
   "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA",
-  "packageVersion": "2.0.14",
+  "packageVersion": "2.0.18",
   "repairScope": {
     "pass260ThroughPass265UseOneFinalPackageVersion": true,
     "historicalPassProvenancePreserved": true,
-    "finalEvidencePackageVersion": "2.0.14",
+    "finalEvidencePackageVersion": "2.0.18",
     "noStoreSubmissionPerformedByThisPass": true,
     "storeSubmissionStatus": "not-submitted",
     "storeApprovalStatus": "not-approved"
@@ -45,7 +45,7 @@
       "pass": "PASS260",
       "requiredGate": "npm run gate:pass-260-installed-recipe-quad-store-smoke",
       "evidencePath": "release-candidate/store-submission/pass260-installed-recipe-quad-smoke-evidence.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     },
@@ -53,7 +53,7 @@
       "pass": "PASS261",
       "requiredGate": "npm run gate:pass-261-store-submission-packet",
       "evidencePath": "release-candidate/store-submission/pass261-store-submission-packet.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     },
@@ -61,7 +61,7 @@
       "pass": "PASS262",
       "requiredGate": "npm run gate:pass-262-store-asset-evidence-pack",
       "evidencePath": "release-candidate/store-submission/pass262-store-asset-evidence-pack.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     },
@@ -69,7 +69,7 @@
       "pass": "PASS263",
       "requiredGate": "npm run gate:pass-263-store-listing-copy-truth-pack",
       "evidencePath": "release-candidate/store-submission/pass263-store-listing-copy-truth-pack.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     },
@@ -77,7 +77,7 @@
       "pass": "PASS264",
       "requiredGate": "npm run gate:pass-264-store-submission-dry-run-evidence",
       "evidencePath": "release-candidate/store-submission/pass264-store-submission-dry-run-evidence.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     },
@@ -85,7 +85,7 @@
       "pass": "PASS265",
       "requiredGate": "npm run gate:pass-265-store-handoff-freeze-operator-approval",
       "evidencePath": "release-candidate/store-submission/pass265-store-handoff-freeze-operator-approval.json",
-      "packageVersion": "2.0.14",
+      "packageVersion": "2.0.18",
       "versionMatchesFinalPackage": false,
       "gateOutputCaptured": false
     }

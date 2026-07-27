@@ -20,7 +20,7 @@ The tracked Store evidence file could preserve stale local package/source metada
 - Package artifacts, generated Store evidence, certificates, and private keys are ignored and not tracked.
 - Tracked Store evidence cannot include stale dirty-tree dumps or old release tag/source metadata.
 - Tracked Store evidence cannot claim submission, approval, public GA, signed MSI, signed EXE, or trusted Store release.
-- MSIX version tracks `package.json` as `2.0.14.0`.
+- MSIX version tracks `package.json` as `2.0.18.0`.
 - Partner Center identity remains a placeholder until a real reserved identity exists.
 - Store submission gate still requires real Partner Center, URL, listing, installed-smoke, known-issues, and release-truth evidence.
 - Electron/webview security guardrails remain intact.

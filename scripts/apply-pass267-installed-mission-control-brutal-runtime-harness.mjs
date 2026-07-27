@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const pass = 'PASS267';
-const versionTarget = '2.0.14';
+const versionTarget = '2.0.18';
 const remainingPassesAfterThisPass = 4;
 const skipDirs = new Set(['.git','node_modules','dist','release','release-msix','out','coverage','.vite','.next','build']);
 const packageScripts = {

@@ -2,7 +2,7 @@
 
 STORE_SUBMISSION_STATUS: BLOCKED
 
-TAHAI Web Services Browser 2.0.14 is **not yet submitted to Microsoft Store**, **not approved by Microsoft Store**, and **not public GA** from this repo until the evidence below is complete and `npm run verify:store:submission` passes against real local evidence.
+TAHAI Web Services Browser 2.0.18 is **not yet submitted to Microsoft Store**, **not approved by Microsoft Store**, and **not public GA** from this repo until the evidence below is complete and `npm run verify:store:submission` passes against real local evidence.
 
 This pass creates the fail-closed evidence lane for Microsoft Store submission readiness. It does not claim Store approval, Store submission, or trusted signing for direct MSI/EXE distribution.
 

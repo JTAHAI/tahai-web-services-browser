@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pass": "PASS261",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "captureSource": "installed Windows app only for final Store screenshots",
   "status": "TEMPLATE_PENDING_INSTALLED_APP_SCREENSHOTS",
   "screenshots": [

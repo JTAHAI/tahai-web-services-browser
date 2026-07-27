@@ -3,7 +3,7 @@
   "pass": "PASS345",
   "name": "Black-Box Electron Release E2E Matrix",
   "contractId": "pass345-blackbox-electron-release-e2e-v1",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "purpose": "Drive the built Electron app from outside the renderer so release readiness is based on real clicks, real window sizes, real dialogs, and real webview geometry instead of renderer-only synthetic element.click coverage.",
   "windowProfiles": [
     {

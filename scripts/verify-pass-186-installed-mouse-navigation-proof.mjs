@@ -9,7 +9,7 @@ const checks = [];
 const ok = (condition, message) => checks.push({ ok: Boolean(condition), message });
 
 const pkg = JSON.parse(read('package.json'));
-const expectedVersion = '2.0.14';
+const expectedVersion = '2.0.18';
 const contract = read('src/shared/installed-mouse-navigation-proof-contract.ts');
 const runner = read('scripts/run-pass186-installed-mouse-navigation-proof.ps1');
 const verifier = read('scripts/verify-pass-186-installed-mouse-navigation-proof.mjs');

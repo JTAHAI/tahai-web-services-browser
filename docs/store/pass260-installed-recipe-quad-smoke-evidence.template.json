@@ -12,12 +12,12 @@
     "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
     "packageSizeBytes": 0,
     "packageInstalledForSmoke": false,
-    "packageVersion": "2.0.14",
+    "packageVersion": "2.0.18",
     "packageIdentity": "REPLACE_WITH_MSIX_OR_APP_IDENTITY_IF_APPLICABLE"
   },
   "installedAppTruth": {
     "appLaunchedFromInstall": false,
-    "aboutVersionShows": "2.0.14",
+    "aboutVersionShows": "2.0.18",
     "noRendererBootError": false,
     "noWebViewDomReadyError": false,
     "noConsoleUnhandledRejection": false,

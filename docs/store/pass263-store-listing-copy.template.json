@@ -3,7 +3,7 @@
   "pass": "PASS263",
   "packName": "TAHAI Web Services Browser Store Listing Copy Truth Pack",
   "status": "TEMPLATE_PENDING_FINAL_COPY_AND_REVIEW",
-  "versionTarget": "2.0.14",
+  "versionTarget": "2.0.18",
   "remainingPassesAfterThisPass": 2,
   "generatedAt": "REPLACE_WITH_ISO_TIMESTAMP",
   "preparedBy": "REPLACE_WITH_OPERATOR_NAME",
@@ -18,7 +18,7 @@
   "appIdentity": {
     "appName": "TAHAI Web Services Browser",
     "publisherDisplayName": "TAHAI Web Services",
-    "packageVersion": "2.0.14",
+    "packageVersion": "2.0.18",
     "packageFamilyName": "REPLACE_WITH_PARTNER_CENTER_PACKAGE_FAMILY_NAME",
     "packageSha256": "REPLACE_WITH_64_HEX_SHA256",
     "sourceCommit": "REPLACE_WITH_GIT_COMMIT_SHA"

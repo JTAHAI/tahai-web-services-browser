@@ -13,7 +13,7 @@ if (!fs.existsSync(evidencePath)) fail('Missing real installed Mission Control r
 const evidence = parseJson(evidencePath);
 const blockers = [];
 if (evidence.pass !== 'PASS267') blockers.push('pass must be PASS267');
-if (evidence.versionTarget !== '2.0.14' || evidence.packageVersion !== '2.0.14') blockers.push('versionTarget/packageVersion must both be 2.0.14');
+if (evidence.versionTarget !== '2.0.18' || evidence.packageVersion !== '2.0.18') blockers.push('versionTarget/packageVersion must both be 2.0.18');
 if (evidence.status !== 'REAL_INSTALLED_APP_RUNTIME_EVIDENCE_COMPLETE') blockers.push('status must be REAL_INSTALLED_APP_RUNTIME_EVIDENCE_COMPLETE');
 const installed = evidence.installedPackage || {};
 for (const key of ['packageInstalledForSmoke','installedAppVersionVisible','launchedFromInstalledShortcut']) if (installed[key] !== true) blockers.push(`installedPackage.${key} must be true`);
@@ -51,6 +51,6 @@ if ((evidence.goNoGo || {}).readyForPublicGA === true) blockers.push('goNoGo.rea
 if (blockers.length) fail('PASS267 real installed runtime evidence is incomplete or unsafe.', blockers.slice(0, 120));
 console.log('PASS267_INSTALLED_MISSION_CONTROL_BRUTAL_RUNTIME_GATE=PASS');
 console.log('PASS267_EVIDENCE=' + rel(evidencePath));
-console.log('PASS267_VERSION=2.0.14');
+console.log('PASS267_VERSION=2.0.18');
 console.log('PASS267_RECIPES=' + requiredRecipes.join(','));
 console.log('PASS267_NEXT_PASS=PASS268_WebView_DOM_Ready_Lifecycle_Hardening');

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "PARTNER_CENTER_PENDING",
   "product": "TAHAI Web Services Browser",
-  "version": "2.0.14.0",
+  "version": "2.0.18.0",
   "architecture": "x64",
   "identity": {
     "name": "REPLACE_WITH_PARTNER_CENTER_PACKAGE_IDENTITY_NAME",

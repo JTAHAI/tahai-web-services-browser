@@ -1,4 +1,4 @@
-export const TAHAI_RELEASE_VERSION = '2.0.14';
+export const TAHAI_RELEASE_VERSION = '2.0.18';
 export const TAHAI_RELEASE_PASS = 'PASS328';
 export const TAHAI_RELEASE_CHANNEL = 'public-rc';
 export const TAHAI_RELEASE_PHASE = 'enterprise-profile-ux-ga-lane';

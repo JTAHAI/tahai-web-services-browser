@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const pass = 'PASS271';
-const versionTarget = '2.0.14';
+const versionTarget = '2.0.18';
 const remainingPassesAfterThisPass = 0;
 const packageScripts = {
   'verify:pass-271-release-candidate-flagship-freeze-gate': 'node scripts/verify-pass271-release-candidate-flagship-freeze-gate.mjs',

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const targetVersion = '2.0.14';
+const targetVersion = '2.0.18';
 const fixturePath = path.join(root, 'tests', 'runtime', 'pass260-installed-recipe-quad-smoke-checks.json');
 const templatePath = path.join(root, 'docs', 'store', 'pass260-installed-recipe-quad-smoke-evidence.template.json');
 const docsPath = path.join(root, 'docs', 'store', 'PASS260-installed-recipe-quad-store-smoke-evidence.md');

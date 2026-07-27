@@ -82,4 +82,4 @@ if (!staticOnly) {
 console.log(`${pass}=PASS`);
 console.log(`${pass}_STATIC_CHECKS=${checks.length}`);
 console.log(`${pass}_BUILD=${staticOnly ? 'SKIPPED_STATIC_ONLY' : 'PASS'}`);
-console.log(`${pass}_VERSION=2.0.14`);
+console.log(`${pass}_VERSION=2.0.18`);

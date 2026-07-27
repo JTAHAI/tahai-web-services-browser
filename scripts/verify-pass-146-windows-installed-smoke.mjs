@@ -27,7 +27,7 @@ const includesAll = (file, tokens) => {
 
 const pkg = json('package.json');
 const releaseBlockers = getReleaseBlockersContract(pkg);
-const expectedVersion = '2.0.14';
+const expectedVersion = '2.0.18';
 
 need(pkg.version === expectedVersion, `version must remain ${expectedVersion} for PASS146, found ${pkg.version}`);
 need(pkg.scripts?.['evidence:windows-installed-smoke'] === 'powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\run-pass146-windows-installed-smoke.ps1', 'package missing evidence:windows-installed-smoke script');

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const requiredVersion = '2.0.14';
+const requiredVersion = '2.0.18';
 const remainingPassesAfterThisPass = 1;
 const dryRunTemplatePath = path.join(root, 'docs', 'store', 'pass264-store-submission-dry-run-evidence.template.json');
 const checklistTemplatePath = path.join(root, 'docs', 'store', 'pass264-store-submission-dry-run-checklist.template.json');

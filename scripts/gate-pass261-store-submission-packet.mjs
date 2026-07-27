@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const requiredVersion = '2.0.14';
+const requiredVersion = '2.0.18';
 const packetCandidates = [
   process.env.PASS261_STORE_SUBMISSION_PACKET,
   'release-candidate/store-submission/pass261-store-submission-packet.json'

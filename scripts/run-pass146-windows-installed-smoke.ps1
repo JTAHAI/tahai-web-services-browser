@@ -6,7 +6,7 @@ param(
   [ValidateSet('nsis','msi','portable','unknown')]
   [string]$InstallerType = 'unknown',
   [string]$InstallerPath,
-  [string]$ExpectedVersion = '2.0.14',
+  [string]$ExpectedVersion = '2.0.18',
   [switch]$Launch,
   [switch]$Force,
   [string]$OutputDir = 'artifacts/windows-installed-smoke',

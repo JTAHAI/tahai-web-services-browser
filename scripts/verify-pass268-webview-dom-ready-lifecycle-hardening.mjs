@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 const root = process.cwd();
 const pass = 'PASS268';
-const versionTarget = '2.0.14';
+const versionTarget = '2.0.18';
 const remainingPassesAfterThisPass = 3;
 const matrixPath = path.join(root, 'tests', 'runtime', 'pass268-webview-dom-ready-lifecycle-matrix.json');
 const templatePath = path.join(root, 'docs', 'qa', 'pass268-webview-dom-ready-lifecycle-evidence.template.json');

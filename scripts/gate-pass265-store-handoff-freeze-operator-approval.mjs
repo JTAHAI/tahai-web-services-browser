@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 const root = process.cwd();
-const requiredVersion = '2.0.14';
+const requiredVersion = '2.0.18';
 const remainingPassesAfterThisPass = 0;
 const handoffCandidates = [
   path.join(root, 'release-candidate', 'store-submission', 'pass265-store-handoff-freeze-operator-approval.json'),

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const targetVersion = '2.0.14';
+const targetVersion = '2.0.18';
 const remainingPassesAfterThisPass = 0;
 const requiredFiles = [
   'scripts/apply-pass265-store-handoff-freeze-operator-approval.mjs',
@@ -87,7 +87,7 @@ if (fs.existsSync(packageFile)) {
     for (const [name, command] of Object.entries(requiredPackageScripts)) if ((pkg.scripts || {})[name] !== command) blockers.push('package.json missing script ' + name + '.');
     const version = String(pkg.version || '');
     const m = version.match(/^(\d+)\.(\d+)\.(\d+)/);
-    if (!m || Number(m[1]) < 2 || (Number(m[1]) === 2 && Number(m[2]) === 0 && Number(m[3]) < 14)) blockers.push('package.json version must be at least 2.0.14 after apply.');
+    if (!m || Number(m[1]) < 2 || (Number(m[1]) === 2 && Number(m[2]) === 0 && Number(m[3]) < 14)) blockers.push('package.json version must be at least 2.0.18 after apply.');
   }
 }
 

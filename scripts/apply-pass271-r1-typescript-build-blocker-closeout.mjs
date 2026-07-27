@@ -4,7 +4,7 @@
 
   Purpose:
   - Repair the PASS255-PASS259 renderer hardening additions that blocked `npm run build`.
-  - Keep version truth at 2.0.14; this is a release-confidence repair, not a feature bump.
+  - Keep version truth at 2.0.18; this is a release-confidence repair, not a feature bump.
   - Add a fail-closed verifier that runs targeted static checks and the TypeScript/build pipeline.
 */
 import fs from 'node:fs';
@@ -557,7 +557,7 @@ try {
   console.log(`${pass}_RENDERER_REPAIRS=${rendererRepairs.join(',')}`);
   console.log(`${pass}_PACKAGE_SCRIPT=${packageChanged ? 'updated' : 'already-present-or-missing'}`);
   console.log(`${pass}_LEGACY_APPLY_SCRIPTS=${legacyChanged.length ? legacyChanged.join(',') : 'none'}`);
-  console.log(`${pass}_VERSION=2.0.14`);
+  console.log(`${pass}_VERSION=2.0.18`);
 } catch (error) {
   console.error(`${pass}_APPLY=FAIL`);
   console.error(error instanceof Error ? error.message : String(error));

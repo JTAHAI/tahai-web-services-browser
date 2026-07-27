@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const requiredVersion = '2.0.14';
+const requiredVersion = '2.0.18';
 const remainingPassesAfterThisPass = 2;
 const packCandidates = [
   path.join(root, 'release-candidate', 'store-submission', 'pass263-store-listing-copy-truth-pack.json'),

@@ -16,7 +16,7 @@ STATUS: KNOWN_ISSUES_REVIEW_PENDING
 
 Use this language until signing/submission evidence changes:
 
-> TAHAI Web Services Browser 2.0.14 direct MSI/EXE downloads are unsigned preview builds unless a trusted signing path is added. Microsoft Store package submission is not claimed until Partner Center identity, package evidence, installed smoke, listing assets, privacy/support URLs, and known-issues truth are complete.
+> TAHAI Web Services Browser 2.0.18 direct MSI/EXE downloads are unsigned preview builds unless a trusted signing path is added. Microsoft Store package submission is not claimed until Partner Center identity, package evidence, installed smoke, listing assets, privacy/support URLs, and known-issues truth are complete.
 
 ## Hidden blocker attestation
 

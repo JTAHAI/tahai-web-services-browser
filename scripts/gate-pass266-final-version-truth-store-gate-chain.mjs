@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const pass = 'PASS266';
-const finalVersion = '2.0.14';
+const finalVersion = '2.0.18';
 const remainingPassesAfterThisPass = 5;
 const candidates = [
   process.env.PASS266_FINAL_VERSION_TRUTH,

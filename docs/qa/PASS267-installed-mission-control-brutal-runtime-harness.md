@@ -1,6 +1,6 @@
 # PASS267 — Installed Mission Control Brutal Runtime Harness
 
-Target version: `2.0.14`
+Target version: `2.0.18`
 
 Remaining release-confidence hardening passes after PASS267: **4**.
 

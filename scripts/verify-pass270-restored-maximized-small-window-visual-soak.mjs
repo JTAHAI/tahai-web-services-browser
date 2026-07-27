@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 const root=process.cwd();
-const versionTarget='2.0.14';
+const versionTarget='2.0.18';
 const requiredFiles=[
   'PASS270_README.md',
   'docs/qa/PASS270-restored-maximized-small-window-visual-soak.md',
