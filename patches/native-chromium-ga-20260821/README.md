@@ -1,7 +1,7 @@
 # TAHAI native Chromium GA patch series
 
 This directory is the source delivery for the native TAHAI Browser worktree.
-It is a 25-commit `git format-patch` series based on Chromium
+It is a 27-commit `git format-patch` series based on Chromium
 `150.0.7871.183` (`0fcdce5f4fdec8d442d7df760cb541f1ca6e446d`).  It deliberately
 contains source patches only; it does not include build outputs, profiles,
 logs, certificates, credentials, or an MSIX binary.
@@ -33,7 +33,7 @@ The final Store-reservation patch sets the active Partner Center identity:
 - Name: `TAHAIWebServices.TAHAIWebServicesBrowser`
 - Publisher: `CN=D75EE668-B409-45ED-87E5-E37AA5FE3868`
 - Display name: `TAHAI Web Services Browser`
-- Version: `2.0.23.0`
+- Version: `2.0.24.0`
 
 The resulting package is intentionally unsigned and therefore is a local
 review artifact, not a production installer. It has no signature payload;
@@ -43,6 +43,9 @@ metadata is complete.
 ## Included native surfaces
 
 - TAHAI branding, isolated profile identity, and Windows app identity.
+- The authoritative TAHAI Web Services spider artwork, copied directly from
+  the website favicon masters at native sizes. Its geometry is locked: no
+  tracing, redrawing, simplification, recoloring, masking, or regeneration.
 - TAHAI Home, Mission Control, Command Center, Profiles, and Work Modes.
 - Independent Dual (side-by-side and stacked), Tri (two-over-one and
   one-over-two), and Quad native Chromium pane layouts.
@@ -62,10 +65,12 @@ metadata is complete.
   with the six visual identities and Light/Dark persistence assertions.
 - A fresh TAHAI profile launched from this source did not contain the
   Chrome-registered McAfee/WebAdvisor extension.
-- The 2.0.23.0 release MSIX contained 492 release-runtime payload files,
+- The 2.0.24.0 release MSIX contained 492 release-runtime payload files,
   unpacked successfully, and its staged executable launched for native review.
   The packer refuses component/debug outputs so an incomplete `base.dll`
   dependency set cannot be repackaged accidentally.
+- The authoritative 256 px source and browser asset both have SHA-256
+  `21D9B79F49523C4CA476E5CC02CAA2D8F45FBF6E07D9779B417DBFFD5FF7ECE9`.
 
-Patches 0019–0025 change browser code and Store packaging. Rebuild and repack
-after applying the full series; do not reuse a package built before patch 0025.
+Patches 0019–0027 change browser code and Store packaging. Rebuild and repack
+after applying the full series; do not reuse a package built before patch 0027.
