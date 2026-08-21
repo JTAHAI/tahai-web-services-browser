@@ -1,7 +1,7 @@
 # TAHAI native Chromium GA patch series
 
 This directory is the source delivery for the native TAHAI Browser worktree.
-It is a 17-commit `git format-patch` series based on Chromium
+It is an 18-commit `git format-patch` series based on Chromium
 `150.0.7871.183` (`0fcdce5f4fdec8d442d7df760cb541f1ca6e446d`).  It deliberately
 contains source patches only; it does not include build outputs, profiles,
 logs, certificates, credentials, or an MSIX binary.

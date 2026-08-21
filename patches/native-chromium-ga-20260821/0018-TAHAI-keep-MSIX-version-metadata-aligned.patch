@@ -1,0 +1,44 @@
+From d87839b3489bbf1b1f1cd4b4c80190f017b9ffa8 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Fri, 21 Aug 2026 07:38:31 -0400
+Subject: [PATCH] TAHAI: keep MSIX version metadata aligned
+
+---
+ .../win/tahai_msix/package_unsigned_msix.ps1       | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1 b/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
+index 71d95f6a55a7fe0d97b08d58357e2023cb0d13ac..77b1a5cf38e598c658ec0b0bdeec25a2c56c5ba7 100644
+--- a/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
++++ b/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
+@@ -75,6 +75,13 @@ $resolvedOutDir = [System.IO.Path]::GetFullPath($OutDir)
+ $stage = Join-Path $resolvedOutDir "stage"
+ $package = Join-Path $resolvedOutDir "TAHAIWebServicesBrowser_$Version`_x64_unsigned.msix"
+ 
++$versionParts = $Version -split '\.'
++if ($versionParts.Count -ne 4 -or @($versionParts | Where-Object {
++        $_ -notmatch '^\d+$' -or [int64]$_ -gt 65535
++    }).Count -ne 0) {
++    throw "Version must contain four numeric components from 0 through 65535: $Version"
++}
++
+ if (Test-Path -LiteralPath $stage) {
+     Remove-Item -LiteralPath $stage -Recurse -Force
+ }
+@@ -96,6 +103,13 @@ foreach ($directory in @("locales", "resources", "MEIPreload")) {
+ }
+ 
+ Copy-Item -LiteralPath (Join-Path $PSScriptRoot "AppxManifest.xml") -Destination (Join-Path $stage "AppxManifest.xml") -Force
++$manifestPath = Join-Path $stage "AppxManifest.xml"
++[xml]$manifest = Get-Content -LiteralPath $manifestPath
++$manifestNs = New-Object System.Xml.XmlNamespaceManager($manifest.NameTable)
++$manifestNs.AddNamespace("m", "http://schemas.microsoft.com/appx/manifest/foundation/windows10")
++$manifestIdentity = $manifest.SelectSingleNode("/m:Package/m:Identity", $manifestNs)
++$manifestIdentity.SetAttribute("Version", $Version)
++$manifest.Save($manifestPath)
+ $tiles = Join-Path $PSScriptRoot "..\..\..\app\theme\tahai\win\tiles"
+ New-TahaiTileAsset (Join-Path $tiles "Logo.png") (Join-Path $stage "Assets\Logo.png") 150 150
+ New-TahaiTileAsset (Join-Path $tiles "SmallLogo.png") (Join-Path $stage "Assets\SmallLogo.png") 44 44
+-- 
+2.54.0.windows.1
+
