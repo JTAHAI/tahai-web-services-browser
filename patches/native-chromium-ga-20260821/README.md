@@ -1,7 +1,7 @@
 # TAHAI native Chromium GA patch series
 
 This directory is the source delivery for the native TAHAI Browser worktree.
-It is an 18-commit `git format-patch` series based on Chromium
+It is a 19-commit `git format-patch` series based on Chromium
 `150.0.7871.183` (`0fcdce5f4fdec8d442d7df760cb541f1ca6e446d`).  It deliberately
 contains source patches only; it does not include build outputs, profiles,
 logs, certificates, credentials, or an MSIX binary.
@@ -47,14 +47,18 @@ metadata is complete.
   one-over-two), and Quad native Chromium pane layouts.
 - Native toolbar flyout menus and an allowlisted command palette
   (`Ctrl+Shift+Space`), with fixed shortcuts for every workspace action.
-- Work-mode defaults and progressive configuration surfaces.
+- Work-mode defaults, per-mode visual identities, and progressive
+  configuration surfaces. Each identity keeps its own Light/Dark choice.
+- A TAHAI-specific Windows external-extension registry channel. Chrome-only
+  registry extensions, including machine-installed security-suite companions,
+  cannot be imported into TAHAI.
 
 ## Verification recorded for this handoff
 
-- `TahaiWebUIBrowserTest.TahaiModesAreTrustedAndExplicitlySelected`: passed.
-- `makeappx pack` and an independent `makeappx unpack`: passed.
-- Staged TAHAI runtime launch with `tahai://modes/`: passed.
+- `TahaiWebUIBrowserTest.TahaiModesAreTrustedAndExplicitlySelected`: passed
+  with the six visual identities and Light/Dark persistence assertions.
+- A fresh TAHAI profile launched from this source did not contain the
+  Chrome-registered McAfee/WebAdvisor extension.
 
-The corrected Store-ready unsigned package built from this series had SHA-256:
-
-`2342FFA3C642AC39EE14AA201A29076C303AF11D8118E06C5912ABC8E43F09F9`
+Patch 0019 changes browser code. Rebuild and repack after applying the full
+series; do not reuse a package built from patches 0001–0018 alone.
