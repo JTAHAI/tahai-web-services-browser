@@ -1,7 +1,7 @@
 # TAHAI native Chromium GA patch series
 
 This directory is the source delivery for the native TAHAI Browser worktree.
-It is a 27-commit `git format-patch` series based on Chromium
+It is a 29-commit `git format-patch` series based on Chromium
 `150.0.7871.183` (`0fcdce5f4fdec8d442d7df760cb541f1ca6e446d`).  It deliberately
 contains source patches only; it does not include build outputs, profiles,
 logs, certificates, credentials, or an MSIX binary.
@@ -33,7 +33,7 @@ The final Store-reservation patch sets the active Partner Center identity:
 - Name: `TAHAIWebServices.TAHAIWebServicesBrowser`
 - Publisher: `CN=D75EE668-B409-45ED-87E5-E37AA5FE3868`
 - Display name: `TAHAI Web Services Browser`
-- Version: `2.0.24.0`
+- Version: `2.0.25.0`
 
 The resulting package is intentionally unsigned and therefore is a local
 review artifact, not a production installer. It has no signature payload;
@@ -51,26 +51,33 @@ metadata is complete.
   one-over-two), and Quad native Chromium pane layouts.
 - Native toolbar flyout menus and an allowlisted command palette
   (`Ctrl+Shift+Space`), with fixed shortcuts for every workspace action.
-- Work-mode defaults, formal per-mode cockpit systems, and progressive
-  configuration surfaces. Geometry, hierarchy, typography, density, and
-  restrained palettes distinguish each mode. Each identity keeps its own
-  Light/Dark choice.
+- Work-mode defaults, formal per-mode cockpit systems, and a progressive
+  Workspace Studio. Each mode keeps profile-scoped Light/Dark, restrained
+  accent and surface selections, density, header treatment, start surface,
+  exact native pane variant, and Mission Control runbook-rail visibility.
+  These are finite visual-only choices; browser security, profiles,
+  extensions, permissions, downloads, and policy remain Chromium-owned.
 - A TAHAI-specific Windows external-extension registry channel. Chrome-only
   registry extensions, including machine-installed security-suite companions,
   cannot be imported into TAHAI.
 
 ## Verification recorded for this handoff
 
+- `MissionServiceTest.WorkModeWorkspaceChoicesAreFiniteAndProfileScoped`:
+  passed with migration, per-profile persistence, and arbitrary-value rejection
+  assertions.
 - `TahaiWebUIBrowserTest.TahaiModesAreTrustedAndExplicitlySelected`: passed
-  with the six visual identities and Light/Dark persistence assertions.
+  with the six visual identities, Workspace Studio controls, Light/Dark, accent,
+  and persisted exact-pane-variant assertions.
 - A fresh TAHAI profile launched from this source did not contain the
   Chrome-registered McAfee/WebAdvisor extension.
-- The 2.0.24.0 release MSIX contained 492 release-runtime payload files,
-  unpacked successfully, and its staged executable launched for native review.
+- The 2.0.25.0 release MSIX contained 491 release-runtime payload files and
+  its staged executable launched for native review. The package identity,
+  display name, publisher, version, and VC runtime payload were verified.
   The packer refuses component/debug outputs so an incomplete `base.dll`
   dependency set cannot be repackaged accidentally.
 - The authoritative 256 px source and browser asset both have SHA-256
   `21D9B79F49523C4CA476E5CC02CAA2D8F45FBF6E07D9779B417DBFFD5FF7ECE9`.
 
-Patches 0019–0027 change browser code and Store packaging. Rebuild and repack
-after applying the full series; do not reuse a package built before patch 0027.
+Patches 0019–0029 change browser code and Store packaging. Rebuild and repack
+after applying the full series; do not reuse a package built before patch 0029.

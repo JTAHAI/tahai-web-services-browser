@@ -1,0 +1,2091 @@
+From 86efaad8a6e42abc50f1804850800fad68bc87b2 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Fri, 21 Aug 2026 14:48:36 -0400
+Subject: [PATCH 28/29] TAHAI: add progressive per-mode workspace studio
+
+---
+ .../frame/multi_contents_view_browsertest.cc  | 354 +++++----
+ .../tahai/tahai_mission_service_unittest.cc   |  48 +-
+ .../ui/webui/tahai/tahai_mode_service.cc      | 257 +++++--
+ .../ui/webui/tahai/tahai_mode_service.h       |   5 +
+ chrome/browser/ui/webui/tahai/tahai_ui.cc     | 704 ++++++++++++------
+ 5 files changed, 906 insertions(+), 462 deletions(-)
+
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc b/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
+index 813df1c79b..52c8cc37dc 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
+@@ -23,15 +23,16 @@
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_model.h"
+ #include "chrome/browser/ui/ui_features.h"
+-#include "chrome/browser/ui/webui/tahai/tahai_mission_service.h"
+-#include "chrome/browser/ui/views/frame/custom_floating_corner.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/frame/custom_floating_corner.h"
+ #include "chrome/browser/ui/views/frame/multi_contents_drop_target_view.h"
+ #include "chrome/browser/ui/views/frame/multi_contents_view_delegate.h"
+ #include "chrome/browser/ui/views/frame/multi_contents_view_drop_target_controller.h"
+ #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
+ #include "chrome/browser/ui/views/test/split_view_browser_test_mixin.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
++#include "chrome/browser/ui/webui/tahai/tahai_mission_service.h"
++#include "chrome/browser/ui/webui/tahai/tahai_mode_service.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/tahai_url_constants.h"
+ #include "chrome/common/webui_url_constants.h"
+@@ -235,17 +236,16 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+   EXPECT_EQ(incognito_view->GetVisibleContentsCount(), 4u);
+ }
+ 
+-IN_PROC_BROWSER_TEST_F(
+-    MultiContentsViewBrowserTest,
+-    TahaiDualAndTriLayoutsFillWindowAndStayIndependent) {
++IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
++                       TahaiDualAndTriLayoutsFillWindowAndStayIndependent) {
+   AddBlankTabsUntilCount(browser(), 3u);
+   TabStripModel* model = browser()->tab_strip_model();
+   for (int index = 0; index < 3; ++index) {
+-    ASSERT_TRUE(content::ExecJs(
+-        model->GetWebContentsAt(index),
+-        "document.title = 'TAHAI pane " + base::NumberToString(index) +
+-            "'; window.tahaiPaneState = 'pane-" +
+-            base::NumberToString(index) + "';"));
++    ASSERT_TRUE(content::ExecJs(model->GetWebContentsAt(index),
++                                "document.title = 'TAHAI pane " +
++                                    base::NumberToString(index) +
++                                    "'; window.tahaiPaneState = 'pane-" +
++                                    base::NumberToString(index) + "';"));
+   }
+ 
+   ASSERT_TRUE(chrome::OpenTahaiTriView(
+@@ -266,20 +266,17 @@ IN_PROC_BROWSER_TEST_F(
+   // their own DOM state and titles.
+   model->ActivateTabAt(1);
+   EXPECT_EQ(multi_contents_view()->GetActiveIndex(), 1);
+-  ASSERT_TRUE(content::ExecJs(
+-      model->GetActiveWebContents(),
+-      "window.tahaiPaneState = 'pane-1-navigated'; "
+-      "document.body.textContent = 'independent pane 1';"));
+-  EXPECT_EQ(content::EvalJs(model->GetWebContentsAt(0),
+-                            "window.tahaiPaneState")
++  ASSERT_TRUE(
++      content::ExecJs(model->GetActiveWebContents(),
++                      "window.tahaiPaneState = 'pane-1-navigated'; "
++                      "document.body.textContent = 'independent pane 1';"));
++  EXPECT_EQ(content::EvalJs(model->GetWebContentsAt(0), "window.tahaiPaneState")
+                 .ExtractString(),
+             "pane-0");
+-  EXPECT_EQ(content::EvalJs(model->GetWebContentsAt(1),
+-                            "window.tahaiPaneState")
++  EXPECT_EQ(content::EvalJs(model->GetWebContentsAt(1), "window.tahaiPaneState")
+                 .ExtractString(),
+             "pane-1-navigated");
+-  EXPECT_EQ(content::EvalJs(model->GetWebContentsAt(2),
+-                            "window.tahaiPaneState")
++  EXPECT_EQ(content::EvalJs(model->GetWebContentsAt(2), "window.tahaiPaneState")
+                 .ExtractString(),
+             "pane-2");
+ 
+@@ -294,8 +291,8 @@ IN_PROC_BROWSER_TEST_F(
+   EXPECT_EQ(panes[0]->bounds().right(), panes[2]->bounds().right());
+   EXPECT_GT(panes[0]->bounds().width(), panes[1]->bounds().width());
+ 
+-  ASSERT_TRUE(chrome::OpenTahaiDualView(
+-      browser(), chrome::TahaiDualViewLayout::kStacked));
++  ASSERT_TRUE(chrome::OpenTahaiDualView(browser(),
++                                        chrome::TahaiDualViewLayout::kStacked));
+   RunScheduledLayouts();
+   ASSERT_TRUE(chrome::IsTahaiDualView(browser()));
+   ASSERT_EQ(multi_contents_view()->GetVisibleContentsCount(), 2u);
+@@ -319,22 +316,21 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+       incognito, chrome::TahaiTriViewLayout::kTwoOverOne));
+   TabStripModel* model = incognito->tab_strip_model();
+   ASSERT_TRUE(model->GetActiveTab()->IsSplit());
+-  auto members =
+-      model->GetSplitData(model->GetActiveTab()->GetSplit().value())
+-          ->ListTabs();
++  auto members = model->GetSplitData(model->GetActiveTab()->GetSplit().value())
++                     ->ListTabs();
+   ASSERT_EQ(members.size(), 3u);
+-  EXPECT_TRUE(std::ranges::all_of(
+-      members, [incognito](tabs::TabInterface* tab) {
++  EXPECT_TRUE(
++      std::ranges::all_of(members, [incognito](tabs::TabInterface* tab) {
+         return tab->GetContents()->GetBrowserContext() == incognito->profile();
+       }));
+ 
+-  ASSERT_TRUE(chrome::OpenTahaiDualView(
+-      incognito, chrome::TahaiDualViewLayout::kStacked));
++  ASSERT_TRUE(chrome::OpenTahaiDualView(incognito,
++                                        chrome::TahaiDualViewLayout::kStacked));
+   members = model->GetSplitData(model->GetActiveTab()->GetSplit().value())
+                 ->ListTabs();
+   ASSERT_EQ(members.size(), 2u);
+-  EXPECT_TRUE(std::ranges::all_of(
+-      members, [incognito](tabs::TabInterface* tab) {
++  EXPECT_TRUE(
++      std::ranges::all_of(members, [incognito](tabs::TabInterface* tab) {
+         return tab->GetContents()->GetBrowserContext() == incognito->profile();
+       }));
+ }
+@@ -362,24 +358,34 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+       contents, tahai::kTahaiMissionURL, "Mission Control",
+       "Real tabs. Real WebContents. Bounded mission state."));
+-  EXPECT_TRUE(content::EvalJs(
+-      contents,
+-      "Boolean(document.querySelector('#new-mission-form') && "
+-      "document.querySelector('.mission-grid') && "
+-      "[...document.querySelectorAll('.card strong')].some(node => node.textContent === 'Mission') && "
+-      "[...document.querySelectorAll('.card strong')].some(node => node.textContent === 'Export safety') && "
+-      "document.querySelectorAll('[data-tahai-mission-action=launch-recipe]').length === 10 && "
+-      "document.querySelectorAll('[data-tahai-mission-action=copy-handoff]').length === 1 && "
+-      "document.querySelectorAll('[data-tahai-mission-action=add-evidence]').length === 1 && "
+-      "document.querySelectorAll('[data-tahai-mission-action=copy-evidence]').length === 1 && "
+-      "document.querySelectorAll('[data-tahai-timeline-filter]').length === 7 && "
+-      "document.querySelectorAll('[data-tahai-export-profile]').length === 1 && "
+-      "[...document.querySelectorAll('[data-tahai-mission-action=launch-recipe]')].every("
+-      "button => /^[-a-z0-9]+$/.test(button.dataset.tahaiRecipeId || '')))")
+-                  .ExtractBool());
+-  ASSERT_TRUE(content::ExecJs(
+-      contents,
+-      "document.querySelector('[data-tahai-mission-action=copy-handoff]').click()"));
++  EXPECT_TRUE(
++      content::EvalJs(
++          contents,
++          "Boolean(document.querySelector('#new-mission-form') && "
++          "document.querySelector('.mission-grid') && "
++          "[...document.querySelectorAll('.card strong')].some(node => "
++          "node.textContent === 'Mission') && "
++          "[...document.querySelectorAll('.card strong')].some(node => "
++          "node.textContent === 'Export safety') && "
++          "document.querySelectorAll('[data-tahai-mission-action=launch-recipe]"
++          "').length === 10 && "
++          "document.querySelectorAll('[data-tahai-mission-action=copy-handoff]'"
++          ").length === 1 && "
++          "document.querySelectorAll('[data-tahai-mission-action=add-evidence]'"
++          ").length === 1 && "
++          "document.querySelectorAll('[data-tahai-mission-action=copy-evidence]"
++          "').length === 1 && "
++          "document.querySelectorAll('[data-tahai-timeline-filter]').length "
++          "=== 7 && "
++          "document.querySelectorAll('[data-tahai-export-profile]').length === "
++          "1 && "
++          "[...document.querySelectorAll('[data-tahai-mission-action=launch-"
++          "recipe]')].every("
++          "button => /^[-a-z0-9]+$/.test(button.dataset.tahaiRecipeId || '')))")
++          .ExtractBool());
++  ASSERT_TRUE(content::ExecJs(contents,
++                              "document.querySelector('[data-tahai-mission-"
++                              "action=copy-handoff]').click()"));
+   ASSERT_TRUE(base::test::RunUntil([&] {
+     return content::EvalJs(
+                contents,
+@@ -388,9 +394,9 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+            "Sanitized checkpoint status copied. Mission name and browsing data "
+            "were omitted.";
+   }));
+-  ASSERT_TRUE(content::ExecJs(
+-      contents,
+-      "document.querySelector('[data-tahai-mission-action=copy-evidence]').click()"));
++  ASSERT_TRUE(content::ExecJs(contents,
++                              "document.querySelector('[data-tahai-mission-"
++                              "action=copy-evidence]').click()"));
+   ASSERT_TRUE(base::test::RunUntil([&] {
+     return content::EvalJs(
+                contents,
+@@ -414,9 +420,9 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+ 
+   TabStripModel* model = browser()->tab_strip_model();
+   const int initial_tab_count = model->count();
+-  ASSERT_TRUE(content::ExecJs(
+-      contents,
+-      "document.querySelector('[data-tahai-recipe-id=incident-triage]').click()"));
++  ASSERT_TRUE(content::ExecJs(contents,
++                              "document.querySelector('[data-tahai-recipe-id="
++                              "incident-triage]').click()"));
+   ASSERT_TRUE(base::test::RunUntil([&] {
+     return model->count() == initial_tab_count + 4 &&
+            chrome::IsTahaiQuadView(browser());
+@@ -446,7 +452,8 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+   std::string mission_id;
+   {
+     tahai::MissionService service(profile);
+-    const auto mission = service.CreateMission("Native checkpoint test", "change");
++    const auto mission =
++        service.CreateMission("Native checkpoint test", "change");
+     ASSERT_TRUE(mission.has_value());
+     ASSERT_FALSE(mission->steps.empty());
+     ASSERT_FALSE(mission->validation_steps.empty());
+@@ -462,11 +469,11 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+   }
+ 
+   tahai::MissionService reloaded(profile);
+-  const auto found = std::find_if(
+-      reloaded.missions().begin(), reloaded.missions().end(),
+-      [&mission_id](const tahai::MissionSummary& mission) {
+-        return mission.id == mission_id;
+-      });
++  const auto found =
++      std::find_if(reloaded.missions().begin(), reloaded.missions().end(),
++                   [&mission_id](const tahai::MissionSummary& mission) {
++                     return mission.id == mission_id;
++                   });
+   ASSERT_NE(found, reloaded.missions().end());
+   EXPECT_TRUE(found->steps.front().complete);
+   EXPECT_TRUE(found->validation_steps.front().complete);
+@@ -491,8 +498,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+             admin->steps.front().label);
+   EXPECT_EQ("Confirm customer scope and authorization",
+             support->steps.front().label);
+-  EXPECT_EQ("Confirm reproducible scope",
+-            development->steps.front().label);
++  EXPECT_EQ("Confirm reproducible scope", development->steps.front().label);
+   EXPECT_TRUE(reloaded.DeleteMission(admin->id));
+   EXPECT_TRUE(reloaded.DeleteMission(support->id));
+   EXPECT_TRUE(reloaded.DeleteMission(development->id));
+@@ -519,35 +525,39 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest, TahaiNewTabLoadsThroughRoute) {
+   EXPECT_TRUE(content::EvalJs(contents, "document.body.innerText")
+                   .ExtractString()
+                   .find("Four views. One mission.") != std::string::npos);
+-  EXPECT_TRUE(content::EvalJs(
+-      contents,
+-      "document.querySelector('.mark').naturalWidth > 0 && "
+-      "document.querySelector('.hero-art img').naturalWidth > 0 && "
+-      "document.body.textContent.includes('Native creative workspace') && "
+-      "document.body.textContent.includes('First 10 minutes') && "
+-      "document.body.textContent.includes('Start with ordinary browsing') && "
+-      "document.body.textContent.includes('Recent missions') && "
+-      "document.body.textContent.includes('Launchpad persistence') && "
+-      "document.body.textContent.includes('Alt+Shift+M')")
+-                  .ExtractBool());
++  EXPECT_TRUE(
++      content::EvalJs(
++          contents,
++          "document.querySelector('.mark').naturalWidth > 0 && "
++          "document.querySelector('.hero-art img').naturalWidth > 0 && "
++          "document.body.textContent.includes('Native creative workspace') && "
++          "document.body.textContent.includes('First 10 minutes') && "
++          "document.body.textContent.includes('Start with ordinary browsing') "
++          "&& "
++          "document.body.textContent.includes('Recent missions') && "
++          "document.body.textContent.includes('Launchpad persistence') && "
++          "document.body.textContent.includes('Alt+Shift+M')")
++          .ExtractBool());
+ }
+ 
+ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest, TahaiOpsToolsLoadsThroughRoute) {
+   content::WebContents* contents =
+       browser()->tab_strip_model()->GetActiveWebContents();
+-  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+-      contents,
+-      tahai::kTahaiOpsToolsURL, "Operator Command Center",
+-      "ALLOWLISTED BROWSER ACTIONS"));
+-  EXPECT_TRUE(content::EvalJs(
+-      contents,
+-      "document.querySelectorAll('#command-list .command').length === 14 && "
+-      "['modes.open','mission.open','profiles.open','support.open','policy.open'].every("
+-      "name => Boolean(document.querySelector(`[data-tahai-command=\"${name}\"]`)))")
++  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiOpsToolsURL,
++                                            "Operator Command Center",
++                                            "ALLOWLISTED BROWSER ACTIONS"));
++  EXPECT_TRUE(content::EvalJs(contents,
++                              "document.querySelectorAll('#command-list "
++                              ".command').length === 14 && "
++                              "['modes.open','mission.open','profiles.open','"
++                              "support.open','policy.open'].every("
++                              "name => "
++                              "Boolean(document.querySelector(`[data-tahai-"
++                              "command=\"${name}\"]`)))")
+                   .ExtractBool());
+-  ASSERT_TRUE(content::ExecJs(
+-      contents,
+-      "document.querySelector('[data-tahai-command=\"mission.open\"]').click()"));
++  ASSERT_TRUE(content::ExecJs(contents,
++                              "document.querySelector('[data-tahai-command="
++                              "\"mission.open\"]').click()"));
+   ASSERT_TRUE(base::test::RunUntil([&] {
+     return contents->GetVisibleURL() == GURL(tahai::kTahaiMissionURL);
+   }));
+@@ -559,32 +569,37 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest, TahaiProfilesLoadsThroughRoute) {
+   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+       contents, tahai::kTahaiProfilesURL, "Profile Administration",
+       "Profiles, identity, and privacy remain browser-owned."));
+-  EXPECT_TRUE(content::EvalJs(
+-      contents,
+-      "Boolean(document.querySelector('a[href=\"chrome://profile-picker/\"]') && "
+-      "document.querySelector('a[href=\"chrome://settings/manageProfile\"]') && "
+-      "document.querySelector('a[href=\"chrome://settings/privacy\"]'))")
+-                  .ExtractBool());
++  EXPECT_TRUE(
++      content::EvalJs(
++          contents,
++          "Boolean(document.querySelector('a[href=\"chrome://profile-picker/"
++          "\"]') && "
++          "document.querySelector('a[href=\"chrome://settings/"
++          "manageProfile\"]') && "
++          "document.querySelector('a[href=\"chrome://settings/privacy\"]'))")
++          .ExtractBool());
+ }
+ 
+ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest, TahaiSupportLoadsThroughRoute) {
+   content::WebContents* contents =
+       browser()->tab_strip_model()->GetActiveWebContents();
+-  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+-      contents, tahai::kTahaiSupportURL, "Support", "Diagnose without exporting"));
+-  EXPECT_TRUE(content::EvalJs(
+-      contents,
+-      "Boolean(document.querySelector('[data-tahai-support-action=copy-summary]') && "
+-      "document.querySelector('#support-status') && "
+-      "document.querySelector('script[src=\"/support.js\"]'))")
+-                   .ExtractBool());
++  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSupportURL,
++                                            "Support",
++                                            "Diagnose without exporting"));
++  EXPECT_TRUE(
++      content::EvalJs(contents,
++                      "Boolean(document.querySelector('[data-tahai-support-"
++                      "action=copy-summary]') && "
++                      "document.querySelector('#support-status') && "
++                      "document.querySelector('script[src=\"/support.js\"]'))")
++          .ExtractBool());
+   // The support copy control has a browser-side message handler. Keep this
+   // assertion here so the page cannot regress into an attractive but inert
+   // renderer-only support surface.
+   ASSERT_EQ(1u, contents->GetWebUI()->GetHandlersForTesting()->size());
+-  ASSERT_TRUE(content::ExecJs(
+-      contents,
+-      "document.querySelector('[data-tahai-support-action=copy-summary]').click()"));
++  ASSERT_TRUE(content::ExecJs(contents,
++                              "document.querySelector('[data-tahai-support-"
++                              "action=copy-summary]').click()"));
+   ASSERT_TRUE(base::test::RunUntil([&] {
+     return content::EvalJs(
+                contents,
+@@ -610,8 +625,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+       browser()->tab_strip_model()->GetActiveWebContents();
+   const int original_tab_count = browser()->tab_strip_model()->count();
+   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+-      contents, tahai::kTahaiModesURL, "Work Modes",
+-      "Choose a work mode."));
++      contents, tahai::kTahaiModesURL, "Work Modes", "Choose a work mode."));
+   ASSERT_EQ(1u, contents->GetWebUI()->GetHandlersForTesting()->size());
+   EXPECT_TRUE(content::EvalJs(
+                   contents,
+@@ -619,86 +633,124 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                   "Boolean(document.querySelector('[data-tahai-mode=creator]')"
+                   ".closest('.card'))")
+                   .ExtractBool());
+-  EXPECT_TRUE(content::EvalJs(
+-                  contents,
+-                  "Boolean(document.querySelector('[data-tahai-modifier=watch]')"
+-                  ".parentElement.nextElementSibling && "
+-                  "document.querySelector('[data-tahai-modifier=watch]')"
+-                  ".parentElement.nextElementSibling.dataset.tahaiCommand === "
+-                  "'quad.open')")
+-                  .ExtractBool());
++  EXPECT_TRUE(
++      content::EvalJs(
++          contents,
++          "Boolean(document.querySelector('[data-tahai-modifier=watch]')"
++          ".parentElement.nextElementSibling && "
++          "document.querySelector('[data-tahai-modifier=watch]')"
++          ".parentElement.nextElementSibling.dataset.tahaiCommand === "
++          "'quad.open')")
++          .ExtractBool());
+   EXPECT_TRUE(content::EvalJs(
+                   contents,
+                   "document.body.textContent.includes('TAHAI Web Services') && "
+                   "document.body.textContent.includes('TAHAI IT Docs') && "
+-                  "document.body.textContent.includes('TAHAI Operational Intelligence')")
+-                  .ExtractBool());
+-  EXPECT_TRUE(content::EvalJs(
+-                  contents,
+-                  "['daily','creator','builder','operator','research','support']"
+-                  ".every(id => Boolean(document.querySelector('.mode-card.mode-' + id)))")
++                  "document.body.textContent.includes('TAHAI Operational "
++                  "Intelligence')")
+                   .ExtractBool());
++  EXPECT_TRUE(
++      content::EvalJs(
++          contents,
++          "['daily','creator','builder','operator','research','support']"
++          ".every(id => Boolean(document.querySelector('.mode-card.mode-' + "
++          "id)))")
++          .ExtractBool());
+   content::TestNavigationObserver mode_navigation(contents);
+   ASSERT_TRUE(content::ExecJs(
+       contents, "document.querySelector('[data-tahai-mode=creator]').click()"));
+   mode_navigation.Wait();
+   ASSERT_TRUE(mode_navigation.last_navigation_succeeded());
+-  EXPECT_TRUE(content::EvalJs(
+-                  contents,
+-                  "document.querySelector('.mode-actions h2')?.textContent"
+-                  ".includes('Creator Studio')")
+-                  .ExtractBool());
+-  EXPECT_TRUE(content::EvalJs(contents,
+-                              "document.body.classList.contains('mode-creator') && "
+-                              "document.body.textContent.includes('Neon Studio')")
+-                  .ExtractBool());
++  EXPECT_TRUE(
++      content::EvalJs(contents,
++                      "document.querySelector('.mode-actions h2')?.textContent"
++                      ".includes('Creator Studio')")
++          .ExtractBool());
++  EXPECT_TRUE(
++      content::EvalJs(contents,
++                      "document.body.classList.contains('mode-creator') && "
++                      "document.body.textContent.includes('Neon Studio')")
++          .ExtractBool());
+   EXPECT_EQ(GURL(tahai::kTahaiModesURL), contents->GetVisibleURL());
+   ASSERT_TRUE(content::ExecJs(
+       contents,
+       "document.querySelector('[data-tahai-open-dialog=mode-customize]')"
+       ".click()"));
+   ASSERT_TRUE(base::test::RunUntil([&] {
+-    return content::EvalJs(
+-               contents,
+-               "document.querySelector('#mode-customize').open")
++    return content::EvalJs(contents,
++                           "document.querySelector('#mode-customize').open")
+         .ExtractBool();
+   }));
+   ASSERT_TRUE(content::ExecJs(
+       contents, "document.querySelector('#mode-customize').close()"));
+   content::TestNavigationObserver configuration_navigation(contents);
+-  ASSERT_TRUE(content::ExecJs(
+-      contents,
+-      "document.querySelector('[data-tahai-mode-config=theme]"
+-      "[data-tahai-value=light]').click()"));
++  ASSERT_TRUE(
++      content::ExecJs(contents,
++                      "document.querySelector('[data-tahai-mode-config=theme]"
++                      "[data-tahai-value=light]').click()"));
+   configuration_navigation.Wait();
+   ASSERT_TRUE(configuration_navigation.last_navigation_succeeded());
+-  EXPECT_TRUE(content::EvalJs(contents,
+-                              "document.body.classList.contains('theme-light') && "
+-                              "document.body.classList.contains('mode-creator')")
++  EXPECT_TRUE(
++      content::EvalJs(contents,
++                      "document.body.classList.contains('theme-light') && "
++                      "document.body.classList.contains('mode-creator')")
++          .ExtractBool());
++  EXPECT_TRUE(
++      content::EvalJs(
++          contents,
++          "Boolean(document.querySelector('[data-tahai-mode-config=accent]"
++          "[data-tahai-value=slate]') && "
++          "document.querySelector('[data-tahai-mode-config=surface]"
++          "[data-tahai-value=paper]') && "
++          "document.querySelector('[data-tahai-mode-config=density]"
++          "[data-tahai-value=spacious]') && "
++          "document.querySelector('[data-tahai-mode-config=header]"
++          "[data-tahai-value=minimal]') && "
++          "document.querySelector('[data-tahai-mode-config=layout_variant]"
++          "[data-tahai-value=tri-one-over-two]'))")
++          .ExtractBool());
++  content::TestNavigationObserver accent_navigation(contents);
++  ASSERT_TRUE(
++      content::ExecJs(contents,
++                      "document.querySelector('[data-tahai-mode-config=accent]"
++                      "[data-tahai-value=slate]').click()"));
++  accent_navigation.Wait();
++  ASSERT_TRUE(accent_navigation.last_navigation_succeeded());
++  EXPECT_TRUE(content::EvalJs(
++                  contents, "document.body.classList.contains('accent-slate')")
+                   .ExtractBool());
++  content::TestNavigationObserver layout_navigation(contents);
++  ASSERT_TRUE(content::ExecJs(
++      contents,
++      "document.querySelector('[data-tahai-mode-config=layout_variant]"
++      "[data-tahai-value=tri-one-over-two]').click()"));
++  layout_navigation.Wait();
++  ASSERT_TRUE(layout_navigation.last_navigation_succeeded());
++  tahai::ModeService reloaded_mode_service(browser()->profile());
++  EXPECT_EQ("tri-one-over-two",
++            reloaded_mode_service.active_configuration().layout_variant_id);
+   ASSERT_TRUE(content::ExecJs(
+       contents,
+       "document.querySelector('[data-tahai-open-dialog=mode-templates]')"
+       ".click()"));
+   ASSERT_TRUE(base::test::RunUntil([&] {
+-    return content::EvalJs(
+-               contents,
+-               "document.querySelector('#mode-templates').open")
++    return content::EvalJs(contents,
++                           "document.querySelector('#mode-templates').open")
+         .ExtractBool();
+   }));
+   ASSERT_TRUE(content::ExecJs(
+       contents, "document.querySelector('#mode-templates').close()"));
+   content::TestNavigationObserver template_navigation(contents);
+-  ASSERT_TRUE(content::ExecJs(
+-      contents,
+-      "document.querySelector('[data-tahai-template=creative-brief]').click()"));
++  ASSERT_TRUE(content::ExecJs(contents,
++                              "document.querySelector('[data-tahai-template="
++                              "creative-brief]').click()"));
+   template_navigation.Wait();
+   ASSERT_TRUE(template_navigation.last_navigation_succeeded());
+   EXPECT_EQ(GURL(tahai::kTahaiMissionURL), contents->GetVisibleURL());
+-  EXPECT_TRUE(content::EvalJs(
+-                  contents,
+-                  "document.body.textContent.includes('Creative brief')")
+-                  .ExtractBool());
++  EXPECT_TRUE(
++      content::EvalJs(contents,
++                      "document.body.textContent.includes('Creative brief')")
++          .ExtractBool());
+   EXPECT_EQ(original_tab_count, browser()->tab_strip_model()->count());
+ }
+ 
+@@ -714,13 +766,11 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+   };
+   constexpr SurfaceCommand kSurfaceCommands[] = {
+       {IDC_TAHAI_LAUNCHPAD, tahai::kTahaiNewTabURL, "New Tab"},
+-      {IDC_TAHAI_MISSION_CONTROL, tahai::kTahaiMissionURL,
+-       "Mission Control"},
++      {IDC_TAHAI_MISSION_CONTROL, tahai::kTahaiMissionURL, "Mission Control"},
+       {IDC_TAHAI_COMMAND_CENTER, tahai::kTahaiOpsToolsURL,
+        "Operator Command Center"},
+       {IDC_TAHAI_WORK_MODES, tahai::kTahaiModesURL, "Work Modes"},
+-      {IDC_TAHAI_PROFILES, tahai::kTahaiProfilesURL,
+-       "Profile Administration"},
++      {IDC_TAHAI_PROFILES, tahai::kTahaiProfilesURL, "Profile Administration"},
+       {IDC_TAHAI_SUPPORT, tahai::kTahaiSupportURL, "Support"},
+       {IDC_TAHAI_POLICY, tahai::kTahaiPolicyURL, "Policy"},
+   };
+diff --git a/chrome/browser/ui/webui/tahai/tahai_mission_service_unittest.cc b/chrome/browser/ui/webui/tahai/tahai_mission_service_unittest.cc
+index 052781e91a..eea4e1c595 100644
+--- a/chrome/browser/ui/webui/tahai/tahai_mission_service_unittest.cc
++++ b/chrome/browser/ui/webui/tahai/tahai_mission_service_unittest.cc
+@@ -2,14 +2,14 @@
+ // SPDX-License-Identifier: Apache-2.0
+ 
+ #include "chrome/browser/ui/webui/tahai/tahai_mission_service.h"
+-#include "chrome/browser/ui/webui/tahai/tahai_mode_service.h"
+ 
+ #include <string>
+ 
+ #include "base/uuid.h"
+ #include "base/values.h"
+-#include "chrome/test/base/testing_profile.h"
++#include "chrome/browser/ui/webui/tahai/tahai_mode_service.h"
+ #include "chrome/common/pref_names.h"
++#include "chrome/test/base/testing_profile.h"
+ #include "components/prefs/pref_service.h"
+ #include "content/public/test/browser_task_environment.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+@@ -118,7 +118,8 @@ TEST_F(MissionServiceTest, DeletesOnlyKnownMission) {
+   const auto mission = service.CreateMission("Audit", "audit");
+   ASSERT_TRUE(mission.has_value());
+   EXPECT_FALSE(service.DeleteMission("not-a-uuid"));
+-  EXPECT_FALSE(service.DeleteMission(base::Uuid::GenerateRandomV4().AsLowercaseString()));
++  EXPECT_FALSE(service.DeleteMission(
++      base::Uuid::GenerateRandomV4().AsLowercaseString()));
+   EXPECT_TRUE(service.DeleteMission(mission->id));
+   EXPECT_TRUE(service.missions().empty());
+ }
+@@ -182,19 +183,40 @@ TEST_F(MissionServiceTest, WorkModeWorkspaceChoicesAreFiniteAndProfileScoped) {
+     ModeService service(&profile_);
+     EXPECT_EQ("dark", service.active_configuration().theme_id);
+     EXPECT_TRUE(service.SetActiveConfigurationValue("theme", "light"));
++    EXPECT_TRUE(service.SetActiveConfigurationValue("accent", "violet"));
++    EXPECT_TRUE(service.SetActiveConfigurationValue("surface", "paper"));
++    EXPECT_TRUE(service.SetActiveConfigurationValue("density", "spacious"));
++    EXPECT_TRUE(service.SetActiveConfigurationValue("header", "minimal"));
+     EXPECT_TRUE(service.SetActiveConfigurationValue("layout", "tri"));
+-    EXPECT_TRUE(service.SetActiveConfigurationValue("start_surface", "mission"));
+-    EXPECT_TRUE(service.SetActiveConfigurationValue("show_runbook_rail", "false"));
++    EXPECT_TRUE(service.SetActiveConfigurationValue("layout_variant",
++                                                    "tri-one-over-two"));
++    EXPECT_TRUE(
++        service.SetActiveConfigurationValue("start_surface", "mission"));
++    EXPECT_TRUE(
++        service.SetActiveConfigurationValue("show_runbook_rail", "false"));
+     EXPECT_FALSE(service.SetActiveConfigurationValue("theme", "neon"));
++    EXPECT_FALSE(service.SetActiveConfigurationValue("accent", "hot-pink"));
++    EXPECT_FALSE(service.SetActiveConfigurationValue("surface", "url(image)"));
++    EXPECT_FALSE(service.SetActiveConfigurationValue("density", "giant"));
++    EXPECT_FALSE(
++        service.SetActiveConfigurationValue("header", "hidden-script"));
++    EXPECT_FALSE(
++        service.SetActiveConfigurationValue("layout_variant", "arbitrary"));
+     EXPECT_FALSE(service.SetActiveConfigurationValue("start_surface",
+-                                                    "https://example.test"));
++                                                     "https://example.test"));
+     EXPECT_FALSE(service.SetActiveConfigurationValue("layout", "arbitrary"));
+     EXPECT_FALSE(service.SetActiveConfigurationValue("script", "alert(1)"));
+   }
+ 
+   ModeService reloaded(&profile_);
+   EXPECT_EQ("light", reloaded.active_configuration().theme_id);
++  EXPECT_EQ("violet", reloaded.active_configuration().accent_id);
++  EXPECT_EQ("paper", reloaded.active_configuration().surface_id);
++  EXPECT_EQ("spacious", reloaded.active_configuration().density_id);
++  EXPECT_EQ("minimal", reloaded.active_configuration().header_id);
+   EXPECT_EQ("tri", reloaded.active_configuration().layout_id);
++  EXPECT_EQ("tri-one-over-two",
++            reloaded.active_configuration().layout_variant_id);
+   EXPECT_EQ("mission", reloaded.active_configuration().start_surface);
+   EXPECT_FALSE(reloaded.active_configuration().show_runbook_rail);
+ }
+@@ -202,18 +224,18 @@ TEST_F(MissionServiceTest, WorkModeWorkspaceChoicesAreFiniteAndProfileScoped) {
+ TEST_F(MissionServiceTest, WorkModeTemplatesAreBoundedToTheirMode) {
+   ModeService service(&profile_);
+   ASSERT_EQ(12u, ModeService::templates().size());
+-  const WorkModeTemplate* creator =
+-      ModeService::FindTemplate("creative-brief");
++  const WorkModeTemplate* creator = ModeService::FindTemplate("creative-brief");
+   ASSERT_TRUE(creator);
+   EXPECT_EQ("creator", creator->mode_id);
+   EXPECT_EQ("documentation", creator->mission_type);
+   EXPECT_EQ(nullptr, ModeService::FindTemplate("https://example.test"));
+-  EXPECT_FALSE(service.SetActiveConfigurationValue("template",
+-                                                   "creative-brief"));
++  EXPECT_FALSE(
++      service.SetActiveConfigurationValue("template", "creative-brief"));
+   ASSERT_TRUE(service.SetActiveMode("creator"));
+-  EXPECT_TRUE(service.SetActiveConfigurationValue("template", "creative-brief"));
+-  EXPECT_FALSE(service.SetActiveConfigurationValue("template",
+-                                                   "incident-bridge"));
++  EXPECT_TRUE(
++      service.SetActiveConfigurationValue("template", "creative-brief"));
++  EXPECT_FALSE(
++      service.SetActiveConfigurationValue("template", "incident-bridge"));
+ }
+ 
+ TEST_F(MissionServiceTest, OffTheRecordModesAreEphemeralAndDefaultToDaily) {
+diff --git a/chrome/browser/ui/webui/tahai/tahai_mode_service.cc b/chrome/browser/ui/webui/tahai/tahai_mode_service.cc
+index 3d9c2900a6..5d3900f89b 100644
+--- a/chrome/browser/ui/webui/tahai/tahai_mode_service.cc
++++ b/chrome/browser/ui/webui/tahai/tahai_mode_service.cc
+@@ -11,6 +11,7 @@
+ 
+ #include "base/check.h"
+ #include "base/no_destructor.h"
++#include "base/strings/string_util.h"
+ #include "base/values.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/common/pref_names.h"
+@@ -24,8 +25,8 @@ constexpr std::array<WorkModeDefinition, 6> kDefinitions = {{
+     {"daily", "Daily Driver", "Quiet Current",
+      "Everyday personal and professional browsing",
+      "Browse naturally. Keep the browser clean.", "1-up or lightweight 2-up",
+-     "Calm browsing; no operator chrome unless opened",
+-     "TAHAI Browser", "documentation"},
++     "Calm browsing; no operator chrome unless opened", "TAHAI Browser",
++     "documentation"},
+     {"creator", "Creator Studio", "Neon Studio",
+      "Design, publish, and content work",
+      "Create with references, assets, and previews in reach.",
+@@ -59,31 +60,68 @@ constexpr std::array<WorkModeDefinition, 6> kDefinitions = {{
+ }};
+ 
+ constexpr std::array<WorkModeModifier, 3> kModifiers = {{
+-    {"focus", "Focus", "Preserve the current workspace while emphasizing one pane."},
+-    {"watch", "Watch / NOC", "A monitoring-oriented presentation for Builder or Operator work."},
+-    {"presentation", "Presentation", "A deliberate, sanitized sharing presentation."},
++    {"focus", "Focus",
++     "Preserve the current workspace while emphasizing one pane."},
++    {"watch", "Watch / NOC",
++     "A monitoring-oriented presentation for Builder or Operator work."},
++    {"presentation", "Presentation",
++     "A deliberate, sanitized sharing presentation."},
+ }};
+ 
+ constexpr std::array<WorkModeTemplate, 12> kTemplates = {{
+-    {"daily-review", "daily", "Daily review", "A bounded plan for routine browsing and follow-up.", "documentation"},
+-    {"daily-research", "daily", "Quick research", "A compact, source-led investigation runbook.", "investigation"},
+-    {"creative-brief", "creator", "Creative brief", "TAHAI Web Services design and content brief with validation.", "documentation"},
+-    {"publish-checklist", "creator", "Publish checklist", "A deliberate publishing change checklist with rollback.", "change"},
+-    {"build-plan", "builder", "Build plan", "Development checkpoints with TAHAI IT Docs and Operational Intelligence lanes.", "development"},
+-    {"release-checklist", "builder", "Release checklist", "A bounded deployment checklist with validation and rollback.", "deployment"},
+-    {"incident-bridge", "operator", "Incident bridge", "An incident runbook with PSA, IT Docs, and Operational Intelligence context.", "incident"},
+-    {"change-window", "operator", "Change window", "A controlled technical change runbook with an explicit restore path.", "change"},
+-    {"source-review", "research", "Source review", "An auditable source-comparison runbook using Operational Intelligence lanes.", "audit"},
+-    {"research-synthesis", "research", "Research synthesis", "A traceable research documentation runbook.", "documentation"},
+-    {"support-case", "support", "Support case", "A customer-safe support runbook with PSA and IT Docs handoff lanes.", "support"},
+-    {"escalation-handoff", "support", "Escalation handoff", "A bounded escalation runbook with Operational Intelligence context.", "incident"},
++    {"daily-review", "daily", "Daily review",
++     "A bounded plan for routine browsing and follow-up.", "documentation"},
++    {"daily-research", "daily", "Quick research",
++     "A compact, source-led investigation runbook.", "investigation"},
++    {"creative-brief", "creator", "Creative brief",
++     "TAHAI Web Services design and content brief with validation.",
++     "documentation"},
++    {"publish-checklist", "creator", "Publish checklist",
++     "A deliberate publishing change checklist with rollback.", "change"},
++    {"build-plan", "builder", "Build plan",
++     "Development checkpoints with TAHAI IT Docs and Operational Intelligence "
++     "lanes.",
++     "development"},
++    {"release-checklist", "builder", "Release checklist",
++     "A bounded deployment checklist with validation and rollback.",
++     "deployment"},
++    {"incident-bridge", "operator", "Incident bridge",
++     "An incident runbook with PSA, IT Docs, and Operational Intelligence "
++     "context.",
++     "incident"},
++    {"change-window", "operator", "Change window",
++     "A controlled technical change runbook with an explicit restore path.",
++     "change"},
++    {"source-review", "research", "Source review",
++     "An auditable source-comparison runbook using Operational Intelligence "
++     "lanes.",
++     "audit"},
++    {"research-synthesis", "research", "Research synthesis",
++     "A traceable research documentation runbook.", "documentation"},
++    {"support-case", "support", "Support case",
++     "A customer-safe support runbook with PSA and IT Docs handoff lanes.",
++     "support"},
++    {"escalation-handoff", "support", "Escalation handoff",
++     "A bounded escalation runbook with Operational Intelligence context.",
++     "incident"},
+ }};
+ 
+ constexpr std::array<std::string_view, 2> kThemeIds = {"dark", "light"};
++constexpr std::array<std::string_view, 6> kAccentIds = {
++    "mode", "slate", "azure", "teal", "violet", "amber"};
++constexpr std::array<std::string_view, 4> kSurfaceIds = {"mode", "quiet",
++                                                         "grid", "paper"};
++constexpr std::array<std::string_view, 3> kDensityIds = {"comfortable",
++                                                         "compact", "spacious"};
++constexpr std::array<std::string_view, 3> kHeaderIds = {"standard", "compact",
++                                                        "minimal"};
+ constexpr std::array<std::string_view, 4> kStartSurfaceIds = {
+     "launchpad", "mission", "commands", "modes"};
+-constexpr std::array<std::string_view, 4> kLayoutIds = {
+-    "one", "dual", "tri", "quad"};
++constexpr std::array<std::string_view, 4> kLayoutIds = {"one", "dual", "tri",
++                                                        "quad"};
++constexpr std::array<std::string_view, 6> kLayoutVariantIds = {
++    "one", "dual-side", "dual-stack", "tri-two-over-one", "tri-one-over-two",
++    "quad"};
+ 
+ const WorkModeDefinition& DailyDefinition() {
+   return kDefinitions.front();
+@@ -146,10 +184,9 @@ const WorkModeDefinition* ModeService::FindDefinition(std::string_view id) {
+ }
+ 
+ const WorkModeTemplate* ModeService::FindTemplate(std::string_view id) {
+-  const auto it = std::find_if(kTemplates.begin(), kTemplates.end(),
+-                               [id](const WorkModeTemplate& candidate) {
+-                                 return candidate.id == id;
+-                               });
++  const auto it = std::find_if(
++      kTemplates.begin(), kTemplates.end(),
++      [id](const WorkModeTemplate& candidate) { return candidate.id == id; });
+   return it == kTemplates.end() ? nullptr : &*it;
+ }
+ 
+@@ -185,8 +222,8 @@ bool ModeService::SetModifierEnabled(std::string_view modifier, bool enabled) {
+   if (!IsKnownModifier(modifier)) {
+     return false;
+   }
+-  const auto found = std::find(enabled_modifiers_.begin(), enabled_modifiers_.end(),
+-                               modifier);
++  const auto found =
++      std::find(enabled_modifiers_.begin(), enabled_modifiers_.end(), modifier);
+   if (enabled && found == enabled_modifiers_.end()) {
+     enabled_modifiers_.push_back(std::string(modifier));
+   } else if (!enabled && found != enabled_modifiers_.end()) {
+@@ -204,21 +241,44 @@ bool ModeService::SetActiveConfigurationValue(std::string_view key,
+   if (!IsValidConfiguration(active_mode_id_, key, value)) {
+     return false;
+   }
+-  StoredConfiguration* configuration =
+-      FindStoredConfiguration(active_mode_id_);
++  StoredConfiguration* configuration = FindStoredConfiguration(active_mode_id_);
+   CHECK(configuration);
+   if (key == "theme") {
+     configuration->configuration.theme_id = value;
++  } else if (key == "accent") {
++    configuration->configuration.accent_id = value;
++  } else if (key == "surface") {
++    configuration->configuration.surface_id = value;
++  } else if (key == "density") {
++    configuration->configuration.density_id = value;
++    configuration->configuration.compact_controls = value == "compact";
++  } else if (key == "header") {
++    configuration->configuration.header_id = value;
+   } else if (key == "start_surface") {
+     configuration->configuration.start_surface = value;
+   } else if (key == "layout") {
+     configuration->configuration.layout_id = value;
++    configuration->configuration.layout_variant_id =
++        value == "one"    ? "one"
++        : value == "dual" ? "dual-side"
++        : value == "tri"  ? "tri-two-over-one"
++                          : "quad";
++  } else if (key == "layout_variant") {
++    configuration->configuration.layout_variant_id = value;
++    configuration->configuration.layout_id =
++        value == "one"                                                  ? "one"
++        : base::StartsWith(value, "dual", base::CompareCase::SENSITIVE) ? "dual"
++        : base::StartsWith(value, "tri", base::CompareCase::SENSITIVE)  ? "tri"
++                                                                       : "quad";
+   } else if (key == "template") {
+     configuration->configuration.template_id = value;
+   } else if (key == "show_runbook_rail") {
+     configuration->configuration.show_runbook_rail = value == "true";
+   } else if (key == "compact_controls") {
+     configuration->configuration.compact_controls = value == "true";
++    configuration->configuration.density_id =
++        configuration->configuration.compact_controls ? "compact"
++                                                      : "comfortable";
+   } else {
+     return false;
+   }
+@@ -227,8 +287,7 @@ bool ModeService::SetActiveConfigurationValue(std::string_view key,
+ }
+ 
+ bool ModeService::ResetActiveConfiguration() {
+-  StoredConfiguration* configuration =
+-      FindStoredConfiguration(active_mode_id_);
++  StoredConfiguration* configuration = FindStoredConfiguration(active_mode_id_);
+   CHECK(configuration);
+   configuration->configuration = DefaultConfigurationForMode(active_mode_id_);
+   SaveConfigurations();
+@@ -249,31 +308,54 @@ WorkModeWorkspaceConfiguration ModeService::DefaultConfigurationForMode(
+   const WorkModeDefinition* definition = FindDefinition(mode_id);
+   CHECK(definition);
+   WorkModeWorkspaceConfiguration configuration;
+-  configuration.theme_id = mode_id == "research" || mode_id == "support"
+-                               ? "light"
+-                               : "dark";
++  configuration.theme_id =
++      mode_id == "research" || mode_id == "support" ? "light" : "dark";
++  configuration.accent_id = "mode";
++  configuration.surface_id = mode_id == "builder" || mode_id == "operator"
++                                 ? "grid"
++                             : mode_id == "research" ? "paper"
++                                                     : "quiet";
++  configuration.density_id = mode_id == "operator" ? "compact" : "comfortable";
++  configuration.header_id = mode_id == "builder" ? "compact" : "standard";
+   configuration.start_surface = mode_id == "daily" ? "launchpad" : "mission";
+-  configuration.layout_id = mode_id == "daily" ? "one"
+-                            : mode_id == "creator" || mode_id == "research" ||
+-                                      mode_id == "support"
+-                                ? "dual"
+-                                : mode_id == "builder" ? "tri" : "quad";
+-  configuration.template_id = std::string(mode_id) +
+-                              (mode_id == "daily" ? "-review"
+-                               : mode_id == "creator" ? "-brief"
+-                               : mode_id == "builder" ? "-plan"
+-                               : mode_id == "operator" ? "-bridge"
+-                               : mode_id == "research" ? "-review"
+-                               : "-case");
++  configuration.layout_id =
++      mode_id == "daily" ? "one"
++      : mode_id == "creator" || mode_id == "research" || mode_id == "support"
++          ? "dual"
++      : mode_id == "builder" ? "tri"
++                             : "quad";
++  configuration.template_id =
++      std::string(mode_id) + (mode_id == "daily"      ? "-review"
++                              : mode_id == "creator"  ? "-brief"
++                              : mode_id == "builder"  ? "-plan"
++                              : mode_id == "operator" ? "-bridge"
++                              : mode_id == "research" ? "-review"
++                                                      : "-case");
+   // The template names above are semantic rather than arbitrary. Map the
+   // few modes whose external template ids use a more descriptive prefix.
+-  if (mode_id == "creator") configuration.template_id = "creative-brief";
+-  if (mode_id == "builder") configuration.template_id = "build-plan";
+-  if (mode_id == "operator") configuration.template_id = "incident-bridge";
+-  if (mode_id == "research") configuration.template_id = "source-review";
+-  if (mode_id == "support") configuration.template_id = "support-case";
++  if (mode_id == "creator") {
++    configuration.template_id = "creative-brief";
++  }
++  if (mode_id == "builder") {
++    configuration.template_id = "build-plan";
++  }
++  if (mode_id == "operator") {
++    configuration.template_id = "incident-bridge";
++  }
++  if (mode_id == "research") {
++    configuration.template_id = "source-review";
++  }
++  if (mode_id == "support") {
++    configuration.template_id = "support-case";
++  }
++  configuration.layout_variant_id = mode_id == "creator" || mode_id == "support"
++                                        ? "tri-one-over-two"
++                                    : mode_id == "builder"  ? "tri-two-over-one"
++                                    : mode_id == "operator" ? "quad"
++                                    : mode_id == "research" ? "dual-side"
++                                                            : "one";
+   configuration.show_runbook_rail = mode_id != "daily";
+-  configuration.compact_controls = mode_id == "operator";
++  configuration.compact_controls = configuration.density_id == "compact";
+   return configuration;
+ }
+ 
+@@ -298,14 +380,37 @@ const ModeService::StoredConfiguration* ModeService::FindStoredConfiguration(
+ bool ModeService::IsValidConfiguration(std::string_view mode_id,
+                                        std::string_view key,
+                                        std::string_view value) const {
+-  if (!FindDefinition(mode_id)) return false;
++  if (!FindDefinition(mode_id)) {
++    return false;
++  }
+   const auto contains = [value](const auto& candidates) {
+     return std::find(candidates.begin(), candidates.end(), value) !=
+            candidates.end();
+   };
+-  if (key == "theme") return contains(kThemeIds);
+-  if (key == "start_surface") return contains(kStartSurfaceIds);
+-  if (key == "layout") return contains(kLayoutIds);
++  if (key == "theme") {
++    return contains(kThemeIds);
++  }
++  if (key == "accent") {
++    return contains(kAccentIds);
++  }
++  if (key == "surface") {
++    return contains(kSurfaceIds);
++  }
++  if (key == "density") {
++    return contains(kDensityIds);
++  }
++  if (key == "header") {
++    return contains(kHeaderIds);
++  }
++  if (key == "start_surface") {
++    return contains(kStartSurfaceIds);
++  }
++  if (key == "layout") {
++    return contains(kLayoutIds);
++  }
++  if (key == "layout_variant") {
++    return contains(kLayoutVariantIds);
++  }
+   if (key == "template") {
+     const WorkModeTemplate* template_definition = FindTemplate(value);
+     return template_definition && template_definition->mode_id == mode_id;
+@@ -323,9 +428,9 @@ void ModeService::LoadConfigurations() {
+   for (const WorkModeDefinition& definition : kDefinitions) {
+     StoredConfiguration stored{std::string(definition.id),
+                                DefaultConfigurationForMode(definition.id)};
+-    const base::DictValue* saved = saved_configurations
+-                                       ? saved_configurations->FindDict(definition.id)
+-                                       : nullptr;
++    const base::DictValue* saved =
++        saved_configurations ? saved_configurations->FindDict(definition.id)
++                             : nullptr;
+     if (saved) {
+       const auto load_string = [&](std::string_view key, std::string* target) {
+         if (const std::string* value = saved->FindString(key);
+@@ -334,27 +439,55 @@ void ModeService::LoadConfigurations() {
+         }
+       };
+       load_string("theme", &stored.configuration.theme_id);
++      load_string("accent", &stored.configuration.accent_id);
++      load_string("surface", &stored.configuration.surface_id);
++      load_string("density", &stored.configuration.density_id);
++      load_string("header", &stored.configuration.header_id);
+       load_string("start_surface", &stored.configuration.start_surface);
+       load_string("layout", &stored.configuration.layout_id);
++      load_string("layout_variant", &stored.configuration.layout_variant_id);
+       load_string("template", &stored.configuration.template_id);
+-      if (const std::optional<bool> runbook = saved->FindBool("show_runbook_rail"))
++      if (const std::optional<bool> runbook =
++              saved->FindBool("show_runbook_rail")) {
+         stored.configuration.show_runbook_rail = *runbook;
+-      if (const std::optional<bool> compact = saved->FindBool("compact_controls"))
++      }
++      if (const std::optional<bool> compact =
++              saved->FindBool("compact_controls")) {
+         stored.configuration.compact_controls = *compact;
++      }
++      if (!saved->FindString("density")) {
++        stored.configuration.density_id =
++            stored.configuration.compact_controls ? "compact" : "comfortable";
++      }
++      if (!saved->FindString("layout_variant")) {
++        const std::string_view layout = stored.configuration.layout_id;
++        stored.configuration.layout_variant_id = layout == "dual" ? "dual-side"
++                                                 : layout == "tri"
++                                                     ? "tri-two-over-one"
++                                                 : layout == "quad" ? "quad"
++                                                                    : "one";
++      }
+     }
+     configurations_.push_back(std::move(stored));
+   }
+ }
+ 
+ void ModeService::SaveConfigurations() {
+-  if (!persistence_enabled()) return;
++  if (!persistence_enabled()) {
++    return;
++  }
+   ScopedDictPrefUpdate update(prefs_, prefs::kTahaiWorkModePreferences);
+   base::DictValue saved_configurations;
+   for (const StoredConfiguration& stored : configurations_) {
+     base::DictValue value;
+     value.Set("theme", stored.configuration.theme_id);
++    value.Set("accent", stored.configuration.accent_id);
++    value.Set("surface", stored.configuration.surface_id);
++    value.Set("density", stored.configuration.density_id);
++    value.Set("header", stored.configuration.header_id);
+     value.Set("start_surface", stored.configuration.start_surface);
+     value.Set("layout", stored.configuration.layout_id);
++    value.Set("layout_variant", stored.configuration.layout_variant_id);
+     value.Set("template", stored.configuration.template_id);
+     value.Set("show_runbook_rail", stored.configuration.show_runbook_rail);
+     value.Set("compact_controls", stored.configuration.compact_controls);
+@@ -375,8 +508,8 @@ void ModeService::SetDefaultForOffTheRecord() {
+   enabled_modifiers_.clear();
+   configurations_.clear();
+   for (const WorkModeDefinition& definition : kDefinitions) {
+-    configurations_.push_back(
+-        {std::string(definition.id), DefaultConfigurationForMode(definition.id)});
++    configurations_.push_back({std::string(definition.id),
++                               DefaultConfigurationForMode(definition.id)});
+   }
+ }
+ 
+diff --git a/chrome/browser/ui/webui/tahai/tahai_mode_service.h b/chrome/browser/ui/webui/tahai/tahai_mode_service.h
+index 57cb994086..d1fa58e5f0 100644
+--- a/chrome/browser/ui/webui/tahai/tahai_mode_service.h
++++ b/chrome/browser/ui/webui/tahai/tahai_mode_service.h
+@@ -59,8 +59,13 @@ struct WorkModeTemplate {
+ // arbitrary user-defined payloads.
+ struct WorkModeWorkspaceConfiguration {
+   std::string theme_id;
++  std::string accent_id;
++  std::string surface_id;
++  std::string density_id;
++  std::string header_id;
+   std::string start_surface;
+   std::string layout_id;
++  std::string layout_variant_id;
+   std::string template_id;
+   bool show_runbook_rail = true;
+   bool compact_controls = false;
+diff --git a/chrome/browser/ui/webui/tahai/tahai_ui.cc b/chrome/browser/ui/webui/tahai/tahai_ui.cc
+index a35d981a63..e1f8950bfa 100644
+--- a/chrome/browser/ui/webui/tahai/tahai_ui.cc
++++ b/chrome/browser/ui/webui/tahai/tahai_ui.cc
+@@ -16,8 +16,8 @@
+ #include "base/memory/ref_counted.h"
+ #include "base/memory/ref_counted_memory.h"
+ #include "base/strings/escape.h"
+-#include "base/strings/string_number_conversions.h"
+ #include "base/strings/strcat.h"
++#include "base/strings/string_number_conversions.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/values.h"
+ #include "chrome/app/chrome_command_ids.h"
+@@ -78,36 +78,60 @@ struct RecipeDefinition {
+ };
+ 
+ constexpr std::array<RecipeDefinition, 10> kRecipeLibrary = {{
+-    {"dns-migration", "DNS Migration", "migration",
++    {"dns-migration",
++     "DNS Migration",
++     "migration",
+      {"https://dash.cloudflare.com/", "https://www.whatsmydns.net/",
+       "https://www.iana.org/whois", "https://developers.cloudflare.com/dns/"}},
+-    {"m365-user-offboarding", "Microsoft 365 User Offboarding", "admin",
++    {"m365-user-offboarding",
++     "Microsoft 365 User Offboarding",
++     "admin",
+      {"https://admin.microsoft.com/", "https://entra.microsoft.com/",
+       "https://security.microsoft.com/",
+-      "https://learn.microsoft.com/microsoft-365/admin/add-users/remove-former-employee"}},
+-    {"firewall-change", "Firewall Change", "admin",
++      "https://learn.microsoft.com/microsoft-365/admin/add-users/"
++      "remove-former-employee"}},
++    {"firewall-change",
++     "Firewall Change",
++     "admin",
+      {"https://support.fortinet.com/", "https://support.paloaltonetworks.com/",
+       "https://www.cisco.com/c/en/us/support/index.html",
+       "https://www.cisa.gov/topics/cyber-threats-and-advisories"}},
+-    {"production-deployment", "Production Deployment", "deployment",
++    {"production-deployment",
++     "Production Deployment",
++     "deployment",
+      {"https://github.com/", "https://vercel.com/dashboard",
+       "https://www.vercel-status.com/", "https://docs.github.com/actions"}},
+-    {"certificate-renewal", "Certificate Renewal", "migration",
++    {"certificate-renewal",
++     "Certificate Renewal",
++     "migration",
+      {"https://dash.cloudflare.com/", "https://www.ssllabs.com/ssltest/",
+       "https://crt.sh/", "https://developers.cloudflare.com/ssl/"}},
+-    {"incident-triage", "Incident Triage", "incident",
++    {"incident-triage",
++     "Incident Triage",
++     "incident",
+      {"https://www.cloudflarestatus.com/", "https://www.githubstatus.com/",
+-      "https://status.aws.amazon.com/", "https://www.cisa.gov/news-events/alerts"}},
+-    {"github-actions-release", "GitHub Actions Release", "deployment",
++      "https://status.aws.amazon.com/",
++      "https://www.cisa.gov/news-events/alerts"}},
++    {"github-actions-release",
++     "GitHub Actions Release",
++     "deployment",
+      {"https://github.com/", "https://www.githubstatus.com/",
+-      "https://docs.github.com/actions", "https://docs.github.com/actions/managing-workflow-runs"}},
+-    {"cloudflare-cutover", "Cloudflare Cutover", "migration",
++      "https://docs.github.com/actions",
++      "https://docs.github.com/actions/managing-workflow-runs"}},
++    {"cloudflare-cutover",
++     "Cloudflare Cutover",
++     "migration",
+      {"https://dash.cloudflare.com/", "https://www.cloudflarestatus.com/",
+       "https://developers.cloudflare.com/", "https://www.whatsmydns.net/"}},
+-    {"workstation-admin-setup", "New Workstation / Admin Setup", "admin",
++    {"workstation-admin-setup",
++     "New Workstation / Admin Setup",
++     "admin",
+      {"https://admin.microsoft.com/", "https://entra.microsoft.com/",
+-      "https://learn.microsoft.com/mem/intune/", "https://learn.microsoft.com/windows/"}},
+-    {"vendor-support-handoff", "Vendor Support Handoff", "support",
++      "https://learn.microsoft.com/mem/intune/",
++      "https://learn.microsoft.com/windows/"}},
++    {"vendor-support-handoff",
++     "Vendor Support Handoff",
++     "support",
+      {"https://support.microsoft.com/", "https://support.cloudflare.com/",
+       "https://support.github.com/", "https://www.cisa.gov/resources-tools"}},
+ }};
+@@ -271,6 +295,22 @@ body.theme-light.mode-support{color:#16242d;--mode-surface:#f1f5f6f2;--mode-surf
+ body.theme-light.mode-daily .eyebrow,body.theme-light.mode-creator .eyebrow,
+ body.theme-light.mode-builder .eyebrow,body.theme-light.mode-operator .eyebrow,
+ body.theme-light.mode-research .eyebrow,body.theme-light.mode-support .eyebrow{color:var(--mode-accent);text-shadow:none}
++
++/* Workspace Studio is intentionally finite and visual-only. These classes
++   turn every saved per-mode choice into an observable cockpit treatment. */
++body.accent-slate{--mode-accent:#64748b;--mode-accent-strong:#94a3b8;--cyan:#9aa8b8;--blue:#718097;--mint:#a3b0a4;--violet:#85899d;--coral:#a38c83}
++body.accent-azure{--mode-accent:#3d7ea6;--mode-accent-strong:#63a7cf;--cyan:#8fc4dd;--blue:#4b88ba;--mint:#98bdb6;--violet:#748ca9;--coral:#aa9375}
++body.accent-teal{--mode-accent:#3f7f79;--mode-accent-strong:#66a79d;--cyan:#86bbb5;--blue:#4c8f93;--mint:#a5c6a9;--violet:#798e98;--coral:#ad986f}
++body.accent-violet{--mode-accent:#765d8b;--mode-accent-strong:#9b81af;--cyan:#a99ec1;--blue:#7376a6;--mint:#b5b29d;--violet:#967eae;--coral:#ad8580}
++body.accent-amber{--mode-accent:#92734c;--mode-accent-strong:#b69567;--cyan:#b5a983;--blue:#7e8490;--mint:#afb18e;--violet:#928894;--coral:#ba885c}
++body.surface-quiet{background-image:linear-gradient(145deg,#0e151c,#141c24 58%,#10171d);background-size:auto}body.theme-light.surface-quiet{background-image:linear-gradient(145deg,#f4f6f7,#e8edf0 58%,#f5f6f7)}
++body.surface-grid{background-image:linear-gradient(#8ba2b10d 1px,transparent 1px),linear-gradient(90deg,#8ba2b10d 1px,transparent 1px),linear-gradient(145deg,#0d151c,#13202a 58%,#10161c);background-size:32px 32px,32px 32px,auto}body.theme-light.surface-grid{background-image:linear-gradient(#5b72840f 1px,transparent 1px),linear-gradient(90deg,#5b72840f 1px,transparent 1px),linear-gradient(145deg,#f3f6f7,#e6eef2 58%,#f2f5f6)}
++body.surface-paper{background-image:linear-gradient(#c5b99a0c 1px,transparent 1px),linear-gradient(145deg,#171511,#242019 58%,#181611);background-size:100% 28px,auto}body.theme-light.surface-paper{background-image:linear-gradient(#8d7e5f14 1px,transparent 1px),linear-gradient(145deg,#f8f5ed,#ebe5da 58%,#f5f1e9)}
++body.density-compact .shell{gap:14px}body.density-compact .section{gap:12px}body.density-compact .hero{padding:26px}body.density-compact .panel,body.density-compact .card{padding:14px}body.density-compact .mode-dialog form{gap:12px;padding:18px}body.density-compact header{padding:12px 16px}body.density-compact .grid{gap:10px}
++body.density-spacious .shell{gap:30px}body.density-spacious .section{gap:26px}body.density-spacious .hero{padding:42px}body.density-spacious .panel,body.density-spacious .card{padding:24px}body.density-spacious .grid{gap:18px}
++body.header-compact header{padding:10px 14px}body.header-compact header .mark{width:38px;height:38px}body.header-compact header h1{font-size:1.35rem}body.header-compact header .eyebrow{font-size:.58rem}
++body.header-minimal header{padding:10px 14px}body.header-minimal header .mark{width:34px;height:34px}body.header-minimal header .eyebrow{display:none}body.header-minimal header h1{font-size:1.2rem}
++body.runbook-rail-hidden .mode-runbook-rail{display:none}
+ )TAHAI";
+ 
+ constexpr char kCommandJs[] = R"TAHAI(
+@@ -302,32 +342,45 @@ constexpr char kCommandPaletteHtml[] = R"TAHAI(
+ <dialog id=tahai-command-palette class=command-palette aria-labelledby=tahai-command-palette-title><form method=dialog><div class=command-palette-head><div><p class=eyebrow>TAHAI command palette</p><h2 id=tahai-command-palette-title>Go directly to work.</h2><p class=muted>Only fixed native TAHAI commands are available. Press Ctrl + Shift + Space from any TAHAI surface.</p></div><button class=chip type=button data-tahai-close-palette>Close</button></div><input id=tahai-palette-input class=command-input type=search autocomplete=off placeholder="Filter commands, layouts, and surfaces" aria-label="Filter TAHAI commands"><div class=command-palette-results><button class=command type=button data-tahai-palette-command=launchpad.open data-tahai-palette-search="home launchpad start"><span>Launchpad</span><kbd>Alt+Shift+L</kbd></button><button class=command type=button data-tahai-palette-command=mission.open data-tahai-palette-search="mission control runbook"><span>Mission Control</span><kbd>Alt+Shift+M</kbd></button><button class=command type=button data-tahai-palette-command=modes.open data-tahai-palette-search="modes workspace theme templates"><span>Work Modes</span><kbd>Alt+Shift+V</kbd></button><button class=command type=button data-tahai-palette-command=commands.open data-tahai-palette-search="command center tools"><span>Command Center</span><kbd>Alt+Shift+O</kbd></button><button class=command type=button data-tahai-palette-command=dual.open data-tahai-palette-search="dual side by side two pane"><span>Dual: side by side</span><kbd>Alt+Shift+D</kbd></button><button class=command type=button data-tahai-palette-command=dual.stacked data-tahai-palette-search="dual stacked vertical two pane"><span>Dual: stacked</span><kbd>Alt+Shift+S</kbd></button><button class=command type=button data-tahai-palette-command=tri.two-over-one data-tahai-palette-search="tri two over one three pane"><span>Tri: two over one</span><kbd>Alt+Shift+G</kbd></button><button class=command type=button data-tahai-palette-command=tri.one-over-two data-tahai-palette-search="tri one over two three pane"><span>Tri: one over two</span><kbd>Alt+Shift+U</kbd></button><button class=command type=button data-tahai-palette-command=quad.open data-tahai-palette-search="quad four pane 2 by 2"><span>Quad: 2 × 2 workspace</span><kbd>Alt+Shift+Q</kbd></button><button class=command type=button data-tahai-palette-command=quad.focus data-tahai-palette-search="focus active pane"><span>Focus active pane</span><kbd>Alt+Shift+F</kbd></button><button class=command type=button data-tahai-palette-command=quad.exit data-tahai-palette-search="exit layout multiview"><span>Exit multi-view</span><kbd>Alt+Shift+E</kbd></button><button class=command type=button data-tahai-palette-command=profiles.open data-tahai-palette-search="profiles privacy identity"><span>Profile administration</span><kbd>Alt+Shift+Y</kbd></button></div></form></dialog>
+ )TAHAI";
+ 
+-std::string PageFrame(std::string_view title,
+-                      std::string_view content,
+-                      std::string_view theme = "dark",
+-                      std::string_view mode_id = "daily") {
++std::string PageFrame(
++    std::string_view title,
++    std::string_view content,
++    std::string_view theme = "dark",
++    std::string_view mode_id = "daily",
++    const WorkModeWorkspaceConfiguration* configuration = nullptr) {
+   const std::string_view body_class =
+       theme == "light" ? "theme-light" : "theme-dark";
+   const WorkModeDefinition* definition = ModeService::FindDefinition(mode_id);
+   const std::string_view safe_mode_id =
+       definition ? definition->id : std::string_view("daily");
++  const std::string workspace_classes =
++      configuration
++          ? base::StrCat({" accent-", configuration->accent_id, " surface-",
++                          configuration->surface_id, " density-",
++                          configuration->density_id, " header-",
++                          configuration->header_id,
++                          configuration->show_runbook_rail
++                              ? ""
++                              : " runbook-rail-hidden"})
++          : " accent-mode surface-mode density-comfortable header-standard";
+   return "<!doctype html><html lang=en><head><meta charset=utf-8><meta "
+          "name=viewport "
+          "content=\"width=device-width,initial-scale=1\"><title>" +
+          std::string(title) +
+          "</title><link rel=stylesheet href=/app.css></head><body class=\"" +
+          std::string(body_class) + " mode-" + std::string(safe_mode_id) +
++         workspace_classes +
+          "\"><main "
+          "class=shell><header><div class=brand>" +
+          kBrandMark +
+          "<div><p class=eyebrow>TAHAI Web Services Browser</p><h1>" +
+-         std::string(title) +
+-         "</h1></div></div></header>" +
++         std::string(title) + "</h1></div></div></header>" +
+          std::string(content) +
+          "<footer class=footer>Native Chromium surface · profile scoped · no "
+          "Electron runtime · no page-content "
+          "collection</footer>" +
+-         kCommandPaletteHtml + "<script src=/actions.js></script>"
++         kCommandPaletteHtml +
++         "<script src=/actions.js></script>"
+          "</main></body></html>";
+ }
+ 
+@@ -341,23 +394,44 @@ std::string_view ActiveModeId(ModeService* service) {
+   return service->active_mode().id;
+ }
+ 
+-std::string_view RecommendedLayoutCommand(std::string_view mode) {
+-  if (mode == "creator") {
+-    return "tri.one-over-two";
++std::string_view RecommendedLayoutCommand(
++    const WorkModeWorkspaceConfiguration& configuration) {
++  if (configuration.layout_variant_id == "dual-side") {
++    return "dual.open";
+   }
+-  if (mode == "builder") {
++  if (configuration.layout_variant_id == "dual-stack") {
++    return "dual.stacked";
++  }
++  if (configuration.layout_variant_id == "tri-two-over-one") {
+     return "tri.two-over-one";
+   }
+-  if (mode == "operator") {
++  if (configuration.layout_variant_id == "tri-one-over-two") {
++    return "tri.one-over-two";
++  }
++  if (configuration.layout_variant_id == "quad") {
+     return "quad.open";
+   }
+-  if (mode == "research") {
+-    return "dual.open";
++  return "quad.exit";
++}
++
++std::string_view LayoutVariantLabel(
++    const WorkModeWorkspaceConfiguration& configuration) {
++  if (configuration.layout_variant_id == "dual-side") {
++    return "Dual · side by side";
+   }
+-  if (mode == "support") {
+-    return "tri.one-over-two";
++  if (configuration.layout_variant_id == "dual-stack") {
++    return "Dual · stacked";
+   }
+-  return "quad.exit";
++  if (configuration.layout_variant_id == "tri-two-over-one") {
++    return "Tri · 2 over 1";
++  }
++  if (configuration.layout_variant_id == "tri-one-over-two") {
++    return "Tri · 1 over 2";
++  }
++  if (configuration.layout_variant_id == "quad") {
++    return "Quad · 2 × 2";
++  }
++  return "1-Up";
+ }
+ 
+ // A mode is a local cockpit choice, not a scriptable workflow engine. These
+@@ -426,113 +500,166 @@ std::string ModeHtml(ModeService* service) {
+   for (const WorkModeDefinition& mode : ModeService::definitions()) {
+     const bool selected = mode.id == active.id;
+     cards += base::StrCat({
+-        "<article class=\"card mode-card mode-", mode.id,
+-        selected ? " mode-active" : "", "\"",
+-        selected ? " aria-current=true" : "", "><div><p class=mode-card-title>",
+-        base::EscapeForHTML(mode.title), "</p><strong class=mode-card-audience>",
++        "<article class=\"card mode-card mode-",
++        mode.id,
++        selected ? " mode-active" : "",
++        "\"",
++        selected ? " aria-current=true" : "",
++        "><div><p class=mode-card-title>",
++        base::EscapeForHTML(mode.title),
++        "</p><strong class=mode-card-audience>",
+         base::EscapeForHTML(mode.audience),
+         "</strong><span class=mode-card-theme>",
+         base::EscapeForHTML(mode.visual_theme),
+         "</span></div><div class=mode-card-footer><span class=product-lane>",
+         base::EscapeForHTML(mode.featured_products),
+-        "</span><button class=chip type=button data-tahai-mode=\"", mode.id,
+-        "\">", selected ? "Selected" : "Choose", "</button></div></article>",
++        "</span><button class=chip type=button data-tahai-mode=\"",
++        mode.id,
++        "\">",
++        selected ? "Selected" : "Choose",
++        "</button></div></article>",
+     });
+   }
+   std::string modifiers;
+   for (const WorkModeModifier& modifier : ModeService::modifiers()) {
+     modifiers += base::StrCat({
+         "<label class=mission-step><span><strong>",
+-        base::EscapeForHTML(modifier.title), "</strong><span class=muted> ",
++        base::EscapeForHTML(modifier.title),
++        "</strong><span class=muted> ",
+         base::EscapeForHTML(modifier.description),
+         "</span></span><input type=checkbox data-tahai-modifier=\"",
+-        modifier.id, "\"", service->IsModifierEnabled(modifier.id) ? " checked" : "",
++        modifier.id,
++        "\"",
++        service->IsModifierEnabled(modifier.id) ? " checked" : "",
+         "></label><button class=chip type=button data-tahai-command=\"",
+-        ModifierActionCommand(modifier.id), "\">",
+-        ModifierActionLabel(modifier.id), "</button>",
++        ModifierActionCommand(modifier.id),
++        "\">",
++        ModifierActionLabel(modifier.id),
++        "</button>",
+     });
+   }
+   const auto choice = [](std::string_view key, std::string_view value,
+                          std::string_view label, std::string_view current) {
+-    return base::StrCat({"<button class=chip", current == value ? " selected" :
+-                             "", " type=button data-tahai-mode-config=\"", key,
+-                         "\" data-tahai-value=\"", value, "\">", label,
+-                         "</button>"});
++    return base::StrCat(
++        {"<button class=chip", current == value ? " selected" : "",
++         " type=button data-tahai-mode-config=\"", key,
++         "\" data-tahai-value=\"", value, "\">", label, "</button>"});
+   };
+   std::string templates;
+   for (const WorkModeTemplate& work_template : ModeService::templates()) {
+     if (work_template.mode_id != active.id) {
+       continue;
+     }
+-    templates += base::StrCat({
+-        "<article class=card template-card><div><p class=eyebrow>",
+-        work_template.id == configuration.template_id ? "Default template"
++    templates += base::StrCat(
++        {"<article class=card template-card><div><p class=eyebrow>",
++         work_template.id == configuration.template_id ? "Default template"
+                                                        : "Local template",
+-        "</p><strong>", base::EscapeForHTML(work_template.title),
+-        "</strong><span>", base::EscapeForHTML(work_template.description),
+-        "</span></div><span>Mission type: ",
+-        base::EscapeForHTML(work_template.mission_type),
+-        "</span><div class=actions><button class=chip type=button "
+-        "data-tahai-mode-config=\"template\" data-tahai-value=\"",
+-        work_template.id, "\">Set default</button><button class=button "
+-        "type=button data-tahai-template=\"", work_template.id,
+-        "\">Create runbook</button></div></article>"});
+-  }
+-  const std::string configuration_controls = base::StrCat({
+-      "<div class=mode-config><div class=mode-config-group><h3>Base appearance</h3>"
+-      "<p class=muted><strong>", base::EscapeForHTML(active.visual_theme),
+-      "</strong> gives this work mode its own visual identity. Choose its "
+-      "Light or Dark base without changing the mode's purpose or your tabs."
+-      "</p><div class=chips>",
+-      choice("theme", "dark", "Dark", configuration.theme_id),
+-      choice("theme", "light", "Light", configuration.theme_id),
+-      "</div></div><div class=mode-config-group><h3>Start surface</h3>"
+-      "<p class=muted>Choose the safe TAHAI surface you want ready first."
+-      " This stores a local preference; it never opens it automatically.</p>"
+-      "<div class=chips>",
+-      choice("start_surface", "launchpad", "Launchpad",
+-             configuration.start_surface),
+-      choice("start_surface", "mission", "Mission Control",
+-             configuration.start_surface),
+-      choice("start_surface", "commands", "Command Center",
+-             configuration.start_surface),
+-      choice("start_surface", "modes", "Work Modes",
+-             configuration.start_surface),
+-      "</div></div><div class=mode-config-group><h3>Preferred layout</h3>"
+-      "<p class=muted>These recommendations are explicit native actions, not "
+-      "automatic tab changes.</p><div class=chips>",
+-      choice("layout", "one", "1-Up", configuration.layout_id),
+-      choice("layout", "dual", "Dual", configuration.layout_id),
+-      choice("layout", "tri", "Tri", configuration.layout_id),
+-      choice("layout", "quad", "Quad", configuration.layout_id),
+-      "</div></div><label class=toggle-row><span><strong>Runbook rail</strong>"
+-      "<span class=muted>Keep generated mission checkpoints visible in the "
+-      "cockpit.</span></span><input type=checkbox data-tahai-mode-config=\""
+-      "show_runbook_rail\"",
+-      configuration.show_runbook_rail ? " checked" : "", "></label>",
+-      "<label class=toggle-row><span><strong>Compact controls</strong>"
+-      "<span class=muted>Use denser desktop controls for technical work."
+-      "</span></span><input type=checkbox data-tahai-mode-config=\""
+-      "compact_controls\"", configuration.compact_controls ? " checked" :
+-      "", "></label><button class=chip type=button data-tahai-mode-reset>"
+-      "Restore this mode’s defaults</button></div>"});
+-  return PageFrame("Work Modes", base::StrCat({R"TAHAI(
++         "</p><strong>", base::EscapeForHTML(work_template.title),
++         "</strong><span>", base::EscapeForHTML(work_template.description),
++         "</span></div><span>Mission type: ",
++         base::EscapeForHTML(work_template.mission_type),
++         "</span><div class=actions><button class=chip type=button "
++         "data-tahai-mode-config=\"template\" data-tahai-value=\"",
++         work_template.id,
++         "\">Set default</button><button class=button "
++         "type=button data-tahai-template=\"",
++         work_template.id, "\">Create runbook</button></div></article>"});
++  }
++  const std::string configuration_controls = base::StrCat(
++      {"<div class=mode-config><div class=mode-config-group><h3>Appearance</h3>"
++       "<p class=muted><strong>",
++       base::EscapeForHTML(active.visual_theme),
++       "</strong> is this mode’s formal default. These choices change only "
++       "TAHAI’s local cockpit, never pages, tabs, identity, or security."
++       "</p><p class=eyebrow>Base</p><div class=chips>",
++       choice("theme", "dark", "Dark", configuration.theme_id),
++       choice("theme", "light", "Light", configuration.theme_id),
++       "</div><p class=eyebrow>Accent</p><div class=chips>",
++       choice("accent", "mode", "Mode identity", configuration.accent_id),
++       choice("accent", "slate", "Slate", configuration.accent_id),
++       choice("accent", "azure", "Azure", configuration.accent_id),
++       choice("accent", "teal", "Teal", configuration.accent_id),
++       choice("accent", "violet", "Violet", configuration.accent_id),
++       choice("accent", "amber", "Amber", configuration.accent_id),
++       "</div><p class=eyebrow>Surface</p><div class=chips>",
++       choice("surface", "mode", "Mode texture", configuration.surface_id),
++       choice("surface", "quiet", "Quiet", configuration.surface_id),
++       choice("surface", "grid", "Grid", configuration.surface_id),
++       choice("surface", "paper", "Paper", configuration.surface_id),
++       "</div></div><div class=mode-config-group><h3>Desktop rhythm</h3>"
++       "<p class=muted>Set how much information TAHAI exposes before you drill "
++       "into a workspace. The browser toolbar and web pages are unaffected."
++       "</p><p class=eyebrow>Density</p><div class=chips>",
++       choice("density", "comfortable", "Comfortable",
++              configuration.density_id),
++       choice("density", "compact", "Compact", configuration.density_id),
++       choice("density", "spacious", "Spacious", configuration.density_id),
++       "</div><p class=eyebrow>TAHAI page header</p><div class=chips>",
++       choice("header", "standard", "Standard", configuration.header_id),
++       choice("header", "compact", "Compact", configuration.header_id),
++       choice("header", "minimal", "Minimal", configuration.header_id),
++       "</div></div><div class=mode-config-group><h3>Starting point</h3>"
++       "<p class=muted>These are local recommendations. TAHAI never silently "
++       "opens, moves, closes, or duplicates Chromium tabs.</p><p class=eyebrow>"
++       "Surface</p><div class=chips>",
++       choice("start_surface", "launchpad", "Launchpad",
++              configuration.start_surface),
++       choice("start_surface", "mission", "Mission Control",
++              configuration.start_surface),
++       choice("start_surface", "commands", "Command Center",
++              configuration.start_surface),
++       choice("start_surface", "modes", "Work Modes",
++              configuration.start_surface),
++       "</div><p class=eyebrow>Preferred native view</p><div class=chips>",
++       choice("layout_variant", "one", "1-Up", configuration.layout_variant_id),
++       choice("layout_variant", "dual-side", "Dual · side by side",
++              configuration.layout_variant_id),
++       choice("layout_variant", "dual-stack", "Dual · stacked",
++              configuration.layout_variant_id),
++       choice("layout_variant", "tri-two-over-one", "Tri · 2 over 1",
++              configuration.layout_variant_id),
++       choice("layout_variant", "tri-one-over-two", "Tri · 1 over 2",
++              configuration.layout_variant_id),
++       choice("layout_variant", "quad", "Quad · 2 × 2",
++              configuration.layout_variant_id),
++       "</div></div><div class=mode-config-group><h3>Visibility</h3>"
++       "<label class=toggle-row><span><strong>Runbook rail</strong>"
++       "<span class=muted>Show generated checkpoint guidance on Mission "
++       "Control.</span></span><input type=checkbox data-tahai-mode-config=\""
++       "show_runbook_rail\"",
++       configuration.show_runbook_rail ? " checked" : "",
++       "></label>"
++       "</div><p class=boundary>For privacy, permissions, downloads, profiles, "
++       "search, extensions, and enterprise policy, use Chromium’s native "
++       "settings. TAHAI customization never weakens those controls.</p>"
++       "<button class=chip type=button data-tahai-mode-reset>Restore this "
++       "mode’s defaults</button></div>"});
++  return PageFrame(
++      "Work Modes",
++      base::StrCat(
++          {R"TAHAI(
+ <section class=hero><p class=eyebrow>TAHAI work modes</p><h2>Choose a focused workspace.</h2><p class=muted>One local choice changes safe defaults for this profile. Your tabs, identity, browsing data, and pane assignments stay untouched.</p><div class=status><strong>)TAHAI",
+-      base::EscapeForHTML(active.title), R"TAHAI(</strong> · )TAHAI",
+-      base::EscapeForHTML(active.launchpad_heading), R"TAHAI(</div><p id=mode-status class=muted role=status aria-live=polite></p></section>
++           base::EscapeForHTML(active.title), R"TAHAI(</strong> · )TAHAI",
++           base::EscapeForHTML(active.launchpad_heading),
++           R"TAHAI(</div><p id=mode-status class=muted role=status aria-live=polite></p></section>
+ <section class=section><div class=section-head><div><p class=eyebrow>Workspaces</p><h2>Choose a work mode.</h2></div><p class=muted>Pick one, then tune it only when needed.</p></div><div class=mode-grid>)TAHAI",
+-      cards, R"TAHAI(</div></section>
++           cards, R"TAHAI(</div></section>
+ <section class=section><article class="panel mode-actions"><div><p class=eyebrow>Current workspace</p><h2>)TAHAI",
+-      base::EscapeForHTML(active.title), R"TAHAI(</h2><p class=muted><span class=product-lane>)TAHAI",
+-      base::EscapeForHTML(active.featured_products), R"TAHAI(</span></p></div><nav aria-label="Workspace configuration"><button class="button primary" type=button data-tahai-open-dialog="mode-customize">Customize</button><button class=chip type=button data-tahai-open-dialog="mode-templates">Templates</button><button class=chip type=button data-tahai-open-dialog="mode-tools">Workspace tools</button></nav></article><details class=mode-flyout><summary>What changes with this mode?</summary><p>Only the visible TAHAI workspace defaults saved in this profile: theme, starting surface, layout recommendation, template, and local control density. Changes are explicit, reversible, and never move or duplicate a browser tab.</p></details></section>
++           base::EscapeForHTML(active.title),
++           R"TAHAI(</h2><p class=muted><span class=product-lane>)TAHAI",
++           base::EscapeForHTML(active.featured_products),
++           R"TAHAI(</span></p></div><nav aria-label="Workspace configuration"><button class="button primary" type=button data-tahai-open-dialog="mode-customize">Customize</button><button class=chip type=button data-tahai-open-dialog="mode-templates">Templates</button><button class=chip type=button data-tahai-open-dialog="mode-tools">Workspace tools</button></nav></article><details class=mode-flyout><summary>What changes with this mode?</summary><p>Only the visible TAHAI workspace defaults saved in this profile: theme, starting surface, layout recommendation, template, and local control density. Changes are explicit, reversible, and never move or duplicate a browser tab.</p></details></section>
+ <dialog id=mode-customize class=mode-dialog aria-labelledby=mode-customize-title><form method=dialog><div class=mode-dialog-head><div><p class=eyebrow>Customize workspace</p><h2 id=mode-customize-title>)TAHAI",
+-      base::EscapeForHTML(active.title), R"TAHAI(</h2><p class=muted>Saved only to this Chromium profile.</p></div><button class=chip type=button data-tahai-close-dialog>Close</button></div>)TAHAI",
+-      configuration_controls, R"TAHAI(</form></dialog>
++           base::EscapeForHTML(active.title),
++           R"TAHAI(</h2><p class=muted>Saved only to this Chromium profile.</p></div><button class=chip type=button data-tahai-close-dialog>Close</button></div>)TAHAI",
++           configuration_controls, R"TAHAI(</form></dialog>
+ <dialog id=mode-templates class=mode-dialog aria-labelledby=mode-templates-title><form method=dialog><div class=mode-dialog-head><div><p class=eyebrow>Local runbook templates</p><h2 id=mode-templates-title>Start with a known shape.</h2><p class=muted>Templates create only fixed, profile-scoped Mission Control runbooks.</p></div><button class=chip type=button data-tahai-close-dialog>Close</button></div><div class=grid>)TAHAI",
+-      templates, R"TAHAI(</div></form></dialog>
++           templates, R"TAHAI(</div></form></dialog>
+ <dialog id=mode-tools class=mode-dialog aria-labelledby=mode-tools-title><form method=dialog><div class=mode-dialog-head><div><p class=eyebrow>Workspace tools</p><h2 id=mode-tools-title>Focus the current work.</h2><p class=muted>These are deliberate local presentation settings, never automatic rearrangement.</p></div><button class=chip type=button data-tahai-close-dialog>Close</button></div><div class=list>)TAHAI",
+-      modifiers, R"TAHAI(</div><p class=boundary>Modes cannot copy cookies, enumerate accounts, change the active profile, or move a page between panes. Chromium continues to own identity, permissions, authentication, downloads, and session data.</p></form></dialog><script src=/modes.js></script>
+-)TAHAI"}), configuration.theme_id, active.id);
++           modifiers,
++           R"TAHAI(</div><p class=boundary>Modes cannot copy cookies, enumerate accounts, change the active profile, or move a page between panes. Chromium continues to own identity, permissions, authentication, downloads, and session data.</p></form></dialog><script src=/modes.js></script>
++)TAHAI"}),
++      configuration.theme_id, active.id, &configuration);
+ }
+ 
+ std::string NewTabHtml(MissionService* service, ModeService* mode_service) {
+@@ -542,23 +669,29 @@ std::string NewTabHtml(MissionService* service, ModeService* mode_service) {
+   const WorkModeWorkspaceConfiguration& configuration =
+       mode_service->active_configuration();
+   const ModeQuickStart quick_start = QuickStartForMode(active_mode.id);
+-  const std::string active_mode_card = base::StrCat({
+-      "<article class=panel><p class=eyebrow>Active work mode</p><h2>",
+-      base::EscapeForHTML(active_mode.title), "</h2><p class=muted>",
+-      base::EscapeForHTML(active_mode.launchpad_heading),
+-      "</p><p class=muted>Featured lane: <span class=product-lane>",
+-      base::EscapeForHTML(active_mode.featured_products), "</span>",
+-      "</p><p class=muted>Theme: ",
+-      configuration.theme_id == "light" ? "Light" : "Dark",
+-      " · preferred layout: ", base::EscapeForHTML(configuration.layout_id),
+-      "</p><p class=muted>", base::EscapeForHTML(quick_start.description),
+-      "</p><div class=actions><button class=\"button primary\" type=button "
+-      "data-tahai-command=\"", quick_start.command, "\">",
+-      base::EscapeForHTML(quick_start.label),
+-      "</button><button class=button type=button data-tahai-command=\"",
+-      RecommendedLayoutCommand(active_mode.id),
+-      "\">Suggested layout</button><a class=button href=\"tahai://modes/\">"
+-      "Change mode safely</a></div></article>"});
++  const std::string active_mode_card = base::StrCat(
++      {"<article class=panel><p class=eyebrow>Active work mode</p><h2>",
++       base::EscapeForHTML(active_mode.title),
++       "</h2><p class=muted>",
++       base::EscapeForHTML(active_mode.launchpad_heading),
++       "</p><p class=muted>Featured lane: <span class=product-lane>",
++       base::EscapeForHTML(active_mode.featured_products),
++       "</span>",
++       "</p><p class=muted>Theme: ",
++       configuration.theme_id == "light" ? "Light" : "Dark",
++       " · preferred view: ",
++       LayoutVariantLabel(configuration),
++       "</p><p class=muted>",
++       base::EscapeForHTML(quick_start.description),
++       "</p><div class=actions><button class=\"button primary\" type=button "
++       "data-tahai-command=\"",
++       quick_start.command,
++       "\">",
++       base::EscapeForHTML(quick_start.label),
++       "</button><button class=button type=button data-tahai-command=\"",
++       RecommendedLayoutCommand(configuration),
++       "\">Suggested layout</button><a class=button href=\"tahai://modes/\">"
++       "Change mode safely</a></div></article>"});
+   std::string recent_missions;
+   if (service->missions().empty()) {
+     recent_missions =
+@@ -575,7 +708,8 @@ std::string NewTabHtml(MissionService* service, ModeService* mode_service) {
+          it != service->missions().rend() && rendered < 3u; ++it, ++rendered) {
+       const MissionSummary& mission = *it;
+       size_t complete = 0;
+-      const size_t total = mission.steps.size() + mission.validation_steps.size() +
++      const size_t total = mission.steps.size() +
++                           mission.validation_steps.size() +
+                            mission.rollback_steps.size();
+       for (const MissionStep& step : mission.steps) {
+         complete += step.complete;
+@@ -588,9 +722,13 @@ std::string NewTabHtml(MissionService* service, ModeService* mode_service) {
+       }
+       recent_missions += base::StrCat({
+           "<a class=card href=\"tahai://mission/\"><strong>",
+-          base::EscapeForHTML(mission.title), "</strong><span>",
+-          base::EscapeForHTML(mission.type), " · ",
+-          base::NumberToString(complete), "/", base::NumberToString(total),
++          base::EscapeForHTML(mission.title),
++          "</strong><span>",
++          base::EscapeForHTML(mission.type),
++          " · ",
++          base::NumberToString(complete),
++          "/",
++          base::NumberToString(total),
+           " generated checkpoints complete</span></a>",
+       });
+     }
+@@ -598,14 +736,18 @@ std::string NewTabHtml(MissionService* service, ModeService* mode_service) {
+         "</div><a class=button href=\"tahai://mission/\">Open "
+         "Mission Control</a></article>";
+   }
+-  return PageFrame("New Tab", base::StrCat({R"TAHAI(
++  return PageFrame(
++      "New Tab",
++      base::StrCat(
++          {R"TAHAI(
+ <section class="hero launch-hero"><div class=hero-copy><p class=eyebrow>Creative operator launchpad</p><h2>Four views. One mission. Your web, in motion.</h2><p class=muted>TAHAI pairs Chromium's proven browsing engine with a luminous workspace for designers, operators, and people who build across many contexts at once.</p><form class=search action="https://www.google.com/search" method=get><input name=q type=search autocomplete=off placeholder="Search, explore, or start the next build"><button class="button primary" type=submit>Launch</button></form></div><div class=hero-art aria-hidden=true><img src="/brand.png" alt=""><span class=hero-badge>Native creative workspace</span></div></section>
+ <section class=section><div class=section-head><div><p class=eyebrow>Launchpad</p><h2>Start work</h2></div></div><div class=grid><button class=card type=button data-tahai-command="dual.open"><strong>Dual — Side by Side</strong><span>Two independent native tabs, arranged horizontally.</span></button><button class=card type=button data-tahai-command="dual.stacked"><strong>Dual — Stacked</strong><span>Two independent native tabs, arranged vertically.</span></button><button class=card type=button data-tahai-command="tri.two-over-one"><strong>Tri — 2 over 1</strong><span>Three independent native tabs in a full-window 2-over-1 layout.</span></button><button class=card type=button data-tahai-command="tri.one-over-two"><strong>Tri — 1 over 2</strong><span>Three independent native tabs in a full-window 1-over-2 layout.</span></button><button class=card type=button data-tahai-command="quad.open"><strong>Quad View</strong><span>Four independent native tabs in TAHAI's signature 2 × 2 workspace.</span></button><a class=card href="tahai://mission/"><strong>Mission Control</strong><span>Organize native tabs, roles, runbooks, and evidence.</span></a><a class=card href="tahai://commands/"><strong>Command Center</strong><span>Run allowlisted Chromium actions and safe tools.</span></a><a class=card href="tahai://profiles/"><strong>Profile Administration</strong><span>Open Chromium’s real profile picker, identity, and privacy controls.</span></a><a class=card href="tahai://support/"><strong>Support</strong><span>Recovery guidance and sanitized handoff.</span></a></div></section>
+ <section class="section three">)TAHAI",
+-                                             active_mode_card, recent_missions,
+-                                             R"TAHAI(<article class=panel><p class=eyebrow>Workspace shortcuts</p><h2>Always within reach</h2><p class=muted>Open native TAHAI surfaces from the toolbar or browser menu. Keyboard: Alt+Shift+D for Dual View, Alt+Shift+G for Tri View, Alt+Shift+Q for Quad View, Alt+Shift+L for Launchpad, Alt+Shift+M for Mission Control, and Alt+Shift+O for Command Center.</p></article><article class=panel><p class=eyebrow>Browser state</p><h2>Native Chromium engine</h2><p class=status>Every pane is its own independently controlled tab and WebContents. Profiles, permissions, downloads, history, and authentication remain engine-owned.</p></article></section>
++           active_mode_card, recent_missions,
++           R"TAHAI(<article class=panel><p class=eyebrow>Workspace shortcuts</p><h2>Always within reach</h2><p class=muted>Open native TAHAI surfaces from the toolbar or browser menu. Keyboard: Alt+Shift+D for Dual View, Alt+Shift+G for Tri View, Alt+Shift+Q for Quad View, Alt+Shift+L for Launchpad, Alt+Shift+M for Mission Control, and Alt+Shift+O for Command Center.</p></article><article class=panel><p class=eyebrow>Browser state</p><h2>Native Chromium engine</h2><p class=status>Every pane is its own independently controlled tab and WebContents. Profiles, permissions, downloads, history, and authentication remain engine-owned.</p></article></section>
+ <section class=section><div class=section-head><div><p class=eyebrow>First 10 minutes</p><h2>Start with ordinary browsing. Add structure deliberately.</h2></div></div><div class=grid><article class=card><strong>1. Browse normally</strong><span>Use Chromium tabs, address bar, bookmarks, downloads, and profiles as usual.</span></article><article class=card><strong>2. Open Quad View</strong><span>When work needs parallel context, open four real tabs in the native 2 × 2 workspace.</span></article><article class=card><strong>3. Create a Mission</strong><span>Use generated checkpoints, validation, rollback, and timeline state—never page content or credentials.</span></article><article class=card><strong>4. Review and recover</strong><span>Use Profile Administration, Chromium policy, and Support for explicit, sanitized handoff.</span></article></div></section>
+-)TAHAI"}), configuration.theme_id, active_mode.id);
++)TAHAI"}),
++      configuration.theme_id, active_mode.id, &configuration);
+ }
+ 
+ std::string MissionHandoffSummary(const MissionSummary& mission) {
+@@ -613,18 +755,26 @@ std::string MissionHandoffSummary(const MissionSummary& mission) {
+   std::string checkpoints;
+   for (const MissionStep& step : mission.steps) {
+     complete_count += step.complete;
+-    checkpoints += base::StrCat({"- [", step.complete ? "x" : " ", "] ",
+-                                 step.label, "\n"});
++    checkpoints += base::StrCat(
++        {"- [", step.complete ? "x" : " ", "] ", step.label, "\n"});
+   }
+   return base::StrCat({
+       "TAHAI Mission Checkpoint Handoff\n",
+       "Product: TAHAI Web Services Browser\n",
+-      "Version: ", version_info::GetVersionNumber(), "\n",
+-      "Mission category: ", mission.type, "\n",
+-      "Checkpoint status: ", base::NumberToString(complete_count), "/",
+-      base::NumberToString(mission.steps.size()), " complete\n",
++      "Version: ",
++      version_info::GetVersionNumber(),
++      "\n",
++      "Mission category: ",
++      mission.type,
++      "\n",
++      "Checkpoint status: ",
++      base::NumberToString(complete_count),
++      "/",
++      base::NumberToString(mission.steps.size()),
++      " complete\n",
+       "Mission title: omitted by design\n",
+-      "\nGenerated checkpoints\n", checkpoints,
++      "\nGenerated checkpoints\n",
++      checkpoints,
+       "Privacy: no URLs, page content, form data, cookies, headers, tokens, "
+       "credentials, screenshots, timeline notes, local paths, or logs are "
+       "included.\n",
+@@ -635,12 +785,20 @@ std::string EvidencePackSummary(const MissionSummary& mission) {
+   return base::StrCat({
+       "TAHAI Sanitized Evidence Pack\n",
+       "Product: TAHAI Web Services Browser\n",
+-      "Version: ", version_info::GetVersionNumber(), "\n",
+-      "Mission category: ", mission.type, "\n",
+-      "Export profile: ", mission.export_profile, "\n",
++      "Version: ",
++      version_info::GetVersionNumber(),
++      "\n",
++      "Mission category: ",
++      mission.type,
++      "\n",
++      "Export profile: ",
++      mission.export_profile,
++      "\n",
+       "Generated evidence markers: ",
+-      base::NumberToString(mission.evidence.size()), "\n",
+-      "Escalation required: ", mission.escalation_required ? "yes" : "no",
++      base::NumberToString(mission.evidence.size()),
++      "\n",
++      "Escalation required: ",
++      mission.escalation_required ? "yes" : "no",
+       "\n",
+       "Redaction review: no URLs, page titles, page content, screenshots, "
+       "forms, cookies, headers, tokens, credentials, account identifiers, "
+@@ -674,33 +832,34 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
+   }
+   const MissionSummary* active_mission =
+       service->missions().empty() ? nullptr : &service->missions().back();
+-  const std::string active_label = active_mission
+-                                       ? base::EscapeForHTML(active_mission->type)
+-                                       : "No active mission";
+-  const std::string export_profile = active_mission
+-                                         ? base::EscapeForHTML(
+-                                               active_mission->export_profile)
+-                                         : "sanitized-handoff";
++  const std::string active_label =
++      active_mission ? base::EscapeForHTML(active_mission->type)
++                     : "No active mission";
++  const std::string export_profile =
++      active_mission ? base::EscapeForHTML(active_mission->export_profile)
++                     : "sanitized-handoff";
+   std::string missions;
+   for (const MissionSummary& mission : service->missions()) {
+     std::string steps;
+     for (size_t index = 0; index < mission.steps.size(); ++index) {
+       const MissionStep& step = mission.steps[index];
+-      steps += "<li class=\"mission-step " +
+-               std::string(step.complete ? "complete" : "") + "\"><span class=mission-step-label>" +
+-               base::EscapeForHTML(step.label) +
+-               "</span><button class=chip type=button data-tahai-mission-action=toggle-step data-tahai-mission-id=\"" +
+-               base::EscapeForHTML(mission.id) + "\" data-tahai-step-index=\"" +
+-               base::NumberToString(index) + "\">" +
+-               (step.complete ? "Reopen" : "Complete") + "</button></li>";
++      steps +=
++          "<li class=\"mission-step " +
++          std::string(step.complete ? "complete" : "") +
++          "\"><span class=mission-step-label>" +
++          base::EscapeForHTML(step.label) +
++          "</span><button class=chip type=button "
++          "data-tahai-mission-action=toggle-step data-tahai-mission-id=\"" +
++          base::EscapeForHTML(mission.id) + "\" data-tahai-step-index=\"" +
++          base::NumberToString(index) + "\">" +
++          (step.complete ? "Reopen" : "Complete") + "</button></li>";
+     }
+     std::string timeline;
+     for (const MissionEvent& event : mission.timeline) {
+       timeline += "<li data-tahai-timeline-kind=\"" +
+                   base::EscapeForHTML(event.kind) + "\"><span class=scope>" +
+                   base::EscapeForHTML(event.kind) + "</span> " +
+-                  base::EscapeForHTML(event.detail) +
+-                  "<span class=muted> · " +
++                  base::EscapeForHTML(event.detail) + "<span class=muted> · " +
+                   base::EscapeForHTML(event.created_at) + "</span></li>";
+     }
+     const auto render_generated_steps =
+@@ -713,9 +872,9 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
+                       std::string(item.complete ? "complete" : "") +
+                       "\"><span class=mission-step-label>" +
+                       base::EscapeForHTML(item.label) +
+-                      "</span><button class=chip type=button data-tahai-mission-action=\"" +
+-                      std::string(action) +
+-                      "\" data-tahai-mission-id=\"" +
++                      "</span><button class=chip type=button "
++                      "data-tahai-mission-action=\"" +
++                      std::string(action) + "\" data-tahai-mission-id=\"" +
+                       base::EscapeForHTML(mission.id) +
+                       "\" data-tahai-step-index=\"" +
+                       base::NumberToString(index) + "\">" +
+@@ -736,7 +895,9 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
+                   base::EscapeForHTML(marker.captured_at) + "</span></li>";
+     }
+     if (evidence.empty()) {
+-      evidence = "<li class=muted>No evidence markers. Nothing from a page is captured.</li>";
++      evidence =
++          "<li class=muted>No evidence markers. Nothing from a page is "
++          "captured.</li>";
+     }
+     const auto option = [&mission](std::string_view profile,
+                                    std::string_view label) {
+@@ -744,35 +905,69 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
+                            mission.export_profile == profile ? " selected" : "",
+                            ">", label, "</option>"});
+     };
+-    missions += "<article class=\"panel mission-card\"><div class=mission-card-head><div><p class=eyebrow>" +
+-                base::EscapeForHTML(mission.type) + "</p><h3>" +
+-                base::EscapeForHTML(mission.title) +
+-                "</h3></div><div class=actions><button class=button type=button data-tahai-mission-action=copy-handoff data-tahai-mission-id=\"" +
+-                base::EscapeForHTML(mission.id) +
+-                "\">Copy Sanitized Status</button><button class=\"button danger\" type=button data-tahai-mission-action=delete data-tahai-mission-id=\"" +
+-                base::EscapeForHTML(mission.id) +
+-                "\">Delete</button></div></div><div><p class=eyebrow>Runbook checkpoints</p><ul class=\"list mission-steps\">" +
+-                steps + "</ul></div><div><p class=eyebrow>Validation rail</p><ul class=\"list mission-steps\">" +
+-                validation + "</ul></div><div><p class=eyebrow>Rollback rail</p><ul class=\"list mission-steps\">" +
+-                rollback + "</ul><div class=actions><button class=chip type=button data-tahai-mission-action=toggle-escalation data-tahai-mission-id=\"" +
+-                base::EscapeForHTML(mission.id) + "\">" +
+-                (mission.escalation_required ? "Clear escalation required" :
+-                                               "Mark escalation required") +
+-                "</button></div></div><div><p class=eyebrow>Evidence Pack</p><p class=muted>Generated action markers only; no URL, title, page content, screenshot, cookie, token, header, or credential is collected.</p><ul class=\"list mission-timeline\">" +
+-                evidence + "</ul><div class=actions><button class=chip type=button data-tahai-mission-action=add-evidence data-tahai-mission-id=\"" +
+-                base::EscapeForHTML(mission.id) +
+-                "\">Add data-free marker</button><select class=button data-tahai-export-profile data-tahai-mission-id=\"" +
+-                base::EscapeForHTML(mission.id) + "\">" +
+-                option("sanitized-handoff", "Sanitized handoff") +
+-                option("internal", "Internal") +
+-                option("incident-packet", "Incident packet") +
+-                option("change-record", "Change record") +
+-                option("itdocs-sync", "IT Docs contract") +
+-                option("psa-ticket-note", "PSA ticket contract") +
+-                "</select><button class=chip type=button data-tahai-mission-action=copy-evidence data-tahai-mission-id=\"" +
+-                base::EscapeForHTML(mission.id) +
+-                "\">Copy sanitized Evidence Pack</button></div></div><div><p class=eyebrow>Local timeline</p><div class=chips><button class=chip type=button data-tahai-timeline-filter=all>All</button><button class=chip type=button data-tahai-timeline-filter=mission>Mission</button><button class=chip type=button data-tahai-timeline-filter=runbook>Runbook</button><button class=chip type=button data-tahai-timeline-filter=validation>Validation</button><button class=chip type=button data-tahai-timeline-filter=rollback>Rollback</button><button class=chip type=button data-tahai-timeline-filter=evidence>Evidence</button><button class=chip type=button data-tahai-timeline-filter=export>Export</button></div><ul class=\"list mission-timeline\">" +
+-                timeline + "</ul></div></article>";
++    missions +=
++        "<article class=\"panel mission-card\"><div "
++        "class=mission-card-head><div><p class=eyebrow>" +
++        base::EscapeForHTML(mission.type) + "</p><h3>" +
++        base::EscapeForHTML(mission.title) +
++        "</h3></div><div class=actions><button class=button type=button "
++        "data-tahai-mission-action=copy-handoff data-tahai-mission-id=\"" +
++        base::EscapeForHTML(mission.id) +
++        "\">Copy Sanitized Status</button><button class=\"button danger\" "
++        "type=button data-tahai-mission-action=delete "
++        "data-tahai-mission-id=\"" +
++        base::EscapeForHTML(mission.id) +
++        "\">Delete</button></div></div><div><p class=eyebrow>Runbook "
++        "checkpoints</p><ul class=\"list mission-steps\">" +
++        steps +
++        "</ul></div><div><p class=eyebrow>Validation rail</p><ul class=\"list "
++        "mission-steps\">" +
++        validation +
++        "</ul></div><div><p class=eyebrow>Rollback rail</p><ul class=\"list "
++        "mission-steps\">" +
++        rollback +
++        "</ul><div class=actions><button class=chip type=button "
++        "data-tahai-mission-action=toggle-escalation data-tahai-mission-id=\"" +
++        base::EscapeForHTML(mission.id) + "\">" +
++        (mission.escalation_required ? "Clear escalation required"
++                                     : "Mark escalation required") +
++        "</button></div></div><div><p class=eyebrow>Evidence Pack</p><p "
++        "class=muted>Generated action markers only; no URL, title, page "
++        "content, screenshot, cookie, token, header, or credential is "
++        "collected.</p><ul class=\"list mission-timeline\">" +
++        evidence +
++        "</ul><div class=actions><button class=chip type=button "
++        "data-tahai-mission-action=add-evidence data-tahai-mission-id=\"" +
++        base::EscapeForHTML(mission.id) +
++        "\">Add data-free marker</button><select class=button "
++        "data-tahai-export-profile data-tahai-mission-id=\"" +
++        base::EscapeForHTML(mission.id) + "\">" +
++        option("sanitized-handoff", "Sanitized handoff") +
++        option("internal", "Internal") +
++        option("incident-packet", "Incident packet") +
++        option("change-record", "Change record") +
++        option("itdocs-sync", "IT Docs contract") +
++        option("psa-ticket-note", "PSA ticket contract") +
++        "</select><button class=chip type=button "
++        "data-tahai-mission-action=copy-evidence data-tahai-mission-id=\"" +
++        base::EscapeForHTML(mission.id) +
++        "\">Copy sanitized Evidence Pack</button></div></div><div><p "
++        "class=eyebrow>Local timeline</p><div class=chips><button class=chip "
++        "type=button data-tahai-timeline-filter=all>All</button><button "
++        "class=chip type=button "
++        "data-tahai-timeline-filter=mission>Mission</button><button class=chip "
++        "type=button "
++        "data-tahai-timeline-filter=runbook>Runbook</button><button class=chip "
++        "type=button "
++        "data-tahai-timeline-filter=validation>Validation</button><button "
++        "class=chip type=button "
++        "data-tahai-timeline-filter=rollback>Rollback</button><button "
++        "class=chip type=button "
++        "data-tahai-timeline-filter=evidence>Evidence</button><button "
++        "class=chip type=button "
++        "data-tahai-timeline-filter=export>Export</button></div><ul "
++        "class=\"list mission-timeline\">" +
++        timeline + "</ul></div></article>";
+   }
+   if (missions.empty()) {
+     missions =
+@@ -784,14 +979,41 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
+   std::string content = R"TAHAI(
+ <section class=hero><p class=eyebrow>Native operational workspace</p><h2>Real tabs. Real WebContents. Bounded mission state.</h2><p class=muted>Mission metadata belongs to this Chromium profile. It supplies generated runbook checkpoints and a local completion timeline, but never simulates history, input, authentication, or remote page behavior.</p><form id=new-mission-form class=search><input name=title maxlength=128 required autocomplete=off placeholder="Mission name"><select name=type class=button aria-label="Mission type"><option value=investigation>Investigation</option><option value=incident>Incident</option><option value=change>Change</option><option value=deployment>Deployment</option><option value=migration>Migration</option><option value=audit>Audit</option><option value=maintenance>Maintenance</option><option value=documentation>Documentation</option><option value=admin>Administrative change</option><option value=support>Support</option><option value=development>Development</option></select><button class="button primary" type=submit>New Mission</button></form><p id=mission-status class=muted role=status aria-live=polite></p></section>
+ )TAHAI";
+-  content += "<section class=section><div class=section-head><div><p class=eyebrow>Mission command deck</p><h2>Operational state</h2></div></div><div class=grid><article class=card><strong>Mission</strong><span>" + active_label + " · " + base::NumberToString(service->missions().size()) + " saved profile missions</span></article><article class=card><strong>Active pane & layout</strong><span>Use native Dual, Tri, Quad, and Focus Pane controls; web content stays in real Chromium tabs.</span></article><article class=card><strong>Runbook</strong><span>" + base::NumberToString(complete_count) + "/" + base::NumberToString(checkpoint_count) + " generated checkpoints complete</span></article><article class=card><strong>Evidence</strong><span>" + base::NumberToString(evidence_count) + " data-free markers · no page data collected</span></article><article class=card><strong>Timeline</strong><span>" + base::NumberToString(timeline_count) + " bounded local events</span></article><article class=card><strong>Featured lane</strong><span class=product-lane>" + base::EscapeForHTML(mode_service->active_mode().featured_products) + "</span></article><article class=card><strong>Export safety</strong><span>" + export_profile + " · redaction-safe generated handoff only</span></article></div></section>";
++  content +=
++      "<section class=section><div class=section-head><div><p "
++      "class=eyebrow>Mission command deck</p><h2>Operational "
++      "state</h2></div></div><div class=grid><article "
++      "class=card><strong>Mission</strong><span>" +
++      active_label + " · " + base::NumberToString(service->missions().size()) +
++      " saved profile missions</span></article><article "
++      "class=card><strong>Active pane & layout</strong><span>Use native Dual, "
++      "Tri, Quad, and Focus Pane controls; web content stays in real Chromium "
++      "tabs.</span></article><article "
++      "class=card><strong>Runbook</strong><span>" +
++      base::NumberToString(complete_count) + "/" +
++      base::NumberToString(checkpoint_count) +
++      " generated checkpoints complete</span></article><article "
++      "class=card><strong>Evidence</strong><span>" +
++      base::NumberToString(evidence_count) +
++      " data-free markers · no page data collected</span></article><article "
++      "class=card><strong>Timeline</strong><span>" +
++      base::NumberToString(timeline_count) +
++      " bounded local events</span></article><article "
++      "class=card><strong>Featured lane</strong><span class=product-lane>" +
++      base::EscapeForHTML(mode_service->active_mode().featured_products) +
++      "</span></article><article class=card><strong>Export "
++      "safety</strong><span>" +
++      export_profile +
++      " · redaction-safe generated handoff "
++      "only</span></article></div></section>";
+   content += R"TAHAI(
+ <section class=section><div class=section-head><div><p class=eyebrow>Profile missions</p><h2>Saved locally</h2></div></div><div class=mission-grid>)TAHAI";
+   content += missions;
+   content +=
+-      R"TAHAI(</div></section><section class=section><div class=section-head><div><p class=eyebrow>Mission recipe library</p><h2>Open a governed Quad View</h2></div></div><p class=muted>Each recipe is a reviewable fixed set of four HTTPS destinations. Launching it creates a bounded profile mission and four real Chromium tabs; it never accepts a URL, credential, token, script, connector, or arbitrary argument.</p><div class=grid><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=dns-migration><strong>DNS Migration</strong><span>Cloudflare, propagation, authority, and DNS documentation.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=m365-user-offboarding><strong>Microsoft 365 Offboarding</strong><span>Admin, Entra, security, and Microsoft guidance.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=firewall-change><strong>Firewall Change</strong><span>Vendor support and CISA advisory lanes.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=production-deployment><strong>Production Deployment</strong><span>GitHub, Vercel, status, and Actions docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=certificate-renewal><strong>Certificate Renewal</strong><span>Provider, certificate lookup, TLS test, and docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=incident-triage><strong>Incident Triage</strong><span>Provider status and public advisory lanes.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=github-actions-release><strong>GitHub Actions Release</strong><span>Repository, status, workflow, and run docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=cloudflare-cutover><strong>Cloudflare Cutover</strong><span>Zone, status, docs, and propagation checks.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=workstation-admin-setup><strong>Workstation / Admin Setup</strong><span>Microsoft admin, identity, Intune, and Windows docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=vendor-support-handoff><strong>Vendor Support Handoff</strong><span>Vendor support sites and public security guidance.</span></button></div></section><section class="section three"><article class=panel><p class=eyebrow>Runbook rail</p><h2>Native checkpoint state</h2><p class=muted>Each mission carries a generated, type-specific checkpoint set. Completion changes are stored in the owning Chromium profile and survive restart.</p></article><article class=panel><p class=eyebrow>Quad View</p><h2>Native multi-pane workspace</h2><p class=muted>Use Command Center to open, focus, restore, and exit a real Chromium 2 × 2 split. No webview or renderer panes are involved.</p></article><article class=panel><p class=eyebrow>Evidence boundary</p><h2>Nothing secret-bearing is stored</h2><p class=boundary>Mission Control has no field for page contents, URLs, tokens, credentials, cookies, headers, screenshots, or arbitrary notes. Capture and sharing remain explicit Chromium actions and need their own verified release evidence.</p></article></section><script src=/mission.js></script>)TAHAI";
++      R"TAHAI(</div></section><section class=section><div class=section-head><div><p class=eyebrow>Mission recipe library</p><h2>Open a governed Quad View</h2></div></div><p class=muted>Each recipe is a reviewable fixed set of four HTTPS destinations. Launching it creates a bounded profile mission and four real Chromium tabs; it never accepts a URL, credential, token, script, connector, or arbitrary argument.</p><div class=grid><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=dns-migration><strong>DNS Migration</strong><span>Cloudflare, propagation, authority, and DNS documentation.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=m365-user-offboarding><strong>Microsoft 365 Offboarding</strong><span>Admin, Entra, security, and Microsoft guidance.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=firewall-change><strong>Firewall Change</strong><span>Vendor support and CISA advisory lanes.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=production-deployment><strong>Production Deployment</strong><span>GitHub, Vercel, status, and Actions docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=certificate-renewal><strong>Certificate Renewal</strong><span>Provider, certificate lookup, TLS test, and docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=incident-triage><strong>Incident Triage</strong><span>Provider status and public advisory lanes.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=github-actions-release><strong>GitHub Actions Release</strong><span>Repository, status, workflow, and run docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=cloudflare-cutover><strong>Cloudflare Cutover</strong><span>Zone, status, docs, and propagation checks.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=workstation-admin-setup><strong>Workstation / Admin Setup</strong><span>Microsoft admin, identity, Intune, and Windows docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=vendor-support-handoff><strong>Vendor Support Handoff</strong><span>Vendor support sites and public security guidance.</span></button></div></section><section class="section three"><article class="panel mode-runbook-rail"><p class=eyebrow>Runbook rail</p><h2>Native checkpoint state</h2><p class=muted>Each mission carries a generated, type-specific checkpoint set. Completion changes are stored in the owning Chromium profile and survive restart.</p></article><article class=panel><p class=eyebrow>Quad View</p><h2>Native multi-pane workspace</h2><p class=muted>Use Command Center to open, focus, restore, and exit a real Chromium 2 × 2 split. No webview or renderer panes are involved.</p></article><article class=panel><p class=eyebrow>Evidence boundary</p><h2>Nothing secret-bearing is stored</h2><p class=boundary>Mission Control has no field for page contents, URLs, tokens, credentials, cookies, headers, screenshots, or arbitrary notes. Capture and sharing remain explicit Chromium actions and need their own verified release evidence.</p></article></section><script src=/mission.js></script>)TAHAI";
+   return PageFrame("Mission Control", content, ActiveTheme(mode_service),
+-                   ActiveModeId(mode_service));
++                   ActiveModeId(mode_service),
++                   &mode_service->active_configuration());
+ }
+ 
+ std::string OpsHtml(ModeService* mode_service) {
+@@ -802,25 +1024,28 @@ std::string OpsHtml(ModeService* mode_service) {
+   content += R"TAHAI(
+ <section class=section><div class=section-head><div><p class=eyebrow>Native workspace layouts</p><h2>Every pane is independently controlled</h2></div><p>Each pane below is a distinct Chromium tab and WebContents. Switching, navigation, history, reload, permissions, media, and authentication target only the active pane.</p></div><div class=grid><button class=card type=button data-tahai-command="dual.open"><strong>Dual — Side by Side</strong><span>Two equal columns. Alt+Shift+D.</span></button><button class=card type=button data-tahai-command="dual.stacked"><strong>Dual — Stacked</strong><span>Two equal full-width rows.</span></button><button class=card type=button data-tahai-command="tri.two-over-one"><strong>Tri — 2 over 1</strong><span>Two panes across the top; one full-width pane below. Alt+Shift+G.</span></button><button class=card type=button data-tahai-command="tri.one-over-two"><strong>Tri — 1 over 2</strong><span>One full-width pane above; two panes across the bottom.</span></button><button class=card type=button data-tahai-command="quad.open"><strong>Quad — 2 × 2</strong><span>Four independent native panes.</span></button></div></section>
+ )TAHAI";
+-  content += base::StrCat({"<section class=section><article class=panel><p "
+-                          "class=eyebrow>Active mode lane</p><h2>",
+-                          base::EscapeForHTML(mode_service->active_mode().title),
+-                          "</h2><p class=product-lane>",
+-                          base::EscapeForHTML(
+-                              mode_service->active_mode().featured_products),
+-                          "</p><p class=muted>These are visible workflow lanes, "
+-                          "not connected services. TAHAI does not request or "
+-                          "store product API keys, tokens, URLs, or credentials "
+-                          "here.</p></article></section>"});
+-  return PageFrame("Operator Command Center", content, ActiveTheme(mode_service),
+-                   ActiveModeId(mode_service));
++  content += base::StrCat(
++      {"<section class=section><article class=panel><p "
++       "class=eyebrow>Active mode lane</p><h2>",
++       base::EscapeForHTML(mode_service->active_mode().title),
++       "</h2><p class=product-lane>",
++       base::EscapeForHTML(mode_service->active_mode().featured_products),
++       "</p><p class=muted>These are visible workflow lanes, "
++       "not connected services. TAHAI does not request or "
++       "store product API keys, tokens, URLs, or credentials "
++       "here.</p></article></section>"});
++  return PageFrame("Operator Command Center", content,
++                   ActiveTheme(mode_service), ActiveModeId(mode_service),
++                   &mode_service->active_configuration());
+ }
+ 
+ std::string SupportSummary() {
+   return base::StrCat({
+       "TAHAI Browser Support Summary\n",
+       "Product: TAHAI Web Services Browser\n",
+-      "Version: ", version_info::GetVersionNumber(), "\n",
++      "Version: ",
++      version_info::GetVersionNumber(),
++      "\n",
+       "Build state: unsigned local development build; GA is not claimed.\n",
+       "Branding: native TAHAI Chromium browser.\n",
+       "Policy: inspect chrome://policy directly.\n",
+@@ -832,25 +1057,34 @@ std::string SupportSummary() {
+ 
+ std::string SupportHtml(ModeService* mode_service) {
+   CHECK(mode_service);
+-  return PageFrame("Support", base::StrCat({R"TAHAI(
++  return PageFrame(
++      "Support",
++      base::StrCat(
++          {R"TAHAI(
+ <section class=hero><p class=eyebrow>Safe recovery</p><h2>Diagnose without exporting private browsing data.</h2><p class=muted>Copy a compact, explicit support summary for review. It is generated in the browser and contains only fixed build and privacy truth.</p><div class=actions><button class="button primary" type=button data-tahai-support-action=copy-summary>Copy Sanitized Support Summary</button><a class=button href="chrome://policy/">Open Chromium Policy</a><a class=button href="chrome://version/">Open Chromium Version</a></div><p id=support-status class=muted role=status aria-live=polite></p></section><section class="section three"><article class=panel><h2>Browser recovery</h2><ul class=list><li>Restart and restore</li><li>Repair installation</li><li>Profile recovery</li></ul></article><article class=panel><h2>Sanitized handoff</h2><p class=boundary>Raw Authorization headers, cookies, private keys, page bodies, forms, credentials, profile data, local paths, and logs are never copied by this control.</p></article><article class=panel><h2>Known state</h2><p class=status>)TAHAI",
+-      base::EscapeForHTML(SupportSummary()),
+-      R"TAHAI(</p></article></section><script src=/support.js></script>
+-)TAHAI"}), ActiveTheme(mode_service), ActiveModeId(mode_service));
++           base::EscapeForHTML(SupportSummary()),
++           R"TAHAI(</p></article></section><script src=/support.js></script>
++)TAHAI"}),
++      ActiveTheme(mode_service), ActiveModeId(mode_service),
++      &mode_service->active_configuration());
+ }
+ 
+ std::string ProfilesHtml(ModeService* mode_service) {
+   CHECK(mode_service);
+   return PageFrame("Profile Administration", R"TAHAI(
+ <section class=hero><p class=eyebrow>Native Chromium profiles</p><h2>Profiles, identity, and privacy remain browser-owned.</h2><p class=muted>TAHAI does not copy, proxy, or synthesize Chromium profile data. Use the native controls below to create, select, customize, or manage the current profile under Chromium’s existing security and policy enforcement.</p><div class=actions><a class="button primary" href="chrome://profile-picker/">Open Profile Picker</a><a class=button href="chrome://settings/manageProfile">Manage Current Profile</a><a class=button href="chrome://settings/privacy">Open Privacy Controls</a></div></section><section class="section three"><article class=panel><p class=eyebrow>Profile boundary</p><h2>Separate by design</h2><p class=boundary>Mission state is profile scoped. This page never enumerates profile paths, account contents, cookies, history, saved passwords, local files, or credentials.</p></article><article class=panel><p class=eyebrow>Enterprise policy</p><h2>Chromium-enforced</h2><p class=muted>Managed policy remains authoritative for profile availability, sign-in, extensions, downloads, and permissions. Inspect effective policy through Chromium’s native policy page.</p><a class=button href="chrome://policy/">Open Chromium Policy</a></article><article class=panel><p class=eyebrow>Safe recovery</p><h2>Explicit user choice</h2><p class=muted>Profile creation, deletion, data clearing, and identity changes occur only in Chromium’s native dialogs after user confirmation.</p></article></section>
+-)TAHAI", ActiveTheme(mode_service), ActiveModeId(mode_service));
++)TAHAI",
++                   ActiveTheme(mode_service), ActiveModeId(mode_service),
++                   &mode_service->active_configuration());
+ }
+ 
+ std::string PolicyHtml(ModeService* mode_service) {
+   CHECK(mode_service);
+   return PageFrame("Policy", R"TAHAI(
+ <section class=hero><p class=eyebrow>Enterprise truth</p><h2>Policy can restrict features. It cannot grant authorization.</h2><p class=muted>TAHAI uses Chromium policy precedence, refresh, diagnostics, and profile boundaries.</p></section><section class="section three"><article class=panel><h2>Browser</h2><ul class=list><li>Startup and search</li><li>Extensions and permissions</li><li>Downloads and protocols</li></ul></article><article class=panel><h2>Operator features</h2><ul class=list><li>Adaptation</li><li>Mission Control</li><li>Recipes and evidence</li></ul></article><article class=panel><h2>Security</h2><p class=boundary>Managed policy never supplies credentials, bypasses browser security, authorizes remote actions, or enables arbitrary execution.</p></article></section>
+-)TAHAI", ActiveTheme(mode_service), ActiveModeId(mode_service));
++)TAHAI",
++                   ActiveTheme(mode_service), ActiveModeId(mode_service),
++                   &mode_service->active_configuration());
+ }
+ 
+ std::optional<int> CommandId(std::string_view command) {
+@@ -898,7 +1132,8 @@ std::optional<GURL> CommandSurfaceURL(std::string_view command) {
+ 
+ class TahaiCommandHandler : public content::WebUIMessageHandler {
+  public:
+-  TahaiCommandHandler(MissionService* mission_service, ModeService* mode_service)
++  TahaiCommandHandler(MissionService* mission_service,
++                      ModeService* mode_service)
+       : mission_service_(mission_service), mode_service_(mode_service) {}
+   TahaiCommandHandler(const TahaiCommandHandler&) = delete;
+   TahaiCommandHandler& operator=(const TahaiCommandHandler&) = delete;
+@@ -992,23 +1227,22 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
+     }
+     Browser* browser = chrome::FindBrowserWithTab(web_ui()->GetWebContents());
+     if (command == "dual.open") {
+-      chrome::OpenTahaiDualView(
+-          browser, chrome::TahaiDualViewLayout::kSideBySide);
++      chrome::OpenTahaiDualView(browser,
++                                chrome::TahaiDualViewLayout::kSideBySide);
+       return;
+     }
+     if (command == "dual.stacked") {
+-      chrome::OpenTahaiDualView(browser,
+-                                chrome::TahaiDualViewLayout::kStacked);
++      chrome::OpenTahaiDualView(browser, chrome::TahaiDualViewLayout::kStacked);
+       return;
+     }
+     if (command == "tri.two-over-one") {
+-      chrome::OpenTahaiTriView(
+-          browser, chrome::TahaiTriViewLayout::kTwoOverOne);
++      chrome::OpenTahaiTriView(browser,
++                               chrome::TahaiTriViewLayout::kTwoOverOne);
+       return;
+     }
+     if (command == "tri.one-over-two") {
+-      chrome::OpenTahaiTriView(
+-          browser, chrome::TahaiTriViewLayout::kOneOverTwo);
++      chrome::OpenTahaiTriView(browser,
++                               chrome::TahaiTriViewLayout::kOneOverTwo);
+       return;
+     }
+     if (command == "quad.open") {
+@@ -1208,7 +1442,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
+     if (!mode_service_ || args.size() != 2u || !args[0].is_string() ||
+         !args[1].is_string() ||
+         !mode_service_->SetActiveConfigurationValue(args[0].GetString(),
+-                                                   args[1].GetString())) {
++                                                    args[1].GetString())) {
+       return;
+     }
+     web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkModeUpdated");
+@@ -1229,7 +1463,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
+     }
+     const WorkModeTemplate* work_template =
+         ModeService::FindTemplate(args.front().GetString());
+-    if (!work_template || work_template->mode_id != mode_service_->active_mode().id ||
++    if (!work_template ||
++        work_template->mode_id != mode_service_->active_mode().id ||
+         !mission_service_->CreateMission(work_template->title,
+                                          work_template->mission_type)) {
+       return;
+@@ -1264,8 +1499,8 @@ void TahaiPlaceholderSource::StartDataRequest(
+     std::string_view logo =
+         ui::ResourceBundle::GetSharedInstance().GetRawDataResource(
+             IDR_PRODUCT_LOGO_256);
+-    std::move(callback).Run(base::MakeRefCounted<base::RefCountedString>(
+-        std::string(logo)));
++    std::move(callback).Run(
++        base::MakeRefCounted<base::RefCountedString>(std::string(logo)));
+     return;
+   }
+   std::string html;
+@@ -1358,9 +1593,8 @@ TahaiUI::TahaiUI(content::WebUI* web_ui,
+   ModeService* mode_service = ModeServiceFactory::GetForProfile(profile);
+   CHECK(mission_service);
+   CHECK(mode_service);
+-  content::URLDataSource::Add(
+-      profile,
+-      std::make_unique<TahaiPlaceholderSource>(mission_service, mode_service));
++  content::URLDataSource::Add(profile, std::make_unique<TahaiPlaceholderSource>(
++                                           mission_service, mode_service));
+   // Every TAHAI surface hosts the same fixed command palette. The handler is
+   // deliberately route- and command-allowlisted; it never accepts a URL,
+   // script, connector, or profile-selection value from page content.
+@@ -1379,9 +1613,9 @@ bool TahaiUIConfig::ShouldHandleURL(const GURL& url) {
+   return GetSurfaceDefinition(url).has_value();
+ }
+ 
+-std::unique_ptr<content::WebUIController>
+-TahaiUIConfig::CreateWebUIController(content::WebUI* web_ui,
+-                                     const GURL& url) {
++std::unique_ptr<content::WebUIController> TahaiUIConfig::CreateWebUIController(
++    content::WebUI* web_ui,
++    const GURL& url) {
+   const std::optional<TahaiSurfaceDefinition> surface =
+       GetSurfaceDefinition(url);
+   CHECK(surface);
+-- 
+2.54.0.windows.1
+
