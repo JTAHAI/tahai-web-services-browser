@@ -1,0 +1,39 @@
+From 231113e1e16a6ad6e662eabec13ac6f982d1d90c Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Fri, 21 Aug 2026 08:25:19 -0400
+Subject: [PATCH] TAHAI: advance Store package for extension isolation
+
+---
+ chrome/installer/win/tahai_msix/AppxManifest.xml          | 2 +-
+ chrome/installer/win/tahai_msix/package_unsigned_msix.ps1 | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/chrome/installer/win/tahai_msix/AppxManifest.xml b/chrome/installer/win/tahai_msix/AppxManifest.xml
+index 272c58ba5890b9e0f0d9fc62490444f70dde86d9..887396d961b34f13c4602333b4dc0e0f27d16368 100644
+--- a/chrome/installer/win/tahai_msix/AppxManifest.xml
++++ b/chrome/installer/win/tahai_msix/AppxManifest.xml
+@@ -3,7 +3,7 @@
+          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+          IgnorableNamespaces="uap rescap">
+-  <Identity Name="TAHAIWebServices.TAHAIWebServicesBrowser" Publisher="CN=D75EE668-B409-45ED-87E5-E37AA5FE3868" Version="2.0.19.0" ProcessorArchitecture="x64" />
++  <Identity Name="TAHAIWebServices.TAHAIWebServicesBrowser" Publisher="CN=D75EE668-B409-45ED-87E5-E37AA5FE3868" Version="2.0.20.0" ProcessorArchitecture="x64" />
+   <Properties>
+     <DisplayName>TAHAI Web Services Browser</DisplayName>
+     <PublisherDisplayName>TAHAI Web Services</PublisherDisplayName>
+diff --git a/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1 b/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
+index 77b1a5cf38e598c658ec0b0bdeec25a2c56c5ba7..03b63f1468526f029db527f05caa7ed0d7bcdfd5 100644
+--- a/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
++++ b/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
+@@ -2,7 +2,7 @@
+ param(
+     [string]$OutDir = (Join-Path $PSScriptRoot "out"),
+     [string]$BuildDir = (Join-Path $PSScriptRoot "..\..\..\..\out\tahai_stock_debug_x64"),
+-    [string]$Version = "2.0.19.0"
++    [string]$Version = "2.0.20.0"
+ )
+ 
+ $ErrorActionPreference = "Stop"
+-- 
+2.54.0.windows.1
+
