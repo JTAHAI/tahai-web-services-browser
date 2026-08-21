@@ -1,7 +1,7 @@
 # TAHAI native Chromium GA patch series
 
 This directory is the source delivery for the native TAHAI Browser worktree.
-It is a 16-commit `git format-patch` series based on Chromium
+It is a 17-commit `git format-patch` series based on Chromium
 `150.0.7871.183` (`0fcdce5f4fdec8d442d7df760cb541f1ca6e446d`).  It deliberately
 contains source patches only; it does not include build outputs, profiles,
 logs, certificates, credentials, or an MSIX binary.
@@ -27,9 +27,17 @@ The final patch adds a reproducible unsigned MSIX packer at
   -OutDir C:\src\tahai-release\msix
 ```
 
+The final Store-reservation patch sets the active Partner Center identity:
+
+- Name: `TAHAIWebServices.TAHAIWebServicesBrowser`
+- Publisher: `CN=D75EE668-B409-45ED-87E5-E37AA5FE3868`
+- Display name: `TAHAI Web Services Browser`
+- Version: `2.0.19.0`
+
 The resulting package is intentionally unsigned and therefore is a local
-review artifact, not a production installer.  It must be signed with a
-trusted code-signing identity before ordinary Windows deployment.
+review artifact, not a production installer. It has no signature payload;
+Microsoft Store can apply its distribution signing only after all submission
+metadata is complete.
 
 ## Included native surfaces
 
@@ -47,6 +55,6 @@ trusted code-signing identity before ordinary Windows deployment.
 - `makeappx pack` and an independent `makeappx unpack`: passed.
 - Staged TAHAI runtime launch with `tahai://modes/`: passed.
 
-The local review package built from this series had SHA-256:
+The corrected Store-ready unsigned package built from this series had SHA-256:
 
-`A26EFD2945A4724BFB6CA027F8C99DEC90F72B9B87F5049022B7630B072BCB2E`
+`2342FFA3C642AC39EE14AA201A29076C303AF11D8118E06C5912ABC8E43F09F9`
