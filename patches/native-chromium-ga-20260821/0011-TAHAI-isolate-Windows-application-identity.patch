@@ -1,0 +1,116 @@
+From 826d6faed78a81f3191580f267b60b59e87e0c13 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Mon, 10 Aug 2026 13:45:23 -0400
+Subject: [PATCH 11/16] TAHAI: isolate Windows application identity
+
+---
+ chrome/app/chrome_exe.rc                      |  2 +
+ .../install_static/chromium_install_modes.h   | 50 +++++++++++++++++++
+ 2 files changed, 52 insertions(+)
+
+diff --git a/chrome/app/chrome_exe.rc b/chrome/app/chrome_exe.rc
+index 802926c0e5da0e8d5c1d00c847e8c358db5cbde9..dd0293add9b9e56d1bf5245e8519c7cb737a8581 100644
+--- a/chrome/app/chrome_exe.rc
++++ b/chrome/app/chrome_exe.rc
+@@ -28,6 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+ IDENTITY LIMITEDACCESSFEATURE {L"google-chrome_0qgpfzgh1edfy"}
+ #elif BUILDFLAG(GOOGLE_CHROME_FOR_TESTING_BRANDING)
+ IDENTITY LIMITEDACCESSFEATURE {L"google-chrome_0qgpfzgh1edfy"}
++#elif BUILDFLAG(TAHAI_BRANDING)
++IDENTITY LIMITEDACCESSFEATURE {L"tahai_browser_8x1m4p6n2q7zr"}
+ #else
+ IDENTITY LIMITEDACCESSFEATURE {L"chromium_b06a12530me7r"}
+ #endif
+diff --git a/chrome/install_static/chromium_install_modes.h b/chrome/install_static/chromium_install_modes.h
+index f29a8228fe611cc2d0a9dcab08cd624f60d2ebdc..9dfcc29edc58de54595b93a6c3c0685522733f9b 100644
+--- a/chrome/install_static/chromium_install_modes.h
++++ b/chrome/install_static/chromium_install_modes.h
+@@ -9,6 +9,7 @@
+ 
+ #include <array>
+ 
++#include "build/branding_buildflags.h"
+ #include "chrome/app/chrome_dll_resource.h"
+ #include "chrome/common/chrome_icon_resources_win.h"
+ #include "chrome/install_static/install_constants.h"
+@@ -17,14 +18,26 @@ namespace install_static {
+ 
+ // The brand-specific company name to be included as a component of the install
+ // and user data directory paths. May be empty if no such dir is to be used.
++#if BUILDFLAG(TAHAI_BRANDING)
++inline constexpr wchar_t kCompanyPathName[] = L"TAHAI Web Services";
++#else
+ inline constexpr wchar_t kCompanyPathName[] = L"";
++#endif
+ 
+ // The brand-specific product name to be included as a component of the install
+ // and user data directory paths.
++#if BUILDFLAG(TAHAI_BRANDING)
++inline constexpr wchar_t kProductPathName[] = L"TAHAI Browser";
++#else
+ inline constexpr wchar_t kProductPathName[] = L"Chromium";
++#endif
+ 
+ // The brand-specific safe browsing client name.
++#if BUILDFLAG(TAHAI_BRANDING)
++inline constexpr char kSafeBrowsingName[] = "tahai-browser";
++#else
+ inline constexpr char kSafeBrowsingName[] = "chromium";
++#endif
+ 
+ // Note: This list of indices must be kept in sync with the brand-specific
+ // resource strings in chrome/installer/util/prebuild/create_string_rc.
+@@ -45,6 +58,42 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
+         .logo_suffix = L"",  // No logo suffix for the primary install mode.
+         .app_guid =
+             L"",  // Empty app_guid since no integration with Google Update.
++#if BUILDFLAG(TAHAI_BRANDING)
++        .base_app_name = L"TAHAI Browser",
++        .base_app_id = L"TAHAI.Browser",
++        .browser_prog_id_prefix = L"TAHAIBrowserHTM",
++        .browser_prog_id_description = L"TAHAI Browser HTML Document",
++        .direct_launch_url_scheme = "tahai-browser",
++        .pdf_prog_id_prefix = L"TAHAIBrowserPDF",
++        .pdf_prog_id_description = L"TAHAI Browser PDF Document",
++        .active_setup_guid =
++            L"{DF75B433-1691-5230-B9E4-11C8EE8A842D}",
++        .toast_activator_clsid = {0xC5B6E74A,
++                                  0xACE3,
++                                  0x5F9E,
++                                  {0xA0, 0x62, 0x5B, 0xA0, 0xF3, 0x1A, 0xED,
++                                   0xAF}},
++        .elevator_clsid = {0xB79472FC,
++                           0x4AB5,
++                           0x5094,
++                           {0x88, 0x22, 0xF4, 0xD5, 0x92, 0x88, 0x30,
++                            0xB0}},
++        .elevator_iid = {0x8D296EFE,
++                         0x0DBF,
++                         0x5BC7,
++                         {0x9A, 0x25, 0x55, 0x82, 0x3F, 0x18, 0x6D,
++                          0x24}},
++        .tracing_service_clsid = {0xEDC64288,
++                                  0x10BC,
++                                  0x5A45,
++                                  {0x9F, 0x64, 0x77, 0x18, 0xE9, 0x83, 0x38,
++                                   0xAD}},
++        .tracing_service_iid = {0x5DF5FC8A,
++                                0x5921,
++                                0x5A3D,
++                                {0x84, 0x47, 0x36, 0x7A, 0xEA, 0xF4, 0xB8,
++                                 0x15}},
++#else
+         .base_app_name = L"Chromium",              // A distinct base_app_name.
+         .base_app_id = L"Chromium",                // A distinct base_app_id.
+         .browser_prog_id_prefix = L"ChromiumHTM",  // Browser ProgID prefix.
+@@ -84,6 +133,7 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
+                                 {0x91, 0x74, 0x75, 0xd0, 0xb1, 0x99, 0xd3,
+                                  0xcb}},  // ISystemTraceSessionChromium IID and
+                                           // TypeLib
++#endif
+         .default_channel_name =
+             L"",  // Empty default channel name since no update integration.
+         .channel_strategy = ChannelStrategy::UNSUPPORTED,
+-- 
+2.54.0.windows.1
+

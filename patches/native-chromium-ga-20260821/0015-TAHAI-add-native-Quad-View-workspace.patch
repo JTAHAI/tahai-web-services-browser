@@ -1,0 +1,2532 @@
+From a278b75ccd3c17b3fac98e3ba990d0f29040de41 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Wed, 12 Aug 2026 17:12:48 -0400
+Subject: [PATCH 15/16] TAHAI: add native Quad View workspace
+
+---
+ chrome/app/chrome_command_ids.h               |   3 +
+ chrome/app/generated_resources.grd            |  12 ++
+ chrome/browser/sessions/session_restore.cc    |  29 +--
+ .../sessions/session_restore_browsertest.cc   |  58 ++++-
+ .../sessions/tab_restore_service_unittest.cc  |  98 ++++++++-
+ chrome/browser/ui/accelerator_table.cc        |   6 +
+ .../tab_model/android_live_tab_context.cc     |  11 +
+ .../tab_model/android_live_tab_context.h      |   4 +
+ .../browser/ui/browser_command_controller.cc  |  18 ++
+ chrome/browser/ui/browser_commands.cc         | 167 +++++++++++++--
+ chrome/browser/ui/browser_commands.h          |  34 ++-
+ chrome/browser/ui/browser_live_tab_context.cc |  39 ++--
+ chrome/browser/ui/browser_live_tab_context.h  |   4 +
+ .../browser/ui/tabs/split_tab_menu_model.cc   |   9 +-
+ chrome/browser/ui/tabs/split_tab_metrics.cc   |   6 +-
+ .../ui/tabs/split_tab_swap_menu_model.cc      |   4 +-
+ chrome/browser/ui/tabs/split_tab_util.cc      |  15 +-
+ chrome/browser/ui/tabs/tab_strip_model.cc     |  26 ++-
+ chrome/browser/ui/tabs/tab_strip_model.h      |   6 +
+ .../ui/tabs/tab_strip_model_unittest.cc       |  38 ++++
+ chrome/browser/ui/toolbar/app_menu_model.cc   |  88 ++++----
+ chrome/browser/ui/views/frame/browser_view.cc |  39 ++--
+ .../ui/views/frame/multi_contents_view.cc     | 198 ++++++++++++++++--
+ .../ui/views/frame/multi_contents_view.h      |  31 ++-
+ .../frame/multi_contents_view_browsertest.cc  |  80 ++++++-
+ chrome/browser/ui/views/tabs/tab.cc           |  13 +-
+ .../tabs/vertical/vertical_split_tab_view.cc  |  67 +++---
+ chrome/browser/ui/webui/tahai/tahai_ui.cc     |  42 +++-
+ components/sessions/core/live_tab_context.h   |   9 +
+ .../core/tab_restore_service_helper.cc        | 135 +++++++-----
+ .../core/tab_restore_service_helper.h         |   6 +-
+ .../sessions/core/tab_restore_service_impl.cc |  34 ++-
+ 32 files changed, 1052 insertions(+), 277 deletions(-)
+
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+index 0f50c4d73e0cf2486e667d3a5ed564c31ba6fb57..76065a81e8c5cf6329cffd824418c11d3ceec011 100644
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -93,6 +93,9 @@
+ #define IDC_WEB_APP_SETTINGS            34063
+ #define IDC_WEB_APP_MENU_APP_INFO       34064
+ #define IDC_WEB_APP_UPGRADE_DIALOG      34065
++#define IDC_TAHAI_QUAD_VIEW             34066
++#define IDC_TAHAI_QUAD_FOCUS            34067
++#define IDC_TAHAI_QUAD_EXIT             34068
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+ // Move window to other user commands
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index 86731fd1704bc75fd021db98f13e655466579c6b..6874b04ef25004bef58fc72ef855fd735b4051a8 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -19983,6 +19983,18 @@ Please help our engineers fix this problem. Tell us what happened right before y
+     <message name="IDS_OSCRYPTASYNC_AVAILABILITY_INFOBAR_BUTTON" desc="The text of the button to proceed with relaunching the entire browser to resolve keychain permission issues.">
+       Relaunch
+     </message>
++    <message name="IDS_TAHAI_OPEN_QUAD_VIEW" desc="The app menu command that opens TAHAI's native four-pane tab workspace.">
++      Open Quad View
++    </message>
++    <message name="IDS_TAHAI_FOCUS_ACTIVE_PANE" desc="The app menu command that temporarily expands the active pane in Quad View.">
++      Focus Active Pane
++    </message>
++    <message name="IDS_TAHAI_RESTORE_QUAD_VIEW" desc="The app menu command that restores all panes after focusing one Quad View pane.">
++      Restore Quad View
++    </message>
++    <message name="IDS_TAHAI_EXIT_QUAD_VIEW" desc="The app menu command that exits TAHAI Quad View without closing its tabs.">
++      Exit Quad View
++    </message>
+   </messages>
+ </release>
+ </grit>
+diff --git a/chrome/browser/sessions/session_restore.cc b/chrome/browser/sessions/session_restore.cc
+index c3c6757959dde7b945e66d80c6a17c4b5011f2be..0c80e55a3417b9de8b102cec03028885a370aa8e 100644
+--- a/chrome/browser/sessions/session_restore.cc
++++ b/chrome/browser/sessions/session_restore.cc
+@@ -1022,22 +1022,23 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+                  did_show_browser);
+     }
+ 
+-      for (const auto& pair : tabs_by_split_id) {
+-        const split_tabs::SplitTabId split_id = pair.first;
+-        const std::vector<tabs::TabInterface*> tab_contents_list = pair.second;
+-        std::vector<int> tab_index_list;
+-        for (auto* tab : tab_contents_list) {
+-          tab_index_list.push_back(
+-              browser->GetTabStripModel()->GetIndexOfTab(tab));
+-        }
++    for (const auto& pair : tabs_by_split_id) {
++      const split_tabs::SplitTabId split_id = pair.first;
++      const std::vector<tabs::TabInterface*> tab_contents_list = pair.second;
++      std::vector<int> tab_index_list;
++      for (auto* tab : tab_contents_list) {
++        tab_index_list.push_back(
++            browser->GetTabStripModel()->GetIndexOfTab(tab));
++      }
+ 
+-        // The number of supported split tabs is 2. Do not attempt to restore
+-        // more than this to future proof it.
+-        if (tab_contents_list.size() == 2) {
+-          browser->tab_strip_model()->RestoreSplit(
+-              split_id, tab_index_list, split_tabs::SplitTabVisualData());
+-        }
++      // Native split collections back TAHAI's 2-up, 3-up, and Quad View.
++      // Reject malformed collections while restoring every supported member
++      // in its original contiguous order.
++      if (tab_contents_list.size() >= 2u && tab_contents_list.size() <= 4u) {
++        browser->tab_strip_model()->RestoreSplit(
++            split_id, tab_index_list, split_tabs::SplitTabVisualData());
+       }
++    }
+   }
+ 
+   // |tab_index| is ignored for pinned tabs which will always be pushed behind
+diff --git a/chrome/browser/sessions/session_restore_browsertest.cc b/chrome/browser/sessions/session_restore_browsertest.cc
+index a2da652d3a2f85ecbe39581ec6ad77fa7c7b524b..ec5afc0e9ba1a6b5e14646f1f1910481192066ad 100644
+--- a/chrome/browser/sessions/session_restore_browsertest.cc
++++ b/chrome/browser/sessions/session_restore_browsertest.cc
+@@ -400,8 +400,9 @@ class SessionRestoreTest : public InProcessBrowserTest {
+     }
+     restore_observer.Wait();
+ 
+-    if (no_memory_pressure)
++    if (no_memory_pressure) {
+       WaitForTabsToLoad(new_browser);
++    }
+ 
+     keep_alive.reset();
+     profile_keep_alive.reset();
+@@ -1109,8 +1110,9 @@ void CheckTabGrouping(TabStripModel* model,
+ std::vector<std::optional<tab_groups::TabGroupId>> GetTabGroups(
+     const TabStripModel* model) {
+   std::vector<std::optional<tab_groups::TabGroupId>> result(model->count());
+-  for (int i = 0; i < model->count(); ++i)
++  for (int i = 0; i < model->count(); ++i) {
+     result[i] = model->GetTabGroupForTab(i);
++  }
+   return result;
+ }
+ 
+@@ -2400,15 +2402,17 @@ class MultiBrowserObserver : public BrowserCollectionObserver {
+   void OnBrowserCreated(BrowserWindowInterface* browser) override {
+     if (event_ == Event::kAdded) {
+       browsers_.push_back(browser);
+-      if (--num_expected_ == 0)
++      if (--num_expected_ == 0) {
+         run_loop_.Quit();
++      }
+     }
+   }
+   void OnBrowserClosed(BrowserWindowInterface* browser) override {
+     if (event_ == Event::kRemoved) {
+       browsers_.push_back(browser);
+-      if (--num_expected_ == 0)
++      if (--num_expected_ == 0) {
+         run_loop_.Quit();
++      }
+     }
+   }
+ 
+@@ -2601,10 +2605,11 @@ IN_PROC_BROWSER_TEST_F(SmartSessionRestoreTest, MAYBE_PRE_CorrectLoadingOrder) {
+             browser()->tab_strip_model()->count());
+ 
+   // Activate the tabs one by one following the specified activation order.
+-  for (int i : activation_order)
++  for (int i : activation_order) {
+     browser()->tab_strip_model()->ActivateTabAt(
+         i, TabStripUserGestureDetails(
+                TabStripUserGestureDetails::GestureType::kOther));
++  }
+ 
+   // Close the browser.
+   auto keep_alive = std::make_unique<ScopedKeepAlive>(
+@@ -3242,8 +3247,9 @@ class SessionRestoreWithIncompleteFileTest : public InProcessBrowserTest {
+   }
+   bool SetUpUserDataDirectory() override {
+     const bool result = InProcessBrowserTest::SetUpUserDataDirectory();
+-    if (!result)
++    if (!result) {
+       return false;
++    }
+ 
+     // Copy a file over that has an incomplete command. The file should still
+     // be read, but a read error should be logged.
+@@ -3337,8 +3343,9 @@ IN_PROC_BROWSER_TEST_F(
+   embedded_test_server()->RegisterRequestHandler(base::BindLambdaForTesting(
+       [&](const net::test_server::HttpRequest& request)
+           -> std::unique_ptr<net::test_server::HttpResponse> {
+-        if (request.relative_url != "/sometimes-slow")
++        if (request.relative_url != "/sometimes-slow") {
+           return nullptr;
++        }
+         DCHECK(got_slow_request)
+             << "Set `got_slow_request` before each navigation request.";
+         return std::make_unique<content::SlowHttpResponse>(
+@@ -3428,8 +3435,9 @@ IN_PROC_BROWSER_TEST_F(
+   embedded_test_server()->RegisterRequestHandler(base::BindLambdaForTesting(
+       [&](const net::test_server::HttpRequest& request)
+           -> std::unique_ptr<net::test_server::HttpResponse> {
+-        if (request.relative_url != "/sometimes-slow")
++        if (request.relative_url != "/sometimes-slow") {
+           return nullptr;
++        }
+         DCHECK(got_slow_request)
+             << "Set `got_slow_request` before each navigation request.";
+         return std::make_unique<content::SlowHttpResponse>(
+@@ -3580,8 +3588,9 @@ class SessionRestoreSilentLaunchTest : public SessionRestoreTest {
+   // SessionRestoreTest:
+   void SetUpCommandLine(base::CommandLine* command_line) override {
+     SessionRestoreTest::SetUpCommandLine(command_line);
+-    if (GetTestPreCount() == 1)
++    if (GetTestPreCount() == 1) {
+       command_line->AppendSwitch(switches::kNoStartupWindow);
++    }
+   }
+ 
+   ExitType GetLastSessionExitType() {
+@@ -4712,8 +4721,7 @@ IN_PROC_BROWSER_TEST_F(TabbedAppSessionRestoreTest, RestorePinnedAppTab) {
+ class SessionRestoreStaleSessionCookieDeletionTest : public SessionRestoreTest {
+  public:
+   SessionRestoreStaleSessionCookieDeletionTest()
+-      : https_server_(net::EmbeddedTestServer::TYPE_HTTPS) {
+-  }
++      : https_server_(net::EmbeddedTestServer::TYPE_HTTPS) {}
+ 
+   void SetUpOnMainThread() override {
+     host_resolver()->AddRule("*", "127.0.0.1");
+@@ -5026,3 +5034,31 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreTest, PinnedAndSplitTabsRestored) {
+   EXPECT_EQ(new_browser->GetTabStripModel()->GetSplitForTab(0),
+             new_browser->GetTabStripModel()->GetSplitForTab(1));
+ }
++
++IN_PROC_BROWSER_TEST_F(SessionRestoreTest, TahaiQuadViewRestored) {
++  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GetUrl1()));
++  for (int index = 1; index < 4; ++index) {
++    ui_test_utils::NavigateToURLWithDisposition(
++        browser(), index % 2 ? GetUrl2() : GetUrl1(),
++        WindowOpenDisposition::NEW_FOREGROUND_TAB,
++        ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
++  }
++  TabStripModel* model = browser()->tab_strip_model();
++  ASSERT_EQ(model->count(), 4);
++  model->ActivateTabAt(2);
++  model->AddToNewTahaiQuad({0, 1, 2, 3});
++
++  BrowserWindowInterface* restored = QuitBrowserAndRestore(browser());
++  TabStripModel* restored_model = restored->GetTabStripModel();
++  ASSERT_EQ(restored_model->count(), 4);
++  ASSERT_EQ(restored_model->ListSplits().size(), 1u);
++  const split_tabs::SplitTabId split_id = *restored_model->ListSplits().begin();
++  const std::vector<tabs::TabInterface*> restored_members =
++      restored_model->GetSplitData(split_id)->ListTabs();
++  ASSERT_EQ(restored_members.size(), 4u);
++  for (int index = 0; index < 4; ++index) {
++    EXPECT_EQ(restored_members[index], restored_model->GetTabAtIndex(index));
++    EXPECT_EQ(restored_model->GetSplitForTab(index), split_id);
++  }
++  EXPECT_EQ(restored_model->active_index(), 2);
++}
+diff --git a/chrome/browser/sessions/tab_restore_service_unittest.cc b/chrome/browser/sessions/tab_restore_service_unittest.cc
+index 5757f7d3ad24e4435d40eb8267d41c773d848caf..c33e01a72305f2bf8e9adc81acbadf6178ba1725 100644
+--- a/chrome/browser/sessions/tab_restore_service_unittest.cc
++++ b/chrome/browser/sessions/tab_restore_service_unittest.cc
+@@ -149,6 +149,12 @@ class MockLiveTabContext : public sessions::LiveTabContext {
+                     sessions::LiveTab* trailing_tab,
+                     split_tabs::SplitTabId split_id,
+                     const split_tabs::SplitTabVisualData& visual_data));
++  MOCK_METHOD(void,
++              ReconstructSplit,
++              ((const std::vector<sessions::LiveTab*>&),
++               split_tabs::SplitTabId,
++               const split_tabs::SplitTabVisualData&),
++              (override));
+   MOCK_METHOD0(CloseTab, void());
+ };
+ 
+@@ -304,13 +310,16 @@ class TabRestoreServiceImplTest : public ChromeRenderViewHostTestHarness {
+     session_service->SetTabWindow(window_id(), tab_id());
+     session_service->SetTabIndexInWindow(window_id(), tab_id(), 0);
+     session_service->SetSelectedTabInWindow(window_id(), 0);
+-    if (pinned)
++    if (pinned) {
+       session_service->SetPinnedState(window_id(), tab_id(), true);
+-    if (group)
++    }
++    if (group) {
+       session_service->SetTabGroup(window_id(), tab_id(), group);
+-    if (group && group_visual_data)
++    }
++    if (group && group_visual_data) {
+       session_service->SetTabGroupMetadata(window_id(), *group,
+                                            &*group_visual_data);
++    }
+ 
+     session_service->UpdateTabNavigation(
+         window_id(), tab_id(),
+@@ -1092,8 +1101,9 @@ TEST_F(TabRestoreServiceImplTest, LoadPreviousSessionAndTabsPinned) {
+ TEST_F(TabRestoreServiceImplTest, ManyWindowsInSessionService) {
+   CreateSessionServiceWithOneWindow(false);
+ 
+-  for (size_t i = 0; i < kMaxEntries; ++i)
++  for (size_t i = 0; i < kMaxEntries; ++i) {
+     AddWindowWithOneTabToSessionService(false);
++  }
+ 
+   SessionServiceFactory::GetForProfile(profile())
+       ->MoveCurrentSessionToLastSession();
+@@ -1467,14 +1477,80 @@ TEST_F(TabRestoreServiceImplWithMockClientTest, SplitVisualDataPersistence) {
+   EXPECT_EQ(visual_data, split_entry->visual_data);
+ 
+   // Now verify that restoring the split passes the correct visual data.
+-  EXPECT_CALL(mock_live_tab_context,
+-              ReconstructSplit(_, _, split_id, testing::Eq(visual_data)))
++  EXPECT_CALL(
++      mock_live_tab_context,
++      ReconstructSplit(testing::SizeIs(2), split_id, testing::Eq(visual_data)))
+       .Times(1);
+ 
+   service_->RestoreEntryById(&mock_live_tab_context, entry->id,
+                              WindowOpenDisposition::NEW_FOREGROUND_TAB);
+ }
+ 
++TEST_F(TabRestoreServiceImplWithMockClientTest,
++       TahaiQuadCloseAndRestorePreservesAllPanes) {
++  ON_CALL(*mock_tab_restore_service_client_, ShouldTrackURLForRestore(_))
++      .WillByDefault(Return(true));
++  testing::NiceMock<MockLiveTabContext> mock_live_tab_context;
++  testing::NiceMock<MockLiveTab> mock_tabs[4];
++  const split_tabs::SplitTabId quad_id = split_tabs::SplitTabId::GenerateNew();
++
++  ON_CALL(mock_live_tab_context, GetSessionID())
++      .WillByDefault(Return(SessionID::NewUnique()));
++  ON_CALL(mock_live_tab_context, GetTabCount()).WillByDefault(Return(4));
++  ON_CALL(mock_live_tab_context, GetSplitForTab(_))
++      .WillByDefault(Return(quad_id));
++  ON_CALL(mock_live_tab_context, GetLiveTabAt(_))
++      .WillByDefault(
++          testing::Invoke([&mock_tabs](int index) -> sessions::LiveTab* {
++            return index >= 0 && index < 4 ? &mock_tabs[index] : nullptr;
++          }));
++
++  for (int i = 0; i < 4; ++i) {
++    ON_CALL(mock_tabs[i], GetSessionID())
++        .WillByDefault(Return(SessionID::NewUnique()));
++    ON_CALL(mock_tabs[i], GetEntryCount()).WillByDefault(Return(1));
++    ON_CALL(mock_tabs[i], GetEntryAtIndex(_))
++        .WillByDefault(Return(sessions::ContentTestHelper::CreateNavigation(
++            base::StringPrintf("http://quad%d", i + 1),
++            base::StringPrintf("Q%d", i + 1))));
++  }
++  ON_CALL(*mock_tab_restore_service_client_, FindLiveTabContextForTab(_))
++      .WillByDefault(Return(&mock_live_tab_context));
++
++  size_t restore_index = 0u;
++  ON_CALL(mock_live_tab_context, AddRestoredTab(_, _, _, _, _))
++      .WillByDefault(
++          testing::Invoke([&mock_tabs, &restore_index](
++                              const sessions::tab_restore::Tab&, int, bool,
++                              bool, sessions::tab_restore::Type) {
++            return restore_index < 4u ? &mock_tabs[restore_index++] : nullptr;
++          }));
++
++  service_->CreateHistoricalSplit(&mock_live_tab_context, quad_id);
++  ASSERT_EQ(1u, service_->entries().size());
++  ASSERT_EQ(sessions::tab_restore::Type::SPLIT,
++            service_->entries().front()->type);
++  ASSERT_EQ(4u, static_cast<sessions::tab_restore::Split*>(
++                    service_->entries().front().get())
++                    ->tabs.size());
++
++  // The pane count is part of the persisted command, so reopening the service
++  // must not truncate a Quad back to Chromium's historical two-pane shape.
++  RecreateService();
++  ASSERT_EQ(1u, service_->entries().size());
++  auto& restored_entry = service_->entries().front();
++  ASSERT_EQ(sessions::tab_restore::Type::SPLIT, restored_entry->type);
++  ASSERT_EQ(4u, static_cast<sessions::tab_restore::Split*>(restored_entry.get())
++                    ->tabs.size());
++
++  EXPECT_CALL(mock_live_tab_context,
++              ReconstructSplit(testing::SizeIs(4), quad_id, _))
++      .Times(1);
++  service_->RestoreEntryById(&mock_live_tab_context, restored_entry->id,
++                             WindowOpenDisposition::NEW_FOREGROUND_TAB);
++  EXPECT_TRUE(service_->entries().empty());
++}
++
+ TEST_F(TabRestoreServiceImplWithMockClientTest,
+        WindowSplitVisualDataPersistence) {
+   testing::NiceMock<MockLiveTabContext> mock_live_tab_context;
+@@ -1515,8 +1591,9 @@ TEST_F(TabRestoreServiceImplWithMockClientTest,
+   EXPECT_EQ(visual_data, window_entry->tabs[0]->split_visual_data);
+ 
+   // Now verify that restoring the window passes the correct visual data.
+-  EXPECT_CALL(mock_live_tab_context,
+-              ReconstructSplit(_, _, split_id, testing::Eq(visual_data)))
++  EXPECT_CALL(
++      mock_live_tab_context,
++      ReconstructSplit(testing::SizeIs(2), split_id, testing::Eq(visual_data)))
+       .Times(1);
+ 
+   service_->RestoreEntryById(&mock_live_tab_context, entry->id,
+@@ -1565,8 +1642,9 @@ TEST_F(TabRestoreServiceImplWithMockClientTest,
+ 
+   // Now verify that restoring the split after restart passes the correct visual
+   // data.
+-  EXPECT_CALL(mock_live_tab_context,
+-              ReconstructSplit(_, _, split_id, testing::Eq(visual_data)))
++  EXPECT_CALL(
++      mock_live_tab_context,
++      ReconstructSplit(testing::SizeIs(2), split_id, testing::Eq(visual_data)))
+       .Times(1);
+ 
+   service_->RestoreEntryById(&mock_live_tab_context, entry->id,
+diff --git a/chrome/browser/ui/accelerator_table.cc b/chrome/browser/ui/accelerator_table.cc
+index 51837acdf5a13e6ae75e163943d977c85c6c7fd1..5aa81148c1f9bd3d3028de1dba66af04bd96dd2a 100644
+--- a/chrome/browser/ui/accelerator_table.cc
++++ b/chrome/browser/ui/accelerator_table.cc
+@@ -319,6 +319,12 @@ std::vector<AcceleratorMapping> GetAcceleratorList() {
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
+     accelerators->emplace_back(AcceleratorMapping(
+         {ui::VKEY_N, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN, IDC_NEW_SPLIT_TAB}));
++    accelerators->emplace_back(
++        AcceleratorMapping({ui::VKEY_Q, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN,
++                            IDC_TAHAI_QUAD_VIEW}));
++    accelerators->emplace_back(
++        AcceleratorMapping({ui::VKEY_F, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN,
++                            IDC_TAHAI_QUAD_FOCUS}));
+ #elif BUILDFLAG(IS_CHROMEOS)
+     accelerators->emplace_back(
+         AcceleratorMapping({ui::VKEY_N, ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN,
+diff --git a/chrome/browser/ui/android/tab_model/android_live_tab_context.cc b/chrome/browser/ui/android/tab_model/android_live_tab_context.cc
+index aa9a871effadb628b3d3f22d7a33f34421a4320e..883c36e622fe4fa985532e8fb65e2b2560d59982 100644
+--- a/chrome/browser/ui/android/tab_model/android_live_tab_context.cc
++++ b/chrome/browser/ui/android/tab_model/android_live_tab_context.cc
+@@ -244,6 +244,17 @@ void AndroidLiveTabContext::ReconstructSplit(
+   NOTIMPLEMENTED();
+ }
+ 
++void AndroidLiveTabContext::ReconstructSplit(
++    const std::vector<sessions::LiveTab*>& tabs,
++    split_tabs::SplitTabId split_id,
++    const split_tabs::SplitTabVisualData& visual_data) {
++  if (tabs.size() == 2u) {
++    ReconstructSplit(tabs[0], tabs[1], split_id, visual_data);
++    return;
++  }
++  NOTIMPLEMENTED();
++}
++
+ // Currently does nothing.
+ void AndroidLiveTabContext::CloseTab() {
+   NOTIMPLEMENTED();
+diff --git a/chrome/browser/ui/android/tab_model/android_live_tab_context.h b/chrome/browser/ui/android/tab_model/android_live_tab_context.h
+index ae349e8d9c07f1adc28588d146a5247288a29249..63bf44d1092d39d206f4cf96610d7e71a4928fdd 100644
+--- a/chrome/browser/ui/android/tab_model/android_live_tab_context.h
++++ b/chrome/browser/ui/android/tab_model/android_live_tab_context.h
+@@ -82,6 +82,10 @@ class AndroidLiveTabContext : public sessions::LiveTabContext {
+       sessions::LiveTab* trailing_tab,
+       split_tabs::SplitTabId split_id,
+       const split_tabs::SplitTabVisualData& visual_data) override;
++  void ReconstructSplit(
++      const std::vector<sessions::LiveTab*>& tabs,
++      split_tabs::SplitTabId split_id,
++      const split_tabs::SplitTabVisualData& visual_data) override;
+   void CloseTab() override;
+ 
+   static LiveTabContext* FindContextForWebContents(
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+index f5831f33b9fd1c7d1c4338d9a096b7141d7bc95e..a59ed4add3020f940429717e3db8dcef13f6c464 100644
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -773,6 +773,15 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
+                     split_tabs::SplitTabCreatedSource::kKeyboardShortcut);
+       }
+       break;
++    case IDC_TAHAI_QUAD_VIEW:
++      OpenTahaiQuadView(browser_);
++      break;
++    case IDC_TAHAI_QUAD_FOCUS:
++      SetTahaiQuadFocusMode(browser_, !IsTahaiQuadFocusMode(browser_));
++      break;
++    case IDC_TAHAI_QUAD_EXIT:
++      ExitTahaiQuadView(browser_);
++      break;
+     case IDC_NAME_WINDOW:
+       PromptToNameWindow(browser_);
+       break;
+@@ -1654,6 +1663,10 @@ void BrowserCommandController::InitCommandState() {
+   command_updater_.UpdateCommandEnabled(IDC_EXIT, true);
+   command_updater_.UpdateCommandEnabled(IDC_NAME_WINDOW, true);
+   command_updater_.UpdateCommandEnabled(IDC_TOGGLE_VERTICAL_TABS, true);
++  command_updater_.UpdateCommandEnabled(IDC_TAHAI_QUAD_VIEW,
++                                        browser_->is_type_normal());
++  command_updater_.UpdateCommandEnabled(IDC_TAHAI_QUAD_FOCUS, false);
++  command_updater_.UpdateCommandEnabled(IDC_TAHAI_QUAD_EXIT, false);
+   command_updater_.UpdateCommandEnabled(IDC_VERTICAL_TABS_SEND_FEEDBACK, true);
+   command_updater_.UpdateCommandEnabled(
+       IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER, true);
+@@ -2552,6 +2565,11 @@ void BrowserCommandController::UpdateCommandsForTabStripStateChanged() {
+                                         CanMoveActiveTabToNewWindow(browser_));
+   command_updater_.UpdateCommandEnabled(IDC_NEW_SPLIT_TAB,
+                                         browser_->is_type_normal());
++  const bool is_tahai_quad = IsTahaiQuadView(browser_);
++  command_updater_.UpdateCommandEnabled(IDC_TAHAI_QUAD_VIEW,
++                                        browser_->is_type_normal());
++  command_updater_.UpdateCommandEnabled(IDC_TAHAI_QUAD_FOCUS, is_tahai_quad);
++  command_updater_.UpdateCommandEnabled(IDC_TAHAI_QUAD_EXIT, is_tahai_quad);
+   UpdateCommandsForBookmarkEditing();
+ }
+ 
+diff --git a/chrome/browser/ui/browser_commands.cc b/chrome/browser/ui/browser_commands.cc
+index 98184befe73ccdb129221921717f24a60e1967bc..b61e8c6b95d1258a904b1ecb3f659f2d7a8cc6da 100644
+--- a/chrome/browser/ui/browser_commands.cc
++++ b/chrome/browser/ui/browser_commands.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/browser_commands.h"
+ 
++#include <algorithm>
+ #include <memory>
+ #include <numeric>
+ #include <optional>
+@@ -116,6 +117,7 @@
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/frame/multi_contents_view.h"
+ #include "chrome/browser/ui/waap/initial_webui_window_metrics_manager.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
+@@ -730,7 +732,9 @@ bool ExecuteCommandWithDisposition(BrowserWindowInterface* browser,
+       ->ExecuteCommandWithDisposition(command, disposition);
+ }
+ 
+-void UpdateCommandEnabled(BrowserWindowInterface* browser, int command, bool enabled) {
++void UpdateCommandEnabled(BrowserWindowInterface* browser,
++                          int command,
++                          bool enabled) {
+   browser->GetFeatures().browser_command_controller()->UpdateCommandEnabled(
+       command, enabled);
+ }
+@@ -855,7 +859,6 @@ void OpenURLOffTheRecord(Profile* profile, const GURL& url) {
+   AddSelectedTabWithURL(displayer.browser(), url, ui::PAGE_TRANSITION_LINK);
+ }
+ 
+-
+ bool CanGoBack(const BrowserWindowInterface* browser) {
+   return CanGoBack(browser->GetTabStripModel()->GetActiveWebContents());
+ }
+@@ -1602,6 +1605,114 @@ void NewSplitTab(BrowserWindowInterface* browser,
+   }
+ }
+ 
++bool IsTahaiQuadView(const Browser* browser) {
++  if (!browser) {
++    return false;
++  }
++  const TabStripModel* model = browser->tab_strip_model();
++  const tabs::TabInterface* active = model->GetActiveTab();
++  if (!active || !active->IsSplit()) {
++    return false;
++  }
++  const size_t member_count =
++      model->GetSplitData(active->GetSplit().value())->ListTabs().size();
++  // Closing a pane intentionally degrades Quad View into the native 3-up
++  // layout. Keep focus and exit controls available so the user is never
++  // stranded in a partially closed workspace.
++  return member_count >= 3u && member_count <= 4u;
++}
++
++bool OpenTahaiQuadView(Browser* browser) {
++  if (!browser || !browser->is_type_normal()) {
++    return false;
++  }
++  TabStripModel* model = browser->tab_strip_model();
++  tabs::TabInterface* original_active = model->GetActiveTab();
++  if (!original_active) {
++    return false;
++  }
++  if (original_active->IsSplit()) {
++    model->RemoveSplit(original_active->GetSplit().value());
++  }
++
++  const int original_index_before_add = model->GetIndexOfTab(original_active);
++  if (original_index_before_add == TabStripModel::kNoTab) {
++    return false;
++  }
++  const bool original_pinned = model->IsTabPinned(original_index_before_add);
++  const std::optional<tab_groups::TabGroupId> original_group =
++      model->GetTabGroupForTab(original_index_before_add);
++  std::vector<tabs::TabInterface*> members = {original_active};
++  for (int index = 0; index < model->count() && members.size() < 4u; ++index) {
++    tabs::TabInterface* candidate = model->GetTabAtIndex(index);
++    if (!candidate->IsSplit() && model->IsTabPinned(index) == original_pinned &&
++        model->GetTabGroupForTab(index) == original_group &&
++        std::ranges::find(members, candidate) == members.end()) {
++      members.push_back(candidate);
++    }
++  }
++  while (members.size() < 4u) {
++    const int prior_count = model->count();
++    const int insertion_index = model->GetIndexOfTab(original_active) + 1;
++    const GURL new_tab_url = browser->profile()->IsIncognitoProfile()
++                                 ? chrome::ChromeUINewTabURLAsGURL()
++                                 : GURL(chrome::kChromeUINewTabURL);
++    model->delegate()->AddTabAt(new_tab_url, insertion_index, true,
++                                original_group, original_pinned);
++    if (model->count() <= prior_count || !model->GetActiveTab()) {
++      return false;
++    }
++    members.push_back(model->GetActiveTab());
++  }
++
++  const int original_index = model->GetIndexOfTab(original_active);
++  if (original_index == TabStripModel::kNoTab) {
++    return false;
++  }
++  model->ActivateTabAt(original_index);
++
++  std::vector<int> indices;
++  indices.reserve(4u);
++  for (tabs::TabInterface* member : members) {
++    const int index = model->GetIndexOfTab(member);
++    if (index == TabStripModel::kNoTab || member->IsSplit()) {
++      return false;
++    }
++    indices.push_back(index);
++  }
++  std::ranges::sort(indices);
++  model->AddToNewTahaiQuad(std::move(indices));
++  return IsTahaiQuadView(browser);
++}
++
++bool SetTahaiQuadFocusMode(Browser* browser, bool enabled) {
++  if (!IsTahaiQuadView(browser)) {
++    return false;
++  }
++  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
++  return browser_view && browser_view->multi_contents_view() &&
++         browser_view->multi_contents_view()->SetTahaiFocusMode(enabled);
++}
++
++bool IsTahaiQuadFocusMode(const Browser* browser) {
++  if (!IsTahaiQuadView(browser)) {
++    return false;
++  }
++  BrowserView* browser_view =
++      BrowserView::GetBrowserViewForBrowser(const_cast<Browser*>(browser));
++  return browser_view && browser_view->multi_contents_view() &&
++         browser_view->multi_contents_view()->IsTahaiFocusMode();
++}
++
++bool ExitTahaiQuadView(Browser* browser) {
++  if (!IsTahaiQuadView(browser)) {
++    return false;
++  }
++  TabStripModel* model = browser->tab_strip_model();
++  model->RemoveSplit(model->GetActiveTab()->GetSplit().value());
++  return !IsTahaiQuadView(browser);
++}
++
+ void AddNewTabToGroup(BrowserWindowInterface* browser) {
+   if (!browser->GetTabStripModel()->SupportsTabGroups()) {
+     return;
+@@ -2178,7 +2289,8 @@ void ScreenshotCapture(BrowserWindowInterface* browser) {
+ 
+ void SavePage(BrowserWindowInterface* browser) {
+   base::RecordAction(UserMetricsAction("SavePage"));
+-  WebContents* current_tab = browser->GetTabStripModel()->GetActiveWebContents();
++  WebContents* current_tab =
++      browser->GetTabStripModel()->GetActiveWebContents();
+   DCHECK(current_tab);
+   if (current_tab->GetContentsMimeType() == "application/pdf") {
+     base::RecordAction(UserMetricsAction("PDF.SavePage"));
+@@ -2249,7 +2361,8 @@ bool CanPrint(BrowserWindowInterface* browser) {
+ 
+ #if BUILDFLAG(ENABLE_PRINTING)
+ void BasicPrint(BrowserWindowInterface* browser) {
+-  printing::StartBasicPrint(browser->GetTabStripModel()->GetActiveWebContents());
++  printing::StartBasicPrint(
++      browser->GetTabStripModel()->GetActiveWebContents());
+ }
+ 
+ bool CanBasicPrint(BrowserWindowInterface* browser) {
+@@ -2301,7 +2414,9 @@ void FindPrevious(BrowserWindowInterface* browser) {
+   FindInPage(browser, true, false);
+ }
+ 
+-void FindInPage(BrowserWindowInterface* browser, bool find_next, bool forward_direction) {
++void FindInPage(BrowserWindowInterface* browser,
++                bool find_next,
++                bool forward_direction) {
+   browser->GetFeatures().GetFindBarController()->Show(find_next,
+                                                       forward_direction);
+ }
+@@ -2353,7 +2468,8 @@ void ToggleVerticalTabsExpandOnHover(BrowserWindowInterface* browser) {
+ }
+ 
+ bool CanCloseFind(BrowserWindowInterface* browser) {
+-  WebContents* current_tab = browser->GetTabStripModel()->GetActiveWebContents();
++  WebContents* current_tab =
++      browser->GetTabStripModel()->GetActiveWebContents();
+   if (!current_tab) {
+     return false;
+   }
+@@ -2386,7 +2502,10 @@ void FocusLocationBar(BrowserWindowInterface* browser) {
+ void FocusSearch(BrowserWindowInterface* browser) {
+   // TODO(beng): replace this with FocusLocationBar
+   base::RecordAction(UserMetricsAction("FocusSearch"));
+-  browser->GetBrowserForMigrationOnly()->window()->GetLocationBar()->FocusSearch();
++  browser->GetBrowserForMigrationOnly()
++      ->window()
++      ->GetLocationBar()
++      ->FocusSearch();
+ }
+ 
+ void FocusAppMenu(BrowserWindowInterface* browser) {
+@@ -2488,15 +2607,15 @@ void ToggleShowFullURLs(BrowserWindowInterface* browser) {
+ void ToggleShowGoogleLensShortcut(BrowserWindowInterface* browser) {
+   bool pref_enabled = browser->GetProfile()->GetPrefs()->GetBoolean(
+       omnibox::kShowGoogleLensShortcut);
+-  browser->GetProfile()->GetPrefs()->SetBoolean(omnibox::kShowGoogleLensShortcut,
+-                                                !pref_enabled);
++  browser->GetProfile()->GetPrefs()->SetBoolean(
++      omnibox::kShowGoogleLensShortcut, !pref_enabled);
+ }
+ 
+ void ToggleShowAiModeOmniboxButton(BrowserWindowInterface* browser) {
+   bool pref_enabled = browser->GetProfile()->GetPrefs()->GetBoolean(
+       omnibox::kShowAiModeOmniboxButton);
+-  browser->GetProfile()->GetPrefs()->SetBoolean(omnibox::kShowAiModeOmniboxButton,
+-                                                !pref_enabled);
++  browser->GetProfile()->GetPrefs()->SetBoolean(
++      omnibox::kShowAiModeOmniboxButton, !pref_enabled);
+ }
+ 
+ void ToggleShowSearchTools(BrowserWindowInterface* browser) {
+@@ -2512,8 +2631,10 @@ void ShowAppMenu(BrowserWindowInterface* browser) {
+ }
+ 
+ void ShowAvatarMenu(BrowserWindowInterface* browser) {
+-  browser->GetBrowserForMigrationOnly()->window()->ShowAvatarBubbleFromAvatarButton(
+-      /*is_source_accelerator=*/true);
++  browser->GetBrowserForMigrationOnly()
++      ->window()
++      ->ShowAvatarBubbleFromAvatarButton(
++          /*is_source_accelerator=*/true);
+ }
+ 
+ // TODO(crbug.com/345770406): Rename the function name.
+@@ -2546,7 +2667,8 @@ bool CanRequestTabletSite(WebContents* current_tab) {
+ }
+ 
+ bool IsRequestingTabletSite(BrowserWindowInterface* browser) {
+-  WebContents* current_tab = browser->GetTabStripModel()->GetActiveWebContents();
++  WebContents* current_tab =
++      browser->GetTabStripModel()->GetActiveWebContents();
+   if (!current_tab) {
+     return false;
+   }
+@@ -2559,7 +2681,8 @@ bool IsRequestingTabletSite(BrowserWindowInterface* browser) {
+ }
+ 
+ void ToggleRequestTabletSite(BrowserWindowInterface* browser) {
+-  WebContents* current_tab = browser->GetTabStripModel()->GetActiveWebContents();
++  WebContents* current_tab =
++      browser->GetTabStripModel()->GetActiveWebContents();
+   if (!current_tab) {
+     return;
+   }
+@@ -2750,11 +2873,14 @@ void ShowIncognitoClearBrowsingDataDialog(BrowserWindowInterface* browser) {
+ }
+ 
+ void ShowIncognitoHistoryDisclaimerDialog(BrowserWindowInterface* browser) {
+-  browser->GetBrowserForMigrationOnly()->window()->ShowIncognitoHistoryDisclaimerDialog();
++  browser->GetBrowserForMigrationOnly()
++      ->window()
++      ->ShowIncognitoHistoryDisclaimerDialog();
+ }
+ 
+-bool ShouldInterceptChromeURLNavigationInIncognito(BrowserWindowInterface* browser,
+-                                                   const GURL& url) {
++bool ShouldInterceptChromeURLNavigationInIncognito(
++    BrowserWindowInterface* browser,
++    const GURL& url) {
+   if (!browser || !browser->GetProfile()->IsIncognitoProfile()) {
+     return false;
+   }
+@@ -2769,8 +2895,9 @@ bool ShouldInterceptChromeURLNavigationInIncognito(BrowserWindowInterface* brows
+   return show_clear_browsing_data_dialog || show_history_disclaimer_dialog;
+ }
+ 
+-void ProcessInterceptedChromeURLNavigationInIncognito(BrowserWindowInterface* browser,
+-                                                      const GURL& url) {
++void ProcessInterceptedChromeURLNavigationInIncognito(
++    BrowserWindowInterface* browser,
++    const GURL& url) {
+   if (url == GURL(chrome::kChromeUISettingsURL)
+                  .Resolve(chrome::kClearBrowserDataSubPage)) {
+     ShowIncognitoClearBrowsingDataDialog(browser);
+diff --git a/chrome/browser/ui/browser_commands.h b/chrome/browser/ui/browser_commands.h
+index 6fc367bd6021f95fde1edd90c066a0a68a470d23..60d61e9b572f0696de4eff6e8bcba862ff367ad6 100644
+--- a/chrome/browser/ui/browser_commands.h
++++ b/chrome/browser/ui/browser_commands.h
+@@ -56,9 +56,15 @@ bool ExecuteCommand(BrowserWindowInterface* browser,
+ bool ExecuteCommandWithDisposition(BrowserWindowInterface* browser,
+                                    int command,
+                                    WindowOpenDisposition disposition);
+-void UpdateCommandEnabled(BrowserWindowInterface* browser, int command, bool enabled);
+-void AddCommandObserver(BrowserWindowInterface*, int command, CommandObserver* observer);
+-void RemoveCommandObserver(BrowserWindowInterface*, int command, CommandObserver* observer);
++void UpdateCommandEnabled(BrowserWindowInterface* browser,
++                          int command,
++                          bool enabled);
++void AddCommandObserver(BrowserWindowInterface*,
++                        int command,
++                        CommandObserver* observer);
++void RemoveCommandObserver(BrowserWindowInterface*,
++                           int command,
++                           CommandObserver* observer);
+ 
+ int GetContentRestrictions(const BrowserWindowInterface* browser);
+ 
+@@ -175,6 +181,14 @@ void NewSplitTab(BrowserWindowInterface* browser,
+                  split_tabs::SplitTabLayout layout,
+                  split_tabs::SplitTabCreatedSource source);
+ 
++// TAHAI Quad View commands. These operate only on native tabs and
++// WebContents owned by the supplied normal browser window.
++bool OpenTahaiQuadView(Browser* browser);
++bool SetTahaiQuadFocusMode(Browser* browser, bool enabled);
++bool ExitTahaiQuadView(Browser* browser);
++bool IsTahaiQuadView(const Browser* browser);
++bool IsTahaiQuadFocusMode(const Browser* browser);
++
+ // Tab group commands
+ // These values are persisted to logs. Entries should not be renumbered
+ // and  numeric values should never be reused.
+@@ -268,7 +282,9 @@ void RouteMediaInvokedFromAppMenu(BrowserWindowInterface* browser);
+ void Find(BrowserWindowInterface* browser);
+ void FindNext(BrowserWindowInterface* browser);
+ void FindPrevious(BrowserWindowInterface* browser);
+-void FindInPage(BrowserWindowInterface* browser, bool find_next, bool forward_direction);
++void FindInPage(BrowserWindowInterface* browser,
++                bool find_next,
++                bool forward_direction);
+ void ShowTabSearch(BrowserWindowInterface* browser);
+ void CloseTabSearch(BrowserWindowInterface* browser);
+ void ToggleTabSearchPin(BrowserWindowInterface* browser);
+@@ -347,10 +363,12 @@ std::optional<int> GetKeyboardFocusedTabIndex(
+ 
+ void ShowIncognitoClearBrowsingDataDialog(BrowserWindowInterface* browser);
+ void ShowIncognitoHistoryDisclaimerDialog(BrowserWindowInterface* browser);
+-bool ShouldInterceptChromeURLNavigationInIncognito(BrowserWindowInterface* browser,
+-                                                   const GURL& url);
+-void ProcessInterceptedChromeURLNavigationInIncognito(BrowserWindowInterface* browser,
+-                                                      const GURL& url);
++bool ShouldInterceptChromeURLNavigationInIncognito(
++    BrowserWindowInterface* browser,
++    const GURL& url);
++void ProcessInterceptedChromeURLNavigationInIncognito(
++    BrowserWindowInterface* browser,
++    const GURL& url);
+ void ExecLensOverlay(BrowserWindowInterface* browser);
+ void ExecLensRegionSearch(BrowserWindowInterface* browser);
+ 
+diff --git a/chrome/browser/ui/browser_live_tab_context.cc b/chrome/browser/ui/browser_live_tab_context.cc
+index d6f1a55fd6b8e3d51e380ede860182071243cb76..3089a83b13fddb3b3a0d4ced3320526559f0be03 100644
+--- a/chrome/browser/ui/browser_live_tab_context.cc
++++ b/chrome/browser/ui/browser_live_tab_context.cc
+@@ -400,20 +400,31 @@ void BrowserLiveTabContext::ReconstructSplit(
+     sessions::LiveTab* trailing_tab,
+     split_tabs::SplitTabId split_id,
+     const split_tabs::SplitTabVisualData& visual_data) {
+-  auto* leading_content_tab =
+-      static_cast<sessions::ContentLiveTab*>(leading_tab);
+-  auto* trailing_content_tab =
+-      static_cast<sessions::ContentLiveTab*>(trailing_tab);
+-
+-  const int leading_index = tab_strip_model_->GetIndexOfWebContents(
+-      &leading_content_tab->GetWebContents());
+-  const int trailing_index = tab_strip_model_->GetIndexOfWebContents(
+-      &trailing_content_tab->GetWebContents());
+-
+-  if (leading_index != TabStripModel::kNoTab &&
+-      trailing_index != TabStripModel::kNoTab) {
+-    tab_strip_model_->RestoreSplit(split_id, {leading_index, trailing_index},
+-                                   visual_data);
++  ReconstructSplit({leading_tab, trailing_tab}, split_id, visual_data);
++}
++
++void BrowserLiveTabContext::ReconstructSplit(
++    const std::vector<sessions::LiveTab*>& tabs,
++    split_tabs::SplitTabId split_id,
++    const split_tabs::SplitTabVisualData& visual_data) {
++  std::vector<int> tab_indices;
++  tab_indices.reserve(tabs.size());
++  for (sessions::LiveTab* tab : tabs) {
++    if (!tab) {
++      return;
++    }
++
++    auto* content_tab = static_cast<sessions::ContentLiveTab*>(tab);
++    const int tab_index =
++        tab_strip_model_->GetIndexOfWebContents(&content_tab->GetWebContents());
++    if (tab_index == TabStripModel::kNoTab) {
++      return;
++    }
++    tab_indices.push_back(tab_index);
++  }
++
++  if (tab_indices.size() >= 2u && tab_indices.size() <= 4u) {
++    tab_strip_model_->RestoreSplit(split_id, tab_indices, visual_data);
+   }
+ }
+ 
+diff --git a/chrome/browser/ui/browser_live_tab_context.h b/chrome/browser/ui/browser_live_tab_context.h
+index 31e62a465342122cb9544323cc3a637e2422ccb8..cbb78038db80c6e46746056878c20e899f441c6c 100644
+--- a/chrome/browser/ui/browser_live_tab_context.h
++++ b/chrome/browser/ui/browser_live_tab_context.h
+@@ -103,6 +103,10 @@ class BrowserLiveTabContext : public sessions::LiveTabContext {
+       sessions::LiveTab* trailing_tab,
+       split_tabs::SplitTabId split_id,
+       const split_tabs::SplitTabVisualData& visual_data) override;
++  void ReconstructSplit(
++      const std::vector<sessions::LiveTab*>& tabs,
++      split_tabs::SplitTabId split_id,
++      const split_tabs::SplitTabVisualData& visual_data) override;
+   void CloseTab() override;
+ 
+   // see Browser::Create
+diff --git a/chrome/browser/ui/tabs/split_tab_menu_model.cc b/chrome/browser/ui/tabs/split_tab_menu_model.cc
+index 625dee27498db832d10c0eb0604d7aa0f479e585..85019785e604301eb7a88471288103f0ee7ca067 100644
+--- a/chrome/browser/ui/tabs/split_tab_menu_model.cc
++++ b/chrome/browser/ui/tabs/split_tab_menu_model.cc
+@@ -233,8 +233,15 @@ void SplitTabMenuModel::ExecuteCommand(int command_id, int event_flags) {
+   split_tabs::SplitTabData* const split_tab_data =
+       tab_strip_model_->GetSplitData(split_id);
+   std::vector<tabs::TabInterface*> tabs_in_split = split_tab_data->ListTabs();
+-  CHECK_EQ(tabs_in_split.size(), 2U);
+   CommandId split_command_id = GetCommandIdEnum(command_id);
++  // Multi-pane collections intentionally do not expose two-pane-only
++  // position commands. Exit and close-current remain safe.
++  if (tabs_in_split.size() != 2U &&
++      split_command_id != CommandId::kCloseSpecifiedTab &&
++      split_command_id != CommandId::kExitSplit &&
++      split_command_id != CommandId::kSendFeedback) {
++    return;
++  }
+   switch (split_command_id) {
+     case CommandId::kReversePosition:
+       tab_strip_model_->ReverseTabsInSplit(split_id);
+diff --git a/chrome/browser/ui/tabs/split_tab_metrics.cc b/chrome/browser/ui/tabs/split_tab_metrics.cc
+index 25e860bdd0d25dfe619e9736cfe13bb3bf343286..e8ea81f20e44ef960c11eb1b5f9c8288ece16480 100644
+--- a/chrome/browser/ui/tabs/split_tab_metrics.cc
++++ b/chrome/browser/ui/tabs/split_tab_metrics.cc
+@@ -66,7 +66,8 @@ void LogSplitViewCreatedUKM(const TabStripModel* tab_strip_model,
+                             const SplitTabId split_id) {
+   SplitTabData* split_data = tab_strip_model->GetSplitData(split_id);
+   std::vector<tabs::TabInterface*> split_tabs = split_data->ListTabs();
+-  CHECK(split_tabs.size() == 2);
++  CHECK_GE(split_tabs.size(), 2u);
++  CHECK_LE(split_tabs.size(), 4u);
+ 
+   int64_t split_event_id = base::RandUint64();
+ 
+@@ -84,7 +85,8 @@ void LogSplitViewUpdatedUKM(const TabStripModel* tab_strip_model,
+                             const SplitTabId split_id) {
+   SplitTabData* split_data = tab_strip_model->GetSplitData(split_id);
+   std::vector<tabs::TabInterface*> split_tabs = split_data->ListTabs();
+-  CHECK(split_tabs.size() == 2);
++  CHECK_GE(split_tabs.size(), 2u);
++  CHECK_LE(split_tabs.size(), 4u);
+ 
+   int64_t split_event_id = base::RandUint64();
+ 
+diff --git a/chrome/browser/ui/tabs/split_tab_swap_menu_model.cc b/chrome/browser/ui/tabs/split_tab_swap_menu_model.cc
+index a4d233eafe0d0bc772a9b17cb5e81a2d6b9eb1b7..c86de31ed4b67ef3c7dae3c424a3060789534260 100644
+--- a/chrome/browser/ui/tabs/split_tab_swap_menu_model.cc
++++ b/chrome/browser/ui/tabs/split_tab_swap_menu_model.cc
+@@ -91,7 +91,9 @@ void SplitTabSwapMenuModel::ExecuteCommand(int command_id, int event_flags) {
+   split_tabs::SplitTabData* const split_tab_data =
+       tab_strip_model_->GetSplitData(split_id);
+   std::vector<tabs::TabInterface*> tabs_in_split = split_tab_data->ListTabs();
+-  CHECK_EQ(tabs_in_split.size(), 2U);
++  if (tabs_in_split.size() != 2U) {
++    return;
++  }
+ 
+   if (id == CommandId::kSwapStartTab) {
+     tab_strip_model_->UpdateTabInSplit(tabs_in_split[0], tab_index_,
+diff --git a/chrome/browser/ui/tabs/split_tab_util.cc b/chrome/browser/ui/tabs/split_tab_util.cc
+index 6382385b3f5f85ddcf3d12d9dd56cd5429486faa..ac2173af5f95f015025fb009c946ce70645bdf1d 100644
+--- a/chrome/browser/ui/tabs/split_tab_util.cc
++++ b/chrome/browser/ui/tabs/split_tab_util.cc
+@@ -51,22 +51,25 @@ SplitTabActiveLocation GetLastActiveTabLocation(
+   split_tabs::SplitTabData* const split_tab_data =
+       tab_strip_model->GetSplitData(split_id);
+   std::vector<tabs::TabInterface*> tabs_in_split = split_tab_data->ListTabs();
+-  CHECK_EQ(tabs_in_split.size(), 2U);
++  CHECK_GE(tabs_in_split.size(), 2U);
+ 
+   const int last_active_index =
+       GetIndexOfLastActiveTab(tab_strip_model, split_id);
+   CHECK_NE(last_active_index, TabStripModel::kNoTab);
+ 
+   const int first_tab_index = tab_strip_model->GetIndexOfTab(tabs_in_split[0]);
+-  const bool first_tab_activated = last_active_index == first_tab_index;
++  const int relative_active_index = last_active_index - first_tab_index;
++  const bool first_half_activated =
++      relative_active_index <
++      static_cast<int>((tabs_in_split.size() + 1u) / 2u);
+ 
+   if (split_tab_data->visual_data()->split_layout() ==
+       SplitTabLayout::kSideBySide) {
+-    return first_tab_activated ? SplitTabActiveLocation::kStart
+-                               : SplitTabActiveLocation::kEnd;
++    return first_half_activated ? SplitTabActiveLocation::kStart
++                                : SplitTabActiveLocation::kEnd;
+   } else {
+-    return first_tab_activated ? SplitTabActiveLocation::kTop
+-                               : SplitTabActiveLocation::kBottom;
++    return first_half_activated ? SplitTabActiveLocation::kTop
++                                : SplitTabActiveLocation::kBottom;
+   }
+ }
+ }  // namespace split_tabs
+diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
+index 3326a79d2ba317df34fbecfb576f67f2b3bd7e6e..7678aa1cdf8b0c64af3ef5470b06d2ad846bffdc 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model.cc
+@@ -1576,7 +1576,9 @@ void TabStripModel::DeselectTabAt(int index) {
+     // If the tab is already deselected, no need to do anything.
+     return;
+   } else if (selection_model_.size() == 1 ||
+-             (selection_model_.size() == 2 && tab->GetSplit().has_value())) {
++             (tab->GetSplit().has_value() &&
++              selection_model_.size() ==
++                  GetSplitData(tab->GetSplit().value())->ListTabs().size())) {
+     // One tab must be selected and this tab is currently selected so we can't
+     // unselect it.
+     return;
+@@ -1984,12 +1986,32 @@ split_tabs::SplitTabId TabStripModel::AddToNewSplit(
+   return split_id;
+ }
+ 
++split_tabs::SplitTabId TabStripModel::AddToNewTahaiQuad(
++    std::vector<int> indices) {
++  ReentrancyCheck reentrancy_check(&reentrancy_guard_);
++  CHECK_EQ(indices.size(), 4u);
++  CHECK(std::ranges::is_sorted(indices));
++  CHECK(std::ranges::adjacent_find(indices) == indices.end());
++  CHECK(active_index() != kNoTab);
++  CHECK(std::ranges::find(indices, active_index()) != indices.end());
++  CHECK(std::ranges::all_of(indices, [this](int index) {
++    return ContainsIndex(index) && !GetTabAtIndex(index)->IsSplit();
++  }));
++
++  split_tabs::SplitTabId split_id = split_tabs::SplitTabId::GenerateNew();
++  AddToSplitImpl(split_id, indices, active_index(),
++                 split_tabs::SplitTabVisualData(
++                     split_tabs::SplitTabLayout::kSideBySide, 0.5),
++                 SplitTabChange::SplitTabAddReason::kNewSplitTabAdded);
++  return split_id;
++}
++
+ void TabStripModel::RestoreSplit(split_tabs::SplitTabId split_id,
+                                  const std::vector<int>& indices,
+                                  split_tabs::SplitTabVisualData visual_data) {
+   ReentrancyCheck reentrancy_check(&reentrancy_guard_);
+   CHECK(std::ranges::is_sorted(indices));
+-  CHECK_EQ(indices.size(), 2u);
++  CHECK(indices.size() >= 2u && indices.size() <= 4u);
+ 
+   // Ideally these are consecutive indices from the restore flow and the pivot
+   // index does not matter. However, given there are numerous steps in restore
+diff --git a/chrome/browser/ui/tabs/tab_strip_model.h b/chrome/browser/ui/tabs/tab_strip_model.h
+index ef083215f22dbadb5d5af40608d15bb579e250cc..aacf1f6f9886ab25643e51d193f9dce9d647d81e 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model.h
++++ b/chrome/browser/ui/tabs/tab_strip_model.h
+@@ -652,6 +652,12 @@ class TabStripModel {
+       split_tabs::SplitTabVisualData visual_data,
+       split_tabs::SplitTabCreatedSource source);
+ 
++  // Creates TAHAI's general-use Quad View from exactly four existing native
++  // tabs. The active tab must be one of `indices`. The tabs remain ordinary
++  // Chromium tabs and WebContents in this TabStripModel; only their native
++  // presentation changes.
++  split_tabs::SplitTabId AddToNewTahaiQuad(std::vector<int> indices);
++
+   // Adds all the tabs in `indices` to a split with `split_id` and
+   // `visual_data`. `pivot_index` is the index in indices to determine the
+   // properties of the split like group, pin, destination index.
+diff --git a/chrome/browser/ui/tabs/tab_strip_model_unittest.cc b/chrome/browser/ui/tabs/tab_strip_model_unittest.cc
+index dfebd6e4d9ae89af5295d0d9e36822ba35deee4c..7bc4b809d1536c9aa3af9b578a8fb0bd9f2ed97a 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model_unittest.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model_unittest.cc
+@@ -2445,6 +2445,44 @@ TEST_P(TabStripModelTest, RestoreSplit) {
+   EXPECT_TRUE(tabstrip()->empty());
+ }
+ 
++TEST_P(TabStripModelTest, TahaiQuadUsesFourNativeTabs) {
++  ASSERT_NO_FATAL_FAILURE(
++      PrepareTabstripForSelectionTest(tabstrip(), 5, 0, {0}));
++  tabstrip()->ActivateTabAt(0);
++
++  const split_tabs::SplitTabId quad_id =
++      tabstrip()->AddToNewTahaiQuad({0, 1, 2, 3});
++
++  ASSERT_TRUE(tabstrip()->ContainsSplit(quad_id));
++  const std::vector<tabs::TabInterface*> members =
++      tabstrip()->GetSplitData(quad_id)->ListTabs();
++  ASSERT_EQ(members.size(), 4u);
++  EXPECT_EQ(members[0]->GetContents(), tabstrip()->GetWebContentsAt(0));
++  EXPECT_EQ(members[3]->GetContents(), tabstrip()->GetWebContentsAt(3));
++  EXPECT_EQ(tabstrip()->active_index(), 0);
++
++  tabstrip()->RemoveSplit(quad_id);
++  EXPECT_FALSE(tabstrip()->ContainsSplit(quad_id));
++  EXPECT_EQ(tabstrip()->count(), 5);
++}
++
++TEST_P(TabStripModelTest, RestoreTahaiQuadPreservesMemberOrder) {
++  ASSERT_NO_FATAL_FAILURE(
++      PrepareTabstripForSelectionTest(tabstrip(), 4, 0, {2}));
++  const split_tabs::SplitTabId quad_id = split_tabs::SplitTabId::GenerateNew();
++
++  tabstrip()->RestoreSplit(quad_id, {0, 1, 2, 3},
++                           split_tabs::SplitTabVisualData());
++
++  const std::vector<tabs::TabInterface*> members =
++      tabstrip()->GetSplitData(quad_id)->ListTabs();
++  ASSERT_EQ(members.size(), 4u);
++  for (size_t index = 0; index < members.size(); ++index) {
++    EXPECT_EQ(members[index]->GetContents(),
++              tabstrip()->GetWebContentsAt(static_cast<int>(index)));
++  }
++}
++
+ TEST_P(TabStripModelTest, AddToSplitInGroup) {
+   // Create five tabs with two pinned.
+   ASSERT_NO_FATAL_FAILURE(
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+index 44cc2b51c48a2249a392de772d898be1688fa719..960b2df228d36daf59ed31cad632240027c89aee 100644
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -1001,49 +1001,49 @@ HelpMenuModel::~HelpMenuModel() = default;
+ 
+ void HelpMenuModel::Build(Browser* browser) {
+ #if BUILDFLAG(IS_CHROMEOS) && defined(OFFICIAL_BUILD)
+-    int help_string_id = IDS_GET_HELP;
++  int help_string_id = IDS_GET_HELP;
+ #else
+-    int help_string_id = IDS_HELP_PAGE;
++  int help_string_id = IDS_HELP_PAGE;
+ #endif
+-    AddItemWithStringIdAndVectorIcon(this, IDC_ABOUT, IDS_ABOUT,
+-                                     features::IsRoundedIconsEnabled()
+-                                         ? vector_icons::kInfoIcon
+-                                         : vector_icons::kInfoRefreshOldIcon);
++  AddItemWithStringIdAndVectorIcon(this, IDC_ABOUT, IDS_ABOUT,
++                                   features::IsRoundedIconsEnabled()
++                                       ? vector_icons::kInfoIcon
++                                       : vector_icons::kInfoRefreshOldIcon);
+ #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-    if (whats_new::IsEnabled()) {
+-      AddItemWithStringIdAndVectorIcon(
+-          this, IDC_CHROME_WHATS_NEW, IDS_CHROME_WHATS_NEW,
+-          features::IsRoundedIconsEnabled() ? kReleaseAlertIcon
+-                                            : kReleaseAlertOldIcon);
+-    }
++  if (whats_new::IsEnabled()) {
++    AddItemWithStringIdAndVectorIcon(
++        this, IDC_CHROME_WHATS_NEW, IDS_CHROME_WHATS_NEW,
++        features::IsRoundedIconsEnabled() ? kReleaseAlertIcon
++                                          : kReleaseAlertOldIcon);
++  }
+ #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-    AddItemWithStringId(IDC_HELP_PAGE_VIA_MENU, help_string_id);
+-    if (browser_defaults::kShowHelpMenuItemIcon) {
+-      ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
+-      SetIconForCommandId(
+-          IDC_HELP_PAGE_VIA_MENU,
+-          ui::ImageModel::FromImage(rb.GetNativeImageNamed(IDR_HELP_MENU)));
+-    } else {
+-      SetCommandIcon(this, IDC_HELP_PAGE_VIA_MENU,
+-                     features::IsRoundedIconsEnabled() ? kHelpCustomIcon
+-                                                       : kHelpMenuOldIcon);
+-    }
++  AddItemWithStringId(IDC_HELP_PAGE_VIA_MENU, help_string_id);
++  if (browser_defaults::kShowHelpMenuItemIcon) {
++    ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
++    SetIconForCommandId(
++        IDC_HELP_PAGE_VIA_MENU,
++        ui::ImageModel::FromImage(rb.GetNativeImageNamed(IDR_HELP_MENU)));
++  } else {
++    SetCommandIcon(
++        this, IDC_HELP_PAGE_VIA_MENU,
++        features::IsRoundedIconsEnabled() ? kHelpCustomIcon : kHelpMenuOldIcon);
++  }
+ #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-    if (chrome::CanShowFeedback(browser->profile())) {
+-      AddItemWithStringIdAndVectorIcon(
+-          this, IDC_FEEDBACK, IDS_FEEDBACK,
+-          features::IsRoundedIconsEnabled() ? kFeedbackIcon : kReportOldIcon);
++  if (chrome::CanShowFeedback(browser->profile())) {
++    AddItemWithStringIdAndVectorIcon(
++        this, IDC_FEEDBACK, IDS_FEEDBACK,
++        features::IsRoundedIconsEnabled() ? kFeedbackIcon : kReportOldIcon);
+ 
+-      if (feedback::ReportUnsafeSiteDialog::IsEnabled(*browser->profile())) {
+-        AddItemWithStringIdAndVectorIcon(
+-            this, IDC_REPORT_UNSAFE_SITE, IDS_REPORT_UNSAFE_SITE,
+-            features::IsRoundedIconsEnabled() ? vector_icons::kWarningFilledIcon
+-                                              : vector_icons::kWarningOldIcon);
+-        SetElementIdentifierAt(
+-            GetIndexOfCommandId(IDC_REPORT_UNSAFE_SITE).value(),
+-            HelpMenuModel::kReportUnsafeSiteMenuItem);
+-      }
++    if (feedback::ReportUnsafeSiteDialog::IsEnabled(*browser->profile())) {
++      AddItemWithStringIdAndVectorIcon(
++          this, IDC_REPORT_UNSAFE_SITE, IDS_REPORT_UNSAFE_SITE,
++          features::IsRoundedIconsEnabled() ? vector_icons::kWarningFilledIcon
++                                            : vector_icons::kWarningOldIcon);
++      SetElementIdentifierAt(
++          GetIndexOfCommandId(IDC_REPORT_UNSAFE_SITE).value(),
++          HelpMenuModel::kReportUnsafeSiteMenuItem);
+     }
++  }
+ #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+ }
+ 
+@@ -2109,6 +2109,22 @@ void AppMenuModel::Build() {
+         kIncognitoMenuItem);
+   }
+ 
++  if (!chrome::IsTahaiQuadView(browser_)) {
++    AddItemWithIcon(IDC_TAHAI_QUAD_VIEW,
++                    l10n_util::GetStringUTF16(IDS_TAHAI_OPEN_QUAD_VIEW),
++                    ui::ImageModel::FromVectorIcon(
++                        kGridViewIcon, ui::kColorMenuIcon, kDefaultIconSize));
++  } else {
++    AddItemWithIcon(
++        IDC_TAHAI_QUAD_FOCUS,
++        l10n_util::GetStringUTF16(chrome::IsTahaiQuadFocusMode(browser_)
++                                      ? IDS_TAHAI_RESTORE_QUAD_VIEW
++                                      : IDS_TAHAI_FOCUS_ACTIVE_PANE),
++        ui::ImageModel::FromVectorIcon(kGridViewIcon, ui::kColorMenuIcon,
++                                       kDefaultIconSize));
++    AddItemWithStringId(IDC_TAHAI_QUAD_EXIT, IDS_TAHAI_EXIT_QUAD_VIEW);
++  }
++
+   AddSeparator(ui::NORMAL_SEPARATOR);
+ 
+ #if !BUILDFLAG(IS_CHROMEOS)
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index c5b196b2be31797fdcd3b41e8816db84b83705fa..55353385e2ca50b2fc262ccb4488ef68b814c11b 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -1936,8 +1936,7 @@ void BrowserView::OnActiveTabChanged(content::WebContents* old_contents,
+       GetWidget()->GetFocusManager()->ClearFocus();
+     }
+ 
+-    multi_contents_view_->GetInactiveContentsView()->SetWebContents(nullptr);
+-    active_contents_view->SetWebContents(nullptr);
++    multi_contents_view_->ClearWebContents();
+   }
+ 
+   // Do this before updating InfoBarContainer as the InfoBarContainer may
+@@ -2108,7 +2107,9 @@ void BrowserView::SetContentsSize(const gfx::Size& size) {
+ 
+   // If in split view, the size diff needs to be scaled by the split ratio to
+   // account for the combined width of both contents views.
+-  if (multi_contents_view_->IsInSplitView()) {
++  const size_t visible_contents_count =
++      multi_contents_view_->GetVisibleContentsCount();
++  if (visible_contents_count == 2u) {
+     const double split_ratio = multi_contents_view_->GetSplitRatio();
+     CHECK(split_ratio > 0.0 && split_ratio < 1.0);
+     const double divider = multi_contents_view_->GetActiveIndex() == 0
+@@ -2120,6 +2121,11 @@ void BrowserView::SetContentsSize(const gfx::Size& size) {
+     } else {
+       height_diff = std::round(height_diff / divider);
+     }
++  } else if (visible_contents_count >= 3u) {
++    // Tri and Quad layouts partition both axes. Scale the requested active
++    // pane delta back to the containing browser window.
++    width_diff *= 2;
++    height_diff *= 2;
+   }
+ 
+   gfx::Rect bounds = GetBounds();
+@@ -2714,8 +2720,6 @@ void BrowserView::OnFocusBookmarksToolbar() {
+   }
+ }
+ 
+-
+-
+ void BrowserView::FocusAppMenu() {
+   // Chrome doesn't have a traditional menu bar, but it has a menu button in the
+   // main toolbar that plays the same role.  If the user presses a key that
+@@ -2732,8 +2736,6 @@ void BrowserView::FocusAppMenu() {
+   }
+ }
+ 
+-
+-
+ void BrowserView::TryNotifyWindowBoundsChanged(const gfx::Rect& widget_bounds) {
+   if (interactive_resize_in_progress_ || last_widget_bounds_ == widget_bounds) {
+     return;
+@@ -3037,7 +3039,6 @@ ShowTranslateBubbleResult BrowserView::ShowTranslateBubble(
+   return ShowTranslateBubbleResult::kSuccess;
+ }
+ 
+-
+ DownloadBubbleUIController* BrowserView::GetDownloadBubbleUIController() {
+ #if !BUILDFLAG(IS_CHROMEOS)
+   if (auto* download_controller =
+@@ -4235,7 +4236,7 @@ void BrowserView::UpdateActiveTabInSplitView() {
+   // However, there are cases where inactive tab can be activated without a
+   // focus change e.g. using tab shortcuts and in these cases update focus.
+   if (GetWidget()->IsActive() &&
+-      multi_contents_view_->GetInactiveContentsView()->HasFocus()) {
++      multi_contents_view_->IsAnyInactiveContentsViewFocused()) {
+     multi_contents_view_->GetActiveContentsView()->RequestFocus();
+   }
+ }
+@@ -4258,8 +4259,7 @@ void BrowserView::UpdateContentsInSplitView(
+       multi_contents_view_->GetActiveContentsView()->HasFocus();
+ 
+   // Clear web contents for prev_tabs in preparation to reset for new_tabs.
+-  multi_contents_view_->GetInactiveContentsView()->SetWebContents(nullptr);
+-  multi_contents_view_->GetActiveContentsView()->SetWebContents(nullptr);
++  multi_contents_view_->ClearWebContents();
+ 
+   // Clear focus to avoid reentrency when setting the web contents within
+   // MultiContentsView. See crbug.com/458189541 and crbug.com/447369458
+@@ -4289,8 +4289,7 @@ bool BrowserView::IsTabChangeInSplitView(content::WebContents* old_contents,
+   return multi_contents_view_->IsInSplitView() &&
+          multi_contents_view_->GetActiveContentsView()->web_contents() ==
+              old_contents &&
+-         multi_contents_view_->GetInactiveContentsView()->web_contents() ==
+-             new_contents;
++         multi_contents_view_->GetContentsContainerViewFor(new_contents);
+ }
+ 
+ void BrowserView::UpdateTabModalDialogHost() {
+@@ -4341,11 +4340,11 @@ void BrowserView::MaybeUpdateStoredFocusForWebContents(
+ 
+ std::vector<ContentsWebView*> BrowserView::GetAllVisibleContentsWebViews() {
+   std::vector<ContentsWebView*> contents_views;
+-  contents_views.push_back(multi_contents_view_->GetActiveContentsView());
+-  ContentsWebView* inactive_contents_view =
+-      multi_contents_view_->GetInactiveContentsView();
+-  if (multi_contents_view_->IsInSplitView()) {
+-    contents_views.push_back(inactive_contents_view);
++  for (ContentsContainerView* container :
++       multi_contents_view_->contents_container_views()) {
++    if (container->GetVisible()) {
++      contents_views.push_back(container->contents_view());
++    }
+   }
+   return contents_views;
+ }
+@@ -4391,8 +4390,8 @@ void BrowserView::GetAccessiblePanes(std::vector<views::View*>* panes) {
+         toolbar_->location_bar_view()
+             ->permission_dashboard_view()
+             ->GetVisible()) {
+-      panes->push_back(toolbar_->location_bar_view()
+-                           ->permission_dashboard_view());
++      panes->push_back(
++          toolbar_->location_bar_view()->permission_dashboard_view());
+     }
+   } else if (toolbar_ && toolbar_->location_bar() &&
+              toolbar_->location_bar()->GetChipController() &&
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view.cc b/chrome/browser/ui/views/frame/multi_contents_view.cc
+index 7754053794e2128b8f1c600667f43dcbcd03590c..657de745b1da6e8d7dabd0306a644b02ec24edc9 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+ 
+ #include <algorithm>
++#include <array>
+ #include <cstdlib>
+ 
+ #include "base/check_deref.h"
+@@ -94,6 +95,12 @@ MultiContentsView::MultiContentsView(
+       AddChildView(std::make_unique<ContentsContainerView>(browser_view_)));
+   contents_container_views_[1]->SetVisible(false);
+ 
++  for (int index = 2; index < kMaxContentsViews; ++index) {
++    contents_container_views_.push_back(
++        AddChildView(std::make_unique<ContentsContainerView>(browser_view_)));
++    contents_container_views_.back()->SetVisible(false);
++  }
++
+   drop_target_view_ =
+       AddChildView(std::make_unique<MultiContentsDropTargetView>());
+   drop_target_controller_ =
+@@ -234,20 +241,28 @@ MultiContentsView::GetFocusableViewsMapFor(
+ }
+ 
+ bool MultiContentsView::IsInSplitView() const {
+-  return resize_area_->GetVisible();
++  return is_multi_contents_mode_;
++}
++
++size_t MultiContentsView::GetVisibleContentsCount() const {
++  return std::ranges::count_if(
++      contents_container_views_,
++      [](const ContentsContainerView* view) { return view->GetVisible(); });
+ }
+ 
+ void MultiContentsView::SetWebContentsAtIndex(
+     content::WebContents* web_contents,
+     int index) {
+-  CHECK(index >= 0 && index < 2);
++  CHECK(index >= 0 && index < kMaxContentsViews);
+   contents_container_views_[index]->contents_view()->SetWebContents(
+       web_contents);
+ 
+-  if (index == 1 && !contents_container_views_[1]->GetVisible()) {
+-    contents_container_views_[1]->SetVisible(true);
+-    resize_area_->SetVisible(true);
++  if (index > 0 && web_contents) {
++    is_multi_contents_mode_ = true;
++    contents_container_views_[index]->SetVisible(!tahai_focus_mode_);
++    resize_area_->SetVisible(GetVisibleContentsCount() == 2u);
+     UpdateContentsBorderAndOverlay();
++    InvalidateLayout();
+   }
+ 
+   if (web_contents) {
+@@ -257,14 +272,21 @@ void MultiContentsView::SetWebContentsAtIndex(
+   }
+ }
+ 
++void MultiContentsView::ClearWebContents() {
++  for (ContentsContainerView* container : contents_container_views_) {
++    container->contents_view()->SetWebContents(nullptr);
++  }
++}
++
+ void MultiContentsView::ShowSplitView(
+     split_tabs::SplitTabVisualData visual_data) {
++  is_multi_contents_mode_ = true;
+   if (!contents_container_views_[1]->GetVisible()) {
+     // If split view is not visible, set the `visual_data_` and update the view
+     // visibility.
+     visual_data_ = visual_data;
+-    contents_container_views_[1]->SetVisible(true);
+-    resize_area_->SetVisible(true);
++    contents_container_views_[1]->SetVisible(!tahai_focus_mode_);
++    resize_area_->SetVisible(!tahai_focus_mode_);
+     resize_area_->SetLayout(visual_data.split_layout());
+     UpdateContentsBorderAndOverlay();
+   } else {
+@@ -297,8 +319,12 @@ void MultiContentsView::CloseSplitView() {
+ 
+     active_index_ = 0;
+   }
+-  contents_container_views_[1]->contents_view()->SetWebContents(nullptr);
+-  contents_container_views_[1]->SetVisible(false);
++  for (size_t index = 1; index < contents_container_views_.size(); ++index) {
++    contents_container_views_[index]->contents_view()->SetWebContents(nullptr);
++    contents_container_views_[index]->SetVisible(false);
++  }
++  is_multi_contents_mode_ = false;
++  tahai_focus_mode_ = false;
+   resize_area_->SetVisible(false);
+   UpdateContentsBorderAndOverlay();
+ 
+@@ -312,15 +338,51 @@ void MultiContentsView::CloseSplitView() {
+ void MultiContentsView::SetActiveIndex(int index) {
+   // Index should never be less than 0 or equal to or greater than the total
+   // number of contents views.
+-  CHECK(index >= 0 && index < 2);
+-  // We will only activate a visible contents view.
+-  CHECK(contents_container_views_[index]->GetVisible());
++  CHECK(index >= 0 && index < kMaxContentsViews);
++  // Normal multi-pane activation comes from a visible pane. In Focus Pane,
++  // keyboard tab navigation may select another hidden member; reveal that
++  // native WebContents atomically instead of rejecting the active-target
++  // change.
++  CHECK(tahai_focus_mode_ || contents_container_views_[index]->GetVisible());
+   active_index_ = index;
+-  GetActiveContentsView()->set_is_primary_web_contents_for_window(true);
+-  GetInactiveContentsView()->set_is_primary_web_contents_for_window(false);
++  for (size_t view_index = 0; view_index < contents_container_views_.size();
++       ++view_index) {
++    contents_container_views_[view_index]
++        ->contents_view()
++        ->set_is_primary_web_contents_for_window(
++            view_index == static_cast<size_t>(active_index_));
++  }
++  UpdatePaneVisibility();
+   UpdateContentsBorderAndOverlay();
+ }
+ 
++bool MultiContentsView::SetTahaiFocusMode(bool enabled) {
++  if (!IsInSplitView() ||
++      (GetVisibleContentsCount() < 2u && !tahai_focus_mode_)) {
++    return false;
++  }
++  if (tahai_focus_mode_ == enabled) {
++    return true;
++  }
++  tahai_focus_mode_ = enabled;
++  UpdatePaneVisibility();
++  UpdateContentsBorderAndOverlay();
++  InvalidateLayout();
++  GetActiveContentsView()->RequestFocus();
++  return true;
++}
++
++bool MultiContentsView::IsAnyInactiveContentsViewFocused() const {
++  for (size_t index = 0; index < contents_container_views_.size(); ++index) {
++    if (index != static_cast<size_t>(active_index_) &&
++        contents_container_views_[index]->GetVisible() &&
++        contents_container_views_[index]->contents_view()->HasFocus()) {
++      return true;
++    }
++  }
++  return false;
++}
++
+ void MultiContentsView::UpdateSplitVisualData(
+     const split_tabs::SplitTabVisualData& visual_data) {
+   if (visual_data_ == visual_data) {
+@@ -350,6 +412,9 @@ void MultiContentsView::ExecuteOnEachVisibleContentsView(
+ 
+ void MultiContentsView::OnSwap() {
+   CHECK(IsInSplitView());
++  if (GetVisibleContentsCount() != 2u) {
++    return;
++  }
+   delegate_->ReverseWebContents();
+ }
+ 
+@@ -383,6 +448,9 @@ std::vector<views::View*> MultiContentsView::GetAccessiblePanes() {
+ }
+ 
+ void MultiContentsView::OnResize(int resize_amount, bool done_resizing) {
++  if (GetVisibleContentsCount() != 2u) {
++    return;
++  }
+   if (!initial_start_size_on_resize_.has_value()) {
+     initial_start_size_on_resize_ = std::make_optional(
+         GetResizeAxisComponent(contents_container_views_[0]->size()));
+@@ -420,14 +488,32 @@ void MultiContentsView::OnThemeChanged() {
+ }
+ 
+ int MultiContentsView::GetInactiveIndex() const {
+-  return active_index_ == 0 ? 1 : 0;
++  for (size_t index = 0; index < contents_container_views_.size(); ++index) {
++    if (index != static_cast<size_t>(active_index_)) {
++      return static_cast<int>(index);
++    }
++  }
++  NOTREACHED();
++}
++
++void MultiContentsView::UpdatePaneVisibility() {
++  for (size_t index = 0; index < contents_container_views_.size(); ++index) {
++    ContentsContainerView* container = contents_container_views_[index];
++    const bool has_contents = container->contents_view()->web_contents();
++    const bool visible =
++        has_contents &&
++        (!tahai_focus_mode_ || index == static_cast<size_t>(active_index_));
++    container->SetVisible(visible);
++  }
++  resize_area_->SetVisible(!tahai_focus_mode_ &&
++                           GetVisibleContentsCount() == 2u);
+ }
+ 
+ void MultiContentsView::OnWebContentsFocused(views::WebView* web_view) {
+   if (IsInSplitView()) {
+     // Check whether the widget is visible as otherwise during browser hide,
+     // inactive web contents gets focus. See crbug.com/419335827
+-    if (GetInactiveContentsView()->web_contents() == web_view->web_contents() &&
++    if (GetActiveContentsView()->web_contents() != web_view->web_contents() &&
+         GetWidget()->IsVisible()) {
+       delegate_->WebContentsFocused(web_view->web_contents());
+     }
+@@ -439,10 +525,9 @@ void MultiContentsView::OnActorOverlayFocused(views::WebView* web_view) {
+     for (auto* contents_container_view : contents_container_views_) {
+       if (contents_container_view->actor_overlay_web_view() &&
+           contents_container_view->actor_overlay_web_view() == web_view &&
+-          GetInactiveContentsView() ==
+-              contents_container_view->contents_view()) {
++          GetActiveContentsView() != contents_container_view->contents_view()) {
+         return delegate_->WebContentsFocused(
+-            GetInactiveContentsView()->web_contents());
++            contents_container_view->contents_view()->web_contents());
+       }
+     }
+   }
+@@ -453,10 +538,9 @@ void MultiContentsView::OnNtpFooterFocused(views::WebView* web_view) {
+     for (auto* contents_container_view : contents_container_views_) {
+       if (contents_container_view->new_tab_footer_view() &&
+           contents_container_view->new_tab_footer_view() == web_view &&
+-          GetInactiveContentsView() ==
+-              contents_container_view->contents_view()) {
++          GetActiveContentsView() != contents_container_view->contents_view()) {
+         return delegate_->WebContentsFocused(
+-            GetInactiveContentsView()->web_contents());
++            contents_container_view->contents_view()->web_contents());
+       }
+     }
+   }
+@@ -466,7 +550,7 @@ void MultiContentsView::OnReadAnythingOverlayFocused(
+     ContentsContainerView* container,
+     views::WebView* web_view) {
+   if (IsInSplitView() && GetWidget()->IsVisible()) {
+-    if (GetInactiveContentsContainerView() == container) {
++    if (GetActiveContentsContainerView() != container) {
+       delegate_->WebContentsFocused(container->contents_view()->web_contents());
+     }
+   }
+@@ -501,6 +585,57 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+   if (IsInSplitView()) {
+     available_space.Inset(split_view_insets_);
+   }
++
++  const size_t visible_count = GetVisibleContentsCount();
++  if (tahai_focus_mode_ && visible_count == 1u) {
++    for (size_t index = 0; index < contents_container_views_.size(); ++index) {
++      layouts.child_layouts.emplace_back(
++          contents_container_views_[index],
++          index == static_cast<size_t>(active_index_), available_space);
++    }
++    layouts.child_layouts.emplace_back(resize_area_.get(), false, gfx::Rect());
++    layouts.host_size = gfx::Size(width, height);
++    return layouts;
++  }
++  if (visible_count >= 3u) {
++    constexpr int kPaneGap = 6;
++    const int left_width = (available_space.width() - kPaneGap) / 2;
++    const int right_width = available_space.width() - kPaneGap - left_width;
++    const int top_height = (available_space.height() - kPaneGap) / 2;
++    const int bottom_height = available_space.height() - kPaneGap - top_height;
++
++    std::array<gfx::Rect, kMaxContentsViews> pane_bounds;
++    if (visible_count == 3u) {
++      pane_bounds[0] = gfx::Rect(available_space.x(), available_space.y(),
++                                 left_width, available_space.height());
++      pane_bounds[1] = gfx::Rect(available_space.x() + left_width + kPaneGap,
++                                 available_space.y(), right_width, top_height);
++      pane_bounds[2] = gfx::Rect(available_space.x() + left_width + kPaneGap,
++                                 available_space.y() + top_height + kPaneGap,
++                                 right_width, bottom_height);
++    } else {
++      pane_bounds[0] = gfx::Rect(available_space.x(), available_space.y(),
++                                 left_width, top_height);
++      pane_bounds[1] = gfx::Rect(available_space.x() + left_width + kPaneGap,
++                                 available_space.y(), right_width, top_height);
++      pane_bounds[2] = gfx::Rect(available_space.x(),
++                                 available_space.y() + top_height + kPaneGap,
++                                 left_width, bottom_height);
++      pane_bounds[3] = gfx::Rect(available_space.x() + left_width + kPaneGap,
++                                 available_space.y() + top_height + kPaneGap,
++                                 right_width, bottom_height);
++    }
++
++    for (size_t index = 0; index < contents_container_views_.size(); ++index) {
++      layouts.child_layouts.emplace_back(
++          contents_container_views_[index],
++          contents_container_views_[index]->GetVisible(), pane_bounds[index]);
++    }
++    layouts.child_layouts.emplace_back(resize_area_.get(), false, gfx::Rect());
++    layouts.host_size = gfx::Size(width, height);
++    return layouts;
++  }
++
+   ViewSizes sizes = GetViewSizes(available_space);
+ 
+   gfx::Rect start_rect, resize_rect, end_rect;
+@@ -528,6 +663,10 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+   layouts.child_layouts.emplace_back(contents_container_views_[1],
+                                      contents_container_views_[1]->GetVisible(),
+                                      end_rect);
++  for (size_t index = 2; index < contents_container_views_.size(); ++index) {
++    layouts.child_layouts.emplace_back(contents_container_views_[index], false,
++                                       gfx::Rect());
++  }
+ 
+   layouts.host_size = gfx::Size(width, height);
+   return layouts;
+@@ -541,6 +680,13 @@ void MultiContentsView::BeforeApplyLayout(const views::ProposedLayout& layout) {
+     return;
+   }
+ 
++  if (GetVisibleContentsCount() > 2u) {
++    for (auto* contents : contents_container_views_) {
++      contents->SetTargetContentBounds(std::nullopt);
++    }
++    return;
++  }
++
+   if (!IsInSplitView()) {
+     auto* const contents = GetActiveContentsContainerView();
+     contents->SetTargetContentBounds(
+@@ -787,6 +933,12 @@ bool MultiContentsView::IsDragAndDropEnabled() const {
+   if (!browser_view_->GetIsNormalType() || !is_drag_drop_pref_enabled_) {
+     return false;
+   }
++  // The split-entry drop target is a two-pane affordance. Showing it over an
++  // established three- or four-pane workspace is misleading and can route a
++  // drop through assumptions that only hold before a split is created.
++  if (IsInSplitView() && GetVisibleContentsCount() > 2u) {
++    return false;
++  }
+ 
+   const auto* active_contents_view = GetActiveContentsView();
+   if (!active_contents_view) {
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view.h b/chrome/browser/ui/views/frame/multi_contents_view.h
+index 3f035ce7bb583807babeac480d841254768baee6..dd73ce7315ed4ba3aa0ee70d310f88b651c3ab59 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view.h
++++ b/chrome/browser/ui/views/frame/multi_contents_view.h
+@@ -45,8 +45,9 @@ namespace views {
+ class WebView;
+ }  // namespace views
+ 
+-// MultiContentsView shows up to two contents web views side by side, and
+-// manages their layout relative to each other.
++// MultiContentsView shows native Chromium WebContents in single, two-pane,
++// three-pane, and TAHAI Quad View layouts. Chromium split tabs continue to own
++// tab membership; this View owns only native presentation and focus routing.
+ class MultiContentsView
+     : public views::View,
+       public views::ResizeAreaDelegate,
+@@ -64,6 +65,7 @@ class MultiContentsView
+   };
+ 
+   static constexpr int kSplitViewContentInset = 8;
++  static constexpr int kMaxContentsViews = 4;
+ 
+   MultiContentsView(BrowserView* browser_view,
+                     std::unique_ptr<MultiContentsViewDelegate> delegate);
+@@ -88,6 +90,9 @@ class MultiContentsView
+   // Returns true if more than one WebContents is displayed.
+   bool IsInSplitView() const;
+ 
++  // Returns the number of visible native pane containers.
++  size_t GetVisibleContentsCount() const;
++
+   // Show the split view without set any WebContents and update the size and
+   // layout of contents views based on `visual_data`, this is used to prepare
+   // the layout and prevent a re-layout of WebContents.
+@@ -99,14 +104,25 @@ class MultiContentsView
+ 
+   // Assigns the given |web_contents| to the ContentsContainerView's
+   // ContentsWebView at |index| in contents_container_views_. |index| must be
+-  // either 0 or 1 as we currently only support two contents. If |index| is 1
+-  // and we are not currently in a split view, displays the split views.
++  // in [0, kMaxContentsViews). Assigning a secondary pane displays the native
++  // multi-contents presentation.
+   void SetWebContentsAtIndex(content::WebContents* web_contents, int index);
+ 
++  // Clears every attached WebContents while preserving container allocation.
++  // Used during atomic tab-collection swaps to avoid stale pane ownership.
++  void ClearWebContents();
++
+   // Sets the index of the active contents view within contents_views_.
+   void SetActiveIndex(int index);
+   int GetActiveIndex() const { return active_index_; }
+ 
++  // Focus Pane temporarily presents only the active pane without destroying
++  // the native split collection or its exact member order.
++  bool SetTahaiFocusMode(bool enabled);
++  bool IsTahaiFocusMode() const { return tahai_focus_mode_; }
++
++  bool IsAnyInactiveContentsViewFocused() const;
++
+   // Updates the size and layout of the contents views based on |visual_data|.
+   void UpdateSplitVisualData(const split_tabs::SplitTabVisualData& visual_data);
+ 
+@@ -248,6 +264,8 @@ class MultiContentsView
+ 
+   int GetInactiveIndex() const;
+ 
++  void UpdatePaneVisibility();
++
+   void OnWebContentsFocused(views::WebView*);
+   void OnNtpFooterFocused(views::WebView*);
+   void OnActorOverlayFocused(views::WebView*);
+@@ -319,6 +337,11 @@ class MultiContentsView
+ 
+   bool active_contents_view_highlighted_ = false;
+ 
++  // True while a Chromium split collection is attached, including Focus Pane
++  // mode where only the active pane is intentionally visible.
++  bool is_multi_contents_mode_ = false;
++  bool tahai_focus_mode_ = false;
++
+   std::optional<int> min_contents_size_for_testing_;
+ 
+   // Width ratios that a split view will snap to when resize is within a
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc b/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
+index c4399f6c861573ed2ab4506b9bb1e852fc7227ca..150ce983f0b2c4114be9b9007abaa92acc1650a1 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+ 
++#include <algorithm>
++
+ #include "base/check_deref.h"
+ #include "base/files/file_path.h"
+ #include "base/notreached.h"
+@@ -13,6 +15,7 @@
+ #include "chrome/browser/ui/browser_commands.h"
+ #include "chrome/browser/ui/browser_window.h"
+ #include "chrome/browser/ui/tabs/split_tab_metrics.h"
++#include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_model.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/frame/custom_floating_corner.h"
+@@ -92,6 +95,82 @@ void CompareLayouts(const std::vector<views::ChildLayout>& expected,
+ class MultiContentsViewBrowserTest
+     : public SplitViewBrowserTestMixin<InProcessBrowserTest> {};
+ 
++IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
++                       TahaiQuadLayoutFocusAndRestore) {
++  TabStripModel* model = browser()->tab_strip_model();
++  ASSERT_TRUE(chrome::OpenTahaiQuadView(browser()));
++  RunScheduledLayouts();
++
++  ASSERT_TRUE(multi_contents_view()->IsInSplitView());
++  ASSERT_EQ(multi_contents_view()->GetVisibleContentsCount(), 4u);
++  const auto& panes = multi_contents_view()->contents_container_views();
++  ASSERT_EQ(panes.size(), 4u);
++  for (size_t index = 0; index < panes.size(); ++index) {
++    EXPECT_TRUE(panes[index]->GetVisible());
++    EXPECT_FALSE(panes[index]->bounds().IsEmpty());
++    EXPECT_EQ(panes[index]->contents_view()->web_contents(),
++              model->GetWebContentsAt(static_cast<int>(index)));
++  }
++  EXPECT_FALSE(panes[0]->bounds().Intersects(panes[1]->bounds()));
++  EXPECT_FALSE(panes[0]->bounds().Intersects(panes[2]->bounds()));
++  EXPECT_FALSE(panes[1]->bounds().Intersects(panes[3]->bounds()));
++
++  model->ActivateTabAt(2);
++  EXPECT_EQ(multi_contents_view()->GetActiveIndex(), 2);
++  ASSERT_TRUE(chrome::SetTahaiQuadFocusMode(browser(), true));
++  EXPECT_TRUE(chrome::IsTahaiQuadFocusMode(browser()));
++  RunScheduledLayouts();
++  EXPECT_EQ(multi_contents_view()->GetVisibleContentsCount(), 1u);
++  EXPECT_TRUE(panes[2]->GetVisible());
++
++  model->ActivateTabAt(1);
++  RunScheduledLayouts();
++  EXPECT_EQ(multi_contents_view()->GetActiveIndex(), 1);
++  EXPECT_EQ(multi_contents_view()->GetVisibleContentsCount(), 1u);
++  EXPECT_TRUE(panes[1]->GetVisible());
++
++  ASSERT_TRUE(chrome::SetTahaiQuadFocusMode(browser(), false));
++  RunScheduledLayouts();
++  EXPECT_EQ(multi_contents_view()->GetVisibleContentsCount(), 4u);
++  EXPECT_EQ(multi_contents_view()->GetActiveIndex(), 1);
++
++  // Closing a pane reflows to 3-up while preserving native focus/exit
++  // controls. Exiting keeps all surviving tabs and the active target.
++  model->CloseWebContentsAt(3, TabCloseTypes::CLOSE_USER_GESTURE);
++  RunScheduledLayouts();
++  EXPECT_TRUE(chrome::IsTahaiQuadView(browser()));
++  EXPECT_EQ(multi_contents_view()->GetVisibleContentsCount(), 3u);
++  content::WebContents* active_contents = model->GetActiveWebContents();
++  ASSERT_TRUE(chrome::ExitTahaiQuadView(browser()));
++  EXPECT_FALSE(multi_contents_view()->IsInSplitView());
++  EXPECT_EQ(model->GetActiveWebContents(), active_contents);
++  EXPECT_EQ(model->count(), 3);
++}
++
++IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
++                       TahaiQuadWorksInIncognitoWithoutCrossProfileTabs) {
++  Browser* incognito = CreateIncognitoBrowser(browser()->profile());
++  ASSERT_TRUE(incognito);
++  ASSERT_TRUE(chrome::OpenTahaiQuadView(incognito));
++  TabStripModel* model = incognito->tab_strip_model();
++  ASSERT_EQ(model->count(), 4);
++  ASSERT_TRUE(model->GetActiveTab()->IsSplit());
++  EXPECT_EQ(model->GetSplitData(model->GetActiveTab()->GetSplit().value())
++                ->ListTabs()
++                .size(),
++            4u);
++  EXPECT_TRUE(std::ranges::all_of(
++      model->GetSplitData(model->GetActiveTab()->GetSplit().value())
++          ->ListTabs(),
++      [incognito](tabs::TabInterface* tab) {
++        return tab->GetContents()->GetBrowserContext() == incognito->profile();
++      }));
++  MultiContentsView* incognito_view =
++      BrowserView::GetBrowserViewForBrowser(incognito)->multi_contents_view();
++  ASSERT_TRUE(incognito_view);
++  EXPECT_EQ(incognito_view->GetVisibleContentsCount(), 4u);
++}
++
+ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                        HandleDropTargetViewLinkDrop_IsSupported) {
+   EXPECT_TRUE(multi_contents_view()->IsDragAndDropEnabled());
+@@ -373,7 +452,6 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+ class MultiContentsViewWebContentsReLayoutBrowserTest
+     : public SplitViewBrowserTestMixin<InProcessBrowserTest> {
+  protected:
+-
+   static constexpr char kReLayoutTestURL[] = "/re_layout_test.html";
+ 
+   void SetUpOnMainThread() override {
+diff --git a/chrome/browser/ui/views/tabs/tab.cc b/chrome/browser/ui/views/tabs/tab.cc
+index f80c98d3bd162ef050e6e5ea54a8807f02cd47a6..e0686cc3a2b373369774725688606753527dc9e8 100644
+--- a/chrome/browser/ui/views/tabs/tab.cc
++++ b/chrome/browser/ui/views/tabs/tab.cc
+@@ -1315,11 +1315,14 @@ void Tab::CloseButtonPressed(const ui::Event& event) {
+   }
+ 
+   const std::vector<Tab*>& tabs_in_split = controller()->GetTabsInSplit(this);
+-  if (tabs_in_split.size() > 0) {
+-    CHECK(tabs_in_split.size() == 2);
+-    base::RecordAction(UserMetricsAction(this == tabs_in_split[0]
+-                                             ? "CloseTab_StartTabInSplit"
+-                                             : "CloseTab_EndTabInSplit"));
++  if (!tabs_in_split.empty()) {
++    if (tabs_in_split.size() == 2u) {
++      base::RecordAction(UserMetricsAction(this == tabs_in_split[0]
++                                               ? "CloseTab_StartTabInSplit"
++                                               : "CloseTab_EndTabInSplit"));
++    } else {
++      base::RecordAction(UserMetricsAction("CloseTab_TahaiMultiPane"));
++    }
+   }
+ 
+   const bool from_mouse = event.type() == ui::EventType::kMouseReleased &&
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc b/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc
+index 1970367feaccf631955d558a8ecc1acda4724ff1..48bf8b24eb1cf21c062af5a071ca5dbe0a91882d 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_split_tab_view.h"
+ 
++#include <limits>
+ #include <numeric>
+ #include <vector>
+ 
+@@ -127,7 +128,7 @@ views::ProposedLayout VerticalSplitTabView::CalculateProposedLayout(
+   const std::vector<views::View*> children =
+       collection_node_ ? collection_node_->GetDirectChildren()
+                        : std::vector<views::View*>();
+-  if (children.size() != 2) {
++  if (children.size() < 2u || children.size() > 4u) {
+     layouts.host_size = gfx::Size(0, 0);
+     return layouts;
+   }
+@@ -147,31 +148,43 @@ views::ProposedLayout VerticalSplitTabView::CalculateProposedLayout(
+                GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth) *
+                children.size()))) {
+     int x = 0;
+-    for (auto* child : children) {
++    for (size_t index = 0; index < children.size(); ++index) {
++      auto* child = children[index];
+       gfx::Rect bounds = gfx::Rect(child->GetPreferredSize());
+       bounds.set_x(x);
+       // Fill available width if bounded.
+       if (size_bounds.width().is_bounded()) {
+-        bounds.set_width(
+-            x == 0 ? (std::floor(size_bounds.width().value() +
+-                                 2 * border_thickness - kSplitViewGap) /
+-                      2)
+-                   : size_bounds.width().value() - x);
++        const int total_gap =
++            kSplitViewGap * static_cast<int>(children.size() - 1u);
++        const int usable_width =
++            std::max(0, size_bounds.width().value() - total_gap);
++        const int prior_width = static_cast<int>(std::floor(
++            static_cast<double>(usable_width) * index / children.size()));
++        const int next_width =
++            static_cast<int>(std::floor(static_cast<double>(usable_width) *
++                                        (index + 1u) / children.size()));
++        bounds.set_width(next_width - prior_width);
++      }
++      x += bounds.width();
++      if (index + 1u < children.size()) {
++        x += kSplitViewGap;
+       }
+-      x += bounds.width() - 2 * border_thickness + (x == 0 ? kSplitViewGap : 0);
+       height = std::max(height, bounds.height());
+       layouts.child_layouts.emplace_back(child, child->GetVisible(), bounds);
+     }
+     width = x;
+   } else {
+     int y = 0;
+-    for (auto* child : children) {
++    for (size_t index = 0; index < children.size(); ++index) {
++      auto* child = children[index];
+       gfx::Rect bounds = gfx::Rect(child->GetPreferredSize());
+       bounds.set_y(y);
+       bounds.set_width(size_bounds.width().value());
+       bounds.set_height(bounds.height());
+-      y +=
+-          bounds.height() - 2 * border_thickness + (y == 0 ? kSplitViewGap : 0);
++      y += bounds.height() - 2 * border_thickness;
++      if (index + 1u < children.size()) {
++        y += kSplitViewGap;
++      }
+       layouts.child_layouts.emplace_back(child, child->GetVisible(), bounds);
+     }
+     width = size_bounds.width().value();
+@@ -187,27 +200,27 @@ VerticalSplitTabView::GetLinkDropIndex(const gfx::Point& loc_in_view) {
+     return std::nullopt;
+   }
+ 
+-  CHECK_EQ(collection_node_->children().size(), 2ul);
+-
+-  const auto& start_node = collection_node_->children()[0];
+-  gfx::Point start_loc = views::View::ConvertPointToTarget(
+-      start_node->view(), this,
+-      start_node->view()->GetLocalBounds().CenterPoint());
+-  const auto& end_node = collection_node_->children()[1];
+-  gfx::Point end_loc = views::View::ConvertPointToTarget(
+-      end_node->view(), this, end_node->view()->GetLocalBounds().CenterPoint());
++  CHECK_GE(collection_node_->children().size(), 2ul);
++  CHECK_LE(collection_node_->children().size(), 4ul);
+ 
+   VerticalTabDragHandler& drag_handler =
+       collection_node_->GetController()->GetDragHandler();
+ 
+-  // Links can't be dropped between tabs in a split view so just determine the
+-  // closest tab to the drop point.
+-  if ((start_loc - loc_in_view).LengthSquared() <
+-      (end_loc - loc_in_view).LengthSquared()) {
+-    return drag_handler.GetLinkDropIndexForNode(*start_node, std::nullopt);
+-  } else {
+-    return drag_handler.GetLinkDropIndexForNode(*end_node, std::nullopt);
++  // Links can't be dropped between tabs in a split collection, so route to
++  // the nearest real tab for 2-up, 3-up, and Quad View alike.
++  TabCollectionNode* closest_node = nullptr;
++  int closest_distance = std::numeric_limits<int>::max();
++  for (const auto& node : collection_node_->children()) {
++    const gfx::Point center = views::View::ConvertPointToTarget(
++        node->view(), this, node->view()->GetLocalBounds().CenterPoint());
++    const int distance = (center - loc_in_view).LengthSquared();
++    if (distance < closest_distance) {
++      closest_distance = distance;
++      closest_node = node.get();
++    }
+   }
++  CHECK(closest_node);
++  return drag_handler.GetLinkDropIndexForNode(*closest_node, std::nullopt);
+ }
+ 
+ double VerticalSplitTabView::GetHoverAnimationValue() const {
+diff --git a/chrome/browser/ui/webui/tahai/tahai_ui.cc b/chrome/browser/ui/webui/tahai/tahai_ui.cc
+index 4fc4ffa4c13a2f44582d41975a16101fda9c0fa5..e6df5ec3191b10637326e367296846835d431ef8 100644
+--- a/chrome/browser/ui/webui/tahai/tahai_ui.cc
++++ b/chrome/browser/ui/webui/tahai/tahai_ui.cc
+@@ -50,6 +50,10 @@ constexpr char kSharedCss[] = R"TAHAI(
+ 
+ constexpr char kCommandJs[] = R"TAHAI(
+ (()=>{'use strict';const commands=Object.freeze([
++{id:'quad.open',scope:'layout',label:'Open Quad View',detail:'Show four real Chromium tabs in a native 2 × 2 workspace'},
++{id:'quad.focus',scope:'layout',label:'Focus active pane',detail:'Maximize the active pane without losing Quad View'},
++{id:'quad.restore',scope:'layout',label:'Restore Quad View',detail:'Return from Focus Pane to the exact 2 × 2 workspace'},
++{id:'quad.exit',scope:'layout',label:'Return to 1-Up',detail:'Exit Quad View and keep the active native tab'},
+ {id:'tab.new',scope:'tabs',label:'New tab',detail:'Open a native Chromium tab'},
+ {id:'tab.reload',scope:'tabs',label:'Reload active tab',detail:'Reload the canonical active target'},
+ {id:'tab.close',scope:'tabs',label:'Close active tab',detail:'Close the current native tab'},
+@@ -60,6 +64,10 @@ function render(){const q=input.value.trim().toLowerCase();list.replaceChildren(
+ input.addEventListener('input',render);document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();input.focus();input.select()}});render();})();
+ )TAHAI";
+ 
++constexpr char kActionsJs[] = R"TAHAI(
++(()=>{'use strict';for(const control of document.querySelectorAll('[data-tahai-command]')){control.addEventListener('click',()=>chrome.send('executeTahaiCommand',[control.dataset.tahaiCommand]));}})();
++)TAHAI";
++
+ constexpr char kMissionJs[] = R"TAHAI(
+ (()=>{'use strict';const form=document.querySelector('#new-mission-form');if(!form)return;const status=document.querySelector('#mission-status');form.addEventListener('submit',event=>{event.preventDefault();const data=new FormData(form);const title=String(data.get('title')||'').trim();const type=String(data.get('type')||'investigation');if(!title||title.length>128){status.textContent='Mission names must contain 1–128 characters.';return}status.textContent='Creating profile-scoped mission…';chrome.send('createTahaiMission',[title,type]);});})();
+ )TAHAI";
+@@ -85,13 +93,14 @@ std::string PageFrame(std::string_view title, std::string_view content) {
+          std::string(content) +
+          "<footer class=footer>Native Chromium surface · profile scoped · no "
+          "Electron runtime · no page-content "
+-         "collection</footer></main></body></html>";
++         "collection</footer><script "
++         "src=/actions.js></script></main></body></html>";
+ }
+ 
+ std::string NewTabHtml() {
+   return PageFrame("New Tab", R"TAHAI(
+ <section class=hero><p class=eyebrow>Operator launchpad</p><h2>Browse normally. Bring structure forward when work gets serious.</h2><p class=muted>TAHAI keeps ordinary browsing familiar while Mission Control, approved tools, evidence, and support remain one deliberate action away.</p><form class=search action="https://www.google.com/search" method=get><input name=q type=search autocomplete=off autofocus placeholder="Search the web"><button class="button primary" type=submit>Search</button></form></section>
+-<section class=section><div class=section-head><div><p class=eyebrow>Launchpad</p><h2>Start work</h2></div></div><div class=grid><a class=card href="tahai://mission/"><strong>Mission Control</strong><span>Organize native tabs, roles, runbooks, and evidence.</span></a><a class=card href="tahai://ops-tools/"><strong>Command Center</strong><span>Run allowlisted Chromium actions and safe tools.</span></a><a class=card href="tahai://support/"><strong>Support</strong><span>Recovery guidance and sanitized handoff.</span></a><a class=card href="tahai://policy/"><strong>Policy</strong><span>See managed state and feature availability.</span></a></div></section>
++<section class=section><div class=section-head><div><p class=eyebrow>Launchpad</p><h2>Start work</h2></div></div><div class=grid><button class=card type=button data-tahai-command="quad.open"><strong>Open Quad View</strong><span>Four real Chromium tabs in TAHAI's signature 2 × 2 workspace.</span></button><a class=card href="tahai://mission/"><strong>Mission Control</strong><span>Organize native tabs, roles, runbooks, and evidence.</span></a><a class=card href="tahai://ops-tools/"><strong>Command Center</strong><span>Run allowlisted Chromium actions and safe tools.</span></a><a class=card href="tahai://support/"><strong>Support</strong><span>Recovery guidance and sanitized handoff.</span></a></div></section>
+ <section class="section three"><article class=panel><p class=eyebrow>Profile scoped</p><h2>Recent missions</h2><p class=muted>No mission history is recorded in this profile yet.</p></article><article class=panel><p class=eyebrow>Work context</p><h2>Clean normal mode</h2><p class=muted>Adaptation remains local, explicit, inspectable, and disabled at low confidence.</p></article><article class=panel><p class=eyebrow>Browser state</p><h2>Native Chromium</h2><p class=status>Tabs, profiles, permissions, downloads, history, and authentication stay Chromium-owned.</p></article></section>
+ )TAHAI");
+ }
+@@ -180,11 +189,28 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
+     if (args.size() != 1u || !args.front().is_string()) {
+       return;
+     }
+-    const std::optional<int> command_id = CommandId(args.front().GetString());
++    const std::string& command = args.front().GetString();
++    Browser* browser = chrome::FindBrowserWithTab(web_ui()->GetWebContents());
++    if (command == "quad.open") {
++      chrome::OpenTahaiQuadView(browser);
++      return;
++    }
++    if (command == "quad.focus") {
++      chrome::SetTahaiQuadFocusMode(browser, true);
++      return;
++    }
++    if (command == "quad.restore") {
++      chrome::SetTahaiQuadFocusMode(browser, false);
++      return;
++    }
++    if (command == "quad.exit") {
++      chrome::ExitTahaiQuadView(browser);
++      return;
++    }
++    const std::optional<int> command_id = CommandId(command);
+     if (!command_id) {
+       return;
+     }
+-    Browser* browser = chrome::FindBrowserWithTab(web_ui()->GetWebContents());
+     if (!browser || !chrome::SupportsCommand(browser, *command_id) ||
+         !chrome::IsCommandEnabled(browser, *command_id)) {
+       return;
+@@ -232,6 +258,8 @@ void TahaiPlaceholderSource::StartDataRequest(
+   std::string html;
+   if (url.path() == "/app.css") {
+     html = kSharedCss;
++  } else if (url.path() == "/actions.js") {
++    html = kActionsJs;
+   } else if (url.path() == "/command-center.js" &&
+              surface_ == kOpsToolsSurface) {
+     html = kCommandJs;
+@@ -262,6 +290,9 @@ std::string TahaiPlaceholderSource::GetMimeType(const GURL& url) {
+   if (url.path() == "/mission.js") {
+     return "text/javascript";
+   }
++  if (url.path() == "/actions.js") {
++    return "text/javascript";
++  }
+   return "text/html";
+ }
+ 
+@@ -296,7 +327,8 @@ TahaiUI::TahaiUI(content::WebUI* web_ui,
+       profile, std::make_unique<TahaiPlaceholderSource>(
+                    std::string(internal_host), std::string(surface),
+                    std::string(title), mission_service));
+-  if (surface == kOpsToolsSurface || surface == kMissionSurface) {
++  if (surface == kNewTabSurface || surface == kOpsToolsSurface ||
++      surface == kMissionSurface) {
+     web_ui->AddMessageHandler(
+         std::make_unique<TahaiCommandHandler>(mission_service));
+   }
+diff --git a/components/sessions/core/live_tab_context.h b/components/sessions/core/live_tab_context.h
+index 394d06d892853d800898ebfa4bfdb0028ddc560c..872044fc2b7c01236d651f16e13eab92774f7cc5 100644
+--- a/components/sessions/core/live_tab_context.h
++++ b/components/sessions/core/live_tab_context.h
+@@ -105,6 +105,15 @@ class SESSIONS_EXPORT LiveTabContext {
+       split_tabs::SplitTabId split_id,
+       const split_tabs::SplitTabVisualData& visual_data) = 0;
+ 
++  // Reconstructs a split containing all of `tabs`. Embedders that only support
++  // the original two-tab split contract continue to use the overload above.
++  // Desktop Chrome overrides this method to restore TAHAI collections with up
++  // to four native tabs.
++  virtual void ReconstructSplit(
++      const std::vector<LiveTab*>& tabs,
++      split_tabs::SplitTabId split_id,
++      const split_tabs::SplitTabVisualData& visual_data) = 0;
++
+   virtual void CloseTab() = 0;
+ 
+  protected:
+diff --git a/components/sessions/core/tab_restore_service_helper.cc b/components/sessions/core/tab_restore_service_helper.cc
+index 14a14d2f9c1bcf7d3189b3deee30310364f46cfa..a28b0ddf9b17f208395cacb4fb801993ab64a140 100644
+--- a/components/sessions/core/tab_restore_service_helper.cc
++++ b/components/sessions/core/tab_restore_service_helper.cc
+@@ -186,16 +186,25 @@ void ReconstructSplits(
+                    std::vector<raw_ptr<tab_restore::Tab>>>& split_tabs_map,
+     const std::map<SessionID, LiveTab*>& restored_tab_map) {
+   for (const auto& [split_id, tabs] : split_tabs_map) {
+-    CHECK(tabs.size() == 2);
+-    auto leading_it = restored_tab_map.find(tabs[0]->id);
+-    auto trailing_it = restored_tab_map.find(tabs[1]->id);
+-    if (leading_it != restored_tab_map.end() &&
+-        trailing_it != restored_tab_map.end()) {
++    if (tabs.size() < 2u || tabs.size() > 4u) {
++      continue;
++    }
++
++    std::vector<LiveTab*> restored_tabs;
++    restored_tabs.reserve(tabs.size());
++    for (const auto& tab : tabs) {
++      auto restored_it = restored_tab_map.find(tab->id);
++      if (restored_it == restored_tab_map.end()) {
++        restored_tabs.clear();
++        break;
++      }
++      restored_tabs.push_back(restored_it->second);
++    }
++
++    if (!restored_tabs.empty()) {
+       const split_tabs::SplitTabVisualData visual_data =
+           tabs[0]->split_visual_data.value_or(split_tabs::SplitTabVisualData());
+-
+-      context->ReconstructSplit(leading_it->second, trailing_it->second,
+-                                split_id, visual_data);
++      context->ReconstructSplit(restored_tabs, split_id, visual_data);
+     }
+   }
+ }
+@@ -408,16 +417,19 @@ void TabRestoreServiceHelper::CreateHistoricalSplit(
+ 
+   auto split = CreateHistoricalSplitImpl(context, id, split_tabs);
+ 
+-  if (split && split->tabs.size() == 2) {
+-    bool tab0_valid = ValidateTab(*split->tabs[0]);
+-    bool tab1_valid = ValidateTab(*split->tabs[1]);
++  if (split) {
++    std::vector<std::unique_ptr<Tab>> valid_tabs;
++    for (auto& tab : split->tabs) {
++      if (tab && ValidateTab(*tab)) {
++        valid_tabs.push_back(std::move(tab));
++      }
++    }
++    split->tabs = std::move(valid_tabs);
+ 
+-    if (tab0_valid && tab1_valid) {
++    if (split->tabs.size() >= 2u) {
+       AddEntry(std::move(split), true, true);
+-    } else if (tab0_valid) {
++    } else if (split->tabs.size() == 1u) {
+       AddEntry(std::move(split->tabs[0]), true, true);
+-    } else if (tab1_valid) {
+-      AddEntry(std::move(split->tabs[1]), true, true);
+     } else {
+       closing_split_tabs_.erase(id);
+     }
+@@ -454,7 +466,7 @@ TabRestoreServiceHelper::CreateHistoricalSplitImpl(
+     LiveTabContext* context,
+     const split_tabs::SplitTabId& id,
+     const std::vector<std::pair<int, LiveTab*>>& split_tabs) {
+-  if (split_tabs.size() != 2) {
++  if (split_tabs.size() < 2u || split_tabs.size() > 4u) {
+     return nullptr;
+   }
+ 
+@@ -572,17 +584,21 @@ bool TabRestoreServiceHelper::DeleteFromSplit(
+     Split* split,
+     std::unique_ptr<Tab>& remaining_tab) {
+   CHECK(ValidateSplit(*split));
+-  DCHECK_EQ(split->tabs.size(), 2u);
+-  bool leading_deleted = DeleteFromTab(predicate, split->tabs[0].get());
+-  bool trailing_deleted = DeleteFromTab(predicate, split->tabs[1].get());
++  std::vector<std::unique_ptr<Tab>> surviving_tabs;
++  for (auto& tab : split->tabs) {
++    if (!DeleteFromTab(predicate, tab.get())) {
++      surviving_tabs.push_back(std::move(tab));
++    }
++  }
++  split->tabs = std::move(surviving_tabs);
+ 
+-  if (leading_deleted && trailing_deleted) {
++  if (split->tabs.empty()) {
+     return true;
+   }
+-  if (leading_deleted) {
+-    remaining_tab = std::move(split->tabs[1]);
+-  } else if (trailing_deleted) {
++  if (split->tabs.size() == 1u) {
+     remaining_tab = std::move(split->tabs[0]);
++    remaining_tab->split_id = std::nullopt;
++    remaining_tab->split_visual_data = std::nullopt;
+   }
+   return false;
+ }
+@@ -1129,7 +1145,6 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
+     case tab_restore::Type::SPLIT: {
+       auto& split = static_cast<tab_restore::Split&>(entry);
+       CHECK(ValidateSplit(split));
+-      CHECK_EQ(split.tabs.size(), 2u);
+ 
+       if (entry_id_matches_restore_id) {
+         if (split.timestamp != base::Time() &&
+@@ -1139,31 +1154,35 @@ std::vector<LiveTab*> TabRestoreServiceHelper::RestoreEntryById(
+               TimeNow() - split.timestamp);
+         }
+ 
+-        LiveTab* restored_leading_tab = nullptr;
+-        context = RestoreTab(*split.tabs[0], context, disposition, entry.type,
+-                             &restored_leading_tab, false);
+-        if (restored_leading_tab) {
+-          live_tabs.push_back(restored_leading_tab);
+-        }
++        std::vector<LiveTab*> restored_split_tabs;
++        for (size_t i = 0; i < split.tabs.size(); ++i) {
++          LiveTab* restored_tab = nullptr;
++          if (i == 0u) {
++            context = RestoreTab(*split.tabs[i], context, disposition,
++                                 entry.type, &restored_tab, false);
++          } else {
++            restored_tab =
++                context->AddRestoredTab(*split.tabs[i], context->GetTabCount(),
++                                        false, false, entry.type);
++            if (restored_tab && !split.tabs[i]->navigations.empty()) {
++              const int nav_index = std::clamp(
++                  split.tabs[i]->current_navigation_index, 0,
++                  static_cast<int>(split.tabs[i]->navigations.size() - 1));
++              client_->OnTabRestored(
++                  split.tabs[i]->navigations.at(nav_index).virtual_url());
++            }
++          }
+ 
+-        // Directly restore the trailing tab into the same context as the
+-        // leading tab to ensure that they remain unified in a single browser
+-        // window.
+-        LiveTab* restored_trailing_tab = context->AddRestoredTab(
+-            *split.tabs[1], context->GetTabCount(), false, false, entry.type);
+-        if (restored_trailing_tab && !split.tabs[1]->navigations.empty()) {
+-          int nav_index = std::clamp(
+-              split.tabs[1]->current_navigation_index, 0,
+-              static_cast<int>(split.tabs[1]->navigations.size() - 1));
+-          client_->OnTabRestored(
+-              split.tabs[1]->navigations.at(nav_index).virtual_url());
+-          live_tabs.push_back(restored_trailing_tab);
++          if (restored_tab) {
++            live_tabs.push_back(restored_tab);
++            restored_split_tabs.push_back(restored_tab);
++          }
+         }
+ 
+-        if (restored_leading_tab && restored_trailing_tab &&
++        if (restored_split_tabs.size() == split.tabs.size() &&
+             split.split_id.has_value()) {
+-          context->ReconstructSplit(restored_leading_tab, restored_trailing_tab,
+-                                    split.split_id.value(), split.visual_data);
++          context->ReconstructSplit(restored_split_tabs, split.split_id.value(),
++                                    split.visual_data);
+         }
+ 
+       } else {
+@@ -1554,11 +1573,14 @@ TabRestoreServiceHelper::RestoreOneTabFromSplit(
+         live_tabs.push_back(restored_tab);
+       }
+ 
+-      // Extract the remaining tab, remove split association, and return it.
+-      std::unique_ptr<Tab> remaining_tab = std::move(split.tabs[1 - i]);
+-      remaining_tab->split_id = std::nullopt;
+-      remaining_tab->split_visual_data = std::nullopt;
+-      return remaining_tab;
++      split.tabs.erase(split.tabs.begin() + i);
++      if (split.tabs.size() == 1u) {
++        std::unique_ptr<Tab> remaining_tab = std::move(split.tabs[0]);
++        remaining_tab->split_id = std::nullopt;
++        remaining_tab->split_visual_data = std::nullopt;
++        return remaining_tab;
++      }
++      return nullptr;
+     }
+   }
+   return nullptr;
+@@ -1644,11 +1666,11 @@ bool TabRestoreServiceHelper::ValidateGroup(const Group& group) {
+ }
+ 
+ bool TabRestoreServiceHelper::ValidateSplit(const Split& split) {
+-  if (split.tabs.size() != 2) {
++  if (split.tabs.size() < 2u || split.tabs.size() > 4u) {
+     return false;
+   }
+-  return split.tabs[0] && split.tabs[1] && ValidateTab(*split.tabs[0]) &&
+-         ValidateTab(*split.tabs[1]);
++  return std::ranges::all_of(
++      split.tabs, [](const auto& tab) { return tab && ValidateTab(*tab); });
+ }
+ 
+ bool TabRestoreServiceHelper::IsTabInteresting(const Tab& tab) {
+@@ -1681,11 +1703,12 @@ bool TabRestoreServiceHelper::IsGroupInteresting(const Group& group) {
+ }
+ 
+ bool TabRestoreServiceHelper::IsSplitInteresting(const Split& split) {
+-  if (split.tabs.size() != 2) {
++  if (split.tabs.size() < 2u || split.tabs.size() > 4u) {
+     return false;
+   }
+-  return (split.tabs[0] && IsTabInteresting(*split.tabs[0])) ||
+-         (split.tabs[1] && IsTabInteresting(*split.tabs[1]));
++  return std::ranges::any_of(split.tabs, [this](const auto& tab) {
++    return tab && IsTabInteresting(*tab);
++  });
+ }
+ 
+ bool TabRestoreServiceHelper::FilterEntry(const Entry& entry) {
+diff --git a/components/sessions/core/tab_restore_service_helper.h b/components/sessions/core/tab_restore_service_helper.h
+index 41fe1e40c91673927234813f62525e7afd82ddfd..d3a60a05939a272bc9c002ce092be1691039111a 100644
+--- a/components/sessions/core/tab_restore_service_helper.h
++++ b/components/sessions/core/tab_restore_service_helper.h
+@@ -228,7 +228,7 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
+   // Validates all the tabs in a group.
+   static bool ValidateGroup(const Group& group);
+ 
+-  // Validates the two tabs in a split.
++  // Validates the two to four tabs in a split.
+   static bool ValidateSplit(const Split& split);
+ 
+   // Removes all navigation entries matching |predicate| from |tab|.
+@@ -245,8 +245,8 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
+   static bool DeleteFromGroup(const DeletionPredicate& predicate, Group* group);
+ 
+   // Removes all navigation entries matching |predicate| from tabs in |split|.
+-  // Returns true if both tabs in |split| are deleted. If only one tab is
+-  // deleted, it is moved to |remaining_tab|.
++  // Returns true if every tab in |split| is deleted. If exactly one survives,
++  // it is moved to |remaining_tab|; otherwise the surviving split is retained.
+   static bool DeleteFromSplit(const DeletionPredicate& predicate,
+                               Split* split,
+                               std::unique_ptr<Tab>& remaining_tab);
+diff --git a/components/sessions/core/tab_restore_service_impl.cc b/components/sessions/core/tab_restore_service_impl.cc
+index 17f1c5d56e45132df9a5592fdc0300b0e9ed53ab..30f0751b98ccbc1ce83f5dfcda01500bb972bb9e 100644
+--- a/components/sessions/core/tab_restore_service_impl.cc
++++ b/components/sessions/core/tab_restore_service_impl.cc
+@@ -524,7 +524,8 @@ std::unique_ptr<sessions::tab_restore::Group> CreateGroupEntryFromCommand(
+ 
+ std::unique_ptr<sessions::tab_restore::Split> CreateSplitEntryFromCommand(
+     const SessionCommand* command,
+-    SessionID* session_id) {
++    SessionID* session_id,
++    int32_t* num_tabs) {
+   base::PickleIterator it = command->ContentsAsPickle();
+   std::optional<base::Token> split_token = ReadTokenFromPickle(&it);
+   if (!split_token.has_value()) {
+@@ -544,6 +545,17 @@ std::unique_ptr<sessions::tab_restore::Split> CreateSplitEntryFromCommand(
+ 
+   ReadSplitTabVisualData(&it, &split->visual_data);
+ 
++  // The pane count was appended to the command for TAHAI Quad. Commands from
++  // earlier Chromium versions end after visual data and remain two-pane.
++  *num_tabs = 2;
++  int32_t persisted_num_tabs = 0;
++  if (it.ReadInt(&persisted_num_tabs)) {
++    if (persisted_num_tabs < 2 || persisted_num_tabs > 4) {
++      return nullptr;
++    }
++    *num_tabs = persisted_num_tabs;
++  }
++
+   return split;
+ }
+ 
+@@ -652,7 +664,8 @@ class TabRestoreServiceImpl::PersistenceDelegate
+       SessionID session_id,
+       split_tabs::SplitTabId split_id,
+       const split_tabs::SplitTabVisualData& visual_data,
+-      base::Time timestamp);
++      base::Time timestamp,
++      size_t num_tabs);
+ 
+   // Creates a tab close command.
+   static std::unique_ptr<SessionCommand> CreateSelectedNavigationInTabCommand(
+@@ -954,7 +967,8 @@ void TabRestoreServiceImpl::PersistenceDelegate::ScheduleCommandsForGroup(
+ 
+ void TabRestoreServiceImpl::PersistenceDelegate::ScheduleCommandsForSplit(
+     const tab_restore::Split& split) {
+-  DCHECK_EQ(split.tabs.size(), 2u);
++  DCHECK_GE(split.tabs.size(), 2u);
++  DCHECK_LE(split.tabs.size(), 4u);
+ 
+   // Count how many tabs in the split are valid to persist.
+   std::vector<std::pair<const tab_restore::Tab*, int>> valid_tabs;
+@@ -965,11 +979,11 @@ void TabRestoreServiceImpl::PersistenceDelegate::ScheduleCommandsForSplit(
+     }
+   }
+ 
+-  if (valid_tabs.size() == 2) {
++  if (valid_tabs.size() >= 2u) {
+     command_storage_manager_->ScheduleCommand(CreateSplitCommand(
+         split.id,
+         split.split_id.value_or(split_tabs::SplitTabId::CreateEmpty()),
+-        split.visual_data, split.timestamp));
++        split.visual_data, split.timestamp, valid_tabs.size()));
+     for (const auto& [tab, index] : valid_tabs) {
+       ScheduleCommandsForTab(*tab, index);
+     }
+@@ -1156,13 +1170,15 @@ TabRestoreServiceImpl::PersistenceDelegate::CreateSplitCommand(
+     SessionID session_id,
+     split_tabs::SplitTabId split_id,
+     const split_tabs::SplitTabVisualData& visual_data,
+-    base::Time timestamp) {
++    base::Time timestamp,
++    size_t num_tabs) {
+   base::Pickle pickle;
+   WriteTokenToPickle(&pickle, split_id.token());
+   pickle.WriteInt(static_cast<int>(session_id.id()));
+   pickle.WriteInt64(timestamp.ToDeltaSinceWindowsEpoch().InMicroseconds());
+   pickle.WriteDouble(visual_data.split_ratio());
+   pickle.WriteInt(static_cast<int>(visual_data.split_layout()));
++  pickle.WriteInt(static_cast<int>(num_tabs));
+ 
+   std::unique_ptr<SessionCommand> command =
+       std::make_unique<SessionCommand>(kCommandCreateSplit, pickle);
+@@ -1342,15 +1358,17 @@ void TabRestoreServiceImpl::PersistenceDelegate::CreateEntriesFromCommands(
+         }
+ 
+         SessionID split_id = SessionID::InvalidValue();
++        int32_t num_tabs = 0;
+         std::unique_ptr<tab_restore::Split> split =
+-            CreateSplitEntryFromCommand(&command, &split_id);
++            CreateSplitEntryFromCommand(&command, &split_id, &num_tabs);
+         if (!split) {
+           return;
+         }
+ 
+         RemoveEntryByID(split_id, &entries);
+         split->original_id = split_id;
+-        current_split = std::make_optional(std::make_pair(split.get(), 2));
++        current_split =
++            std::make_optional(std::make_pair(split.get(), num_tabs));
+         entries.push_back(std::move(split));
+         break;
+       }
+-- 
+2.54.0.windows.1
+

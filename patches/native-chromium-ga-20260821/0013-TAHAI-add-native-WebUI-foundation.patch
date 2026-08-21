@@ -1,0 +1,472 @@
+From 100033dc4fbc262f45fd8b124e3c6605d9d7c0f4 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Wed, 12 Aug 2026 11:57:36 -0400
+Subject: [PATCH 13/16] TAHAI: add native WebUI foundation
+
+---
+ .../browser/chrome_content_browser_client.cc  |   4 +
+ chrome/browser/ui/webui/BUILD.gn              |   2 +
+ .../browser/ui/webui/chrome_web_ui_configs.cc |   6 +
+ chrome/browser/ui/webui/tahai/tahai_ui.cc     | 131 ++++++++++++++++++
+ chrome/browser/ui/webui/tahai/tahai_ui.h      | 100 +++++++++++++
+ .../ui/webui/tahai/tahai_url_rewrite.h        |  75 ++++++++++
+ chrome/common/chrome_content_client.cc        |   3 +
+ chrome/common/tahai_url_constants.h           |  32 +++++
+ 8 files changed, 353 insertions(+)
+ create mode 100644 chrome/browser/ui/webui/tahai/tahai_ui.cc
+ create mode 100644 chrome/browser/ui/webui/tahai/tahai_ui.h
+ create mode 100644 chrome/browser/ui/webui/tahai/tahai_url_rewrite.h
+ create mode 100644 chrome/common/tahai_url_constants.h
+
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index edab63d18ffd007a94a159a545bec1d5fff67980..77b659600cd5337fa88972d17ade70f69188af17 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/chrome_content_browser_client.h"
++#include "chrome/browser/ui/webui/tahai/tahai_url_rewrite.h"
+ 
+ #include <algorithm>
+ #include <iterator>
+@@ -5172,6 +5173,9 @@ void ChromeContentBrowserClient::BrowserURLHandlerCreated(
+                           &search::HandleNewTabURLReverseRewrite);
+ #endif  // BUILDFLAG(IS_ANDROID)
+ 
++  handler->AddHandlerPair(&tahai::HandleTahaiURLRewrite,
++                          &tahai::HandleTahaiURLReverseRewrite);
++
+   // chrome: & friends.
+   handler->AddHandlerPair(&ChromeContentBrowserClient::HandleWebUI,
+                           &ChromeContentBrowserClient::HandleWebUIReverse);
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+index 70818ce2da0e8e5fc9e79ac54fb2f1a37fdcd28b..19a2b4888c6d6892cbcaed5312f89050ec078633 100644
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -32,6 +32,8 @@ source_set("configs") {
+     "chrome_untrusted_web_ui_configs.h",
+     "chrome_web_ui_configs.cc",
+     "chrome_web_ui_configs.h",
++    "tahai/tahai_ui.cc",
++    "tahai/tahai_ui.h",
+   ]
+ 
+   configs += [ "//build/config/compiler:wexit_time_destructors" ]
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+index bced2aebb34959189b91da490d27d1b5a9b19e3c..e79823e5b8819697e610572c5533e4b046b8f132 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/ui/webui/chrome_web_ui_configs.h"
++#include "chrome/browser/ui/webui/tahai/tahai_ui.h"
+ 
+ #include "build/android_buildflags.h"
+ #include "build/branding_buildflags.h"
+@@ -248,6 +249,11 @@ void RegisterChromeWebUIConfigs() {
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+   auto& map = content::WebUIConfigMap::GetInstance();
++  map.AddWebUIConfig(std::make_unique<tahai::TahaiNewTabUIConfig>());
++  map.AddWebUIConfig(std::make_unique<tahai::TahaiMissionUIConfig>());
++  map.AddWebUIConfig(std::make_unique<tahai::TahaiOpsToolsUIConfig>());
++  map.AddWebUIConfig(std::make_unique<tahai::TahaiSupportUIConfig>());
++  map.AddWebUIConfig(std::make_unique<tahai::TahaiPolicyUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AccessibilityUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
+diff --git a/chrome/browser/ui/webui/tahai/tahai_ui.cc b/chrome/browser/ui/webui/tahai/tahai_ui.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..713c3c898b0b81202c2fc74c047c640b67ddfb8d
+--- /dev/null
++++ b/chrome/browser/ui/webui/tahai/tahai_ui.cc
+@@ -0,0 +1,131 @@
++// Copyright 2026 TAHAI Web Services
++// SPDX-License-Identifier: Apache-2.0
++
++#include "chrome/browser/ui/webui/tahai/tahai_ui.h"
++
++#include <memory>
++#include <string>
++#include <string_view>
++#include <utility>
++
++#include "base/check.h"
++#include "base/memory/ref_counted.h"
++#include "base/memory/ref_counted_memory.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/common/tahai_url_constants.h"
++#include "content/public/browser/url_data_source.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/common/url_constants.h"
++#include "url/gurl.h"
++
++namespace tahai {
++namespace {
++
++constexpr char kNewTabSurface[] = "newtab";
++constexpr char kMissionSurface[] = "mission";
++constexpr char kOpsToolsSurface[] = "ops-tools";
++constexpr char kSupportSurface[] = "support";
++constexpr char kPolicySurface[] = "policy";
++constexpr char kNewTabTitle[] = "TAHAI New Tab";
++constexpr char kMissionTitle[] = "Mission Control";
++constexpr char kOpsToolsTitle[] = "Operations Tools";
++constexpr char kSupportTitle[] = "TAHAI Support";
++constexpr char kPolicyTitle[] = "TAHAI Policy";
++
++}  // namespace
++
++TahaiPlaceholderSource::TahaiPlaceholderSource(std::string host,
++                                               std::string surface,
++                                               std::string title)
++    : host_(std::move(host)),
++      surface_(std::move(surface)),
++      title_(std::move(title)) {}
++
++TahaiPlaceholderSource::~TahaiPlaceholderSource() = default;
++
++std::string TahaiPlaceholderSource::GetSource() {
++  return host_;
++}
++
++void TahaiPlaceholderSource::StartDataRequest(
++    const GURL& url,
++    const content::WebContents::Getter& wc_getter,
++    GotDataCallback callback) {
++  // This foundation serves only bundled, non-scripted content. It does not
++  // inspect page state, browser storage, authentication, or remote resources.
++  std::string html =
++      "<!doctype html><html><head><meta charset=utf-8>"
++      "<meta name=viewport content=width=device-width><title>" +
++      title_ + "</title></head><body data-tahai-surface=\"" + surface_ +
++      "\"><main><h1>" + title_ +
++      "</h1><p>Native TAHAI WebUI foundation ready.</p></main></body></html>";
++  std::move(callback).Run(
++      base::MakeRefCounted<base::RefCountedString>(std::move(html)));
++}
++
++std::string TahaiPlaceholderSource::GetMimeType(const GURL& url) {
++  return "text/html";
++}
++
++TahaiUI::TahaiUI(content::WebUI* web_ui,
++                 std::string_view internal_host,
++                 std::string_view surface,
++                 std::string_view title)
++    : content::WebUIController(web_ui) {
++  Profile* profile = Profile::FromWebUI(web_ui);
++  CHECK(profile);
++  content::URLDataSource::Add(
++      profile, std::make_unique<TahaiPlaceholderSource>(
++                   std::string(internal_host), std::string(surface),
++                   std::string(title)));
++}
++
++TahaiUI::~TahaiUI() = default;
++
++TahaiSurfaceUIConfig::TahaiSurfaceUIConfig(std::string_view host,
++                                           std::string_view surface,
++                                           std::string_view title)
++    : content::WebUIConfig(content::kChromeUIScheme, std::string(host)),
++      host_(host),
++      surface_(surface),
++      title_(title) {}
++
++TahaiSurfaceUIConfig::~TahaiSurfaceUIConfig() = default;
++
++std::unique_ptr<content::WebUIController>
++TahaiSurfaceUIConfig::CreateWebUIController(content::WebUI* web_ui,
++                                            const GURL& url) {
++  return std::make_unique<TahaiUI>(web_ui, host_, surface_, title_);
++}
++
++TahaiNewTabUIConfig::TahaiNewTabUIConfig()
++    : TahaiSurfaceUIConfig(kTahaiInternalNewTabHost,
++                           kNewTabSurface,
++                           kNewTabTitle) {}
++TahaiNewTabUIConfig::~TahaiNewTabUIConfig() = default;
++
++TahaiMissionUIConfig::TahaiMissionUIConfig()
++    : TahaiSurfaceUIConfig(kTahaiInternalMissionHost,
++                           kMissionSurface,
++                           kMissionTitle) {}
++TahaiMissionUIConfig::~TahaiMissionUIConfig() = default;
++
++TahaiOpsToolsUIConfig::TahaiOpsToolsUIConfig()
++    : TahaiSurfaceUIConfig(kTahaiInternalOpsToolsHost,
++                           kOpsToolsSurface,
++                           kOpsToolsTitle) {}
++TahaiOpsToolsUIConfig::~TahaiOpsToolsUIConfig() = default;
++
++TahaiSupportUIConfig::TahaiSupportUIConfig()
++    : TahaiSurfaceUIConfig(kTahaiInternalSupportHost,
++                           kSupportSurface,
++                           kSupportTitle) {}
++TahaiSupportUIConfig::~TahaiSupportUIConfig() = default;
++
++TahaiPolicyUIConfig::TahaiPolicyUIConfig()
++    : TahaiSurfaceUIConfig(kTahaiInternalPolicyHost,
++                           kPolicySurface,
++                           kPolicyTitle) {}
++TahaiPolicyUIConfig::~TahaiPolicyUIConfig() = default;
++
++}  // namespace tahai
+diff --git a/chrome/browser/ui/webui/tahai/tahai_ui.h b/chrome/browser/ui/webui/tahai/tahai_ui.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ebb6c17caa4bbca10b983a65b78b2d3380d4b7c
+--- /dev/null
++++ b/chrome/browser/ui/webui/tahai/tahai_ui.h
+@@ -0,0 +1,100 @@
++// Copyright 2026 TAHAI Web Services
++// SPDX-License-Identifier: Apache-2.0
++
++#ifndef CHROME_BROWSER_UI_WEBUI_TAHAI_TAHAI_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_TAHAI_TAHAI_UI_H_
++
++#include <memory>
++#include <string>
++#include <string_view>
++
++#include "content/public/browser/url_data_source.h"
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/webui_config.h"
++
++namespace tahai {
++
++class TahaiPlaceholderSource : public content::URLDataSource {
++ public:
++  TahaiPlaceholderSource(std::string host,
++                         std::string surface,
++                         std::string title);
++  TahaiPlaceholderSource(const TahaiPlaceholderSource&) = delete;
++  TahaiPlaceholderSource& operator=(const TahaiPlaceholderSource&) = delete;
++  ~TahaiPlaceholderSource() override;
++
++  std::string GetSource() override;
++  void StartDataRequest(const GURL& url,
++                        const content::WebContents::Getter& wc_getter,
++                        GotDataCallback callback) override;
++  std::string GetMimeType(const GURL& url) override;
++
++ private:
++  const std::string host_;
++  const std::string surface_;
++  const std::string title_;
++};
++
++class TahaiUI : public content::WebUIController {
++ public:
++  TahaiUI(content::WebUI* web_ui,
++          std::string_view internal_host,
++          std::string_view surface,
++          std::string_view title);
++  TahaiUI(const TahaiUI&) = delete;
++  TahaiUI& operator=(const TahaiUI&) = delete;
++  ~TahaiUI() override;
++};
++
++class TahaiSurfaceUIConfig : public content::WebUIConfig {
++ public:
++  TahaiSurfaceUIConfig(std::string_view host,
++                       std::string_view surface,
++                       std::string_view title);
++  TahaiSurfaceUIConfig(const TahaiSurfaceUIConfig&) = delete;
++  TahaiSurfaceUIConfig& operator=(const TahaiSurfaceUIConfig&) = delete;
++  ~TahaiSurfaceUIConfig() override;
++
++  std::unique_ptr<content::WebUIController> CreateWebUIController(
++      content::WebUI* web_ui,
++      const GURL& url) override;
++
++ private:
++  const std::string host_;
++  const std::string surface_;
++  const std::string title_;
++};
++
++class TahaiNewTabUIConfig : public TahaiSurfaceUIConfig {
++ public:
++  TahaiNewTabUIConfig();
++  ~TahaiNewTabUIConfig() override;
++};
++
++class TahaiMissionUIConfig : public TahaiSurfaceUIConfig {
++ public:
++  TahaiMissionUIConfig();
++  ~TahaiMissionUIConfig() override;
++};
++
++class TahaiOpsToolsUIConfig : public TahaiSurfaceUIConfig {
++ public:
++  TahaiOpsToolsUIConfig();
++  ~TahaiOpsToolsUIConfig() override;
++};
++
++class TahaiSupportUIConfig : public TahaiSurfaceUIConfig {
++ public:
++  TahaiSupportUIConfig();
++  ~TahaiSupportUIConfig() override;
++};
++
++class TahaiPolicyUIConfig : public TahaiSurfaceUIConfig {
++ public:
++  TahaiPolicyUIConfig();
++  ~TahaiPolicyUIConfig() override;
++};
++
++}  // namespace tahai
++
++#endif  // CHROME_BROWSER_UI_WEBUI_TAHAI_TAHAI_UI_H_
+diff --git a/chrome/browser/ui/webui/tahai/tahai_url_rewrite.h b/chrome/browser/ui/webui/tahai/tahai_url_rewrite.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..c0f71689ab806e89da107c6d5c1e8804f7dff87c
+--- /dev/null
++++ b/chrome/browser/ui/webui/tahai/tahai_url_rewrite.h
+@@ -0,0 +1,75 @@
++// Copyright 2026 TAHAI Web Services
++// SPDX-License-Identifier: Apache-2.0
++
++#ifndef CHROME_BROWSER_UI_WEBUI_TAHAI_TAHAI_URL_REWRITE_H_
++#define CHROME_BROWSER_UI_WEBUI_TAHAI_TAHAI_URL_REWRITE_H_
++
++#include <string_view>
++
++#include "chrome/common/tahai_url_constants.h"
++#include "content/public/browser/browser_context.h"
++#include "content/public/common/url_constants.h"
++#include "url/gurl.h"
++
++namespace tahai {
++
++inline const char* InternalHostForPublicHost(std::string_view host) {
++  if (host == kTahaiNewTabHost)
++    return kTahaiInternalNewTabHost;
++  if (host == kTahaiMissionHost)
++    return kTahaiInternalMissionHost;
++  if (host == kTahaiOpsToolsHost)
++    return kTahaiInternalOpsToolsHost;
++  if (host == kTahaiSupportHost)
++    return kTahaiInternalSupportHost;
++  if (host == kTahaiPolicyHost)
++    return kTahaiInternalPolicyHost;
++  return nullptr;
++}
++
++inline const char* PublicHostForInternalHost(std::string_view host) {
++  if (host == kTahaiInternalNewTabHost)
++    return kTahaiNewTabHost;
++  if (host == kTahaiInternalMissionHost)
++    return kTahaiMissionHost;
++  if (host == kTahaiInternalOpsToolsHost)
++    return kTahaiOpsToolsHost;
++  if (host == kTahaiInternalSupportHost)
++    return kTahaiSupportHost;
++  if (host == kTahaiInternalPolicyHost)
++    return kTahaiPolicyHost;
++  return nullptr;
++}
++
++inline bool HandleTahaiURLRewrite(GURL* url,
++                                  content::BrowserContext* browser_context) {
++  if (!url || !url->SchemeIs(kTahaiScheme))
++    return false;
++  const char* internal_host = InternalHostForPublicHost(url->host());
++  if (!internal_host)
++    return false;
++  GURL::Replacements replacements;
++  replacements.SetSchemeStr(content::kChromeUIScheme);
++  replacements.SetHostStr(internal_host);
++  *url = url->ReplaceComponents(replacements);
++  return true;
++}
++
++inline bool HandleTahaiURLReverseRewrite(
++    GURL* url,
++    content::BrowserContext* browser_context) {
++  if (!url || !url->SchemeIs(content::kChromeUIScheme))
++    return false;
++  const char* public_host = PublicHostForInternalHost(url->host());
++  if (!public_host)
++    return false;
++  GURL::Replacements replacements;
++  replacements.SetSchemeStr(kTahaiScheme);
++  replacements.SetHostStr(public_host);
++  *url = url->ReplaceComponents(replacements);
++  return true;
++}
++
++}  // namespace tahai
++
++#endif  // CHROME_BROWSER_UI_WEBUI_TAHAI_TAHAI_URL_REWRITE_H_
+diff --git a/chrome/common/chrome_content_client.cc b/chrome/common/chrome_content_client.cc
+index bb390289693bd53bb6ef31f3703c0c7d5ae79c8f..bcb44fb76d0aea26baab9c44efeaeca611144e0b 100644
+--- a/chrome/common/chrome_content_client.cc
++++ b/chrome/common/chrome_content_client.cc
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/common/chrome_content_client.h"
++#include "chrome/common/tahai_url_constants.h"
+ 
+ #include <stdint.h>
+ 
+@@ -202,6 +203,7 @@ static const char* const kChromeStandardURLSchemes[] = {
+ void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {
+   for (auto* standard_scheme : kChromeStandardURLSchemes)
+     schemes->standard_schemes.push_back(standard_scheme);
++  schemes->standard_schemes.push_back(tahai::kTahaiScheme);
+ 
+ #if BUILDFLAG(IS_ANDROID)
+   schemes->referrer_schemes.push_back(content::kAndroidAppScheme);
+@@ -226,6 +228,7 @@ void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {
+ 
+   // chrome-search: resources shouldn't trigger insecure content warnings.
+   schemes->secure_schemes.push_back(chrome::kChromeSearchScheme);
++  schemes->secure_schemes.push_back(tahai::kTahaiScheme);
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   // Treat extensions as secure because communication with them is entirely in
+diff --git a/chrome/common/tahai_url_constants.h b/chrome/common/tahai_url_constants.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..99955c22a5eebe994cc333fc66b7982f19974de1
+--- /dev/null
++++ b/chrome/common/tahai_url_constants.h
+@@ -0,0 +1,32 @@
++// Copyright 2026 TAHAI Web Services
++// SPDX-License-Identifier: Apache-2.0
++
++#ifndef CHROME_COMMON_TAHAI_URL_CONSTANTS_H_
++#define CHROME_COMMON_TAHAI_URL_CONSTANTS_H_
++
++namespace tahai {
++
++inline constexpr char kTahaiScheme[] = "tahai";
++
++inline constexpr char kTahaiNewTabHost[] = "newtab";
++inline constexpr char kTahaiMissionHost[] = "mission";
++inline constexpr char kTahaiOpsToolsHost[] = "ops-tools";
++inline constexpr char kTahaiSupportHost[] = "support";
++inline constexpr char kTahaiPolicyHost[] = "policy";
++
++// Private chrome:// hosts used only after BrowserURLHandler rewriting.
++inline constexpr char kTahaiInternalNewTabHost[] = "tahai-newtab";
++inline constexpr char kTahaiInternalMissionHost[] = "tahai-mission";
++inline constexpr char kTahaiInternalOpsToolsHost[] = "tahai-ops-tools";
++inline constexpr char kTahaiInternalSupportHost[] = "tahai-support";
++inline constexpr char kTahaiInternalPolicyHost[] = "tahai-policy";
++
++inline constexpr char kTahaiNewTabURL[] = "tahai://newtab/";
++inline constexpr char kTahaiMissionURL[] = "tahai://mission/";
++inline constexpr char kTahaiOpsToolsURL[] = "tahai://ops-tools/";
++inline constexpr char kTahaiSupportURL[] = "tahai://support/";
++inline constexpr char kTahaiPolicyURL[] = "tahai://policy/";
++
++}  // namespace tahai
++
++#endif  // CHROME_COMMON_TAHAI_URL_CONSTANTS_H_
+-- 
+2.54.0.windows.1
+

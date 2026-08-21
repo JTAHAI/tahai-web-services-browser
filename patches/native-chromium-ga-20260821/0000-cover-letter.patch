@@ -1,0 +1,194 @@
+From a18cfd41fd77ddbdcd988ec4179134c4f3b762a8 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Fri, 21 Aug 2026 07:09:32 -0400
+Subject: [PATCH 00/16] *** SUBJECT HERE ***
+
+*** BLURB HERE ***
+
+Justin Tahai (16):
+  TAHAI: add native branding foundation
+  TAHAI: reuse Chromium shared branding catalogs
+  TAHAI: complete native component identity assets
+  TAHAI: add scaled native theme resources
+  TAHAI: isolate native product string catalogs
+  TAHAI: register isolated branding resource ranges
+  TAHAI: complete native runtime product identity
+  TAHAI: isolate native profile data roots
+  TAHAI: verify product-scoped profile roots
+  TAHAI: add installer brand behavior implementation
+  TAHAI: isolate Windows application identity
+  TAHAI: harden Windows ProgID identity contract
+  TAHAI: add native WebUI foundation
+  TAHAI: add native operator surfaces and mission service
+  TAHAI: add native Quad View workspace
+  TAHAI: complete native work modes and package workflow
+
+ base/win/embedded_i18n/create_string_rc.py    |   25 +-
+ .../embedded_i18n/generate_embedded_i18n.gni  |   10 +-
+ build/BUILD.gn                                |    2 +
+ build/config/chrome_build.gni                 |   13 +-
+ chrome/app/chrome_command_ids.h               |   14 +
+ chrome/app/chrome_dll.rc                      |    2 +
+ chrome/app/chrome_exe.rc                      |    9 +
+ chrome/app/generated_resources.grd            |   54 +
+ chrome/app/tahai_strings.grd                  | 3314 +++++++++++++++++
+ .../app/theme/chrome_unscaled_resources.grd   |    8 +-
+ .../tahai/favicon_password_manager.png        |  Bin 0 -> 1893 bytes
+ .../tahai/linux/product_logo_16.png           |  Bin 0 -> 708 bytes
+ .../tahai/linux/product_logo_32.png           |  Bin 0 -> 1893 bytes
+ .../tahai/product_logo_16.png                 |  Bin 0 -> 708 bytes
+ .../tahai/product_logo_32.png                 |  Bin 0 -> 1893 bytes
+ .../tahai/product_logo_name_22.png            |  Bin 0 -> 1309 bytes
+ .../tahai/product_logo_name_22_white.png      |  Bin 0 -> 800 bytes
+ .../tahai/favicon_password_manager.png        |  Bin 0 -> 5616 bytes
+ .../tahai/linux/product_logo_16.png           |  Bin 0 -> 1893 bytes
+ .../tahai/linux/product_logo_32.png           |  Bin 0 -> 5616 bytes
+ .../tahai/product_logo_16.png                 |  Bin 0 -> 1893 bytes
+ .../tahai/product_logo_32.png                 |  Bin 0 -> 5616 bytes
+ .../tahai/product_logo_name_22.png            |  Bin 0 -> 4668 bytes
+ .../tahai/product_logo_name_22_white.png      |  Bin 0 -> 2534 bytes
+ chrome/app/theme/tahai/BRANDING               |   10 +
+ .../theme/tahai/favicon_password_manager.png  |  Bin 0 -> 2691 bytes
+ .../theme/tahai/linux/product_logo_128.png    |  Bin 0 -> 33742 bytes
+ .../app/theme/tahai/linux/product_logo_16.png |  Bin 0 -> 913 bytes
+ .../theme/tahai/linux/product_logo_256.png    |  Bin 0 -> 127519 bytes
+ .../app/theme/tahai/linux/product_logo_64.png |  Bin 0 -> 9236 bytes
+ chrome/app/theme/tahai/product_logo.svg       |    1 +
+ chrome/app/theme/tahai/product_logo_128.png   |  Bin 0 -> 33742 bytes
+ chrome/app/theme/tahai/product_logo_16.png    |  Bin 0 -> 913 bytes
+ .../app/theme/tahai/product_logo_22_mono.png  |  Bin 0 -> 1046 bytes
+ chrome/app/theme/tahai/product_logo_24.png    |  Bin 0 -> 1611 bytes
+ chrome/app/theme/tahai/product_logo_256.png   |  Bin 0 -> 127519 bytes
+ chrome/app/theme/tahai/product_logo_32.png    |  Bin 0 -> 2691 bytes
+ chrome/app/theme/tahai/product_logo_64.png    |  Bin 0 -> 9236 bytes
+ .../theme/tahai/product_logo_animation.svg    |    1 +
+ .../app/theme/tahai/product_logo_name_22.png  |  Bin 0 -> 1324 bytes
+ .../tahai/product_logo_name_22_white.png      |  Bin 0 -> 770 bytes
+ chrome/app/theme/tahai/win/tahai.ico          |  Bin 0 -> 186671 bytes
+ chrome/app/theme/tahai/win/tiles/Logo.png     |  Bin 0 -> 45786 bytes
+ .../app/theme/tahai/win/tiles/SmallLogo.png   |  Bin 0 -> 4661 bytes
+ .../chrome.VisualElementsManifest.xml         |    2 +-
+ .../chrome_autocomplete_scheme_classifier.cc  |    4 +-
+ .../browser/chrome_content_browser_client.cc  |  105 +
+ chrome/browser/prefs/browser_prefs.cc         |    3 +
+ ...hrome_browser_main_extra_parts_profiles.cc |    4 +
+ chrome/browser/sessions/session_restore.cc    |   29 +-
+ .../sessions/session_restore_browsertest.cc   |   58 +-
+ .../sessions/tab_restore_service_unittest.cc  |   98 +-
+ chrome/browser/ui/accelerator_table.cc        |   36 +
+ .../tab_model/android_live_tab_context.cc     |   11 +
+ .../tab_model/android_live_tab_context.h      |    4 +
+ .../browser/ui/browser_command_controller.cc  |  109 +
+ chrome/browser/ui/browser_commands.cc         |  225 +-
+ chrome/browser/ui/browser_commands.h          |   58 +-
+ chrome/browser/ui/browser_live_tab_context.cc |   39 +-
+ chrome/browser/ui/browser_live_tab_context.h  |    4 +
+ chrome/browser/ui/startup/infobar_utils.cc    |    2 +
+ .../browser/ui/tabs/split_tab_menu_model.cc   |    9 +-
+ chrome/browser/ui/tabs/split_tab_metrics.cc   |    6 +-
+ .../ui/tabs/split_tab_swap_menu_model.cc      |    4 +-
+ chrome/browser/ui/tabs/split_tab_util.cc      |   15 +-
+ chrome/browser/ui/tabs/tab_strip_model.cc     |   64 +-
+ chrome/browser/ui/tabs/tab_strip_model.h      |   10 +
+ .../ui/tabs/tab_strip_model_unittest.cc       |   62 +
+ chrome/browser/ui/toolbar/app_menu_model.cc   |  120 +-
+ chrome/browser/ui/views/frame/browser_view.cc |   39 +-
+ .../ui/views/frame/multi_contents_view.cc     |  215 +-
+ .../ui/views/frame/multi_contents_view.h      |   33 +-
+ .../frame/multi_contents_view_browsertest.cc  |  678 +++-
+ chrome/browser/ui/views/tabs/tab.cc           |   13 +-
+ .../ui/views/tabs/tab/tab_accessibility.cc    |   33 +-
+ .../tabs/vertical/vertical_split_tab_view.cc  |   67 +-
+ .../browser/ui/views/toolbar/toolbar_view.cc  |  225 ++
+ .../browser/ui/views/toolbar/toolbar_view.h   |   24 +
+ chrome/browser/ui/webui/BUILD.gn              |   36 +
+ .../browser/ui/webui/chrome_web_ui_configs.cc |    2 +
+ .../ui/webui/tahai/tahai_mission_service.cc   |  510 +++
+ .../ui/webui/tahai/tahai_mission_service.h    |  114 +
+ .../tahai/tahai_mission_service_test_main.cc  |   54 +
+ .../tahai/tahai_mission_service_unittest.cc   |  235 ++
+ .../ui/webui/tahai/tahai_mode_service.cc      |  403 ++
+ .../ui/webui/tahai/tahai_mode_service.h       |  139 +
+ chrome/browser/ui/webui/tahai/tahai_ui.cc     | 1298 +++++++
+ chrome/browser/ui/webui/tahai/tahai_ui.h      |   71 +
+ chrome/common/chrome_content_client.cc        |    8 +
+ .../common/chrome_content_client_unittest.cc  |    7 +
+ chrome/common/chrome_paths_linux.cc           |    4 +-
+ chrome/common/chrome_paths_unittest.cc        |   20 +-
+ chrome/common/chrome_paths_win.cc             |   11 +
+ chrome/common/pref_names.h                    |   11 +
+ chrome/common/tahai_url_constants.h           |   39 +
+ chrome/credential_provider/gaiacp/BUILD.gn    |    1 +
+ .../install_static/chromium_install_modes.h   |   50 +
+ .../install_static/install_modes_unittest.cc  |   23 +
+ ...rate_visual_elements_manifest_work_item.cc |   10 +-
+ ...al_elements_manifest_work_item_unittest.cc |   19 +
+ chrome/installer/setup/tahai_behaviors.cc     |   21 +
+ chrome/installer/util/BUILD.gn                |   12 +
+ .../installer/win/tahai_msix/AppxManifest.xml |   34 +
+ .../win/tahai_msix/package_unsigned_msix.ps1  |   80 +
+ chrome/test/BUILD.gn                          |    2 +
+ chrome/updater/win/ui/resources/BUILD.gn      |    1 +
+ components/components_tahai_strings.grd       |  333 ++
+ components/sessions/core/live_tab_context.h   |    9 +
+ .../core/tab_restore_service_helper.cc        |  135 +-
+ .../core/tab_restore_service_helper.h         |    6 +-
+ .../sessions/core/tab_restore_service_impl.cc |   34 +-
+ components/vector_icons/tahai/product.icon    |   14 +
+ .../vector_icons/tahai/product_refresh.icon   |   23 +
+ tools/gritsettings/resource_ids.spec          |   16 +-
+ 114 files changed, 9345 insertions(+), 311 deletions(-)
+ create mode 100644 chrome/app/tahai_strings.grd
+ create mode 100644 chrome/app/theme/default_100_percent/tahai/favicon_password_manager.png
+ create mode 100644 chrome/app/theme/default_100_percent/tahai/linux/product_logo_16.png
+ create mode 100644 chrome/app/theme/default_100_percent/tahai/linux/product_logo_32.png
+ create mode 100644 chrome/app/theme/default_100_percent/tahai/product_logo_16.png
+ create mode 100644 chrome/app/theme/default_100_percent/tahai/product_logo_32.png
+ create mode 100644 chrome/app/theme/default_100_percent/tahai/product_logo_name_22.png
+ create mode 100644 chrome/app/theme/default_100_percent/tahai/product_logo_name_22_white.png
+ create mode 100644 chrome/app/theme/default_200_percent/tahai/favicon_password_manager.png
+ create mode 100644 chrome/app/theme/default_200_percent/tahai/linux/product_logo_16.png
+ create mode 100644 chrome/app/theme/default_200_percent/tahai/linux/product_logo_32.png
+ create mode 100644 chrome/app/theme/default_200_percent/tahai/product_logo_16.png
+ create mode 100644 chrome/app/theme/default_200_percent/tahai/product_logo_32.png
+ create mode 100644 chrome/app/theme/default_200_percent/tahai/product_logo_name_22.png
+ create mode 100644 chrome/app/theme/default_200_percent/tahai/product_logo_name_22_white.png
+ create mode 100644 chrome/app/theme/tahai/BRANDING
+ create mode 100644 chrome/app/theme/tahai/favicon_password_manager.png
+ create mode 100644 chrome/app/theme/tahai/linux/product_logo_128.png
+ create mode 100644 chrome/app/theme/tahai/linux/product_logo_16.png
+ create mode 100644 chrome/app/theme/tahai/linux/product_logo_256.png
+ create mode 100644 chrome/app/theme/tahai/linux/product_logo_64.png
+ create mode 100644 chrome/app/theme/tahai/product_logo.svg
+ create mode 100644 chrome/app/theme/tahai/product_logo_128.png
+ create mode 100644 chrome/app/theme/tahai/product_logo_16.png
+ create mode 100644 chrome/app/theme/tahai/product_logo_22_mono.png
+ create mode 100644 chrome/app/theme/tahai/product_logo_24.png
+ create mode 100644 chrome/app/theme/tahai/product_logo_256.png
+ create mode 100644 chrome/app/theme/tahai/product_logo_32.png
+ create mode 100644 chrome/app/theme/tahai/product_logo_64.png
+ create mode 100644 chrome/app/theme/tahai/product_logo_animation.svg
+ create mode 100644 chrome/app/theme/tahai/product_logo_name_22.png
+ create mode 100644 chrome/app/theme/tahai/product_logo_name_22_white.png
+ create mode 100644 chrome/app/theme/tahai/win/tahai.ico
+ create mode 100644 chrome/app/theme/tahai/win/tiles/Logo.png
+ create mode 100644 chrome/app/theme/tahai/win/tiles/SmallLogo.png
+ create mode 100644 chrome/browser/ui/webui/tahai/tahai_mission_service.cc
+ create mode 100644 chrome/browser/ui/webui/tahai/tahai_mission_service.h
+ create mode 100644 chrome/browser/ui/webui/tahai/tahai_mission_service_test_main.cc
+ create mode 100644 chrome/browser/ui/webui/tahai/tahai_mission_service_unittest.cc
+ create mode 100644 chrome/browser/ui/webui/tahai/tahai_mode_service.cc
+ create mode 100644 chrome/browser/ui/webui/tahai/tahai_mode_service.h
+ create mode 100644 chrome/browser/ui/webui/tahai/tahai_ui.cc
+ create mode 100644 chrome/browser/ui/webui/tahai/tahai_ui.h
+ create mode 100644 chrome/common/tahai_url_constants.h
+ create mode 100644 chrome/installer/setup/tahai_behaviors.cc
+ create mode 100644 chrome/installer/win/tahai_msix/AppxManifest.xml
+ create mode 100644 chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
+ create mode 100644 components/components_tahai_strings.grd
+ create mode 100644 components/vector_icons/tahai/product.icon
+ create mode 100644 components/vector_icons/tahai/product_refresh.icon
+
+-- 
+2.54.0.windows.1
+

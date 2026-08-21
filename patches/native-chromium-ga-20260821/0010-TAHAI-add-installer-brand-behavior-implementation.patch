@@ -1,0 +1,40 @@
+From d95c66db421114dc0549f5cc03be2c5ba14357a3 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Mon, 10 Aug 2026 10:44:12 -0400
+Subject: [PATCH 10/16] TAHAI: add installer brand behavior implementation
+
+---
+ chrome/installer/setup/tahai_behaviors.cc | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+ create mode 100644 chrome/installer/setup/tahai_behaviors.cc
+
+diff --git a/chrome/installer/setup/tahai_behaviors.cc b/chrome/installer/setup/tahai_behaviors.cc
+new file mode 100644
+index 0000000000000000000000000000000000000000..e0e4b79104cbf583940b6b9ed555f09169907a4f
+--- /dev/null
++++ b/chrome/installer/setup/tahai_behaviors.cc
+@@ -0,0 +1,21 @@
++// Copyright 2026 TAHAI Web Services
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/installer/setup/brand_behaviors.h"
++
++namespace installer {
++
++// TAHAI does not depend on Google Update or transmit installation state.
++void UpdateInstallStatus() {}
++
++std::wstring GetDistributionData() {
++  return std::wstring();
++}
++
++// TAHAI does not open a remote survey or transmit uninstall metadata.
++void DoPostUninstallOperations(const base::Version& version,
++                               const base::FilePath& local_data_path,
++                               const std::wstring& distribution_data) {}
++
++}  // namespace installer
+-- 
+2.54.0.windows.1
+
