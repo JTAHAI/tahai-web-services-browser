@@ -1,0 +1,277 @@
+From df4437d0273195f69f81c155ddd5e4427d4be6f9 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Fri, 21 Aug 2026 08:18:07 -0400
+Subject: [PATCH] TAHAI: isolate extensions and theme work modes
+
+---
+ .../external_registry_loader_win.cc           |  7 ++-
+ .../frame/multi_contents_view_browsertest.cc  | 12 ++++-
+ .../ui/webui/tahai/tahai_mode_service.cc      | 18 ++++---
+ .../ui/webui/tahai/tahai_mode_service.h       |  1 +
+ chrome/browser/ui/webui/tahai/tahai_ui.cc     | 48 +++++++++++++------
+ 5 files changed, 64 insertions(+), 22 deletions(-)
+
+diff --git a/chrome/browser/extensions/external_registry_loader_win.cc b/chrome/browser/extensions/external_registry_loader_win.cc
+index 134e3e86d03fc164796ffe26dd56e31a6fcdc835..f6ee991bd3146762265e35f028dbd74d0874c877 100644
+--- a/chrome/browser/extensions/external_registry_loader_win.cc
++++ b/chrome/browser/extensions/external_registry_loader_win.cc
+@@ -35,7 +35,12 @@ using content::BrowserThread;
+ namespace {
+ 
+ // The Registry subkey that contains information about external extensions.
+-const wchar_t kRegistryExtensions[] = L"Software\\Google\\Chrome\\Extensions";
++// Keep TAHAI's external-extension channel separate from Google Chrome.  A
++// machine can legitimately have Chrome-specific extensions registered here
++// (for example, a security-suite companion), but they must never be imported
++// into TAHAI just because both applications are Chromium-based.
++const wchar_t kRegistryExtensions[] =
++    L"Software\\TAHAIWebServices\\TAHAIWebServicesBrowser\\Extensions";
+ 
+ // Registry value of the key that defines the installation parameter.
+ const wchar_t kRegistryExtensionInstallParam[] = L"install_parameter";
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc b/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
+index 04602de770072e28e9d85e4eb64689cf1db711fa..813df1c79b4c3d27f15cdbadcbec84d95218fc3f 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_view_browsertest.cc
+@@ -633,6 +633,11 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                   "document.body.textContent.includes('TAHAI IT Docs') && "
+                   "document.body.textContent.includes('TAHAI Operational Intelligence')")
+                   .ExtractBool());
++  EXPECT_TRUE(content::EvalJs(
++                  contents,
++                  "['daily','creator','builder','operator','research','support']"
++                  ".every(id => Boolean(document.querySelector('.mode-card.mode-' + id)))")
++                  .ExtractBool());
+   content::TestNavigationObserver mode_navigation(contents);
+   ASSERT_TRUE(content::ExecJs(
+       contents, "document.querySelector('[data-tahai-mode=creator]').click()"));
+@@ -643,6 +648,10 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                   "document.querySelector('.mode-actions h2')?.textContent"
+                   ".includes('Creator Studio')")
+                   .ExtractBool());
++  EXPECT_TRUE(content::EvalJs(contents,
++                              "document.body.classList.contains('mode-creator') && "
++                              "document.body.textContent.includes('Neon Studio')")
++                  .ExtractBool());
+   EXPECT_EQ(GURL(tahai::kTahaiModesURL), contents->GetVisibleURL());
+   ASSERT_TRUE(content::ExecJs(
+       contents,
+@@ -664,7 +673,8 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+   configuration_navigation.Wait();
+   ASSERT_TRUE(configuration_navigation.last_navigation_succeeded());
+   EXPECT_TRUE(content::EvalJs(contents,
+-                              "document.body.classList.contains('theme-light')")
++                              "document.body.classList.contains('theme-light') && "
++                              "document.body.classList.contains('mode-creator')")
+                   .ExtractBool());
+   ASSERT_TRUE(content::ExecJs(
+       contents,
+diff --git a/chrome/browser/ui/webui/tahai/tahai_mode_service.cc b/chrome/browser/ui/webui/tahai/tahai_mode_service.cc
+index 4cd2943c4a5f5442b4d1c619df5ac60c67850e04..3d9c2900a65e52da0e0d7ff10b751dd481e7da23 100644
+--- a/chrome/browser/ui/webui/tahai/tahai_mode_service.cc
++++ b/chrome/browser/ui/webui/tahai/tahai_mode_service.cc
+@@ -21,31 +21,37 @@ namespace tahai {
+ namespace {
+ 
+ constexpr std::array<WorkModeDefinition, 6> kDefinitions = {{
+-    {"daily", "Daily Driver", "Everyday personal and professional browsing",
++    {"daily", "Daily Driver", "Quiet Current",
++     "Everyday personal and professional browsing",
+      "Browse naturally. Keep the browser clean.", "1-up or lightweight 2-up",
+      "Calm browsing; no operator chrome unless opened",
+      "TAHAI Browser", "documentation"},
+-    {"creator", "Creator Studio", "Design, publish, and content work",
++    {"creator", "Creator Studio", "Neon Studio",
++     "Design, publish, and content work",
+      "Create with references, assets, and previews in reach.",
+      "Reference + canvas; Publish Quad",
+      "Explicit captures and publishing checklists; never silent publishing",
+      "TAHAI Web Services", "documentation"},
+-    {"builder", "Builder Mode", "Development, release, and technical work",
++    {"builder", "Builder Mode", "Blueprint",
++     "Development, release, and technical work",
+      "Build with environments and evidence in view.",
+      "Repository + docs; Release Quad",
+      "Environment cues; no unrestricted shell or remote execution",
+      "TAHAI IT Docs · TAHAI Operational Intelligence", "development"},
+-    {"operator", "Operator Mode", "Mission Control for technical operations",
++    {"operator", "Operator Mode", "Signal Grid",
++     "Mission Control for technical operations",
+      "Run missions with a deterministic, safe workspace.",
+      "1-up, Dual, Tri, Quad, Focus",
+      "Production awareness, redaction, and explicit authorized actions",
+      "TAHAI PSA · TAHAI IT Docs · TAHAI Operational Intelligence", "incident"},
+-    {"research", "Research Desk", "Sources, PDFs, notes, and comparison",
++    {"research", "Research Desk", "Field Notes",
++     "Sources, PDFs, notes, and comparison",
+      "Turn sources into a traceable body of work.",
+      "Source + notes; Research Quad",
+      "Explicit captures only; no silent page-body collection",
+      "TAHAI Operational Intelligence · TAHAI IT Docs", "audit"},
+-    {"support", "Support Desk", "Customer and internal technical support",
++    {"support", "Support Desk", "Service Link",
++     "Customer and internal technical support",
+      "Resolve with context, validation, and a safe handoff.",
+      "Ticket + portal; Support Quad",
+      "Visible customer scope; no direct PSA or provider writeback",
+diff --git a/chrome/browser/ui/webui/tahai/tahai_mode_service.h b/chrome/browser/ui/webui/tahai/tahai_mode_service.h
+index 2b7924e84eb294cfaa0c5a29d5e335f0fe1c5e6f..57cb9940865da4cf85b4bec1a06d3ec2622f45d2 100644
+--- a/chrome/browser/ui/webui/tahai/tahai_mode_service.h
++++ b/chrome/browser/ui/webui/tahai/tahai_mode_service.h
+@@ -24,6 +24,7 @@ namespace tahai {
+ struct WorkModeDefinition {
+   std::string_view id;
+   std::string_view title;
++  std::string_view visual_theme;
+   std::string_view audience;
+   std::string_view launchpad_heading;
+   std::string_view preferred_layout;
+diff --git a/chrome/browser/ui/webui/tahai/tahai_ui.cc b/chrome/browser/ui/webui/tahai/tahai_ui.cc
+index 4be97dff472ad930be8abd827b67f265d908e029..d24aa2aef4b349be09c4f39399fe5455ab0da7b8 100644
+--- a/chrome/browser/ui/webui/tahai/tahai_ui.cc
++++ b/chrome/browser/ui/webui/tahai/tahai_ui.cc
+@@ -192,9 +192,12 @@ constexpr char kSharedCss[] = R"TAHAI(
+ )TAHAI";
+ 
+ constexpr char kModeCss[] = R"TAHAI(
+-.mode-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.mode-grid .card{min-height:0;padding:17px;gap:14px}.mode-grid .card::after{display:none}.mode-grid .card:hover{transform:translateY(-2px);box-shadow:0 12px 28px #0005}.mode-grid .card strong{font-size:1rem}.mode-grid .card.mode-active{border-color:#60ffda;box-shadow:0 0 28px #00beff24}.mode-grid .card.mode-active::before{content:"";position:absolute;inset:5px;border:1px solid #60ffda99;border-radius:16px;box-shadow:inset 0 0 18px #00beff16,0 0 18px #60ffda20;pointer-events:none}.mode-card-title{color:var(--mint);font-size:.7rem;font-weight:850;letter-spacing:.16em;text-transform:uppercase}.mode-card-audience{display:block;margin-top:7px;line-height:1.42}.mode-card-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--muted);font-size:.82rem}.mode-card-footer .chip{min-height:36px;padding:7px 12px}.chip.selected{border-color:#60ffda;background:linear-gradient(135deg,#087f96,#4934a7 58%,#8b2bb5);box-shadow:0 0 22px #00beff44}.mode-actions{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px}.mode-actions h2{margin:3px 0 0;font-size:1.12rem}.mode-actions nav{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:9px}.mode-flyout{margin-top:14px;border-top:1px solid #355b8559;padding-top:12px;color:var(--muted)}.mode-flyout summary{cursor:pointer;color:var(--mint);font-weight:750}.mode-flyout p{margin:9px 0 0;max-width:70ch}.mode-dialog{width:min(900px,calc(100vw - 32px));max-height:calc(100vh - 32px);padding:0;color:var(--ink);background:linear-gradient(145deg,#091529,#101136 62%,#1f1240);border:1px solid #3b79abbb;border-radius:20px;box-shadow:0 30px 100px #000b}.mode-dialog::backdrop{background:#000b;backdrop-filter:blur(5px)}.mode-dialog form{display:grid;gap:16px;padding:22px}.mode-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.mode-dialog-head h2{margin:4px 0 0;font-size:1.38rem}.mode-dialog-head .chip{flex:none}.mode-config{display:grid;gap:15px}.mode-config-group{display:grid;gap:8px}.mode-config-group h3{margin:0;font-size:.94rem}.template-card{min-height:142px}.template-card .actions{margin-top:14px}.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border:1px solid #355b8559;border-radius:14px;background:#090f22cc}.product-lane{color:var(--mint);font-weight:700}body.theme-light .mode-dialog{color:#11213c;background:linear-gradient(145deg,#fff,#edf5ff 62%,#f6efff);border-color:#4f91c577}@media(max-width:960px){.mode-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.mode-actions{display:grid}.mode-actions nav{justify-content:flex-start}}@media(max-width:620px){.mode-grid{grid-template-columns:1fr}.mode-dialog form{padding:16px}}
++.mode-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.mode-grid .card{min-height:0;padding:17px;gap:14px}.mode-grid .card::after{display:none}.mode-grid .card:hover{transform:translateY(-2px);box-shadow:0 12px 28px #0005}.mode-grid .card strong{font-size:1rem}.mode-grid .card.mode-active{border-color:#60ffda;box-shadow:0 0 28px #00beff24}.mode-grid .card.mode-active::before{content:"";position:absolute;inset:5px;border:1px solid #60ffda99;border-radius:16px;box-shadow:inset 0 0 18px #00beff16,0 0 18px #60ffda20;pointer-events:none}.mode-card-title{color:var(--mint);font-size:.7rem;font-weight:850;letter-spacing:.16em;text-transform:uppercase}.mode-card-audience{display:block;margin-top:7px;line-height:1.42}.mode-card-theme{display:block;margin-top:8px;color:#9eb7dc;font-size:.75rem;font-weight:700;letter-spacing:.04em}.mode-card-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--muted);font-size:.82rem}.mode-card-footer .chip{min-height:36px;padding:7px 12px}.mode-card.mode-creator{border-top-color:#d95cff}.mode-card.mode-builder{border-top-color:#51c9ff}.mode-card.mode-operator{border-top-color:#48e4d5}.mode-card.mode-research{border-top-color:#b595ff}.mode-card.mode-support{border-top-color:#79f5c7}.chip.selected{border-color:#60ffda;background:linear-gradient(135deg,#087f96,#4934a7 58%,#8b2bb5);box-shadow:0 0 22px #00beff44}.mode-actions{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px}.mode-actions h2{margin:3px 0 0;font-size:1.12rem}.mode-actions nav{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:9px}.mode-flyout{margin-top:14px;border-top:1px solid #355b8559;padding-top:12px;color:var(--muted)}.mode-flyout summary{cursor:pointer;color:var(--mint);font-weight:750}.mode-flyout p{margin:9px 0 0;max-width:70ch}.mode-dialog{width:min(900px,calc(100vw - 32px));max-height:calc(100vh - 32px);padding:0;color:var(--ink);background:linear-gradient(145deg,#091529,#101136 62%,#1f1240);border:1px solid #3b79abbb;border-radius:20px;box-shadow:0 30px 100px #000b}.mode-dialog::backdrop{background:#000b;backdrop-filter:blur(5px)}.mode-dialog form{display:grid;gap:16px;padding:22px}.mode-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.mode-dialog-head h2{margin:4px 0 0;font-size:1.38rem}.mode-dialog-head .chip{flex:none}.mode-config{display:grid;gap:15px}.mode-config-group{display:grid;gap:8px}.mode-config-group h3{margin:0;font-size:.94rem}.template-card{min-height:142px}.template-card .actions{margin-top:14px}.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border:1px solid #355b8559;border-radius:14px;background:#090f22cc}.product-lane{color:var(--mint);font-weight:700}body.theme-light .mode-card-theme{color:#567393}body.theme-light .mode-dialog{color:#11213c;background:linear-gradient(145deg,#fff,#edf5ff 62%,#f6efff);border-color:#4f91c577}@media(max-width:960px){.mode-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.mode-actions{display:grid}.mode-actions nav{justify-content:flex-start}}@media(max-width:620px){.mode-grid{grid-template-columns:1fr}.mode-dialog form{padding:16px}}
+ .command-palette{width:min(900px,calc(100vw - 32px));max-height:calc(100vh - 32px);padding:0;color:var(--ink);background:linear-gradient(145deg,#091529,#101136 62%,#1f1240);border:1px solid #3b79abbb;border-radius:20px;box-shadow:0 30px 100px #000b}.command-palette::backdrop{background:#000b;backdrop-filter:blur(5px)}.command-palette form{display:grid;gap:14px;padding:22px}.command-palette-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.command-palette-head h2{margin:4px 0 0;font-size:1.38rem}.command-palette-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;max-height:52vh;overflow:auto}.command-palette-results .command{grid-template-columns:1fr auto;min-height:68px}.command-palette kbd{align-self:center;padding:3px 7px;border:1px solid #6d95c780;border-radius:6px;color:var(--muted);font-family:ui-monospace,monospace;font-size:.72rem;white-space:nowrap}body.theme-light .command-palette{color:#11213c;background:linear-gradient(145deg,#fff,#edf5ff 62%,#f6efff);border-color:#4f91c577}@media(max-width:700px){.command-palette-results{grid-template-columns:1fr}}@media(max-width:620px){.command-palette form{padding:16px}}
+ body.theme-light{color-scheme:light;color:#11213c;background:radial-gradient(circle at 8% 4%,#bdeaff 0,transparent 30rem),radial-gradient(circle at 92% 12%,#edc8ff 0,transparent 29rem),radial-gradient(circle at 62% 82%,#baffeb 0,transparent 34rem),linear-gradient(145deg,#f8fcff 0%,#eaf2ff 55%,#f7f2ff 100%)}body.theme-light::before{opacity:.22;background-image:linear-gradient(#113b6b19 1px,transparent 1px),linear-gradient(90deg,#113b6b19 1px,transparent 1px)}body.theme-light .shell{color:#11213c}body.theme-light header{background:#ffffffbd;border-color:#4f91c555;box-shadow:0 20px 60px #33507a26}body.theme-light .panel,body.theme-light .hero{background:linear-gradient(145deg,#ffffffef,#eef6ffea 58%,#faf4ffe8);border-color:#4f91c566;box-shadow:0 20px 58px #33507a26,inset 0 1px #fff}body.theme-light .muted,body.theme-light .card span{color:#48617f}body.theme-light .button,body.theme-light .chip{color:#132947;background:linear-gradient(135deg,#f9fdff,#e8f1ff);border-color:#4e88bb80;box-shadow:inset 0 1px #fff}body.theme-light .button.primary,body.theme-light .chip.selected{color:#fff;background:linear-gradient(135deg,#087fa1,#4b43bf 58%,#9a3db6)}body.theme-light .card,body.theme-light .mission-step,body.theme-light .toggle-row,body.theme-light .command,body.theme-light .list li{background:linear-gradient(145deg,#ffffffef,#edf4ffea);border-color:#5b8db95e;box-shadow:inset 0 1px #fff}body.theme-light .search input,body.theme-light .command-input{color:#11213c;background:#ffffffd9;border-color:#488cc087;box-shadow:inset 0 1px 10px #7ba7cf22}body.theme-light .status{color:#164b42;background:linear-gradient(135deg,#d9fff3,#e5f4ff)}body.theme-light .boundary{background:#fff2d1;color:#634400}.theme-light .hero-badge{background:#fff;color:#14315a}
++/* A work mode is a calm, persistent visual identity layered over the user's
++   light or dark choice. It never changes a web page, tab, or browser policy. */
++body.mode-daily{--cyan:#3abdff;--blue:#00beff;--mint:#60ffda;--violet:#ae57ff;--coral:#ff6c8f}body.mode-creator{--cyan:#55d5ff;--blue:#6c62ff;--mint:#76ffd8;--violet:#d95cff;--coral:#ff8b72;background:radial-gradient(circle at 9% 4%,#19296f 0,transparent 31rem),radial-gradient(circle at 91% 11%,#721d77 0,transparent 30rem),radial-gradient(circle at 56% 83%,#164873 0,transparent 35rem),linear-gradient(145deg,#07061c,#170a31 54%,#09152d)}body.mode-builder{--cyan:#51c9ff;--blue:#1886f6;--mint:#79f0c2;--violet:#7b93ff;--coral:#f4b673;background:radial-gradient(circle at 9% 4%,#063e70 0,transparent 31rem),radial-gradient(circle at 91% 10%,#133978 0,transparent 30rem),radial-gradient(circle at 56% 83%,#123a47 0,transparent 35rem),linear-gradient(145deg,#031223,#061d38 54%,#071424)}body.mode-operator{--cyan:#48e4d5;--blue:#20a8d1;--mint:#a6ffb8;--violet:#7b9fff;--coral:#ffc56d;background:radial-gradient(circle at 9% 4%,#075354 0,transparent 31rem),radial-gradient(circle at 91% 10%,#25435d 0,transparent 30rem),radial-gradient(circle at 56% 83%,#264419 0,transparent 35rem),linear-gradient(145deg,#04191d,#082c31 54%,#111a16)}body.mode-research{--cyan:#86bdff;--blue:#5d8ee6;--mint:#9ddfbd;--violet:#b595ff;--coral:#d89a79;background:radial-gradient(circle at 9% 4%,#243a66 0,transparent 31rem),radial-gradient(circle at 91% 10%,#53416a 0,transparent 30rem),radial-gradient(circle at 56% 83%,#344b42 0,transparent 35rem),linear-gradient(145deg,#101629,#24283b 54%,#171a26)}body.mode-support{--cyan:#6bdaff;--blue:#3a9ee8;--mint:#79f5c7;--violet:#8796ff;--coral:#ff9b89;background:radial-gradient(circle at 9% 4%,#07527c 0,transparent 31rem),radial-gradient(circle at 91% 10%,#2b3f78 0,transparent 30rem),radial-gradient(circle at 56% 83%,#064f58 0,transparent 35rem),linear-gradient(145deg,#051629,#092847 54%,#071d2b)}body.mode-creator .hero::before{background:conic-gradient(from 45deg,#6c62ff00,#55d5ff88,#d95cffaa,#ff8b7266,#6c62ff00)}body.mode-builder .hero::before{background:conic-gradient(from 45deg,#1886f600,#51c9ff88,#7b93ffaa,#79f0c266,#1886f600)}body.mode-operator .hero::before{background:conic-gradient(from 45deg,#20a8d100,#48e4d588,#a6ffb8aa,#ffc56d66,#20a8d100)}body.mode-research .hero::before{background:conic-gradient(from 45deg,#5d8ee600,#86bdff88,#b595ffaa,#9ddfbd66,#5d8ee600)}body.mode-support .hero::before{background:conic-gradient(from 45deg,#3a9ee800,#6bdaff88,#8796ffaa,#79f5c766,#3a9ee800)}body.mode-creator .button.primary,body.mode-creator .chip.selected{background:linear-gradient(135deg,#4d6fff,#9a45d8 58%,#ed688d)}body.mode-builder .button.primary,body.mode-builder .chip.selected{background:linear-gradient(135deg,#087cae,#315fe0 58%,#4f9f92)}body.mode-operator .button.primary,body.mode-operator .chip.selected{background:linear-gradient(135deg,#087f83,#227bb0 58%,#749a44)}body.mode-research .button.primary,body.mode-research .chip.selected{background:linear-gradient(135deg,#466aa8,#7564aa 58%,#718b69)}body.mode-support .button.primary,body.mode-support .chip.selected{background:linear-gradient(135deg,#188ab8,#4d6dc3 58%,#4eaa8c)}body.theme-light.mode-creator{background:radial-gradient(circle at 8% 4%,#d9dcff 0,transparent 30rem),radial-gradient(circle at 92% 12%,#ffd5ed 0,transparent 29rem),radial-gradient(circle at 62% 82%,#d6f8ff 0,transparent 34rem),linear-gradient(145deg,#fcfaff,#f3efff 55%,#fff4f8)}body.theme-light.mode-builder{background:radial-gradient(circle at 8% 4%,#ccecff 0,transparent 30rem),radial-gradient(circle at 92% 12%,#d8e1ff 0,transparent 29rem),radial-gradient(circle at 62% 82%,#d8f5e7 0,transparent 34rem),linear-gradient(145deg,#f7fbff,#ebf3ff 55%,#f4fbf8)}body.theme-light.mode-operator{background:radial-gradient(circle at 8% 4%,#c9fff4 0,transparent 30rem),radial-gradient(circle at 92% 12%,#d9ecff 0,transparent 29rem),radial-gradient(circle at 62% 82%,#f7f0c7 0,transparent 34rem),linear-gradient(145deg,#f6fffd,#e9f8fa 55%,#fbfaed)}body.theme-light.mode-research{background:radial-gradient(circle at 8% 4%,#e4eaff 0,transparent 30rem),radial-gradient(circle at 92% 12%,#f0ddff 0,transparent 29rem),radial-gradient(circle at 62% 82%,#e7f3dc 0,transparent 34rem),linear-gradient(145deg,#fffdf8,#f5f2fb 55%,#f9f7ed)}body.theme-light.mode-support{background:radial-gradient(circle at 8% 4%,#d2f3ff 0,transparent 30rem),radial-gradient(circle at 92% 12%,#e1e5ff 0,transparent 29rem),radial-gradient(circle at 62% 82%,#d2faed 0,transparent 34rem),linear-gradient(145deg,#f9feff,#eff6ff 55%,#f3fcf8)}
+ )TAHAI";
+ 
+ constexpr char kCommandJs[] = R"TAHAI(
+@@ -228,15 +231,20 @@ constexpr char kCommandPaletteHtml[] = R"TAHAI(
+ 
+ std::string PageFrame(std::string_view title,
+                       std::string_view content,
+-                      std::string_view theme = "dark") {
++                      std::string_view theme = "dark",
++                      std::string_view mode_id = "daily") {
+   const std::string_view body_class =
+       theme == "light" ? "theme-light" : "theme-dark";
++  const WorkModeDefinition* definition = ModeService::FindDefinition(mode_id);
++  const std::string_view safe_mode_id =
++      definition ? definition->id : std::string_view("daily");
+   return "<!doctype html><html lang=en><head><meta charset=utf-8><meta "
+          "name=viewport "
+          "content=\"width=device-width,initial-scale=1\"><title>" +
+          std::string(title) +
+          "</title><link rel=stylesheet href=/app.css></head><body class=" +
+-         std::string(body_class) + "><main "
++         std::string(body_class) + " mode-" + std::string(safe_mode_id) +
++         "><main "
+          "class=shell><header><div class=brand>" +
+          kBrandMark +
+          "<div><p class=eyebrow>TAHAI Web Services Browser</p><h1>" +
+@@ -255,6 +263,11 @@ std::string_view ActiveTheme(ModeService* service) {
+   return service->active_configuration().theme_id;
+ }
+ 
++std::string_view ActiveModeId(ModeService* service) {
++  CHECK(service);
++  return service->active_mode().id;
++}
++
+ std::string_view RecommendedLayoutCommand(std::string_view mode) {
+   if (mode == "creator") {
+     return "tri.one-over-two";
+@@ -340,11 +353,14 @@ std::string ModeHtml(ModeService* service) {
+   for (const WorkModeDefinition& mode : ModeService::definitions()) {
+     const bool selected = mode.id == active.id;
+     cards += base::StrCat({
+-        "<article class=card", selected ? " mode-active" : "",
++        "<article class=\"card mode-card mode-", mode.id,
++        selected ? " mode-active" : "", "\"",
+         selected ? " aria-current=true" : "", "><div><p class=mode-card-title>",
+         base::EscapeForHTML(mode.title), "</p><strong class=mode-card-audience>",
+         base::EscapeForHTML(mode.audience),
+-        "</strong></div><div class=mode-card-footer><span class=product-lane>",
++        "</strong><span class=mode-card-theme>",
++        base::EscapeForHTML(mode.visual_theme),
++        "</span></div><div class=mode-card-footer><span class=product-lane>",
+         base::EscapeForHTML(mode.featured_products),
+         "</span><button class=chip type=button data-tahai-mode=\"", mode.id,
+         "\">", selected ? "Selected" : "Choose", "</button></div></article>",
+@@ -390,8 +406,10 @@ std::string ModeHtml(ModeService* service) {
+         "\">Create runbook</button></div></article>"});
+   }
+   const std::string configuration_controls = base::StrCat({
+-      "<div class=mode-config><div class=mode-config-group><h3>Theme</h3>"
+-      "<p class=muted>Applies to every TAHAI native surface in this profile."
++      "<div class=mode-config><div class=mode-config-group><h3>Base appearance</h3>"
++      "<p class=muted><strong>", base::EscapeForHTML(active.visual_theme),
++      "</strong> gives this work mode its own visual identity. Choose its "
++      "Light or Dark base without changing the mode's purpose or your tabs."
+       "</p><div class=chips>",
+       choice("theme", "dark", "Dark", configuration.theme_id),
+       choice("theme", "light", "Light", configuration.theme_id),
+@@ -441,7 +459,7 @@ std::string ModeHtml(ModeService* service) {
+       templates, R"TAHAI(</div></form></dialog>
+ <dialog id=mode-tools class=mode-dialog aria-labelledby=mode-tools-title><form method=dialog><div class=mode-dialog-head><div><p class=eyebrow>Workspace tools</p><h2 id=mode-tools-title>Focus the current work.</h2><p class=muted>These are deliberate local presentation settings, never automatic rearrangement.</p></div><button class=chip type=button data-tahai-close-dialog>Close</button></div><div class=list>)TAHAI",
+       modifiers, R"TAHAI(</div><p class=boundary>Modes cannot copy cookies, enumerate accounts, change the active profile, or move a page between panes. Chromium continues to own identity, permissions, authentication, downloads, and session data.</p></form></dialog><script src=/modes.js></script>
+-)TAHAI"}), configuration.theme_id);
++)TAHAI"}), configuration.theme_id, active.id);
+ }
+ 
+ std::string NewTabHtml(MissionService* service, ModeService* mode_service) {
+@@ -514,7 +532,7 @@ std::string NewTabHtml(MissionService* service, ModeService* mode_service) {
+                                              active_mode_card, recent_missions,
+                                              R"TAHAI(<article class=panel><p class=eyebrow>Workspace shortcuts</p><h2>Always within reach</h2><p class=muted>Open native TAHAI surfaces from the toolbar or browser menu. Keyboard: Alt+Shift+D for Dual View, Alt+Shift+G for Tri View, Alt+Shift+Q for Quad View, Alt+Shift+L for Launchpad, Alt+Shift+M for Mission Control, and Alt+Shift+O for Command Center.</p></article><article class=panel><p class=eyebrow>Browser state</p><h2>Native Chromium engine</h2><p class=status>Every pane is its own independently controlled tab and WebContents. Profiles, permissions, downloads, history, and authentication remain engine-owned.</p></article></section>
+ <section class=section><div class=section-head><div><p class=eyebrow>First 10 minutes</p><h2>Start with ordinary browsing. Add structure deliberately.</h2></div></div><div class=grid><article class=card><strong>1. Browse normally</strong><span>Use Chromium tabs, address bar, bookmarks, downloads, and profiles as usual.</span></article><article class=card><strong>2. Open Quad View</strong><span>When work needs parallel context, open four real tabs in the native 2 × 2 workspace.</span></article><article class=card><strong>3. Create a Mission</strong><span>Use generated checkpoints, validation, rollback, and timeline state—never page content or credentials.</span></article><article class=card><strong>4. Review and recover</strong><span>Use Profile Administration, Chromium policy, and Support for explicit, sanitized handoff.</span></article></div></section>
+-)TAHAI"}), configuration.theme_id);
++)TAHAI"}), configuration.theme_id, active_mode.id);
+ }
+ 
+ std::string MissionHandoffSummary(const MissionSummary& mission) {
+@@ -699,7 +717,8 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
+   content += missions;
+   content +=
+       R"TAHAI(</div></section><section class=section><div class=section-head><div><p class=eyebrow>Mission recipe library</p><h2>Open a governed Quad View</h2></div></div><p class=muted>Each recipe is a reviewable fixed set of four HTTPS destinations. Launching it creates a bounded profile mission and four real Chromium tabs; it never accepts a URL, credential, token, script, connector, or arbitrary argument.</p><div class=grid><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=dns-migration><strong>DNS Migration</strong><span>Cloudflare, propagation, authority, and DNS documentation.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=m365-user-offboarding><strong>Microsoft 365 Offboarding</strong><span>Admin, Entra, security, and Microsoft guidance.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=firewall-change><strong>Firewall Change</strong><span>Vendor support and CISA advisory lanes.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=production-deployment><strong>Production Deployment</strong><span>GitHub, Vercel, status, and Actions docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=certificate-renewal><strong>Certificate Renewal</strong><span>Provider, certificate lookup, TLS test, and docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=incident-triage><strong>Incident Triage</strong><span>Provider status and public advisory lanes.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=github-actions-release><strong>GitHub Actions Release</strong><span>Repository, status, workflow, and run docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=cloudflare-cutover><strong>Cloudflare Cutover</strong><span>Zone, status, docs, and propagation checks.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=workstation-admin-setup><strong>Workstation / Admin Setup</strong><span>Microsoft admin, identity, Intune, and Windows docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=vendor-support-handoff><strong>Vendor Support Handoff</strong><span>Vendor support sites and public security guidance.</span></button></div></section><section class="section three"><article class=panel><p class=eyebrow>Runbook rail</p><h2>Native checkpoint state</h2><p class=muted>Each mission carries a generated, type-specific checkpoint set. Completion changes are stored in the owning Chromium profile and survive restart.</p></article><article class=panel><p class=eyebrow>Quad View</p><h2>Native multi-pane workspace</h2><p class=muted>Use Command Center to open, focus, restore, and exit a real Chromium 2 × 2 split. No webview or renderer panes are involved.</p></article><article class=panel><p class=eyebrow>Evidence boundary</p><h2>Nothing secret-bearing is stored</h2><p class=boundary>Mission Control has no field for page contents, URLs, tokens, credentials, cookies, headers, screenshots, or arbitrary notes. Capture and sharing remain explicit Chromium actions and need their own verified release evidence.</p></article></section><script src=/mission.js></script>)TAHAI";
+-  return PageFrame("Mission Control", content, ActiveTheme(mode_service));
++  return PageFrame("Mission Control", content, ActiveTheme(mode_service),
++                   ActiveModeId(mode_service));
+ }
+ 
+ std::string OpsHtml(ModeService* mode_service) {
+@@ -720,7 +739,8 @@ std::string OpsHtml(ModeService* mode_service) {
+                           "not connected services. TAHAI does not request or "
+                           "store product API keys, tokens, URLs, or credentials "
+                           "here.</p></article></section>"});
+-  return PageFrame("Operator Command Center", content, ActiveTheme(mode_service));
++  return PageFrame("Operator Command Center", content, ActiveTheme(mode_service),
++                   ActiveModeId(mode_service));
+ }
+ 
+ std::string SupportSummary() {
+@@ -743,21 +763,21 @@ std::string SupportHtml(ModeService* mode_service) {
+ <section class=hero><p class=eyebrow>Safe recovery</p><h2>Diagnose without exporting private browsing data.</h2><p class=muted>Copy a compact, explicit support summary for review. It is generated in the browser and contains only fixed build and privacy truth.</p><div class=actions><button class="button primary" type=button data-tahai-support-action=copy-summary>Copy Sanitized Support Summary</button><a class=button href="chrome://policy/">Open Chromium Policy</a><a class=button href="chrome://version/">Open Chromium Version</a></div><p id=support-status class=muted role=status aria-live=polite></p></section><section class="section three"><article class=panel><h2>Browser recovery</h2><ul class=list><li>Restart and restore</li><li>Repair installation</li><li>Profile recovery</li></ul></article><article class=panel><h2>Sanitized handoff</h2><p class=boundary>Raw Authorization headers, cookies, private keys, page bodies, forms, credentials, profile data, local paths, and logs are never copied by this control.</p></article><article class=panel><h2>Known state</h2><p class=status>)TAHAI",
+       base::EscapeForHTML(SupportSummary()),
+       R"TAHAI(</p></article></section><script src=/support.js></script>
+-)TAHAI"}), ActiveTheme(mode_service));
++)TAHAI"}), ActiveTheme(mode_service), ActiveModeId(mode_service));
+ }
+ 
+ std::string ProfilesHtml(ModeService* mode_service) {
+   CHECK(mode_service);
+   return PageFrame("Profile Administration", R"TAHAI(
+ <section class=hero><p class=eyebrow>Native Chromium profiles</p><h2>Profiles, identity, and privacy remain browser-owned.</h2><p class=muted>TAHAI does not copy, proxy, or synthesize Chromium profile data. Use the native controls below to create, select, customize, or manage the current profile under Chromium’s existing security and policy enforcement.</p><div class=actions><a class="button primary" href="chrome://profile-picker/">Open Profile Picker</a><a class=button href="chrome://settings/manageProfile">Manage Current Profile</a><a class=button href="chrome://settings/privacy">Open Privacy Controls</a></div></section><section class="section three"><article class=panel><p class=eyebrow>Profile boundary</p><h2>Separate by design</h2><p class=boundary>Mission state is profile scoped. This page never enumerates profile paths, account contents, cookies, history, saved passwords, local files, or credentials.</p></article><article class=panel><p class=eyebrow>Enterprise policy</p><h2>Chromium-enforced</h2><p class=muted>Managed policy remains authoritative for profile availability, sign-in, extensions, downloads, and permissions. Inspect effective policy through Chromium’s native policy page.</p><a class=button href="chrome://policy/">Open Chromium Policy</a></article><article class=panel><p class=eyebrow>Safe recovery</p><h2>Explicit user choice</h2><p class=muted>Profile creation, deletion, data clearing, and identity changes occur only in Chromium’s native dialogs after user confirmation.</p></article></section>
+-)TAHAI", ActiveTheme(mode_service));
++)TAHAI", ActiveTheme(mode_service), ActiveModeId(mode_service));
+ }
+ 
+ std::string PolicyHtml(ModeService* mode_service) {
+   CHECK(mode_service);
+   return PageFrame("Policy", R"TAHAI(
+ <section class=hero><p class=eyebrow>Enterprise truth</p><h2>Policy can restrict features. It cannot grant authorization.</h2><p class=muted>TAHAI uses Chromium policy precedence, refresh, diagnostics, and profile boundaries.</p></section><section class="section three"><article class=panel><h2>Browser</h2><ul class=list><li>Startup and search</li><li>Extensions and permissions</li><li>Downloads and protocols</li></ul></article><article class=panel><h2>Operator features</h2><ul class=list><li>Adaptation</li><li>Mission Control</li><li>Recipes and evidence</li></ul></article><article class=panel><h2>Security</h2><p class=boundary>Managed policy never supplies credentials, bypasses browser security, authorizes remote actions, or enables arbitrary execution.</p></article></section>
+-)TAHAI", ActiveTheme(mode_service));
++)TAHAI", ActiveTheme(mode_service), ActiveModeId(mode_service));
+ }
+ 
+ std::optional<int> CommandId(std::string_view command) {
+-- 
+2.54.0.windows.1
+

@@ -1,0 +1,28 @@
+From 7099c48832bdec9dcc7ba6ffa9968fc90d17c51c Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Mon, 10 Aug 2026 06:48:36 -0400
+Subject: [PATCH 02/16] TAHAI: reuse Chromium shared branding catalogs
+
+---
+ build/config/chrome_build.gni | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/build/config/chrome_build.gni b/build/config/chrome_build.gni
+index 0893e8d9da0901c9d84ca7eac6f0320bedf4a0b7..fb3f14367bc439eb49edb05c26dc9d5fff15803c 100644
+--- a/build/config/chrome_build.gni
++++ b/build/config/chrome_build.gni
+@@ -89,7 +89,10 @@ declare_args() {
+   # `branding_path_product` must not contain slashes.
+   if (is_tahai_branded) {
+     branding_path_component = "tahai"
+-    branding_path_product = "tahai"
++    # TAHAI owns the visual theme, but deliberately reuses Chromium's shared
++    # component/installer catalog names. A distinct product basename would
++    # require duplicate GRD catalogs and installer behavior sources.
++    branding_path_product = "chromium"
+   } else if (is_chrome_for_testing) {
+     if (is_chrome_for_testing_branded) {
+       branding_path_component = "google_chrome/google_chrome_for_testing"
+-- 
+2.54.0.windows.1
+

@@ -1,0 +1,130 @@
+From ee314580a4c0a98591a6a064d2c8e148cce57b6d Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Fri, 21 Aug 2026 07:35:59 -0400
+Subject: [PATCH] TAHAI: align MSIX with Store reservation
+
+---
+ .../installer/win/tahai_msix/AppxManifest.xml | 12 ++---
+ .../win/tahai_msix/package_unsigned_msix.ps1  | 50 ++++++++++++++++---
+ 2 files changed, 50 insertions(+), 12 deletions(-)
+
+diff --git a/chrome/installer/win/tahai_msix/AppxManifest.xml b/chrome/installer/win/tahai_msix/AppxManifest.xml
+index cf574c731fabc6ebe692ba62579d6edb0b04fa72..272c58ba5890b9e0f0d9fc62490444f70dde86d9 100644
+--- a/chrome/installer/win/tahai_msix/AppxManifest.xml
++++ b/chrome/installer/win/tahai_msix/AppxManifest.xml
+@@ -3,11 +3,11 @@
+          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+          IgnorableNamespaces="uap rescap">
+-  <Identity Name="TAHAI.Browser" Publisher="CN=TAHAI Web Services" Version="0.1.0.0" ProcessorArchitecture="x64" />
++  <Identity Name="TAHAIWebServices.TAHAIWebServicesBrowser" Publisher="CN=D75EE668-B409-45ED-87E5-E37AA5FE3868" Version="2.0.19.0" ProcessorArchitecture="x64" />
+   <Properties>
+-    <DisplayName>TAHAI Browser</DisplayName>
++    <DisplayName>TAHAI Web Services Browser</DisplayName>
+     <PublisherDisplayName>TAHAI Web Services</PublisherDisplayName>
+-    <Description>TAHAI Browser native creative workspace</Description>
++    <Description>TAHAI Web Services Browser native creative workspace</Description>
+     <Logo>Assets\StoreLogo.png</Logo>
+   </Properties>
+   <Resources>
+@@ -18,12 +18,12 @@
+   </Dependencies>
+   <Applications>
+     <Application Id="TAHAIBrowser" Executable="chrome.exe" EntryPoint="Windows.FullTrustApplication">
+-      <uap:VisualElements DisplayName="TAHAI Browser"
+-                          Description="TAHAI Browser native creative workspace"
++      <uap:VisualElements DisplayName="TAHAI Web Services Browser"
++                          Description="TAHAI Web Services Browser native creative workspace"
+                           BackgroundColor="transparent"
+                           Square150x150Logo="Assets\Logo.png"
+                           Square44x44Logo="Assets\SmallLogo.png">
+-        <uap:DefaultTile Wide310x150Logo="Assets\WideLogo.png" Square71x71Logo="Assets\Logo.png" Square310x310Logo="Assets\Logo.png" />
++        <uap:DefaultTile Wide310x150Logo="Assets\WideLogo.png" Square71x71Logo="Assets\Square71Logo.png" Square310x310Logo="Assets\Square310Logo.png" />
+       </uap:VisualElements>
+     </Application>
+   </Applications>
+diff --git a/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1 b/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
+index b183a3d40ca3075291999238bd0a300738cdd314..71d95f6a55a7fe0d97b08d58357e2023cb0d13ac 100644
+--- a/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
++++ b/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
+@@ -2,7 +2,7 @@
+ param(
+     [string]$OutDir = (Join-Path $PSScriptRoot "out"),
+     [string]$BuildDir = (Join-Path $PSScriptRoot "..\..\..\..\out\tahai_stock_debug_x64"),
+-    [string]$Version = "0.1.0.0"
++    [string]$Version = "2.0.19.0"
+ )
+ 
+ $ErrorActionPreference = "Stop"
+@@ -25,6 +25,42 @@ function Copy-RequiredDirectory {
+     Copy-Item -LiteralPath $source -Destination $stage -Recurse -Force
+ }
+ 
++function New-TahaiTileAsset {
++    param(
++        [string]$Source,
++        [string]$Destination,
++        [int]$Width,
++        [int]$Height
++    )
++    Add-Type -AssemblyName System.Drawing
++    $input = [System.Drawing.Image]::FromFile($Source)
++    try {
++        $output = New-Object System.Drawing.Bitmap($Width, $Height)
++        try {
++            $graphics = [System.Drawing.Graphics]::FromImage($output)
++            try {
++                $graphics.Clear([System.Drawing.Color]::Transparent)
++                $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
++                $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
++                $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
++                $scale = [Math]::Min($Width / $input.Width, $Height / $input.Height)
++                $drawWidth = [int][Math]::Round($input.Width * $scale)
++                $drawHeight = [int][Math]::Round($input.Height * $scale)
++                $left = [int][Math]::Floor(($Width - $drawWidth) / 2)
++                $top = [int][Math]::Floor(($Height - $drawHeight) / 2)
++                $graphics.DrawImage($input, $left, $top, $drawWidth, $drawHeight)
++            } finally {
++                $graphics.Dispose()
++            }
++            $output.Save($Destination, [System.Drawing.Imaging.ImageFormat]::Png)
++        } finally {
++            $output.Dispose()
++        }
++    } finally {
++        $input.Dispose()
++    }
++}
++
+ $sdkRoot = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+ $makeAppx = Get-ChildItem -LiteralPath $sdkRoot -Recurse -Filter MakeAppx.exe |
+     Where-Object { $_.FullName -match "\\x64\\MakeAppx\.exe$" } |
+@@ -37,7 +73,7 @@ if (-not $makeAppx) {
+ $resolvedBuildDir = (Resolve-Path -LiteralPath $BuildDir).Path
+ $resolvedOutDir = [System.IO.Path]::GetFullPath($OutDir)
+ $stage = Join-Path $resolvedOutDir "stage"
+-$package = Join-Path $resolvedOutDir "TAHAI-Browser_$Version`_x64_unsigned.msix"
++$package = Join-Path $resolvedOutDir "TAHAIWebServicesBrowser_$Version`_x64_unsigned.msix"
+ 
+ if (Test-Path -LiteralPath $stage) {
+     Remove-Item -LiteralPath $stage -Recurse -Force
+@@ -61,10 +97,12 @@ foreach ($directory in @("locales", "resources", "MEIPreload")) {
+ 
+ Copy-Item -LiteralPath (Join-Path $PSScriptRoot "AppxManifest.xml") -Destination (Join-Path $stage "AppxManifest.xml") -Force
+ $tiles = Join-Path $PSScriptRoot "..\..\..\app\theme\tahai\win\tiles"
+-Copy-Item -LiteralPath (Join-Path $tiles "Logo.png") -Destination (Join-Path $stage "Assets\Logo.png") -Force
+-Copy-Item -LiteralPath (Join-Path $tiles "SmallLogo.png") -Destination (Join-Path $stage "Assets\SmallLogo.png") -Force
+-Copy-Item -LiteralPath (Join-Path $tiles "SmallLogo.png") -Destination (Join-Path $stage "Assets\StoreLogo.png") -Force
+-Copy-Item -LiteralPath (Join-Path $tiles "Logo.png") -Destination (Join-Path $stage "Assets\WideLogo.png") -Force
++New-TahaiTileAsset (Join-Path $tiles "Logo.png") (Join-Path $stage "Assets\Logo.png") 150 150
++New-TahaiTileAsset (Join-Path $tiles "SmallLogo.png") (Join-Path $stage "Assets\SmallLogo.png") 44 44
++New-TahaiTileAsset (Join-Path $tiles "Logo.png") (Join-Path $stage "Assets\StoreLogo.png") 50 50
++New-TahaiTileAsset (Join-Path $tiles "Logo.png") (Join-Path $stage "Assets\WideLogo.png") 310 150
++New-TahaiTileAsset (Join-Path $tiles "Logo.png") (Join-Path $stage "Assets\Square71Logo.png") 71 71
++New-TahaiTileAsset (Join-Path $tiles "Logo.png") (Join-Path $stage "Assets\Square310Logo.png") 310 310
+ 
+ if (Test-Path -LiteralPath $package) {
+     Remove-Item -LiteralPath $package -Force
+-- 
+2.54.0.windows.1
+

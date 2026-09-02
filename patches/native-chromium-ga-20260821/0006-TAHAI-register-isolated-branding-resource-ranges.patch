@@ -1,0 +1,54 @@
+From 9035ef71217973a39d54e615a0bdf215c7e6c8f7 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Mon, 10 Aug 2026 10:09:04 -0400
+Subject: [PATCH 06/16] TAHAI: register isolated branding resource ranges
+
+---
+ tools/gritsettings/resource_ids.spec | 16 ++++++++++------
+ 1 file changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/tools/gritsettings/resource_ids.spec b/tools/gritsettings/resource_ids.spec
+index 9d8b4ade5aff13eb00892614ad7b309805f00ec2..f4724d961d1278f03a7736d960df9f8b2f91133e 100644
+--- a/tools/gritsettings/resource_ids.spec
++++ b/tools/gritsettings/resource_ids.spec
+@@ -32,12 +32,14 @@
+   #
+   # chrome/ and ios/chrome/ must start at the same id.
+   # App only use one file depending on whether it is iOS or other platform.
+-  # Chromium strings and Google Chrome strings must start at the same id.
+-  # We only use one file depending on whether we're building Chromium or
+-  # Google Chrome.
++  # Chromium, TAHAI, and Google Chrome strings must start at the same id.
++  # We only use one file depending on the active product branding.
+   "chrome/app/chromium_strings.grd": {
+     "messages": [800],
+   },
++  "chrome/app/tahai_strings.grd": {
++    "messages": [800],
++  },
+   "chrome/app/google_chrome_strings.grd": {
+     "messages": [800],
+   },
+@@ -1209,14 +1211,16 @@
+     "META": {"sizes": {"includes": [250]}}, # Reserve space for ~225 resources
+     "includes": [7010]
+   },
+-  # Chromium strings and Google Chrome strings must start at the same id.
+-  # We only use one file depending on whether we're building Chromium or
+-  # Google Chrome.
++  # Chromium, TAHAI, and Google Chrome strings must start at the same id.
++  # We only use one file depending on the active product branding.
+   "components/components_chromium_strings.grd": {
+     # Big alignment at start of section.
+     "META": {"join": 2},
+     "messages": [7020],
+   },
++  "components/components_tahai_strings.grd": {
++    "messages": [7020],
++  },
+   "components/components_google_chrome_strings.grd": {
+     "messages": [7020],
+   },
+-- 
+2.54.0.windows.1
+

@@ -1,0 +1,57 @@
+From 711c305d3c83bfad426834996bba752d35189e67 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Mon, 10 Aug 2026 10:42:08 -0400
+Subject: [PATCH 09/16] TAHAI: verify product-scoped profile roots
+
+---
+ chrome/common/chrome_paths_unittest.cc | 20 +++++++++++++++++++-
+ 1 file changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/chrome/common/chrome_paths_unittest.cc b/chrome/common/chrome_paths_unittest.cc
+index 7258edea7b2d8e120ca81ca44b818b4503395155..5686602a7ade008f52942c5aa37c2a236a5a2fad 100644
+--- a/chrome/common/chrome_paths_unittest.cc
++++ b/chrome/common/chrome_paths_unittest.cc
+@@ -8,6 +8,7 @@
+ #include "base/environment.h"
+ #include "base/files/file_path.h"
+ #include "base/path_service.h"
++#include "base/strings/string_util.h"
+ #include "build/branding_buildflags.h"
+ #include "build/build_config.h"
+ #include "chrome/common/chrome_constants.h"
+@@ -82,7 +83,9 @@ TEST(ChromePaths, DefaultUserDataDir) {
+   base::PathService::Get(base::DIR_HOME, &home_dir);
+ 
+   std::string expected_branding;
+-#if BUILDFLAG(GOOGLE_CHROME_FOR_TESTING_BRANDING)
++#if BUILDFLAG(TAHAI_BRANDING)
++  expected_branding = "tahai-browser";
++#elif BUILDFLAG(GOOGLE_CHROME_FOR_TESTING_BRANDING)
+   std::string data_dir_basename = "google-chrome-for-testing";
+ #elif BUILDFLAG(GOOGLE_CHROME_BRANDING)
+   // TODO(skobes): Test channel suffixes with $CHROME_VERSION_EXTRA.
+@@ -111,6 +114,21 @@ TEST(ChromePaths, DefaultUserDataDir) {
+ }
+ #endif
+ 
++#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
++TEST(ChromePaths, TahaiDefaultUserDataDirectoryIsProductScoped) {
++  base::FilePath user_data_dir;
++  ASSERT_TRUE(GetDefaultUserDataDirectory(&user_data_dir));
++
++  const base::FilePath expected_suffix =
++      base::FilePath(FILE_PATH_LITERAL("TAHAI Web Services"))
++          .Append(FILE_PATH_LITERAL("TAHAI Browser"))
++          .Append(chrome::kUserDataDirname);
++  EXPECT_TRUE(base::EndsWith(user_data_dir.value(), expected_suffix.value(),
++                             base::CompareCase::INSENSITIVE_ASCII))
++      << user_data_dir.value();
++}
++#endif
++
+ #if BUILDFLAG(IS_CHROMEOS)
+ TEST(ChromePaths, UserMediaDirectories) {
+   base::FilePath path;
+-- 
+2.54.0.windows.1
+

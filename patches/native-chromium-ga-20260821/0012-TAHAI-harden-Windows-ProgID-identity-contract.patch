@@ -1,0 +1,71 @@
+From 4cbc2ce95f37652e583865d0a465b96e5b19bbc5 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Mon, 10 Aug 2026 14:00:16 -0400
+Subject: [PATCH 12/16] TAHAI: harden Windows ProgID identity contract
+
+---
+ .../install_static/chromium_install_modes.h   |  4 ++--
+ .../install_static/install_modes_unittest.cc  | 23 +++++++++++++++++++
+ 2 files changed, 25 insertions(+), 2 deletions(-)
+
+diff --git a/chrome/install_static/chromium_install_modes.h b/chrome/install_static/chromium_install_modes.h
+index 9dfcc29edc58de54595b93a6c3c0685522733f9b..2e3c63afa139760fced0cdab5f6f9df68a792981 100644
+--- a/chrome/install_static/chromium_install_modes.h
++++ b/chrome/install_static/chromium_install_modes.h
+@@ -61,10 +61,10 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
+ #if BUILDFLAG(TAHAI_BRANDING)
+         .base_app_name = L"TAHAI Browser",
+         .base_app_id = L"TAHAI.Browser",
+-        .browser_prog_id_prefix = L"TAHAIBrowserHTM",
++        .browser_prog_id_prefix = L"TAHAIHTM",
+         .browser_prog_id_description = L"TAHAI Browser HTML Document",
+         .direct_launch_url_scheme = "tahai-browser",
+-        .pdf_prog_id_prefix = L"TAHAIBrowserPDF",
++        .pdf_prog_id_prefix = L"TAHAIPDF",
+         .pdf_prog_id_description = L"TAHAI Browser PDF Document",
+         .active_setup_guid =
+             L"{DF75B433-1691-5230-B9E4-11C8EE8A842D}",
+diff --git a/chrome/install_static/install_modes_unittest.cc b/chrome/install_static/install_modes_unittest.cc
+index 94d8e177be63eedb03c5a52f76b7aed8278968e1..57ee78073bc0693fa7232359165bc87c51511ee8 100644
+--- a/chrome/install_static/install_modes_unittest.cc
++++ b/chrome/install_static/install_modes_unittest.cc
+@@ -10,6 +10,7 @@
+ 
+ #include "base/compiler_specific.h"
+ #include "base/strings/string_util.h"
++#include "build/branding_buildflags.h"
+ #include "chrome/install_static/buildflags.h"
+ #include "testing/gmock/include/gmock/gmock.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+@@ -132,6 +133,28 @@ TEST(InstallModes, VerifyModes) {
+   }
+ }
+ 
++#if BUILDFLAG(TAHAI_BRANDING)
++TEST(InstallModes, TahaiWindowsApplicationIdentity) {
++  ASSERT_EQ(kInstallModes.size(), 1u);
++  const InstallConstants& mode = kInstallModes[0];
++
++  EXPECT_STREQ(kCompanyPathName, L"TAHAI Web Services");
++  EXPECT_STREQ(kProductPathName, L"TAHAI Browser");
++  EXPECT_STREQ(kSafeBrowsingName, "tahai-browser");
++  EXPECT_STREQ(mode.base_app_name, L"TAHAI Browser");
++  EXPECT_STREQ(mode.base_app_id, L"TAHAI.Browser");
++  EXPECT_STREQ(mode.browser_prog_id_prefix, L"TAHAIHTM");
++  EXPECT_STREQ(mode.browser_prog_id_description,
++               L"TAHAI Browser HTML Document");
++  EXPECT_STREQ(mode.pdf_prog_id_prefix, L"TAHAIPDF");
++  EXPECT_STREQ(mode.pdf_prog_id_description,
++               L"TAHAI Browser PDF Document");
++  EXPECT_STREQ(mode.direct_launch_url_scheme, "tahai-browser");
++  EXPECT_STREQ(mode.active_setup_guid,
++               L"{DF75B433-1691-5230-B9E4-11C8EE8A842D}");
++}
++#endif
++
+ TEST(InstallModes, GetClientsKeyPath) {
+   constexpr wchar_t kAppGuid[] = L"test";
+ 
+-- 
+2.54.0.windows.1
+

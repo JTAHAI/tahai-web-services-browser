@@ -1,0 +1,101 @@
+From c85eb3483ffcd66a4af3fd2af0afd420904371e4 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Fri, 21 Aug 2026 09:07:08 -0400
+Subject: [PATCH] TAHAI: package complete Store release runtime
+
+---
+ .../installer/win/tahai_msix/AppxManifest.xml |  2 +-
+ .../win/tahai_msix/package_unsigned_msix.ps1  | 36 ++++++++++++++++---
+ 2 files changed, 32 insertions(+), 6 deletions(-)
+
+diff --git a/chrome/installer/win/tahai_msix/AppxManifest.xml b/chrome/installer/win/tahai_msix/AppxManifest.xml
+index 887396d961..3323ee224c 100644
+--- a/chrome/installer/win/tahai_msix/AppxManifest.xml
++++ b/chrome/installer/win/tahai_msix/AppxManifest.xml
+@@ -3,7 +3,7 @@
+          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+          IgnorableNamespaces="uap rescap">
+-  <Identity Name="TAHAIWebServices.TAHAIWebServicesBrowser" Publisher="CN=D75EE668-B409-45ED-87E5-E37AA5FE3868" Version="2.0.20.0" ProcessorArchitecture="x64" />
++  <Identity Name="TAHAIWebServices.TAHAIWebServicesBrowser" Publisher="CN=D75EE668-B409-45ED-87E5-E37AA5FE3868" Version="2.0.21.0" ProcessorArchitecture="x64" />
+   <Properties>
+     <DisplayName>TAHAI Web Services Browser</DisplayName>
+     <PublisherDisplayName>TAHAI Web Services</PublisherDisplayName>
+diff --git a/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1 b/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
+index 03b63f1468..45314ea57c 100644
+--- a/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
++++ b/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
+@@ -1,8 +1,11 @@
+ [CmdletBinding()]
+ param(
+     [string]$OutDir = (Join-Path $PSScriptRoot "out"),
+-    [string]$BuildDir = (Join-Path $PSScriptRoot "..\..\..\..\out\tahai_stock_debug_x64"),
+-    [string]$Version = "2.0.20.0"
++    # Store packages must be built from the non-component release output. A
++    # component/debug output contains DLLs such as base.dll beside chrome.exe
++    # and cannot be turned into a complete Store package by selecting files.
++    [string]$BuildDir = (Join-Path $PSScriptRoot "..\..\..\..\out\tahai_release_x64"),
++    [string]$Version = "2.0.21.0"
+ )
+ 
+ $ErrorActionPreference = "Stop"
+@@ -25,6 +28,16 @@ function Copy-RequiredDirectory {
+     Copy-Item -LiteralPath $source -Destination $stage -Recurse -Force
+ }
+ 
++function Grant-MsixSandboxReadAccess {
++    # A Store-installed package is readable by the AppContainer token used by
++    # Chromium's sandbox. Mirror that ACL in the staging directory so a local
++    # smoke launch exercises the same security boundary before submission.
++    & icacls.exe $stage /grant '*S-1-15-2-2:(OI)(CI)(RX)' /t /c | Out-Null
++    if ($LASTEXITCODE -ne 0) {
++        throw "Could not grant the MSIX AppContainer read/execute ACL to $stage"
++    }
++}
++
+ function New-TahaiTileAsset {
+     param(
+         [string]$Source,
+@@ -75,6 +88,18 @@ $resolvedOutDir = [System.IO.Path]::GetFullPath($OutDir)
+ $stage = Join-Path $resolvedOutDir "stage"
+ $package = Join-Path $resolvedOutDir "TAHAIWebServicesBrowser_$Version`_x64_unsigned.msix"
+ 
++# Fail before packaging if a caller accidentally points at a development
++# component build. That was the source of the Store's missing base.dll error.
++$argsPath = Join-Path $resolvedBuildDir "args.gn"
++if (-not (Test-Path -LiteralPath $argsPath -PathType Leaf)) {
++    throw "TAHAI Store package build arguments are missing: $argsPath"
++}
++$buildArgs = Get-Content -LiteralPath $argsPath -Raw
++if ($buildArgs -notmatch '(?m)^is_debug\s*=\s*false\s*$' -or
++    $buildArgs -notmatch '(?m)^is_component_build\s*=\s*false\s*$') {
++    throw "TAHAI Store packages require is_debug = false and is_component_build = false. Refusing incomplete development output: $resolvedBuildDir"
++}
++
+ $versionParts = $Version -split '\.'
+ if ($versionParts.Count -ne 4 -or @($versionParts | Where-Object {
+         $_ -notmatch '^\d+$' -or [int64]$_ -gt 65535
+@@ -93,9 +118,8 @@ foreach ($file in @(
+     "chrome_200_percent.pak", "d3dcompiler_47.dll", "dxcompiler.dll", "dxil.dll",
+     "icudtl.dat", "libEGL.dll", "libGLESv2.dll", "resources.pak",
+     "v8_context_snapshot.bin", "vk_swiftshader.dll", "vk_swiftshader_icd.json",
+-    "vulkan-1.dll", "notification_helper.exe", "msvcp140d.dll",
+-    "msvcp140d_atomic_wait.dll", "ucrtbased.dll", "vcruntime140d.dll",
+-    "vcruntime140_1d.dll")) {
++    "vulkan-1.dll", "notification_helper.exe", "msvcp140.dll",
++    "vcruntime140.dll", "vcruntime140_1.dll")) {
+     Copy-RequiredFile $file
+ }
+ foreach ($directory in @("locales", "resources", "MEIPreload")) {
+@@ -118,6 +142,8 @@ New-TahaiTileAsset (Join-Path $tiles "Logo.png") (Join-Path $stage "Assets\WideL
+ New-TahaiTileAsset (Join-Path $tiles "Logo.png") (Join-Path $stage "Assets\Square71Logo.png") 71 71
+ New-TahaiTileAsset (Join-Path $tiles "Logo.png") (Join-Path $stage "Assets\Square310Logo.png") 310 310
+ 
++Grant-MsixSandboxReadAccess
++
+ if (Test-Path -LiteralPath $package) {
+     Remove-Item -LiteralPath $package -Force
+ }
+-- 
+2.54.0.windows.1
+

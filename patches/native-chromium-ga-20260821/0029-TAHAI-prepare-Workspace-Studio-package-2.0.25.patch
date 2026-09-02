@@ -1,0 +1,39 @@
+From 8b2aee587b89247bf848f3d6fc5c971eba9f6fdc Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Fri, 21 Aug 2026 14:48:58 -0400
+Subject: [PATCH 29/29] TAHAI: prepare Workspace Studio package 2.0.25
+
+---
+ chrome/installer/win/tahai_msix/AppxManifest.xml          | 2 +-
+ chrome/installer/win/tahai_msix/package_unsigned_msix.ps1 | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/chrome/installer/win/tahai_msix/AppxManifest.xml b/chrome/installer/win/tahai_msix/AppxManifest.xml
+index 2698a6c418..ab17c33fd6 100644
+--- a/chrome/installer/win/tahai_msix/AppxManifest.xml
++++ b/chrome/installer/win/tahai_msix/AppxManifest.xml
+@@ -3,7 +3,7 @@
+          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+          xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+          IgnorableNamespaces="uap rescap">
+-  <Identity Name="TAHAIWebServices.TAHAIWebServicesBrowser" Publisher="CN=D75EE668-B409-45ED-87E5-E37AA5FE3868" Version="2.0.24.0" ProcessorArchitecture="x64" />
++  <Identity Name="TAHAIWebServices.TAHAIWebServicesBrowser" Publisher="CN=D75EE668-B409-45ED-87E5-E37AA5FE3868" Version="2.0.25.0" ProcessorArchitecture="x64" />
+   <Properties>
+     <DisplayName>TAHAI Web Services Browser</DisplayName>
+     <PublisherDisplayName>TAHAI Web Services</PublisherDisplayName>
+diff --git a/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1 b/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
+index 7f28281868..9b7d251d2b 100644
+--- a/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
++++ b/chrome/installer/win/tahai_msix/package_unsigned_msix.ps1
+@@ -5,7 +5,7 @@ param(
+     # component/debug output contains DLLs such as base.dll beside chrome.exe
+     # and cannot be turned into a complete Store package by selecting files.
+     [string]$BuildDir = (Join-Path $PSScriptRoot "..\..\..\..\out\tahai_release_x64"),
+-    [string]$Version = "2.0.24.0"
++    [string]$Version = "2.0.25.0"
+ )
+ 
+ $ErrorActionPreference = "Stop"
+-- 
+2.54.0.windows.1
+

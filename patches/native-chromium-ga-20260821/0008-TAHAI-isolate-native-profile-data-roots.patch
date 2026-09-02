@@ -1,0 +1,66 @@
+From 0052acf77a113c8f78dbde250660328d33aaa367 Mon Sep 17 00:00:00 2001
+From: Justin Tahai <justintahai@gmail.com>
+Date: Mon, 10 Aug 2026 10:33:18 -0400
+Subject: [PATCH 08/16] TAHAI: isolate native profile data roots
+
+---
+ chrome/common/chrome_paths_linux.cc |  4 +++-
+ chrome/common/chrome_paths_win.cc   | 11 +++++++++++
+ 2 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/chrome/common/chrome_paths_linux.cc b/chrome/common/chrome_paths_linux.cc
+index 5575c049b222f52b529ded1a6e7f739eba68e33b..50a748316387d498d589b06762eddd796e836701 100644
+--- a/chrome/common/chrome_paths_linux.cc
++++ b/chrome/common/chrome_paths_linux.cc
+@@ -90,7 +90,9 @@ bool GetDefaultUserDataDirectory(base::FilePath* result) {
+         GetXDGDirectory(env.get(), kXdgConfigHomeEnvVar, kDotConfigDir);
+   }
+ 
+-#if BUILDFLAG(GOOGLE_CHROME_FOR_TESTING_BRANDING)
++#if BUILDFLAG(TAHAI_BRANDING)
++  std::string data_dir_basename = "tahai-browser";
++#elif BUILDFLAG(GOOGLE_CHROME_FOR_TESTING_BRANDING)
+   std::string data_dir_basename = "google-chrome-for-testing";
+ #elif BUILDFLAG(GOOGLE_CHROME_BRANDING)
+   std::string data_dir_basename = "google-chrome";
+diff --git a/chrome/common/chrome_paths_win.cc b/chrome/common/chrome_paths_win.cc
+index 6cd6f0ef77a7f8121889e2d98ae74fcdb0122e4b..dd826fbaef7c0eecc048d19f8ff954fa02e4b033 100644
+--- a/chrome/common/chrome_paths_win.cc
++++ b/chrome/common/chrome_paths_win.cc
+@@ -11,6 +11,7 @@
+ #include "base/files/file_path.h"
+ #include "base/path_service.h"
+ #include "base/win/scoped_co_mem.h"
++#include "build/branding_buildflags.h"
+ #include "chrome/common/chrome_constants.h"
+ #include "chrome/common/chrome_paths_internal.h"
+ #include "chrome/common/chrome_switches.h"
+@@ -42,7 +43,12 @@ bool GetUserDirectory(int csidl_folder, base::FilePath* result) {
+ bool GetDefaultUserDataDirectory(base::FilePath* result) {
+   if (!base::PathService::Get(base::DIR_LOCAL_APP_DATA, result))
+     return false;
++#if BUILDFLAG(TAHAI_BRANDING)
++  *result = result->Append(FILE_PATH_LITERAL("TAHAI Web Services"));
++  *result = result->Append(FILE_PATH_LITERAL("TAHAI Browser"));
++#else
+   *result = result->Append(install_static::GetChromeInstallSubDirectory());
++#endif
+   *result = result->Append(chrome::kUserDataDirname);
+   return true;
+ }
+@@ -50,7 +56,12 @@ bool GetDefaultUserDataDirectory(base::FilePath* result) {
+ bool GetDefaultRoamingUserDataDirectory(base::FilePath* result) {
+   if (!base::PathService::Get(base::DIR_ROAMING_APP_DATA, result))
+     return false;
++#if BUILDFLAG(TAHAI_BRANDING)
++  *result = result->Append(FILE_PATH_LITERAL("TAHAI Web Services"));
++  *result = result->Append(FILE_PATH_LITERAL("TAHAI Browser"));
++#else
+   *result = result->Append(install_static::GetChromeInstallSubDirectory());
++#endif
+   *result = result->Append(chrome::kUserDataDirname);
+   return true;
+ }
+-- 
+2.54.0.windows.1
+
