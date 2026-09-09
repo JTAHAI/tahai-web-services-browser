@@ -1,0 +1,5 @@
+TahaiSkins:
+  caption: TAHAI local skin package controls
+  policies:
+  - TahaiSkinsEnabled
+  - TahaiSkinInstallationsAllowed

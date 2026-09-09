@@ -1,0 +1,12 @@
+# Copyright 2026 TAHAI Web Services
+# SPDX-License-Identifier: Apache-2.0
+
+import("//mojo/public/tools/bindings/mojom.gni")
+
+mojom("mojom") {
+  sources = [ "skin_decoder.mojom" ]
+  public_deps = [
+    "//mojo/public/mojom/base",
+    "//sandbox/policy/mojom",
+  ]
+}

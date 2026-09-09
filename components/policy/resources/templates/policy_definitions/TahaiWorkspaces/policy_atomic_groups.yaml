@@ -1,0 +1,4 @@
+TahaiWorkspaces:
+  caption: TAHAI named workspaces
+  policies:
+  - TahaiNamedWorkspacesEnabled

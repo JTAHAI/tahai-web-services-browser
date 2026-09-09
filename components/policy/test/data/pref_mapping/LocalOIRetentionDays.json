@@ -1,0 +1,50 @@
+[
+  {
+    "os": [
+      "win"
+    ],
+    "policy_pref_mapping_tests": [
+      {
+        "policies": {
+          "LocalOIRetentionDays": 1
+        },
+        "prefs": {
+          "tahai.local_oi_retention_days": {
+            "value": 1
+          }
+        }
+      },
+      {
+        "policies": {
+          "LocalOIRetentionDays": 3650
+        },
+        "prefs": {
+          "tahai.local_oi_retention_days": {
+            "value": 3650
+          }
+        }
+      },
+      {
+        "policies": {
+          "LocalOIRetentionDays": 0
+        },
+        "prefs": {
+          "tahai.local_oi_retention_days": {
+            "default_value": 90
+          }
+        }
+      },
+      {
+        "policies": {
+          "LocalOIRetentionDays": 3651
+        },
+        "prefs": {
+          "tahai.local_oi_retention_days": {
+            "default_value": 90
+          }
+        }
+      }
+    ]
+  }
+]
+

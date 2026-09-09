@@ -1,0 +1,25 @@
+caption: Allow Local OI artifact metadata
+desc: |-
+  Allows explicitly entered artifact metadata and digests in Local OI when LocalOIEnabled is enabled. It does not read files, download bodies or local paths.
+
+  When true, explicit artifact metadata ingestion is allowed. When false, new artifact metadata cannot be recorded by Local OI.
+
+  If not configured, the profile setting is used and defaults to enabled. A mandatory policy locks the corresponding setting. These controls apply to regular profiles only; Local OI is unavailable in guest and incognito profiles.
+default: true
+example_value: true
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Allow this Local OI capability
+  value: true
+- caption: Disable this Local OI capability
+  value: false
+owners:
+- file://chrome/browser/ui/webui/OWNERS
+schema:
+  type: boolean
+supported_on:
+- chrome.win:150-
+tags: []
+type: main

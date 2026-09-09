@@ -1,0 +1,17 @@
+:root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif; background: #101723; color: #e8eff7; }
+* { box-sizing: border-box; }
+main { max-width: 1000px; margin: auto; padding: 48px 24px; }
+header { margin-bottom: 36px; } h1 { font-size: clamp(2rem,5vw,3.6rem); line-height: 1.1; margin: 8px 0 20px; }
+h2 { margin: 0 0 24px; font-size: 1.35rem; }.eyebrow { color: #80d4ed; letter-spacing: .12em; font-size: .8rem; font-weight: 700; }
+section { padding: 28px; border: 1px solid #38465c; border-radius: 16px; background: #172131; margin: 20px 0; }
+.grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; } label { display: grid; gap: 8px; } input, select, button { font: inherit; border: 1px solid #728098; border-radius: 6px; padding: 10px; min-height: 44px; background: #101723; color: #e8eff7; max-width: 100%; }
+input[type=color] { width: 100%; padding: 4px; cursor: pointer; }.check { display: flex; align-items: center; } .check input { width: 24px; }
+button { padding: 12px 24px; background: #a5edff; color: #102431; font-weight: 700; cursor: pointer; } button:disabled { opacity: .6; cursor: default; }
+:focus-visible { outline: 3px solid #ffe082; outline-offset: 4px; }.hint { color: #c1cbd9; font-size: .9rem; }
+.preview { overflow: hidden; border: 2px solid #718098; border-radius: 12px; margin: 24px 0; background: var(--shell_background); }
+.preview-tabs { padding: 12px; background: var(--tab_background); color: var(--tab_foreground); }.preview-tabs span { margin-left: 24px; }
+.preview-toolbar { padding: 12px; background: var(--toolbar_background); color: var(--toolbar_foreground); }.preview-toolbar span { margin-left: 18px; }
+.preview-body { display: flex; min-height: 220px; }.preview-body aside { width: 150px; flex-shrink: 0; padding: 18px; background: var(--rail_background); color: var(--rail_foreground); }
+.preview-panel { margin: 24px; padding: 22px; border-radius: 8px; background: var(--panel_background); color: var(--panel_foreground); border-top: 4px solid var(--accent); }
+#contrast { min-height: 24px; margin: 22px 0; }@media(max-width:620px) { .grid { grid-template-columns:1fr; } section { padding:18px; }.preview-body aside { width:105px; }.preview-panel { padding:14px; margin:12px; } }
+@media(forced-colors:active) { button,input,select,section { border:1px solid CanvasText; } }

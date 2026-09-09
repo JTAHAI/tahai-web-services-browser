@@ -1,0 +1,51 @@
+# Copyright 2026 TAHAI Web Services
+# SPDX-License-Identifier: Apache-2.0
+
+import("//build/rust/rust_static_library.gni")
+
+assert(is_win, "TAHAI Guard is currently Windows-only")
+
+source_set("lib") {
+  visibility = [ "//chrome/utility:*" ]
+  sources = [
+    "guard_engine_impl.cc",
+    "guard_engine_impl.h",
+  ]
+  deps = [
+    ":engine_rs",
+    "//base",
+    "//mojo/public/cpp/bindings",
+    "//url",
+  ]
+  public_deps = [ "public/mojom" ]
+}
+
+rust_static_library("engine_rs") {
+  visibility = [ ":lib" ]
+  crate_root = "engine.rs"
+  sources = [ "engine.rs" ]
+  cxx_bindings = [ "engine.rs" ]
+
+  # Only CXX's generated bridge requires unsafe. Engine code uses safe Rust;
+  # the third-party engine (including its FlatBuffers implementation) is
+  # sandbox-only and may not be linked into browser-process code.
+  allow_unsafe = true
+  deps = [
+    ":domain_resolver",
+    "//third_party/rust/adblock/v0_12:lib",
+    "//third_party/rust/cxx/v1:lib",
+  ]
+}
+
+source_set("domain_resolver") {
+  visibility = [ ":*" ]
+  sources = [
+    "domain_resolver.cc",
+    "domain_resolver.h",
+  ]
+  deps = [
+    "//base",
+    "//net",
+    "//third_party/rust/cxx/v1:lib",
+  ]
+}

@@ -1,0 +1,25 @@
+caption: Allow future Local OI history metadata
+desc: |-
+  Controls permission for a future optional local history-metadata source. No history ingestion provider exists in this version, so enabling this policy does not collect history. Browser cookies, credentials, form values and page bodies are always excluded.
+
+  When true, the optional history-metadata permission is enabled but no provider is activated. When false, history-metadata ingestion is disallowed.
+
+  If not configured, the profile setting is used and defaults to disabled. A mandatory policy locks the corresponding setting. These controls apply to regular profiles only; Local OI is unavailable in guest and incognito profiles.
+default: false
+example_value: false
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Allow this Local OI capability
+  value: true
+- caption: Disable this Local OI capability
+  value: false
+owners:
+- file://chrome/browser/ui/webui/OWNERS
+schema:
+  type: boolean
+supported_on:
+- chrome.win:150-
+tags: []
+type: main

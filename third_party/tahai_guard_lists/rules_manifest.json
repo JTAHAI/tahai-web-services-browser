@@ -1,0 +1,22 @@
+[
+  {
+    "name": "easylist",
+    "source_sha256": "8d2b5c1b5d4e7e17d6c23963a561e6aa3d11f0fbc8fd41b3cf11b6c35bf8935d",
+    "output_sha256": "f30a988a88d7a1e399eca4bd93da5c7ddde4ab6335136aebe42001ad360564c7",
+    "bytes": 2068746,
+    "network_candidates": 56787,
+    "cosmetic_candidates": 23856,
+    "comments": 279,
+    "unsupported": 698
+  },
+  {
+    "name": "easyprivacy",
+    "source_sha256": "13338b2da36764e801e0ab4846ef185a01eca04daa549bc3b8b24b1146c6509f",
+    "output_sha256": "beefa3d11f5c8409bb6e963941198e9f236df909c9f24c43750e4d41d3e14290",
+    "bytes": 1468429,
+    "network_candidates": 55966,
+    "cosmetic_candidates": 3,
+    "comments": 771,
+    "unsupported": 63
+  }
+]

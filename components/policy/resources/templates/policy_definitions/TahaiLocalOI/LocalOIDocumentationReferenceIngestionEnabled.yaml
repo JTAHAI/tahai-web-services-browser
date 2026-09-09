@@ -1,0 +1,25 @@
+caption: Allow Local OI documentation pointers
+desc: |-
+  Allows explicitly entered public documentation references to be associated with local endpoints when LocalOIEnabled is enabled. References are not opened, fetched or indexed by this policy.
+
+  When true, explicit documentation-reference ingestion is allowed. When false, new references cannot be recorded by Local OI.
+
+  If not configured, the profile setting is used and defaults to enabled. A mandatory policy locks the corresponding setting. These controls apply to regular profiles only; Local OI is unavailable in guest and incognito profiles.
+default: true
+example_value: true
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Allow this Local OI capability
+  value: true
+- caption: Disable this Local OI capability
+  value: false
+owners:
+- file://chrome/browser/ui/webui/OWNERS
+schema:
+  type: boolean
+supported_on:
+- chrome.win:150-
+tags: []
+type: main

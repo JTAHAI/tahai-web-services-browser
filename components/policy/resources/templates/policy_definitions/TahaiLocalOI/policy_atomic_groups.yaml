@@ -1,0 +1,15 @@
+TahaiLocalOI:
+  caption: TAHAI Local Operational Intelligence
+  policies:
+  - LocalOIEnabled
+  - LocalOIMissionIngestionEnabled
+  - LocalOIArtifactIngestionEnabled
+  - LocalOIDocumentationReferenceIngestionEnabled
+  - LocalOIOpsToolIngestionEnabled
+  - LocalOIHistoryMetadataEnabled
+  - LocalOIReportsEnabled
+  - LocalOIExportEnabled
+  - LocalOIMspPromotionEnabled
+  - LocalOILocalAIEnabled
+  - LocalOIRetentionDays
+

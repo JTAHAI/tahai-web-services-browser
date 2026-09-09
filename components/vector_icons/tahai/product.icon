@@ -1,0 +1,14 @@
+// Copyright 2026 TAHAI Web Services
+// Use of this source code is governed by a BSD-style license that can be
+// found in the Chromium LICENSE file.
+
+CANVAS_DIMENSIONS, 24,
+MOVE_TO, 3, 4,
+H_LINE_TO, 21,
+V_LINE_TO, 8,
+H_LINE_TO, 14,
+V_LINE_TO, 21,
+H_LINE_TO, 10,
+V_LINE_TO, 8,
+H_LINE_TO, 3,
+CLOSE

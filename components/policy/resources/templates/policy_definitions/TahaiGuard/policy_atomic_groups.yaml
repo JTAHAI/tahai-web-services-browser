@@ -1,0 +1,5 @@
+TahaiGuard:
+  caption: TAHAI Guard network filtering
+  policies:
+  - TahaiGuardConfiguration
+  - TahaiGuardCustomRules

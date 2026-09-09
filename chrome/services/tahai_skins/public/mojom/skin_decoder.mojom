@@ -1,0 +1,47 @@
+// Copyright 2026 TAHAI Web Services
+// SPDX-License-Identifier: Apache-2.0
+
+module tahai.skins.mojom;
+
+import "mojo/public/mojom/base/big_buffer.mojom";
+import "sandbox/policy/mojom/sandbox.mojom";
+
+enum DecodeStatus {
+  kDecoded,
+  kAlreadyUsed,
+  kInputTooLarge,
+  kInvalidArchive,
+  kUnsafeEntry,
+  kExceededLimits,
+  kInvalidManifest,
+  kInvalidInventory,
+  kHashMismatch,
+  kInvalidImage,
+};
+
+// Tightly packed native N32 premultiplied pixels. No encoded image, Skia
+// object, file path, network interface, or executable content crosses back.
+// Browser-side validation must bound width/height/bytes before allocation and
+// copy writable shared memory before exposing an immutable bitmap.
+struct DecodedAsset {
+  string path;
+  uint32 width;
+  uint32 height;
+  mojo_base.mojom.BigBuffer pixels;
+};
+
+struct DecodedPackage {
+  string manifest_json;
+  array<DecodedAsset> assets;
+};
+
+// ONE decode per separately launched sandboxed utility. The browser owns a
+// deadline and cancellation of that exact process. No filesystem capability:
+// ZIP members are never extracted to paths, even within a staging directory.
+[ServiceSandbox=sandbox.mojom.Sandbox.kService]
+interface SkinDecoder {
+  // Caller AND implementation enforce skin_limits.h before copying/parsing.
+  // A failure must return null package; no partially admitted assets escape.
+  Decode(mojo_base.mojom.BigBuffer archive)
+      => (DecodeStatus status, DecodedPackage? package);
+};

@@ -1,0 +1,54 @@
+caption: Configure mandatory TAHAI Guard network filtering
+desc: |-
+  Configures the native TAHAI Guard Custom network-filter engine for regular Windows browser profiles and their incognito profiles. Mode off disables Guard. Mode custom requires an engine decision for supported HTTP and HTTPS factory requests unless an exact HTTPS origin is exempted in this configuration. If rules are missing, invalid, still compiling, overloaded or unavailable, those requests fail with an administrator-blocked network error instead of silently proceeding. Install and validate TahaiGuardCustomRules before enabling custom mode.
+
+  Changes apply to subsequent decisions without restarting the browser. Pending decisions cannot reuse an allow result across a changed configuration. Users cannot modify a mandatory configuration. An off site override is an administrator-authorized exact HTTPS origin exception, not a wildcard domain exception. Cosmetic-off does not enable a cosmetic pipeline.
+
+  Only Custom network rules are supported by these policies. They do not provide default filter lists, automatic updates, cosmetic filtering, scriptlets, TLS inspection, antivirus or universal network enforcement. Chromium security checks are not bypassed. Local counters are optional in-memory aggregate decision counts; URLs, bodies, headers, credentials and browsing history are not logged by Guard.
+
+  Incognito profiles inherit effective settings but own separate in-memory engines. They do not collect decision counters or change the regular profile's rules. Guest profiles are not covered; a deployment requiring this filtering must separately govern Guest browsing through the applicable browser policy. Cached service-worker responses and browser-internal service traffic are not network factory requests and are not covered by this policy.
+
+  If not configured, the user retains control of local Guard preferences. Recommended policy is not supported. Invalid recognized configuration dictionaries are treated as unavailable mandatory protection, not as an allow decision.
+example_value:
+  schema_version: 1
+  mode: custom
+  local_statistics_enabled: false
+  site_overrides:
+  - origin: https://guard-recovery.example.invalid/
+    mode: 'off'
+features:
+  dynamic_refresh: true
+  per_profile: true
+owners:
+- file://chrome/browser/ui/OWNERS
+schema:
+  type: object
+  required:
+  - schema_version
+  - mode
+  - local_statistics_enabled
+  - site_overrides
+  properties:
+    schema_version:
+      type: integer
+      enum: [1]
+    mode:
+      type: string
+      enum: ['off', custom]
+    local_statistics_enabled:
+      type: boolean
+    site_overrides:
+      type: array
+      items:
+        type: object
+        required: [origin, mode]
+        properties:
+          origin:
+            type: string
+          mode:
+            type: string
+            enum: ['off', cosmetic-off]
+supported_on:
+- chrome.win:150-
+tags: []
+type: dict

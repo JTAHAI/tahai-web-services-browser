@@ -1,0 +1,23 @@
+# Copyright 2026 TAHAI Web Services
+# SPDX-License-Identifier: Apache-2.0
+
+assert(is_win, "TAHAI Skins is currently Windows-only")
+
+# Pure value validation shared by the browser and sandbox. Keep this below
+# WebUI/Profile services; the decoder must never link browser authority.
+source_set("manifest") {
+  sources = [
+    "//chrome/browser/ui/webui/tahai/tahai_skin_catalog.h",
+    "//chrome/browser/ui/webui/tahai/tahai_skin_manifest.h",
+    "//chrome/browser/ui/webui/tahai/tahai_skin_package.h",
+    "skin_limits.h",
+    "tahai_skin_catalog.cc",
+    "tahai_skin_catalog.h",
+    "tahai_skin_manifest.cc",
+    "tahai_skin_manifest.h",
+    "tahai_skin_package.cc",
+    "tahai_skin_package.h",
+  ]
+  public_deps = [ "//base" ]
+  deps = [ "//crypto" ]
+}

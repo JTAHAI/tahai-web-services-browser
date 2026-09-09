@@ -1,0 +1,4 @@
+include_rules = [
+  "+chrome/services/tahai_skins/public",
+  "+third_party/zlib/google/zip_reader.h",
+]

@@ -1,0 +1,25 @@
+caption: Allow TAHAI OI for MSPs referrals
+desc: |-
+  Allows user-initiated opening of the fixed public TAHAI OI referral destination with allowlisted campaign parameters. It does not authorize data upload, hosted Mission promotion, account sign-in or synchronization.
+
+  When true, the fixed public referral action is allowed. When false, that referral action is disabled.
+
+  If not configured, the profile setting is used and defaults to disabled. A mandatory policy locks the corresponding setting. These controls apply to regular profiles only; Local OI is unavailable in guest and incognito profiles.
+default: false
+example_value: false
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Allow this Local OI capability
+  value: true
+- caption: Disable this Local OI capability
+  value: false
+owners:
+- file://chrome/browser/ui/webui/OWNERS
+schema:
+  type: boolean
+supported_on:
+- chrome.win:150-
+tags: []
+type: main

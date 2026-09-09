@@ -1,0 +1,18 @@
+[
+  {
+    "name": "easylist",
+    "url": "https://raw.githubusercontent.com/easylist/easylist/68e867c2b3d7debc832af957e21395f47281b3b2/easylist.txt",
+    "revision": "68e867c2b3d7debc832af957e21395f47281b3b2",
+    "sha256": "8d2b5c1b5d4e7e17d6c23963a561e6aa3d11f0fbc8fd41b3cf11b6c35bf8935d",
+    "bytes": 2135578,
+    "retrieved_utc": "2026-09-05T04:04:49.743164+00:00"
+  },
+  {
+    "name": "easyprivacy",
+    "url": "https://raw.githubusercontent.com/easylist/easylist/68e867c2b3d7debc832af957e21395f47281b3b2/easyprivacy.txt",
+    "revision": "68e867c2b3d7debc832af957e21395f47281b3b2",
+    "sha256": "13338b2da36764e801e0ab4846ef185a01eca04daa549bc3b8b24b1146c6509f",
+    "bytes": 1501315,
+    "retrieved_utc": "2026-09-05T04:04:50.070293+00:00"
+  }
+]

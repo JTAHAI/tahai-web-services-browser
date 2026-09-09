@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>TAHAI Skin Studio</title>
+<link rel="stylesheet" href="studio.css">
+<script defer src="studio-default.js"></script>
+<script defer src="studio.js"></script>
+<main>
+  <header><p class="eyebrow">TAHAI · CREATE YOUR APPEARANCE</p><h1>Skin Studio</h1>
+  <p>Choose colors, check readability, and download a skin. Everything stays on this computer.</p></header>
+  <form id="studio">
+    <section aria-labelledby="identity"><h2 id="identity">Give it a name</h2>
+      <div class="grid"><label>Skin name<input id="name" value="My First Skin" maxlength="128" required></label>
+      <label>Unique ID<input id="identity-value" value="my-first-skin" pattern="[a-z0-9][a-z0-9-]{1,62}[a-z0-9]" maxlength="64" required></label>
+      <label>Creator<input id="creator" value="Your name" maxlength="128" required></label>
+      <label>License<input id="license" value="BSD-3-Clause" maxlength="128" required></label></div>
+      <p class="hint">Use a unique ID with lowercase letters, numbers and interior hyphens. Keep the same ID when updating your skin.</p>
+    </section>
+    <section aria-labelledby="colors"><h2 id="colors">Make it yours</h2>
+      <label>Preview palette<select id="palette"><option value="light_tokens">Light</option><option value="dark_tokens">Dark</option><option value="high_contrast_tokens">High contrast</option></select></label>
+      <div class="preview" id="preview" aria-label="Browser color preview">
+        <div class="preview-tabs">Your workspace <span>New tab +</span></div>
+        <div class="preview-toolbar">← → ↻ <span>Browser controls</span></div>
+        <div class="preview-body"><aside>Workspace<br><br>Tabs<br><br>Bookmarks<br><br>Downloads</aside><div class="preview-panel"><strong>Your content has room.</strong><p>Skins style the browser frame and workspace rail. Web pages keep their own design.</p></div></div>
+      </div>
+      <div id="tokens" class="grid"></div>
+      <p id="contrast" role="status"></p>
+      <div class="grid"><label>Rail spacing<select id="density"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
+      <label class="check"><input id="motion" type="checkbox">Prefer reduced motion (skin artwork is always still)</label></div>
+    </section>
+    <section aria-labelledby="finish"><h2 id="finish">Take it into TAHAI</h2>
+      <p>This starter includes a licensed preview image and targets Chromium 152. For your own artwork or other versions, edit the included manifest and use build_skin.py.</p>
+      <button id="download" type="submit">Download .tahaiskin</button>
+      <p id="status" role="status">After downloading, open TAHAI → Skin packages → Review local file. Try it for 30 seconds, then install and apply it.</p>
+    </section>
+  </form>
+</main>
+</html>

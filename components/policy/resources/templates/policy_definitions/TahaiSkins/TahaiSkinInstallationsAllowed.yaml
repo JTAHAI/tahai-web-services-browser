@@ -1,0 +1,25 @@
+caption: Allow local TAHAI skin package installations and updates
+desc: |-
+  Controls new package review, installation, updates and restoration of a previous package revision in the native local TAHAI skin package manager. Installing or restoring a package requires a separate explicit action after bounded sandboxed package review. A package hash is integrity metadata, not publisher authentication.
+
+  When disabled, importing and reviewing new package files, installing, updating and restoring previous revisions are unavailable. Listing, reviewing currently installed revisions and removing packages remain available if TahaiSkinsEnabled is enabled. Temporary candidates are discarded when this setting changes. Already-authorized background storage transactions may finish without publishing or activating a revoked preview.
+
+  If not configured, installations are allowed. Mandatory policy takes precedence over the local preference and changes apply to subsequent operations without a browser restart. This policy never permits private or guest profile persistence, remote catalogs, scripts, extensions or automatic package downloads.
+default: true
+example_value: true
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Allow local skin installation and updates
+  value: true
+- caption: Disallow local skin installation and updates
+  value: false
+owners:
+- file://chrome/browser/ui/OWNERS
+schema:
+  type: boolean
+supported_on:
+- chrome.win:150-
+tags: []
+type: main

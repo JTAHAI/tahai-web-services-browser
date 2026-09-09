@@ -1,0 +1,23 @@
+caption: Enable TAHAI Local OI
+desc: |-
+  Controls the profile-local deterministic Operational Intelligence service. When disabled, Local OI ingestion, queries, findings and reports are unavailable. Disabling the service does not erase existing local data; the retention policy still applies. Explicit local deletion remains available. This policy does not change Mission Control's separately owned records.
+
+  If not configured, the profile setting is used and defaults to enabled. A mandatory policy locks the corresponding setting. These controls apply to regular profiles only; Local OI is unavailable in guest and incognito profiles.
+default: true
+example_value: true
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Allow this Local OI capability
+  value: true
+- caption: Disable this Local OI capability
+  value: false
+owners:
+- file://chrome/browser/ui/webui/OWNERS
+schema:
+  type: boolean
+supported_on:
+- chrome.win:150-
+tags: []
+type: main

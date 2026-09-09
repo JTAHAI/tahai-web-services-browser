@@ -1,0 +1,10 @@
+[
+  {
+    "os": ["win"],
+    "simple_policy_pref_mapping_test": {
+      "pref_name": "tahai.guard_custom_rules",
+      "default_value": "",
+      "values_to_test": ["", "||ads.example.invalid^\n@@||ads.example.invalid/allowed.js$script"]
+    }
+  }
+]

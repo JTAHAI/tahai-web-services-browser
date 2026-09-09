@@ -1,0 +1,19 @@
+caption: Set TAHAI Guard Custom network rules
+desc: |-
+  Supplies administrator-owned local network-filter text to the native TAHAI Guard Custom engine. The text is limited to 4 MiB of UTF-8, 150000 lines and 8192 bytes per line. Rules are compiled in a separate sandboxed utility process. Cosmetic rules, scriptlets and active-content modifiers are not enabled. Only network matching and exceptions are supported. The administrator is responsible for rule provenance and licensing.
+
+  Users cannot edit or clear a mandatory rule preference. Changes require a new immutable compiled generation; no partially compiled rule set is used. Combine with TahaiGuardConfiguration in custom mode to require decisions and prevent silent fail-open on missing or invalid rules. Setting this rule policy alone does not force Guard on. Empty text removes the available Custom rules, and is not a request to download a list.
+
+  This policy does not configure a remote list provider, signing key, subscription, synchronizer, request log, or executable code. It applies to regular Windows profiles and is inherited by their incognito profiles, which compile separate in-memory engines without editing rules or retaining decision counters. Guest profiles are not covered. Recommended policy is not supported.
+example_value: '||ads.example.invalid^'
+features:
+  dynamic_refresh: true
+  per_profile: true
+owners:
+- file://chrome/browser/ui/OWNERS
+schema:
+  type: string
+supported_on:
+- chrome.win:150-
+tags: []
+type: string

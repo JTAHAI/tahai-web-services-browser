@@ -1,0 +1,100 @@
+# Copyright 2026 TAHAI Web Services
+# SPDX-License-Identifier: Apache-2.0
+
+assert(is_win, "TAHAI Skins is currently Windows-only")
+
+source_set("package_store") {
+  sources = [
+    "skin_package_store.cc",
+    "skin_package_store.h",
+  ]
+  public_deps = [
+    "//base",
+    "//chrome/common/tahai_skins:manifest",
+    "//sql",
+  ]
+  deps = [ "//crypto" ]
+}
+
+source_set("profile_service") {
+  sources = [
+    "skin_color_supplier.cc",
+    "skin_color_supplier.h",
+    "skin_profile_service.cc",
+    "skin_profile_service.h",
+    "skin_profile_service_factory.cc",
+    "skin_profile_service_factory.h",
+  ]
+  public_deps = [
+    ":decode_session",
+    ":package_store",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/themes",
+    "//components/keyed_service/core",
+    "//components/prefs",
+  ]
+  deps = [
+    "//chrome/browser/ui/color:color_headers",
+    "//chrome/common:constants",
+    "//components/version_info",
+    "//content/public/browser",
+    "//ui/color",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "skin_package_store_unittest.cc" ]
+  deps = [
+    ":package_store",
+    "//base/test:test_support",
+    "//crypto",
+    "//sql:test_support",
+    "//testing/gtest",
+  ]
+}
+
+source_set("decode_session") {
+  sources = [
+    "skin_decode_session.cc",
+    "skin_decode_session.h",
+  ]
+  public_deps = [
+    "//base",
+    "//chrome/common/tahai_skins:manifest",
+    "//chrome/services/tahai_skins/public/mojom",
+    "//mojo/public/cpp/bindings",
+    "//skia",
+  ]
+  deps = [
+    "//chrome:strings",
+    "//components/version_info",
+    "//content/public/browser",
+    "//crypto",
+    "//mojo/public/cpp/base",
+  ]
+}
+
+source_set("browser_tests") {
+  testonly = true
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [ "skin_decoder_browsertest.cc" ]
+  deps = [
+    ":decode_session",
+    ":profile_service",
+    "//base/test:test_support",
+    "//chrome:strings",
+    "//chrome/browser/ui",
+    "//chrome/common:constants",
+    "//chrome/test:test_support",
+    "//components/sync_preferences:test_support",
+    "//content/test:test_support",
+    "//crypto",
+    "//mojo/public/cpp/base",
+    "//testing/gtest",
+    "//third_party/zlib",
+    "//ui/gfx/codec",
+    "//ui/shell_dialogs:test_support",
+    "//ui/views:test_support",
+  ]
+}

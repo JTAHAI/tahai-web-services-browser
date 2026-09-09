@@ -1,0 +1,25 @@
+caption: Enable TAHAI named workspaces
+desc: |-
+  Allows users to explicitly save and reopen named workspaces in their regular browser profile. Records contain navigation URLs, tab groups, native pane layouts, presentation mode and rail settings. They do not contain page content, cookies or form state. Records are local and are not automatically synchronized or separately encrypted from the profile.
+
+  When disabled, saving, reading, opening, renaming and deleting workspace records through this feature are unavailable. Existing records are retained without being changed and become available if the policy is enabled again. This policy does not close existing windows, remove records, or change browser session restore or bookmarks. Private and guest profiles cannot use named workspace persistence.
+
+  If not configured, named workspaces are enabled. Mandatory policy takes precedence over the profile preference. Changes apply to subsequent operations without a browser restart.
+default: true
+example_value: true
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Allow named workspaces
+  value: true
+- caption: Disable named workspaces
+  value: false
+owners:
+- file://chrome/browser/ui/OWNERS
+schema:
+  type: boolean
+supported_on:
+- chrome.win:150-
+tags: []
+type: main

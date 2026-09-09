@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "starter-skin",
+  "name": "Starter Skin",
+  "creator": "Replace with your name",
+  "license": "BSD-3-Clause",
+  "compatibility": {
+    "min_chromium_major": 152,
+    "max_chromium_major": 152
+  },
+  "appearance": {
+    "density": "comfortable",
+    "reduced_motion": false,
+    "light_tokens": {
+      "shell_background": "#f8fafc",
+      "toolbar_background": "#e0f2fe",
+      "toolbar_foreground": "#0f172a",
+      "tab_background": "#ffffff",
+      "tab_foreground": "#0f172a",
+      "rail_background": "#0c4a6e",
+      "rail_foreground": "#ffffff",
+      "accent": "#0284c7",
+      "panel_background": "#ffffff",
+      "panel_foreground": "#0f172a"
+    },
+    "dark_tokens": {
+      "shell_background": "#0f172a",
+      "toolbar_background": "#082f49",
+      "toolbar_foreground": "#f8fafc",
+      "tab_background": "#1e293b",
+      "tab_foreground": "#f8fafc",
+      "rail_background": "#0c4a6e",
+      "rail_foreground": "#ffffff",
+      "accent": "#38bdf8",
+      "panel_background": "#1e293b",
+      "panel_foreground": "#f8fafc"
+    },
+    "high_contrast_tokens": {
+      "shell_background": "#000000",
+      "toolbar_background": "#000000",
+      "toolbar_foreground": "#ffffff",
+      "tab_background": "#000000",
+      "tab_foreground": "#ffffff",
+      "rail_background": "#000000",
+      "rail_foreground": "#ffffff",
+      "accent": "#ffff00",
+      "panel_background": "#000000",
+      "panel_foreground": "#ffffff"
+    }
+  },
+  "assets": [
+    {
+      "path": "assets/preview.png",
+      "sha256": "0069944f403342e1ce7ad5ede37b77bd82d16a3430f05dca77b9cd53810ee672",
+      "purpose": "preview"
+    }
+  ]
+}

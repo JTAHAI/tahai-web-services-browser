@@ -1,0 +1,35 @@
+From: TAHAI Web Services
+Subject: [PATCH] Retain original SeaHash MIT license text
+
+The 4.1.0 Cargo manifest declares MIT but omits the full license file.
+Restore the original author's MIT text from the upstream parent repository:
+https://api.github.com/repos/redox-os/tfs/git/blobs/3903091a13728186595aa53ee9a3765bc95fb0c7
+The 4.1.0 Cargo.toml authors also credit Tom Almeida; retain that metadata.
+This is license-text packaging only, not a change to the package's license.
+
+diff --git a/third_party/rust/chromium_crates_io/vendor/seahash-v4/LICENSE b/third_party/rust/chromium_crates_io/vendor/seahash-v4/LICENSE
+new file mode 100644
+--- /dev/null
++++ b/third_party/rust/chromium_crates_io/vendor/seahash-v4/LICENSE
+@@ -0,0 +1,21 @@
++The MIT License (MIT)
++
++Copyright (c) 2016 Ticki
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.

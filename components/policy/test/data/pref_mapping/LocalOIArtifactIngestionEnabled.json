@@ -1,0 +1,16 @@
+[
+  {
+    "os": [
+      "win"
+    ],
+    "simple_policy_pref_mapping_test": {
+      "pref_name": "tahai.local_oi_artifact_ingestion_enabled",
+      "default_value": true,
+      "values_to_test": [
+        true,
+        false
+      ]
+    }
+  }
+]
+

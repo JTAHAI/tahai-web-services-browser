@@ -1,0 +1,25 @@
+caption: Allow Local OI reports
+desc: |-
+  Allows deterministic reports derived from local operational records when LocalOIEnabled is enabled. Copying a report also requires LocalOIExportEnabled. This does not provide hosted audit or remote reporting.
+
+  When true, deterministic local reporting is allowed. When false, report generation and new report-ledger entries are disabled.
+
+  If not configured, the profile setting is used and defaults to enabled. A mandatory policy locks the corresponding setting. These controls apply to regular profiles only; Local OI is unavailable in guest and incognito profiles.
+default: true
+example_value: true
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Allow this Local OI capability
+  value: true
+- caption: Disable this Local OI capability
+  value: false
+owners:
+- file://chrome/browser/ui/webui/OWNERS
+schema:
+  type: boolean
+supported_on:
+- chrome.win:150-
+tags: []
+type: main

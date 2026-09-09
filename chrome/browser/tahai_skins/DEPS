@@ -1,0 +1,9 @@
+include_rules = [
+  "+chrome/services/tahai_skins/public",
+]
+
+specific_include_rules = {
+  ".*test\\.cc": [
+    "+third_party/zlib/zlib.h",
+  ],
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "os": ["win"],
+    "simple_policy_pref_mapping_test": {
+      "pref_name": "tahai.skin_installations_allowed",
+      "default_value": true,
+      "values_to_test": [true, false]
+    }
+  }
+]

@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "scope": "newly imported source packages only, including declared build dependencies",
+  "native_build_or_runtime_validation": false,
+  "adblock_source_url": "https://github.com/brave/adblock-rust/tree/ca7f9f4a24a439da99e052b4e4041c45d87687f5",
+  "packages": [
+    {
+      "name": "adblock",
+      "version": "0.12.6",
+      "crates_io_archive_sha256": "4844c456026028b3a22f3bc0b0e0b2485809591673e2d70930a4ada7c4d3a90d",
+      "upstream_revision": "ca7f9f4a24a439da99e052b4e4041c45d87687f5",
+      "license": "MPL-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/adblock-v0_12/LICENSE",
+      "license_sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
+      "vendored_tree_sha256": "c25259012d89e1f14f290b47ea64dc30f82b5f70ee55fadfa868ebd64d783f74",
+      "archive_files_verified": 60
+    },
+    {
+      "name": "arrayvec",
+      "version": "0.7.8",
+      "crates_io_archive_sha256": "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56",
+      "upstream_revision": "0cb664cf505844348538230479b0040b44f3faf1",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/arrayvec-v0_7/LICENSE-APACHE",
+      "license_sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "vendored_tree_sha256": "d7b8566ba9d3448c08fc45ab57eb7614e01ee960263501329c1804ed7828c460",
+      "archive_files_verified": 22
+    },
+    {
+      "name": "flatbuffers",
+      "version": "25.12.19",
+      "crates_io_archive_sha256": "35f6839d7b3b98adde531effaf34f0c2badc6f4735d26fe74709d8e513a96ef3",
+      "upstream_revision": "7e163021e59cca4f8e1e35a7c828b5c6b7915953",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/flatbuffers-v25/LICENSE",
+      "license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "vendored_tree_sha256": "e9ddfc52a941e3e91ef08a54cc2feca8f6230168b6b9b11f8f140d7b39acc4b6",
+      "archive_files_verified": 19
+    },
+    {
+      "name": "form_urlencoded",
+      "version": "1.2.2",
+      "crates_io_archive_sha256": "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf",
+      "upstream_revision": "91377f48bf35011d042aa5abef9e7f2a0a625aaa",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/form_urlencoded-v1/LICENSE-APACHE",
+      "license_sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "vendored_tree_sha256": "1a1c26022575f95ce5024ec70b37fc60a3d7c14d1c692287434886c0a6fee3d0",
+      "archive_files_verified": 7
+    },
+    {
+      "name": "idna",
+      "version": "1.1.0",
+      "crates_io_archive_sha256": "3b0875f23caa03898994f6ddc501886a45c7d3d62d04d2d90788d47be1b1e4de",
+      "upstream_revision": "91377f48bf35011d042aa5abef9e7f2a0a625aaa",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/idna-v1/LICENSE-APACHE",
+      "license_sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "vendored_tree_sha256": "feb156478fb9c99cfb9a6303a5ec4db1329b0b0ffc43bac5594efa45eacf9a7a",
+      "archive_files_verified": 21
+    },
+    {
+      "name": "idna_adapter",
+      "version": "1.2.2",
+      "crates_io_archive_sha256": "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714",
+      "upstream_revision": "1d9782f32c9e29218542b4a9411a82b35ec5c8cb",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/idna_adapter-v1/LICENSE-APACHE",
+      "license_sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "vendored_tree_sha256": "7b71b75bc9be659d795cd329096005a2f2296b908ba125fa00c010ee2dd8a1cb",
+      "archive_files_verified": 9
+    },
+    {
+      "name": "percent-encoding",
+      "version": "2.3.2",
+      "crates_io_archive_sha256": "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220",
+      "upstream_revision": "91377f48bf35011d042aa5abef9e7f2a0a625aaa",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/percent-encoding-v2/LICENSE-APACHE",
+      "license_sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "vendored_tree_sha256": "a6a6216bef3c790779d5f2dfb9cdb7daeacbef701110d9682442a80749dfbed4",
+      "archive_files_verified": 8
+    },
+    {
+      "name": "precomputed-hash",
+      "version": "0.1.1",
+      "crates_io_archive_sha256": "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c",
+      "upstream_revision": null,
+      "license": "MIT",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/precomputed-hash-v0_1/LICENSE",
+      "license_sha256": "7ca6700600dfa9c9497bf5556365067daa802c871ea78239f129309c7a2048f7",
+      "vendored_tree_sha256": "f0cc9ea082aa179592cb0e65a4874aaadce553ca1f82dacc55ee5f42ad3a81e4",
+      "archive_files_verified": 5
+    },
+    {
+      "name": "rustc-hash",
+      "version": "1.1.0",
+      "crates_io_archive_sha256": "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2",
+      "upstream_revision": "6fc9a706a9312ee801c7e77ca06c0782fa9eadef",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/rustc-hash-v1/LICENSE-APACHE",
+      "license_sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "vendored_tree_sha256": "8d9b7044e1aec874c0c28de3be53a4754a903f04f176ffa802ca2e1581beb552",
+      "archive_files_verified": 9
+    },
+    {
+      "name": "rustc_version",
+      "version": "0.4.1",
+      "crates_io_archive_sha256": "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92",
+      "upstream_revision": "eeca449cca83e24150e46739e797aa82e9142809",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/rustc_version-v0_4/LICENSE-APACHE",
+      "license_sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "vendored_tree_sha256": "5b737b102be4a6016c2bc186e5d22e56af6e8e5a0ceff33f5f9438520cd7c450",
+      "archive_files_verified": 13
+    },
+    {
+      "name": "seahash",
+      "version": "4.1.0",
+      "crates_io_archive_sha256": "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b",
+      "upstream_revision": "94b632aeac099031c373599313d5b5f0acbbaec0",
+      "license": "MIT",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/seahash-v4/LICENSE",
+      "license_sha256": "6252f0c8d4a0df9b2dc0c6464cb2489dbe8859b0eb727e19c14e6af1ee432394",
+      "vendored_tree_sha256": "1d8ecbbc8ed2f9717644ccf7dc632e13ab638e3468f8568f3d9873e9bade2207",
+      "archive_files_verified": 16
+    },
+    {
+      "name": "semver",
+      "version": "1.0.28",
+      "crates_io_archive_sha256": "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd",
+      "upstream_revision": "7625c7aa3f0e8ba21e099d1765bcebcb72aa8816",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/semver-v1/LICENSE-APACHE",
+      "license_sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "vendored_tree_sha256": "b192294c4381b626036c5afcb85f040f4db42eb00a2c377ff478147ecd5a43dd",
+      "archive_files_verified": 25
+    },
+    {
+      "name": "thiserror",
+      "version": "1.0.69",
+      "crates_io_archive_sha256": "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52",
+      "upstream_revision": "41938bd3a03a70d34ed8e53d99c89c770c7c9c41",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/thiserror-v1/LICENSE-APACHE",
+      "license_sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "vendored_tree_sha256": "60f37f2cf5d1b6b402d8b86d003308a1a00be30b561460dc4d402bc93bbaf8d7",
+      "archive_files_verified": 91
+    },
+    {
+      "name": "thiserror-impl",
+      "version": "1.0.69",
+      "crates_io_archive_sha256": "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1",
+      "upstream_revision": "41938bd3a03a70d34ed8e53d99c89c770c7c9c41",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/thiserror-impl-v1/LICENSE-APACHE",
+      "license_sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "vendored_tree_sha256": "3b3719307d6460ddb55de763f843a4ae7babf974a217a8814a7b4594a984829b",
+      "archive_files_verified": 15
+    },
+    {
+      "name": "url",
+      "version": "2.5.8",
+      "crates_io_archive_sha256": "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed",
+      "upstream_revision": "d6ea13c5f8e7e6e627f6390161b3e185bda5e5ce",
+      "license": "Apache-2.0",
+      "license_file": "third_party/rust/chromium_crates_io/vendor/url-v2/LICENSE-APACHE",
+      "license_sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "vendored_tree_sha256": "96413ebf2e0d16ed27fe306a5f877913aa76e318da789c1c65b077ecc883fec2",
+      "archive_files_verified": 19
+    }
+  ]
+}

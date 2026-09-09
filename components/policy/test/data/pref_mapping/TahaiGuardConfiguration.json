@@ -1,0 +1,25 @@
+[
+  {
+    "os": ["win"],
+    "simple_policy_pref_mapping_test": {
+      "pref_name": "tahai.guard_configuration",
+      "default_value": {},
+      "values_to_test": [
+        {
+          "schema_version": 1,
+          "mode": "off",
+          "local_statistics_enabled": false,
+          "site_overrides": []
+        },
+        {
+          "schema_version": 1,
+          "mode": "custom",
+          "local_statistics_enabled": true,
+          "site_overrides": [
+            {"origin": "https://console.example.invalid/", "mode": "off"}
+          ]
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,12 @@
+# Copyright 2026 TAHAI Web Services
+# SPDX-License-Identifier: Apache-2.0
+
+# Referenced by Guard so the data license is included in Chromium credits.
+# The runtime files themselves are packaged through browser_resources.grd.
+group("tahai_guard_lists") {
+  data = [
+    "easylist-network.txt",
+    "easyprivacy-network.txt",
+    "LICENSE",
+  ]
+}

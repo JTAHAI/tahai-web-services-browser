@@ -1,0 +1,66 @@
+// Copyright 2026 TAHAI Web Services
+// SPDX-License-Identifier: Apache-2.0
+
+module tahai.guard.mojom;
+
+import "sandbox/policy/mojom/sandbox.mojom";
+
+enum ConfigureStatus {
+  kReady,
+  kNoRules,
+  kInputTooLarge,
+  kInvalidInput,
+  kAlreadyConfigured,
+};
+
+struct ConfigureResult {
+  ConfigureStatus status;
+  uint32 accepted_rules;
+  uint32 ignored_rules;
+};
+
+enum RequestKind {
+  kDocument,
+  kSubdocument,
+  kScript,
+  kStylesheet,
+  kImage,
+  kFont,
+  kMedia,
+  kObject,
+  kXmlHttpRequest,
+  kPing,
+  kOther,
+};
+
+enum Decision {
+  kAllow,
+  kBlock,
+  kInvalidRequest,
+  kNotConfigured,
+};
+
+// One immutable filter generation per remote. A replacement must be compiled
+// through a separate remote and only published after kReady. Never share a
+// remote across profiles. This service has no filesystem or network interface.
+// Engine parsing/matching is intentionally confined to a sandboxed utility;
+// the browser must enforce compile/match deadlines and queue-size bounds.
+[ServiceSandbox=sandbox.mojom.Sandbox.kService]
+interface GuardEngine {
+  // UTF-8 filter text only. No serialized engine blobs, resources or scriptlets.
+  // Four MiB total, 150,000 lines, 8 KiB per line. Limits are checked again by
+  // the implementation; the caller must check before creating the IPC message.
+  Configure(string rules) => (ConfigureResult result);
+
+  // source_origin is a browser-attributed canonical HTTP(S) origin, not a
+  // renderer-supplied top-site claim or a globally focused pane. Inputs are
+  // consumed synchronously in this utility and are never retained as history.
+  // An empty source means genuinely unknown/opaque ownership, not a fabricated
+  // origin: upstream treats it as third-party with no source-domain match.
+  Match(string request_url, string source_origin, RequestKind kind)
+      => (Decision decision);
+
+  // Declarative CSS selectors only. No CSS declarations, resources or scripts.
+  // At most 16,384 selectors, 2 KiB each, 512 KiB aggregate UTF-8 text.
+  Cosmetics(string document_url) => (array<string> selectors);
+};

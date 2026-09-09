@@ -1,0 +1,100 @@
+# Copyright 2026 TAHAI Web Services
+# SPDX-License-Identifier: Apache-2.0
+
+assert(is_win, "TAHAI Guard is currently Windows-only")
+
+source_set("configuration") {
+  sources = [
+    "tahai_guard_configuration.cc",
+    "tahai_guard_configuration.h",
+    "tahai_guard_configuration_registry.cc",
+    "tahai_guard_configuration_registry.h",
+  ]
+  public_deps = [ "//base" ]
+  deps = [
+    "//chrome/browser/profiles:profile",
+    "//chrome/common:constants",
+    "//components/prefs",
+    "//url",
+  ]
+}
+
+source_set("profile_service") {
+  sources = [
+    "guard_profile_service.cc",
+    "guard_profile_service.h",
+    "guard_profile_service_factory.cc",
+    "guard_profile_service_factory.h",
+    "guard_tab_helper.cc",
+    "guard_tab_helper.h",
+    "guard_url_loader_factory.cc",
+    "guard_url_loader_factory.h",
+  ]
+  public_deps = [
+    ":configuration",
+    ":engine_session",
+    "//chrome/browser/profiles:profile",
+    "//components/keyed_service/core",
+    "//components/prefs",
+    "//content/public/browser",
+    "//mojo/public/cpp/bindings",
+    "//net",
+    "//services/metrics/public/cpp:metrics_cpp",
+    "//services/network/public/cpp",
+    "//services/network/public/mojom",
+    "//url",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser:resources",
+    "//chrome/common:mojo_bindings",
+    "//chrome/common:constants",
+    "//content/public/browser",
+    "//third_party/tahai_guard_lists",
+    "//ui/base",
+  ]
+}
+
+source_set("engine_session") {
+  sources = [
+    "guard_engine_session.cc",
+    "guard_engine_session.h",
+  ]
+  deps = [
+    "//base",
+    "//chrome:strings",
+    "//chrome/common:constants",
+    "//content/public/browser",
+    "//mojo/public/cpp/bindings",
+  ]
+  public_deps = [ "//chrome/services/tahai_guard/public/mojom" ]
+}
+
+source_set("browser_tests") {
+  testonly = true
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  sources = [
+    "guard_engine_browsertest.cc",
+    "guard_profile_browsertest.cc",
+    "guard_request_browsertest.cc",
+  ]
+  deps = [
+    ":engine_session",
+    ":profile_service",
+    "//base",
+    "//base/test:test_support",
+    "//chrome/browser/policy:test_support",
+    "//chrome/browser/ui",
+    "//chrome/common:constants",
+    "//chrome/test:test_support",
+    "//components/policy:generated",
+    "//components/policy/core/common",
+    "//components/sync_preferences:test_support",
+    "//content/test:test_support",
+    "//mojo/public/cpp/bindings",
+    "//net:test_support",
+    "//services/network:test_support",
+    "//testing/gtest",
+    "//ui/views:test_support",
+  ]
+}

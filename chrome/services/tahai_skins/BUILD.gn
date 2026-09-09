@@ -1,0 +1,22 @@
+# Copyright 2026 TAHAI Web Services
+# SPDX-License-Identifier: Apache-2.0
+
+assert(is_win, "TAHAI Skins is currently Windows-only")
+
+source_set("lib") {
+  visibility = [ "//chrome/utility:*" ]
+  sources = [
+    "skin_decoder_impl.cc",
+    "skin_decoder_impl.h",
+  ]
+  public_deps = [ "public/mojom" ]
+  deps = [
+    "//base",
+    "//chrome/common/tahai_skins:manifest",
+    "//mojo/public/cpp/base",
+    "//mojo/public/cpp/bindings",
+    "//skia",
+    "//third_party/zlib",
+    "//third_party/zlib/google:zip",
+  ]
+}

@@ -1,0 +1,4 @@
+caption: TAHAI Local Operational Intelligence
+desc: |-
+  Controls TAHAI's profile-local Operational Intelligence. These downstream policies do not enable hosted services, proprietary browser synchronization or remote account authority.
+

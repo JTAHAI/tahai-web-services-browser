@@ -1,0 +1,25 @@
+caption: Enable the TAHAI local skin package manager
+desc: |-
+  Controls access to the native profile-local TAHAI skin package manager. Packages contain declarative appearance metadata and bounded raster assets. They are not extensions and do not authorize scripts, website styles, network access or changes to trusted browser security surfaces.
+
+  When disabled, listing, reading, reviewing, installing, updating and removing packages through this feature are unavailable. Pending review callbacks are cancelled and temporary candidates are discarded. Already-authorized background storage transactions may finish, but cannot publish or activate a revoked preview. Retained packages are not silently deleted or changed by the policy and become accessible if the policy is enabled again.
+
+  Private, guest and system profiles cannot read or write the regular profile's package store. If not configured, the package manager is enabled. Mandatory policy takes precedence over the local preference. Changes apply to subsequent operations without restarting the browser. This policy does not enable a hosted skin catalog, publisher trust service or synchronization.
+default: true
+example_value: true
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Allow the local skin package manager
+  value: true
+- caption: Disable the local skin package manager
+  value: false
+owners:
+- file://chrome/browser/ui/OWNERS
+schema:
+  type: boolean
+supported_on:
+- chrome.win:150-
+tags: []
+type: main

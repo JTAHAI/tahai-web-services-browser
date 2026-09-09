@@ -1,0 +1,17 @@
+EasyList and EasyPrivacy filter data
+Copyright The EasyList authors (https://easylist.to/).
+
+This copy and the network-only adaptations are distributed under the
+Creative Commons Attribution-ShareAlike 3.0 Unported license:
+https://creativecommons.org/licenses/by-sa/3.0/
+Legal code: https://creativecommons.org/licenses/by-sa/3.0/legalcode
+
+Upstream permits use under either GNU GPL version 3 or later, or Creative
+Commons Attribution-ShareAlike 3.0 Unported or later. This distribution selects
+CC-BY-SA-3.0 for the filter data.
+Upstream licensing statement: https://easylist.to/pages/licence.html
+
+Modifications by TAHAI Web Services: comments, cosmetic filters and unsupported
+side-effect directives have been removed for a network-only block/allow engine.
+See build_rules.py and rules_manifest.json for the reproducible transformation.
+No endorsement of TAHAI by the EasyList authors is implied.

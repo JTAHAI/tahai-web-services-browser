@@ -1,0 +1,25 @@
+caption: Allow sanitized Local OI report export
+desc: |-
+  Allows explicit clipboard export of redacted local reports when LocalOIEnabled and LocalOIReportsEnabled are enabled. It does not upload data or permit raw record, credential or page-content export.
+
+  When true, explicit safe-report export is allowed. When false, copying these reports is disabled.
+
+  If not configured, the profile setting is used and defaults to enabled. A mandatory policy locks the corresponding setting. These controls apply to regular profiles only; Local OI is unavailable in guest and incognito profiles.
+default: true
+example_value: true
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Allow this Local OI capability
+  value: true
+- caption: Disable this Local OI capability
+  value: false
+owners:
+- file://chrome/browser/ui/webui/OWNERS
+schema:
+  type: boolean
+supported_on:
+- chrome.win:150-
+tags: []
+type: main

@@ -1,0 +1,22 @@
+Name: EasyList and EasyPrivacy declarative filter data
+URL: https://easylist.to/
+Version: 202609050345
+Revision: 68e867c2b3d7debc832af957e21395f47281b3b2
+License: CC-BY-SA-3.0
+License File: LICENSE
+Security Critical: yes
+Shipped: yes
+
+Description:
+Offline filter-list snapshots from The EasyList authors (https://easylist.to/).
+The source snapshots, exact URLs, hashes and retrieval times are in upstream/
+and sources.json. They are not executable code. The selected CC-BY-SA license
+applies to this filter data and its derived lists.
+
+Local Modifications:
+build_rules.py deterministically removes comments and options with unsupported
+side effects. It preserves network rules and bounded cosmetic candidates. Rust
+independently admits only plain declarative hiding selectors, never scriptlets,
+procedural actions or arbitrary styles. Exclusions are in rules_manifest.json.
+Balanced uses EasyList plus TAHAI's baseline; Strict adds EasyPrivacy and the
+TAHAI Strict additions. Lists update with the browser, without automatic fetches.

@@ -1,0 +1,25 @@
+caption: Allow future on-device Local OI assistance
+desc: |-
+  Controls permission for a future explicitly configured on-device model. No model is configured in this version. Enabling this policy never permits a remote fallback, data upload, arbitrary tool execution or browser automation. Deterministic local briefs remain available without a model.
+
+  When true, bounded local-assist prompt preparation is allowed; no inference runtime is activated. When false, local-assist prompt preparation is disabled.
+
+  If not configured, the profile setting is used and defaults to disabled. A mandatory policy locks the corresponding setting. These controls apply to regular profiles only; Local OI is unavailable in guest and incognito profiles.
+default: false
+example_value: false
+features:
+  dynamic_refresh: true
+  per_profile: true
+items:
+- caption: Allow this Local OI capability
+  value: true
+- caption: Disable this Local OI capability
+  value: false
+owners:
+- file://chrome/browser/ui/webui/OWNERS
+schema:
+  type: boolean
+supported_on:
+- chrome.win:150-
+tags: []
+type: main

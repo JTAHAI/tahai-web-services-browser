@@ -1,0 +1,21 @@
+caption: TAHAI Local OI retention period
+desc: |-
+  Sets the retention period for supplemental Local OI records to 1 through 3650 days. Expired records are pruned at service startup and before applicable writes. This does not delete Mission Control's separately owned Mission, evidence or timeline records. Existing records are not uploaded.
+
+  If not configured, the profile setting is used and defaults to 90 days. Values outside the range are rejected. Restart the browser after changing this policy to apply retention to existing records.
+default: 90
+example_value: 90
+features:
+  dynamic_refresh: false
+  per_profile: true
+owners:
+- file://chrome/browser/ui/webui/OWNERS
+schema:
+  type: integer
+  minimum: 1
+  maximum: 3650
+supported_on:
+- chrome.win:150-
+tags: []
+type: int
+
