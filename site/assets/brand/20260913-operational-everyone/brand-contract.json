@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "brandVersion": "20260913-operational-everyone",
+  "productName": "TAHAI Browser",
+  "positioning": "THE Operational Browser. For Everyone.",
+  "skinPromise": "Do more than change the look. Redefine your operational layer.",
+  "skinDirection": "Appearance + surface + modes + workflows, with separate explicit capabilities.",
+  "audience": "Everyday people: learning, creating, comparing, planning, building, and operations.",
+  "approvedLogo": "../royal-20260913/tahai-web-services-royal-purple.svg",
+  "logoDescription": "1:1 TAHAI Web Services circuit-spider mark; royal-purple lines; transparent background. Preserve the supplied artwork.",
+  "colors": {
+    "background": "#06020a",
+    "backgroundDeep": "#050108",
+    "violet": "#9348ed",
+    "lavender": "#ccabff",
+    "text": "#f6f8ff",
+    "body": "#d9e0f2",
+    "muted": "#97a5c3"
+  },
+  "typography": {
+    "ui": "\"Segoe UI Variable\", \"Segoe UI\", system-ui, sans-serif",
+    "display": "Use available system fonts; do not assume a licensed font file ships."
+  },
+  "motion": "Honor reduced motion; no flashing or pulsing status indicators.",
+  "safety": "Native browser security and permission controls retain browser ownership; brand tokens never override their meaning.",
+  "availability": {
+    "currentCreatorResource": "v1 appearance format",
+    "operationalSkins": "product direction; expanded format/runtime not claimed shipped"
+  },
+  "ownership": {
+    "websites": "Maintained in this ChatGPT website lane",
+    "nativeBrowser": "Codex native-browser lane; consume approved assets read-only"
+  }
+}

@@ -1,0 +1,7 @@
+4eff7e9ff6b652bf5428a10f91930bd4c4e4ade13e550c8b81992c74fb38c662  TAHAI-Web-Services-Browser-1.8.30-x64.exe
+da901e616874ef1b03bef74ef0c2d155a0d4577fd151b83c5fd76c4b7ff1ef94  TAHAI-Web-Services-Browser-1.8.30-x64.msi
+7b2aa2ffb6a784239dbe306c26cfc85e2f1d462c7d249486ffa255bc99e21143  TAHAI-Web-Services-Browser-1.8.30-x64.AppImage
+a2b8359669d3607c164277781b9e975ae782e60162de5688ee5630ec266df92b  TAHAI-Web-Services-Browser-1.8.30-x64.deb
+8ad5262cb4004f76eb8807beaf58e2cae5306d5e5ee43fafc97baf2355c5f721  TAHAI-Web-Services-Browser-1.8.30-x64.rpm
+b6d2ea10cebe6d03f153d140f3f83188ceaa6e980e771b611493d0741c4dcab3  TAHAI-Browser-Mission-Control-Guardrails.pdf
+fbcd1caf82ddf8d64729c084e3ecb55414c8c68a8747aec2fd9e4618bb5ee619  TAHAI-Mobile-Mission-Control-Android-First-iOS-Next-Project-Source-Pass-Plan-20260501.pdf

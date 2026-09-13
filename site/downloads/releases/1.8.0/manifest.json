@@ -1,0 +1,32 @@
+{
+  "product": "TAHAI Web Services Browser",
+  "version": "1.8.0",
+  "channel": "friend-feedback Windows public preview",
+  "signed": false,
+  "windows_only_currently": true,
+  "linux_packages": "in pipeline",
+  "canonicalDownloadPage": "https://browser.tahai.net/downloads/",
+  "alternateDownloadPage": "https://browser.tahaiportal.com/downloads/",
+  "files": [
+    {
+      "name": "TAHAI-Web-Services-Browser-1.8.0-x64.exe",
+      "url": "https://browser.tahai.net/downloads/releases/1.8.0/TAHAI-Web-Services-Browser-1.8.0-x64.exe",
+      "shortUrl": "https://browser.tahai.net/download/1.8.0/TAHAI-Web-Services-Browser-1.8.0-x64.exe",
+      "sha256": "3abf80b623b8c17a92e7f2d04b5bc13daa73d2d9529e41259633565e3fb7c3cd",
+      "bytes": 98421588
+    },
+    {
+      "name": "TAHAI-Web-Services-Browser-1.8.0-x64.msi",
+      "url": "https://browser.tahai.net/downloads/releases/1.8.0/TAHAI-Web-Services-Browser-1.8.0-x64.msi",
+      "shortUrl": "https://browser.tahai.net/download/1.8.0/TAHAI-Web-Services-Browser-1.8.0-x64.msi",
+      "sha256": "ac9f806ca6f47d27025eee7baa76b9ff8207f45094e364be1522bf0f39970d5d",
+      "bytes": 108597248
+    }
+  ],
+  "knownPreviewLimitation": "Keyboard back/forward shortcuts work, including Alt+Left and Alt+Right. Dedicated mouse back/forward buttons are scheduled for the next browser navigation parity pass.",
+  "devTools": "Standard Chromium DevTools are accessible with F12.",
+  "commandPalette": "Site command palette opens with Ctrl+K for navigation, downloads, checksums, share links, and TAHAI product routes.",
+  "artifactHost": "GitHub Releases for large binaries; browser.tahai.net for website, docs, manifests, and checksums.",
+  "repository": "https://github.com/JTAHAI/tahai-web-services-browser",
+  "releaseTagUrl": "https://github.com/JTAHAI/tahai-web-services-browser/releases/tag/v1.8.0"
+}

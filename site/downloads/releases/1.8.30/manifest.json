@@ -1,0 +1,89 @@
+{
+  "product": "TAHAI Web Services Browser",
+  "version": "1.8.30",
+  "releaseLabel": "1.8.30 RC Mission Control",
+  "signingStatus": "unsigned preview/test packages",
+  "github": "https://github.com/JTAHAI/tahai-web-services-browser",
+  "downloadsBaseUrl": "https://browser.tahai.net/downloads/releases/1.8.30/",
+  "cloudflarePagesNote": "Installer binaries are larger than Cloudflare Pages single-asset limits. This Pages ZIP includes metadata/checksums and small documentation assets; publish binaries through an artifact host or R2/custom domain using the same versioned filenames.",
+  "artifacts": [
+    {
+      "filename": "TAHAI-Web-Services-Browser-1.8.30-x64.exe",
+      "label": "Windows EXE installer",
+      "version": "1.8.30",
+      "platform": "Windows x64",
+      "status": "Unsigned RC",
+      "sizeBytes": 120789173,
+      "sha256": "4eff7e9ff6b652bf5428a10f91930bd4c4e4ade13e550c8b81992c74fb38c662",
+      "url": "https://github.com/JTAHAI/tahai-web-services-browser/releases/download/v1.8.30/TAHAI-Web-Services-Browser-1.8.30-x64.exe",
+      "downloadHost": "GitHub Releases"
+    },
+    {
+      "filename": "TAHAI-Web-Services-Browser-1.8.30-x64.msi",
+      "label": "Windows MSI installer",
+      "version": "1.8.30",
+      "platform": "Windows x64",
+      "status": "Unsigned RC",
+      "sizeBytes": 133742592,
+      "sha256": "da901e616874ef1b03bef74ef0c2d155a0d4577fd151b83c5fd76c4b7ff1ef94",
+      "url": "https://github.com/JTAHAI/tahai-web-services-browser/releases/download/v1.8.30/TAHAI-Web-Services-Browser-1.8.30-x64.msi",
+      "downloadHost": "GitHub Releases"
+    },
+    {
+      "filename": "TAHAI-Web-Services-Browser-1.8.30-x64.AppImage",
+      "label": "Linux AppImage test package",
+      "version": "1.8.30",
+      "platform": "Linux x64",
+      "status": "Unsigned Linux test package",
+      "sizeBytes": 112298540,
+      "sha256": "7b2aa2ffb6a784239dbe306c26cfc85e2f1d462c7d249486ffa255bc99e21143",
+      "url": "https://github.com/JTAHAI/tahai-web-services-browser/releases/download/v1.8.30/TAHAI-Web-Services-Browser-1.8.30-x64.AppImage",
+      "downloadHost": "GitHub Releases"
+    },
+    {
+      "filename": "TAHAI-Web-Services-Browser-1.8.30-x64.deb",
+      "label": "Linux DEB test package",
+      "version": "1.8.30",
+      "platform": "Debian/Ubuntu x64",
+      "status": "Unsigned Linux test package",
+      "sizeBytes": 109201296,
+      "sha256": "a2b8359669d3607c164277781b9e975ae782e60162de5688ee5630ec266df92b",
+      "url": "https://github.com/JTAHAI/tahai-web-services-browser/releases/download/v1.8.30/TAHAI-Web-Services-Browser-1.8.30-x64.deb",
+      "downloadHost": "GitHub Releases"
+    },
+    {
+      "filename": "TAHAI-Web-Services-Browser-1.8.30-x64.rpm",
+      "label": "Linux RPM test package",
+      "version": "1.8.30",
+      "platform": "Fedora/RHEL x64",
+      "status": "Unsigned Linux test package",
+      "sizeBytes": 87740901,
+      "sha256": "8ad5262cb4004f76eb8807beaf58e2cae5306d5e5ee43fafc97baf2355c5f721",
+      "url": "https://github.com/JTAHAI/tahai-web-services-browser/releases/download/v1.8.30/TAHAI-Web-Services-Browser-1.8.30-x64.rpm",
+      "downloadHost": "GitHub Releases"
+    },
+    {
+      "filename": "TAHAI-Browser-Mission-Control-Guardrails.pdf",
+      "label": "Project source PDF",
+      "version": "1.8.30",
+      "platform": "Documentation",
+      "status": "Static PDF included in Pages ZIP",
+      "sizeBytes": 565005,
+      "sha256": "b6d2ea10cebe6d03f153d140f3f83188ceaa6e980e771b611493d0741c4dcab3",
+      "url": "https://browser.tahai.net/downloads/releases/1.8.30/TAHAI-Browser-Mission-Control-Guardrails.pdf"
+    },
+    {
+      "filename": "TAHAI-Mobile-Mission-Control-Android-First-iOS-Next-Project-Source-Pass-Plan-20260501.pdf",
+      "label": "Project source PDF",
+      "version": "1.8.30",
+      "platform": "Documentation",
+      "status": "Static PDF included in Pages ZIP",
+      "sizeBytes": 67380,
+      "sha256": "fbcd1caf82ddf8d64729c084e3ecb55414c8c68a8747aec2fd9e4618bb5ee619",
+      "url": "https://browser.tahai.net/downloads/releases/1.8.30/TAHAI-Mobile-Mission-Control-Android-First-iOS-Next-Project-Source-Pass-Plan-20260501.pdf"
+    }
+  ],
+  "artifactHost": "GitHub Releases for large binaries; browser.tahai.net for website, docs, manifests, and checksums.",
+  "repository": "https://github.com/JTAHAI/tahai-web-services-browser",
+  "releaseTagUrl": "https://github.com/JTAHAI/tahai-web-services-browser/releases/tag/v1.8.30"
+}

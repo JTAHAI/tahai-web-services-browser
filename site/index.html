@@ -1,132 +1,406 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="TAHAI Browser: a Windows-native Chromium browser built around your work. Explore Mission Control, Work Modes, and skin creator resources. Get the published release from Microsoft Store.">
-  <meta name="theme-color" content="#081219">
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="TAHAI Browser | Built around your work">
-  <meta property="og:description" content="Native Windows. Chromium-powered. Mission Control, Work Modes, and a browser you can make your own.">
-  <meta property="og:url" content="https://browser.tahai.net/">
-  <meta property="og:image" content="https://browser.tahai.net/assets/product/mission-control-quad-view.png">
-  <meta name="twitter:card" content="summary_large_image">
-  <link rel="canonical" href="https://browser.tahai.net/">
-  <title>TAHAI Browser | Built around your work</title>
-  <style>
-    :root{color-scheme:dark;--bg:#081219;--surface:#101e28;--ink:#f0f7fa;--muted:#b2c4ce;--line:#304650;--brand:#60ffda;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
-    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:2rem}body{margin:0;background:radial-gradient(ellipse at 90% 0%,#143b40 0,transparent 36rem),var(--bg);line-height:1.65}a{color:var(--brand);text-underline-offset:.23em}a:hover{text-decoration-thickness:2px}a:focus-visible,summary:focus-visible{outline:3px solid var(--brand);outline-offset:5px;border-radius:3px}p{margin:0 0 1rem;color:var(--muted)}h1,h2,h3{line-height:1.12;text-wrap:balance}h1{font-size:clamp(3rem,6.8vw,6.1rem);letter-spacing:-.055em;margin:1rem 0 1.5rem;max-width:13ch}h2{font-size:clamp(2rem,4vw,3.5rem);letter-spacing:-.035em;margin:.6rem 0 1.3rem}h3{font-size:1.3rem;margin:.7rem 0 1rem}img{display:block;max-width:100%;height:auto}.wrap{width:min(1160px,calc(100% - 2.5rem));margin-inline:auto}.skip{position:absolute;top:-6rem;left:1rem;padding:.7rem;background:var(--bg);z-index:10}.skip:focus{top:1rem}.header{display:flex;align-items:center;justify-content:space-between;gap:1.5rem;padding:1.5rem 0;border-bottom:1px solid var(--line)}.brand{font-size:1.12rem;font-weight:800;letter-spacing:.05em;text-decoration:none;color:var(--ink)}.brand span{color:var(--brand)}.nav{display:flex;gap:1.3rem;flex-wrap:wrap}.nav a{color:var(--muted);font-size:.9rem;text-decoration:none}.nav a:hover{color:var(--brand)}.hero{display:grid;grid-template-columns:1.5fr 1fr;gap:3rem;align-items:center;padding:5.5rem 0 4rem}.kicker{color:var(--brand);text-transform:uppercase;font-size:.76rem;letter-spacing:.16em;font-weight:800}.lead{font-size:1.18rem;max-width:52ch}.actions{display:flex;flex-wrap:wrap;gap:.8rem;margin:1.7rem 0}.button{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:.75rem 1.2rem;background:var(--brand);color:#07191c;font-weight:750;text-decoration:none;border:1px solid var(--brand);border-radius:.6rem}.button:hover{background:#bcffed;color:#07191c}.button.secondary{background:transparent;color:var(--ink);border-color:#577780}.button.secondary:hover{border-color:var(--brand);color:var(--brand)}.small{font-size:.87rem}.panel{background:linear-gradient(145deg,#153037,#0c1a25);border:1px solid #365c63;border-radius:1rem;padding:2rem}.panel h2{font-size:2rem}.stat{display:flex;justify-content:space-between;gap:1rem;border-top:1px solid var(--line);padding:1rem 0;color:var(--muted);font-size:.9rem}.stat strong{color:var(--ink);text-align:right}.section{padding:4.5rem 0;border-top:1px solid var(--line)}.section-intro{max-width:68ch;font-size:1.07rem}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem;margin-top:2rem}.card{padding:1.6rem;border:1px solid var(--line);border-radius:.85rem;background:var(--surface)}.card p:last-child{margin-bottom:0}.number{color:var(--brand);font-size:.8rem;font-weight:800;letter-spacing:.12em}.screenshot{margin:2rem 0 0;border:1px solid #45616c;border-radius:.85rem;overflow:hidden;background:#101820}.screenshot a{display:block}.screenshot img{width:100%}.screenshot figcaption{padding:1rem 1.3rem;color:var(--muted);font-size:.87rem}.modes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.8rem;margin:2rem 0}.mode{border-top:2px solid var(--brand);padding:1rem .8rem 0 0}.mode h3{font-size:1.08rem}.mode p{font-size:.92rem}.split{display:grid;grid-template-columns:1.15fr 1fr;gap:3rem;align-items:start}.label{display:inline-block;border:1px solid #4a7279;border-radius:2rem;color:var(--brand);font-size:.75rem;padding:.25rem .65rem;letter-spacing:.04em;margin-bottom:1rem}.note{border-left:3px solid var(--brand);padding:.3rem 0 .3rem 1rem;margin-top:1.5rem;color:var(--muted)}.release{border:1px solid #41666d;background:linear-gradient(110deg,#14302e,#111f2d);border-radius:1rem;padding:clamp(1.5rem,4vw,3rem)}.release h2{max-width:20ch}.links{display:flex;flex-wrap:wrap;gap:.7rem 1.6rem}.footer{padding:2.5rem 0 3rem;border-top:1px solid var(--line)}.footer .links{margin:1rem 0}.footer p{max-width:78ch}details{border-top:1px solid var(--line);padding:1.1rem 0}summary{cursor:pointer;font-weight:650}details p{margin:1rem 0 0}strong{color:var(--ink)}
-    @media(max-width:850px){.hero{grid-template-columns:1fr;padding-top:3rem;gap:1.5rem}.hero h1{max-width:16ch}.panel{max-width:none}.split{grid-template-columns:1fr;gap:1.5rem}.modes{grid-template-columns:repeat(3,minmax(0,1fr))}.grid{grid-template-columns:1fr}.header{align-items:flex-start}.nav{justify-content:flex-end;gap:.7rem 1rem}}
-    @media(max-width:520px){.wrap{width:calc(100% - 2rem)}.header{flex-direction:column;gap:1rem}.nav{justify-content:flex-start;gap:.6rem 1rem}.hero{padding:2.5rem 0}.section{padding:3rem 0}.modes{grid-template-columns:1fr 1fr}.button{width:100%}.panel{padding:1.4rem}h1{font-size:3rem}.stat{flex-wrap:wrap}.stat strong{text-align:left}}
-    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
-  </style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
+<meta content="dark" name="color-scheme"/>
+<meta content="#090514" name="theme-color"/>
+<meta content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" name="robots"/>
+<meta content="Browse, learn, create, compare, and plan your way. Meet TAHAI Browser: THE Operational Browser. For Everyone. Explore Mission Control and our operational-skin direction." name="description"/>
+<meta content="TAHAI Browser, operational browser, operational skins, everyday browsing, learning, creativity, planning, comparison, research, Mission Control, Work Modes, Windows browser" name="keywords"/>
+<link href="https://browser.tahai.net/" rel="canonical"/>
+<link href="assets/brand/royal-20260913/favicon.ico" rel="icon" sizes="any"/>
+<link href="assets/brand/royal-20260913/favicon-32.png" rel="icon" sizes="32x32" type="image/png"/>
+<link href="assets/brand/royal-20260913/apple-touch-icon.png" rel="apple-touch-icon"/>
+<link href="manifest.webmanifest" rel="manifest"/>
+<link href="styles-20260913-operational-everyone.css" rel="stylesheet"/>
+<meta content="website" property="og:type"/>
+<meta content="TAHAI Browser" property="og:site_name"/>
+<meta content="TAHAI Browser — THE Operational Browser. For Everyone." property="og:title"/>
+<meta content="Browse, learn, create, compare, and plan your way. Meet TAHAI Browser: THE Operational Browser. For Everyone. Explore Mission Control and our operational-skin direction." property="og:description"/>
+<meta content="https://browser.tahai.net/" property="og:url"/>
+<meta content="https://browser.tahai.net/assets/brand/20260913-operational-everyone/browser-og.jpg" property="og:image"/>
+<meta content="1200" property="og:image:width"/>
+<meta content="630" property="og:image:height"/>
+<meta content="TAHAI Browser — THE Operational Browser. For Everyone." property="og:image:alt"/>
+<meta content="summary_large_image" name="twitter:card"/>
+<meta content="TAHAI Browser — THE Operational Browser. For Everyone." name="twitter:title"/>
+<meta content="Browse, learn, create, compare, and plan your way. Meet TAHAI Browser: THE Operational Browser. For Everyone. Explore Mission Control and our operational-skin direction." name="twitter:description"/>
+<meta content="https://browser.tahai.net/assets/brand/20260913-operational-everyone/browser-og.jpg" name="twitter:image"/>
+<title>TAHAI Browser — THE Operational Browser. For Everyone.</title>
 </head>
-<body data-content-revision="2026-09-13-native-sites-1">
-  <a class="skip" href="#main">Skip to content</a>
-  <div class="wrap">
-    <header class="header">
-      <a class="brand" href="#main">TAHAI <span>Browser</span></a>
-      <nav class="nav" aria-label="Main navigation">
-        <a href="#mission-control">Mission Control</a><a href="#work-modes">Work Modes</a><a href="#skins">Skins</a><a href="#release">Get the browser</a><a href="https://tahai.net">TAHAI Web Services ↗</a>
-      </nav>
-    </header>
-    <main id="main">
-      <section class="hero" aria-labelledby="hero-title">
-        <div>
-          <div class="kicker">Native Windows · Chromium-powered</div>
-          <h1 id="hero-title">Built around your work.</h1>
-          <p class="lead">A familiar browser when you need to browse. A multi-view workspace when you need to get things done. TAHAI brings your pages, tools, references, and working context together.</p>
-          <div class="actions">
-            <a class="button" href="https://apps.microsoft.com/detail/9PJ1RHFW9GL8?hl=en-us&amp;gl=US">Get TAHAI Browser on Microsoft Store ↗</a>
-            <a class="button secondary" href="https://github.com/JTAHAI/tahai-web-services-browser">Explore the native source</a>
-          </div>
-          <p class="small">The official Store listing is the download route for the published Windows release. <a href="#release">About releases and development →</a></p>
-        </div>
-        <aside class="panel" aria-label="TAHAI Browser foundation">
-          <div class="kicker">A different foundation</div>
-          <h2>Beyond the Electron era.</h2>
-          <p>TAHAI development now lives in a native Chromium source tree—not the former Electron shell. The browser's architecture is part of the product, not a wrapper around it.</p>
-          <div class="stat"><span>Foundation</span><strong>Windows-native Chromium</strong></div>
-          <div class="stat"><span>Flagship workspace</span><strong>Mission Control</strong></div>
-          <div class="stat"><span>Product direction</span><strong>Workflows, not just tabs</strong></div>
-          <a class="small" href="https://github.com/JTAHAI/tahai-web-services-browser/tree/main">Inspect the source on main ↗</a>
-        </aside>
-      </section>
-      <section class="section" id="mission-control" aria-labelledby="mission-title">
-        <div class="kicker">Mission Control</div>
-        <h2 id="mission-title">Four views. One mission.</h2>
-        <p class="section-intro">Bring the console, documentation, live target, and runbook into the same working space. Move between single, Dual, Tri, Quad, and Focus layouts around the task—not a pile of separate windows.</p>
-        <figure class="screenshot">
-          <a href="https://browser.tahai.net/assets/product/mission-control-quad-view.png" aria-label="Open the full-size Mission Control screenshot">
-            <img src="https://browser.tahai.net/assets/product/mission-control-quad-view.png" alt="TAHAI Browser Mission Control showing four independent web pages in Quad View." width="1000" height="410" loading="lazy" decoding="async" referrerpolicy="no-referrer">
-          </a>
-          <figcaption>TAHAI Browser product screenshot: Mission Control in Quad View. Tri and Quad layouts are best enjoyed with enough screen space. Screenshots illustrate the product; feature availability varies by release.</figcaption>
-        </figure>
-        <div class="grid">
-          <article class="card"><span class="number">01 / CONTEXT</span><h3>Keep the work together</h3><p>Mission workspaces bring related pages, pane roles, notes, and runbook context into one place.</p></article>
-          <article class="card"><span class="number">02 / CONTROL</span><h3>Work in the active pane</h3><p>Pane-aware navigation keeps the controls connected to the surface you are using, with Focus when one page needs your attention.</p></article>
-          <article class="card"><span class="number">03 / HANDOFF</span><h3>Leave a useful trail</h3><p>Evidence, timelines, and redaction-aware exports are designed to keep the next person close to what happened. Review captures before sharing.</p></article>
-        </div>
-      </section>
-      <section class="section" id="work-modes" aria-labelledby="modes-title">
-        <div class="kicker">TAHAI Work Modes · Product direction</div>
-        <h2 id="modes-title">More than a change of paint.</h2>
-        <p class="section-intro">Work Modes are being built to adapt launchpads, layouts, tools, and commands to the job. Skins change the look. Modes change how the workspace supports your work.</p>
-        <div class="modes">
-          <article class="mode"><h3>Daily Driver</h3><p>Everyday browsing, with focus and useful context close by.</p></article>
-          <article class="mode"><h3>Creator</h3><p>References, creative tools, previews, and publishing.</p></article>
-          <article class="mode"><h3>Builder</h3><p>Code, documentation, development tools, and live targets.</p></article>
-          <article class="mode"><h3>Research</h3><p>Sources, comparisons, notes, and side-by-side reading.</p></article>
-          <article class="mode"><h3>Ops</h3><p>Technical operations and support: consoles, runbooks, evidence, and handoff.</p></article>
-        </div>
-        <p class="small">Mode capabilities continue to evolve. This is the product direction, not a claim that every planned workflow ships in the current Store package.</p>
-      </section>
-      <section class="section split" id="skins" aria-labelledby="skins-title">
-        <div>
-          <div class="kicker">Creator resources</div>
-          <h2 id="skins-title">Make the browser yours.</h2>
-          <p class="section-intro">A personal look, built for TAHAI. Explore the skin creator kit and starter package from the public native source tree.</p>
-          <div class="actions">
-            <a class="button" href="https://raw.githubusercontent.com/JTAHAI/tahai-web-services-browser/main/docs/tahai-skins/skin-creator-kit.zip" download>Download the skin creator kit</a>
-            <a class="button secondary" href="https://raw.githubusercontent.com/JTAHAI/tahai-web-services-browser/main/docs/tahai-skins/starter-skin.tahaiskin" download>Get the starter skin</a>
-          </div>
-          <a href="https://github.com/JTAHAI/tahai-web-services-browser/tree/main/docs/tahai-skins">Explore skin source and tools ↗</a>
-          <p class="note small">Creator resources are available now. Installing a skin requires a compatible TAHAI Browser build; the download is not a promise of support in every Store version.</p>
-        </div>
-        <article class="card">
-          <span class="label">Native development</span>
-          <h3>Built-in request blocking</h3>
-          <p>TAHAI's request guard is being developed as a native browser feature with visible, per-site controls. Blocking should be something you can understand and control—not an invisible layer.</p>
-          <p class="small">Follow the source for development progress. This is not a claim of complete ad-blocking coverage or parity with another browser.</p>
-          <a href="https://github.com/JTAHAI/tahai-web-services-browser">Follow browser development ↗</a>
-        </article>
-      </section>
-      <section class="section" id="release" aria-labelledby="release-title">
-        <div class="release">
-          <div class="kicker">Get TAHAI Browser</div>
-          <h2 id="release-title">The Store for releases. GitHub for the work ahead.</h2>
-          <p class="section-intro">TAHAI Browser has an official Microsoft Store listing. Use that listing for the published Windows release and the native Chromium repository to follow ongoing development.</p>
-          <p class="section-intro">A source update is not a Store update. New features, release candidates, and locally built MSIX packages only become published releases when the corresponding verification and distribution steps are complete.</p>
-          <div class="actions">
-            <a class="button" href="https://apps.microsoft.com/detail/9PJ1RHFW9GL8?hl=en-us&amp;gl=US">Open the official Microsoft Store listing ↗</a>
-            <a class="button secondary" href="https://tahai.net">Visit TAHAI Web Services ↗</a>
-          </div>
-          <div class="links small"><a href="https://github.com/JTAHAI/tahai-web-services-browser">Native source</a><a href="https://browser.tahai.net/">Main browser website</a><a href="https://jtahai.github.io/tahai-web-services-browser/">GitHub Pages website</a></div>
-        </div>
-      </section>
-      <section class="section" aria-labelledby="questions-title">
-        <div class="kicker">A few useful distinctions</div>
-        <h2 id="questions-title">Know what you are getting.</h2>
-        <details><summary>Is TAHAI still an Electron browser?</summary><p>The active public source is the native Chromium-based TAHAI browser. The former Electron shell is not the current development foundation.</p></details>
-        <details><summary>Does everything in GitHub ship in the Store release?</summary><p>No. Source development can be ahead of the published package. Check the release information for the version you install; a website update does not certify a new browser build.</p></details>
-        <details><summary>Where can I share feedback?</summary><p>Use the <a href="https://github.com/JTAHAI/tahai-web-services-browser/issues">browser's GitHub issues</a> for reproducible bugs and workflow suggestions. Include your version and the steps to reproduce, but do not post credentials, private keys, customer data, or unsanitized browser profiles.</p></details>
-      </section>
-    </main>
-    <footer class="footer">
-      <a class="brand" href="#main">TAHAI <span>Browser</span></a>
-      <div class="links small"><a href="https://tahai.net">TAHAI Web Services</a><a href="https://github.com/JTAHAI/tahai-web-services-browser">GitHub</a><a href="https://browser.tahai.net/privacy/">Privacy</a><a href="https://browser.tahai.net/code-signing-policy/">Distribution policy</a><a href="#release">Downloads and release information</a></div>
-      <p class="small">© 2026 TAHAI Web Services. Native Windows. Chromium-powered. Built around the work.</p>
-    </footer>
-  </div>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div aria-hidden="true" class="ambient">
+<span class="ambient-orb ambient-orb-cyan"></span>
+<span class="ambient-orb ambient-orb-violet"></span>
+<span class="ambient-grid"></span>
+</div>
+<header class="site-header" data-header="">
+<div class="nav-shell">
+<a aria-label="TAHAI Browser home" class="brand" href="./">
+<img alt="" decoding="async" height="64" loading="lazy" src="assets/brand/royal-20260913/icon-64.png" width="64"/>
+<span class="brand-copy"><strong>TAHAI Browser</strong><small>THE Operational Browser</small></span>
+</a>
+<button aria-controls="primary-nav" aria-expanded="false" class="menu-toggle" data-menu-toggle="" type="button">
+<span></span><span></span><span></span><span class="sr-only">Open navigation</span>
+</button>
+<nav aria-label="Primary navigation" class="primary-nav" data-nav="" id="primary-nav">
+<a href="#mission-control">Mission Control</a><a href="#for-everyone">For Everyone</a><a href="#work-modes">Work Modes</a><a href="skins/">Skins</a><a href="downloads/">Get the browser</a>
+<button aria-label="Search this website (Control K)" class="command-key" data-command-open="" type="button"><span aria-hidden="true">⌕</span> K</button>
+<a class="nav-cta" href="https://apps.microsoft.com/detail/9PJ1RHFW9GL8" rel="noopener noreferrer" target="_blank">Microsoft Store <span aria-hidden="true">↗</span></a></nav>
+</div>
+<div class="status-ribbon"><span aria-hidden="true" class="status-dot"></span><strong>TAHAI Browser for Windows</strong><span>Get the published release from the Microsoft Store.</span><a href="https://apps.microsoft.com/detail/9PJ1RHFW9GL8">Open the listing <span aria-hidden="true">↗</span></a></div>
+</header>
+<main id="main">
+<section aria-labelledby="hero-title" class="hero section-shell">
+<div class="hero-copy reveal">
+<div class="hero-kicker"><span>TAHAI Web Services</span><i></i><strong>Your web. Your way.</strong></div>
+<h1 id="hero-title">THE Operational<br/>Browser.<br/><em>For Everyone.</em></h1>
+<p class="hero-lede">Browse. Learn. Create. Compare. Plan. Get things done—your way. TAHAI is being built around how you interact with the web, from one quiet page to a workspace that feels like your own.</p>
+<div class="hero-actions"><a class="button button-primary" href="https://apps.microsoft.com/detail/9PJ1RHFW9GL8" rel="noopener noreferrer" target="_blank">Get TAHAI Browser <span aria-hidden="true">↗</span></a><a class="button button-ghost" href="#for-everyone">Find your way <span aria-hidden="true">↓</span></a></div>
+<div aria-label="Product foundations" class="hero-proof">
+<span><i></i>Native Windows experience</span>
+<span><i></i>Chromium-powered web</span>
+<span><i></i>Open development</span>
+</div>
+</div>
+<div class="hero-visual reveal" data-delay="1">
+<div aria-hidden="true" class="logo-aura"></div>
+<img alt="TAHAI Web Services circuit-spider mark in royal purple" class="hero-logo" fetchpriority="high" height="271" src="assets/brand/royal-20260913/tahai-web-services-royal-purple.svg" width="271"/>
+<span class="mode-chip mode-chip-daily">Daily Driver</span>
+<span class="mode-chip mode-chip-creator">Creator</span>
+<span class="mode-chip mode-chip-builder">Builder</span>
+<span class="mode-chip mode-chip-research">Research</span>
+<span class="mode-chip mode-chip-ops">Ops</span>
+<div class="native-badge"><span>Native</span><strong>Windows</strong><small>Chromium-powered</small></div>
+</div>
+</section>
+<section aria-label="Flagship product statement" class="flagship-statement section-shell reveal">
+<p class="section-label">For everyone means everyone</p>
+<div class="statement-grid">
+<h2>Operational is not a job title.</h2>
+<div>
+<p>It is how you turn an intention into something done. Study for a class. Compare a purchase. Plan a trip. Make something. Coordinate a project. Or simply enjoy the web without the clutter. You do not need to be an engineer to want a browser that works your way.</p>
+<p class="statement-accent">Your life. Your interests. Your way of getting there.</p>
+</div>
+</div>
+</section><section aria-labelledby="everyone-title" class="everyone-section section-shell" id="for-everyone">
+<div class="section-heading"><div><p class="section-label">The direction · everyday possibilities</p><h2 id="everyone-title">Whatever you came<br/>here to do.</h2></div><p>Operational does not mean complicated. It means the browser should support what you are trying to do. These are examples of the spaces our operational-skin direction is being built toward—not a list of already shipped templates.</p></div>
+<div class="everyone-grid">
+<article class="everyone-card"><span class="everyone-index">01 · Everyday life</span><h3>Make room for your day.</h3><p>A reading queue, a calendar, and a quiet place to browse. Keep what matters nearby and leave the rest out of the way.</p></article>
+<article class="everyone-card"><span class="everyone-index">02 · Learning</span><h3>Follow your curiosity.</h3><p>Put a lesson beside your notes and practice. Build a space for the way you learn, whether it is for school or just for you.</p></article>
+<article class="everyone-card"><span class="everyone-index">03 · Creating</span><h3>Give an idea somewhere to grow.</h3><p>Bring references, a brief, an editor, and a preview together. Make room for writing, art, video, or your next side project.</p></article>
+<article class="everyone-card"><span class="everyone-index">04 · Comparing</span><h3>See your options clearly.</h3><p>Compare a purchase, explore a question, or review your sources side by side. Keep the details close to the decision.</p></article>
+<article class="everyone-card"><span class="everyone-index">05 · Planning</span><h3>Turn possibilities into a plan.</h3><p>Bring travel ideas, household tasks, or a shared project into one useful space. Your life is not a collection of unrelated tabs.</p></article>
+<article class="everyone-card"><span class="everyone-index">06 · Building &amp; operations</span><h3>Take on the complicated stuff.</h3><p>Connect the context around code, consoles, documentation, and runbooks. Technical work belongs here too—it does not define who belongs here.</p></article>
+</div></section>
+<section aria-labelledby="mission-title" class="mission section-shell" id="mission-control">
+<div class="section-heading reveal">
+<div>
+<p class="section-label">Mission Control</p>
+<h2 id="mission-title">Four views. One mission.<br/>Your web, in motion.</h2>
+</div>
+<p>A lesson beside your notes. A purchase beside the alternatives. A project beside its references. Mission Control brings multiple live pages into one workspace—without making a wall of separate windows your starting point.</p>
+</div>
+<div class="product-frame reveal" data-delay="1">
+<div aria-hidden="true" class="product-frame-top">
+<span class="window-dots"><i></i><i></i><i></i></span>
+<span class="frame-address">TAHAI Browser · Mission Control · Quad View</span>
+<span class="frame-status">Active pane 1</span>
+</div>
+<button aria-label="Open Mission Control Quad View screenshot" class="product-image-button" data-lightbox-caption="TAHAI Browser Mission Control — four independent web surfaces in one browser window." data-lightbox-open="" type="button">
+<img alt="TAHAI Browser Mission Control displaying four independent web surfaces in Quad View" decoding="async" height="825" loading="lazy" src="assets/product/mission-control-quad-view.png" width="2048"/>
+</button>
+<div class="product-frame-footer">
+<span><strong>01</strong> Clean 1-Up browsing</span>
+<span><strong>02</strong> 2-Up and Tri layouts</span>
+<span><strong>04</strong> Signature Quad View</span>
+<span><strong>↗</strong> Focus and restore</span>
+</div>
+</div>
+<div class="mission-feature-grid">
+<article class="mission-feature reveal">
+<span class="feature-index">01</span>
+<h3>Pane-aware navigation</h3>
+<p>Keep the page you are working in as the target for navigation and commands. Mission Control is designed around a visible active pane, not a separate dashboard layered over your browsing.</p>
+</article>
+<article class="mission-feature reveal" data-delay="1">
+<span class="feature-index">02</span>
+<h3>A place to pick up again</h3>
+<p>Saved workspaces bring tabs, groups, split layouts, and the selected mode back together. They reopen your places on the web; they do not promise to recover unsaved forms or transfer signed-in sessions.</p>
+</article>
+<article class="mission-feature reveal" data-delay="2">
+<span class="feature-index">03</span>
+<h3>Context worth keeping</h3>
+<p>For tasks that need a record, Mission Control brings runbooks, checkpoints, timeline entries, and evidence markers into the workspace. Review what you share and keep private information out of exports.</p>
+</article>
+</div>
+<div aria-labelledby="screenshots-title" class="screenshot-showcase" id="screenshots">
+<div class="screenshot-heading reveal">
+<div>
+<p class="section-label">Inside TAHAI Browser</p>
+<h2 id="screenshots-title">One browser. Every working angle.</h2>
+</div>
+<p>Mission Control is not a static dashboard. TAHAI can move the same live browser work between a focused command surface, Dual View, Tri View, and signature Quad View without turning the workflow into a pile of separate windows.</p>
+</div><p class="screenshot-note">Screenshots show the native browser in development and may differ from the installed release, including earlier branding. Tri and Quad View are best enjoyed on a larger display.</p>
+<div class="screenshot-grid">
+<article class="screenshot-card reveal">
+<button aria-label="Open Mission Control screenshot" class="screenshot-button" data-lightbox-caption="TAHAI Browser Mission Control — bounded mission state, runbooks, evidence, timeline, and local workspace context." data-lightbox-open="" data-lightbox-src="assets/product/mission-control.webp" type="button">
+<img alt="TAHAI Browser Mission Control command surface" decoding="async" height="1388" loading="lazy" src="assets/product/mission-control.webp" width="1715"/>
+<span aria-hidden="true" class="screenshot-zoom">Expand ↗</span>
+</button>
+<div class="screenshot-copy">
+<span>01 · Mission Control</span>
+<h3>Turn browser work into a bounded mission.</h3>
+<p>Mission setup, layout state, runbook checkpoints, evidence, timeline, and restoreable context stay together—locally and intentionally.</p>
+</div>
+</article>
+<article class="screenshot-card reveal" data-delay="1">
+<button aria-label="Open Dual View screenshot" class="screenshot-button" data-lightbox-caption="TAHAI Browser Dual View — two live browser surfaces side by side in one native Windows workspace." data-lightbox-open="" data-lightbox-src="assets/product/dual-view.webp" type="button">
+<img alt="TAHAI Browser displaying Work Modes and New Tab side by side in Dual View" decoding="async" height="1399" loading="lazy" src="assets/product/dual-view.webp" width="1721"/>
+<span aria-hidden="true" class="screenshot-zoom">Expand ↗</span>
+</button>
+<div class="screenshot-copy">
+<span>02 · Dual View</span>
+<h3>Two live surfaces. One focused workflow.</h3>
+<p>Compare, create, validate, research, or operate side by side while navigation follows the pane you are actually using.</p>
+</div>
+</article>
+<article class="screenshot-card reveal" data-delay="1">
+<button aria-label="Open Tri View screenshot" class="screenshot-button" data-lightbox-caption="TAHAI Browser Tri View — three active browser surfaces for context, execution, and validation." data-lightbox-open="" data-lightbox-src="assets/product/tri-view.webp" type="button">
+<img alt="TAHAI Browser displaying three active surfaces in Tri View" decoding="async" height="1395" loading="lazy" src="assets/product/tri-view.webp" width="1721"/>
+<span aria-hidden="true" class="screenshot-zoom">Expand ↗</span>
+</button>
+<div class="screenshot-copy">
+<span>03 · Tri View</span>
+<h3>Context, execution, and validation together.</h3>
+<p>Use three active views when two are not enough and four would be noise. The layout changes; the mission stays intact.</p>
+</div>
+</article>
+<article class="screenshot-card reveal" data-delay="2">
+<button aria-label="Open Quad View screenshot" class="screenshot-button" data-lightbox-caption="TAHAI Browser Quad View — four live browser surfaces in one native Windows Mission Control workspace." data-lightbox-open="" data-lightbox-src="assets/product/quad-view.webp" type="button">
+<img alt="TAHAI Browser displaying four active surfaces in signature Quad View" decoding="async" height="1395" loading="lazy" src="assets/product/quad-view.webp" width="1718"/>
+<span aria-hidden="true" class="screenshot-zoom">Expand ↗</span>
+</button>
+<div class="screenshot-copy">
+<span>04 · Quad View</span>
+<h3>Four views. One mission. Your web, in motion.</h3>
+<p>Run multiple live browser surfaces in one native workspace, with a clear active pane and a direct path back to focus.</p>
+</div>
+</article>
+</div>
+</div>
+</section>
+<section aria-labelledby="modes-title" class="modes section-shell" id="work-modes">
+<div class="section-heading reveal">
+<div>
+<p class="section-label">Adaptive Work Modes</p>
+<h2 id="modes-title">Modes with a job to do.</h2>
+</div>
+<p>Work Modes organize the browser around an activity. Operational skins are the wider direction: the surface, layout, tools, modes, and workflows you choose to bring together. A mode is part of that operational layer—not a limit on what a skin can become.</p>
+</div>
+<div class="mode-workbench reveal" data-delay="1">
+<div aria-label="TAHAI Browser work modes" class="mode-tabs" role="tablist">
+<button aria-controls="mode-daily" aria-selected="true" class="mode-tab is-active" data-mode-tab="daily" id="tab-daily" role="tab" type="button"><span>01</span><strong>Daily Driver</strong><small>Everyday web</small></button>
+<button aria-controls="mode-creator" aria-selected="false" class="mode-tab" data-mode-tab="creator" id="tab-creator" role="tab" tabindex="-1" type="button"><span>02</span><strong>Creator</strong><small>Make + publish</small></button>
+<button aria-controls="mode-builder" aria-selected="false" class="mode-tab" data-mode-tab="builder" id="tab-builder" role="tab" tabindex="-1" type="button"><span>03</span><strong>Builder</strong><small>Code + ship</small></button>
+<button aria-controls="mode-research" aria-selected="false" class="mode-tab" data-mode-tab="research" id="tab-research" role="tab" tabindex="-1" type="button"><span>04</span><strong>Research</strong><small>Compare + learn</small></button>
+<button aria-controls="mode-ops" aria-selected="false" class="mode-tab" data-mode-tab="ops" id="tab-ops" role="tab" tabindex="-1" type="button"><span>05</span><strong>Ops</strong><small>Run + verify</small></button>
+</div>
+<div class="mode-panels">
+<article aria-labelledby="tab-daily" class="mode-panel mode-daily" id="mode-daily" role="tabpanel" tabindex="0">
+<div class="mode-panel-copy">
+<span class="mode-status">Core experience</span>
+<p class="mode-eyebrow">Daily Driver Mode</p>
+<h3>A polished browser you can live in all day.</h3>
+<p>Familiar browsing comes first. Daily Driver keeps the interface calm, with tabs, profiles, and workspace layouts available when they help. Having an operational browser should not turn reading a page into a project.</p>
+<div class="mode-actions"><span>Clean New Tab</span><span>Profiles</span><span>Session restore</span><span>Lightweight split</span><span>Reader + Focus</span></div>
+</div>
+<div aria-label="Daily Driver workspace illustration" class="mode-blueprint">
+<div class="blueprint-top"><span></span><span></span><span></span><strong>Daily Driver</strong></div>
+<div class="blueprint-single"><i class="page-line page-line-wide"></i><i class="page-line"></i><i class="page-line"></i><div class="page-card-row"><b></b><b></b><b></b></div></div>
+<div class="blueprint-dock"><span>Recent</span><span>Profiles</span><span>Focus</span></div>
+</div>
+</article>
+<article aria-labelledby="tab-creator" class="mode-panel mode-creator" id="mode-creator" role="tabpanel" tabindex="0">
+<div class="mode-panel-copy">
+<span class="mode-status">Mode roadmap</span>
+<p class="mode-eyebrow">Creator Mode</p>
+<h3>References, assets, canvas, and publishing in one flow.</h3>
+<p>Creator Mode is designed for designers, writers, marketers, video teams, and independent creators who build from references while moving between editors, assets, previews, and publishing surfaces.</p>
+<div class="mode-actions"><span>Reference + Canvas</span><span>Asset Shelf</span><span>Capture tools</span><span>Snippet bank</span><span>Publish checklists</span></div>
+</div>
+<div aria-label="Creator workspace illustration" class="mode-blueprint">
+<div class="blueprint-top"><span></span><span></span><span></span><strong>Creator Studio</strong></div>
+<div class="blueprint-grid creator-grid"><div><i></i><i></i><i></i></div><div class="canvas-card"><b></b></div><div class="asset-rail"><b></b><b></b><b></b></div></div>
+<div class="blueprint-dock"><span>Assets</span><span>Preview</span><span>Publish</span></div>
+</div>
+</article>
+<article aria-labelledby="tab-builder" class="mode-panel mode-builder" id="mode-builder" role="tabpanel" tabindex="0">
+<div class="mode-panel-copy">
+<span class="mode-status">Mode roadmap</span>
+<p class="mode-eyebrow">Builder Mode</p>
+<h3>Build, inspect, compare, and ship without losing the thread.</h3>
+<p>Builder Mode surrounds Chromium DevTools with project workspaces, environment awareness, release recipes, documentation, logs, and local-first technical utilities.</p>
+<div class="mode-actions"><span>Repo + Docs</span><span>Live preview</span><span>DevTools</span><span>Environment labels</span><span>Release workspace</span></div>
+</div>
+<div aria-label="Builder workspace illustration" class="mode-blueprint">
+<div class="blueprint-top"><span></span><span></span><span></span><strong>Builder Workspace</strong></div>
+<div class="blueprint-grid builder-grid"><div class="code-pane"><i></i><i></i><i></i><i></i><i></i></div><div class="preview-pane"><b></b><i></i><i></i></div><div class="terminal-pane"><span>&gt; build verified</span><span>&gt; preview ready</span></div></div>
+<div class="blueprint-dock"><span>DEV</span><span>STAGING</span><span>PROD</span></div>
+</div>
+</article>
+<article aria-labelledby="tab-research" class="mode-panel mode-research" id="mode-research" role="tabpanel" tabindex="0">
+<div class="mode-panel-copy">
+<span class="mode-status">Mode roadmap</span>
+<p class="mode-eyebrow">Research Mode</p>
+<h3>Turn open tabs into a traceable body of work.</h3>
+<p>Research Mode is designed for comparison, evaluation, deep reading, and documentation—with source queues, linked notes, PDFs, citations, and side-by-side analysis.</p>
+<div class="mode-actions"><span>Source queue</span><span>Comparison layouts</span><span>Linked notes</span><span>PDF workflow</span><span>Brief export</span></div>
+</div>
+<div aria-label="Research workspace illustration" class="mode-blueprint">
+<div class="blueprint-top"><span></span><span></span><span></span><strong>Research Desk</strong></div>
+<div class="blueprint-grid research-grid"><div class="source-pane"><i></i><i></i><i></i><i></i></div><div class="compare-pane"><b></b><b></b></div><div class="notes-pane"><i></i><i></i><i></i></div></div>
+<div class="blueprint-dock"><span>Sources 12</span><span>Notes 8</span><span>Export brief</span></div>
+</div>
+</article>
+<article aria-labelledby="tab-ops" class="mode-panel mode-ops" id="mode-ops" role="tabpanel" tabindex="0">
+<div class="mode-panel-copy">
+<span class="mode-status">Technical workspace direction</span>
+<p class="mode-eyebrow">Ops Mode</p>
+<h3>Mission Control for work that has to be right.</h3>
+<p>For technical work, Ops brings the focus to Mission Control: live panes, runbook steps, timelines, and local operational context. It is one way to use TAHAI—not the only audience or the required starting point.</p>
+<div class="mode-actions"><span>Mission Tabs</span><span>Quad View</span><span>Runbook Rail</span><span>Evidence Pack</span><span>Operator Safety</span></div>
+</div>
+<div aria-label="Ops Mission Control workspace illustration" class="mode-blueprint">
+<div class="blueprint-top"><span></span><span></span><span></span><strong>Production Mission</strong></div>
+<div class="blueprint-quad"><div><small>Console</small><b></b></div><div><small>Logs</small><b></b></div><div><small>Live target</small><b></b></div><div><small>Runbook</small><b></b></div></div>
+<div class="blueprint-dock"><span>Capture</span><span>Validate</span><span>Handoff</span></div>
+</div>
+</article>
+</div>
+</div>
+<div class="mode-system reveal">
+<span>Launchpad</span><span>Layouts</span><span>Tools</span><span>Commands</span><span>Safety</span><span>Restore</span>
+</div>
+</section>
+<section aria-labelledby="pretty-title" class="pretty-face section-shell reveal">
+<div aria-hidden="true" class="pretty-orbit"><i></i><i></i><i></i></div>
+<div class="pretty-copy">
+<p class="section-label">Skins are operational. Period.</p>
+<h2 id="pretty-title">Do more than change the look.<br/><em>Redefine your operational layer.</em></h2>
+<blockquote class="skin-manifesto"><p>“Skin is the operational layer for our bodies’ interaction with the external world. Do more than change the look, redefine your operational layer.”</p></blockquote><p class="manifesto-caption">That is the idea behind TAHAI operational skins: not decoration over a fixed browser, but a way to shape how you meet the web.</p>
+</div>
+</section>
+<section aria-labelledby="native-title" class="native section-shell" id="native">
+<div class="section-heading reveal">
+<div>
+<p class="section-label">Native foundation</p>
+<h2 id="native-title">Not an app shell.<br/>A browser architecture.</h2>
+</div>
+<p>Electron helped prove the product idea. The active TAHAI source is now a native Chromium browser. Windowing, tabs, profiles, navigation, downloads, and Mission Control are part of the browser foundation—not the former Electron shell.</p>
+</div>
+<div class="native-grid">
+<article class="native-card native-card-large reveal">
+<div class="native-card-icon">W</div>
+<span class="card-kicker">Windows native</span>
+<h3>The desktop experience belongs to the browser.</h3>
+<p>Windowing, titlebar behavior, tabs, downloads, permissions, shortcuts, mouse navigation, session restore, DevTools, and multi-view routing are being treated as first-class browser systems.</p>
+<div class="native-lines"><span>Native window lifecycle</span><span>Physical input paths</span><span>Profile-scoped state</span></div>
+</article>
+<article class="native-card reveal" data-delay="1">
+<div class="native-card-icon">4</div>
+<span class="card-kicker">Multi-surface</span>
+<h3>One engine. Multiple active contexts.</h3>
+<p>Mission Control is part of the browser model—not a web page pretending to be one.</p>
+</article>
+<article class="native-card reveal" data-delay="2">
+<div class="native-card-icon">⌁</div>
+<span class="card-kicker">Operational memory</span>
+<h3>Return to your workspace.</h3>
+<p>Saved arrangements keep browser context together. Authenticated sessions stay within their Chromium profiles; a shared design is not a copy of someone’s private browsing state.</p>
+</article>
+<article class="native-card reveal" data-delay="1">
+<div class="native-card-icon">⌾</div>
+<span class="card-kicker">Guardrails</span>
+<h3>Open source without trusting the world.</h3>
+<p>Remote pages stay untrusted. Sensitive exports stay deliberate. Privileged boundaries stay narrow.</p>
+</article>
+<article class="native-card reveal" data-delay="2">
+<div class="native-card-icon">✓</div>
+<span class="card-kicker">Release discipline</span>
+<h3>Proof before the promise.</h3>
+<p>Published packages and development source have different release states. The official Store listing is the place to get the released Windows package.</p>
+</article>
+</div>
+</section>
+<section aria-labelledby="principles-title" class="principles section-shell">
+<div class="section-heading reveal">
+<div>
+<p class="section-label">What stays true</p>
+<h2 id="principles-title">Familiar where it should be.<br/>Different where it matters.</h2>
+</div>
+</div>
+<div class="principle-list">
+<article class="principle reveal"><span>01</span><h3>Daily browsing is not a downgrade.</h3><p>TAHAI must earn the right to be a daily browser before asking users to care about its flagship systems.</p></article>
+<article class="principle reveal" data-delay="1"><span>02</span><h3>Complexity appears on purpose.</h3><p>Mission Control, tools, evidence, and policy surfaces stay available without turning ordinary browsing into a cockpit by default.</p></article>
+<article class="principle reveal" data-delay="2"><span>03</span><h3>The user stays in control.</h3><p>Modes may recommend. They do not silently rearrange tabs, change identity, move workspaces, or inspect secrets.</p></article>
+<article class="principle reveal" data-delay="3"><span>04</span><h3>Flagship means accountable.</h3><p>Clear release truth, known limitations, open-source review, and supportable behavior matter as much as the visual polish.</p></article>
+</div>
+</section>
+<section aria-labelledby="skins-title" class="creator-section section-shell" id="skins">
+<div class="section-heading"><div><p class="section-label">Operational skins · product direction</p><h2 id="skins-title">Your browser.<br/><em>Your operational layer.</em></h2></div><p>A research desk, a learning space, a comparison workspace, or a creative studio. The goal is one skin you can design around the way you see, arrange, and use the web—with the websites and services you choose.</p></div>
+<div class="creator-grid"><article class="creator-panel"><span class="feature-status">Available creator resources · v1 appearance format</span><h3>Start with the foundation.</h3><p>The current offline creator kit covers the v1 appearance format: supported colors, artwork, and package rules. It is a starting point, not the completed operational-skin editor or workflow engine.</p><div class="hero-actions"><a class="button button-primary" href="https://raw.githubusercontent.com/JTAHAI/tahai-web-services-browser/main/docs/tahai-skins/skin-creator-kit.zip">Get the v1 creator kit <span aria-hidden="true">↓</span></a><a class="button button-ghost" href="skins/">Explore operational skins <span aria-hidden="true">→</span></a></div><p class="fine-print">Check your browser version for compatible skin support. Expanded operational-skin capabilities are planned.</p></article>
+<article class="creator-panel creator-philosophy"><img alt="" decoding="async" height="271" loading="lazy" src="assets/brand/royal-20260913/tahai-web-services-royal-purple.svg" width="271"/><div><span class="section-label">One creator experience</span><h3>Design how it works for you.</h3><p>Appearance, layout, modes, and workflows belong in the same creative process. Behind that experience, permissions stay separate: installing a skin must never silently authorize website actions or access to private data.</p><a class="text-link" href="skins/#operational-model">Explore the operational model <span aria-hidden="true">→</span></a></div></article></div>
+<div class="skin-journey"><p class="section-label">The creator experience we are building toward</p><ol><li>Create a skin</li><li>Design the surface</li><li>Design the workflow</li><li>Try it</li><li>Use it</li><li>Share it</li></ol></div></section>
+<section aria-labelledby="development-title" class="development-section section-shell" id="protection">
+<div class="section-heading"><div><p class="section-label">In development</p><h2 id="development-title">More control.<br/>Closer to the work.</h2></div><p>Follow the native source for the next pieces of the TAHAI workflow. Development features are not a promise that every capability is already in your Store package.</p></div>
+<div class="development-grid"><article class="development-card"><span class="feature-status">Native request guard</span><h3>Blocking you can see and control.</h3><p>Native request-blocking development focuses on visible controls and per-site choices. The goal is built-in protection that remains understandable when a site needs an exception.</p><p class="fine-print">Coverage is evolving. No claim of complete ad blocking or parity with another browser.</p><a class="text-link" href="https://github.com/JTAHAI/tahai-web-services-browser" rel="noopener noreferrer" target="_blank">Follow the native source ↗</a></article>
+<article class="development-card"><span class="feature-status">Local Operational Intelligence · in development</span><h3>Keep operational context local.</h3><p>TAHAI’s Local OI direction brings local search, evidence, knowledge gaps, and operational context closer to the browser workspace. It is distinct from hosted Operational Intelligence and its account-based services.</p><p class="fine-print">This is not a claim of live cloud connectors, automatic uploads, or bundled access to hosted TAHAI products.</p><a class="text-link" href="https://tahai.net" rel="noopener noreferrer" target="_blank">Explore TAHAI Web Services ↗</a></article></div>
+</section><section aria-labelledby="release-title" class="release-section section-shell" id="release"><div class="release-panel"><div class="release-copy"><p class="section-label">Get TAHAI Browser</p><h2 id="release-title">The Store for releases.<br/><em>GitHub for what’s next.</em></h2><p>The official Microsoft Store listing is the download route for the published Windows release. The public repository is where native Chromium development moves forward.</p><p class="fine-print">Source changes, screenshots, and local MSIX builds can be ahead of the published package. Check the release information for the version you install.</p><div class="hero-actions"><a class="button button-primary" href="https://apps.microsoft.com/detail/9PJ1RHFW9GL8" rel="noopener noreferrer" target="_blank">Get it from Microsoft Store <span aria-hidden="true">↗</span></a><a class="button button-ghost" href="https://github.com/JTAHAI/tahai-web-services-browser" rel="noopener noreferrer" target="_blank">Explore native source <span aria-hidden="true">↗</span></a></div></div><div class="release-states"><article><span>Install</span><h3>Microsoft Store</h3><p>The official Windows listing</p></article><article><span>Explore</span><h3>Native Chromium source</h3><p>Active browser development</p></article><article><span>Create</span><h3>Skin creator resources</h3><p>Source kit and starter package</p></article></div></div></section><section aria-labelledby="faq-title" class="faq-section section-shell" id="questions"><p class="section-label">Useful to know</p><h2 id="faq-title">The details, without the guesswork.</h2><div class="faq-list"><details><summary>Is an operational browser just for IT professionals?</summary><p>No. TAHAI is for everyday browsing, learning, creating, comparing, planning, building, and technical operations. “Operational” describes a browser that supports what you are doing—not a job title, a business account, or a level of technical expertise.</p></details>
+<details><summary>Are skins only visual themes?</summary><p>No—that is not the product direction. TAHAI skins are being developed as operational layers that can bring appearance, layout, modes, tools, and workflows together. The current v1 creator kit is the appearance foundation; the expanded operational format and editor are planned work.</p></details>
+<details><summary>How do Work Modes fit into operational skins?</summary><p>A Work Mode organizes a particular activity. The operational-skin direction lets creators bring modes together with the visual surface, workspace arrangement, and workflows. These are complementary parts of one experience, not “skins for looks” versus “modes for work.”</p></details>
+<details><summary>Does installing a skin grant access to my accounts?</summary><p>It must not. The operational-skin design keeps appearance and layout separate from permissions. Sensitive reading, sending, publishing, or other external actions need explicit, scoped authorization. Normal websites keep their own sign-in and permission boundaries.</p></details>
+<details><summary>Does “For Everyone” mean every operating system?</summary><p>It describes who TAHAI is for. The installation route promoted here is the Windows Microsoft Store listing. It is not a claim that native macOS, Linux, Android, or iOS releases are currently available.</p></details>
+<details><summary>Does everything described here ship in the Store release?</summary><p>No. The site labels product direction and development work separately from the current creator resources. Check the release information for your installed version. A source commit, screenshot, or website update is not proof that a new browser package has shipped.</p></details>
+<details><summary>Is TAHAI still built on Electron?</summary><p>The active TAHAI development foundation is native Chromium, not the former Electron shell.</p></details>
+<details><summary>Where do I report an issue or share an idea?</summary><p>Use <a href="https://github.com/JTAHAI/tahai-web-services-browser/issues" rel="noopener noreferrer" target="_blank">GitHub Issues</a> for bugs and suggestions. Tell us what you were trying to do. For a bug, include your browser version and reproduction steps, but leave out credentials and private information.</p></details></div></section>
+<section aria-label="TAHAI Browser call to action" class="final-cta section-shell reveal">
+<img alt="" decoding="async" height="192" loading="lazy" src="assets/brand/royal-20260913/icon-192.png" width="192"/>
+<div>
+<p class="section-label">TAHAI Browser</p>
+<h2>THE Operational Browser. For Everyone.</h2>
+<p>Your web. Your way. Start with the published Windows release.</p>
+</div>
+<a class="button button-primary" href="https://apps.microsoft.com/detail/9PJ1RHFW9GL8" rel="noopener noreferrer" target="_blank">Get TAHAI Browser ↗</a>
+</section>
+</main>
+<footer class="site-footer section-shell">
+<div class="footer-brand">
+<img alt="" decoding="async" height="64" loading="lazy" src="assets/brand/royal-20260913/icon-64.png" width="64"/>
+<div><strong>TAHAI Browser</strong><span>© <span data-year="">2026</span> TAHAI Web Services</span></div>
+</div>
+<p>THE Operational Browser. For Everyone.</p>
+<nav aria-label="Footer navigation"><a href="./">Home</a><a href="skins/">Skins</a><a href="downloads/">Downloads</a><a href="privacy/">Privacy</a><a href="code-signing-policy/">Distribution</a><a href="https://github.com/JTAHAI/tahai-web-services-browser" rel="noopener noreferrer" target="_blank">GitHub</a><a href="https://jtahai.github.io/tahai-web-services-browser/" rel="noopener noreferrer" target="_blank">GitHub Pages</a><a href="https://tahai.net" rel="noopener noreferrer" target="_blank">TAHAI Web Services</a></nav>
+</footer>
+<dialog class="lightbox" data-lightbox="">
+<button aria-label="Close screenshot" class="lightbox-close" data-lightbox-close="" type="button">×</button>
+<img alt="Expanded TAHAI Browser product screenshot" data-lightbox-image="" decoding="async" height="825" loading="lazy" src="assets/product/mission-control-quad-view.png" width="2048"/>
+<p data-lightbox-caption-output="">TAHAI Browser Mission Control — Quad View</p>
+</dialog>
+<div class="command-overlay" data-command-overlay="" hidden="">
+<section aria-labelledby="command-title" aria-modal="true" class="command-dialog" role="dialog">
+<div class="command-head">
+<div><span class="command-mark">K</span><div><strong id="command-title">Navigate TAHAI Browser</strong><small>Search this product site</small></div></div>
+<button aria-label="Close command menu" data-command-close="" type="button">Esc</button>
+</div>
+<label class="command-search"><span class="sr-only">Search site</span><input autocomplete="off" data-command-input="" placeholder="Skins, learning, planning, modes, downloads…" type="search"/></label>
+<div class="command-results" data-command-results=""></div>
+<div class="command-foot"><span>↑↓ Navigate</span><span>Enter Open</span><span>Esc Close</span></div>
+</section>
+</div>
+<script defer="" src="start-20260913-operational-everyone.js"></script>
 </body>
 </html>

@@ -1,0 +1,18 @@
+TAHAI Web Services Browser 1.8.30 RC - GitHub Release Asset Checklist
+
+Create or update this release tag:
+https://github.com/JTAHAI/tahai-web-services-browser/releases/tag/v1.8.30
+
+Upload these assets with exact filenames:
+- TAHAI-Web-Services-Browser-1.8.30-x64.exe
+- TAHAI-Web-Services-Browser-1.8.30-x64.msi
+- TAHAI-Web-Services-Browser-1.8.30-x64.AppImage
+- TAHAI-Web-Services-Browser-1.8.30-x64.deb
+- TAHAI-Web-Services-Browser-1.8.30-x64.rpm
+
+Keep these website-hosted verification files in Cloudflare Pages:
+- SHA256SUMS.txt
+- manifest.json
+- individual .sha256 files
+
+After uploading assets, verify that every download button on /downloads/ resolves.

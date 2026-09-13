@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /downloads/releases/
+Disallow: /docs/
+Sitemap: https://browser.tahai.net/sitemap.xml

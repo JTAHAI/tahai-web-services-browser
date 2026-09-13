@@ -1,0 +1,5 @@
+# TAHAI Web Services Browser 1.8.6 Quad-view test build
+# Windows x64 EXE is not embedded in this site delta. Upload it to this folder path on Cloudflare Pages or release storage.
+4e4e9d2bc9073633652d688303685c98c8283d0c55988e7efb01ece67492d736  TAHAI Web Services Browser-1.8.6-win-x64.exe
+b6d2ea10cebe6d03f153d140f3f83188ceaa6e980e771b611493d0741c4dcab3  TAHAI-Browser-Mission-Control-Guardrails.pdf
+03922707a98d27c1df0364e5f6dd4169c0e55322a32c47376d037f2d12faa990  /assets/tws/screenshots/tahai-browser-quad-view.png

@@ -1,0 +1,10 @@
+Large installer files are not included in this Cloudflare Pages deploy ZIP because each installer exceeds the Cloudflare Pages 25 MiB single-asset limit.
+
+Upload these files to the release file host and keep the website links pointed at the canonical paths:
+
+/downloads/releases/1.8.30/TAHAI-Web-Services-Browser-1.8.30-x64.exe
+/downloads/releases/1.8.30/TAHAI-Web-Services-Browser-1.8.30-x64.msi
+
+Expected SHA-256:
+EXE 4eff7e9ff6b652bf5428a10f91930bd4c4e4ade13e550c8b81992c74fb38c662
+MSI da901e616874ef1b03bef74ef0c2d155a0d4577fd151b83c5fd76c4b7ff1ef94

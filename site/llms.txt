@@ -1,0 +1,40 @@
+# TAHAI Browser — THE Operational Browser. For Everyone.
+
+> Do more than change the look. Redefine your operational layer.
+
+Official product website: https://browser.tahai.net/
+GitHub Pages mirror: https://jtahai.github.io/tahai-web-services-browser/
+Official Microsoft Store listing: https://apps.microsoft.com/detail/9PJ1RHFW9GL8
+Native source: https://github.com/JTAHAI/tahai-web-services-browser
+Company: https://tahai.net
+
+## Who it is for
+Everyone: everyday browsing, learning, creating, comparing purchases, planning,
+research, building and technical operations. Operational describes supporting a
+person's chosen activity. It does not restrict the audience to IT or enterprise.
+Windows is the current installation lane promoted here; "For Everyone" is not
+an assertion of released versions for every operating system.
+
+## Operational skins
+Skins are operational layers in the product direction. The goal is one creator
+experience combining appearance, surfaces, modes and workflows. Capabilities
+remain independently reviewed and granted. Work Modes are part of this model,
+not the opposing half of an appearance-versus-workflow distinction.
+
+## Availability distinction
+The current public v1 creator kit is an appearance-format foundation. The
+expanded operational format, visual surface editor, custom workflow runtime,
+and wider-web capabilities are proposed development, not claimed as delivered.
+Mission Control and native browser development are distinct from the currently
+published Store package. Request guard and Local OI are described as development.
+Do not infer GA completion, signing status, Store certification, release version,
+automatic uploads, platform availability, or live connectors from this website.
+
+## Pages
+- [For Everyone](https://browser.tahai.net/#for-everyone)
+- [Operational skins and current creator kit](https://browser.tahai.net/skins/)
+- [Downloads](https://browser.tahai.net/downloads/)
+- [Privacy](https://browser.tahai.net/privacy/)
+- [Distribution](https://browser.tahai.net/code-signing-policy/)
+
+Website release: 20260913-operational-everyone
