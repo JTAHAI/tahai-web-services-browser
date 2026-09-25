@@ -40,6 +40,10 @@ NamedWorkspaceCaptureResult CaptureNamedWorkspace(Browser* browser,
 // window is never closed, navigated, or reordered. This restores navigation
 // references, not unsaved forms or authenticated sessions in another profile.
 Browser* OpenNamedWorkspace(Browser* source, std::string_view id);
+// Applies an independent local custom mode. Restores an optional saved
+// workspace in a new window, otherwise keeps the source window's tabs.
+// Appearance is reverified asynchronously; no declared action is dispatched.
+Browser* ActivateNativeCustomMode(Browser* source, std::string_view id);
 void ShowNamedWorkspaceManager(Browser* browser);
 
 }  // namespace tahai

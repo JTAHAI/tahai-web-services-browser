@@ -1738,8 +1738,12 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
                           const std::string& locale) {
   TRACE_EVENT0("browser", "chrome::RegisterProfilePrefs");
   registry->RegisterListPref(prefs::kTahaiMissions);
+  registry->RegisterDictionaryPref(prefs::kTahaiPendingOperationalWorkflow);
+  registry->RegisterDictionaryPref(prefs::kTahaiCapabilityGrants);
   registry->RegisterStringPref(prefs::kTahaiActiveWorkMode, "daily");
   registry->RegisterDictionaryPref(prefs::kTahaiWorkModePreferences);
+  registry->RegisterDictionaryPref(prefs::kTahaiCustomModeDefinitions);
+  registry->RegisterDictionaryPref(prefs::kTahaiSkinStudioDraft);
   registry->RegisterDictionaryPref(prefs::kTahaiNamedWorkspaces);
   registry->RegisterBooleanPref(prefs::kTahaiNamedWorkspacesEnabled, true);
   registry->RegisterDictionaryPref(prefs::kTahaiEnvironmentGuardRules);
@@ -1749,6 +1753,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   registry->RegisterDictionaryPref(prefs::kTahaiAppliedSkin);
   registry->RegisterBooleanPref(prefs::kTahaiSkinsEnabled, true);
   registry->RegisterBooleanPref(prefs::kTahaiSkinInstallationsAllowed, true);
+  registry->RegisterDictionaryPref(prefs::kTahaiOperationalSkinTrustedKeys);
+  registry->RegisterDictionaryPref(prefs::kTahaiLocalSkinTrustedKeys);
   registry->RegisterDictionaryPref(prefs::kTahaiSyncKeyring);
   // A fixed referral is never an upload path, but opening it is still an
   // intentional network navigation. Keep the Local OI surface private by

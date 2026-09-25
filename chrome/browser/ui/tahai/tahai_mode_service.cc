@@ -10,9 +10,12 @@
 #include <utility>
 
 #include "base/check.h"
+#include "base/functional/bind.h"
 #include "base/no_destructor.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/uuid.h"
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
@@ -59,6 +62,17 @@ constexpr std::array<WorkModeDefinition, 6> kDefinitions = {{
      "Visible customer scope; no direct PSA or provider writeback",
      "TAHAI PSA · TAHAI IT Docs · TAHAI Operational Intelligence", "support"},
 }};
+
+base::DictValue SerializeCustomModes(
+    const std::vector<TahaiCustomModeDefinition>& custom_modes) {
+  base::DictValue definitions;
+  base::ListValue modes;
+  for (const TahaiCustomModeDefinition& custom_mode : custom_modes) {
+    modes.Append(SerializeTahaiCustomModeDefinition(custom_mode));
+  }
+  definitions.Set("modes", std::move(modes));
+  return definitions;
+}
 
 constexpr std::array<WorkModeModifier, 3> kModifiers = {{
     {"focus", "Focus",
@@ -136,7 +150,7 @@ ModeService::ModeService(Profile* profile)
     : profile_(profile), prefs_(profile->GetPrefs()) {
   CHECK(profile_);
   CHECK(prefs_);
-  if (profile_->IsOffTheRecord()) {
+  if (!persistence_enabled()) {
     SetDefaultForOffTheRecord();
     return;
   }
@@ -156,6 +170,12 @@ ModeService::ModeService(Profile* profile)
     }
   }
   LoadConfigurations();
+  LoadCustomModes();
+  custom_mode_pref_registrar_.Init(prefs_);
+  custom_mode_pref_registrar_.Add(
+      prefs::kTahaiCustomModeDefinitions,
+      base::BindRepeating(&ModeService::OnCustomModePreferenceChanged,
+                          base::Unretained(this)));
 }
 
 ModeService::~ModeService() = default;
@@ -176,6 +196,226 @@ const std::vector<WorkModeTemplate>& ModeService::templates() {
   static const base::NoDestructor<std::vector<WorkModeTemplate>> templates(
       kTemplates.begin(), kTemplates.end());
   return *templates;
+}
+
+const std::vector<TahaiCustomModeDefinition>& ModeService::custom_modes()
+    const {
+  return custom_modes_;
+}
+
+bool ModeService::CreateCustomMode(std::string title,
+                                   std::string operational_mode_id,
+                                   std::string workspace_id,
+                                   std::optional<WindowSkinReference> skin) {
+  auto next = ReadCustomModesForWrite();
+  if (!next || next->size() >= 24u) {
+    return false;
+  }
+  next->push_back({base::StrCat({"custom-", base::Uuid::GenerateRandomV4()
+                                              .AsLowercaseString()}),
+                  std::move(title), std::move(operational_mode_id),
+                  std::move(workspace_id), std::nullopt, {}, std::move(skin)});
+  return SetCustomModes(SerializeCustomModes(*next));
+}
+
+bool ModeService::CreateNativeCustomMode(std::string title,
+                                        WindowPresentation presentation,
+                                        std::vector<std::string> actions,
+                                        std::string workspace_id) {
+  auto next = ReadCustomModesForWrite();
+  if (!next || next->size() >= 24u) {
+    return false;
+  }
+  if (!FindDefinition(presentation.fixed_mode)) {
+    return false;
+  }
+  if (presentation.configuration.empty()) {
+    auto configuration = configuration_for_mode(presentation.fixed_mode);
+    configuration.rail_state = presentation.rail_state;
+    configuration.rail_width = presentation.rail_width;
+    presentation.configuration = EncodeConfiguration(configuration);
+  }
+  next->push_back({.id = base::StrCat({"custom-", base::Uuid::GenerateRandomV4()
+                                                    .AsLowercaseString()}),
+                   .title = std::move(title),
+                   .workspace_id = std::move(workspace_id),
+                   .native_presentation = std::move(presentation),
+                   .actions = std::move(actions)});
+  return SetCustomModes(SerializeCustomModes(*next));
+}
+
+bool ModeService::RenameCustomMode(std::string_view id, std::string title) {
+  auto next = ReadCustomModesForWrite();
+  if (!next) {
+    return false;
+  }
+  const auto found = std::ranges::find(*next, id, &TahaiCustomModeDefinition::id);
+  if (found == next->end()) {
+    return false;
+  }
+  found->title = std::move(title);
+  return SetCustomModes(SerializeCustomModes(*next));
+}
+
+bool ModeService::RemoveCustomMode(std::string_view id) {
+  auto next = ReadCustomModesForWrite();
+  if (!next) {
+    return false;
+  }
+  const auto found = std::ranges::find(*next, id, &TahaiCustomModeDefinition::id);
+  if (found == next->end()) {
+    return false;
+  }
+  next->erase(found);
+  return SetCustomModes(SerializeCustomModes(*next));
+}
+
+bool ModeService::SetCustomModes(base::DictValue definitions) {
+  std::vector<TahaiCustomModeDefinition> validated;
+  if (!ReadCustomModesForWrite() ||
+      ValidateTahaiCustomModeDefinitions(definitions, &validated) !=
+          TahaiCustomModeValidationResult::kValid) {
+    return false;
+  }
+  if (custom_modes_ == validated) {
+    return true;
+  }
+  custom_modes_ = std::move(validated);
+  prefs_->SetDict(prefs::kTahaiCustomModeDefinitions, std::move(definitions));
+  NotifyModeConfigurationChanged();
+  return true;
+}
+
+bool ModeService::DuplicateCustomMode(std::string_view id, std::string title) {
+  auto next = ReadCustomModesForWrite();
+  if (!next || next->size() >= 24u) {
+    return false;
+  }
+  const auto mode = std::ranges::find(*next, id, &TahaiCustomModeDefinition::id);
+  if (mode == next->end()) {
+    return false;
+  }
+  auto copy = *mode;
+  copy.id = base::StrCat({"custom-", base::Uuid::GenerateRandomV4().AsLowercaseString()});
+  copy.title = std::move(title);
+  next->push_back(std::move(copy));
+  return SetCustomModes(SerializeCustomModes(*next));
+}
+
+bool ModeService::UpdateNativeCustomMode(std::string_view id, std::string title,
+                                         std::vector<std::string> actions,
+                                         std::string workspace_id,
+                                         std::optional<NativeModeCommandLayout> layout) {
+  auto next = ReadCustomModesForWrite();
+  if (!next) {
+    return false;
+  }
+  const auto mode = std::ranges::find(*next, id, &TahaiCustomModeDefinition::id);
+  if (mode == next->end() || !mode->native_presentation) {
+    return false;
+  }
+  mode->title = std::move(title);
+  mode->actions = std::move(actions);
+  mode->workspace_id = std::move(workspace_id);
+  if (layout) {
+    mode->command_layout = std::move(layout);
+  } else if (mode->command_layout) {
+    // An older editor can remove an action, but cannot leave a stale command
+    // placement behind. Preserve the remaining order and never add controls.
+    for (auto* group : {&mode->command_layout->toolbar_primary,
+                        &mode->command_layout->toolbar_secondary,
+                        &mode->command_layout->app_menu}) {
+      std::erase_if(*group, [&](const auto& action) {
+        return std::ranges::find(mode->actions, action) == mode->actions.end();
+      });
+    }
+  }
+  return SetCustomModes(SerializeCustomModes(*next));
+}
+
+bool ModeService::DuplicateBuiltinModePreset(std::string_view id, std::string title) {
+  const auto* preset = FindBuiltinNativeModePreset(id);
+  auto next = ReadCustomModesForWrite();
+  if (!preset || !next || next->size() >= 24u) {
+    return false;
+  }
+  auto copy = *preset;
+  copy.id = base::StrCat({"custom-", base::Uuid::GenerateRandomV4().AsLowercaseString()});
+  copy.title = std::move(title);
+  next->push_back(std::move(copy));
+  return SetCustomModes(SerializeCustomModes(*next));
+}
+
+bool ModeService::SetNativeCustomModeConfiguration(std::string_view id,
+                                                   std::string_view key,
+                                                   std::string_view value) {
+  auto next = ReadCustomModesForWrite();
+  if (!next) {
+    return false;
+  }
+  const auto mode = std::ranges::find(*next, id, &TahaiCustomModeDefinition::id);
+  if (mode == next->end() || !mode->native_presentation) {
+    return false;
+  }
+  auto& presentation = *mode->native_presentation;
+  auto configuration = DecodeConfiguration(presentation.fixed_mode,
+                                            presentation.configuration);
+  if (!configuration || !ApplyConfigurationValue(presentation.fixed_mode, key,
+                                                  value, &*configuration)) {
+    return false;
+  }
+  presentation.configuration = EncodeConfiguration(*configuration);
+  presentation.rail_state = configuration->rail_state;
+  presentation.rail_width = configuration->rail_width;
+  return SetCustomModes(SerializeCustomModes(*next));
+}
+
+bool ModeService::SetNativeCustomModeSurface(
+    std::string_view id, std::optional<SurfaceDesign> design) {
+  if (design && !ValidateSurfaceDesign(*design)) {
+    return false;
+  }
+  auto next = ReadCustomModesForWrite();
+  if (!next) {
+    return false;
+  }
+  const auto mode = std::ranges::find(*next, id, &TahaiCustomModeDefinition::id);
+  if (mode == next->end() || !mode->native_presentation) {
+    return false;
+  }
+  mode->native_presentation->surface_design = std::move(design);
+  return SetCustomModes(SerializeCustomModes(*next));
+}
+
+bool ModeService::ResetNativeCustomModeConfiguration(std::string_view id) {
+  auto next = ReadCustomModesForWrite();
+  if (!next) {
+    return false;
+  }
+  const auto mode = std::ranges::find(*next, id, &TahaiCustomModeDefinition::id);
+  if (mode == next->end() || !mode->native_presentation) {
+    return false;
+  }
+  auto& presentation = *mode->native_presentation;
+  auto defaults = DefaultConfigurationForMode(presentation.fixed_mode);
+  presentation.configuration = EncodeConfiguration(defaults);
+  presentation.rail_state = defaults.rail_state;
+  presentation.rail_width = defaults.rail_width;
+  return SetCustomModes(SerializeCustomModes(*next));
+}
+
+bool ModeService::SetNativeCustomModeSkin(
+    std::string_view id, std::optional<WindowSkinReference> skin) {
+  auto next = ReadCustomModesForWrite();
+  if (!next) {
+    return false;
+  }
+  const auto mode = std::ranges::find(*next, id, &TahaiCustomModeDefinition::id);
+  if (mode == next->end() || !mode->native_presentation) {
+    return false;
+  }
+  mode->native_presentation->skin = std::move(skin);
+  return SetCustomModes(SerializeCustomModes(*next));
 }
 
 const WorkModeDefinition* ModeService::FindDefinition(std::string_view id) {
@@ -271,12 +511,31 @@ bool ModeService::SetActiveConfigurationValue(std::string_view key,
 bool ModeService::SetConfigurationValueForMode(std::string_view mode_id,
                                                std::string_view key,
                                                std::string_view value) {
-  if (!IsValidConfiguration(mode_id, key, value)) {
+  StoredConfiguration* stored = FindStoredConfiguration(mode_id);
+  if (!stored) {
     return false;
   }
-  StoredConfiguration* configuration = FindStoredConfiguration(mode_id);
-  CHECK(configuration);
-  const WorkModeWorkspaceConfiguration previous = configuration->configuration;
+  auto next = stored->configuration;
+  if (!ApplyConfigurationValue(mode_id, key, value, &next)) {
+    return false;
+  }
+  if (next != stored->configuration) {
+    stored->configuration = std::move(next);
+    SaveConfigurations();
+    NotifyModeConfigurationChanged();
+  }
+  return true;
+}
+
+bool ModeService::ApplyConfigurationValue(
+    std::string_view mode_id, std::string_view key, std::string_view value,
+    WorkModeWorkspaceConfiguration* result) {
+  if (!result || !IsValidConfiguration(mode_id, key, value)) {
+    return false;
+  }
+  // Reuse the same finite setter for profile templates and independent modes.
+  StoredConfiguration temporary{std::string(mode_id), *result};
+  StoredConfiguration* configuration = &temporary;
   if (key == "theme") {
     configuration->configuration.theme_id = value;
   } else if (key == "accent") {
@@ -324,11 +583,44 @@ bool ModeService::SetConfigurationValueForMode(std::string_view mode_id,
   } else {
     return false;
   }
-  if (previous != configuration->configuration) {
-    SaveConfigurations();
-    NotifyModeConfigurationChanged();
-  }
+  *result = std::move(temporary.configuration);
   return true;
+}
+
+std::map<std::string, std::string> ModeService::EncodeConfiguration(
+    const WorkModeWorkspaceConfiguration& configuration) {
+  return {{"theme", configuration.theme_id},
+          {"accent", configuration.accent_id},
+          {"surface", configuration.surface_id},
+          {"density", configuration.density_id},
+          {"header", configuration.header_id},
+          {"start_surface", configuration.start_surface},
+          {"layout", configuration.layout_id},
+          {"layout_variant", configuration.layout_variant_id},
+          {"template", configuration.template_id},
+          {"rail_width", base::NumberToString(configuration.rail_width)},
+          {"rail_state", configuration.rail_state},
+          {"show_runbook_rail", configuration.show_runbook_rail ? "true" : "false"},
+          {"compact_controls", configuration.compact_controls ? "true" : "false"}};
+}
+
+std::optional<WorkModeWorkspaceConfiguration> ModeService::DecodeConfiguration(
+    std::string_view mode, const std::map<std::string, std::string>& values) {
+  if (!FindDefinition(mode) || values.size() != 13u) {
+    return std::nullopt;
+  }
+  // A complete snapshot supplies every field. Do not seed it from presets:
+  // preset definitions themselves must pass this decoder during validation.
+  WorkModeWorkspaceConfiguration decoded;
+  for (const auto& [key, value] : values) {
+    if (!ApplyConfigurationValue(mode, key, value, &decoded)) {
+      return std::nullopt;
+    }
+  }
+  // Coupled fields (layout/variant, density/compact) must agree. Unknown,
+  // missing, noncanonical or contradictory values fail the entire snapshot.
+  return EncodeConfiguration(decoded) == values
+             ? std::make_optional(std::move(decoded)) : std::nullopt;
 }
 
 bool ModeService::ResetActiveConfiguration() {
@@ -358,65 +650,17 @@ bool ModeService::IsModifierEnabled(std::string_view modifier) const {
 }
 
 bool ModeService::persistence_enabled() const {
-  return !profile_->IsOffTheRecord();
+  return profile_->IsRegularProfile() && !profile_->IsOffTheRecord() &&
+         !profile_->IsGuestSession() && !profile_->IsSystemProfile();
 }
 
 WorkModeWorkspaceConfiguration ModeService::DefaultConfigurationForMode(
     std::string_view mode_id) {
-  const WorkModeDefinition* definition = FindDefinition(mode_id);
-  CHECK(definition);
-  WorkModeWorkspaceConfiguration configuration;
-  configuration.theme_id =
-      mode_id == "research" || mode_id == "support" ? "light" : "dark";
-  configuration.accent_id = "mode";
-  configuration.surface_id = mode_id == "builder" || mode_id == "operator"
-                                 ? "grid"
-                             : mode_id == "research" ? "paper"
-                                                     : "quiet";
-  configuration.density_id = mode_id == "operator" ? "compact" : "comfortable";
-  configuration.header_id = mode_id == "builder" ? "compact" : "standard";
-  configuration.start_surface = mode_id == "daily" ? "launchpad" : "mission";
-  configuration.layout_id =
-      mode_id == "daily"      ? "one"
-      : mode_id == "research" ? "dual"
-      : mode_id == "creator" || mode_id == "builder" || mode_id == "support"
-          ? "tri"
-          : "quad";
-  configuration.template_id =
-      std::string(mode_id) + (mode_id == "daily"      ? "-review"
-                              : mode_id == "creator"  ? "-brief"
-                              : mode_id == "builder"  ? "-plan"
-                              : mode_id == "operator" ? "-bridge"
-                              : mode_id == "research" ? "-review"
-                                                      : "-case");
-  // The template names above are semantic rather than arbitrary. Map the
-  // few modes whose external template ids use a more descriptive prefix.
-  if (mode_id == "creator") {
-    configuration.template_id = "creative-brief";
-  }
-  if (mode_id == "builder") {
-    configuration.template_id = "build-plan";
-  }
-  if (mode_id == "operator") {
-    configuration.template_id = "incident-bridge";
-  }
-  if (mode_id == "research") {
-    configuration.template_id = "source-review";
-  }
-  if (mode_id == "support") {
-    configuration.template_id = "support-case";
-  }
-  configuration.layout_variant_id = mode_id == "creator" || mode_id == "support"
-                                        ? "tri-one-over-two"
-                                    : mode_id == "builder"  ? "tri-two-over-one"
-                                    : mode_id == "operator" ? "quad"
-                                    : mode_id == "research" ? "dual-side"
-                                                            : "one";
-  configuration.rail_width = 280;
-  configuration.show_runbook_rail = mode_id != "daily";
-  configuration.rail_state = mode_id == "daily" ? "icons" : "expanded";
-  configuration.compact_controls = configuration.density_id == "compact";
-  return configuration;
+  const auto* preset = FindBuiltinNativeModePreset(mode_id);
+  CHECK(preset);
+  auto decoded = DecodeConfiguration(mode_id, preset->native_presentation->configuration);
+  CHECK(decoded);
+  return *decoded;
 }
 
 ModeService::StoredConfiguration* ModeService::FindStoredConfiguration(
@@ -439,7 +683,7 @@ const ModeService::StoredConfiguration* ModeService::FindStoredConfiguration(
 
 bool ModeService::IsValidConfiguration(std::string_view mode_id,
                                        std::string_view key,
-                                       std::string_view value) const {
+                                       std::string_view value) {
   if (!FindDefinition(mode_id)) {
     return false;
   }
@@ -588,6 +832,45 @@ void ModeService::SaveConfigurations() {
   update->Set("configurations", std::move(saved_configurations));
 }
 
+void ModeService::LoadCustomModes() {
+  custom_modes_.clear();
+  if (!persistence_enabled()) {
+    return;
+  }
+  // Invalid data is ignored rather than repaired in-place: a malformed pref
+  // must not destroy a user's last persisted value or become an executable
+  // fallback. The UI can surface recovery after a validated write path exists.
+  ValidateTahaiCustomModeDefinitions(
+      prefs_->GetDict(prefs::kTahaiCustomModeDefinitions), &custom_modes_);
+}
+
+std::optional<std::vector<TahaiCustomModeDefinition>>
+ModeService::ReadCustomModesForWrite() const {
+  if (!persistence_enabled() ||
+      prefs_->IsManagedPreference(prefs::kTahaiCustomModeDefinitions)) {
+    return std::nullopt;
+  }
+  const auto* user_value = prefs_->GetUserPrefValue(prefs::kTahaiCustomModeDefinitions);
+  if (user_value && !user_value->is_dict()) {
+    return std::nullopt;
+  }
+  const auto& value = prefs_->GetDict(prefs::kTahaiCustomModeDefinitions);
+  std::vector<TahaiCustomModeDefinition> result;
+  if (!value.empty() && ValidateTahaiCustomModeDefinitions(value, &result) !=
+                            TahaiCustomModeValidationResult::kValid) {
+    return std::nullopt;
+  }
+  return result;
+}
+
+void ModeService::OnCustomModePreferenceChanged() {
+  auto previous = custom_modes_;
+  LoadCustomModes();
+  if (previous != custom_modes_) {
+    NotifyModeConfigurationChanged();
+  }
+}
+
 bool ModeService::IsKnownModifier(std::string_view modifier) const {
   return std::any_of(kModifiers.begin(), kModifiers.end(),
                      [modifier](const WorkModeModifier& candidate) {
@@ -599,6 +882,7 @@ void ModeService::SetDefaultForOffTheRecord() {
   active_mode_id_ = DailyDefinition().id;
   enabled_modifiers_.clear();
   configurations_.clear();
+  custom_modes_.clear();
   for (const WorkModeDefinition& definition : kDefinitions) {
     configurations_.push_back({std::string(definition.id),
                                DefaultConfigurationForMode(definition.id)});

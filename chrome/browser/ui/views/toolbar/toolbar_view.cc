@@ -6,7 +6,9 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <utility>
+#include <vector>
 
 #include "base/command_line.h"
 #include "base/containers/fixed_flat_map.h"
@@ -68,8 +70,11 @@
 #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_utils.h"
 #include "chrome/browser/ui/ui_features.h"
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+#include "chrome/browser/tahai_skins/skin_profile_service.h"
+#include "chrome/browser/tahai_skins/skin_profile_service_factory.h"
 #include "chrome/browser/ui/tahai/tahai_environment_guard_registry.h"
 #include "chrome/browser/ui/tahai/tahai_mode_command_model.h"
+#include "chrome/browser/ui/tahai/tahai_operational_skin_controller.h"
 #include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
 #endif
 #include "chrome/browser/ui/view_ids.h"
@@ -261,6 +266,8 @@ std::string_view ActiveTahaiModeId(Browser* browser) {
       .id;
 }
 
+// Operational menus use the shared window resolver at construction and again
+// on activation, including when policy changes while the menu remains open.
 class TahaiToolbarMenuModel final : public ui::SimpleMenuModel,
                                     public ui::SimpleMenuModel::Delegate {
  public:
@@ -268,20 +275,44 @@ class TahaiToolbarMenuModel final : public ui::SimpleMenuModel,
       : ui::SimpleMenuModel(this), browser_(browser) {
     switch (kind) {
       case TahaiToolbarMenuKind::kPrimary: {
-          for (const tahai::ModeCommandAction& action :
-               tahai::GetModeCommandGroup(ActiveTahaiModeId(browser_))
-                   .toolbar_primary) {
+        if (const auto custom_actions =
+                tahai::ResolveOperationalWindowActions(browser_)) {
+          operational_context_ = custom_actions->context;
+          for (const tahai::ModeCommandAction& action : custom_actions->toolbar_primary) {
+            AddItem(action.command_id, std::u16string(action.label));
+            operational_command_ids_.push_back(action.command_id);
+          }
+          break;
+        }
+        for (const tahai::ModeCommandAction& action :
+             tahai::GetModeCommandGroup(ActiveTahaiModeId(browser_))
+                 .toolbar_primary) {
           AddItem(action.command_id, std::u16string(action.label));
         }
         break;
       }
       case TahaiToolbarMenuKind::kSecondary: {
+        has_independent_recovery_ = true;
+        if (const auto actions = tahai::ResolveOperationalWindowActions(browser_)) {
+          operational_context_ = actions->context;
+          for (const auto& action : actions->toolbar_secondary) {
+            // Recovery remains available independently of mode authority.
+            if (action.command_id != IDC_TAHAI_GUARD_PANEL) {
+              AddItem(action.command_id, std::u16string(action.label));
+              operational_command_ids_.push_back(action.command_id);
+            }
+          }
+          if (!operational_command_ids_.empty()) {
+            AddSeparator(ui::NORMAL_SEPARATOR);
+          }
+        } else {
           for (const tahai::ModeCommandAction& action :
                tahai::GetModeCommandGroup(ActiveTahaiModeId(browser_))
                    .toolbar_secondary) {
-          AddItem(action.command_id, std::u16string(action.label));
+            AddItem(action.command_id, std::u16string(action.label));
+          }
+          AddSeparator(ui::NORMAL_SEPARATOR);
         }
-        AddSeparator(ui::NORMAL_SEPARATOR);
         AddItem(IDC_TAHAI_GUARD_PANEL,
                 l10n_util::GetStringUTF16(IDS_TAHAI_GUARD_PANEL_TITLE));
         AddItem(IDC_TAHAI_SKIN_MANAGER,
@@ -340,6 +371,13 @@ class TahaiToolbarMenuModel final : public ui::SimpleMenuModel,
   }
 
   bool IsCommandIdEnabled(int command_id) const override {
+    if (operational_context_ &&
+        (!has_independent_recovery_ ||
+         (command_id != IDC_TAHAI_GUARD_PANEL && command_id != IDC_TAHAI_SKIN_MANAGER))) {
+      return std::ranges::find(operational_command_ids_, command_id) != operational_command_ids_.end() &&
+             tahai::CanExecuteWindowModeAction(browser_, *operational_context_,
+                                                command_id);
+    }
     if (!TahaiModeIdForCommandId(command_id).empty()) {
       return browser_ && !browser_->GetProfile()->IsOffTheRecord();
     }
@@ -395,6 +433,14 @@ class TahaiToolbarMenuModel final : public ui::SimpleMenuModel,
   }
 
   void ExecuteCommand(int command_id, int event_flags) override {
+    if (operational_context_ &&
+        (!has_independent_recovery_ ||
+         (command_id != IDC_TAHAI_GUARD_PANEL && command_id != IDC_TAHAI_SKIN_MANAGER))) {
+      if (std::ranges::find(operational_command_ids_, command_id) != operational_command_ids_.end()) {
+        tahai::ExecuteWindowModeAction(browser_, *operational_context_, command_id);
+      }
+      return;
+    }
     const std::string_view mode_id = TahaiModeIdForCommandId(command_id);
     if (!mode_id.empty()) {
       if (browser_ && !browser_->GetProfile()->IsOffTheRecord()) {
@@ -412,6 +458,9 @@ class TahaiToolbarMenuModel final : public ui::SimpleMenuModel,
 
  private:
   const raw_ptr<Browser> browser_;
+  std::optional<tahai::WindowModeActionContext> operational_context_;
+  std::vector<int> operational_command_ids_;
+  bool has_independent_recovery_ = false;
 };
 
 class TahaiToolbarMenuButton final : public ToolbarButton {
@@ -555,12 +604,21 @@ void ToolbarView::UpdateTahaiModeControls() {
 
   const tahai::WorkModeDefinition& mode =
       tahai_window_mode_controller_->active_mode();
-  const std::u16string mode_title = base::UTF8ToUTF16(mode.title);
+  const bool is_custom_mode =
+      !tahai_window_mode_controller_->active_custom_mode_id().empty() ||
+      !tahai_window_mode_controller_->active_operational_mode_id().empty();
+  const std::u16string mode_title = base::UTF8ToUTF16(
+      tahai_window_mode_controller_->active_mode_title());
   std::u16string primary_label;
   std::u16string secondary_label;
   const gfx::VectorIcon* primary_icon = &kHomeIcon;
   const gfx::VectorIcon* secondary_icon = &kPersonFilledIcon;
-  if (mode.id == "daily") {
+  if (is_custom_mode) {
+    primary_label = u"Workflow";
+    secondary_label = u"Controls";
+    primary_icon = &kTaskSparkIcon;
+    secondary_icon = &kTableChartIcon;
+  } else if (mode.id == "daily") {
     primary_label = u"Workspace";
     secondary_label = u"Profiles";
   } else if (mode.id == "creator") {

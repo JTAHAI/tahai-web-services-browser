@@ -4,6 +4,7 @@
 #include "chrome/browser/ui/webui/tahai/tahai_ui.h"
 
 #include <array>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,11 +23,14 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/tahai_skins/skin_profile_service.h"
+#include "chrome/browser/tahai_skins/skin_profile_service_factory.h"
 #include "chrome/browser/tahai_guard/guard_profile_service.h"
 #include "chrome/browser/tahai_guard/guard_profile_service_factory.h"
 #include "chrome/browser/tahai_guard/tahai_guard_configuration.h"
@@ -40,6 +44,17 @@
 #include "chrome/browser/ui/tahai/tahai_environment_guard_registry.h"
 #include "chrome/browser/ui/tahai/tahai_identity_lane.h"
 #include "chrome/browser/ui/tahai/tahai_mode_service.h"
+#include "chrome/browser/ui/tahai/tahai_named_workspace_controller.h"
+#include "chrome/browser/ui/tahai/tahai_named_workspace_store.h"
+#include "chrome/browser/ui/tahai/tahai_operational_skin_controller.h"
+#include "chrome/browser/ui/tahai/tahai_skin_studio_draft.h"
+#include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
+#include "chrome/browser/ui/webui/tahai/tahai_native_mode_editor.h"
+#include "chrome/browser/ui/webui/tahai/tahai_surface_editor_handler.h"
+#include "chrome/browser/ui/webui/tahai/tahai_workflow_native_handler.h"
+#include "chrome/browser/ui/webui/tahai/tahai_surface_designer.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_model.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_tools.h"
 #include "chrome/browser/ui/webui/tahai/tahai_change_lens_contract.h"
 #include "chrome/browser/ui/webui/tahai/tahai_environment_guard.h"
 #include "chrome/browser/ui/webui/tahai/tahai_local_oi_model.h"
@@ -60,6 +75,8 @@
 #include "components/prefs/pref_service.h"
 #include "components/version_info/version_info.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/weak_document_ptr.h"
 #include "content/public/browser/url_data_source.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_message_handler.h"
@@ -74,10 +91,38 @@ namespace tahai {
 namespace {
 
 Browser* FindBrowserForWebContents(content::WebContents* web_contents) {
+  if (!web_contents) {
+    return nullptr;
+  }
   BrowserWindowInterface* browser_window =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
   return browser_window ? browser_window->GetBrowserForMigrationOnly()
                         : nullptr;
+}
+
+bool IsTahaiSkinStudioWebContents(content::WebContents* web_contents) {
+  if (!web_contents) {
+    return false;
+  }
+  const GURL& url = web_contents->GetLastCommittedURL();
+  return url == GURL(kTahaiSkinStudioURL) ||
+         url == GURL(kTahaiTrustedSkinStudioURL);
+}
+
+Browser* BrowserForModeEditor(content::WebContents* web_contents,
+                             Profile* profile) {
+  if (!web_contents || !profile || !profile->IsRegularProfile() ||
+      profile->IsOffTheRecord() || profile->IsGuestSession() ||
+      profile->IsSystemProfile()) {
+    return nullptr;
+  }
+  const auto& url = web_contents->GetLastCommittedURL();
+  if (url != GURL(kTahaiModesURL) && url != GURL(kTahaiTrustedModesURL)) {
+    return nullptr;
+  }
+  auto* browser = FindBrowserForWebContents(web_contents);
+  return browser && browser->is_type_normal() && browser->GetProfile() == profile
+             ? browser : nullptr;
 }
 
 constexpr char kNewTabSurface[] = "newtab";
@@ -88,6 +133,7 @@ constexpr char kSupportSurface[] = "support";
 constexpr char kPolicySurface[] = "policy";
 constexpr char kModesSurface[] = "modes";
 constexpr char kLocalOiSurface[] = "local-oi";
+constexpr char kSkinStudioSurface[] = "skin-studio";
 constexpr char kNewTabTitle[] = "TAHAI New Tab";
 constexpr char kMissionTitle[] = "Mission Control";
 constexpr char kOpsToolsTitle[] = "Operations Tools";
@@ -96,6 +142,7 @@ constexpr char kSupportTitle[] = "TAHAI Support";
 constexpr char kPolicyTitle[] = "TAHAI Policy";
 constexpr char kModesTitle[] = "TAHAI Work Modes";
 constexpr char kLocalOiTitle[] = "TAHAI Local OI";
+constexpr char kSkinStudioTitle[] = "TAHAI Skin Studio";
 
 struct TahaiSurfaceDefinition {
   std::string_view surface;
@@ -245,6 +292,9 @@ std::optional<TahaiSurfaceDefinition> GetSurfaceDefinition(const GURL& url) {
   }
   if (url.path() == "/local-oi" || url.path() == "/local-oi/") {
     return TahaiSurfaceDefinition{kLocalOiSurface, kLocalOiTitle};
+  }
+  if (url.path() == "/skin-studio" || url.path() == "/skin-studio/") {
+    return TahaiSurfaceDefinition{kSkinStudioSurface, kSkinStudioTitle};
   }
   return std::nullopt;
 }
@@ -998,6 +1048,217 @@ constexpr char kModesJs[] = R"TAHAI(
 (()=>{'use strict';const status=document.querySelector('#mode-status'),save=(key,value)=>{status.textContent='Saving this profile-scoped workspace choice…';chrome.send('setTahaiWorkModeConfiguration',[key,String(value)])};for(const opener of document.querySelectorAll('[data-tahai-open-dialog]')){opener.addEventListener('click',()=>document.getElementById(opener.dataset.tahaiOpenDialog)?.showModal())}for(const closer of document.querySelectorAll('[data-tahai-close-dialog]')){closer.addEventListener('click',()=>closer.closest('dialog')?.close())}for(const dialog of document.querySelectorAll('dialog')){dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()})}for(const button of document.querySelectorAll('[data-tahai-mode]')){button.addEventListener('click',()=>{status.textContent='Switching mode without changing this profile, tabs, or pane assignments…';chrome.send('setTahaiWorkMode',[button.dataset.tahaiMode])})}for(const control of document.querySelectorAll('[data-tahai-modifier]')){control.addEventListener('change',()=>{status.textContent='Saving the explicit workspace modifier…';chrome.send('setTahaiWorkModeModifier',[control.dataset.tahaiModifier,control.checked])})}for(const control of document.querySelectorAll('[data-tahai-mode-config]')){const key=control.dataset.tahaiModeConfig;if(control.matches('input[type=checkbox]'))control.addEventListener('change',()=>save(key,control.checked));else control.addEventListener('click',()=>save(key,control.dataset.tahaiValue))}for(const control of document.querySelectorAll('[data-tahai-template]')){control.addEventListener('click',()=>{status.textContent='Creating the selected local runbook…';chrome.send('createTahaiWorkModeTemplateMission',[control.dataset.tahaiTemplate])})}const reset=document.querySelector('[data-tahai-mode-reset]');if(reset)reset.addEventListener('click',()=>{status.textContent='Restoring this mode’s safe defaults…';chrome.send('resetTahaiWorkModeConfiguration')});window.tahaiWorkModeUpdated=()=>location.replace('tahai://modes/');})();
 )TAHAI";
 
+// The compact primary modes script deliberately owns only fixed workspace
+// settings. Custom-mode creation stays in this separate listener so it can
+// submit exactly the two bounded fields accepted by the browser handler.
+constexpr char kCustomModesJs[] = R"TAHAI(
+(()=>{'use strict';const form=document.querySelector('#tahai-custom-mode-form'),status=document.querySelector('#mode-status');if(!status)return;if(form)form.addEventListener('submit',event=>{event.preventDefault();const data=new FormData(form),title=String(data.get('title')||'').trim(),operational=String(data.get('operational_mode_id')||''),workspace=String(data.get('workspace_id')||'');if(!title||title.length>80||!operational)return;status.textContent='Creating the bounded custom workspace…';chrome.send('createTahaiCustomMode',[title,operational,workspace])});for(const control of document.querySelectorAll('[data-tahai-custom-mode-action]'))control.addEventListener('click',()=>{const id=String(control.dataset.tahaiCustomModeId||''),action=String(control.dataset.tahaiCustomModeAction||''),card=control.closest('[data-tahai-custom-mode-card]'),input=card?.querySelector('[data-tahai-custom-mode-title]'),title=String(input?.value||'').trim();if(!id||!['rename','delete'].includes(action)||(action==='rename'&&(!title||title.length>80))||(action==='delete'&&!window.confirm('Delete this custom workspace? The saved workspace itself is not deleted.')))return;status.textContent=action==='rename'?'Renaming custom workspace…':'Deleting custom workspace…';chrome.send('updateTahaiCustomMode',[id,action,title])});window.tahaiCustomModeCreated=()=>{status.textContent='Custom workspace saved for this profile.';window.setTimeout(()=>location.replace('tahai://modes/'),300)};window.tahaiCustomModeUpdated=()=>{status.textContent='Custom workspace updated.';window.setTimeout(()=>location.replace('tahai://modes/'),300)};window.tahaiCustomModeRejected=()=>{status.textContent='That custom workspace request was rejected. Keep a reviewed operational skin applied and choose an existing saved workspace if needed.'}})();
+)TAHAI";
+
+constexpr char kSkinStudioJs[] = R"TAHAI(
+(()=>{'use strict';const source=document.querySelector('#skin-studio-source'),status=document.querySelector('#skin-studio-status'),save=document.querySelector('#skin-studio-save'),copy=document.querySelector('#skin-studio-copy'),palette=document.querySelector('#skin-studio-palette'),tokens=document.querySelector('#skin-studio-tokens'),preview=document.querySelector('#skin-studio-preview');if(!source||!status)return;const tokenNames=['shell_background','toolbar_background','toolbar_foreground','tab_background','tab_foreground','rail_background','rail_foreground','accent','panel_background','panel_foreground'];let timer=0;const draft=()=>{try{const value=JSON.parse(source.value);return value&&typeof value==='object'?value:null}catch{return null}};const queueSave=()=>{if(source.readOnly||source.disabled)return;window.clearTimeout(timer);timer=window.setTimeout(submit,700)};const submit=()=>{if(source.readOnly||source.disabled)return;status.textContent='Validating the local operational-skin source…';chrome.send('saveTahaiSkinStudioDraft',[source.value])};const renderPalette=()=>{if(!tokens)return;tokens.replaceChildren();const value=draft(),name=palette?.value||'dark_tokens',values=value?.appearance?.[name];if(!values||typeof values!=='object'){status.textContent='Source JSON must contain a complete appearance palette before it can be previewed.';return}for(const token of tokenNames){const color=String(values[token]||'');if(!/^#[0-9a-f]{6}$/i.test(color))continue;const label=document.createElement('label'),caption=document.createElement('span'),input=document.createElement('input');caption.textContent=`${token.replaceAll('_',' ')} · ${color.toLowerCase()}`;input.type='color';input.value=color;input.disabled=source.readOnly||source.disabled;input.addEventListener('input',()=>{const next=draft();if(source.readOnly||source.disabled||!next?.appearance?.[name])return;next.appearance[name][token]=input.value.toLowerCase();source.value=JSON.stringify(next,null,2);source.dispatchEvent(new Event('input',{bubbles:true}))});label.append(caption,input);tokens.append(label);if(preview)preview.style.setProperty(`--studio-${token}`,color)}if(preview){preview.style.background=`linear-gradient(145deg,var(--studio-toolbar_background),var(--studio-panel_background))`;preview.style.color='var(--studio-panel_foreground)'}};source.addEventListener('input',()=>{renderPalette();queueSave()});palette?.addEventListener('change',renderPalette);save?.addEventListener('click',submit);copy?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(source.value);status.textContent='Source copied to the clipboard. No package was created.'}catch{status.textContent='The browser could not copy this source.'}});window.tahaiSkinStudioDraftSaved=result=>{const messages={saved:'Validated and saved only as a profile-local source draft.',managed:'This Studio draft is managed and cannot be changed here.',unavailable:'This profile cannot retain a Studio draft.',"too-large":'The source exceeds the Studio size limit.',"invalid-json":'The source is not valid JSON. The prior draft was kept.',"invalid-manifest":'The source is not a valid v2 operational-skin declaration. The prior draft was kept.'};status.textContent=messages[String(result)]||'The Studio draft was not saved.'};renderPalette()})();
+)TAHAI";
+
+constexpr char kSkinStudioImportExportJs[] = R"TAHAI(
+(()=>{
+  'use strict';
+  const source = document.querySelector('#skin-studio-source');
+  const status = document.querySelector('#skin-studio-status');
+  const download = document.querySelector('#skin-studio-download');
+  const imported = document.querySelector('#skin-studio-import');
+  if (!source || !status) return;
+  let importGeneration = 0, sourceRevision = 0;
+  source.addEventListener('input', () => ++sourceRevision);
+  download?.addEventListener('click', () => {
+    const blob = new Blob([source.value], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'tahai-operational-skin-draft.json';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    status.textContent = 'Source download requested. This is not a package.';
+  });
+  imported?.addEventListener('change', async () => {
+    const generation = ++importGeneration;
+    const file = imported.files?.[0];
+    if (!file) return;
+    if (source.readOnly || source.disabled) {
+      status.textContent = 'This draft is read-only.';
+      return;
+    }
+    if (file.size > 65536) {
+      status.textContent = 'The selected source exceeds the Studio size limit.';
+      return;
+    }
+    try {
+      const before = source.value, revision = sourceRevision;
+      const text = await file.text();
+      if (generation !== importGeneration) return;
+      if (source.readOnly || source.disabled || sourceRevision !== revision ||
+          source.value !== before || file !== imported.files?.[0]) {
+        status.textContent = 'The draft changed while the file was being read. Nothing was replaced; select the file again to import it.';
+        return;
+      }
+      source.value = text;
+      source.dispatchEvent(new Event('input', {bubbles: true}));
+      status.textContent = 'Imported source is being validated before saving.';
+    } catch {
+      if (generation === importGeneration) status.textContent = 'The selected source could not be read.';
+    }
+  });
+})();
+)TAHAI";
+
+constexpr char kSkinStudioSurfaceEditorJs[] = R"TAHAI(
+(()=>{
+  'use strict';
+  const source = document.querySelector('#skin-studio-source');
+  const status = document.querySelector('#skin-studio-status');
+  const layout = document.querySelector('#skin-studio-layout');
+  const rail = document.querySelector('#skin-studio-rail');
+  const start = document.querySelector('#skin-studio-start');
+  const modules = [...document.querySelectorAll('[data-tahai-rail-module]')];
+  const order = document.querySelector('#skin-studio-rail-order');
+  const allowedModules = new Set(['tabs', 'saved-workspaces', 'bookmarks', 'history', 'downloads', 'mission', 'local-oi', 'command-center', 'guard']);
+  if (!source || !layout || !rail || !start || !order || modules.length !== allowedModules.size) return;
+  const controls = [layout, rail, start, ...modules];
+  const getSurface = () => {
+    try {
+      const parsed = JSON.parse(source.value);
+      const surface = parsed?.operational?.surfaces?.[0];
+      return surface && typeof surface === 'object' ? {parsed, surface} : null;
+    } catch {
+      return null;
+    }
+  };
+  const writable = () => !source.readOnly && !source.disabled;
+  const selectedModules = surface => {
+    if (!Array.isArray(surface.rail_modules)) return [];
+    const seen = new Set();
+    return surface.rail_modules.filter(module => typeof module === 'string' && allowedModules.has(module) && !seen.has(module) && (seen.add(module), true));
+  };
+  const writeModules = (state, selected, message) => {
+    if (!state || !writable() || !selected.length || selected.length > 5 || selected.some(module => !allowedModules.has(module))) return;
+    state.surface.rail_modules = selected;
+    source.value = JSON.stringify(state.parsed, null, 2);
+    source.dispatchEvent(new Event('input', {bubbles: true}));
+    status.textContent = message;
+  };
+  const renderOrder = selected => {
+    order.replaceChildren();
+    selected.forEach((module, index) => {
+      const row = document.createElement('li');
+      const label = document.createElement('span');
+      const earlier = document.createElement('button');
+      const later = document.createElement('button');
+      label.textContent = module;
+      earlier.type = later.type = 'button';
+      earlier.className = later.className = 'chip';
+      earlier.textContent = 'Move earlier';
+      later.textContent = 'Move later';
+      earlier.disabled = !writable() || index === 0;
+      later.disabled = !writable() || index === selected.length - 1;
+      earlier.addEventListener('click', () => {
+        const state = getSurface();
+        const next = selectedModules(state?.surface || {});
+        if (!state || index === 0 || next[index] !== module) return;
+        [next[index - 1], next[index]] = [next[index], next[index - 1]];
+        writeModules(state, next, 'Rail module order is being validated before saving.');
+      });
+      later.addEventListener('click', () => {
+        const state = getSurface();
+        const next = selectedModules(state?.surface || {});
+        if (!state || index + 1 >= next.length || next[index] !== module) return;
+        [next[index], next[index + 1]] = [next[index + 1], next[index]];
+        writeModules(state, next, 'Rail module order is being validated before saving.');
+      });
+      row.append(label, earlier, later);
+      order.append(row);
+    });
+  };
+  const refresh = () => {
+    const state = getSurface();
+    if (!state) {
+      controls.forEach(control => control.disabled = true);
+      return;
+    }
+    layout.value = state.surface.layout || 'one';
+    rail.value = state.surface.rail_state || 'icons';
+    start.value = state.surface.start_surface || 'launchpad';
+    const selected = selectedModules(state.surface);
+    const selectedSet = new Set(selected);
+    modules.forEach(module => { module.checked = selectedSet.has(module.value); });
+    controls.forEach(control => control.disabled = !writable());
+    renderOrder(selected);
+  };
+  const apply = () => {
+    const state = getSurface();
+    if (!state || source.readOnly || source.disabled) return;
+    const checked = new Set(modules.filter(module => module.checked).map(module => module.value));
+    const selected = selectedModules(state.surface).filter(module => checked.delete(module));
+    modules.forEach(module => { if (checked.delete(module.value)) selected.push(module.value); });
+    if (selected.length > 5 || selected.some(module => !allowedModules.has(module))) {
+      refresh();
+      status.textContent = 'Choose at most five browser-owned rail modules.';
+      return;
+    }
+    const capabilities = state.parsed.operational.capabilities;
+    const required = ['workspace-layout', 'mission-checklist'];
+    if (selected.includes('guard')) required.push('guard-control');
+    const missing = required.filter(capability => !Array.isArray(capabilities) || !capabilities.includes(capability));
+    if (missing.length) {
+      refresh();
+      status.textContent = 'Declare these capabilities in source before choosing this surface: ' + missing.join(', ') + '. No capabilities were added.';
+      return;
+    }
+    if (state.surface.design && state.surface.layout !== layout.value) {
+      refresh();
+      status.textContent = 'Use the canvas template control to change pane count, or reset the draft tree first.';
+      return;
+    }
+    state.surface.layout = layout.value;
+    state.surface.rail_state = rail.value;
+    state.surface.start_surface = start.value;
+    if (selected.length) state.surface.rail_modules = selected;
+    else delete state.surface.rail_modules;
+    source.value = JSON.stringify(state.parsed, null, 2);
+    source.dispatchEvent(new Event('input', {bubbles: true}));
+    status.textContent = 'Surface choices are being validated before saving.';
+  };
+  controls.forEach(control => control.addEventListener('change', apply));
+  source.addEventListener('input', refresh);
+  refresh();
+})();
+)TAHAI";
+
+
+// History is intentionally renderer-local and bounded. It only replays the
+// existing declarative draft text through the same validation/autosave path;
+// undoing an edit cannot install, sign, apply, or export a skin package.
+constexpr char kSkinStudioHistoryJs[] = R"TAHAI(
+(()=>{
+  'use strict';
+  const source=document.querySelector('#skin-studio-source');
+  const status=document.querySelector('#skin-studio-status');
+  const undo=document.querySelector('#skin-studio-undo');
+  const redo=document.querySelector('#skin-studio-redo');
+  if(!source||!status||!undo||!redo)return;
+  const history=[source.value];let position=0,replaying=false;
+  const writable=()=>!source.readOnly&&!source.disabled;
+  const update=()=>{undo.disabled=!writable()||position===0;redo.disabled=!writable()||position+1>=history.length};
+  const record=()=>{if(replaying||!writable()||history[position]===source.value){update();return}history.splice(position+1);history.push(source.value);if(history.length>50){history.shift()}position=history.length-1;update()};
+  const restore=next=>{if(!writable()||next<0||next>=history.length)return;position=next;replaying=true;source.value=history[position];source.dispatchEvent(new Event('input',{bubbles:true}));replaying=false;update();status.textContent='Draft edit restored locally and is being validated before saving.'};
+  source.addEventListener('input',record);
+  undo.addEventListener('click',()=>restore(position-1));
+  redo.addEventListener('click',()=>restore(position+1));
+  document.addEventListener('keydown',event=>{if(!writable()||event.altKey||!(event.ctrlKey||event.metaKey))return;const key=event.key.toLowerCase();if(key==='z'){event.preventDefault();restore(event.shiftKey?position+1:position-1)}else if(key==='y'){event.preventDefault();restore(position+1)}});
+  update();
+})();
+)TAHAI";
+
 constexpr char kProfilesJs[] = R"TAHAI(
 (()=>{'use strict';const status=document.querySelector('#identity-lane-status');for(const button of document.querySelectorAll('[data-tahai-identity-lane]'))button.addEventListener('click',()=>{const lane=button.dataset.tahaiIdentityLane||'',destination=button.dataset.tahaiLaneDestination||'workspace';if(!/^[0-9A-Fa-f]{32}$/.test(lane))return;if(status)status.textContent='Opening a new window in the selected Chromium Profile boundary…';chrome.send('openTahaiIdentityLane',[lane,destination])});window.tahaiIdentityLaneOpened=result=>{if(!status)return;const messages={opened:'Identity Lane opened in its own Chromium Profile window.',unknown_lane:'That Identity Lane is no longer available.',signin_required:'Chromium requires profile sign-in before this lane can open.',invalid_destination:'The requested fixed TAHAI destination was rejected.',profile_unavailable:'Chromium could not load that profile.'};status.textContent=messages[result]||'The Identity Lane request did not complete.'}})();
 )TAHAI";
@@ -1006,11 +1267,298 @@ constexpr char kMissionJs[] = R"TAHAI(
 (()=>{'use strict';
 const form=document.querySelector('#new-mission-form'),status=document.querySelector('#mission-status');if(!form||!status)return;
 const capsuleMessages={copied:'Encrypted capsule copied. Its key remains protected by this Chromium profile and is not included.',verified_ready:'Encrypted capsule verified. You may now create a fresh local runbook from its bounded completion state.',imported:'A fresh local Mission was created from the verified capsule. Source title, identity, timestamps, and event history were not restored.',key_unavailable:'The local OS-protected key is unavailable.',invalid:'That encrypted capsule is malformed, for a different local key, or failed authentication.',failed:'The encrypted capsule request did not complete.'};
-window.tahaiMissionHandoffCopied=()=>{status.textContent='Sanitized checkpoint status copied. Mission name and browsing data were omitted.'};window.tahaiEvidencePackCopied=()=>{status.textContent='Sanitized Evidence Pack copied. It contains generated status only.'};window.tahaiMissionCapsuleCopied=()=>{status.textContent='Sanitized Mission Capsule copied. Inspect it before sharing; it contains no sessions or page data.'};window.tahaiEncryptedMissionCapsuleUpdate=result=>{status.textContent=capsuleMessages[result]||capsuleMessages.failed;const importer=document.querySelector('[data-tahai-mission-action=import-encrypted-capsule]');if(importer)importer.disabled=result!=='verified_ready';if(result==='imported')window.setTimeout(()=>window.location.reload(),400)};
+window.tahaiMissionHandoffCopied=()=>{status.textContent='Sanitized checkpoint status copied. Mission name and browsing data were omitted.'};window.tahaiMissionNoteRejected=()=>{status.textContent='That note was not stored. Keep it brief and remove sensitive material.'};window.tahaiMissionWorkflowInputRejected=()=>{status.textContent='That value was not stored. Check its type, sensitive material, or completed steps that depend on it.'};window.tahaiMissionWorkflowStartRejected=()=>{status.textContent='That transition is unavailable. Check the run state, required inputs, and unfinished applicable steps.'};window.tahaiMissionCapsuleCopied=()=>{status.textContent='Sanitized Mission Capsule copied. Inspect it before sharing; it contains no sessions or page data.'};window.tahaiEncryptedMissionCapsuleUpdate=result=>{status.textContent=capsuleMessages[result]||capsuleMessages.failed;const importer=document.querySelector('[data-tahai-mission-action=import-encrypted-capsule]');if(importer)importer.disabled=result!=='verified_ready';if(result==='imported')window.setTimeout(()=>window.location.reload(),400)};
 form.addEventListener('submit',event=>{event.preventDefault();const data=new FormData(form),title=String(data.get('title')||'').trim(),type=String(data.get('type')||'investigation');if(!title||title.length>128){status.textContent='Mission names must contain 1–128 characters.';return}status.textContent='Creating profile-scoped mission…';chrome.send('createTahaiMission',[title,type])});
-document.addEventListener('click',event=>{const control=event.target.closest('[data-tahai-mission-action]');if(!control)return;const action=control.dataset.tahaiMissionAction,id=control.dataset.tahaiMissionId||'',index=Number(control.dataset.tahaiStepIndex);if(action==='toggle-step'||action==='toggle-validation'||action==='toggle-rollback'){if(!Number.isSafeInteger(index)||index<0)return;status.textContent='Updating generated runbook state…';chrome.send(action==='toggle-step'?'toggleTahaiMissionStep':action==='toggle-validation'?'toggleTahaiValidationStep':'toggleTahaiRollbackStep',[id,index])}else if(action==='toggle-escalation'){status.textContent='Updating generated escalation state…';chrome.send('toggleTahaiEscalation',[id])}else if(action==='add-evidence'){status.textContent='Adding a data-free evidence marker…';chrome.send('addTahaiEvidenceMarker',[id])}else if(action==='copy-evidence'){status.textContent='Copying sanitized Evidence Pack…';chrome.send('copyTahaiEvidencePack',[id])}else if(action==='copy-capsule'){status.textContent='Creating a sanitized Mission Capsule…';chrome.send('copyTahaiMissionCapsule',[id])}else if(action==='copy-encrypted-capsule'){status.textContent='Creating an OS-protected local encrypted capsule…';chrome.send('copyTahaiEncryptedMissionCapsule',[id])}else if(action==='verify-encrypted-capsule'){const input=document.querySelector('#encrypted-capsule-input'),value=input?input.value.trim():'';if(!value||value.length>1048576){status.textContent='Paste one bounded encrypted capsule to verify.';return}status.textContent='Decrypting and validating this local-profile capsule…';chrome.send('verifyTahaiEncryptedMissionCapsule',[value])}else if(action==='import-encrypted-capsule'){status.textContent='Creating a fresh local Mission from the verified capsule…';chrome.send('importTahaiVerifiedMissionCapsule',[])}else if(action==='archive'){status.textContent='Archiving this mission as an immutable local record…';chrome.send('archiveTahaiMission',[id])}else if(action==='restore'){status.textContent='Restoring this profile-scoped mission…';chrome.send('restoreTahaiMission',[id])}else if(action==='duplicate'){status.textContent='Creating a fresh generated runbook…';chrome.send('duplicateTahaiMission',[id])}else if(action==='delete'){if(!window.confirm('Permanently delete this archived mission? This cannot be undone.'))return;status.textContent='Permanently deleting archived mission…';chrome.send('deleteTahaiMission',[id])}else if(action==='copy-handoff'){status.textContent='Copying sanitized checkpoint status…';chrome.send('copyTahaiMissionHandoff',[id])}else if(action==='launch-recipe'){const recipe=control.dataset.tahaiRecipeId||'';if(!recipe)return;status.textContent='Opening the approved recipe workspace…';chrome.send('launchTahaiRecipe',[recipe])}});
-document.addEventListener('change',event=>{const control=event.target.closest('[data-tahai-export-profile]');if(!control)return;status.textContent='Setting export profile…';chrome.send('setTahaiExportProfile',[control.dataset.tahaiMissionId||'',control.value])})})();
+document.addEventListener('click',event=>{const control=event.target.closest('[data-tahai-mission-action]');if(!control)return;const action=control.dataset.tahaiMissionAction,id=control.dataset.tahaiMissionId||'',index=Number(control.dataset.tahaiStepIndex);if(action==='copy-capsule'){status.textContent='Creating a sanitized Mission Capsule…';chrome.send('copyTahaiMissionCapsule',[id])}else if(action==='copy-encrypted-capsule'){status.textContent='Creating an OS-protected local encrypted capsule…';chrome.send('copyTahaiEncryptedMissionCapsule',[id])}else if(action==='verify-encrypted-capsule'){const input=document.querySelector('#encrypted-capsule-input'),value=input?input.value.trim():'';if(!value||value.length>1048576){status.textContent='Paste one bounded encrypted capsule to verify.';return}status.textContent='Decrypting and validating this local-profile capsule…';chrome.send('verifyTahaiEncryptedMissionCapsule',[value])}else if(action==='import-encrypted-capsule'){status.textContent='Creating a fresh local Mission from the verified capsule…';chrome.send('importTahaiVerifiedMissionCapsule',[])}else if(action==='copy-handoff'){status.textContent='Copying sanitized checkpoint status…';chrome.send('copyTahaiMissionHandoff',[id])}else if(action==='launch-recipe'){const recipe=control.dataset.tahaiRecipeId||'';if(!recipe)return;status.textContent='Opening the approved recipe workspace…';chrome.send('launchTahaiRecipe',[recipe])}});
+})();
 (()=>{'use strict';document.addEventListener('click',event=>{const button=event.target.closest('[data-tahai-timeline-filter]');if(!button)return;const card=button.closest('.mission-card'),kind=button.dataset.tahaiTimelineFilter||'all';if(!card)return;for(const row of card.querySelectorAll('[data-tahai-timeline-kind]'))row.hidden=kind!=='all'&&row.dataset.tahaiTimelineKind!==kind})})();
+)TAHAI";
+
+// Checklist controls use one document/gesture/freshness-checked message path.
+// Other legacy Mission controls remain in the separate compact script above.
+constexpr char kMissionChecklistJs[] = R"TAHAI(
+(() => {
+  'use strict';
+  const messages = Object.freeze({'toggle-step': 'toggleTahaiMissionStep',
+      'toggle-validation': 'toggleTahaiValidationStep', 'toggle-rollback': 'toggleTahaiRollbackStep'});
+  const status = text => { const node = document.querySelector('#mission-status'); if (node) node.textContent = text; };
+  window.tahaiMissionControlRejected = () => status('Mission not changed. Reload this view if the Mission changed elsewhere, then check run state and managed policy.');
+  document.addEventListener('click', event => {
+    const control = event.target.closest('[data-tahai-mission-action]');
+    if (!control || !Object.hasOwn(messages, control.dataset.tahaiMissionAction)) return;
+    // Always consume this vocabulary, including malformed/disabled controls;
+    // only this guarded listener owns checklist dispatch.
+    event.stopImmediatePropagation();
+    if (!control.isConnected || control.disabled) return;
+    const id = control.dataset.tahaiMissionId || '', token = control.dataset.tahaiRunToken || '';
+    const rawIndex = control.dataset.tahaiStepIndex || '';
+    if (!/^[0-9a-f-]{36}$/.test(id) || !/^[0-9a-f-]{36}$/.test(token) ||
+        !/^(?:[0-9]|[12][0-9]|3[01])$/.test(rawIndex)) return;
+    status('Updating the reviewed Mission checklist…');
+    chrome.send(messages[control.dataset.tahaiMissionAction], [id, Number(rawIndex), token]);
+  }, true);
+})();
+)TAHAI";
+
+constexpr char kMissionEvidenceJs[] = R"TAHAI(
+(() => {
+  'use strict';
+  const status = text => { const node = document.querySelector('#mission-status'); if (node) node.textContent = text; };
+  const cards = () => [...document.querySelectorAll('.mission-card')];
+  const button = (card, action) => card.querySelector('[data-tahai-mission-action=' + action + ']');
+  const reset = () => cards().forEach(card => {
+    for (const action of ['confirm-evidence', 'cancel-evidence']) {
+      const control = button(card, action);
+      if (control) { control.hidden = true; delete control.dataset.tahaiMissionId; }
+    }
+  });
+  window.tahaiEvidencePackReviewReady = (id, text) => {
+    reset();
+    const card = cards().find(card => card.isConnected && card.dataset.tahaiMissionId === id);
+    if (!card || typeof text !== 'string') return;
+    const preview = card.querySelector('[data-tahai-evidence-preview=true]');
+    const confirm = button(card, 'confirm-evidence'), cancel = button(card, 'cancel-evidence');
+    if (!preview || !confirm || !cancel) return;
+    preview.textContent = text; preview.hidden = false;
+    const details = preview.closest('details'); if (details) details.open = true;
+    for (const control of [confirm, cancel]) { control.dataset.tahaiMissionId = id; control.hidden = false; }
+    status('Review the sanitized Evidence Pack, then confirm copying it.');
+  };
+  window.tahaiEvidencePackCopied = () => { reset(); status('Sanitized Evidence Pack copied. It contains generated status only.'); };
+  window.tahaiEvidencePackReviewCancelled = () => { reset(); status('Evidence Pack copy cancelled. Nothing was copied.'); };
+  window.tahaiEvidencePackReviewRejected = () => { reset(); status('Evidence Pack changed or is unavailable. Review the refreshed text before copying.'); };
+  document.addEventListener('click', event => {
+    const control = event.target.closest('[data-tahai-mission-action]'), action = control?.dataset.tahaiMissionAction;
+    if (!['copy-evidence', 'confirm-evidence', 'cancel-evidence'].includes(action)) return;
+    event.stopImmediatePropagation();
+    const card = control.closest('.mission-card'), id = control.dataset.tahaiMissionId || '';
+    if (!control.isConnected || control.disabled || control.hidden || !card?.isConnected ||
+        card.dataset.tahaiMissionId !== id || !/^[0-9a-f-]{36}$/.test(id)) return;
+    reset();
+    if (action === 'copy-evidence') {
+      status('Preparing sanitized Evidence Pack for review…'); chrome.send('copyTahaiEvidencePack', [id]);
+    } else if (action === 'confirm-evidence') {
+      chrome.send('confirmTahaiEvidencePack', [id]);
+    } else { chrome.send('cancelTahaiEvidencePack', []); }
+  }, true);
+})();
+)TAHAI";
+
+constexpr char kMissionMetadataJs[] = R"TAHAI(
+(() => {
+  'use strict';
+  const messages = Object.freeze({'toggle-escalation':'toggleTahaiEscalation', 'add-evidence':'addTahaiEvidenceMarker',
+      'add-note':'addTahaiMissionNote', archive:'archiveTahaiMission', restore:'restoreTahaiMission',
+      duplicate:'duplicateTahaiMission', delete:'deleteTahaiMission'});
+  const status = text => { const node = document.querySelector('#mission-status'); if (node) node.textContent = text; };
+  const context = control => {
+    if (!control.isConnected || control.disabled) return null;
+    const card = control.closest('.mission-card'), id = control.dataset.tahaiMissionId || '';
+    const token = card?.dataset.tahaiRunToken || '';
+    return card?.isConnected && card.dataset.tahaiMissionId === id && /^[0-9a-f-]{36}$/.test(id) && /^[0-9a-f-]{36}$/.test(token) ? {id, token, card} : null;
+  };
+  document.addEventListener('click', event => {
+    const control = event.target.closest('[data-tahai-mission-action]'), action = control?.dataset.tahaiMissionAction;
+    if (!control || !Object.hasOwn(messages, action)) return;
+    event.stopImmediatePropagation(); const current = context(control); if (!current) return;
+    let value = '';
+    if (action === 'add-note') {
+      const input = document.getElementById(control.dataset.tahaiNoteInput || '');
+      if (!input || !input.isConnected || !current.card.contains(input)) return;
+      value = input.value.trim();
+      if (!value || new TextEncoder().encode(value).length > 512) { status('Enter a bounded profile-local note.'); return; }
+    }
+    if (action === 'delete' && !window.confirm('Permanently delete this archived mission? This cannot be undone.')) return;
+    status('Updating the reviewed local Mission…');
+    chrome.send(messages[action], [current.id, value, current.token]);
+  }, true);
+  document.addEventListener('change', event => {
+    const control = event.target.closest('[data-tahai-export-profile]'); if (!control) return;
+    event.stopImmediatePropagation(); const current = context(control); if (!current) return;
+    if (!['sanitized-handoff','internal','incident-packet','change-record','itdocs-sync','psa-ticket-note'].includes(control.value)) return;
+    status('Updating the reviewed export profile…');
+    chrome.send('setTahaiExportProfile', [current.id, control.value, current.token]);
+  }, true);
+})();
+)TAHAI";
+
+// Operational workflow state is intentionally handled separately from the
+// legacy compact Mission script. The renderer sends only a fixed state token;
+// the browser service validates the current transition and never dispatches a
+// workflow action while pausing, resuming, or cancelling.
+constexpr char kMissionWorkflowStateJs[] = R"TAHAI(
+(() => {
+  'use strict';
+  const status = text => { const node = document.querySelector('#mission-status'); if (node) node.textContent = text; };
+  window.tahaiWorkflowWaitRejected = () => status('Wait not changed. Reload if the run changed elsewhere; check elapsed time, preceding steps, required inputs and run state.');
+  document.addEventListener('click', event => {
+    const refresh = event.target.closest('[data-tahai-wait-refresh]');
+    if (refresh && !refresh.disabled) { window.location.reload(); event.stopImmediatePropagation(); return; }
+    const control = event.target.closest('[data-tahai-wait-control]');
+    if (!control || control.disabled) return;
+    const id = control.dataset.tahaiMissionId || '', token = control.dataset.tahaiRunToken || '';
+    const operation = control.dataset.tahaiWaitControl, index = Number(control.dataset.tahaiStepIndex);
+    if (!/^[0-9a-f-]{36}$/.test(id) || !/^[0-9a-f-]{36}$/.test(token) ||
+        !/^(?:[0-9]|[12][0-9]|3[01])$/.test(control.dataset.tahaiStepIndex || '') ||
+        !['start', 'complete'].includes(operation) || !Number.isSafeInteger(index) || index < 0 || index >= 32) return;
+    status('Checking the local timed wait…');
+    chrome.send('controlTahaiWorkflowWait', [id, index, operation, token]);
+    event.stopImmediatePropagation();
+  }, true);
+  const clocks = [...document.querySelectorAll('[data-tahai-wait-countdown]')].map(node =>
+      ({node, milliseconds: Number(node.dataset.tahaiWaitCountdown),
+        timeout: node.dataset.tahaiWaitTimeout === undefined ? null : Number(node.dataset.tahaiWaitTimeout), started: performance.now()}));
+  if (!clocks.length) return;
+  const refresh = () => clocks.forEach(clock => {
+    if (!clock.node.isConnected || !Number.isSafeInteger(clock.milliseconds) || clock.milliseconds < 0 || clock.milliseconds > 86400000) return;
+    const seconds = Math.max(0, Math.ceil((clock.milliseconds - (performance.now() - clock.started)) / 1000));
+    clock.node.textContent = seconds ? `${seconds} seconds remaining (display estimate).` :
+        'Wait may be elapsed. Confirm completion; no next action has run.';
+    if (clock.timeout !== null && Number.isSafeInteger(clock.timeout) && clock.timeout >= 0 && clock.timeout <= 86400000) {
+      const deadline = Math.max(0, Math.ceil((clock.timeout - (performance.now() - clock.started)) / 1000));
+      clock.node.textContent = deadline ? clock.node.textContent + ` Completion deadline: ${deadline} seconds (display estimate).` :
+          'Completion deadline reached (display estimate). Refresh run status to review the recorded outcome.';
+    }
+  });
+  refresh(); setInterval(refresh, 1000);
+})();
+(() => {
+  'use strict';
+  const status = text => { const node = document.querySelector('#mission-status'); if (node) node.textContent = text; };
+  window.tahaiWorkflowAssignmentRejected = () => status('Variable not changed. Reload if this run changed in another tab, then check protected storage, the source value, destination limits, preceding steps and run state.');
+  document.addEventListener('click', event => {
+    const control = event.target.closest('[data-tahai-variable-assign]');
+    if (!control || control.disabled) return;
+    const id = control.dataset.tahaiMissionId || '', index = Number(control.dataset.tahaiStepIndex);
+    const token = control.dataset.tahaiRunToken || '';
+    if (!/^[0-9a-f-]{36}$/.test(id) || !/^[0-9a-f-]{36}$/.test(token) ||
+        !Number.isSafeInteger(index) || index < 0 || index >= 32) return;
+    status('Assigning a typed local variable…');
+    chrome.send('assignTahaiWorkflowVariable', [id, index, token]);
+    event.stopImmediatePropagation();
+  }, true);
+})();
+(() => {
+  'use strict';
+  document.addEventListener('click', event => {
+    const control = event.target.closest('[data-tahai-workflow-state]');
+    if (!control) return;
+    event.stopImmediatePropagation();
+    if (!control.isConnected || control.disabled) return;
+    const id = control.dataset.tahaiMissionId || '', state = control.dataset.tahaiWorkflowState || '';
+    const token = control.dataset.tahaiRunToken || '';
+    if (!/^[0-9a-f-]{36}$/.test(id) || !/^[0-9a-f-]{36}$/.test(token) ||
+        !/^(running|paused|cancelled|succeeded|failed)$/.test(state)) return;
+    const status = document.querySelector('#mission-status');
+    if (status) status.textContent = 'Updating the reviewed local workflow state…';
+    chrome.send('setTahaiOperationalWorkflowState', [id, state, token]);
+  }, true);
+})();
+)TAHAI";
+
+// Input values are sent only to the profile-local Mission service. The
+// renderer supplies an id and scalar string; type, requiredness, selections,
+// archival state, and sensitive-material screening are all revalidated in C++.
+constexpr char kMissionWorkflowInputJs[] = R"TAHAI(
+(() => {
+  'use strict';
+  const runToken = control => {
+    const card = control.closest('.mission-card'), id = control.dataset.tahaiMissionId || '';
+    const token = card?.dataset.tahaiRunToken || '';
+    return control.isConnected && card?.isConnected && card.dataset.tahaiMissionId === id &&
+        /^[0-9a-f-]{36}$/.test(id) && /^[0-9a-f-]{36}$/.test(token) ? token : null;
+  };
+  const status = text => { const node = document.querySelector('#mission-status'); if (node) node.textContent = text; };
+  window.tahaiMissionWorkflowInputRejected = () => status(
+      'That value was not stored. Check its type, storage availability, policy and run state. Private values require a protected field.');
+  let preparing = false;
+  const prepare = () => {
+    if (preparing) return;
+    preparing = true; status('Checking OS-protected input storage…');
+    chrome.send('prepareTahaiProtectedWorkflowInputs', []);
+  };
+  window.tahaiProtectedWorkflowInputsUnavailable = () => {
+    preparing = false;
+    status('OS-protected storage is unavailable. Saved encrypted values were kept. Retry, replace, or explicitly clear them; no plaintext fallback is used.');
+  };
+  document.addEventListener('change', event => {
+    const control = event.target.closest('[data-tahai-workflow-input]');
+    if (!control || control.disabled) return;
+    const id = control.dataset.tahaiMissionId || '', input = control.dataset.tahaiInputId || '';
+    const value = String(control.value || '');
+    const protectedInput = control.dataset.tahaiProtected === 'true';
+    if (protectedInput) control.value = '';
+    const token = runToken(control);
+    if (!token || !input || (protectedInput && !value)) return;
+    if (new TextEncoder().encode(value).length > 256) {
+      status('That value was not stored. Inputs allow at most 256 UTF-8 bytes; the previous saved value was kept.');
+      return;
+    }
+    status('Saving profile-local workflow input…');
+    chrome.send('setTahaiOperationalWorkflowInput', [id, input, value, token]);
+  });
+  document.addEventListener('click', event => {
+    const retry = event.target.closest('[data-tahai-protected-retry]');
+    if (retry && !retry.disabled) { prepare(); return; }
+    const clear = event.target.closest('[data-tahai-protected-clear]');
+    if (!clear || clear.disabled) return;
+    const token = runToken(clear); if (!token || !clear.dataset.tahaiInputId) return;
+    chrome.send('setTahaiOperationalWorkflowInput', [clear.dataset.tahaiMissionId, clear.dataset.tahaiInputId, '', token]);
+  });
+  // A successful preparation reloads once. Ready controls do not re-request.
+  if (document.querySelector('[data-tahai-protected-storage="locked"]')) prepare();
+})();
+)TAHAI";
+
+constexpr char kMissionNativeWorkflowJs[] = R"TAHAI(
+(() => {
+  'use strict';
+  const status = document.querySelector('#mission-status');
+  if (!status) return;
+  const messages = {
+    pending: 'Recording this one-time attempt before dispatch. The browser closes an unresolved attempt after ten seconds; refresh to see its recorded status.',
+    dispatched: 'Native command dispatched. Check the actual result before completing the checkpoint.',
+    rejected: 'Native command was not dispatched. This attempt is closed; review the context before starting a fresh run.',
+    unknown: 'The attempt outcome is uncertain. It will not be replayed. Review the actual browser state before starting a fresh run.',
+    unavailable: 'Action unavailable. Check the trusted skin revision, active mode, required inputs, and preceding checkpoints.'
+  };
+  window.tahaiNativeWorkflowResult = (id, index, result) => {
+    if (!Object.hasOwn(messages, result) || !Number.isInteger(index)) return;
+    status.textContent = messages[result];
+    for (const button of document.querySelectorAll('[data-tahai-native-run]')) {
+      if (button.dataset.tahaiMissionId !== id || Number(button.dataset.tahaiStepIndex) !== index) continue;
+      const row = button.closest('.mission-step');
+      if (!row) continue;
+      const label = row.querySelector('[data-tahai-native-status]');
+      if (label) label.textContent = 'Native action: ' + result;
+      const error = row.querySelector('[data-tahai-native-error]');
+      const refresh = row.querySelector('[data-tahai-native-refresh]');
+      const failed = result === 'rejected' || result === 'unknown';
+      if (error) { error.hidden = !failed; error.dataset.tahaiNativeError = failed ? result : ''; if (failed) error.textContent = messages[result]; }
+      if (refresh) refresh.hidden = !failed && result !== 'pending';
+      button.disabled = result !== 'unavailable';
+      const checkpoint = row.querySelector('[data-tahai-mission-action="toggle-step"]');
+      if (checkpoint) checkpoint.disabled = true;
+      // A fresh revision is not permission to reuse an old rendered view.
+      // Reload all state before offering completion or any further mutation.
+      if (result === 'dispatched') { window.location.reload(); return; }
+    }
+  };
+  document.addEventListener('click', event => {
+    if (event.target.closest('[data-tahai-native-refresh]')) { window.location.reload(); return; }
+    const button = event.target.closest('[data-tahai-native-run]');
+    if (!button || !button.isConnected || button.disabled || !event.isTrusted) return;
+    const id = button.dataset.tahaiMissionId;
+    const index = Number(button.dataset.tahaiStepIndex);
+    const card = button.closest('.mission-card'), token = card?.dataset.tahaiRunToken || '';
+    if (!card?.isConnected || card.dataset.tahaiMissionId !== id || !/^[0-9a-f-]{36}$/.test(id || '') ||
+        !/^[0-9a-f-]{36}$/.test(token) || !/^(?:[0-9]|[12][0-9]|3[01])$/.test(button.dataset.tahaiStepIndex || '') ||
+        !Number.isInteger(index) || index < 0 || index >= 32) return;
+    button.disabled = true;
+    status.textContent = messages.pending;
+    chrome.send('runTahaiNativeWorkflowStep', [id, index, token]);
+  });
+})();
 )TAHAI";
 
 constexpr char kMissionKeyRotationJs[] = R"TAHAI(
@@ -1665,11 +2213,17 @@ std::string_view ModifierActionLabel(std::string_view modifier) {
   return "Focus active pane";
 }
 
-std::string ModeHtml(ModeService* service) {
+std::string ModeHtml(ModeService* service,
+                     WindowModeController* controller,
+                     const std::vector<NamedWorkspace>& named_workspaces) {
   CHECK(service);
-  const WorkModeDefinition& active = service->active_mode();
+  const WorkModeDefinition& active = controller ? controller->active_mode()
+                                                : service->active_mode();
   const WorkModeWorkspaceConfiguration& configuration =
-      service->active_configuration();
+      controller ? controller->active_configuration()
+                 : service->active_configuration();
+  const std::string_view active_title = controller
+      ? controller->active_mode_title() : active.title;
   std::string cards;
   for (const WorkModeDefinition& mode : ModeService::definitions()) {
     const bool selected = mode.id == active.id;
@@ -1691,7 +2245,8 @@ std::string ModeHtml(ModeService* service) {
         mode.id,
         "\">",
         selected ? "Selected" : "Choose",
-        "</button></div></article>",
+        "</button><button class=chip type=button data-tahai-builtin-mode-copy=\"",
+        mode.id, "\">Save editable preset copy</button></div></article>",
     });
   }
   std::string modifiers;
@@ -1711,6 +2266,89 @@ std::string ModeHtml(ModeService* service) {
         ModifierActionLabel(modifier.id),
         "</button>",
     });
+  }
+  std::string operational_mode_options;
+  if (controller) {
+    if (const TahaiOperationalSkinManifest* operational =
+            controller->operational_manifest()) {
+      for (const TahaiOperationalMode& mode : operational->modes) {
+        if (!BuildTahaiOperationalSkinActivation(*operational, mode.id)) {
+          continue;
+        }
+        operational_mode_options += base::StrCat(
+            {"<option value=\"", base::EscapeForHTML(mode.id), "\">",
+             base::EscapeForHTML(mode.name), "</option>"});
+      }
+    }
+  }
+  std::string workspace_options =
+      "<option value=\"\">No saved workspace</option>";
+  for (const NamedWorkspace& workspace : named_workspaces) {
+    workspace_options += base::StrCat(
+        {"<option value=\"", base::EscapeForHTML(workspace.id), "\">",
+         base::EscapeForHTML(workspace.name), "</option>"});
+  }
+  const std::string custom_mode_creator =
+      operational_mode_options.empty()
+          ? "<p class=boundary>To also create a skin-authored mode, apply a "
+            "reviewed operational skin to this window.</p>"
+          : base::StrCat(
+                {R"TAHAI(<form id=tahai-custom-mode-form class=mode-custom-create><label><span>Name</span><input name=title maxlength=80 required></label><label><span>Operational skin mode</span><select name=operational_mode_id required>)TAHAI",
+                 operational_mode_options,
+                 R"TAHAI(</select></label><label><span>Saved workspace</span><select name=workspace_id>)TAHAI",
+                 workspace_options,
+                 R"TAHAI(</select></label><p class=boundary>This pins the reviewed skin revision and an optional saved workspace. A future package cannot inherit this mode's authority just by reusing its name.</p><button class="button primary" type=submit>Save skin-authored mode</button></form>)TAHAI"});
+  std::string custom_mode_cards;
+  for (const TahaiCustomModeDefinition& custom : service->custom_modes()) {
+    const auto workspace = std::ranges::find(
+        named_workspaces, custom.workspace_id, &NamedWorkspace::id);
+    const std::string workspace_name =
+        workspace == named_workspaces.end() ? (custom.workspace_id.empty()
+                                                 ? "No saved workspace"
+                                                 : "Unavailable saved workspace")
+                                            : workspace->name;
+    const std::string description = custom.native_presentation
+        ? "Native mode · base: " + custom.native_presentation->fixed_mode
+        : "Operational mode: " + custom.operational_mode_id +
+              (custom.operational_skin ? " · revision pinned"
+                                       : " · unavailable: recreate after review");
+    const std::string activate = custom.native_presentation
+        ? base::StrCat({"<button class=chip type=button data-tahai-native-mode-use=\"",
+                        base::EscapeForHTML(custom.id), "\">Use mode</button>"
+                        "<button class=chip type=button data-tahai-native-mode-copy=\"",
+                        base::EscapeForHTML(custom.id), "\">Save copy</button>"})
+        : "<span class=muted>Activate reviewed skin modes in Skin packages.</span>";
+    std::string native_editor;
+    if (custom.native_presentation) {
+      std::string options = base::StrCat({"<option value=\"\"",
+          custom.workspace_id.empty() ? " selected" : "", ">No saved workspace</option>"});
+      if (!custom.workspace_id.empty() && workspace == named_workspaces.end()) {
+        options += base::StrCat({"<option selected value=\"",
+            base::EscapeForHTML(custom.workspace_id), "\">Unavailable saved workspace</option>"});
+      }
+      for (const auto& saved : named_workspaces) {
+        options += base::StrCat({"<option value=\"", base::EscapeForHTML(saved.id), "\"",
+            saved.id == custom.workspace_id ? " selected" : "", ">",
+            base::EscapeForHTML(saved.name), "</option>"});
+      }
+      native_editor = NativeModeControlsEditorHtml(custom, options);
+    }
+    custom_mode_cards += base::StrCat(
+        {R"TAHAI(<article class=card data-tahai-custom-mode-card><div><p class=eyebrow>Saved custom workspace</p><label><span>Name</span><input data-tahai-custom-mode-title maxlength=80 value=")TAHAI",
+         base::EscapeForHTML(custom.title),
+         R"TAHAI("></label><span>)TAHAI",
+         base::EscapeForHTML(description),
+         " · workspace: ", base::EscapeForHTML(workspace_name),
+         R"TAHAI(</span></div><div class=actions>)TAHAI", activate,
+         R"TAHAI(<button class=chip type=button data-tahai-custom-mode-action=rename data-tahai-custom-mode-id=")TAHAI",
+         base::EscapeForHTML(custom.id),
+         R"TAHAI(">Rename</button><button class=chip type=button data-tahai-custom-mode-action=delete data-tahai-custom-mode-id=")TAHAI",
+         base::EscapeForHTML(custom.id),
+         R"TAHAI(">Delete</button></div>)TAHAI", native_editor, "</article>"});
+  }
+  if (custom_mode_cards.empty()) {
+    custom_mode_cards =
+        "<p class=muted>No custom workspaces have been saved in this profile.</p>";
   }
   const auto choice = [](std::string_view key, std::string_view value,
                          std::string_view label, std::string_view current) {
@@ -1822,19 +2460,23 @@ std::string ModeHtml(ModeService* service) {
       "Work Modes",
       base::StrCat(
           {R"TAHAI(
-<section class=hero><p class=eyebrow>TAHAI work modes</p><h2>Choose a focused workspace.</h2><p class=muted>One local choice changes safe defaults for this profile. Your tabs, identity, browsing data, and pane assignments stay untouched.</p><div class=status><strong>)TAHAI",
-           base::EscapeForHTML(active.title), R"TAHAI(</strong> · )TAHAI",
+<section class=hero><p class=eyebrow>TAHAI work modes</p><h2>Choose a focused workspace.</h2><p class=muted>Choose a mode for this window. Saved mode definitions belong to this profile; other windows keep their current mode. Your identity and browsing data stay untouched.</p><div class=status><strong>)TAHAI",
+           base::EscapeForHTML(active_title), R"TAHAI(</strong> · )TAHAI",
            base::EscapeForHTML(active.launchpad_heading),
            R"TAHAI(</div><p id=mode-status class=muted role=status aria-live=polite></p></section>
 <section class=section><div class=section-head><div><p class=eyebrow>Workspaces</p><h2>Choose a work mode.</h2></div><p class=muted>Pick one, then tune it only when needed.</p></div><div class=mode-grid>)TAHAI",
            cards, R"TAHAI(</div></section>
 <section class=section><article class="panel mode-actions"><div><p class=eyebrow>Current workspace</p><h2>)TAHAI",
-           base::EscapeForHTML(active.title),
+           base::EscapeForHTML(active_title),
            R"TAHAI(</h2><p class=muted><span class=product-lane>)TAHAI",
            base::EscapeForHTML(active.featured_products),
-           R"TAHAI(</span></p></div><nav aria-label="Workspace configuration"><button class="button primary" type=button data-tahai-open-dialog="mode-customize">Customize</button><button class=chip type=button data-tahai-open-dialog="mode-templates">Templates</button><button class=chip type=button data-tahai-open-dialog="mode-tools">Workspace tools</button></nav></article><details class=mode-flyout><summary>What changes with this mode?</summary><p>Only the visible TAHAI workspace defaults saved in this profile: theme, starting surface, layout recommendation, template, and local control density. Changes are explicit, reversible, and never move or duplicate a browser tab.</p></details></section>
+           R"TAHAI(</span></p></div><nav aria-label="Workspace configuration"><button class="button primary" type=button data-tahai-open-dialog="mode-customize">Customize</button><button class=chip type=button data-tahai-open-dialog="mode-templates">Templates</button><button class=chip type=button data-tahai-open-dialog="mode-tools">Workspace tools</button><a class=chip href="tahai://skin-studio/">Skin Studio</a></nav></article><details class=mode-flyout><summary>What changes with this mode?</summary><p>Only the visible TAHAI workspace defaults saved in this profile: theme, starting surface, layout recommendation, template, and local control density. Changes are explicit, reversible, and never move or duplicate a browser tab.</p></details></section>
+<section class=section><article class="panel"><p class=eyebrow>Custom workspaces</p><h2>Build a mode around your work.</h2><p class=muted>Use native browser controls or a reviewed skin-authored mode. Definitions cannot contain arbitrary scripts, destinations or credentials.</p>)TAHAI",
+           NativeModeEditorHtml(active.id, workspace_options),
+           custom_mode_creator, R"TAHAI(<div class=grid>)TAHAI",
+           custom_mode_cards, R"TAHAI(</div></article></section>
 <dialog id=mode-customize class=mode-dialog aria-labelledby=mode-customize-title><form method=dialog><div class=mode-dialog-head><div><p class=eyebrow>Customize workspace</p><h2 id=mode-customize-title>)TAHAI",
-           base::EscapeForHTML(active.title),
+           base::EscapeForHTML(active_title),
            R"TAHAI(</h2><p class=muted>Saved only to this Chromium profile.</p></div><button class=chip type=button data-tahai-close-dialog>Close</button></div>)TAHAI",
            configuration_controls, R"TAHAI(</form></dialog>
 <dialog id=mode-templates class=mode-dialog aria-labelledby=mode-templates-title><form method=dialog><div class=mode-dialog-head><div><p class=eyebrow>Local runbook templates</p><h2 id=mode-templates-title>Start with a known shape.</h2><p class=muted>Templates create only fixed, profile-scoped Mission Control runbooks.</p></div><button class=chip type=button data-tahai-close-dialog>Close</button></div><div class=grid>)TAHAI",
@@ -1924,7 +2566,7 @@ std::string NewTabHtml(MissionService* service, ModeService* mode_service) {
       "New Tab",
       base::StrCat(
           {R"TAHAI(
-<section class=hero><p class=eyebrow>TAHAI Browser</p><h2>Start where you are.</h2><p class=muted>Search the web, return to an open page, or save a useful setup. Your browser profile and site permissions stay in Chromium.</p><div class=actions><button class="button primary" type=button data-tahai-command="address.focus">Search the web or enter a web address</button><button class=button type=button data-tahai-command="tabs.find">Find a tab</button><button class=button type=button data-tahai-command="workspaces.open">Saved workspaces</button></div></section>
+<section class="hero launch-hero"><div><p class=eyebrow>TAHAI Browser</p><h2>Focused browsing across complex work.</h2><p class=muted>Native professional workspace for ordinary browsing, deliberate layouts, and profile-scoped missions. Search the web, return to an open page, or save a useful setup while Chromium keeps your permissions and browsing data in its own profile.</p><div class=actions><button class="button primary" type=button data-tahai-command="address.focus">Search the web or enter a web address</button><button class=button type=button data-tahai-command="tabs.find">Find a tab</button><button class=button type=button data-tahai-command="workspaces.open">Saved workspaces</button></div></div><div class=hero-art><img src="/brand.png" alt="TAHAI Browser mark"><span class=hero-badge>Native professional workspace</span></div></section>
  <section class=section><div class=section-head><div><p class=eyebrow>Work with pages</p><h2>Choose a simple next step</h2></div></div><div class=grid><button class=card type=button data-tahai-command="dual.open"><strong>Compare two pages</strong><span>Place the current page beside another page.</span></button><a class=card href="tahai://commands/"><strong>More work tools</strong><span>Find browser actions, layouts, printing, and saving.</span></a><a class=card href="tahai://mission/"><strong>Run a checklist</strong><span>Open Mission Control for recorded steps and evidence.</span></a></div></section>
 <section class="section three">)TAHAI",
            active_mode_card, recent_missions,
@@ -2007,6 +2649,9 @@ std::string MissionCapsuleSummary(const MissionSummary& mission) {
 std::string MissionHtml(MissionService* service, ModeService* mode_service) {
   CHECK(service);
   CHECK(mode_service);
+  // Service construction also happens on unrelated TAHAI pages. A launch must
+  // be consumed on every Mission visit, not only the first profile use.
+  const bool launch_accepted = service->ConsumeQueuedOperationalWorkflow();
   size_t checkpoint_count = 0;
   size_t complete_count = 0;
   size_t evidence_count = 0;
@@ -2050,19 +2695,127 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
   std::string missions;
   for (const MissionSummary& mission : service->missions()) {
     const std::string mutability_disabled = mission.archived ? " disabled" : "";
+    const bool workflow_running = !mission.operational_workflow ||
+        mission.operational_workflow->run_state == "running";
     std::string steps;
     for (size_t index = 0; index < mission.steps.size(); ++index) {
       const MissionStep& step = mission.steps[index];
+      const auto condition_input = std::find_if(
+          mission.workflow_inputs.begin(), mission.workflow_inputs.end(),
+          [&step](const MissionWorkflowInput& input) {
+            return input.id == step.condition_input_id;
+          });
+      const auto condition_variable = std::ranges::find_if(mission.workflow_variables,
+          [&step](const auto& variable) { return variable.definition.id == step.condition_input_id; });
+      const std::string condition_name = step.predicate ? "Compound local check" : step.condition_from_variable
+          ? (condition_variable != mission.workflow_variables.end() ? condition_variable->definition.name : step.condition_input_id)
+          : (condition_input != mission.workflow_inputs.end() ? condition_input->name : step.condition_input_id);
+      const bool condition_ready = IsMissionWorkflowStepConditionSatisfied(mission, index);
+      const bool condition_resolved = IsMissionWorkflowStepConditionResolved(mission, index);
+      bool earlier_condition_unresolved = false;
+      for (size_t previous = 0; previous < index; ++previous)
+        earlier_condition_unresolved |= !IsMissionWorkflowStepConditionResolved(mission, previous);
+      std::string condition_relation = step.predicate ? step.predicate->operation : step.numeric_condition ? step.numeric_condition->operation : "=";
+      base::ReplaceChars(condition_relation, "-", " ", &condition_relation);
+      std::string condition_status = (!step.condition_input_id.empty() || step.predicate) && (!condition_ready || step.variable_condition_result)
+          ? base::StrCat({"<span class=muted role=status data-tahai-condition-status=\"",
+                          condition_resolved ? (condition_ready ? "taken\">Branch taken: " : "skipped\">Skipped by condition: ") :
+                              (step.predicate ? "unresolved\">Waiting for condition sources: " : step.condition_from_variable ? "unassigned\">Waiting for variable assignment: " : "unanswered\">Waiting for answer: "),
+                          base::EscapeForHTML(condition_name),
+                          " ", base::EscapeForHTML(condition_relation), " ",
+                          base::EscapeForHTML(step.numeric_condition ? base::NumberToString(step.numeric_condition->number) : step.condition_equals),
+                          step.variable_condition_result ? " (recorded decision)</span>" : "</span>"})
+          : std::string();
+      if (step.predicate) condition_status += base::StrCat({
+          "<details data-tahai-condition-definition><summary>Condition definition (no run values)</summary><pre>",
+          base::EscapeForHTML(base::WriteJson(SerializeTahaiWorkflowPredicate(*step.predicate)).value_or("Invalid condition")),
+          "</pre></details>"});
+      const std::string condition_disabled =
+          !workflow_running || (!step.complete && (!condition_ready || earlier_condition_unresolved))
+              ? " disabled" : "";
+      std::string native_action;
+      if (step.requires_native_action) {
+        native_action = base::StrCat({
+            "<span class=muted data-tahai-native-status>Native action: ",
+            base::EscapeForHTML(step.action_state), "</span>",
+            "<button class=chip type=button data-tahai-native-run data-tahai-mission-id=\"",
+            base::EscapeForHTML(mission.id), "\" data-tahai-step-index=\"",
+            base::NumberToString(index), "\"",
+            CanBeginMissionNativeStep(mission, index) ? "" : " disabled",
+            ">Run reviewed native action</button>"});
+        const bool failed = step.action_state == "rejected" || step.action_state == "unknown";
+        if (step.action_state == "pending") {
+          native_action += "<span class=muted data-tahai-native-deadline>Native reservation and result recording have a ten-second deadline. Refresh to read the current state; an unresolved outcome will not be retried.</span>";
+        }
+        native_action += base::StrCat({
+            "<span role=status data-tahai-native-error=\"", failed ? step.action_state : "",
+            "\"", failed ? "" : " hidden", ">", step.action_state == "rejected"
+                ? "This native attempt was rejected. It will not be retried in this run."
+                : step.action_state == "unknown"
+                    ? step.native_action_error == "deadline-exceeded"
+                        ? "The native attempt deadline expired. The outcome is unknown and the action may have happened. Check the actual browser state before starting a fresh run; this attempt will not be replayed."
+                        : "The native outcome is unknown. The action may have happened. Check the actual browser state before starting a fresh run; this attempt will not be replayed." : "",
+            "</span><button type=button class=chip data-tahai-native-refresh",
+            failed || step.action_state == "pending" ? "" : " hidden", ">Refresh run status</button>"});
+      }
+      const std::string native_disabled =
+          step.assignment || step.wait_seconds || (step.requires_native_action && step.action_state != "dispatched") ? " disabled" : "";
+      if (step.assignment) {
+        const bool calculation = step.assignment->expression.has_value() || step.assignment->text_expression.has_value();
+        const auto calculation_error = step.complete ? std::string_view() : MissionWorkflowCalculationError(mission, index);
+        native_action += base::StrCat({
+            "<span class=muted>", step.assignment->text_expression ? "Calculate text result for variable " : calculation ? "Calculate numeric result for variable " : "Copy ",
+            calculation ? "" : step.assignment->from_variable ? "variable " : "input ",
+            calculation ? "" : base::EscapeForHTML(step.assignment->source_id), calculation ? "" : " to variable ",
+            base::EscapeForHTML(step.assignment->variable_id), "</span>",
+            "<button class=chip type=button data-tahai-variable-assign data-tahai-mission-id=\"",
+            base::EscapeForHTML(mission.id), "\" data-tahai-step-index=\"",
+            base::NumberToString(index), "\" data-tahai-run-token=\"",
+            base::EscapeForHTML(mission.mutation_token), "\"",
+            CanAssignMissionWorkflowVariable(mission, index) ? "" : " disabled",
+            ">", step.complete ? "Variable assigned" : calculation ? "Calculate local variable" : "Assign local variable", "</button>"});
+        if (step.assignment->from_action_status) native_action +=
+            "<span class=muted data-tahai-action-status-binding>Copies only the browser-recorded dispatch status after the source action and its checkpoint. Dispatched does not prove that work on a website completed. No page data or credentials are read.</span>";
+        if (!calculation_error.empty()) native_action += base::StrCat({
+            "<span role=status data-tahai-calculation-error=\"", calculation_error,
+            "\">Calculation unavailable: ", calculation_error,
+            ". Check ordinary sources, the expression and destination limits; the previous value has not changed.</span>"});
+      }
+      if (step.wait_seconds) {
+        const auto remaining = MissionWorkflowWaitRemaining(step);
+        const auto timeout = MissionWorkflowWaitTimeoutRemaining(step);
+        const bool waiting = step.wait_state == "waiting" && workflow_running && !mission.archived;
+        native_action += base::StrCat({"<span class=muted>Timed wait: ", base::NumberToString(step.wait_seconds),
+            " seconds · ", base::EscapeForHTML(step.wait_state), "</span><span role=timer aria-live=off",
+            waiting && remaining ? " data-tahai-wait-countdown=\"" + base::NumberToString(*remaining) + "\"" : "",
+            waiting && timeout ? " data-tahai-wait-timeout=\"" + base::NumberToString(*timeout) + "\"" : "",
+            ">", remaining ? base::NumberToString((*remaining + 999) / 1000) + " seconds remaining" : "Wait state unavailable",
+            "</span><button class=chip type=button data-tahai-wait-control=\"", waiting ? "complete" : "start",
+            "\" data-tahai-mission-id=\"", base::EscapeForHTML(mission.id), "\" data-tahai-step-index=\"",
+            base::NumberToString(index), "\" data-tahai-run-token=\"", base::EscapeForHTML(mission.mutation_token), "\"",
+            waiting || CanControlMissionWorkflowWait(mission, index, false) ? "" : " disabled",
+            ">", step.complete ? "Wait complete" : waiting ? "Check and complete wait" : step.wait_state == "paused" ? "Resume remaining wait" : "Start timed wait",
+            "</button>"});
+        if (step.wait_timeout_seconds) {
+          native_action += base::StrCat({"<span class=muted>Completion deadline: ",
+              base::NumberToString(step.wait_timeout_seconds), " active seconds from start; pauses with the wait.</span>",
+              step.wait_state == "timed-out" ?
+                "<span role=status data-tahai-wait-error=wait-timed-out>Wait timed out. This run failed. No action was triggered by this deadline. Start a fresh run if needed.</span>" : "",
+              "<button class=chip type=button data-tahai-wait-refresh>Refresh run status</button>"});
+        }
+      }
       steps +=
           "<li class=\"mission-step " +
           std::string(step.complete ? "complete" : "") +
           "\"><span class=mission-step-label>" +
           base::EscapeForHTML(step.label) +
-          "</span><button class=chip type=button" + mutability_disabled +
+          "</span>" + condition_status + native_action +
+          "<button class=chip type=button" + mutability_disabled +
+          condition_disabled + native_disabled +
           " "
           "data-tahai-mission-action=toggle-step data-tahai-mission-id=\"" +
           base::EscapeForHTML(mission.id) + "\" data-tahai-step-index=\"" +
-          base::NumberToString(index) + "\">" +
+          base::NumberToString(index) + "\" data-tahai-run-token=\"" + base::EscapeForHTML(mission.mutation_token) + "\">" +
           (step.complete ? "Reopen" : "Complete") + "</button></li>";
     }
     std::string timeline;
@@ -2074,7 +2827,7 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
                   base::EscapeForHTML(event.created_at) + "</span></li>";
     }
     const auto render_generated_steps =
-        [&mission, &mutability_disabled](const std::vector<MissionStep>& items,
+        [&mission, &mutability_disabled, workflow_running](const std::vector<MissionStep>& items,
                                          std::string_view action) {
           std::string result;
           for (size_t index = 0; index < items.size(); ++index) {
@@ -2085,11 +2838,13 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
                 "\"><span class=mission-step-label>" +
                 base::EscapeForHTML(item.label) +
                 "</span><button class=chip type=button" + mutability_disabled +
+                (workflow_running ? "" : " disabled") +
                 " "
                 "data-tahai-mission-action=\"" +
                 std::string(action) + "\" data-tahai-mission-id=\"" +
                 base::EscapeForHTML(mission.id) +
                 "\" data-tahai-step-index=\"" + base::NumberToString(index) +
+                "\" data-tahai-run-token=\"" + base::EscapeForHTML(mission.mutation_token) +
                 "\">" + (item.complete ? "Reopen" : "Complete") +
                 "</button></li>";
           }
@@ -2111,6 +2866,16 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
           "<li class=muted>No evidence markers. Nothing from a page is "
           "captured.</li>";
     }
+    std::string notes;
+    for (const MissionNote& note : mission.notes) {
+      notes += "<li>" + base::EscapeForHTML(note.text) +
+               "<span class=muted> · " +
+               base::EscapeForHTML(note.created_at) + "</span></li>";
+    }
+    if (notes.empty()) {
+      notes = "<li class=muted>No profile-local notes.</li>";
+    }
+    const std::string note_input_id = "mission-note-" + mission.id;
     const auto option = [&mission](std::string_view profile,
                                    std::string_view label) {
       return base::StrCat({"<option value=\"", profile, "\"",
@@ -2133,6 +2898,211 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
                             "data-tahai-mission-id=\"",
                             base::EscapeForHTML(mission.id),
                             "\">Archive</button>"});
+    std::string workflow_panel;
+    if (mission.operational_workflow) {
+      const std::string& workflow_state =
+          mission.operational_workflow->run_state;
+      const auto state_control = [&mission](std::string_view state,
+                                            std::string_view label) {
+        return base::StrCat(
+            {"<button class=chip type=button data-tahai-workflow-state=\"",
+             state, "\" data-tahai-mission-id=\"",
+             base::EscapeForHTML(mission.id), "\" data-tahai-run-token=\"",
+             base::EscapeForHTML(mission.mutation_token), "\">", label, "</button>"});
+      };
+      std::string controls;
+      if (!mission.archived) {
+        if (workflow_state == "ready") {
+          controls = state_control("running", "Start checklist") +
+                     state_control("cancelled", "Cancel");
+        } else if (workflow_state == "running") {
+          controls = state_control("paused", "Pause") +
+                     state_control("succeeded", "Complete workflow") +
+                     state_control("failed", "Mark failed") +
+                     state_control("cancelled", "Cancel");
+        } else if (workflow_state == "waiting-for-input") {
+          controls = state_control("running", "Resume") +
+                     state_control("paused", "Pause") +
+                     state_control("cancelled", "Cancel");
+        } else if (workflow_state == "paused") {
+          controls = state_control("running", "Resume") +
+                     state_control("cancelled", "Cancel");
+        }
+      }
+      std::string inputs;
+      for (const MissionWorkflowInput& input : mission.workflow_inputs) {
+        const std::string control_id = base::StrCat(
+            {"mission-workflow-input-", mission.id, "-", input.id});
+        const bool needs_answer = IsMissionWorkflowInputRequired(mission, input);
+        const std::string required = needs_answer ? " required" : "";
+        const bool branch_locked = IsMissionWorkflowInputBranchLocked(mission, input.id);
+        const bool action_pending = std::ranges::any_of(mission.steps,
+            [](const auto& step) { return step.action_state == "pending"; });
+        const std::string disabled = mission.archived || branch_locked || action_pending ||
+            workflow_state == "succeeded" || workflow_state == "failed" ||
+            workflow_state == "cancelled" ? " disabled" : "";
+        std::string validation_help, described_by, numeric_limits;
+        if (input.validation) {
+          const auto& rules = *input.validation;
+          std::string limits;
+          if (input.type == "number") {
+            limits = "Inclusive numeric limits: " +
+                (rules.minimum ? base::NumberToString(*rules.minimum) : "no minimum") +
+                " to " + (rules.maximum ? base::NumberToString(*rules.maximum) : "no maximum");
+            if (rules.minimum) numeric_limits += " min=\"" + base::NumberToString(*rules.minimum) + "\"";
+            if (rules.maximum) numeric_limits += " max=\"" + base::NumberToString(*rules.maximum) + "\"";
+          } else {
+            limits = "UTF-8 byte limits: " + base::NumberToString(rules.min_bytes.value_or(0)) +
+                " to " + base::NumberToString(rules.max_bytes.value_or(256)) +
+                ". Non-ASCII characters can use multiple bytes";
+          }
+          described_by = control_id + "-validation";
+          validation_help = "<span class=muted id=\"" + base::EscapeForHTML(described_by) +
+              "\">" + base::EscapeForHTML(limits) + ". Blank clears the saved value.</span>";
+        }
+        if (input.is_protected) described_by += (described_by.empty() ? "" : " ") + control_id + "-status";
+        if (branch_locked || action_pending) {
+          described_by += (described_by.empty() ? "" : " ") + control_id + "-locked";
+          validation_help += "<span class=muted id=\"" + base::EscapeForHTML(control_id) +
+              "-locked\">" + (action_pending ? "Input locked while a native action awaits its result." :
+                  "Branch choice locked while dependent work is complete or has started.") + "</span>";
+        }
+        const std::string description_attribute = described_by.empty() ? "" :
+            " aria-describedby=\"" + base::EscapeForHTML(described_by) + "\"";
+        const std::string attributes = base::StrCat(
+            {" id=\"", base::EscapeForHTML(control_id),
+             "\" data-tahai-workflow-input=true data-tahai-mission-id=\"",
+             base::EscapeForHTML(mission.id), "\" data-tahai-input-id=\"",
+             base::EscapeForHTML(input.id), "\"", required, disabled, description_attribute});
+        std::string control;
+        if (input.is_protected) {
+          const std::string state = input.protected_has_value ? "Saved and protected" :
+              input.protected_value.empty() ? "Not set" : "Saved value unavailable; retry or replace";
+          control = base::StrCat({"<input class=command-input", attributes,
+              " type=password data-tahai-protected=true data-tahai-protected-storage=\"",
+              input.protected_storage_ready ? "ready" : "locked",
+              "\"",
+              " maxlength=256 autocomplete=new-password spellcheck=false value=\"\" placeholder=\"",
+              base::EscapeForHTML(state), "\"",
+              !input.protected_storage_ready && disabled.empty() ? " disabled" : "", ">",
+              "<span class=muted id=\"", base::EscapeForHTML(control_id), "-status\">Protected · ", base::EscapeForHTML(input.type),
+              " · ", base::EscapeForHTML(state), ". Enter a replacement; saved values are never shown.</span>"});
+          if (input.type == "boolean") control += "<span class=muted>Enter true or false.</span>";
+          if (input.type == "selection") {
+            control += "<span class=muted>Allowed values: ";
+            for (const auto& allowed_value : input.options) control += base::EscapeForHTML(allowed_value) + " · ";
+            control += "</span>";
+          }
+          control += base::StrCat({"<button class=button type=button data-tahai-protected-clear=true data-tahai-mission-id=\"",
+              base::EscapeForHTML(mission.id), "\" data-tahai-input-id=\"", base::EscapeForHTML(input.id),
+              "\"", disabled, input.protected_value.empty() && disabled.empty() ? " disabled" : "",
+              ">Clear saved protected value</button>"});
+          if (!input.protected_storage_ready ||
+              (!input.protected_value.empty() && !input.protected_has_value)) control +=
+              "<button class=button type=button data-tahai-protected-retry=true>Retry protected storage</button>";
+        } else if (input.type == "selection" || input.type == "boolean") {
+          control = "<select class=button" + attributes + ">";
+          // A required input starts unset as well. Do not visually select a
+          // value that the native service has never received or accepted.
+          control += base::StrCat(
+              {"<option value=\"\"", input.value.empty() ? " selected" : "",
+               ">Not set</option>"});
+          const std::vector<std::string> options =
+              input.type == "boolean"
+                  ? std::vector<std::string>{"true", "false"}
+                  : input.options;
+          for (const std::string& input_option : options) {
+            control += base::StrCat(
+                {"<option value=\"", base::EscapeForHTML(input_option), "\"",
+                 input.value == input_option ? " selected" : "", ">",
+                 base::EscapeForHTML(input_option), "</option>"});
+          }
+          control += "</select>";
+        } else {
+          control = base::StrCat(
+              {"<input class=command-input", attributes,
+               input.type == "number" ? " type=number step=any" :
+               input.type == "date" ? " type=date min=0001-01-01 max=9999-12-31" :
+               input.type == "url" ? " type=url" : " type=text",
+               numeric_limits, " maxlength=256 autocomplete=off value=\"",
+               base::EscapeForHTML(input.value), "\">"});
+        }
+        inputs += base::StrCat(
+            {"<div><label for=\"", base::EscapeForHTML(control_id), "\">",
+             base::EscapeForHTML(input.name), needs_answer ? " *" : "",
+             "</label>", control, validation_help, "</div>"});
+      }
+      const std::string inputs_panel = inputs.empty()
+          ? std::string()
+          : base::StrCat({"<div><p class=eyebrow>Local workflow inputs</p>",
+                          "<p class=muted>These profile-local values are not ",
+                          "included in Evidence Packs, handoffs, or Mission ",
+                          "Capsules. * Required before running, including ",
+                          "choices used by a condition. Use only explicitly protected fields ",
+                          "for private values; those fields are OS-encrypted, masked, and cannot drive branches. URL references are stored ",
+                          "only; saving one does not open or contact it.</p><div class=grid>",
+                          inputs, "</div></div>"});
+      std::string variables_panel;
+      if (!mission.workflow_variables.empty() && HasValidMissionWorkflowVariables(mission)) {
+        variables_panel = "<section aria-label=\"Local workflow variables\"><p class=eyebrow>Local variables</p>"
+            "<p class=muted>Changed only by an explicit assignment step. Values remain local and are excluded from routine exports. An empty source clears its destination.</p><dl class=list>";
+        for (const auto& variable : mission.workflow_variables) {
+          const std::string display = variable.definition.is_protected
+              ? variable.protected_value.empty() ? "Not set" : variable.protected_storage_ready && variable.protected_has_value
+                  ? "Protected value saved (masked)" : "Protected value unavailable (key or context)"
+              : variable.value.empty() ? "Not set" : variable.value;
+          variables_panel += base::StrCat({"<div><dt>", base::EscapeForHTML(variable.definition.name),
+              " · ", TahaiOperationalWorkflowInputTypeName(variable.definition.type),
+              variable.definition.is_protected ? " (protected)" : "",
+              "</dt><dd data-tahai-workflow-variable=\"", base::EscapeForHTML(variable.definition.id),
+              "\" data-tahai-mission-id=\"", base::EscapeForHTML(mission.id), "\"",
+              variable.definition.is_protected ? variable.protected_storage_ready
+                  ? " data-tahai-protected-storage=\"ready\"" : " data-tahai-protected-storage=\"locked\"" : "",
+              ">",
+              base::EscapeForHTML(display)});
+          if (variable.definition.is_protected && (!variable.protected_storage_ready ||
+              (!variable.protected_value.empty() && !variable.protected_has_value)))
+            variables_panel += "<button class=button type=button data-tahai-protected-retry=true>Retry protected storage</button>";
+          variables_panel += "</dd></div>";
+        }
+        variables_panel += "</dl></section>";
+      }
+      std::string outputs_panel;
+      if (!mission.workflow_outputs.empty()) {
+        outputs_panel = "<section aria-label=\"Named local workflow results\"><p class=eyebrow>Named local outputs</p>"
+            "<p class=muted>Results reference this completed run only. They are not sent to websites or included in skin, evidence, handoff or capsule exports. Protected results remain masked.</p><dl class=list>";
+        for (const auto& output : mission.workflow_outputs) {
+          const auto result = ResolveMissionWorkflowOutput(mission, output.id);
+          std::string display = workflow_state == "succeeded"
+              ? "Unavailable; review the saved run"
+              : workflow_state == "failed" || workflow_state == "cancelled"
+                  ? "No result: workflow did not succeed" : "Available after workflow success";
+          if (result) {
+            display = result->is_protected
+                ? result->unavailable ? "Protected result unavailable; retry protected storage"
+                  : result->has_value ? "Protected result retained (masked)" : "Protected result not set"
+                : result->has_value ? result->value : "Not set";
+          }
+          outputs_panel += base::StrCat({"<div><dt>", base::EscapeForHTML(output.name),
+              result ? " · " + base::EscapeForHTML(result->type) : "", "</dt><dd data-tahai-workflow-output=\"",
+              base::EscapeForHTML(output.id), "\" data-tahai-mission-id=\"", base::EscapeForHTML(mission.id),
+              "\">", base::EscapeForHTML(display), "</dd></div>"});
+        }
+        outputs_panel += "</dl></section>";
+      }
+      workflow_panel = base::StrCat(
+          {"<div><p class=eyebrow>Operational workflow</p><p class=muted>",
+           "State: <strong>", base::EscapeForHTML(workflow_state),
+           "</strong> · revision ",
+           base::EscapeForHTML(
+               mission.operational_workflow->archive_sha256.substr(0, 12)),
+           "…</p><p class=muted>",
+           mission.operational_workflow->adapter_version == 1
+               ? "Native actions require an explicit click, the same trusted revision and active mode, and completed preceding checkpoints. Dispatch is not proof of the outcome: verify it before marking the step complete. An unknown or rejected attempt cannot be replayed in this run; review the result and create a fresh run if needed. "
+               : "This legacy run retains inert checklist steps only. ",
+           "Changing run state or restarting never repeats a command.</p><div class=actions>", controls, "</div>",
+           inputs_panel, variables_panel, outputs_panel, "</div>"});
+    }
     const std::string black_box_status =
         mission.timeline_integrity_verified
             ? "<p class=status>Mission Black Box: this bounded local event "
@@ -2144,7 +3114,8 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
     missions +=
         "<article class=\"panel mission-card\" data-tahai-mission-state=\"" +
         std::string(mission.archived ? "archived" : "active") +
-        "\"><div "
+        "\" data-tahai-mission-id=\"" + base::EscapeForHTML(mission.id) +
+        "\" data-tahai-run-token=\"" + base::EscapeForHTML(mission.mutation_token) + "\"><div "
         "class=mission-card-head><div><p class=eyebrow>" +
         base::EscapeForHTML(mission.type) +
         (mission.archived ? " · archived" : " · active") + "</p><h3>" +
@@ -2156,7 +3127,8 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
         "data-tahai-mission-action=duplicate data-tahai-mission-id=\"" +
         base::EscapeForHTML(mission.id) + "\">Duplicate</button>" +
         lifecycle_controls +
-        "</div></div><div><p class=eyebrow>Runbook "
+        "</div></div>" + workflow_panel +
+        "<div><p class=eyebrow>Runbook "
         "checkpoints</p><ul class=\"list mission-steps\">" +
         steps +
         "</ul></div><div><p class=eyebrow>Validation rail</p><ul class=\"list "
@@ -2171,7 +3143,20 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
         base::EscapeForHTML(mission.id) + "\">" +
         (mission.escalation_required ? "Clear escalation required"
                                      : "Mark escalation required") +
-        "</button></div></div><div><p class=eyebrow>Evidence Pack</p><p "
+        "</button></div></div><div><p class=eyebrow>Private mission "
+        "notes</p><p class=muted>Notes remain in this profile and are "
+        "excluded from Evidence Packs, handoffs, and Mission Capsules. "
+        "Sensitive-material screening applies before saving.</p><ul "
+        "class=\"list mission-timeline\">" +
+        notes + "</ul><div class=actions><input id=\"" +
+        base::EscapeForHTML(note_input_id) +
+        "\" class=command-input type=text maxlength=512 autocomplete=off "
+        "placeholder=\"Profile-local note\"" + mutability_disabled +
+        "><button class=chip type=button" + mutability_disabled +
+        " data-tahai-mission-action=add-note data-tahai-mission-id=\"" +
+        base::EscapeForHTML(mission.id) + "\" data-tahai-note-input=\"" +
+        base::EscapeForHTML(note_input_id) +
+        "\">Add note</button></div></div><div><p class=eyebrow>Evidence Pack</p><p "
         "class=muted>Generated action markers only; no URL, title, page "
         "content, screenshot, cookie, token, header, or credential is "
         "collected.</p><ul class=\"list mission-timeline\">" +
@@ -2191,10 +3176,19 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
         option("change-record", "Change record") +
         option("itdocs-sync", "IT Docs contract") +
         option("psa-ticket-note", "PSA ticket contract") +
-        "</select><button class=chip type=button "
+        "</select><details class=mission-export-preview><summary>Review "
+        "sanitized Evidence Pack</summary><pre "
+        "data-tahai-evidence-preview=\"true\">" +
+        base::EscapeForHTML(EvidencePackSummary(mission)) +
+        "</pre></details><p class=muted>Review the exact local text before "
+        "copying it. The preview and exported text use the same browser-owned "
+        "sanitization path.</p><button class=chip type=button "
         "data-tahai-mission-action=copy-evidence data-tahai-mission-id=\"" +
         base::EscapeForHTML(mission.id) +
-        "\">Copy sanitized Evidence Pack</button><button class=chip "
+        "\">Review sanitized Evidence Pack</button><button class=chip "
+        "type=button hidden data-tahai-mission-action=confirm-evidence>"
+        "Confirm copy</button><button class=chip type=button hidden "
+        "data-tahai-mission-action=cancel-evidence>Cancel</button><button class=chip "
         "type=button data-tahai-mission-action=copy-capsule "
         "data-tahai-mission-id=\"" +
         base::EscapeForHTML(mission.id) +
@@ -2227,11 +3221,18 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
         "<article class=panel><strong>No saved missions</strong><p class=muted>"
         "Create one in this Chromium profile. Mission metadata never captures "
         "page content, credentials, tokens, cookies, headers, screenshots, or "
-        "arbitrary notes.</p></article>";
+        "browser data. Profile-local notes are bounded and never exported.</p>"
+        "</article>";
   }
   std::string content = R"TAHAI(
 <section class=hero><p class=eyebrow>Native operational workspace</p><h2>Real tabs. Real WebContents. Bounded mission state.</h2><p class=muted>Mission metadata belongs to this Chromium profile. It supplies generated runbook checkpoints and a local completion timeline, but never simulates history, input, authentication, or remote page behavior.</p><form id=new-mission-form class=search><input name=title maxlength=128 required autocomplete=off placeholder="Mission name"><select name=type class=button aria-label="Mission type"><option value=investigation>Investigation</option><option value=incident>Incident</option><option value=change>Change</option><option value=deployment>Deployment</option><option value=migration>Migration</option><option value=audit>Audit</option><option value=maintenance>Maintenance</option><option value=documentation>Documentation</option><option value=admin>Administrative change</option><option value=support>Support</option><option value=development>Development</option></select><button class="button primary" type=submit>New Mission</button></form><p id=mission-status class=muted role=status aria-live=polite></p></section>
 )TAHAI";
+  if (!launch_accepted) {
+    content += "<p class=boundary role=alert>The workflow could not be started. "
+               "Check available Mission storage and the installed skin, then "
+               "activate the mode again. No pending launch will be retried "
+               "automatically.</p>";
+  }
   content +=
       "<section class=section><div class=section-head><div><p "
       "class=eyebrow>Mission command deck</p><h2>Operational "
@@ -2267,7 +3268,7 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
 <section class=section><div class=section-head><div><p class=eyebrow>Encrypted capsule import</p><h2>Create a fresh local Mission</h2></div></div><p class=muted>After the local-profile capsule below verifies, this explicit action creates a new local runbook from bounded completion state only. It never restores the source Mission identity, title, timestamps, event history, or browsing data.</p><div class=actions><button class="button secondary" type=button data-tahai-mission-action=import-encrypted-capsule disabled>Create fresh local Mission</button><button class=chip type=button data-tahai-mission-action=rotate-encrypted-capsule-key>Rotate local capsule key</button></div></section>
 )TAHAI";
   content +=
-      R"TAHAI(</div></section><section class=section><div class=section-head><div><p class=eyebrow>Encrypted capsule verification</p><h2>Local-profile cryptographic boundary</h2></div></div><p class=muted>Paste an encrypted capsule created by this same Chromium profile to decrypt and verify its integrity. The OS-protected key is never copied, uploaded, or shown here. Verification does not create, restore, or merge Mission state.</p><textarea id=encrypted-capsule-input class=search rows=5 maxlength=1048576 spellcheck=false placeholder="Paste an encrypted local-profile Mission Capsule"></textarea><div class=actions><button class="button" type=button data-tahai-mission-action=verify-encrypted-capsule>Verify encrypted capsule</button></div></section><section class=section><div class=section-head><div><p class=eyebrow>Mission recipe library</p><h2>Open a governed Quad View</h2></div></div><p class=muted>Each recipe is a reviewable fixed set of four HTTPS destinations. Launching it creates a bounded profile mission and four real Chromium tabs; it never accepts a URL, credential, token, script, connector, or arbitrary argument.</p><div class=grid><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=dns-migration><strong>DNS Migration</strong><span>Cloudflare, propagation, authority, and DNS documentation.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=m365-user-offboarding><strong>Microsoft 365 Offboarding</strong><span>Admin, Entra, security, and Microsoft guidance.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=firewall-change><strong>Firewall Change</strong><span>Vendor support and CISA advisory lanes.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=production-deployment><strong>Production Deployment</strong><span>GitHub, Vercel, status, and Actions docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=certificate-renewal><strong>Certificate Renewal</strong><span>Provider, certificate lookup, TLS test, and docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=incident-triage><strong>Incident Triage</strong><span>Provider status and public advisory lanes.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=github-actions-release><strong>GitHub Actions Release</strong><span>Repository, status, workflow, and run docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=cloudflare-cutover><strong>Cloudflare Cutover</strong><span>Zone, status, docs, and propagation checks.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=workstation-admin-setup><strong>Workstation / Admin Setup</strong><span>Microsoft admin, identity, Intune, and Windows docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=vendor-support-handoff><strong>Vendor Support Handoff</strong><span>Vendor support sites and public security guidance.</span></button></div></section><section class="section three"><article class="panel mode-runbook-rail"><p class=eyebrow>Runbook rail</p><h2>Native checkpoint state</h2><p class=muted>Each mission carries a generated, type-specific checkpoint set. Completion changes are stored in the owning Chromium profile and survive restart.</p></article><article class=panel><p class=eyebrow>Quad View</p><h2>Native multi-pane workspace</h2><p class=muted>Use Command Center to open, focus, restore, and exit a real Chromium 2 × 2 split. No webview or renderer panes are involved.</p></article><article class=panel><p class=eyebrow>Evidence boundary</p><h2>Nothing secret-bearing is stored</h2><p class=boundary>Mission Control has no field for page contents, URLs, tokens, credentials, cookies, headers, screenshots, or arbitrary notes. Capture and sharing remain explicit Chromium actions and need their own verified release evidence.</p></article></section><script src=/mission.js></script>)TAHAI";
+      R"TAHAI(</div></section><section class=section><div class=section-head><div><p class=eyebrow>Encrypted capsule verification</p><h2>Local-profile cryptographic boundary</h2></div></div><p class=muted>Paste an encrypted capsule created by this same Chromium profile to decrypt and verify its integrity. The OS-protected key is never copied, uploaded, or shown here. Verification does not create, restore, or merge Mission state.</p><textarea id=encrypted-capsule-input class=search rows=5 maxlength=1048576 spellcheck=false placeholder="Paste an encrypted local-profile Mission Capsule"></textarea><div class=actions><button class="button" type=button data-tahai-mission-action=verify-encrypted-capsule>Verify encrypted capsule</button></div></section><section class=section><div class=section-head><div><p class=eyebrow>Mission recipe library</p><h2>Open a governed Quad View</h2></div></div><p class=muted>Each recipe is a reviewable fixed set of four HTTPS destinations. Launching it creates a bounded profile mission and four real Chromium tabs; it never accepts a URL, credential, token, script, connector, or arbitrary argument.</p><div class=grid><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=dns-migration><strong>DNS Migration</strong><span>Cloudflare, propagation, authority, and DNS documentation.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=m365-user-offboarding><strong>Microsoft 365 Offboarding</strong><span>Admin, Entra, security, and Microsoft guidance.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=firewall-change><strong>Firewall Change</strong><span>Vendor support and CISA advisory lanes.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=production-deployment><strong>Production Deployment</strong><span>GitHub, Vercel, status, and Actions docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=certificate-renewal><strong>Certificate Renewal</strong><span>Provider, certificate lookup, TLS test, and docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=incident-triage><strong>Incident Triage</strong><span>Provider status and public advisory lanes.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=github-actions-release><strong>GitHub Actions Release</strong><span>Repository, status, workflow, and run docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=cloudflare-cutover><strong>Cloudflare Cutover</strong><span>Zone, status, docs, and propagation checks.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=workstation-admin-setup><strong>Workstation / Admin Setup</strong><span>Microsoft admin, identity, Intune, and Windows docs.</span></button><button class=card type=button data-tahai-mission-action=launch-recipe data-tahai-recipe-id=vendor-support-handoff><strong>Vendor Support Handoff</strong><span>Vendor support sites and public security guidance.</span></button></div></section><section class="section three"><article class="panel mode-runbook-rail"><p class=eyebrow>Runbook rail</p><h2>Native checkpoint state</h2><p class=muted>Each mission carries a generated, type-specific checkpoint set. Completion changes are stored in the owning Chromium profile and survive restart.</p></article><article class=panel><p class=eyebrow>Quad View</p><h2>Native multi-pane workspace</h2><p class=muted>Use Command Center to open, focus, restore, and exit a real Chromium 2 × 2 split. No webview or renderer panes are involved.</p></article><article class=panel><p class=eyebrow>Evidence boundary</p><h2>Nothing secret-bearing is stored</h2><p class=boundary>Mission notes are profile-local, bounded, sensitive-material screened, and excluded from Evidence Packs, handoffs, and Mission Capsules. Mission Control stores no page contents, URLs, tokens, credentials, cookies, headers, or screenshots. Capture and sharing remain explicit Chromium actions and need their own verified release evidence.</p></article></section><script src=/mission.js></script>)TAHAI";
   return PageFrame("Mission Control", content, ActiveTheme(mode_service),
                    ActiveModeId(mode_service),
                    &mode_service->active_configuration());
@@ -3197,6 +4198,56 @@ std::string PolicyHtml(ModeService* mode_service, PrefService* prefs) {
                    &mode_service->active_configuration());
 }
 
+std::string_view SkinStudioDraftStatusName(TahaiSkinStudioDraftStatus status) {
+  switch (status) {
+    case TahaiSkinStudioDraftStatus::kOk:
+      return "saved";
+    case TahaiSkinStudioDraftStatus::kUnavailable:
+      return "unavailable";
+    case TahaiSkinStudioDraftStatus::kManaged:
+      return "managed";
+    case TahaiSkinStudioDraftStatus::kTooLarge:
+      return "too-large";
+    case TahaiSkinStudioDraftStatus::kInvalidJson:
+      return "invalid-json";
+    case TahaiSkinStudioDraftStatus::kInvalidManifest:
+      return "invalid-manifest";
+  }
+  NOTREACHED();
+}
+
+std::string SkinStudioHtml(Profile* profile,
+                           ModeService* mode_service,
+                           PrefService* prefs) {
+  CHECK(profile);
+  CHECK(mode_service);
+  const TahaiSkinStudioDraftResult draft = LoadTahaiSkinStudioDraft(prefs);
+  const bool unavailable = profile->IsOffTheRecord() ||
+                           !profile->IsRegularProfile();
+  const bool read_only = draft.status == TahaiSkinStudioDraftStatus::kManaged ||
+                         draft.status == TahaiSkinStudioDraftStatus::kUnavailable ||
+                         unavailable;
+  const std::string content = base::StrCat(
+      {R"TAHAI(
+<section class=hero><p class=eyebrow>Local authoring</p><h2>Build an operational skin without granting it power.</h2><p class=muted>Studio saves only validated declarative source in this Chromium profile. It does not read pages, inspect accounts, install a package, enable an action, or contact a service. Packaging and applying remain separate reviewed steps.</p></section><section class=section><article class=panel><p class=eyebrow>Versioned source</p><h2>Operational skin draft</h2><p class=muted>Source is autosaved only after it validates as a complete v2 declaration. Invalid edits leave the last valid draft intact. Add real artwork and its exact hash before building a package with the creator kit.</p><label class=visually-hidden for=skin-studio-source>Operational skin source</label><textarea id=skin-studio-source class=search rows=28 maxlength=65536 spellcheck=false )TAHAI",
+       read_only ? "readonly aria-readonly=true" : "",
+       ">", base::EscapeForHTML(draft.manifest_json),
+       R"TAHAI(</textarea><div class=mode-config><div class=mode-config-group><h3>Visual palette editor</h3><p class=muted>Choose a palette, then adjust only its bounded browser-frame color tokens. The editable source remains the complete round-trip representation.</p><label>Preview palette <select id=skin-studio-palette class=button><option value=dark_tokens>Dark</option><option value=light_tokens>Light</option><option value=high_contrast_tokens>High contrast</option></select></label><article id=skin-studio-preview class=panel><strong>Browser-frame preview</strong><p class=muted>Web pages keep their own content, permissions, and design.</p></article><div id=skin-studio-tokens class=grid></div></div><div class=mode-config-group><h3>Native workspace surface</h3><p class=muted>These finite choices resolve to existing Chromium pane layouts and browser-owned TAHAI surfaces after a separately reviewed package is activated.</p><div class=grid><label>Layout <select id=skin-studio-layout class=button><option value=one>One pane</option><option value=dual>Dual pane</option><option value=tri>Tri pane</option><option value=quad>Quad pane</option></select></label><label>Workspace rail <select id=skin-studio-rail class=button><option value=icons>Icons</option><option value=expanded>Expanded</option><option value=hidden>Hidden</option></select></label><label>Starting surface <select id=skin-studio-start class=button><option value=launchpad>Launchpad</option><option value=mission>Mission Control</option><option value=commands>Command Center</option><option value=modes>Work Modes</option></select></label></div><fieldset><legend>Rail modules (optional)</legend><p class=muted>Choose up to five fixed browser-owned controls. Clear every choice to keep the compiled rail for the selected work mode; use the list to set their order.</p><div class=grid><label><input type=checkbox data-tahai-rail-module value=tabs> Tabs</label><label><input type=checkbox data-tahai-rail-module value=saved-workspaces> Saved workspaces</label><label><input type=checkbox data-tahai-rail-module value=bookmarks> Bookmarks</label><label><input type=checkbox data-tahai-rail-module value=history> History</label><label><input type=checkbox data-tahai-rail-module value=downloads> Downloads</label><label><input type=checkbox data-tahai-rail-module value=mission> Mission Control</label><label><input type=checkbox data-tahai-rail-module value=local-oi> Local OI</label><label><input type=checkbox data-tahai-rail-module value=command-center> Command Center</label><label><input type=checkbox data-tahai-rail-module value=guard> Guard</label></div><ol id=skin-studio-rail-order class=list aria-label="Selected rail module order"></ol></fieldset></div><div class=mode-config-group><h3>Workflow steps and native actions</h3><p class=muted>Author instructions, checkpoints, and the native actions permitted by this package’s existing capability declarations. Authoring and simulation never execute an action. A trusted installed revision requires an explicit click at each native action during a Mission run.</p><label>Workflow name <input id=skin-studio-workflow-name maxlength=128 autocomplete=off></label><div class=grid><label>Step kind <select id=skin-studio-step-kind class=button><option value=instruction>Instruction</option><option value=checkpoint>Checkpoint</option></select></label><label>Step label <input id=skin-studio-step-name maxlength=128 autocomplete=off></label><button id=skin-studio-add-step class=button type=button>Add step</button></div><ul id=skin-studio-workflow-steps class=list></ul></div></div><div class=actions><button id=skin-studio-save class="button primary" type=button )TAHAI",
+       read_only ? "disabled aria-disabled=true" : "",
+       R"TAHAI(>Validate and save draft</button><button id=skin-studio-undo class=button type=button disabled>Undo</button><button id=skin-studio-redo class=button type=button disabled>Redo</button><button id=skin-studio-copy class=button type=button>Copy source</button><button id=skin-studio-download class=button type=button>Download source</button><label class=chip>Import source<input id=skin-studio-import type=file accept="application/json,.json" hidden )TAHAI",
+       read_only ? "disabled" : "",
+       R"TAHAI(></label></div><p id=skin-studio-status class=muted role=status aria-live=polite>)TAHAI",
+       unavailable
+           ? "Studio drafts are unavailable in a private or non-regular profile."
+           : read_only
+                 ? "This draft is managed and read-only."
+                 : "Editing stays local. A valid draft will autosave after a short pause.",
+       R"TAHAI(</p></article><aside class="panel oi-boundary"><p class=eyebrow>Security boundary</p><h2>Drafts do not run.</h2><p class=boundary>Only a signed package accepted by the managed trust policy can become an operational skin. Even then, reviewed symbolic actions and browser-owned capability checks are required. This editor cannot name arbitrary URLs, scripts, commands, credentials, files, widgets, or connectors.</p></aside></section><script src=/skin-studio.js></script>)TAHAI"});
+  return PageFrame("Skin Studio", content, ActiveTheme(mode_service),
+                   ActiveModeId(mode_service),
+                   &mode_service->active_configuration());
+}
+
 std::optional<int> CommandId(std::string_view command) {
   if (command == "address.focus") {
     return IDC_FOCUS_LOCATION;
@@ -3346,6 +4397,13 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         base::BindRepeating(&TahaiCommandHandler::ToggleMissionStep,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
+        "assignTahaiWorkflowVariable",
+        base::BindRepeating(&TahaiCommandHandler::AssignWorkflowVariable,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "controlTahaiWorkflowWait",
+        base::BindRepeating(&TahaiCommandHandler::ControlWorkflowWait, base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
         "toggleTahaiValidationStep",
         base::BindRepeating(&TahaiCommandHandler::ToggleValidationStep,
                             base::Unretained(this)));
@@ -3354,12 +4412,28 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         base::BindRepeating(&TahaiCommandHandler::ToggleRollbackStep,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
+        "setTahaiOperationalWorkflowState",
+        base::BindRepeating(&TahaiCommandHandler::SetOperationalWorkflowState,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setTahaiOperationalWorkflowInput",
+        base::BindRepeating(&TahaiCommandHandler::SetOperationalWorkflowInput,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "prepareTahaiProtectedWorkflowInputs",
+        base::BindRepeating(&TahaiCommandHandler::PrepareProtectedWorkflowInputs,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
         "toggleTahaiEscalation",
         base::BindRepeating(&TahaiCommandHandler::ToggleEscalation,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "addTahaiEvidenceMarker",
         base::BindRepeating(&TahaiCommandHandler::AddEvidenceMarker,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "addTahaiMissionNote",
+        base::BindRepeating(&TahaiCommandHandler::AddMissionNote,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "setTahaiExportProfile",
@@ -3422,6 +4496,14 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         base::BindRepeating(&TahaiCommandHandler::CopyEvidencePack,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
+        "confirmTahaiEvidencePack",
+        base::BindRepeating(&TahaiCommandHandler::ConfirmEvidencePack,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "cancelTahaiEvidencePack",
+        base::BindRepeating(&TahaiCommandHandler::CancelEvidencePack,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
         "copyTahaiMissionCapsule",
         base::BindRepeating(&TahaiCommandHandler::CopyMissionCapsule,
                             base::Unretained(this)));
@@ -3445,6 +4527,46 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     web_ui()->RegisterMessageCallback(
         "setTahaiWorkMode",
         base::BindRepeating(&TahaiCommandHandler::SetWorkMode,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "createTahaiCustomMode",
+        base::BindRepeating(&TahaiCommandHandler::CreateCustomMode,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "createTahaiNativeCustomMode",
+        base::BindRepeating(&TahaiCommandHandler::CreateNativeCustomMode,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "activateTahaiNativeCustomMode",
+        base::BindRepeating(&TahaiCommandHandler::ActivateNativeMode,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "updateTahaiNativeCustomMode",
+        base::BindRepeating(&TahaiCommandHandler::UpdateNativeMode,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setTahaiNativeModeSurface",
+        base::BindRepeating(&TahaiCommandHandler::SetNativeModeSurface,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setTahaiNativeModeSkin",
+        base::BindRepeating(&TahaiCommandHandler::SetNativeModeSkin,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "duplicateTahaiCustomMode",
+        base::BindRepeating(&TahaiCommandHandler::DuplicateCustomMode,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "duplicateTahaiBuiltinModePreset",
+        base::BindRepeating(&TahaiCommandHandler::DuplicateBuiltinModePreset,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "updateTahaiCustomMode",
+        base::BindRepeating(&TahaiCommandHandler::UpdateCustomMode,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "saveTahaiSkinStudioDraft",
+        base::BindRepeating(&TahaiCommandHandler::SaveSkinStudioDraft,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "setTahaiWorkModeModifier",
@@ -3671,125 +4793,233 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void CreateMission(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 2u || !args[0].is_string() ||
+    if (!HasMissionMutationDocument() || args.size() != 2u || !args[0].is_string() ||
         !args[1].is_string()) {
       return;
     }
     if (!mission_service_->CreateMission(args[0].GetString(),
                                          args[1].GetString())) {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiMissionControlRejected");
       return;
     }
-    RefreshLocalOiAfterMissionMutation();
-    web_ui()->GetWebContents()->GetController().Reload(
-        content::ReloadType::NORMAL, false);
+    CompleteMissionMutation();
   }
 
   void ToggleMissionStep(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 2u || !args[0].is_string() ||
-        !args[1].is_int() || args[1].GetInt() < 0 ||
-        !mission_service_->ToggleStep(args[0].GetString(),
-                                      static_cast<size_t>(args[1].GetInt()))) {
+    ToggleMissionChecklist(args, "runbook");
+  }
+
+  void AssignWorkflowVariable(const base::ListValue& args) {
+    auto* contents = web_ui()->GetWebContents();
+    if (!mission_service_ || !IsActiveMissionInputDocument() ||
+        !contents->GetPrimaryMainFrame()->HasTransientUserActivation() ||
+        args.size() != 3u || !args[0].is_string() || !args[1].is_int() ||
+        !args[2].is_string() || args[2].GetString().size() != 36u ||
+        args[1].GetInt() < 0 || args[1].GetInt() >= 32) return;
+    const auto& missions = mission_service_->missions();
+    const auto mission = std::ranges::find(missions, args[0].GetString(), &MissionSummary::id);
+    if (mission == missions.end() || mission->mutation_token != args[2].GetString() ||
+        !mission_service_->AssignWorkflowVariable(args[0].GetString(), args[1].GetInt())) {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkflowAssignmentRejected");
       return;
     }
     RefreshLocalOiAfterMissionMutation();
-    web_ui()->GetWebContents()->GetController().Reload(
-        content::ReloadType::NORMAL, false);
+    contents->GetController().Reload(content::ReloadType::NORMAL, false);
+  }
+
+  void ControlWorkflowWait(const base::ListValue& args) {
+    auto* contents = web_ui()->GetWebContents();
+    if (!mission_service_ || !IsActiveMissionInputDocument() ||
+        !contents->GetPrimaryMainFrame()->HasTransientUserActivation() || args.size() != 4u ||
+        !args[0].is_string() || args[0].GetString().size() != 36u || !args[1].is_int() ||
+        args[1].GetInt() < 0 || args[1].GetInt() >= 32 || !args[2].is_string() ||
+        (args[2].GetString() != "start" && args[2].GetString() != "complete") ||
+        !args[3].is_string() || args[3].GetString().size() != 36u) return;
+    const auto& missions = mission_service_->missions();
+    const auto mission = std::ranges::find(missions, args[0].GetString(), &MissionSummary::id);
+    if (mission == missions.end() || mission->mutation_token != args[3].GetString() ||
+        !mission_service_->ControlWorkflowWait(args[0].GetString(), args[1].GetInt(), args[2].GetString() == "complete")) {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkflowWaitRejected");
+      return;
+    }
+    RefreshLocalOiAfterMissionMutation();
+    contents->GetController().Reload(content::ReloadType::NORMAL, false);
   }
 
   void ToggleValidationStep(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 2u || !args[0].is_string() ||
-        !args[1].is_int() || args[1].GetInt() < 0 ||
-        !mission_service_->ToggleValidationStep(
-            args[0].GetString(), static_cast<size_t>(args[1].GetInt()))) {
-      return;
-    }
-    RefreshLocalOiAfterMissionMutation();
-    web_ui()->GetWebContents()->GetController().Reload(
-        content::ReloadType::NORMAL, false);
+    ToggleMissionChecklist(args, "validation");
   }
 
   void ToggleRollbackStep(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 2u || !args[0].is_string() ||
-        !args[1].is_int() || args[1].GetInt() < 0 ||
-        !mission_service_->ToggleRollbackStep(
-            args[0].GetString(), static_cast<size_t>(args[1].GetInt()))) {
+    ToggleMissionChecklist(args, "rollback");
+  }
+
+  bool HasCurrentMissionControl(const base::ListValue& args) {
+    if (!HasMissionMutationDocument() || args.size() != 3u || !args[0].is_string() || args[0].GetString().size() != 36u ||
+        !args[2].is_string() || args[2].GetString().size() != 36u) return false;
+    const auto& missions = mission_service_->missions();
+    const auto mission = std::ranges::find(missions, args[0].GetString(), &MissionSummary::id);
+    if (mission == missions.end() || mission->mutation_token != args[2].GetString()) {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiMissionControlRejected");
+      return false;
+    }
+    return true;
+  }
+
+  bool HasMissionMutationDocument() {
+    auto* frame = web_ui()->GetWebContents()->GetPrimaryMainFrame();
+    return mission_service_ && IsActiveMissionInputDocument() && frame && frame->HasTransientUserActivation() &&
+        mission_mutation_document_.AsRenderFrameHostIfValid() != frame;
+  }
+
+  void CompleteMissionMutation() {
+    auto* contents = web_ui()->GetWebContents();
+    // Creation/duplication do not change the source record's token. Consume
+    // this document's mutation opportunity before reload to prevent double
+    // submissions, without permanently disabling a replacement document.
+    mission_mutation_document_ = contents->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    RefreshLocalOiAfterMissionMutation();
+    contents->GetController().Reload(content::ReloadType::NORMAL, false);
+  }
+
+  void ToggleMissionChecklist(const base::ListValue& args, std::string_view kind) {
+    if (!HasCurrentMissionControl(args) || !args[1].is_int() || args[1].GetInt() < 0 || args[1].GetInt() >= 32) return;
+    const auto& id = args[0].GetString(); const size_t index = args[1].GetInt();
+    const bool changed = kind == "runbook" ? mission_service_->ToggleStep(id, index) :
+        kind == "validation" ? mission_service_->ToggleValidationStep(id, index) :
+        kind == "rollback" && mission_service_->ToggleRollbackStep(id, index);
+    if (!changed) { web_ui()->CallJavascriptFunctionUnsafe("tahaiMissionControlRejected"); return; }
+    RefreshLocalOiAfterMissionMutation();
+    web_ui()->GetWebContents()->GetController().Reload(
+        content::ReloadType::NORMAL, false);
+  }
+
+  void SetOperationalWorkflowState(const base::ListValue& args) {
+    if (!HasCurrentMissionControl(args)) return;
+    if (!args[1].is_string() ||
+        !mission_service_->SetOperationalWorkflowRunState(
+            args[0].GetString(), args[1].GetString())) {
+      web_ui()->CallJavascriptFunctionUnsafe(
+          "tahaiMissionWorkflowStartRejected");
       return;
     }
     RefreshLocalOiAfterMissionMutation();
     web_ui()->GetWebContents()->GetController().Reload(
         content::ReloadType::NORMAL, false);
+  }
+
+  bool IsMissionInputDocument() {
+    const auto& url = web_ui()->GetWebContents()->GetLastCommittedURL();
+    return url == GURL(kTahaiMissionURL) || url == GURL(kTahaiTrustedMissionURL);
+  }
+
+  bool IsActiveMissionInputDocument() {
+    auto* contents = web_ui()->GetWebContents();
+    auto* browser = FindBrowserForWebContents(contents);
+    return IsMissionInputDocument() && browser && browser->GetProfile() == profile_ &&
+        browser->tab_strip_model()->GetActiveWebContents() == contents;
+  }
+
+  void PrepareProtectedWorkflowInputs(const base::ListValue& args) {
+    if (!mission_service_ || !args.empty() || !IsMissionInputDocument()) return;
+    auto* frame = web_ui()->GetWebContents()->GetPrimaryMainFrame();
+    if (!frame) return;
+    if (protected_inputs_preparing_ &&
+        protected_inputs_document_.AsRenderFrameHostIfValid() == frame) return;
+    protected_inputs_preparing_ = true;
+    protected_inputs_document_ = frame->GetWeakDocumentPtr();
+    const uint64_t generation = ++protected_inputs_generation_;
+    mission_service_->PrepareProtectedWorkflowInputs(
+        g_browser_process ? g_browser_process->os_crypt_async() : nullptr,
+        base::BindOnce(&TahaiCommandHandler::OnProtectedWorkflowInputsReady,
+                       weak_factory_.GetWeakPtr(), protected_inputs_document_, generation));
+  }
+
+  void OnProtectedWorkflowInputsReady(content::WeakDocumentPtr document,
+                                      uint64_t generation, bool ready) {
+    // An old document's late completion cannot unlock/reload a replacement
+    // document or consume its independently requested completion.
+    if (generation != protected_inputs_generation_) return;
+    protected_inputs_preparing_ = false;
+    if (!document.AsRenderFrameHostIfValid() || !IsMissionInputDocument() ||
+        document.AsRenderFrameHostIfValid() != web_ui()->GetWebContents()->GetPrimaryMainFrame()) return;
+    if (!ready) {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiProtectedWorkflowInputsUnavailable");
+      return;
+    }
+    web_ui()->GetWebContents()->GetController().Reload(content::ReloadType::NORMAL, false);
+  }
+
+  void SetOperationalWorkflowInput(const base::ListValue& args) {
+    if (!IsMissionInputDocument()) return;
+    const auto* mission = mission_service_ && args.size() == 4u && args[0].is_string() ?
+        FindMissionSummary(args[0].GetString()) : nullptr;
+    if (!HasMissionMutationDocument() || !mission || !args[1].is_string() || !args[2].is_string() ||
+        !args[3].is_string() || args[3].GetString() != mission->mutation_token ||
+        !mission_service_->SetOperationalWorkflowInputValue(
+            args[0].GetString(), args[1].GetString(), args[2].GetString())) {
+      web_ui()->CallJavascriptFunctionUnsafe(
+          "tahaiMissionWorkflowInputRejected");
+      return;
+    }
+    CompleteMissionMutation();
+  }
+
+  const MissionSummary* FindMissionSummary(std::string_view id) {
+    if (!mission_service_) return nullptr;
+    for (const auto& mission : mission_service_->missions()) if (mission.id == id) return &mission;
+    return nullptr;
   }
 
   void ToggleEscalation(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 1u || !args[0].is_string() ||
-        !mission_service_->ToggleEscalation(args[0].GetString())) {
-      return;
-    }
-    RefreshLocalOiAfterMissionMutation();
-    web_ui()->GetWebContents()->GetController().Reload(
-        content::ReloadType::NORMAL, false);
+    MutateMissionMetadata(args, "escalation");
   }
 
   void AddEvidenceMarker(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 1u || !args[0].is_string() ||
-        !mission_service_->AddEvidenceMarker(args[0].GetString())) {
-      return;
-    }
-    RefreshLocalOiAfterMissionMutation();
-    web_ui()->GetWebContents()->GetController().Reload(
-        content::ReloadType::NORMAL, false);
+    MutateMissionMetadata(args, "evidence");
+  }
+
+  void AddMissionNote(const base::ListValue& args) {
+    MutateMissionMetadata(args, "note");
   }
 
   void SetExportProfile(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 2u || !args[0].is_string() ||
-        !args[1].is_string() ||
-        !mission_service_->SetExportProfile(args[0].GetString(),
-                                            args[1].GetString())) {
-      return;
-    }
-    RefreshLocalOiAfterMissionMutation();
-    web_ui()->GetWebContents()->GetController().Reload(
-        content::ReloadType::NORMAL, false);
+    MutateMissionMetadata(args, "export");
   }
 
   void DeleteMission(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 1u || !args[0].is_string() ||
-        !mission_service_->DeleteMission(args[0].GetString())) {
-      return;
-    }
-    RefreshLocalOiAfterMissionMutation();
-    web_ui()->GetWebContents()->GetController().Reload(
-        content::ReloadType::NORMAL, false);
+    MutateMissionMetadata(args, "delete");
   }
 
   void ArchiveMission(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 1u || !args[0].is_string() ||
-        !mission_service_->ArchiveMission(args[0].GetString())) {
-      return;
-    }
-    RefreshLocalOiAfterMissionMutation();
-    web_ui()->GetWebContents()->GetController().Reload(
-        content::ReloadType::NORMAL, false);
+    MutateMissionMetadata(args, "archive");
   }
 
   void RestoreMission(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 1u || !args[0].is_string() ||
-        !mission_service_->RestoreMission(args[0].GetString())) {
-      return;
-    }
-    RefreshLocalOiAfterMissionMutation();
-    web_ui()->GetWebContents()->GetController().Reload(
-        content::ReloadType::NORMAL, false);
+    MutateMissionMetadata(args, "restore");
   }
 
   void DuplicateMission(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 1u || !args[0].is_string() ||
-        !mission_service_->DuplicateMission(args[0].GetString())) {
+    MutateMissionMetadata(args, "duplicate");
+  }
+
+  void MutateMissionMetadata(const base::ListValue& args, std::string_view kind) {
+    if (!HasCurrentMissionControl(args) || !args[1].is_string() || args[1].GetString().size() > 512u) return;
+    const auto& id = args[0].GetString(); const auto& value = args[1].GetString();
+    if (kind != "note" && kind != "export" && !value.empty()) return;
+    const bool changed = kind == "escalation" ? mission_service_->ToggleEscalation(id) :
+        kind == "evidence" ? mission_service_->AddEvidenceMarker(id) :
+        kind == "note" ? mission_service_->AddLocalNote(id, value) :
+        kind == "export" ? mission_service_->SetExportProfile(id, value) :
+        kind == "delete" ? mission_service_->DeleteMission(id) :
+        kind == "archive" ? mission_service_->ArchiveMission(id) :
+        kind == "restore" ? mission_service_->RestoreMission(id) :
+        kind == "duplicate" && mission_service_->DuplicateMission(id).has_value();
+    if (!changed) {
+      web_ui()->CallJavascriptFunctionUnsafe(kind == "note" ? "tahaiMissionNoteRejected" : "tahaiMissionControlRejected");
       return;
     }
-    RefreshLocalOiAfterMissionMutation();
-    web_ui()->GetWebContents()->GetController().Reload(
-        content::ReloadType::NORMAL, false);
+    CompleteMissionMutation();
   }
 
   void LaunchRecipe(const base::ListValue& args) {
@@ -4001,7 +5231,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void CopyMissionHandoff(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 1u || !args.front().is_string()) {
+    if (!HasMissionMutationDocument() || args.size() != 1u || !args.front().is_string()) {
       return;
     }
     const std::string& mission_id = args.front().GetString();
@@ -4016,22 +5246,72 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void CopyEvidencePack(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 1u || !args.front().is_string()) {
+    ResetEvidencePackReview();
+    if (!HasMissionMutationDocument() || args.size() != 1u || !args.front().is_string()) {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiEvidencePackReviewRejected");
       return;
     }
     const std::string& mission_id = args.front().GetString();
     for (const MissionSummary& mission : mission_service_->missions()) {
       if (mission.id == mission_id) {
+        pending_evidence_pack_mission_id_ = mission.id;
+        pending_evidence_pack_summary_ = EvidencePackSummary(mission);
+        pending_evidence_pack_token_ = mission.mutation_token;
+        evidence_pack_document_ = web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+        evidence_pack_deadline_ = base::TimeTicks::Now() + base::Minutes(5);
+        web_ui()->CallJavascriptFunctionUnsafe(
+            "tahaiEvidencePackReviewReady", base::Value(mission.id),
+            base::Value(*pending_evidence_pack_summary_));
+        return;
+      }
+    }
+    web_ui()->CallJavascriptFunctionUnsafe("tahaiEvidencePackReviewRejected");
+  }
+
+  void ConfirmEvidencePack(const base::ListValue& args) {
+    auto* frame = web_ui()->GetWebContents()->GetPrimaryMainFrame();
+    if (!HasMissionMutationDocument() || args.size() != 1u || !args.front().is_string() ||
+        evidence_pack_document_.AsRenderFrameHostIfValid() != frame ||
+        evidence_pack_deadline_.is_null() || base::TimeTicks::Now() >= evidence_pack_deadline_ ||
+        !pending_evidence_pack_mission_id_ || !pending_evidence_pack_summary_ ||
+        args.front().GetString() != *pending_evidence_pack_mission_id_) {
+      ResetEvidencePackReview();
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiEvidencePackReviewRejected");
+      return;
+    }
+    for (const MissionSummary& mission : mission_service_->missions()) {
+      if (mission.id == *pending_evidence_pack_mission_id_ &&
+          mission.mutation_token == pending_evidence_pack_token_ &&
+          EvidencePackSummary(mission) == *pending_evidence_pack_summary_) {
         ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
-            .WriteText(base::UTF8ToUTF16(EvidencePackSummary(mission)));
+            .WriteText(base::UTF8ToUTF16(*pending_evidence_pack_summary_));
+        ResetEvidencePackReview();
         web_ui()->CallJavascriptFunctionUnsafe("tahaiEvidencePackCopied");
         return;
       }
     }
+    ResetEvidencePackReview();
+    web_ui()->CallJavascriptFunctionUnsafe("tahaiEvidencePackReviewRejected");
+  }
+
+  void CancelEvidencePack(const base::ListValue& args) {
+    if (!args.empty()) {
+      return;
+    }
+    ResetEvidencePackReview();
+    web_ui()->CallJavascriptFunctionUnsafe("tahaiEvidencePackReviewCancelled");
+  }
+
+  void ResetEvidencePackReview() {
+    pending_evidence_pack_mission_id_.reset();
+    pending_evidence_pack_summary_.reset();
+    pending_evidence_pack_token_.clear();
+    evidence_pack_document_ = content::WeakDocumentPtr();
+    evidence_pack_deadline_ = base::TimeTicks();
   }
 
   void CopyMissionCapsule(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 1u || !args.front().is_string()) {
+    if (!HasMissionMutationDocument() || args.size() != 1u || !args.front().is_string()) {
       return;
     }
     const std::string& mission_id = args.front().GetString();
@@ -4045,19 +5325,71 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     }
   }
 
+  std::optional<uint64_t> BeginCapsuleOperation() {
+    if (!HasMissionMutationDocument() || !profile_->IsRegularProfile() ||
+        profile_->IsOffTheRecord() || profile_->IsGuestSession() || profile_->IsSystemProfile() ||
+        prefs_->IsManagedPreference(prefs::kTahaiMissions) ||
+        prefs_->IsManagedPreference(prefs::kTahaiSyncKeyring)) return std::nullopt;
+    pending_capsule_import_.reset();
+    capsule_document_ = web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    capsule_deadline_ = base::TimeTicks::Now() + base::Minutes(5);
+    capsule_mission_id_.clear(); capsule_mission_token_.clear();
+    return ++capsule_generation_;
+  }
+
+  bool IsCurrentCapsuleOperation(uint64_t generation) {
+    if (generation != capsule_generation_ || !IsActiveMissionInputDocument() ||
+        capsule_document_.AsRenderFrameHostIfValid() != web_ui()->GetWebContents()->GetPrimaryMainFrame() ||
+        capsule_deadline_.is_null() || base::TimeTicks::Now() >= capsule_deadline_ ||
+        prefs_->IsManagedPreference(prefs::kTahaiMissions) ||
+        prefs_->IsManagedPreference(prefs::kTahaiSyncKeyring)) return false;
+    if (capsule_mission_id_.empty()) return true;
+    for (const auto& mission : mission_service_->missions()) {
+      if (mission.id == capsule_mission_id_) return mission.mutation_token == capsule_mission_token_;
+    }
+    return false;
+  }
+
+  TahaiSyncKeyService::Authorization CapsuleAuthorization(uint64_t generation) {
+    return base::BindRepeating([](base::WeakPtr<TahaiCommandHandler> handler, uint64_t generation) {
+      return handler && handler->IsCurrentCapsuleOperation(generation);
+    }, weak_factory_.GetWeakPtr(), generation);
+  }
+
+  bool ContinueCapsuleOperation(uint64_t generation) {
+    if (IsCurrentCapsuleOperation(generation)) return true;
+    if (generation == capsule_generation_ && IsMissionInputDocument() &&
+        capsule_document_.AsRenderFrameHostIfValid() == web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+      pending_capsule_import_.reset();
+      NotifyEncryptedMissionCapsule("failed");
+    }
+    return false;
+  }
+
   void CopyEncryptedMissionCapsule(const base::ListValue& args) {
+    ++capsule_generation_;
+    pending_capsule_import_.reset();
     if (!mission_service_ || !sync_key_service_ || args.size() != 1u ||
         !args.front().is_string()) {
       return;
     }
+    const auto generation = BeginCapsuleOperation();
+    if (!generation) { NotifyEncryptedMissionCapsule("failed"); return; }
+    for (const auto& mission : mission_service_->missions()) {
+      if (mission.id == args.front().GetString()) {
+        capsule_mission_id_ = mission.id; capsule_mission_token_ = mission.mutation_token; break;
+      }
+    }
+    if (capsule_mission_id_.empty()) { NotifyEncryptedMissionCapsule("failed"); return; }
     sync_key_service_->EnsureActiveKey(
         base::BindOnce(&TahaiCommandHandler::OnMissionCapsuleKeyReady,
-                       weak_factory_.GetWeakPtr(), args.front().GetString()));
+                       weak_factory_.GetWeakPtr(), *generation, args.front().GetString()), CapsuleAuthorization(*generation));
   }
 
-  void OnMissionCapsuleKeyReady(std::string mission_id,
+  void OnMissionCapsuleKeyReady(uint64_t generation, std::string mission_id,
                                 TahaiSyncKeyResult key_result,
                                 std::optional<TahaiSyncEnvelopeKey> key) {
+    if (!ContinueCapsuleOperation(generation)) return;
     if (key_result != TahaiSyncKeyResult::kOk || !key) {
       web_ui()->CallJavascriptFunctionUnsafe(
           "tahaiEncryptedMissionCapsuleUpdate", base::Value("key_unavailable"));
@@ -4089,10 +5421,13 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void VerifyEncryptedMissionCapsule(const base::ListValue& args) {
+    ++capsule_generation_;
     pending_capsule_import_.reset();
     if (!sync_key_service_ || args.size() != 1u || !args.front().is_string()) {
       return;
     }
+    const auto generation = BeginCapsuleOperation();
+    if (!generation) { NotifyEncryptedMissionCapsule("failed"); return; }
     const std::string& envelope = args.front().GetString();
     if (envelope.empty() || envelope.size() > 1048576u) {
       NotifyEncryptedMissionCapsule("invalid");
@@ -4107,12 +5442,13 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     sync_key_service_->GetKeyForId(
         *key_id,
         base::BindOnce(&TahaiCommandHandler::OnMissionCapsuleKeyRetrieved,
-                       weak_factory_.GetWeakPtr(), envelope));
+                       weak_factory_.GetWeakPtr(), *generation, envelope), CapsuleAuthorization(*generation));
   }
 
-  void OnMissionCapsuleKeyRetrieved(std::string envelope,
+  void OnMissionCapsuleKeyRetrieved(uint64_t generation, std::string envelope,
                                     TahaiSyncKeyResult key_result,
                                     std::optional<TahaiSyncEnvelopeKey> key) {
+    if (!ContinueCapsuleOperation(generation)) return;
     if (key_result != TahaiSyncKeyResult::kOk || !key) {
       NotifyEncryptedMissionCapsule("key_unavailable");
       return;
@@ -4141,27 +5477,43 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void ImportVerifiedMissionCapsule(const base::ListValue& args) {
-    if (!args.empty() || !mission_service_ || !pending_capsule_import_) {
+    if (!args.empty() || !HasMissionMutationDocument() || !pending_capsule_import_ ||
+        !ContinueCapsuleOperation(capsule_generation_)) {
+      pending_capsule_import_.reset();
       return;
     }
     const std::optional<MissionSummary> imported =
         mission_service_->ImportSanitizedMissionCapsule(
             *pending_capsule_import_);
     pending_capsule_import_.reset();
+    ++capsule_generation_;
+    if (imported) {
+      mission_mutation_document_ = web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+      RefreshLocalOiAfterMissionMutation();
+    }
     NotifyEncryptedMissionCapsule(imported ? "imported" : "failed");
   }
 
   void RotateEncryptedMissionCapsuleKey(const base::ListValue& args) {
+    ++capsule_generation_;
+    pending_capsule_import_.reset();
     if (!args.empty() || !sync_key_service_) {
       return;
     }
+    if (capsule_rotation_document_.AsRenderFrameHostIfValid() == web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+      NotifyEncryptedMissionCapsule("failed"); return;
+    }
+    const auto generation = BeginCapsuleOperation();
+    if (!generation) { NotifyEncryptedMissionCapsule("failed"); return; }
+    capsule_rotation_document_ = capsule_document_;
     sync_key_service_->RotateActiveKey(
         base::BindOnce(&TahaiCommandHandler::OnMissionCapsuleKeyRotated,
-                       weak_factory_.GetWeakPtr()));
+                       weak_factory_.GetWeakPtr(), *generation), CapsuleAuthorization(*generation));
   }
 
-  void OnMissionCapsuleKeyRotated(TahaiSyncKeyResult key_result,
+  void OnMissionCapsuleKeyRotated(uint64_t generation, TahaiSyncKeyResult key_result,
                                   std::optional<TahaiSyncEnvelopeKey> key) {
+    if (!ContinueCapsuleOperation(generation)) return;
     NotifyEncryptedMissionCapsule(key_result == TahaiSyncKeyResult::kOk && key
                                       ? "rotated"
                                       : "key_unavailable");
@@ -4173,11 +5525,254 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void SetWorkMode(const base::ListValue& args) {
-    if (!mode_service_ || args.size() != 1u || !args.front().is_string() ||
-        !mode_service_->SetActiveMode(args.front().GetString())) {
+    auto* browser = BrowserForModeEditor(web_ui()->GetWebContents(), profile_);
+    auto* controller = WindowModeController::GetForBrowser(browser);
+    if (!controller || args.size() != 1u || !args.front().is_string() ||
+        !controller->SetActiveMode(args.front().GetString())) {
       return;
     }
     web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkModeUpdated");
+  }
+
+  void CreateCustomMode(const base::ListValue& args) {
+    auto* browser = BrowserForModeEditor(web_ui()->GetWebContents(), profile_);
+    auto* controller = WindowModeController::GetForBrowser(browser);
+    if (!mode_service_ || !controller ||
+        args.size() != 3u || !args[0].is_string() || !args[1].is_string() ||
+        !args[2].is_string()) {
+      NotifyCustomModeCreation(false);
+      return;
+    }
+
+    std::string title;
+    base::TrimWhitespaceASCII(args[0].GetString(), base::TRIM_ALL, &title);
+    const std::string& operational_mode_id = args[1].GetString();
+    const std::string& workspace_id = args[2].GetString();
+    if (!workspace_id.empty() &&
+        !NamedWorkspaceStore(profile_).Find(workspace_id)) {
+      NotifyCustomModeCreation(false);
+      return;
+    }
+    const TahaiOperationalSkinManifest* operational =
+        controller->operational_manifest();
+    const auto archive = controller->operational_archive_sha256();
+    const TahaiCustomModeDefinition candidate{
+        .id = "candidate",
+        .title = title,
+        .operational_mode_id = operational_mode_id,
+        .workspace_id = "",
+    };
+    if (!operational || !archive ||
+        !BuildTahaiCustomModeActivation(*operational, candidate) ||
+        !mode_service_->CreateCustomMode(title, operational_mode_id,
+                                         workspace_id,
+                                         WindowSkinReference{
+                                             operational->appearance.id,
+                                             *archive})) {
+      NotifyCustomModeCreation(false);
+      return;
+    }
+    NotifyCustomModeCreation(true);
+  }
+
+  void NotifyCustomModeCreation(bool created) {
+    web_ui()->CallJavascriptFunctionUnsafe(
+        created ? "tahaiCustomModeCreated" : "tahaiCustomModeRejected");
+  }
+
+  void CreateNativeCustomMode(const base::ListValue& args) {
+    auto* browser = BrowserForModeEditor(web_ui()->GetWebContents(), profile_);
+    auto* controller = WindowModeController::GetForBrowser(browser);
+    const auto reject = [this]() {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeRejected");
+    };
+    if (!controller || !mode_service_ || (args.size() != 5u && args.size() != 6u) ||
+        !args[0].is_string() || !args[1].is_string() || !args[2].is_string() ||
+        !args[3].is_list() || !args[4].is_bool() ||
+        (args.size() == 6u && !args[5].is_bool()) ||
+        !ModeService::FindDefinition(args[1].GetString()) ||
+        args[3].GetList().size() > GetNativeModeActionCatalog().size()) {
+      reject();
+      return;
+    }
+    const auto& workspace = args[2].GetString();
+    if (!workspace.empty() && !NamedWorkspaceStore(profile_).Find(workspace)) {
+      reject();
+      return;
+    }
+    std::vector<std::string> actions;
+    for (const auto& action : args[3].GetList()) {
+      if (!action.is_string() || !FindNativeModeAction(action.GetString())) {
+        reject();
+        return;
+      }
+      actions.push_back(action.GetString());
+    }
+    const auto& configuration =
+        mode_service_->configuration_for_mode(args[1].GetString());
+    WindowPresentation presentation{.fixed_mode = args[1].GetString(),
+                                    .rail_state = configuration.rail_state,
+                                    .rail_width = configuration.rail_width};
+    if (args[4].GetBool()) {
+      presentation.skin = controller->CapturePresentation().skin;
+      if (!presentation.skin || !controller->window_skin_palette()) {
+        reject();
+        return;
+      }
+    }
+    if (args.size() == 6u && args[5].GetBool()) {
+      presentation.surface_design = controller->CapturePresentation().surface_design;
+      if (!presentation.surface_design) {
+        reject();
+        return;
+      }
+    }
+    std::string title;
+    base::TrimWhitespaceASCII(args[0].GetString(), base::TRIM_ALL, &title);
+    if (!mode_service_->CreateNativeCustomMode(std::move(title),
+          std::move(presentation), std::move(actions), workspace)) {
+      reject();
+      return;
+    }
+    web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeCreated");
+  }
+
+  void SetNativeModeSurface(const base::ListValue& args) {
+    auto* controller = WindowModeController::GetForBrowser(
+        BrowserForModeEditor(web_ui()->GetWebContents(), profile_));
+    std::optional<SurfaceDesign> design;
+    const bool valid =
+        controller && mode_service_ && args.size() == 2u &&
+        args[0].is_string() && args[1].is_string() &&
+        (args[1].GetString() == "clear" ||
+         (args[1].GetString() == "capture" &&
+          (design = controller->CapturePresentation().surface_design).has_value()));
+    const bool saved = valid && mode_service_->SetNativeCustomModeSurface(
+        args[0].GetString(), std::move(design));
+    web_ui()->CallJavascriptFunctionUnsafe(
+        saved ? "tahaiNativeModeUpdated" : "tahaiNativeModeRejected");
+  }
+
+  void ActivateNativeMode(const base::ListValue& args) {
+    auto* browser = BrowserForModeEditor(web_ui()->GetWebContents(), profile_);
+    const bool activated = browser && args.size() == 1u && args[0].is_string() &&
+        ActivateNativeCustomMode(browser, args[0].GetString());
+    web_ui()->CallJavascriptFunctionUnsafe(
+        activated ? "tahaiNativeModeActivated" : "tahaiNativeModeRejected");
+  }
+
+  void SetNativeModeSkin(const base::ListValue& args) {
+    auto* controller = WindowModeController::GetForBrowser(
+        BrowserForModeEditor(web_ui()->GetWebContents(), profile_));
+    std::optional<WindowSkinReference> skin;
+    const bool valid = controller && mode_service_ && args.size() == 2u &&
+        args[0].is_string() && args[1].is_string() &&
+        (args[1].GetString() == "clear" ||
+         (args[1].GetString() == "capture" && controller->window_skin_palette() &&
+          (skin = controller->CapturePresentation().skin).has_value()));
+    const bool saved = valid && mode_service_->SetNativeCustomModeSkin(
+        args[0].GetString(), std::move(skin));
+    web_ui()->CallJavascriptFunctionUnsafe(
+        saved ? "tahaiNativeModeUpdated" : "tahaiNativeModeRejected");
+  }
+
+  void UpdateNativeMode(const base::ListValue& args) {
+    const auto reject = [this]() {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeRejected");
+    };
+    if (!mode_service_ || !BrowserForModeEditor(web_ui()->GetWebContents(), profile_) ||
+        (args.size() != 4u && args.size() != 5u) || !args[0].is_string() || !args[1].is_string() ||
+        !args[2].is_list() || !args[3].is_string() ||
+        (args.size() == 5u && !args[4].is_dict()) ||
+        args[2].GetList().size() > GetNativeModeActionCatalog().size() ||
+        (!args[3].GetString().empty() &&
+         !NamedWorkspaceStore(profile_).Find(args[3].GetString()))) {
+      reject();
+      return;
+    }
+    std::vector<std::string> actions;
+    for (const auto& action : args[2].GetList()) {
+      if (!action.is_string() || !FindNativeModeAction(action.GetString())) {
+        reject();
+        return;
+      }
+      actions.push_back(action.GetString());
+    }
+    std::optional<NativeModeCommandLayout> layout;
+    if (args.size() == 5u) {
+      layout = DecodeNativeModeCommandLayout(args[4].GetDict(), actions);
+      if (!layout) {
+        reject();
+        return;
+      }
+    }
+    std::string title;
+    base::TrimWhitespaceASCII(args[1].GetString(), base::TRIM_ALL, &title);
+    if (!mode_service_->UpdateNativeCustomMode(args[0].GetString(), std::move(title),
+          std::move(actions), args[3].GetString(), std::move(layout))) {
+      reject();
+      return;
+    }
+    web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeUpdated");
+  }
+
+  void DuplicateCustomMode(const base::ListValue& args) {
+    if (!mode_service_ || !BrowserForModeEditor(web_ui()->GetWebContents(), profile_) ||
+        args.size() != 2u || !args[0].is_string() || !args[1].is_string() ||
+        !mode_service_->DuplicateCustomMode(args[0].GetString(), args[1].GetString())) {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeRejected");
+      return;
+    }
+    web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeCreated");
+  }
+
+  void DuplicateBuiltinModePreset(const base::ListValue& args) {
+    const auto* preset = args.size() == 1u && args[0].is_string()
+        ? FindBuiltinNativeModePreset(args[0].GetString()) : nullptr;
+    const bool saved = mode_service_ && preset &&
+        BrowserForModeEditor(web_ui()->GetWebContents(), profile_) &&
+        mode_service_->DuplicateBuiltinModePreset(preset->id, preset->title + " copy");
+    web_ui()->CallJavascriptFunctionUnsafe(
+        saved ? "tahaiNativeModeCreated" : "tahaiNativeModeRejected");
+  }
+
+  void UpdateCustomMode(const base::ListValue& args) {
+    if (!mode_service_ ||
+        !BrowserForModeEditor(web_ui()->GetWebContents(), profile_) ||
+        args.size() != 3u || !args[0].is_string() || !args[1].is_string() ||
+        !args[2].is_string()) {
+      NotifyCustomModeUpdate(false);
+      return;
+    }
+    const std::string& id = args[0].GetString();
+    const std::string& action = args[1].GetString();
+    std::string title;
+    base::TrimWhitespaceASCII(args[2].GetString(), base::TRIM_ALL, &title);
+    const bool updated =
+        action == "rename" ? mode_service_->RenameCustomMode(id, title)
+                           : action == "delete" &&
+                                 mode_service_->RemoveCustomMode(id);
+    NotifyCustomModeUpdate(updated);
+  }
+
+  void NotifyCustomModeUpdate(bool updated) {
+    web_ui()->CallJavascriptFunctionUnsafe(
+        updated ? "tahaiCustomModeUpdated" : "tahaiCustomModeRejected");
+  }
+
+  void SaveSkinStudioDraft(const base::ListValue& args) {
+    TahaiSkinStudioDraftResult result;
+    if (!profile_ || !IsTahaiSkinStudioWebContents(web_ui()->GetWebContents()) ||
+        profile_->IsOffTheRecord() ||
+        !profile_->IsRegularProfile() || args.size() != 1u ||
+        !args.front().is_string()) {
+      result.status = TahaiSkinStudioDraftStatus::kUnavailable;
+    } else {
+      result = SaveTahaiSkinStudioDraft(prefs_, args.front().GetString());
+    }
+    web_ui()->CallJavascriptFunctionUnsafe(
+        "tahaiSkinStudioDraftSaved",
+        base::Value(std::string(SkinStudioDraftStatusName(result.status))));
   }
 
   void OpenIdentityLane(const base::ListValue& args) {
@@ -4231,9 +5826,11 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void SetWorkModeConfiguration(const base::ListValue& args) {
-    if (!mode_service_ || args.size() != 2u || !args[0].is_string() ||
+    auto* controller = WindowModeController::GetForBrowser(
+        BrowserForModeEditor(web_ui()->GetWebContents(), profile_));
+    if (!controller || args.size() != 2u || !args[0].is_string() ||
         !args[1].is_string() ||
-        !mode_service_->SetActiveConfigurationValue(args[0].GetString(),
+        !controller->SetActiveConfigurationValue(args[0].GetString(),
                                                     args[1].GetString())) {
       return;
     }
@@ -4241,22 +5838,26 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void ResetWorkModeConfiguration(const base::ListValue& args) {
-    if (!mode_service_ || !args.empty() ||
-        !mode_service_->ResetActiveConfiguration()) {
+    auto* controller = WindowModeController::GetForBrowser(
+        BrowserForModeEditor(web_ui()->GetWebContents(), profile_));
+    if (!mode_service_ || !controller || !args.empty() ||
+        !controller->ResetActiveConfiguration()) {
       return;
     }
     web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkModeUpdated");
   }
 
   void CreateWorkModeTemplateMission(const base::ListValue& args) {
-    if (!mission_service_ || !mode_service_ || args.size() != 1u ||
+    auto* controller = WindowModeController::GetForBrowser(
+        BrowserForModeEditor(web_ui()->GetWebContents(), profile_));
+    if (!mission_service_ || !controller || args.size() != 1u ||
         !args.front().is_string()) {
       return;
     }
     const WorkModeTemplate* work_template =
         ModeService::FindTemplate(args.front().GetString());
     if (!work_template ||
-        work_template->mode_id != mode_service_->active_mode().id ||
+        work_template->mode_id != controller->active_mode_id() ||
         !mission_service_->CreateMission(work_template->title,
                                          work_template->mission_type)) {
       return;
@@ -5133,6 +6734,17 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   const raw_ptr<PrefService> prefs_;
   const std::unique_ptr<TahaiSyncKeyService> sync_key_service_;
   std::optional<TahaiMissionCapsuleImport> pending_capsule_import_;
+  uint64_t capsule_generation_ = 0;
+  content::WeakDocumentPtr capsule_document_;
+  content::WeakDocumentPtr capsule_rotation_document_;
+  base::TimeTicks capsule_deadline_;
+  std::string capsule_mission_id_;
+  std::string capsule_mission_token_;
+  std::optional<std::string> pending_evidence_pack_mission_id_;
+  std::optional<std::string> pending_evidence_pack_summary_;
+  std::string pending_evidence_pack_token_;
+  content::WeakDocumentPtr evidence_pack_document_;
+  base::TimeTicks evidence_pack_deadline_;
   bool network_inspection_in_flight_ = false;
   std::optional<TahaiNetworkInspectionResult> last_network_inspection_;
   bool last_network_inspection_recorded_ = false;
@@ -5140,6 +6752,10 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   std::optional<GURL> pending_network_inspection_origin_;
   std::optional<TahaiEnvironmentGuardDecision>
       pending_network_inspection_review_decision_;
+  bool protected_inputs_preparing_ = false;
+  content::WeakDocumentPtr protected_inputs_document_;
+  content::WeakDocumentPtr mission_mutation_document_;
+  uint64_t protected_inputs_generation_ = 0;
   base::WeakPtrFactory<TahaiCommandHandler> weak_factory_{this};
 };
 
@@ -5177,7 +6793,9 @@ void TahaiPlaceholderSource::StartDataRequest(
   } else if (url.path() == "/command-center.js") {
     html = base::StrCat({kCommandJs, kRecallJs});
   } else if (url.path() == "/mission.js") {
-    html = base::StrCat({kMissionJs, kMissionKeyRotationJs});
+    html = base::StrCat(
+        {kMissionJs, kMissionChecklistJs, kMissionMetadataJs, kMissionEvidenceJs, kMissionWorkflowStateJs,
+         kMissionWorkflowInputJs, kMissionNativeWorkflowJs, kMissionKeyRotationJs});
   } else if (url.path() == "/local-oi.js") {
     html = base::StrCat({kLocalOiJs, kLocalOiGraphExplorerJs,
                          kLocalOiControlsJs, kLocalOiRuntimeJs, kLocalOiWatchJs,
@@ -5208,7 +6826,18 @@ void TahaiPlaceholderSource::StartDataRequest(
                          kSupportInspectionOutcomeJs,
                          kSupportArtifactBoundaryTruthJs});
   } else if (url.path() == "/modes.js") {
-    html = kModesJs;
+    html = base::StrCat({kModesJs, kCustomModesJs,
+                        kNativeModePlacementModelJs, kNativeModeEditorJs});
+  } else if (url.path() == "/skin-studio.js") {
+    html = base::StrCat({kSkinStudioJs, kSkinStudioImportExportJs,
+                         kSkinStudioSurfaceEditorJs,
+                         kSurfaceDesignerJs,
+                         kSkinStudioWorkflowModelJs,
+                         kSkinStudioWorkflowEditorJs,
+                         kSkinStudioWorkflowInputBootstrapJs,
+                         kSkinStudioWorkflowInputEditorJs,
+                         kSkinStudioWorkflowToolsJs,
+                         kSkinStudioHistoryJs});
   } else if (url.path() == "/profiles.js") {
     html = kProfilesJs;
   } else {
@@ -5235,11 +6864,19 @@ void TahaiPlaceholderSource::StartDataRequest(
     } else if (surface->surface == kNewTabSurface) {
       html = NewTabHtml(mission_service, mode_service);
     } else if (surface->surface == kModesSurface) {
-      html = ModeHtml(mode_service);
+      const std::optional<std::vector<NamedWorkspace>> named_workspaces =
+          NamedWorkspaceStore(request_profile).Read();
+      html = ModeHtml(
+          mode_service,
+          WindowModeController::GetForBrowser(
+              FindBrowserForWebContents(wc_getter.Run())),
+          named_workspaces.value_or(std::vector<NamedWorkspace>()));
     } else if (surface->surface == kMissionSurface) {
       html = MissionHtml(mission_service, mode_service);
     } else if (surface->surface == kLocalOiSurface) {
       html = LocalOiHtml(mission_service, mode_service, local_oi_service, prefs);
+    } else if (surface->surface == kSkinStudioSurface) {
+      html = SkinStudioHtml(request_profile, mode_service, prefs);
     } else if (surface->surface == kOpsToolsSurface) {
       html = OpsHtml(mode_service);
     } else if (surface->surface == kProfilesSurface) {
@@ -5279,6 +6916,9 @@ std::string TahaiPlaceholderSource::GetMimeType(const GURL& url) {
     return "text/javascript";
   }
   if (url.path() == "/modes.js") {
+    return "text/javascript";
+  }
+  if (url.path() == "/skin-studio.js") {
     return "text/javascript";
   }
   if (url.path() == "/profiles.js") {
@@ -5327,6 +6967,8 @@ TahaiUI::TahaiUI(content::WebUI* web_ui,
   // script, connector, or profile-selection value from page content.
   web_ui->AddMessageHandler(std::make_unique<TahaiCommandHandler>(
       mission_service, mode_service, local_oi_service, profile));
+  web_ui->AddMessageHandler(CreateSurfaceEditorHandler(profile));
+  web_ui->AddMessageHandler(CreateWorkflowNativeHandler(profile));
 }
 
 TahaiUI::~TahaiUI() = default;

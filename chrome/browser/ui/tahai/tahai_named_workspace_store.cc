@@ -73,7 +73,8 @@ bool NamedWorkspaceStore::IsRestorableUrl(const GURL& url) {
       kTahaiTrustedNewTabURL,   kTahaiTrustedMissionURL,
       kTahaiTrustedOpsToolsURL, kTahaiTrustedProfilesURL,
       kTahaiTrustedSupportURL,  kTahaiTrustedPolicyURL,
-      kTahaiTrustedModesURL,    kTahaiTrustedLocalOiURL};
+      kTahaiTrustedModesURL,    kTahaiTrustedLocalOiURL,
+      kTahaiTrustedSkinStudioURL};
   return std::ranges::any_of(kTrustedPages, [&canonical](const char* known) {
     return canonical.spec() == known;
   });
@@ -88,7 +89,8 @@ GURL NamedWorkspaceStore::CanonicalizeInternalUrl(const GURL& url) {
       {kTahaiSupportURL, kTahaiTrustedSupportURL},
       {kTahaiPolicyURL, kTahaiTrustedPolicyURL},
       {kTahaiModesURL, kTahaiTrustedModesURL},
-      {kTahaiLocalOiURL, kTahaiTrustedLocalOiURL}};
+      {kTahaiLocalOiURL, kTahaiTrustedLocalOiURL},
+      {kTahaiSkinStudioURL, kTahaiTrustedSkinStudioURL}};
   for (const auto& [alias, trusted] : kRoutes) {
     if (url.spec() == alias) {
       return GURL(trusted);
@@ -98,6 +100,13 @@ GURL NamedWorkspaceStore::CanonicalizeInternalUrl(const GURL& url) {
 }
 
 bool NamedWorkspaceStore::Validate(const NamedWorkspace& workspace) {
+  if (workspace.presentation &&
+      (!ValidateWindowPresentation(*workspace.presentation) ||
+       workspace.presentation->fixed_mode != workspace.mode ||
+       workspace.presentation->rail_state != workspace.rail_state ||
+       workspace.presentation->rail_width != workspace.rail_width)) {
+    return false;
+  }
   if (!base::Uuid::ParseLowercase(workspace.id).is_valid() ||
       !IsValidName(workspace.name) ||
       !ModeService::FindDefinition(workspace.mode) ||
@@ -206,6 +215,9 @@ base::DictValue NamedWorkspaceStore::Encode(const NamedWorkspace& workspace) {
             .Set("columns", split.visual.tahai_column_ratio()));
   }
   value.Set("splits", std::move(splits));
+  if (workspace.presentation) {
+    value.Set("presentation", EncodeWindowPresentation(*workspace.presentation));
+  }
   return value;
 }
 
@@ -220,7 +232,8 @@ std::optional<NamedWorkspace> NamedWorkspaceStore::Decode(
   const auto* tabs = value.FindList("tabs");
   const auto* groups = value.FindList("groups");
   const auto* splits = value.FindList("splits");
-  if (value.size() != 9 || !id || id->size() != 36 || !name ||
+  if (value.size() != (value.contains("presentation") ? 10u : 9u) ||
+      !id || id->size() != 36 || !name ||
       !IsValidName(*name) || !mode || mode->size() > 32 || !rail ||
       rail->size() > 16 || !width || !active || !tabs || !groups || !splits ||
       tabs->size() > kMaxTabs || groups->size() > kMaxTabs ||
@@ -233,6 +246,16 @@ std::optional<NamedWorkspace> NamedWorkspaceStore::Decode(
                            .rail_state = *rail,
                            .rail_width = *width,
                            .active_tab = *active};
+  if (value.contains("presentation")) {
+    const auto* presentation = value.FindDict("presentation");
+    if (!presentation) {
+      return std::nullopt;
+    }
+    workspace.presentation = DecodeWindowPresentation(*presentation);
+    if (!workspace.presentation) {
+      return std::nullopt;
+    }
+  }
   for (const auto& entry : *tabs) {
     const auto* tab = entry.GetIfDict();
     if (!tab || tab->size() != 3 || !tab->FindString("url") ||

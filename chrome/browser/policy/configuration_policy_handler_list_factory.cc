@@ -327,6 +327,10 @@ const PolicyToPreferenceMapEntry kSimplePolicyMap[] = {
     base::Value::Type::BOOLEAN },
   { key::kTahaiSkinInstallationsAllowed, prefs::kTahaiSkinInstallationsAllowed,
     base::Value::Type::BOOLEAN },
+  // Preserve the whole dictionary for the skin service's strict validation.
+  // Filtering individual bad entries could silently retain publisher trust.
+  { key::kTahaiOperationalSkinTrustedKeys, prefs::kTahaiOperationalSkinTrustedKeys,
+    base::Value::Type::DICT },
   { key::kLocalOIMissionIngestionEnabled, prefs::kTahaiLocalOiMissionIngestionEnabled,
     base::Value::Type::BOOLEAN },
   { key::kLocalOIArtifactIngestionEnabled, prefs::kTahaiLocalOiArtifactIngestionEnabled,

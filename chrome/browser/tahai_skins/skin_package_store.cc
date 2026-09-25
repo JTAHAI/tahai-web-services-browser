@@ -4,6 +4,7 @@
 #include "chrome/browser/tahai_skins/skin_package_store.h"
 
 #include <algorithm>
+#include <optional>
 #include <set>
 #include <utility>
 
@@ -14,6 +15,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "chrome/common/tahai_skins/skin_limits.h"
+#include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
 #include "chrome/common/tahai_skins/tahai_skin_catalog.h"
 #include "crypto/sha2.h"
 #include "sql/statement.h"
@@ -46,8 +48,27 @@ bool ParseManifest(std::string_view text, TahaiSkinManifest* manifest) {
     return false;
   }
   const auto value = base::JSONReader::ReadDict(text, base::JSON_PARSE_RFC, 16);
-  return value && ValidateTahaiSkinManifest(*value, manifest) ==
-                      TahaiSkinManifestValidationResult::kValid;
+  if (!value || !manifest) {
+    return false;
+  }
+  const std::optional<int> schema_version = value->FindInt("schema_version");
+  if (!schema_version) {
+    return false;
+  }
+  if (*schema_version == 1) {
+    return ValidateTahaiSkinManifest(*value, manifest) ==
+           TahaiSkinManifestValidationResult::kValid;
+  }
+  if (*schema_version == 2) {
+    TahaiOperationalSkinManifest operational;
+    if (ValidateTahaiOperationalSkinManifest(*value, &operational) !=
+        TahaiOperationalSkinManifestValidationResult::kValid) {
+      return false;
+    }
+    *manifest = std::move(operational.appearance);
+    return true;
+  }
+  return false;
 }
 
 constexpr int64_t kMaxArchiveBytesInt64 =

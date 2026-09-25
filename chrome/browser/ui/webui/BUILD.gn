@@ -63,6 +63,10 @@ source_set("configs") {
       "tahai/tahai_mission_capsule.h",
       "tahai/tahai_mission_service.cc",
       "tahai/tahai_mission_service.h",
+      "tahai/tahai_workflow_journal.cc",
+      "tahai/tahai_workflow_journal.h",
+      "tahai/tahai_workflow_native_handler.cc",
+      "tahai/tahai_workflow_native_handler.h",
       "tahai/tahai_network_inspector.cc",
       "tahai/tahai_network_inspector.h",
       "tahai/tahai_oi_link_contract.cc",
@@ -87,6 +91,12 @@ source_set("configs") {
       "tahai/tahai_skin_selection.h",
       "tahai/tahai_skin_selection_registry.cc",
       "tahai/tahai_skin_selection_registry.h",
+      "tahai/tahai_skin_studio_workflow_tools.h",
+      "tahai/tahai_skin_studio_workflow_model.h",
+      "tahai/tahai_native_mode_editor.h",
+      "tahai/tahai_surface_editor_handler.cc",
+      "tahai/tahai_surface_editor_handler.h",
+      "tahai/tahai_surface_designer.h",
       "tahai/tahai_sync_conflict.cc",
       "tahai/tahai_sync_conflict.h",
       "tahai/tahai_sync_contract.cc",
@@ -195,6 +205,7 @@ source_set("configs") {
       "//crypto",
       "//net",
       "//services/network/public/cpp",
+      "//sql",
       "//url",
     ]
   }
@@ -404,6 +415,24 @@ source_set("tahai_unit_tests") {
 }
 
 if (is_win) {
+  # A small executable for real crash/replay-journal I/O tests. It does not
+  # launch Chromium, a desktop, a profile service or any workflow action.
+  test("tahai_workflow_journal_tests") {
+    sources = [
+      "tahai/tahai_workflow_journal.cc",
+      "tahai/tahai_workflow_journal.h",
+      "tahai/tahai_workflow_journal_unittest.cc",
+    ]
+    deps = [
+      "//base",
+      "//base/test:run_all_unittests",
+      "//base/test:test_support",
+      "//crypto",
+      "//sql",
+      "//testing/gtest",
+    ]
+  }
+
   source_set("tahai_browser_tests") {
     testonly = true
     defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
@@ -432,6 +461,15 @@ if (is_win) {
       "tahai/tahai_local_oi_store_unittest.cc",
       "tahai/tahai_mission_service_test_main.cc",
       "tahai/tahai_mission_service_unittest.cc",
+      "tahai/tahai_workflow_native_unittest.cc",
+      "tahai/tahai_workflow_journal_unittest.cc",
+      "tahai/tahai_capability_broker_unittest.cc",
+      "tahai/tahai_custom_mode_registry_unittest.cc",
+      "tahai/tahai_skin_studio_draft_unittest.cc",
+      "tahai/tahai_window_presentation_unittest.cc",
+      "tahai/tahai_surface_design_unittest.cc",
+      "tahai/tahai_operational_skin_controller_unittest.cc",
+      "tahai/tahai_operational_skin_manifest_unittest.cc",
     ]
     deps = [
       ":configs",
@@ -439,6 +477,7 @@ if (is_win) {
       "//base",
       "//base/test:test_support",
       "//chrome/browser:chrome_content_browser_client",
+      "//chrome/browser/ui",
       "//chrome/install_static/test:test_support",
       "//chrome/test:test_support",
       "//chrome/utility",
@@ -450,6 +489,7 @@ if (is_win) {
       "//mojo/core/embedder",
       "//net",
       "//services/network/public/mojom",
+      "//sql",
       "//testing/gtest",
     ]
   }

@@ -4,6 +4,7 @@
 #ifndef CHROME_BROWSER_TAHAI_SKINS_SKIN_DECODE_SESSION_H_
 #define CHROME_BROWSER_TAHAI_SKINS_SKIN_DECODE_SESSION_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -16,6 +17,7 @@
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
 #include "chrome/common/tahai_skins/tahai_skin_manifest.h"
 #include "chrome/services/tahai_skins/public/mojom/skin_decoder.mojom.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -33,11 +35,21 @@ struct DecodedSkinAsset {
 // is NOT publisher authentication, install, selection, or permission to modify
 // security surfaces. The profile owner must explicitly commit/apply it.
 struct DecodedSkin {
+  // The v1-compatible appearance section. All palette and asset code uses
+  // this field regardless of the package schema version.
   TahaiSkinManifest manifest;
+  // Present only for a validated schema-version 2 operational skin. This is
+  // declarative data; decoding a package never starts a workflow or dispatches
+  // an action.
+  std::optional<TahaiOperationalSkinManifest> operational_manifest;
   // Exact, bounded manifest accepted by browser-side revalidation, retained
   // with the original archive for later installed-package consistency checks.
   std::string manifest_json;
   std::string archive_sha256;
+  // Detached metadata admitted from exact META-INF entries. It remains
+  // untrusted until SkinProfileService verifies it against browser policy.
+  std::string signing_key_id;
+  std::vector<uint8_t> signature;
   std::vector<DecodedSkinAsset> assets;
 };
 

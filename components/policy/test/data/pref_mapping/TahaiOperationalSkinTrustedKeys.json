@@ -1,0 +1,19 @@
+[
+  {
+    "os": ["win"],
+    "simple_policy_pref_mapping_test": {
+      "pref_name": "tahai.operational_skin_trusted_keys",
+      "default_value": {},
+      "values_to_test": [
+        {
+          "keys": [
+            {
+              "id": "example-key-replace-before-use",
+              "public_key": "1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

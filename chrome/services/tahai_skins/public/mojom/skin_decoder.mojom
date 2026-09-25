@@ -32,6 +32,10 @@ struct DecodedAsset {
 
 struct DecodedPackage {
   string manifest_json;
+  // Detached publisher-envelope metadata. These values are opaque to the
+  // sandbox; the browser verifies them against its governed trust store.
+  string signing_key_id;
+  mojo_base.mojom.BigBuffer signature;
   array<DecodedAsset> assets;
 };
 

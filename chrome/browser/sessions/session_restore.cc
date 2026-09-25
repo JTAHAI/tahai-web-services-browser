@@ -37,6 +37,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
+#include "build/branding_buildflags.h"
 #include "chrome/browser/after_startup_task_utils.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/buildflags.h"
@@ -53,6 +54,10 @@
 #include "chrome/browser/sessions/session_restore_delegate.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
+
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+#include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
+#endif
 #include "chrome/browser/sessions/session_service_log.h"
 #include "chrome/browser/sessions/session_service_lookup.h"
 #include "chrome/browser/sessions/session_service_utils.h"
@@ -822,6 +827,20 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
           ShouldRestoreToExistingBrowser()) {
         // The first set of tabs is added to the existing browser.
         browser = browser_;
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+        // A session merged into a working window must not replace that
+        // window's deliberate presentation. Startup's empty/replaced window
+        // can recover its own presentation, without replaying any actions.
+        if (clobber_existing_tab_ || browser->tab_strip_model()->empty()) {
+          auto saved = window->extra_data.find(tahai::kWindowPresentationSessionKey);
+          auto* mode = tahai::WindowModeController::GetForBrowser(browser);
+          if (mode && saved != window->extra_data.end()) {
+            if (auto presentation = tahai::ParseWindowPresentation(saved->second)) {
+              mode->RestorePresentation(*presentation);
+            }
+          }
+        }
+#endif
       } else {
 #if BUILDFLAG(IS_CHROMEOS)
         ash::BootTimesRecorder::Get()->AddLoginTimeMarker(
@@ -1287,6 +1306,15 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
 
     base::TimeTicks now = base::TimeTicks::Now();
     Browser* browser = Browser::Create(params);
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+    const auto saved = extra_data.find(tahai::kWindowPresentationSessionKey);
+    auto* mode = tahai::WindowModeController::GetForBrowser(browser);
+    if (mode && saved != extra_data.end()) {
+      if (auto presentation = tahai::ParseWindowPresentation(saved->second)) {
+        mode->RestorePresentation(*presentation);
+      }
+    }
+#endif
     if (auto* manager = InitialWebUIWindowMetricsManager::From(browser)) {
       manager->SetWindowCreationInfo(
           waap::NewWindowCreationSource::kSessionRestore, now);

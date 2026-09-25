@@ -13,6 +13,12 @@
 #include "base/functional/callback_forward.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
+#include "build/branding_buildflags.h"
+#include "build/build_config.h"
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+#include "chrome/common/tahai_skins/tahai_surface_design.h"
+namespace tahai { class SurfaceResizeArea; }
+#endif
 #include "chrome/browser/ui/tabs/split_tab_highlight_controller.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/contents_container_view.h"
@@ -139,6 +145,25 @@ class MultiContentsView
   // the native split collection or its exact member order.
   bool SetTahaiFocusMode(bool enabled);
   bool IsTahaiFocusMode() const { return tahai_focus_mode_; }
+
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  void SetTahaiSurfaceDesign(const std::optional<tahai::SurfaceDesign>& design,
+                              bool preserve_resize = false);
+  bool HasTahaiSurfaceDesign() const;
+  bool IsTahaiSurfaceRailTrailing() const {
+    return surface_design_ && surface_design_->rail_dock == "trailing";
+  }
+  bool BeginTahaiSurfaceResize(size_t slot);
+  void ResizeTahaiSurface(size_t slot, int delta, bool done);
+  void ResetTahaiSurfaceDivider(size_t slot);
+  tahai::SurfaceResizeArea* surface_divider_for_testing(size_t slot) const {
+    return slot < surface_dividers_.size() ? surface_dividers_[slot].get()
+                                           : nullptr;
+  }
+  bool surface_is_compact_for_testing() const {
+    return surface_geometry_ && surface_geometry_->compact;
+  }
+#endif
 
   bool IsAnyInactiveContentsViewFocused() const;
 
@@ -357,6 +382,20 @@ class MultiContentsView
     int total;
   };
   std::optional<TahaiGridResizeState> tahai_grid_resize_state_;
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  std::optional<tahai::SurfaceDesign> surface_design_;
+  std::optional<tahai::SurfaceGeometry> surface_geometry_;
+  void UpdateTahaiSurfaceFocusOrder();
+  std::vector<raw_ptr<tahai::SurfaceResizeArea>> surface_dividers_;
+  struct SurfaceResizeState {
+    split_tabs::SplitTabId split_id;
+    size_t slot;
+    int node;
+    int start;
+    int total;
+  };
+  std::optional<SurfaceResizeState> surface_resize_state_;
+#endif
 
   // The views that are shown for entering split view. E.g., this is shown when
   // the user drags a link to the edge of the contents view.

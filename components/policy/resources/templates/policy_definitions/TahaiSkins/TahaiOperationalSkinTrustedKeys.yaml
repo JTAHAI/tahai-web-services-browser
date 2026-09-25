@@ -1,0 +1,37 @@
+caption: Configure trusted TAHAI operational skin publishers
+desc: |-
+  Defines the Ed25519 public keys permitted to authenticate schema-version 2 operational skin packages. This policy does not install, apply, download or run any package and does not grant website access. Appearance-only schema-version 1 packages do not acquire operational authority.
+
+  Set a mandatory dictionary containing a keys array with one to 32 distinct entries. Each entry has an id of one to 64 lowercase letters, digits or hyphens, with no leading or trailing hyphen, and a public_key containing exactly 64 lowercase hexadecimal characters encoding a nonzero 32-byte Ed25519 public key. Unknown fields, duplicate identifiers, malformed entries, missing or empty keys are rejected as a whole. Obtain and review the publisher key independently of the package; replace the illustrative example value before deployment.
+
+  Signature verification covers the exact manifest bytes, including every declared asset digest, under the TAHAI skin signature domain. Installed revisions are re-decoded and reverified before operational use after startup. Changes revoke current operational definitions, window bindings, pending restores and previews. Existing archive bytes are retained for separate review; revocation does not execute rollback or repeat workflow actions.
+
+  If not configured, no external operational publisher is trusted. User preferences and recommended policy cannot authorize a publisher. This policy is supported only for regular Windows profiles and never permits private or guest-profile persistence. Browser security controls remain native and independent of skin artwork.
+example_value:
+  keys:
+  - id: example-key-replace-before-use
+    public_key: '1111111111111111111111111111111111111111111111111111111111111111'
+features:
+  dynamic_refresh: true
+  per_profile: true
+  can_be_recommended: false
+owners:
+- file://chrome/browser/ui/OWNERS
+schema:
+  type: object
+  required: [keys]
+  properties:
+    keys:
+      type: array
+      items:
+        type: object
+        required: [id, public_key]
+        properties:
+          id:
+            type: string
+          public_key:
+            type: string
+supported_on:
+- chrome.win:152-
+tags: []
+type: dict

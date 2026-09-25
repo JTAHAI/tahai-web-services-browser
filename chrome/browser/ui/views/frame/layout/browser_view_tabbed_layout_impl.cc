@@ -1088,12 +1088,17 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
       IsParentedToAndVisible(views().tahai_workspace_rail,
                              views().browser_view)) {
     const int rail_width = horizontal_layout.workspace_rail_width;
+    bool leading = true;
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+    leading = !views().multi_contents_view->IsTahaiSurfaceRailTrailing();
+#endif
     layout.AddChild(views().tahai_workspace_rail,
-                    gfx::Rect(params.visual_client_area.x(),
+                    gfx::Rect(leading ? params.visual_client_area.x()
+                                      : params.visual_client_area.right() - rail_width,
                               params.visual_client_area.y(), rail_width,
                               params.visual_client_area.height()));
-    params.InsetHorizontal(rail_width, /*leading=*/true);
-    InsetHorizontal(unclipped_contents_region, rail_width, /*leading=*/true);
+    params.InsetHorizontal(rail_width, leading);
+    InsetHorizontal(unclipped_contents_region, rail_width, leading);
   }
 
   // Top separator is unnecessary when already in the shadow box; this is

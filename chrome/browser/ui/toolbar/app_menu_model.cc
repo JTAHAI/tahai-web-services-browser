@@ -1394,6 +1394,13 @@ bool AppMenuModel::DoesCommandIdDismissMenu(int command_id) const {
 }
 
 void AppMenuModel::ExecuteCommand(int command_id, int event_flags) {
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  if (const auto entry = tahai_operational_actions_.find(command_id);
+      entry != tahai_operational_actions_.end() &&
+      !tahai::CanExecuteWindowModeAction(browser_, entry->second, command_id)) {
+    return;
+  }
+#endif
   GlobalError* error =
       GlobalErrorServiceFactory::GetForProfile(browser_->GetProfile())
           ->GetGlobalErrorByMenuItemCommandID(command_id);
@@ -2135,6 +2142,12 @@ bool AppMenuModel::IsCommandIdChecked(int command_id) const {
 }
 
 bool AppMenuModel::IsCommandIdEnabled(int command_id) const {
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  if (const auto entry = tahai_operational_actions_.find(command_id);
+      entry != tahai_operational_actions_.end()) {
+    return tahai::CanExecuteWindowModeAction(browser_, entry->second, command_id);
+  }
+#endif
   GlobalError* error =
       GlobalErrorServiceFactory::GetForProfile(browser_->GetProfile())
           ->GetGlobalErrorByMenuItemCommandID(command_id);
@@ -2296,15 +2309,30 @@ void AppMenuModel::Build() {
             : tahai::ModeServiceFactory::GetForProfile(mode_profile)
                   ->active_mode()
                   .id;
-    for (const tahai::ModeCommandAction& action :
-         tahai::GetModeCommandGroup(mode).app_menu) {
-      AddItem(action.command_id, std::u16string(action.label));
+    if (const auto actions = tahai::ResolveOperationalWindowActions(browser_)) {
+      for (const auto& action : actions->app_menu) {
+        // Existing browser-owned layout/recovery items remain independent of
+        // a skin's declaration. Do not duplicate an existing native control.
+        if (!GetIndexOfCommandId(action.command_id).has_value() &&
+            action.command_id != IDC_TAHAI_GUARD_PANEL &&
+            action.command_id != IDC_TAHAI_FINDER &&
+            action.command_id != IDC_TAHAI_NAMED_WORKSPACES) {
+          AddItem(action.command_id, std::u16string(action.label));
+          tahai_operational_actions_.emplace(action.command_id, actions->context);
+        }
+      }
+    } else {
+      for (const tahai::ModeCommandAction& action :
+           tahai::GetModeCommandGroup(mode).app_menu) {
+        AddItem(action.command_id, std::u16string(action.label));
+      }
     }
     AddItemWithStringId(IDC_TAHAI_GUARD_PANEL, IDS_TAHAI_GUARD_PANEL_TITLE);
     AddItemWithStringId(IDC_TAHAI_SKIN_MANAGER, IDS_TAHAI_SKINS_MANAGER);
     AddItemWithStringId(IDC_TAHAI_FINDER, IDS_TAHAI_FINDER_TITLE);
     if (window_mode_controller) {
-      if (mode != "daily") {
+      if (mode != "daily" ||
+          tahai::ResolveOperationalWindowActions(browser_).has_value()) {
         AddItemWithStringId(IDC_TAHAI_NAMED_WORKSPACES,
                             IDS_TAHAI_WORKSPACES_TITLE);
       }

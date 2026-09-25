@@ -11,11 +11,13 @@
 #include "base/containers/span.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/test/task_environment.h"
 #include "chrome/common/tahai_skins/skin_limits.h"
+#include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
 #include "chrome/common/tahai_skins/tahai_skin_catalog.h"
 #include "crypto/sha2.h"
 #include "sql/statement.h"
@@ -72,6 +74,56 @@ StoredSkinArchive Fixture(std::string id, std::string bytes) {
   return {std::move(id), std::move(*json), Hash(bytes), std::move(bytes)};
 }
 
+StoredSkinArchive OperationalFixture(std::string id, std::string bytes) {
+  StoredSkinArchive archive = Fixture(std::move(id), std::move(bytes));
+  auto manifest = base::JSONReader::ReadDict(archive.manifest_json,
+                                             base::JSON_PARSE_RFC, 16);
+  CHECK(manifest);
+  manifest->Set("schema_version", 2);
+  base::DictValue operational;
+  base::ListValue capabilities;
+  capabilities.Append("workspace-layout");
+  operational.Set("capabilities", std::move(capabilities));
+  base::ListValue surfaces;
+  base::DictValue surface;
+  surface.Set("id", "focus-surface");
+  surface.Set("layout", "dual");
+  surface.Set("rail_state", "icons");
+  surface.Set("start_surface", "launchpad");
+  surfaces.Append(std::move(surface));
+  operational.Set("surfaces", std::move(surfaces));
+  base::ListValue workflows;
+  base::DictValue workflow;
+  workflow.Set("id", "focus-workflow");
+  workflow.Set("name", "Focus workflow");
+  base::ListValue steps;
+  base::DictValue step;
+  step.Set("id", "focus-tabs");
+  step.Set("name", "Focus tabs");
+  step.Set("kind", "run-command");
+  step.Set("action", "tabs.find");
+  steps.Append(std::move(step));
+  workflow.Set("steps", std::move(steps));
+  workflows.Append(std::move(workflow));
+  operational.Set("workflows", std::move(workflows));
+  base::ListValue modes;
+  base::DictValue mode;
+  mode.Set("id", "focus-mode");
+  mode.Set("name", "Focus mode");
+  mode.Set("surface", "focus-surface");
+  mode.Set("workflow", "focus-workflow");
+  base::ListValue actions;
+  actions.Append("tabs.find");
+  mode.Set("actions", std::move(actions));
+  modes.Append(std::move(mode));
+  operational.Set("modes", std::move(modes));
+  manifest->Set("operational", std::move(operational));
+  auto json = base::WriteJson(*manifest);
+  CHECK(json);
+  archive.manifest_json = std::move(*json);
+  return archive;
+}
+
 class TahaiSkinStoreTest : public testing::Test {
  public:
   void SetUp() override { ASSERT_TRUE(directory_.CreateUniqueTempDir()); }
@@ -108,6 +160,22 @@ TEST_F(TahaiSkinStoreTest, AtomicUpdateRetainsOneRevisionAcrossRestart) {
   auto prior = reopened.Read(second.id, second.archive_sha256, true);
   ASSERT_TRUE(prior.has_value());
   EXPECT_EQ(second.archive, prior->archive);
+}
+
+TEST_F(TahaiSkinStoreTest,
+       OperationalPackagesUseTheExistingBoundedStoreAndRollback) {
+  SkinPackageStore store(directory_.GetPath());
+  const auto first = OperationalFixture("operational-skin", "version one");
+  const auto second = OperationalFixture("operational-skin", "version two");
+  ASSERT_TRUE(store.Install(first, std::nullopt).has_value());
+  ASSERT_TRUE(store.Install(second, first.archive_sha256).has_value());
+  auto catalog = store.List();
+  ASSERT_TRUE(catalog.has_value());
+  ASSERT_EQ(1u, catalog->size());
+  EXPECT_EQ("operational-skin", catalog->front().manifest.id);
+  auto rollback = store.Read(first.id, first.archive_sha256, true);
+  ASSERT_TRUE(rollback.has_value());
+  EXPECT_EQ(first.manifest_json, rollback->manifest_json);
 }
 
 TEST_F(TahaiSkinStoreTest,

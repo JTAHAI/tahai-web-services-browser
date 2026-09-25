@@ -17,14 +17,21 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/timer/timer.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tahai_skins/skin_profile_service.h"
 #include "chrome/browser/tahai_skins/skin_profile_service_factory.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/select_file_policy/chrome_select_file_policy.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tahai/tahai_mode_service.h"
+#include "chrome/browser/ui/tahai/tahai_named_workspace_controller.h"
+#include "chrome/browser/ui/tahai/tahai_operational_skin_controller.h"
+#include "chrome/browser/ui/tahai/tahai_operational_workflow_queue.h"
+#include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/tahai_skins/tahai_skin_catalog.h"
 #include "chrome/grit/browser_resources.h"
@@ -44,9 +51,12 @@
 #include "ui/shell_dialogs/selected_file_info.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/md_text_button.h"
+#include "ui/views/controls/button/checkbox.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/scroll_view.h"
+#include "ui/views/controls/textarea/textarea.h"
+#include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
@@ -57,9 +67,63 @@ DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerImportElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerInstallElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerPreviewElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerReviewElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerTrustReviewElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerRevisionReviewElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerRevisionDiffElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerRevisionAckElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerPublishersElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerPublisherKeyIdElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerPublisherKeyElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerPublisherReviewKeyElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerPublisherRevokeElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerApplyElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerApplyWindowElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerResetElementId);
 namespace {
+
+std::u16string CapabilityLabel(TahaiOperationalCapability capability) {
+  switch (capability) {
+    case TahaiOperationalCapability::kBrowserNavigation: return u"Browser navigation";
+    case TahaiOperationalCapability::kWorkspaceLayout: return u"Workspace layout";
+    case TahaiOperationalCapability::kMissionChecklist: return u"Mission checklist";
+    case TahaiOperationalCapability::kGuardControl: return u"Guard controls";
+  }
+}
+
+std::u16string RevisionSummary(const SkinRevisionReview& review, bool compact = false) {
+  std::u16string text = u"Replacing installed revision:\n" +
+      base::UTF8ToUTF16(review.current_sha256) + u"\nWith reviewed revision:\n" +
+      base::UTF8ToUTF16(review.candidate_sha256);
+  const auto describe = [](bool operational,
+                           const std::optional<SkinPublisherReview>& publisher) {
+    if (!operational) return std::u16string(u"appearance-only; no operational publisher authority");
+    if (!publisher) return std::u16string(u"NOT verified under current trust; historical bytes only");
+    return (publisher->locally_enrolled ? u"locally enrolled / " : u"mandatory policy / ") +
+        base::UTF8ToUTF16(publisher->key_id) + u" / SHA-256 " +
+        base::UTF8ToUTF16(publisher->public_key_sha256);
+  };
+  if (!compact) {
+    text += u"\nInstalled publisher: " + describe(review.current_operational, review.current_publisher);
+    text += u"\nCandidate publisher: " + describe(review.candidate_operational, review.candidate_publisher);
+  }
+  if (review.current_publisher && review.candidate_publisher) {
+    text += review.current_publisher->public_key_sha256 == review.candidate_publisher->public_key_sha256
+        ? u"\nSigning public key unchanged."
+        : u"\nWARNING: Signing public key CHANGED. Verify the new key independently.";
+  } else if (review.current_operational || review.candidate_operational) {
+    text += u"\nPublisher continuity is NOT established across these revisions.";
+  }
+  text += u"\nAdded capabilities:";
+  if (review.added_capabilities.empty()) text += u" none.";
+  for (auto cap : review.added_capabilities) text += u"\n+ " + CapabilityLabel(cap);
+  text += u"\nRemoved capabilities:";
+  if (review.removed_capabilities.empty()) text += u" none.";
+  for (auto cap : review.removed_capabilities) text += u"\n- " + CapabilityLabel(cap);
+  text += compact
+      ? u"\nOnly these reviewed revisions are confirmed. No automatic activation or external grants."
+      : u"\nThe definition comparison below includes appearance, assets, layouts, modes, inputs and steps. Installation does not apply the skin, migrate pinned runs or grant external permissions. Rollback also requires this review.";
+  return text;
+}
 
 class SkinManagerView;
 using Managers = std::map<Profile*, base::WeakPtr<SkinManagerView>>;
@@ -77,7 +141,8 @@ class SkinManagerView final : public views::DialogDelegate,
       : browser_(browser->AsWeakPtr()),
         profile_key_(browser->GetProfile()),
         service_(SkinProfileServiceFactory::GetForProfile(browser->GetProfile())
-                     ->GetWeakPtr()) {
+                     ->GetWeakPtr()),
+        mode_service_(ModeServiceFactory::GetForProfile(browser->GetProfile())) {
     auto contents = std::make_unique<views::View>();
     contents_ = contents.get();
     SetContentsView(std::move(contents));
@@ -116,7 +181,15 @@ class SkinManagerView final : public views::DialogDelegate,
                                         weak_factory_.GetWeakPtr()));
     reset_->SetProperty(views::kElementIdentifierKey,
                         kSkinManagerResetElementId);
+    reset_window_ = contents_->AddChildView(std::make_unique<views::MdTextButton>(
+        base::BindRepeating(&SkinManagerView::ResetWindowAppearance,
+                            weak_factory_.GetWeakPtr()),
+        u"Use profile appearance in this window"));
     status_ = Label(contents_.get(), {});
+    publishers_ = contents_->AddChildView(std::make_unique<views::MdTextButton>(
+        base::BindRepeating(&SkinManagerView::TogglePublishers, weak_factory_.GetWeakPtr()),
+        u"Manage local publisher trust"));
+    publishers_->SetProperty(views::kElementIdentifierKey, kSkinManagerPublishersElementId);
     auto* scroll =
         contents_->AddChildView(std::make_unique<views::ScrollView>());
     scroll->ClipHeightTo(180, 540);
@@ -124,10 +197,47 @@ class SkinManagerView final : public views::DialogDelegate,
     auto* body = scroll->SetContents(std::make_unique<views::View>());
     body->SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kVertical, gfx::Insets(), 12));
+    publisher_panel_ = body->AddChildView(std::make_unique<views::View>());
+    publisher_panel_->SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kVertical, gfx::Insets(8), 8));
+    Label(publisher_panel_, u"Trust a creator's signing PUBLIC key only after independently verifying its fingerprint. Never paste a private key. This is profile-local trust, not identity verification or a website permission. Mandatory publisher policy overrides local keys.");
+    Label(publisher_panel_, u"Signing key ID (lowercase letters, digits and hyphens)");
+    publisher_key_id_ = publisher_panel_->AddChildView(std::make_unique<views::Textfield>());
+    publisher_key_id_->SetProperty(views::kElementIdentifierKey, kSkinManagerPublisherKeyIdElementId);
+    publisher_key_id_->GetViewAccessibility().SetName(u"Signing key ID");
+    Label(publisher_panel_, u"Ed25519 PUBLIC key (64 lowercase hexadecimal characters)");
+    publisher_key_ = publisher_panel_->AddChildView(std::make_unique<views::Textfield>());
+    publisher_key_->SetProperty(views::kElementIdentifierKey, kSkinManagerPublisherKeyElementId);
+    publisher_key_->GetViewAccessibility().SetName(u"Ed25519 public key, not a private key");
+    publisher_review_key_ = publisher_panel_->AddChildView(std::make_unique<views::MdTextButton>(
+        base::BindRepeating(&SkinManagerView::ReviewPublisherKey, weak_factory_.GetWeakPtr()), u"Review public-key fingerprint"));
+    publisher_review_key_->SetProperty(views::kElementIdentifierKey, kSkinManagerPublisherReviewKeyElementId);
+    publisher_rows_ = publisher_panel_->AddChildView(std::make_unique<views::View>());
+    publisher_rows_->SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 8));
+    publisher_panel_->SetVisible(false);
     review_ = body->AddChildView(std::make_unique<views::View>());
     review_->SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kVertical, gfx::Insets(8), 8));
     summary_ = Label(review_, {});
+    trust_review_ = Label(review_, {});
+    trust_review_->SetProperty(views::kElementIdentifierKey, kSkinManagerTrustReviewElementId);
+    trust_review_->SetAllowCharacterBreak(true);
+    trust_review_->SetSelectable(true);
+    revision_review_ = Label(review_, {});
+    revision_review_->SetProperty(views::kElementIdentifierKey, kSkinManagerRevisionReviewElementId);
+    revision_review_->SetAllowCharacterBreak(true);
+    revision_review_->SetSelectable(true);
+    revision_diff_ = review_->AddChildView(std::make_unique<views::Textarea>());
+    revision_diff_->SetProperty(views::kElementIdentifierKey, kSkinManagerRevisionDiffElementId);
+    revision_diff_->SetReadOnly(true);
+    revision_diff_->GetViewAccessibility().SetName(u"Installed to proposed skin definition changes. Minus is installed; plus is proposed. Paths are JSON Pointers with zero-based array positions.");
+    revision_diff_->SetPreferredSize(gfx::Size(580, 200));
+    revision_ack_ = review_->AddChildView(std::make_unique<views::Checkbox>(
+        u"I reviewed the revision, publisher and capability changes above.",
+        base::BindRepeating(&SkinManagerView::Controls, weak_factory_.GetWeakPtr())));
+    revision_ack_->SetProperty(views::kElementIdentifierKey, kSkinManagerRevisionAckElementId);
+    revision_ack_->SetMultiLine(true);
     Label(review_, l10n_util::GetStringUTF16(IDS_TAHAI_SKINS_ARTWORK_NOTICE));
     image_ = review_->AddChildView(std::make_unique<views::ImageView>());
     image_->SetProperty(views::kElementIdentifierKey,
@@ -144,6 +254,13 @@ class SkinManagerView final : public views::DialogDelegate,
                                         weak_factory_.GetWeakPtr()));
     apply_->SetProperty(views::kElementIdentifierKey,
                         kSkinManagerApplyElementId);
+    apply_->SetText(u"Apply as profile default");
+    apply_window_ = review_->AddChildView(std::make_unique<views::MdTextButton>(
+        base::BindRepeating(&SkinManagerView::ApplyWindowAppearance,
+                            weak_factory_.GetWeakPtr()),
+        u"Apply to this window"));
+    apply_window_->SetProperty(views::kElementIdentifierKey,
+                               kSkinManagerApplyWindowElementId);
     auto* preview_commands = Row(review_);
     try_ = Button(preview_commands, IDS_TAHAI_SKINS_TRY,
                   base::BindRepeating(&SkinManagerView::TryAppearance,
@@ -160,7 +277,8 @@ class SkinManagerView final : public views::DialogDelegate,
         views::BoxLayout::Orientation::kVertical, gfx::Insets(), 12));
     pref_changes_.Init(browser->GetProfile()->GetPrefs());
     for (const char* pref :
-         {prefs::kTahaiSkinsEnabled, prefs::kTahaiSkinInstallationsAllowed}) {
+         {prefs::kTahaiSkinsEnabled, prefs::kTahaiSkinInstallationsAllowed,
+          prefs::kTahaiOperationalSkinTrustedKeys, prefs::kTahaiLocalSkinTrustedKeys}) {
       pref_changes_.Add(pref,
                         base::BindRepeating(&SkinManagerView::OnPolicyChanged,
                                             weak_factory_.GetWeakPtr()));
@@ -173,9 +291,137 @@ class SkinManagerView final : public views::DialogDelegate,
   base::WeakPtr<SkinManagerView> GetWeakPtr() {
     return weak_factory_.GetWeakPtr();
   }
+  void SelectTargetWindow(Browser* browser) {
+    if (browser_.get() == browser) {
+      return;
+    }
+    // Do not redirect an outstanding chooser/confirmation to a different
+    // window. A new idle invocation starts a fresh review for its target.
+    if (!browser || browser->GetProfile() != profile_key_ || !service_ ||
+        service_->busy() || choosing_ || confirming_ || exporting_) {
+      Status(IDS_TAHAI_SKINS_BUSY);
+      return;
+    }
+    browser_ = browser->AsWeakPtr();
+    Refresh();
+  }
 
  private:
   enum class ReviewKind { kFile, kInstalled, kPrevious };
+  void TogglePublishers() {
+    if (!service_ || service_->busy() || confirming_) return;
+    publisher_panel_->SetVisible(!publisher_panel_->GetVisible());
+    PopulatePublishers();
+    if (publisher_panel_->GetVisible()) {
+      publisher_panel_->ScrollViewToVisible();
+      if (publisher_key_id_->GetEnabled()) publisher_key_id_->RequestFocus();
+    }
+  }
+  void PopulatePublishers() {
+    publisher_rows_->RemoveAllChildViews();
+    if (!service_) return;
+    Label(publisher_rows_, service_->CanEnrollLocalPublisher()
+        ? u"Local keys can authorize signed packages after separate import review. Up to 32 keys; replacing an ID requires explicit revocation first."
+        : u"Enrollment unavailable: mandatory policy, installation restrictions or profile state take precedence. Local keys below may be suspended by policy.");
+    const auto keys = service_->GetLocalPublishers();
+    const auto generation = service_->local_publisher_generation();
+    if (!keys) {
+      Label(publisher_rows_, u"Local key data is invalid or unavailable. No partial list is trusted. Clear local trust to recover; installed packages are kept.");
+    } else if (keys->empty()) {
+      Label(publisher_rows_, u"No locally enrolled publishers.");
+    } else {
+      for (const auto& key : *keys) {
+        auto* label = Label(publisher_rows_, base::UTF8ToUTF16(key.key_id) +
+            u"\nPublic-key SHA-256: " + base::UTF8ToUTF16(key.public_key_sha256));
+        label->SetAllowCharacterBreak(true);
+        label->SetSelectable(true);
+        auto* revoke = publisher_rows_->AddChildView(std::make_unique<views::MdTextButton>(
+            base::BindRepeating(&SkinManagerView::ConfirmRevokePublisher, weak_factory_.GetWeakPtr(),
+                key.key_id, key.public_key_sha256, generation), u"Revoke this local key"));
+        revoke->SetProperty(views::kElementIdentifierKey, kSkinManagerPublisherRevokeElementId);
+      }
+    }
+    publisher_rows_->AddChildView(std::make_unique<views::MdTextButton>(
+        base::BindRepeating(&SkinManagerView::ConfirmRevokePublisher,
+            weak_factory_.GetWeakPtr(), std::string(), std::string(), generation),
+        u"Clear all local publisher trust"));
+  }
+  void ReviewPublisherKey() {
+    if (!browser_ || !service_ || confirming_ || !service_->CanEnrollLocalPublisher()) return;
+    std::optional<LocalPublisherEnrollmentReview> review;
+    if (publisher_key_id_->GetText().size() <= 64 && publisher_key_->GetText().size() == 64) {
+      review = service_->ReviewLocalPublisher(base::UTF16ToUTF8(publisher_key_id_->GetText()),
+                                              base::UTF16ToUTF8(publisher_key_->GetText()));
+    }
+    publisher_key_->SetText({});
+    publisher_key_id_->SetText({});
+    if (!review) {
+      status_->SetText(u"Key not accepted. Use a new valid key ID and a 64-character lowercase Ed25519 public key. Existing IDs, invalid local data, policy restrictions and the 32-key limit require attention.");
+      return;
+    }
+    ClearReview();
+    confirming_ = true;
+    Controls();
+    auto model = ui::DialogModel::Builder()
+        .SetTitle(u"Trust this local publisher?")
+        .AddParagraph(ui::DialogModelLabel(u"Compare this fingerprint through an independent trusted channel. Trust permits future signature-verified operational packages from this key to enter review, not automatic installation, website access or external actions. The key ID is self-described, not a verified person or organization."))
+        .AddParagraph(ui::DialogModelLabel(u"Key ID: " + base::UTF8ToUTF16(review->key_id) +
+            u"\nPublic-key SHA-256: " + base::UTF8ToUTF16(review->public_key_sha256)))
+        .AddOkButton(base::BindOnce(&SkinManagerView::EnrollPublisher, weak_factory_.GetWeakPtr(), *review))
+        .AddCancelButton(base::BindOnce(&SkinManagerView::EndConfirmation, weak_factory_.GetWeakPtr()))
+        .SetDialogDestroyingCallback(base::BindOnce(&SkinManagerView::EndConfirmation, weak_factory_.GetWeakPtr()))
+        .Build();
+    chrome::ShowBrowserModal(browser_.get(), std::move(model));
+  }
+  void EnrollPublisher(LocalPublisherEnrollmentReview review) {
+    confirming_ = false;
+    if (!service_ || !service_->EnrollLocalPublisher(review)) {
+      status_->SetText(u"Trust was not changed. The review is stale, policy changed, or the key is not valid. Review again.");
+      Controls();
+      return;
+    }
+    status_->SetText(u"Public key enrolled for this profile. Import and review the signed package separately. No package was installed or activated.");
+    PopulatePublishers();
+    Controls();
+  }
+  void ConfirmRevokePublisher(std::string id, std::string fingerprint,
+                              base::UnguessableToken generation) {
+    if (!browser_ || !service_ || service_->busy() || confirming_) return;
+    confirming_ = true;
+    Controls();
+    auto model = ui::DialogModel::Builder()
+        .SetTitle(u"Revoke local publisher trust?")
+        .AddParagraph(ui::DialogModelLabel(id.empty()
+            ? u"Clear ALL locally enrolled signing keys in this profile?"
+            : u"Revoke key " + base::UTF8ToUTF16(id) + u"\nPublic-key SHA-256: " + base::UTF8ToUTF16(fingerprint)))
+        .AddParagraph(ui::DialogModelLabel(u"Local operational authority and pending reviews are invalidated immediately. Installed archives and Mission history are kept. This cannot undo prior actions and does not modify mandatory publisher policy."))
+        .AddOkButton(base::BindOnce(&SkinManagerView::RevokePublisher, weak_factory_.GetWeakPtr(), id, fingerprint, generation))
+        .AddCancelButton(base::BindOnce(&SkinManagerView::EndConfirmation, weak_factory_.GetWeakPtr()))
+        .SetDialogDestroyingCallback(base::BindOnce(&SkinManagerView::EndConfirmation, weak_factory_.GetWeakPtr()))
+        .Build();
+    chrome::ShowBrowserModal(browser_.get(), std::move(model));
+  }
+  void RevokePublisher(std::string id, std::string fingerprint,
+                       base::UnguessableToken generation) {
+    confirming_ = false;
+    const bool changed = service_ && (id.empty() ? service_->ClearLocalPublishers(generation)
+        : service_->RemoveLocalPublisher(id, fingerprint, generation));
+    status_->SetText(changed ? u"Local trust revoked; archives and run history retained."
+                            : u"Trust was not changed. Review is stale or policy/profile state forbids the change.");
+    PopulatePublishers();
+    Controls();
+  }
+  WindowModeController* TargetController() const {
+    return WindowModeController::GetForBrowser(browser_.get());
+  }
+  const TahaiOperationalSkinManifest* EffectiveOperationalManifest() const {
+    const auto* controller = TargetController();
+    return controller ? controller->operational_manifest() : nullptr;
+  }
+  std::optional<std::string> EffectiveArchiveSha256() const {
+    const auto* controller = TargetController();
+    return controller ? controller->operational_archive_sha256() : std::nullopt;
+  }
 
   static views::Label* Label(views::View* parent, std::u16string text) {
     auto* label = parent->AddChildView(std::make_unique<views::Label>(text));
@@ -208,6 +454,7 @@ class SkinManagerView final : public views::DialogDelegate,
         break;
       case SkinOperationStatus::kDisabled:
       case SkinOperationStatus::kInstallDisallowed:
+      case SkinOperationStatus::kUntrusted:
         message = IDS_TAHAI_SKINS_POLICY_BLOCKED;
         break;
       case SkinOperationStatus::kBusy:
@@ -247,11 +494,20 @@ class SkinManagerView final : public views::DialogDelegate,
     creator_->SetEnabled(idle &&
                          ChromeSelectFilePolicy::FileSelectDialogsAllowed());
     import_->SetEnabled(idle && service_->installation_allowed());
+    publishers_->SetEnabled(idle);
+    publisher_key_id_->SetEnabled(idle && service_->CanEnrollLocalPublisher());
+    publisher_key_->SetEnabled(idle && service_->CanEnrollLocalPublisher());
+    publisher_review_key_->SetEnabled(idle && service_->CanEnrollLocalPublisher());
+    publisher_rows_->SetEnabled(idle);
     refresh_->SetEnabled(idle);
     rows_->SetEnabled(idle);
     install_->SetEnabled(idle &&
-                         service_->PreviewCanBeInstalled(preview_token_));
+                         service_->PreviewCanBeInstalled(preview_token_) &&
+                         (!service_->GetPreviewRevisionReview(preview_token_) || revision_ack_->GetChecked()));
+    revision_ack_->SetEnabled(idle);
     apply_->SetEnabled(idle && service_->CanApplyPreview(preview_token_));
+    apply_window_->SetEnabled(idle && service_->CanApplyPreview(preview_token_));
+    reset_window_->SetEnabled(idle);
     try_->SetEnabled(idle && service_->CanChangeAppearance() &&
                      service_->GetPreview(preview_token_));
     revert_->SetEnabled(idle && service_->live_preview_active());
@@ -272,6 +528,8 @@ class SkinManagerView final : public views::DialogDelegate,
     refresh_->SetEnabled(false);
     install_->SetEnabled(false);
     apply_->SetEnabled(false);
+    apply_window_->SetEnabled(false);
+    reset_window_->SetEnabled(false);
     try_->SetEnabled(false);
     revert_->SetEnabled(false);
     export_->SetEnabled(false);
@@ -288,8 +546,13 @@ class SkinManagerView final : public views::DialogDelegate,
     }
     preview_token_.clear();
     summary_->SetText({});
+    trust_review_->SetText({});
+    revision_review_->SetText({});
+    revision_diff_->SetText({});
+    revision_ack_->SetChecked(false);
     image_->SetImage(ui::ImageModel());
     apply_->SetVisible(false);
+    apply_window_->SetVisible(false);
     review_->SetVisible(false);
   }
   void Refresh() {
@@ -307,6 +570,7 @@ class SkinManagerView final : public views::DialogDelegate,
   }
   void OnCatalog(SkinOperationResult result) {
     operation_owned_ = false;
+    PopulatePublishers();
     rows_->RemoveAllChildViews();
     if (result.status != SkinOperationStatus::kOk) {
       ClearReview();
@@ -367,6 +631,44 @@ class SkinManagerView final : public views::DialogDelegate,
                                 entry.archive_sha256));
         remove->GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
             IDS_TAHAI_SKINS_REMOVE_ACCESSIBLE, name));
+      }
+      const TahaiOperationalSkinManifest* operational =
+          EffectiveOperationalManifest();
+      if (operational) {
+        Label(rows_, u"Active operational skin modes");
+        for (const TahaiOperationalMode& mode : operational->modes) {
+          auto* activate =
+              rows_->AddChildView(std::make_unique<views::MdTextButton>(
+                  base::BindRepeating(&SkinManagerView::ActivateOperationalMode,
+                                      weak_factory_.GetWeakPtr(), mode.id),
+                  base::UTF8ToUTF16("Activate " + mode.name)));
+          activate->SetTooltipText(
+              u"Applies this mode's workspace and opens its local workflow.");
+          activate->SetEnabled(
+              BuildTahaiOperationalSkinActivation(*operational, mode.id)
+                  .has_value());
+        }
+      }
+      if (mode_service_ && !mode_service_->custom_modes().empty()) {
+        Label(rows_, u"Saved custom modes");
+        for (const TahaiCustomModeDefinition& mode : mode_service_->custom_modes()) {
+          auto* activate = rows_->AddChildView(
+              std::make_unique<views::MdTextButton>(
+                  base::BindRepeating(&SkinManagerView::ActivateCustomMode,
+                                      weak_factory_.GetWeakPtr(), mode.id),
+                  base::UTF8ToUTF16("Activate " + mode.title)));
+          activate->SetTooltipText(
+              mode.native_presentation
+                  ? u"Restores the saved workspace and reverifies any pinned "
+                    u"skin. No controls run automatically."
+                  : u"Requires the exact reviewed operational skin revision.");
+          activate->SetEnabled(
+              mode.native_presentation.has_value() ||
+              (operational && mode.operational_skin &&
+               mode.operational_skin->id == operational->appearance.id &&
+               mode.operational_skin->archive_sha256 == EffectiveArchiveSha256() &&
+               BuildTahaiCustomModeActivation(*operational, mode).has_value()));
+        }
       }
       Status(IDS_TAHAI_SKINS_CATALOG_READY);
     }
@@ -510,6 +812,57 @@ class SkinManagerView final : public views::DialogDelegate,
       return;
     }
     preview_token_ = result.preview_token;
+    std::u16string trust_text = u"Appearance-only package. The creator name is self-described, not a verified publisher identity. No operational capabilities are granted.";
+    if (skin->operational_manifest) {
+      const auto publisher = service_->GetPreviewPublisherReview(preview_token_);
+      if (!publisher) {
+        ClearReview();
+        Status(SkinOperationResult{SkinOperationStatus::kUntrusted, std::nullopt, std::nullopt, {}, {}});
+        Controls();
+        return;
+      }
+      trust_text = std::u16string(publisher->locally_enrolled
+          ? u"Operational signature verified against a public key you explicitly enrolled in this profile.\nSigning key: "
+          : u"Operational signature verified against mandatory publisher policy at review.\nSigning key: ") +
+          base::UTF8ToUTF16(publisher->key_id) + u"\nPublic-key SHA-256: " +
+          base::UTF8ToUTF16(publisher->public_key_sha256) +
+          u"\nThe creator name is self-described; this verifies a signing key, not a real-world organization.\nDeclared capabilities:";
+      for (const auto capability : skin->operational_manifest->capabilities) {
+        switch (capability) {
+          case TahaiOperationalCapability::kBrowserNavigation:
+            trust_text += u"\n• Browser navigation — focus the address field.";
+            break;
+          case TahaiOperationalCapability::kWorkspaceLayout:
+            trust_text += u"\n• Workspace layout — change panes and open Finder/workspaces.";
+            break;
+          case TahaiOperationalCapability::kMissionChecklist:
+            trust_text += u"\n• Mission checklist — create and manage a local workflow run.";
+            break;
+          case TahaiOperationalCapability::kGuardControl:
+            trust_text += u"\n• Guard controls — open the browser-owned Guard controls, not bypass filtering.";
+            break;
+        }
+      }
+      if (skin->operational_manifest->capabilities.empty()) trust_text += u" none.";
+      trust_text += u"\nInstallation rechecks current trust and policy and does not grant website data, credentials, connectors, or permission to send, publish or delete. New permissions are never accepted automatically.";
+    }
+    trust_review_->SetText(trust_text);
+    const auto* revision = service_->GetPreviewRevisionReview(preview_token_);
+    revision_review_->SetVisible(revision != nullptr);
+    revision_diff_->SetVisible(revision != nullptr);
+    revision_ack_->SetVisible(revision != nullptr);
+    revision_ack_->SetChecked(false);
+    revision_review_->SetText(revision ? RevisionSummary(*revision) : std::u16string());
+    std::string diff;
+    if (revision) {
+      diff = "Definition changes (JSON Pointer; array positions start at zero)\n- installed\n+ proposed\n\n";
+      for (const auto& change : revision->changes)
+        diff += change.path + "\n- " + change.before + "\n+ " + change.after + "\n\n";
+      if (revision->changes.empty())
+        diff += "No parsed definition changes. Archive bytes or signature metadata changed; review the revision and publisher identity above.\n";
+    }
+    revision_diff_->SetText(base::UTF8ToUTF16(diff));
+    revision_diff_->Scroll({0});
     summary_->SetText(l10n_util::GetStringFUTF16(
         IDS_TAHAI_SKINS_REVIEW_DETAILS, base::UTF8ToUTF16(skin->manifest.name),
         base::UTF8ToUTF16(skin->manifest.id),
@@ -543,6 +896,7 @@ class SkinManagerView final : public views::DialogDelegate,
                                               : IDS_TAHAI_SKINS_INSTALL));
     install_->SetVisible(review_kind_ != ReviewKind::kInstalled);
     apply_->SetVisible(review_kind_ == ReviewKind::kInstalled);
+    apply_window_->SetVisible(review_kind_ == ReviewKind::kInstalled);
     review_->SetVisible(true);
     Status(IDS_TAHAI_SKINS_REVIEW_READY);
     Controls();
@@ -552,6 +906,10 @@ class SkinManagerView final : public views::DialogDelegate,
         !service_->PreviewCanBeInstalled(preview_token_)) {
       return;
     }
+    const auto* revision = service_->GetPreviewRevisionReview(preview_token_);
+    if (revision && !revision_ack_->GetChecked()) return;
+    const std::string current = revision ? revision->current_sha256 : "";
+    const std::string candidate = revision ? revision->candidate_sha256 : "";
     confirming_ = true;
     Controls();
     auto model =
@@ -561,9 +919,15 @@ class SkinManagerView final : public views::DialogDelegate,
                 IDS_TAHAI_SKINS_CONFIRM_STORE_DETAIL)))
             .AddParagraph(
                 ui::DialogModelLabel(std::u16string(summary_->GetText())))
+            .AddParagraph(ui::DialogModelLabel(revision
+                ? u"You acknowledged the publisher, capability and definition comparison in the package review."
+                : std::u16string(trust_review_->GetText())))
+            .AddParagraph(ui::DialogModelLabel(revision
+                ? RevisionSummary(*revision, true)
+                : u"No installed revision is being replaced."))
             .AddOkButton(base::BindOnce(&SkinManagerView::Install,
                                         weak_factory_.GetWeakPtr(),
-                                        preview_token_))
+                                        preview_token_, current, candidate))
             .AddCancelButton(base::BindOnce(&SkinManagerView::EndConfirmation,
                                             weak_factory_.GetWeakPtr()))
             .SetDialogDestroyingCallback(base::BindOnce(
@@ -575,8 +939,13 @@ class SkinManagerView final : public views::DialogDelegate,
     confirming_ = false;
     Controls();
   }
-  void Install(std::string token) {
+  void Install(std::string token, std::string current, std::string candidate) {
     confirming_ = false;
+    if (!current.empty() && (!service_ || !service_->AcknowledgeRevisionReview(token, current, candidate))) {
+      Status(IDS_TAHAI_SKINS_STALE);
+      Controls();
+      return;
+    }
     if (!Begin()) {
       Controls();
       return;
@@ -637,6 +1006,21 @@ class SkinManagerView final : public views::DialogDelegate,
     Controls();
     Status(IDS_TAHAI_SKINS_CANCELLED);
   }
+  void ApplyWindowAppearance() {
+    auto* controller = TargetController();
+    if (!controller || !controller->ApplyReviewedWindowSkin(preview_token_)) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    service_->EndLivePreview();
+    Refresh();
+  }
+  void ResetWindowAppearance() {
+    if (auto* controller = TargetController()) {
+      controller->ClearWindowSkin();
+      Refresh();
+    }
+  }
   void ApplyAppearance() {
     if (!browser_ || !service_ || review_kind_ != ReviewKind::kInstalled) {
       return;
@@ -649,6 +1033,9 @@ class SkinManagerView final : public views::DialogDelegate,
     Status(IDS_TAHAI_SKINS_APPLIED);
     preview_status_timer_.Stop();
     Controls();
+    // Reload the catalog so a newly applied v2 skin exposes its mode buttons
+    // without making the person close and reopen the manager.
+    Refresh();
   }
   void ResetAppearance() {
     if (!browser_) {
@@ -665,6 +1052,221 @@ class SkinManagerView final : public views::DialogDelegate,
       Status(IDS_TAHAI_SKINS_APPLIED);
       Controls();
     }
+  }
+  void ActivateOperationalMode(std::string mode_id) {
+    if (!browser_ || !service_) {
+      return;
+    }
+    const TahaiOperationalSkinManifest* operational =
+        EffectiveOperationalManifest();
+    const auto activation =
+        operational ? BuildTahaiOperationalSkinActivation(*operational, mode_id)
+                    : std::nullopt;
+    if (!activation) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    const auto mode = std::ranges::find(operational->modes, mode_id,
+                                        &TahaiOperationalMode::id);
+    const auto workflow =
+        mode == operational->modes.end()
+            ? operational->workflows.end()
+            : std::ranges::find(operational->workflows, mode->workflow_id,
+                                &TahaiOperationalWorkflow::id);
+    const auto surface =
+        mode == operational->modes.end()
+            ? operational->surfaces.end()
+            : std::ranges::find(operational->surfaces, mode->surface_id,
+                                &TahaiOperationalSurface::id);
+    const std::optional<std::string> archive_sha256 =
+        EffectiveArchiveSha256();
+    if (workflow == operational->workflows.end() ||
+        surface == operational->surfaces.end() || !archive_sha256) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    // Native commands can synchronously notify profile/UI observers. Own the
+    // reviewed snapshot across dispatch instead of retaining store iterators.
+    const TahaiOperationalWorkflow workflow_snapshot = *workflow;
+    const std::vector<std::string> rail_modules = surface->rail_modules;
+    const auto surface_design = surface->design;
+    const std::string skin_id = operational->appearance.id;
+    // Preflight the complete command set before changing the target window.
+    if (std::ranges::any_of(activation->command_ids, [this](int command_id) {
+          return !chrome::IsCommandEnabled(browser_.get(), command_id);
+        }) || !chrome::IsCommandEnabled(browser_.get(),
+                                        IDC_TAHAI_MISSION_CONTROL)) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    WindowModeController* const controller =
+        WindowModeController::GetForBrowser(browser_.get());
+    if (!controller || !controller->ApplyWorkspacePresentation(
+                           controller->active_mode_id(),
+                           controller->active_configuration().rail_state,
+                           controller->active_configuration().rail_width)) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    // Applying a skin's rail choice must be window-local. Without the
+    // workspace override, these commands would change the profile template
+    // and every sibling window still using that mode.
+    if (!controller->SelectOperationalMode(mode_id) ||
+        controller->operational_archive_sha256() != archive_sha256) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    for (int command_id : activation->command_ids) {
+      if (command_id == IDC_TAHAI_MISSION_CONTROL) {
+        continue;
+      }
+      if (!chrome::ExecuteCommand(browser_.get(), command_id)) {
+        Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+        return;
+      }
+    }
+    if (!controller->SetOperationalRailModules(rail_modules) ||
+        !controller->SetSurfaceDesign(surface_design)) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    if (!QueueOperationalWorkflowLaunch(browser_->GetProfile(), workflow_snapshot,
+                                        skin_id,
+                                        *archive_sha256) ||
+        !chrome::ExecuteCommand(browser_.get(), IDC_TAHAI_MISSION_CONTROL)) {
+      ClearQueuedOperationalWorkflowLaunch(browser_->GetProfile());
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    Status(IDS_TAHAI_SKINS_APPLIED);
+  }
+  void ActivateCustomMode(std::string custom_mode_id) {
+    if (!browser_ || !mode_service_) {
+      return;
+    }
+    const auto custom = std::ranges::find(
+        mode_service_->custom_modes(), custom_mode_id,
+        &TahaiCustomModeDefinition::id);
+    if (custom != mode_service_->custom_modes().end() &&
+        custom->native_presentation) {
+      const auto alive = weak_factory_.GetWeakPtr();
+      Browser* target = ActivateNativeCustomMode(browser_.get(), custom_mode_id);
+      if (!alive) {
+        return;
+      }
+      if (target) {
+        status_->SetText(u"Mode opened. Any retained skin is being reverified; the window shows unavailable skins. No mode controls were run.");
+        status_->GetViewAccessibility().AnnounceText(status_->GetText());
+      } else {
+        Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      }
+      return;
+    }
+    const TahaiOperationalSkinManifest* operational =
+        EffectiveOperationalManifest();
+    const auto activation =
+        operational && custom != mode_service_->custom_modes().end() &&
+                custom->operational_skin &&
+                custom->operational_skin->id == operational->appearance.id &&
+                custom->operational_skin->archive_sha256 == EffectiveArchiveSha256()
+            ? BuildTahaiCustomModeActivation(*operational, *custom)
+            : std::nullopt;
+    if (!activation) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    const auto mode = std::ranges::find(
+        operational->modes, custom->operational_mode_id,
+        &TahaiOperationalMode::id);
+    const auto workflow =
+        mode == operational->modes.end()
+            ? operational->workflows.end()
+            : std::ranges::find(operational->workflows, mode->workflow_id,
+                                &TahaiOperationalWorkflow::id);
+    const auto surface =
+        mode == operational->modes.end()
+            ? operational->surfaces.end()
+            : std::ranges::find(operational->surfaces, mode->surface_id,
+                                &TahaiOperationalSurface::id);
+    const std::optional<std::string> archive_sha256 =
+        EffectiveArchiveSha256();
+    if (workflow == operational->workflows.end() ||
+        surface == operational->surfaces.end() || !archive_sha256) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    const TahaiOperationalWorkflow workflow_snapshot = *workflow;
+    const std::vector<std::string> rail_modules = surface->rail_modules;
+    const auto surface_design = surface->design;
+    const std::string skin_id = operational->appearance.id;
+    const TahaiCustomModeDefinition custom_snapshot = *custom;
+    Browser* target = browser_.get();
+    const auto alive = weak_factory_.GetWeakPtr();
+    if (!custom_snapshot.workspace_id.empty()) {
+      // A saved workspace is restored only by Chromium's browser-owned
+      // controller. It opens a separate regular-profile window and cannot
+      // accept a renderer-provided URL or mutate the source window.
+      target = OpenNamedWorkspace(target, custom_snapshot.workspace_id);
+      if (!alive) {
+        return;
+      }
+      if (!target) {
+        Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+        return;
+      }
+    }
+    if (std::ranges::any_of(activation->command_ids,
+                            [target](int command_id) {
+                              return !chrome::IsCommandEnabled(target,
+                                                                command_id);
+                            }) ||
+        !chrome::IsCommandEnabled(target, IDC_TAHAI_MISSION_CONTROL)) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    WindowModeController* const controller =
+        WindowModeController::GetForBrowser(target);
+    if (!controller || !TargetController() ||
+        !controller->CopyWindowSkinFrom(*TargetController()) ||
+        !controller->ApplyWorkspacePresentation(
+                           controller->active_mode_id(),
+                           controller->active_configuration().rail_state,
+                           controller->active_configuration().rail_width)) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    if (!controller->SelectOperationalMode(custom_snapshot.operational_mode_id) ||
+        controller->operational_archive_sha256() != archive_sha256) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    for (int command_id : activation->command_ids) {
+      if (command_id == IDC_TAHAI_MISSION_CONTROL) {
+        continue;
+      }
+      if (!chrome::ExecuteCommand(target, command_id)) {
+        Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+        return;
+      }
+    }
+    if (!controller->SetCustomModePresentation(custom_snapshot.id)) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    if (!controller->SetOperationalRailModules(rail_modules) ||
+        !controller->SetSurfaceDesign(surface_design)) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    if (!QueueOperationalWorkflowLaunch(target->GetProfile(), workflow_snapshot,
+                                        skin_id,
+                                        *archive_sha256) ||
+        !chrome::ExecuteCommand(target, IDC_TAHAI_MISSION_CONTROL)) {
+      ClearQueuedOperationalWorkflowLaunch(target->GetProfile());
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    Status(IDS_TAHAI_SKINS_APPLIED);
   }
   void TryAppearance() {
     if (!service_ || !service_->BeginLivePreview(preview_token_)) {
@@ -692,6 +1294,8 @@ class SkinManagerView final : public views::DialogDelegate,
   }
   void OnPolicyChanged() {
     exporting_ = false;
+    publisher_key_->SetText({});
+    publisher_key_id_->SetText({});
     // Re-enabling policy later does not revive a chooser opened under the old
     // authorization. Late OS results must have no listener/operation to target.
     if (file_dialog_) {
@@ -722,6 +1326,16 @@ class SkinManagerView final : public views::DialogDelegate,
     reset_ = nullptr;
     status_ = nullptr;
     summary_ = nullptr;
+    trust_review_ = nullptr;
+    publishers_ = nullptr;
+    publisher_panel_ = nullptr;
+    publisher_rows_ = nullptr;
+    publisher_key_id_ = nullptr;
+    publisher_key_ = nullptr;
+    publisher_review_key_ = nullptr;
+    revision_review_ = nullptr;
+    revision_diff_ = nullptr;
+    revision_ack_ = nullptr;
     image_ = nullptr;
     review_ = nullptr;
     rows_ = nullptr;
@@ -755,21 +1369,34 @@ class SkinManagerView final : public views::DialogDelegate,
   // Only an opaque registry key. Never dereferenced after profile shutdown.
   raw_ptr<Profile> profile_key_;
   base::WeakPtr<SkinProfileService> service_;
+  raw_ptr<ModeService> mode_service_;
   raw_ptr<views::View> contents_ = nullptr;
   scoped_refptr<ui::SelectFileDialog> file_dialog_;
   PrefChangeRegistrar pref_changes_;
   raw_ptr<views::MdTextButton> import_ = nullptr;
+  raw_ptr<views::MdTextButton> publishers_ = nullptr;
+  raw_ptr<views::View> publisher_panel_ = nullptr;
+  raw_ptr<views::View> publisher_rows_ = nullptr;
+  raw_ptr<views::Textfield> publisher_key_id_ = nullptr;
+  raw_ptr<views::Textfield> publisher_key_ = nullptr;
+  raw_ptr<views::MdTextButton> publisher_review_key_ = nullptr;
   raw_ptr<views::MdTextButton> creator_ = nullptr;
   raw_ptr<views::MdTextButton> refresh_ = nullptr;
   raw_ptr<views::MdTextButton> discard_ = nullptr;
   raw_ptr<views::MdTextButton> install_ = nullptr;
   raw_ptr<views::MdTextButton> apply_ = nullptr;
+  raw_ptr<views::MdTextButton> apply_window_ = nullptr;
+  raw_ptr<views::MdTextButton> reset_window_ = nullptr;
   raw_ptr<views::MdTextButton> try_ = nullptr;
   raw_ptr<views::MdTextButton> revert_ = nullptr;
   raw_ptr<views::MdTextButton> export_ = nullptr;
   raw_ptr<views::MdTextButton> reset_ = nullptr;
   raw_ptr<views::Label> status_ = nullptr;
   raw_ptr<views::Label> summary_ = nullptr;
+  raw_ptr<views::Label> trust_review_ = nullptr;
+  raw_ptr<views::Label> revision_review_ = nullptr;
+  raw_ptr<views::Textarea> revision_diff_ = nullptr;
+  raw_ptr<views::Checkbox> revision_ack_ = nullptr;
   raw_ptr<views::ImageView> image_ = nullptr;
   raw_ptr<views::View> review_ = nullptr;
   raw_ptr<views::View> rows_ = nullptr;
@@ -801,6 +1428,7 @@ void ShowSkinManager(Browser* browser) {
   }
   auto found = OpenManagers().find(browser->GetProfile());
   if (found != OpenManagers().end() && found->second) {
+    found->second->SelectTargetWindow(browser);
     found->second->GetWidget()->Show();
     found->second->GetWidget()->Activate();
     return;

@@ -13,6 +13,8 @@
 #include "base/no_destructor.h"
 #include "base/observer_list.h"
 #include "chrome/browser/profiles/profile_keyed_service_factory.h"
+#include "chrome/browser/ui/tahai/tahai_custom_mode_registry.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/keyed_service/core/keyed_service.h"
 
 class PrefService;
@@ -21,8 +23,8 @@ class Profile;
 namespace tahai {
 
 // Work modes change the TAHAI cockpit, not the Chromium identity boundary.
-// They are deliberately fixed definitions: a renderer may request a known id,
-// but it cannot introduce arbitrary configuration, URLs, scripts, or actions.
+// Built-in descriptive metadata is separate from the shared validated native
+// presets used for presentation and commands. Neither accepts scripts or URLs.
 struct WorkModeDefinition {
   std::string_view id;
   std::string_view title;
@@ -104,6 +106,45 @@ class ModeService : public KeyedService {
   static const WorkModeDefinition* FindDefinition(std::string_view id);
   static const WorkModeTemplate* FindTemplate(std::string_view id);
 
+  // Read-only bounded custom definitions. Creation and activation are
+  // browser-owned UI operations; callers never receive a privileged action.
+  const std::vector<TahaiCustomModeDefinition>& custom_modes() const;
+  // Adds one profile-scoped definition with a browser-generated identifier.
+  // The caller must separately establish that the operational-mode reference
+  // belongs to an active, reviewed skin declaration.
+  bool CreateCustomMode(std::string title,
+                        std::string operational_mode_id,
+                        std::string workspace_id,
+                        std::optional<WindowSkinReference> skin = std::nullopt);
+  bool CreateNativeCustomMode(std::string title,
+                              WindowPresentation presentation,
+                              std::vector<std::string> actions,
+                              std::string workspace_id);
+  bool RenameCustomMode(std::string_view id, std::string title);
+  bool RemoveCustomMode(std::string_view id);
+  bool DuplicateCustomMode(std::string_view id, std::string title);
+  bool DuplicateBuiltinModePreset(std::string_view id, std::string title);
+  bool UpdateNativeCustomMode(std::string_view id, std::string title,
+                              std::vector<std::string> actions,
+                              std::string workspace_id,
+                              std::optional<NativeModeCommandLayout> layout = std::nullopt);
+  bool SetCustomModes(base::DictValue definitions);
+  bool SetNativeCustomModeConfiguration(std::string_view id,
+                                        std::string_view key,
+                                        std::string_view value);
+  bool ResetNativeCustomModeConfiguration(std::string_view id);
+  bool SetNativeCustomModeSurface(std::string_view id,
+                                  std::optional<SurfaceDesign> design);
+  // A persisted reference, never a trust grant. The caller must obtain it
+  // from this profile's verified window binding; restore revalidates it.
+  bool SetNativeCustomModeSkin(std::string_view id,
+                               std::optional<WindowSkinReference> skin);
+  static std::map<std::string, std::string> EncodeConfiguration(
+      const WorkModeWorkspaceConfiguration& configuration);
+  static std::optional<WorkModeWorkspaceConfiguration> DecodeConfiguration(
+      std::string_view mode,
+      const std::map<std::string, std::string>& values);
+
   const WorkModeDefinition& active_mode() const;
   const WorkModeWorkspaceConfiguration& active_configuration() const;
   const WorkModeWorkspaceConfiguration& configuration_for_mode(
@@ -135,10 +176,17 @@ class ModeService : public KeyedService {
   const StoredConfiguration* FindStoredConfiguration(
       std::string_view mode_id) const;
   bool IsKnownModifier(std::string_view modifier) const;
-  bool IsValidConfiguration(std::string_view mode_id,
+  static bool IsValidConfiguration(std::string_view mode_id,
                             std::string_view key,
-                            std::string_view value) const;
+                            std::string_view value);
+  static bool ApplyConfigurationValue(std::string_view mode_id,
+                                       std::string_view key,
+                                       std::string_view value,
+                                       WorkModeWorkspaceConfiguration* result);
   void LoadConfigurations();
+  void LoadCustomModes();
+  void OnCustomModePreferenceChanged();
+  std::optional<std::vector<TahaiCustomModeDefinition>> ReadCustomModesForWrite() const;
   void SaveConfigurations();
   void SetDefaultForOffTheRecord();
   void NotifyActiveModeChanged();
@@ -149,6 +197,8 @@ class ModeService : public KeyedService {
   std::string active_mode_id_;
   std::vector<std::string> enabled_modifiers_;
   std::vector<StoredConfiguration> configurations_;
+  std::vector<TahaiCustomModeDefinition> custom_modes_;
+  PrefChangeRegistrar custom_mode_pref_registrar_;
   base::ObserverList<Observer> observers_;
 };
 

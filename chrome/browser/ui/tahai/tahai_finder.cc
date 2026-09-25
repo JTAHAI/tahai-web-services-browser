@@ -4,6 +4,7 @@
 #include "chrome/browser/ui/tahai/tahai_finder.h"
 
 #include <algorithm>
+#include <limits>
 #include <map>
 #include <memory>
 #include <utility>
@@ -15,6 +16,7 @@
 #include "base/strings/string_split.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/bind_post_task.h"
+#include "base/task/single_thread_task_runner.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -24,6 +26,7 @@
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tahai/tahai_named_workspace_controller.h"
+#include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/web_contents.h"
@@ -45,6 +48,7 @@
 
 namespace tahai {
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kFinderSearchElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kFinderResultsElementId);
 namespace {
 
 constexpr size_t kMaxResults = 60;
@@ -83,6 +87,10 @@ bool CanActivateItem(Browser* source, const FinderResult& result) {
     return false;
   }
   switch (result.kind) {
+    case FinderResult::Kind::kModeAction:
+      return result.mode_action_context &&
+             CanExecuteWindowModeAction(source, *result.mode_action_context,
+                                         result.command_id);
     case FinderResult::Kind::kCommand:
       return std::ranges::any_of(kCommands,
                                  [&](const auto& command) {
@@ -143,6 +151,12 @@ class FinderView final : public views::DialogDelegate,
     status_->SetMultiLine(true);
     status_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
     auto* scroll = body->AddChildView(std::make_unique<views::ScrollView>());
+    scroll->SetProperty(views::kElementIdentifierKey, kFinderResultsElementId);
+    scroll->SetHorizontalScrollBarMode(
+        views::ScrollView::ScrollBarMode::kDisabled);
+    // A plain contents View does not size itself. Bounded sizing preserves all
+    // result rows when this resizable dialog has less room than the result list.
+    scroll->ClipHeightTo(0, std::numeric_limits<int>::max());
     layout->SetFlexForView(scroll, 1);
     rows_ = scroll->SetContents(std::make_unique<views::View>());
     rows_->SetLayoutManager(std::make_unique<views::BoxLayout>(
@@ -154,9 +168,6 @@ class FinderView final : public views::DialogDelegate,
 
   ~FinderView() override {
     Detach();
-    if (activation_) {
-      std::move(activation_).Run();
-    }
   }
   base::WeakPtr<FinderView> GetWeakPtr() { return weak_factory_.GetWeakPtr(); }
   void FocusSearch() {
@@ -221,6 +232,7 @@ class FinderView final : public views::DialogDelegate,
                               i),
           results_[i].title + u"  |  " + results_[i].detail));
       button->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+      button->SetMinSize(gfx::Size(36, 36));
       button->SetTooltipText(results_[i].title + u" — " + results_[i].detail);
       buttons_.push_back(button);
     }
@@ -251,16 +263,18 @@ class FinderView final : public views::DialogDelegate,
     }
     const auto result = results_[index];
     if (CanActivateItem(browser_.get(), result)) {
-      // Dispatch after destruction, so native dialog teardown cannot steal
-      // focus back from the destination. Revalidate again in that later task.
-      activation_ = base::BindPostTaskToCurrentDefault(base::BindOnce(
+      // Close the native dialog first, then activate on the next UI turn so
+      // dialog teardown cannot steal focus back from the destination.
+      auto activate = base::BindOnce(
           [](base::WeakPtr<Browser> browser, FinderResult selected) {
             if (browser) {
               ActivateFinderResult(browser.get(), selected);
             }
           },
-          browser_, result));
+          browser_, result);
       GetWidget()->Close();
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, std::move(activate));
     } else {
       Refresh();
       status_->SetText(l10n_util::GetStringUTF16(IDS_TAHAI_FINDER_STALE));
@@ -278,7 +292,6 @@ class FinderView final : public views::DialogDelegate,
   raw_ptr<views::View> rows_ = nullptr;
   std::vector<raw_ptr<views::MdTextButton>> buttons_;
   std::vector<FinderResult> results_;
-  base::OnceClosure activation_;
   size_t selected_ = 0;
   base::WeakPtrFactory<FinderView> weak_factory_{this};
 };
@@ -304,6 +317,22 @@ std::vector<FinderResult> FindBrowserItems(Browser* source,
            l10n_util::GetStringUTF16(IDS_TAHAI_FINDER_COMMAND), command.id});
     }
   }
+  // Declared mode actions are pinned and revalidated by the shared resolver.
+  if (const auto mode_actions = ResolveOperationalWindowActions(source)) {
+    auto* controller = WindowModeController::GetForBrowser(source);
+    const std::u16string detail =
+        u"Mode action · " + base::UTF8ToUTF16(controller->active_mode_title());
+    for (const auto& action : mode_actions->actions) {
+      if (CanExecuteWindowModeAction(source, mode_actions->context, action.command_id) &&
+          Matches(std::u16string(action.label) + u" " + detail, terms)) {
+        FinderResult result{FinderResult::Kind::kModeAction,
+                             std::u16string(action.label), detail, action.command_id};
+        result.mode_action_context = mode_actions->context;
+        results.push_back(std::move(result));
+      }
+    }
+  }
+  // Fixed recovery controls above stay available even if a skin was revoked.
   // Saved workspaces are capped at 24 and remain local to regular profiles.
   if (auto workspaces = NamedWorkspaceStore(source->GetProfile()).Read()) {
     for (const auto& workspace : *workspaces) {
@@ -352,6 +381,10 @@ bool ActivateFinderResult(Browser* source, const FinderResult& result) {
     return false;
   }
   switch (result.kind) {
+    case FinderResult::Kind::kModeAction:
+      return result.mode_action_context &&
+             ExecuteWindowModeAction(source, *result.mode_action_context,
+                                      result.command_id);
     case FinderResult::Kind::kCommand:
       return std::ranges::any_of(kCommands,
                                  [&](const auto& command) {

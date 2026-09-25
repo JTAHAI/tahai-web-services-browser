@@ -8,6 +8,7 @@
 #include <limits>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "base/check_deref.h"
@@ -15,10 +16,14 @@
 #include "base/notreached.h"
 #include "base/scoped_observation.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
+#include "base/test/test_future.h"
+#include "base/json/json_writer.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -31,7 +36,9 @@
 #include "chrome/browser/ui/tahai/tahai_mode_command_model.h"
 #include "chrome/browser/ui/tahai/tahai_mode_service.h"
 #include "chrome/browser/ui/tahai/tahai_named_workspace_controller.h"
+#include "chrome/browser/ui/tahai/tahai_operational_workflow_queue.h"
 #include "chrome/browser/ui/tahai/tahai_pane_layout_transition.h"
+#include "chrome/browser/ui/tahai/tahai_surface_resize_area.h"
 #include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
 #include "chrome/browser/ui/tahai/tahai_workspace_rail_view.h"
 #include "chrome/browser/ui/ui_features.h"
@@ -69,6 +76,10 @@
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
 #include "ui/base/dragdrop/os_exchange_data.h"
 #include "ui/base/dragdrop/os_exchange_data_provider.h"
+#include "ui/base/clipboard/clipboard.h"
+#include "ui/base/clipboard/clipboard_buffer.h"
+#include "ui/base/clipboard/scoped_clipboard_writer.h"
+#include "ui/base/clipboard/test/clipboard_test_util.h"
 #include "ui/base/interaction/element_tracker.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/ozone_buildflags.h"
@@ -77,6 +88,7 @@
 #include "ui/ozone/public/ozone_platform.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/separator.h"
+#include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/interaction/element_tracker_views.h"
@@ -175,6 +187,15 @@ void AddBlankTabsUntilCount(Browser* browser, size_t target_count) {
   model->ActivateTabAt(0);
 }
 
+tahai::SurfaceDesign ReferenceSurfaceDesign() {
+  return {.nodes = {
+      {.kind = tahai::SurfaceNodeKind::kColumns, .first = 1, .second = 2, .percent = 30},
+      {.pane = 0, .role = "reference"},
+      {.kind = tahai::SurfaceNodeKind::kRows, .first = 3, .second = 4, .percent = 65},
+      {.pane = 1, .role = "working"}, {.pane = 2, .role = "tasks"}},
+      .rail_dock = "trailing", .gap = 12, .keyboard_order = {1, 2, 0}};
+}
+
 }  // namespace
 
 class MultiContentsViewBrowserTest
@@ -249,6 +270,332 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   EXPECT_TRUE(
       restored_model->GetWebContentsAt(5)->GetController().NeedsReload());
   EXPECT_FALSE(restored_model->GetWebContentsAt(5)->IsLoading());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiCustomModePresentationTracksSavedDefinitions) {
+  auto* mode_service =
+      tahai::ModeServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(mode_service);
+  ASSERT_TRUE(mode_service->CreateNativeCustomMode("Incident Review",
+      {.fixed_mode = "operator", .rail_state = "expanded"},
+      {"mission.open"}, ""));
+  ASSERT_EQ(1u, mode_service->custom_modes().size());
+  const std::string custom_id = mode_service->custom_modes().front().id;
+
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(controller);
+  ASSERT_TRUE(controller->SetActiveMode("operator"));
+  ASSERT_TRUE(controller->SetCustomModePresentation(custom_id));
+  EXPECT_EQ("operator", controller->active_mode_id());
+  EXPECT_EQ("Incident Review", controller->active_mode_title());
+
+  // Making the underlying fixed mode a profile default cannot leave a custom
+  // label attached to this window when the service has no mode-change event.
+  ASSERT_TRUE(controller->MakeActiveModeProfileDefault());
+  EXPECT_EQ("Operator Mode", controller->active_mode_title());
+  ASSERT_TRUE(controller->SetCustomModePresentation(custom_id));
+
+  // The custom presentation is a local window choice, not a profile default.
+  Browser* sibling = CreateBrowser(browser()->GetProfile());
+  auto* sibling_controller =
+      tahai::WindowModeController::GetForBrowser(sibling);
+  ASSERT_TRUE(sibling_controller);
+  EXPECT_NE("Incident Review", sibling_controller->active_mode_title());
+
+  ASSERT_TRUE(mode_service->RenameCustomMode(custom_id, "Escalation Review"));
+  EXPECT_EQ("Escalation Review", controller->active_mode_title());
+  ASSERT_TRUE(mode_service->RemoveCustomMode(custom_id));
+  EXPECT_EQ("Unavailable mode", controller->active_mode_title());
+  const auto unavailable = tahai::ResolveOperationalWindowActions(browser());
+  ASSERT_TRUE(unavailable);
+  EXPECT_TRUE(unavailable->actions.empty());
+  EXPECT_FALSE(controller->SetCustomModePresentation(custom_id));
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiOperationalRailChoiceNeverChangesSiblingTemplate) {
+  auto* first = tahai::WindowModeController::GetForBrowser(browser());
+  auto* mode_service = tahai::ModeServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(mode_service);
+  Browser* sibling = CreateBrowser(browser()->GetProfile());
+  auto* second = tahai::WindowModeController::GetForBrowser(sibling);
+  ASSERT_TRUE(second);
+  const auto original = second->active_configuration();
+  const std::string mode_id(first->active_mode_id());
+  const auto original_template = mode_service->configuration_for_mode(mode_id);
+  ASSERT_TRUE(first->ApplyWorkspacePresentation(
+      mode_id, first->active_configuration().rail_state,
+      first->active_configuration().rail_width));
+  ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_TAHAI_RAIL_HIDDEN));
+  EXPECT_EQ("hidden", first->active_configuration().rail_state);
+  EXPECT_EQ(original, second->active_configuration());
+  EXPECT_EQ(original_template, mode_service->configuration_for_mode(mode_id));
+  ASSERT_TRUE(first->SetOperationalRailModules({"mission", "tabs"}));
+  ASSERT_TRUE(first->ApplyWorkspacePresentation(mode_id, "icons", 240));
+  EXPECT_TRUE(first->operational_rail_modules().empty());
+  EXPECT_EQ(original, second->active_configuration());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiNativeModesAreIndependentRestorableAndRevocable) {
+  auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
+  auto* first = tahai::WindowModeController::GetForBrowser(browser());
+  Browser* sibling = CreateBrowser(GetProfile());
+  auto* second = tahai::WindowModeController::GetForBrowser(sibling);
+  ASSERT_TRUE(service);
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(second);
+  const auto sibling_before = second->CapturePresentation();
+  const int tab_count = browser()->tab_strip_model()->count();
+  ASSERT_TRUE(service->SetConfigurationValueForMode("research", "accent", "amber"));
+  ASSERT_TRUE(service->CreateNativeCustomMode("Independent research",
+      {.fixed_mode = "research", .rail_state = "expanded", .rail_width = 360},
+      {"mission.open", "layout.quad"}, ""));
+  const std::string id = service->custom_modes()[0].id;
+  ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
+  EXPECT_EQ(tab_count, browser()->tab_strip_model()->count());
+  EXPECT_FALSE(chrome::IsTahaiMultiView(browser()));
+  EXPECT_EQ("Independent research", first->active_mode_title());
+  EXPECT_EQ(sibling_before, second->CapturePresentation());
+  auto actions = tahai::ResolveOperationalWindowActions(browser());
+  ASSERT_TRUE(actions);
+  ASSERT_EQ(2u, actions->actions.size());
+  EXPECT_TRUE(tahai::CanExecuteWindowModeAction(browser(), actions->context,
+                                               IDC_TAHAI_MISSION_CONTROL));
+  EXPECT_FALSE(tahai::CanExecuteWindowModeAction(sibling, actions->context,
+                                                IDC_TAHAI_MISSION_CONTROL));
+  EXPECT_FALSE(tahai::CanExecuteWindowModeAction(browser(), actions->context,
+                                                IDC_TAHAI_LOCAL_OI));
+  ASSERT_TRUE(service->SetConfigurationValueForMode("research", "accent", "teal"));
+  EXPECT_EQ("amber", first->active_configuration().accent_id);
+  ASSERT_TRUE(first->SetActiveConfigurationValue("accent", "violet"));
+  EXPECT_EQ("teal", service->configuration_for_mode("research").accent_id);
+  EXPECT_EQ("violet", first->active_configuration().accent_id);
+  EXPECT_FALSE(tahai::CanExecuteWindowModeAction(browser(), actions->context,
+                                                IDC_TAHAI_MISSION_CONTROL));
+  actions = tahai::ResolveOperationalWindowActions(browser());
+  ASSERT_TRUE(actions);
+  ASSERT_TRUE(tahai::ExecuteWindowModeAction(browser(), actions->context,
+                                             IDC_TAHAI_MISSION_CONTROL));
+  ASSERT_TRUE(content::WaitForLoadStop(browser()->tab_strip_model()->GetActiveWebContents()));
+  EXPECT_EQ(GURL(tahai::kTahaiMissionURL),
+            browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
+  const auto saved = tahai::CaptureNamedWorkspace(browser(), "Independent saved workspace");
+  ASSERT_TRUE(saved.workspace);
+  const auto workspace_id = tahai::NamedWorkspaceStore(GetProfile()).Add(*saved.workspace);
+  ASSERT_TRUE(workspace_id);
+  Browser* restored = tahai::OpenNamedWorkspace(browser(), *workspace_id);
+  ASSERT_TRUE(restored);
+  auto* restored_mode = tahai::WindowModeController::GetForBrowser(restored);
+  ASSERT_TRUE(restored_mode);
+  EXPECT_EQ(first->CapturePresentation(), restored_mode->CapturePresentation());
+  EXPECT_EQ("Independent research", restored_mode->active_mode_title());
+  EXPECT_FALSE(chrome::IsTahaiMultiView(restored));
+  ASSERT_TRUE(service->RemoveCustomMode(id));
+  EXPECT_EQ("Unavailable mode", first->active_mode_title());
+  EXPECT_EQ("Unavailable mode", restored_mode->active_mode_title());
+  EXPECT_EQ("violet", first->active_configuration().accent_id);
+  EXPECT_FALSE(tahai::ExecuteWindowModeAction(browser(), actions->context,
+                                              IDC_TAHAI_MISSION_CONTROL));
+  const auto revoked = tahai::ResolveOperationalWindowActions(browser());
+  ASSERT_TRUE(revoked);
+  EXPECT_TRUE(revoked->actions.empty());
+  EXPECT_EQ(id, first->CapturePresentation().custom_mode);
+  ASSERT_TRUE(first->SetActiveMode("daily"));
+  EXPECT_FALSE(tahai::ResolveOperationalWindowActions(browser()));
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiNativeModeMissingSkinCannotBroadenActions) {
+  auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
+  ASSERT_TRUE(service->CreateNativeCustomMode("Missing skin",
+      {.fixed_mode = "daily", .rail_state = "icons",
+       .skin = tahai::WindowSkinReference{"not-installed", std::string(64, 'a')}},
+      {"mission.open"}, ""));
+  const std::string id = service->custom_modes()[0].id;
+  ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return !controller->window_skin_restore_pending();
+  }));
+  EXPECT_EQ("Unavailable skin", controller->active_mode_title());
+  const auto actions = tahai::ResolveOperationalWindowActions(browser());
+  ASSERT_TRUE(actions);
+  EXPECT_TRUE(actions->actions.empty());
+  EXPECT_FALSE(tahai::ExecuteWindowModeAction(browser(), actions->context,
+                                              IDC_TAHAI_MISSION_CONTROL));
+  EXPECT_EQ(id, controller->CapturePresentation().custom_mode);
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiNativeRailUsesCurrentModeControlsAndLocalWidth) {
+  auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
+  ASSERT_TRUE(service->CreateNativeCustomMode("Rail controls",
+      {.fixed_mode = "research", .rail_state = "expanded", .rail_width = 360},
+      {"mission.open", "workspaces.open"}, ""));
+  const std::string id = service->custom_modes()[0].id;
+  ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
+  Browser* sibling = CreateBrowser(GetProfile());
+  ASSERT_EQ(sibling, tahai::ActivateNativeCustomMode(sibling, id));
+  auto* first = tahai::WindowModeController::GetForBrowser(browser());
+  auto* second = tahai::WindowModeController::GetForBrowser(sibling);
+  auto* rail = BrowserView::GetBrowserViewForBrowser(browser())->tahai_workspace_rail();
+  ASSERT_TRUE(rail);
+  EXPECT_EQ(u"Open Mission Control", rail->module_button_for_testing(0)->GetText());
+  EXPECT_EQ(u"Open saved workspace", rail->module_button_for_testing(1)->GetText());
+  EXPECT_FALSE(rail->module_button_for_testing(2)->GetVisible());
+  ASSERT_TRUE(first->SetActiveConfigurationValue("rail_width", "410"));
+  EXPECT_EQ(410, first->active_configuration().rail_width);
+  EXPECT_EQ(360, second->active_configuration().rail_width);
+  EXPECT_EQ(360, service->custom_modes()[0].native_presentation->rail_width);
+  ASSERT_TRUE(first->SetActiveConfigurationValue("accent", "amber"));
+  EXPECT_EQ(410, first->active_configuration().rail_width);
+  EXPECT_EQ(360, second->active_configuration().rail_width);
+  EXPECT_EQ("amber", second->active_configuration().accent_id);
+  const auto old_actions = tahai::ResolveOperationalWindowActions(browser());
+  ASSERT_TRUE(old_actions);
+  ASSERT_TRUE(service->UpdateNativeCustomMode(id, "Rail controls", {"support.open"}, ""));
+  EXPECT_EQ(u"Open support", rail->module_button_for_testing(0)->GetText());
+  EXPECT_FALSE(rail->module_button_for_testing(1)->GetVisible());
+  EXPECT_FALSE(tahai::ExecuteWindowModeAction(browser(), old_actions->context,
+                                              IDC_TAHAI_MISSION_CONTROL));
+  ASSERT_TRUE(service->UpdateNativeCustomMode(id, "Rail controls", {"mission.open"}, ""));
+  rail->SelectModule(0);
+  rail->OpenSelectedModule();
+  ASSERT_TRUE(content::WaitForLoadStop(browser()->tab_strip_model()->GetActiveWebContents()));
+  EXPECT_EQ(GURL(tahai::kTahaiMissionURL),
+            browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
+  ASSERT_TRUE(service->RemoveCustomMode(id));
+  EXPECT_FALSE(rail->module_button_for_testing(0)->GetVisible());
+  const int count = browser()->tab_strip_model()->count();
+  rail->SelectModule(1);
+  rail->OpenSelectedModule();
+  EXPECT_EQ(count, browser()->tab_strip_model()->count());
+  EXPECT_TRUE(rail->selected_module_id().empty());
+  // Recovery presentation stays usable after deletion without granting an action.
+  rail->HideRail();
+  EXPECT_TRUE(rail->is_hidden());
+  EXPECT_FALSE(BrowserView::GetBrowserViewForBrowser(sibling)->tahai_workspace_rail()->is_hidden());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiNativeRailExposesEveryControlAndScrollsKeyboardFocus) {
+  auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
+  std::vector<std::string> actions;
+  for (const auto& action : tahai::GetNativeModeActionCatalog()) {
+    actions.emplace_back(action.id);
+  }
+  ASSERT_EQ(tahai::kMaximumNativeModeActions, actions.size());
+  ASSERT_TRUE(service->CreateNativeCustomMode("All native controls",
+      {.fixed_mode = "research", .rail_state = "expanded", .rail_width = 280},
+      actions, ""));
+  const std::string id = service->custom_modes()[0].id;
+  ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
+  auto* view = BrowserView::GetBrowserViewForBrowser(browser());
+  auto* rail = view->tahai_workspace_rail();
+  ASSERT_TRUE(rail);
+  auto* scroll = rail->scroll_view_for_testing();
+  ASSERT_TRUE(scroll);
+  const int count = browser()->tab_strip_model()->count();
+  const auto url = browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL();
+  for (const auto& size : {gfx::Size(960, 640), gfx::Size(1280, 800)}) {
+    browser()->GetWindow()->SetBounds(gfx::Rect(gfx::Point(), size));
+    for (int state : {IDC_TAHAI_RAIL_EXPANDED, IDC_TAHAI_RAIL_ICONS}) {
+      ASSERT_TRUE(chrome::ExecuteCommand(browser(), state));
+      RunScheduledLayouts();
+      ASSERT_GT(scroll->height(), 0);
+      ASSERT_GT(scroll->contents()->height(), scroll->height());
+      const bool collapsed = state == IDC_TAHAI_RAIL_ICONS;
+      EXPECT_EQ(collapsed ? views::ScrollView::ScrollBarMode::kHiddenButEnabled
+                           : views::ScrollView::ScrollBarMode::kEnabled,
+                scroll->GetVerticalScrollBarMode());
+      for (size_t index = 0; index < actions.size(); ++index) {
+        auto* button = rail->module_button_for_testing(index);
+        ASSERT_TRUE(button);
+        ASSERT_TRUE(button->GetVisible());
+        EXPECT_GE(button->width(), 36);
+        EXPECT_GE(button->height(), 36);
+        if (collapsed) {
+          EXPECT_TRUE(button->GetText().empty());
+        } else {
+          EXPECT_EQ(tahai::GetNativeModeActionCatalog()[index].label, button->GetText());
+        }
+        // Tab traversal must include controls outside the original viewport.
+        if (index == 0) {
+          button->RequestFocus();
+        } else {
+          view->GetFocusManager()->AdvanceFocus(false);
+        }
+        RunScheduledLayouts();
+        EXPECT_EQ(button, view->GetFocusManager()->GetFocusedView());
+        EXPECT_EQ(button->height(), button->GetVisibleBounds().height());
+        EXPECT_GE(button->GetVisibleBounds().width(), 36);
+      }
+      EXPECT_GT(scroll->CurrentOffset().y(), 0);
+      EXPECT_FALSE(rail->collapse_button_for_testing()->GetVisibleBounds().IsEmpty());
+      EXPECT_EQ(count, browser()->tab_strip_model()->count());
+      EXPECT_EQ(url, browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
+    }
+  }
+  EXPECT_EQ(nullptr, rail->module_button_for_testing(actions.size()));
+  // Removing the focused tail cannot leave focus in a hidden stale slot.
+  ASSERT_TRUE(service->UpdateNativeCustomMode(id, "One control", {"mission.open"}, ""));
+  EXPECT_EQ(rail->collapse_button_for_testing(), view->GetFocusManager()->GetFocusedView());
+  EXPECT_FALSE(rail->module_button_for_testing(actions.size() - 1)->GetVisible());
+  ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_TAHAI_RAIL_HIDDEN));
+  EXPECT_FALSE(rail->Contains(view->GetFocusManager()->GetFocusedView()));
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiRailPressCannotRunAReboundControl) {
+  auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
+  ASSERT_TRUE(service->CreateNativeCustomMode("Press binding",
+      {.fixed_mode = "research", .rail_state = "expanded"}, {"mission.open"}, ""));
+  const std::string id = service->custom_modes()[0].id;
+  ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
+  auto* rail = BrowserView::GetBrowserViewForBrowser(browser())->tahai_workspace_rail();
+  RunScheduledLayouts();
+  auto* button = rail->module_button_for_testing(0);
+  ASSERT_TRUE(button);
+  const auto url = browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL();
+  const gfx::Point point = button->GetLocalBounds().CenterPoint();
+  const ui::MouseEvent press(ui::EventType::kMousePressed, point, point,
+      base::TimeTicks::Now(), ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON);
+  ASSERT_TRUE(button->OnMousePressed(press));
+  ASSERT_TRUE(service->UpdateNativeCustomMode(id, "Replacement", {"support.open"}, ""));
+  const ui::MouseEvent release(ui::EventType::kMouseReleased, point, point,
+      base::TimeTicks::Now(), ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON);
+  // Direct notification exercises the binding guard even if normal native
+  // button state would cancel release when its focus/presentation changes.
+  views::test::ButtonTestApi(button).NotifyClick(release);
+  EXPECT_EQ(url, browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
+  const ui::KeyEvent key(ui::EventType::kKeyPressed, ui::VKEY_SPACE, ui::EF_NONE);
+  button->OnKeyPressed(key);
+  ASSERT_TRUE(service->UpdateNativeCustomMode(id, "Second replacement", {"mission.open"}, ""));
+  const ui::KeyEvent key_up(ui::EventType::kKeyReleased, ui::VKEY_SPACE, ui::EF_NONE);
+  views::test::ButtonTestApi(button).NotifyClick(key_up);
+  EXPECT_EQ(url, browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
+  // A new deliberate activation can still run the now-visible control.
+  views::test::ButtonTestApi(button).NotifyDefaultMouseClick();
+  ASSERT_TRUE(content::WaitForLoadStop(browser()->tab_strip_model()->GetActiveWebContents()));
+  EXPECT_EQ(GURL(tahai::kTahaiMissionURL),
+            browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
+  const ui::KeyEvent enter(ui::EventType::kKeyPressed, ui::VKEY_RETURN, ui::EF_NONE);
+  ASSERT_TRUE(button->OnKeyPressed(enter));
+  ASSERT_TRUE(content::WaitForLoadStop(browser()->tab_strip_model()->GetActiveWebContents()));
+  ASSERT_TRUE(service->UpdateNativeCustomMode(id, "Held-key replacement", {"support.open"}, ""));
+  const ui::KeyEvent repeat(ui::EventType::kKeyPressed, ui::VKEY_RETURN, ui::EF_IS_REPEAT);
+  ASSERT_TRUE(button->OnKeyPressed(repeat));
+  EXPECT_EQ(GURL(tahai::kTahaiMissionURL),
+            browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
+  const ui::KeyEvent enter_up(ui::EventType::kKeyReleased, ui::VKEY_RETURN, ui::EF_NONE);
+  button->OnKeyReleased(enter_up);
+  ASSERT_TRUE(button->OnKeyPressed(enter));
+  ASSERT_TRUE(content::WaitForLoadStop(browser()->tab_strip_model()->GetActiveWebContents()));
+  EXPECT_EQ(GURL(tahai::kTahaiSupportURL),
+            browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
@@ -426,6 +773,355 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   EXPECT_FALSE(unrelated.Get()->IsSplit());
   EXPECT_EQ(retained_active.Get(), model->GetActiveTab());
   EXPECT_EQ(5, model->count());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiRailCaptureLossAndStaleGesturesKeepCommittedWidth) {
+  browser()->GetWindow()->SetBounds(gfx::Rect(0, 0, 1280, 900));
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  auto* rail = BrowserView::GetBrowserViewForBrowser(browser())->tahai_workspace_rail();
+  auto* handle = rail->resize_area_for_testing();
+  ASSERT_TRUE(handle);
+  const ui::MouseEvent press(
+      ui::EventType::kMousePressed, gfx::PointF(2, 2), gfx::PointF(2, 2),
+      base::TimeTicks(), ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON);
+  for (const bool trailing : {false, true}) {
+    SCOPED_TRACE(trailing);
+    ASSERT_TRUE(controller->ApplyWorkspacePresentation("daily", "expanded", 280));
+    tahai::SurfaceDesign design{
+        .nodes = {{.pane = 0, .role = "working"}},
+        .rail_dock = trailing ? "trailing" : "leading", .keyboard_order = {0}};
+    ASSERT_TRUE(controller->SetSurfaceDesign(design));
+    RunScheduledLayouts();
+    const gfx::PointF point(trailing ? -38 : 42, 2);
+    const ui::MouseEvent drag(ui::EventType::kMouseDragged, point, point,
+                              base::TimeTicks(), ui::EF_LEFT_MOUSE_BUTTON, 0);
+    ASSERT_TRUE(handle->OnMousePressed(press));
+    ASSERT_TRUE(handle->OnMouseDragged(drag));
+    EXPECT_EQ(320, rail->GetPreferredSize().width());
+    RunScheduledLayouts();
+    handle->OnMouseCaptureLost();
+    EXPECT_EQ(320, controller->active_configuration().rail_width);
+    EXPECT_EQ(320, rail->GetPreferredSize().width());
+    handle->OnMouseCaptureLost();
+    EXPECT_EQ(320, controller->active_configuration().rail_width);
+
+    ASSERT_TRUE(handle->OnMousePressed(press));
+    ASSERT_TRUE(handle->OnMouseDragged(drag));
+    ASSERT_TRUE(controller->ApplyWorkspacePresentation("research", "expanded", 360));
+    RunScheduledLayouts();
+    EXPECT_FALSE(handle->OnMouseDragged(drag));
+    handle->OnMouseCaptureLost();
+    EXPECT_EQ(360, controller->active_configuration().rail_width);
+    EXPECT_EQ(360, rail->GetPreferredSize().width());
+
+    ASSERT_TRUE(handle->OnMousePressed(press));
+    design.rail_dock = trailing ? "leading" : "trailing";
+    ASSERT_TRUE(controller->SetSurfaceDesign(design));
+    RunScheduledLayouts();
+    EXPECT_FALSE(handle->OnMouseDragged(drag));
+    handle->OnMouseCaptureLost();
+    EXPECT_EQ(360, controller->active_configuration().rail_width);
+  }
+  ASSERT_TRUE(controller->ApplyWorkspacePresentation("daily", "expanded", 280));
+  RunScheduledLayouts();
+  ASSERT_TRUE(handle->OnMousePressed(press));
+  const ui::MouseEvent drag(ui::EventType::kMouseDragged, gfx::PointF(42, 2),
+                            gfx::PointF(42, 2), base::TimeTicks(),
+                            ui::EF_LEFT_MOUSE_BUTTON, 0);
+  ASSERT_TRUE(handle->OnMouseDragged(drag));
+  browser()->GetWindow()->SetBounds(gfx::Rect(100, 50, 1180, 850));
+  RunScheduledLayouts();
+  handle->OnMouseCaptureLost();
+  EXPECT_EQ(280, controller->active_configuration().rail_width);
+  EXPECT_EQ(280, rail->GetPreferredSize().width());
+
+  ASSERT_TRUE(handle->OnMousePressed(press));
+  ASSERT_TRUE(handle->OnMouseDragged(drag));
+  ASSERT_TRUE(controller->SetActiveConfigurationValue("rail_state", "hidden"));
+  ASSERT_TRUE(controller->SetActiveConfigurationValue("rail_state", "expanded"));
+  RunScheduledLayouts();
+  EXPECT_FALSE(handle->OnMouseDragged(drag));
+  handle->OnMouseCaptureLost();
+  EXPECT_EQ(280, controller->active_configuration().rail_width);
+  // A new gesture after invalidation still works normally.
+  ASSERT_TRUE(handle->OnMousePressed(press));
+  ASSERT_TRUE(handle->OnMouseDragged(drag));
+  handle->OnMouseCaptureLost();
+  EXPECT_EQ(320, controller->active_configuration().rail_width);
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiAuthoredSurfaceResizesDocksAndPreservesNativeTabs) {
+  browser()->GetWindow()->SetBounds(gfx::Rect(0, 0, 1480, 900));
+  AddBlankTabsUntilCount(browser(), 3u);
+  ASSERT_TRUE(chrome::OpenTahaiTriView(
+      browser(), chrome::TahaiTriViewLayout::kTwoOverOne));
+  auto* model = browser()->tab_strip_model();
+  const auto split = *model->GetActiveTab()->GetSplit();
+  const auto members = model->GetSplitData(split)->ListTabs();
+  auto* active = model->GetActiveWebContents();
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(controller->ApplyWorkspacePresentation("research", "expanded", 280));
+  auto design = ReferenceSurfaceDesign();
+  ASSERT_TRUE(controller->SetSurfaceDesign(design));
+  RunScheduledLayouts();
+  auto* view = multi_contents_view();
+  ASSERT_TRUE(view->HasTahaiSurfaceDesign());
+  EXPECT_FALSE(view->surface_is_compact_for_testing());
+  const auto& panes = view->contents_container_views();
+  EXPECT_EQ(panes[0]->y(), panes[1]->y());
+  EXPECT_EQ(panes[0]->bounds().bottom(), panes[2]->bounds().bottom());
+  EXPECT_EQ(panes[1]->x(), panes[2]->x());
+  EXPECT_EQ(panes[1]->width(), panes[2]->width());
+  for (size_t i = 0; i < 3u; ++i) {
+    EXPECT_TRUE(panes[i]->GetVisible());
+    for (size_t j = i + 1; j < 3u; ++j) {
+      EXPECT_FALSE(panes[i]->bounds().Intersects(panes[j]->bounds()));
+    }
+    for (size_t slot = 0; slot < 2u; ++slot) {
+      EXPECT_FALSE(panes[i]->bounds().Intersects(
+          view->surface_divider_for_testing(slot)->bounds()));
+    }
+  }
+  auto* rail = BrowserView::GetBrowserViewForBrowser(browser())->tahai_workspace_rail();
+  ASSERT_TRUE(rail->GetVisible());
+  EXPECT_LE(view->GetBoundsInScreen().right(), rail->GetBoundsInScreen().x());
+  rail->OnResize(-25, true);
+  RunScheduledLayouts();
+  EXPECT_EQ(305, controller->active_configuration().rail_width);
+  ASSERT_TRUE(view->BeginTahaiSurfaceResize(0));
+  view->ResizeTahaiSurface(0, 50, false);
+  RunScheduledLayouts();
+  const int adjusted = controller->surface_design()->nodes[0].percent;
+  EXPECT_GT(adjusted, 30);
+  view->ResizeTahaiSurface(0, 50, true);
+  RunScheduledLayouts();
+  EXPECT_EQ(adjusted, controller->surface_design()->nodes[0].percent);
+  EXPECT_EQ(members, model->GetSplitData(split)->ListTabs());
+  EXPECT_EQ(active, model->GetActiveWebContents());
+  auto json = controller->SerializePresentation();
+  ASSERT_TRUE(json);
+  auto restored = tahai::ParseWindowPresentation(*json);
+  ASSERT_TRUE(restored);
+  EXPECT_EQ(controller->surface_design(), restored->surface_design);
+  ASSERT_TRUE(controller->SetSurfaceDesign(std::nullopt));
+  RunScheduledLayouts();
+  EXPECT_LE(rail->GetBoundsInScreen().right(), view->GetBoundsInScreen().x());
+  EXPECT_EQ(members, model->GetSplitData(split)->ListTabs());
+  EXPECT_TRUE(view->tahai_grid_resize_area_for_testing(
+      split_tabs::TahaiGridAxis::kRows)->GetVisible());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiAuthoredSurfaceKeyboardAndCompactFocusRecovery) {
+  browser()->GetWindow()->SetBounds(gfx::Rect(0, 0, 1280, 900));
+  AddBlankTabsUntilCount(browser(), 3u);
+  ASSERT_TRUE(chrome::OpenTahaiTriView(
+      browser(), chrome::TahaiTriViewLayout::kTwoOverOne));
+  auto* model = browser()->tab_strip_model();
+  const auto split = *model->GetActiveTab()->GetSplit();
+  const auto members = model->GetSplitData(split)->ListTabs();
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(controller->ApplyWorkspacePresentation("research", "hidden", 280));
+  auto design = ReferenceSurfaceDesign();
+  design.narrow_width = 1000;
+  ASSERT_TRUE(controller->SetSurfaceDesign(design));
+  RunScheduledLayouts();
+  auto* view = multi_contents_view();
+  const auto& panes = view->contents_container_views();
+  EXPECT_LT(view->GetIndexOf(panes[1]), view->GetIndexOf(panes[2]));
+  EXPECT_LT(view->GetIndexOf(panes[2]), view->GetIndexOf(panes[0]));
+  panes[1]->contents_view()->RequestFocus();
+  ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_FOCUS_NEXT_PANE));
+  EXPECT_TRUE(panes[2]->contents_view()->HasFocus());
+  ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_FOCUS_NEXT_PANE));
+  EXPECT_TRUE(panes[0]->contents_view()->HasFocus());
+  ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_FOCUS_NEXT_PANE));
+  auto* divider = view->surface_divider_for_testing(0);
+  EXPECT_TRUE(divider->GetAccessibleResizeHandle()->HasFocus());
+  ASSERT_TRUE(divider->OnKeyPressed(
+      ui::KeyEvent(ui::EventType::kKeyPressed, ui::VKEY_RIGHT, ui::EF_NONE)));
+  RunScheduledLayouts();
+  EXPECT_GT(controller->surface_design()->nodes[0].percent, 30);
+  ASSERT_TRUE(divider->OnKeyPressed(
+      ui::KeyEvent(ui::EventType::kKeyPressed, ui::VKEY_HOME, ui::EF_NONE)));
+  RunScheduledLayouts();
+  EXPECT_EQ(50, controller->surface_design()->nodes[0].percent);
+  EXPECT_FALSE(divider->OnKeyPressed(
+      ui::KeyEvent(ui::EventType::kKeyPressed, ui::VKEY_LEFT, ui::EF_CONTROL_DOWN)));
+  browser()->GetWindow()->SetBounds(gfx::Rect(0, 0, 900, 900));
+  RunScheduledLayouts();
+  ASSERT_TRUE(view->surface_is_compact_for_testing());
+  EXPECT_EQ(1u, view->GetVisibleContentsCount());
+  EXPECT_TRUE(view->GetActiveContentsView()->HasFocus());
+  EXPECT_FALSE(divider->GetVisible());
+  model->ActivateTabAt(1);
+  RunScheduledLayouts();
+  EXPECT_EQ(model->GetActiveWebContents(), view->GetActiveContentsView()->web_contents());
+  EXPECT_TRUE(view->GetActiveContentsContainerView()->GetVisible());
+  EXPECT_EQ(1u, view->GetVisibleContentsCount());
+  browser()->GetWindow()->SetBounds(gfx::Rect(0, 0, 1280, 900));
+  RunScheduledLayouts();
+  EXPECT_FALSE(view->surface_is_compact_for_testing());
+  EXPECT_EQ(3u, view->GetVisibleContentsCount());
+  EXPECT_EQ(members, model->GetSplitData(split)->ListTabs());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiAuthoredResizeCannotOutliveTabModeOrWindowGeometry) {
+  browser()->GetWindow()->SetBounds(gfx::Rect(0, 0, 1280, 900));
+  AddBlankTabsUntilCount(browser(), 4u);
+  ASSERT_TRUE(chrome::OpenTahaiTriView(
+      browser(), chrome::TahaiTriViewLayout::kTwoOverOne));
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(controller->ApplyWorkspacePresentation("research", "hidden", 280));
+  ASSERT_TRUE(controller->SetSurfaceDesign(ReferenceSurfaceDesign()));
+  RunScheduledLayouts();
+  auto* view = multi_contents_view();
+  ASSERT_TRUE(view->BeginTahaiSurfaceResize(0));
+  browser()->tab_strip_model()->ActivateTabAt(3);
+  RunScheduledLayouts();
+  view->ResizeTahaiSurface(0, 100, true);
+  EXPECT_EQ(30, controller->surface_design()->nodes[0].percent);
+  EXPECT_FALSE(view->HasTahaiSurfaceDesign());
+  browser()->tab_strip_model()->ActivateTabAt(0);
+  RunScheduledLayouts();
+  ASSERT_TRUE(view->BeginTahaiSurfaceResize(0));
+  browser()->GetWindow()->SetBounds(gfx::Rect(0, 0, 1180, 900));
+  RunScheduledLayouts();
+  view->ResizeTahaiSurface(0, 100, true);
+  EXPECT_EQ(30, controller->surface_design()->nodes[0].percent);
+  ASSERT_TRUE(view->BeginTahaiSurfaceResize(0));
+  ASSERT_TRUE(controller->SetActiveMode("daily"));
+  RunScheduledLayouts();
+  view->ResizeTahaiSurface(0, 100, true);
+  EXPECT_FALSE(controller->surface_design());
+  EXPECT_FALSE(view->HasTahaiSurfaceDesign());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiSurfacePreviewRequiresCommitAndRejectsStaleTrials) {
+  AddBlankTabsUntilCount(browser(), 4u);
+  ASSERT_TRUE(chrome::OpenTahaiTriView(
+      browser(), chrome::TahaiTriViewLayout::kTwoOverOne));
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  const auto baseline = ReferenceSurfaceDesign();
+  ASSERT_TRUE(controller->SetSurfaceDesign(baseline));
+  auto trial = baseline;
+  trial.nodes[0].percent = 60;
+  auto first = controller->BeginSurfacePreview(trial);
+  ASSERT_TRUE(first);
+  EXPECT_EQ(trial, controller->surface_design());
+  EXPECT_EQ(baseline, controller->CapturePresentation().surface_design);
+  trial.nodes[0].percent = 80;
+  auto second = controller->BeginSurfacePreview(trial);
+  ASSERT_TRUE(second);
+  EXPECT_NE(first, second);
+  EXPECT_FALSE(controller->CancelSurfacePreview(*first));
+  EXPECT_FALSE(controller->CommitSurfacePreview(*first));
+  EXPECT_EQ(baseline, controller->CapturePresentation().surface_design);
+  EXPECT_TRUE(controller->CancelSurfacePreview(*second));
+  EXPECT_EQ(baseline, controller->surface_design());
+  auto kept = controller->BeginSurfacePreview(trial);
+  ASSERT_TRUE(kept);
+  EXPECT_TRUE(controller->CommitSurfacePreview(*kept));
+  EXPECT_EQ(trial, controller->CapturePresentation().surface_design);
+  auto stale = controller->BeginSurfacePreview(baseline);
+  ASSERT_TRUE(stale);
+  browser()->tab_strip_model()->ActivateTabAt(3);
+  RunScheduledLayouts();
+  EXPECT_FALSE(controller->CommitSurfacePreview(*stale));
+  EXPECT_EQ(trial, controller->surface_design());
+  browser()->tab_strip_model()->ActivateTabAt(0);
+  RunScheduledLayouts();
+  auto superseded = controller->BeginSurfacePreview(baseline);
+  ASSERT_TRUE(superseded);
+  ASSERT_TRUE(controller->SetActiveMode("daily"));
+  EXPECT_FALSE(controller->CancelSurfacePreview(*superseded));
+  EXPECT_FALSE(controller->surface_design());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiSurfaceStudioEditsPreviewsAndRevertsOnNavigation) {
+  browser()->GetWindow()->SetBounds(gfx::Rect(0, 0, 1280, 900));
+  AddBlankTabsUntilCount(browser(), 3u);
+  ASSERT_TRUE(chrome::OpenTahaiTriView(
+      browser(), chrome::TahaiTriViewLayout::kTwoOverOne));
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+                                           "TAHAI Skin Studio", "Surface canvas"));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    document.getElementById('surface-template').value = 'tri';
+    document.getElementById('surface-template-use').click();
+    document.getElementById('surface-dock').value = 'trailing';
+    document.getElementById('surface-dock').dispatchEvent(new Event('change'));
+    document.getElementById('surface-node-0-percent').value = '35';
+    document.getElementById('surface-node-0-percent').dispatchEvent(new Event('change'));
+    document.getElementById('surface-try').click();
+  )JS"));
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(base::test::RunUntil([&] { return controller->surface_design().has_value(); }));
+  EXPECT_FALSE(controller->CapturePresentation().surface_design);
+  EXPECT_EQ(35, controller->surface_design()->nodes[0].percent);
+  EXPECT_EQ("trailing", controller->surface_design()->rail_dock);
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(url::kAboutBlankURL)));
+  EXPECT_FALSE(controller->surface_design());
+  // A different trusted TAHAI route cannot invoke Studio's geometry bridge.
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+                                           "TAHAI Mission Control", "Mission"));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    chrome.send('previewTahaiSurface', [{version: 1, nodes: [{kind:'pane', pane:0, role:'working'}],
+      rail_dock:'trailing', gap:8, narrow_width:640, short_height:360, keyboard_order:[0]}]);
+  )JS"));
+  EXPECT_FALSE(controller->surface_design());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+                                           "TAHAI Skin Studio", "Surface canvas"));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    document.getElementById('surface-template').value = 'tri';
+    document.getElementById('surface-template-use').click();
+    document.getElementById('surface-try').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return controller->surface_design().has_value(); }));
+  ASSERT_TRUE(content::ExecJs(contents, "chrome.send('keepTahaiSurface', []);"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return controller->CapturePresentation().surface_design.has_value();
+  }));
+  const auto kept = controller->surface_design();
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(url::kAboutBlankURL)));
+  EXPECT_EQ(kept, controller->surface_design());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiNativeSurfacePresetUpdatesPreserveWindowLocalResizing) {
+  auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
+  auto design = ReferenceSurfaceDesign();
+  ASSERT_TRUE(service->CreateNativeCustomMode("Independent layout",
+      {.fixed_mode = "research", .rail_state = "expanded", .surface_design = design},
+      {"mission.open"}, ""));
+  const std::string id = service->custom_modes()[0].id;
+  Browser* sibling = CreateBrowser(GetProfile());
+  ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
+  ASSERT_EQ(sibling, tahai::ActivateNativeCustomMode(sibling, id));
+  auto* first = tahai::WindowModeController::GetForBrowser(browser());
+  auto* second = tahai::WindowModeController::GetForBrowser(sibling);
+  EXPECT_EQ(design, first->surface_design());
+  EXPECT_EQ(design, second->surface_design());
+  // Restoring a layout never creates tabs to match its declared pane count.
+  EXPECT_EQ(1, browser()->tab_strip_model()->count());
+  EXPECT_EQ(1, sibling->tab_strip_model()->count());
+  ASSERT_TRUE(first->SetSurfaceDividerPercent(0, 40));
+  ASSERT_TRUE(service->SetNativeCustomModeConfiguration(id, "accent", "amber"));
+  EXPECT_EQ(40, first->surface_design()->nodes[0].percent);
+  EXPECT_EQ(30, second->surface_design()->nodes[0].percent);
+  EXPECT_EQ(30, service->custom_modes()[0].native_presentation->surface_design->nodes[0].percent);
+  design.nodes[0].percent = 55;
+  ASSERT_TRUE(service->SetNativeCustomModeSurface(id, design));
+  EXPECT_EQ(design, first->surface_design());
+  EXPECT_EQ(design, second->surface_design());
+  ASSERT_TRUE(service->SetNativeCustomModeSurface(id, std::nullopt));
+  EXPECT_FALSE(first->surface_design());
+  EXPECT_FALSE(second->surface_design());
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
@@ -816,6 +1512,2182 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
 // renderer-backed Mission Control surface. This deliberately verifies the
 // product route rather than an implementation-only host.
 IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioSavesOnlyValidatedDraftSource) {
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(contents);
+  Profile* profile = browser()->GetProfile();
+  ASSERT_TRUE(profile);
+  EXPECT_TRUE(content::WebUIConfigMap::GetInstance().GetConfig(
+      profile, GURL(tahai::kTahaiTrustedSkinStudioURL)));
+
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+      contents, tahai::kTahaiSkinStudioURL, "TAHAI Skin Studio",
+      "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(
+                  contents,
+                  "Boolean(document.querySelector('#skin-studio-source') && "
+                  "document.querySelector('#skin-studio-save') && "
+                  "document.querySelector('#skin-studio-undo') && "
+                  "document.querySelector('#skin-studio-redo') && "
+                  "document.querySelector('#skin-studio-copy') && "
+                  "document.querySelector('#skin-studio-download') && "
+                  "document.querySelector('#skin-studio-import') && "
+                  "document.querySelector('#skin-studio-layout') && "
+                  "document.querySelector('#skin-studio-rail') && "
+                  "document.querySelector('#skin-studio-start') && "
+                  "document.querySelectorAll('[data-tahai-rail-module]').length === 9 && "
+                  "document.querySelector('#skin-studio-rail-order') && "
+                  "document.querySelector('#skin-studio-workflow-name') && "
+                  "document.querySelector('#skin-studio-step-kind') && "
+                  "document.querySelector('#skin-studio-step-name') && "
+                  "document.querySelector('#skin-studio-add-step') && "
+                  "document.querySelector('#skin-studio-input-type') && "
+                  "document.querySelector('#skin-studio-input-name') && "
+                  "document.querySelector('#skin-studio-input-options') && "
+                  "document.querySelector('#skin-studio-input-required') && "
+                  "document.querySelector('#skin-studio-add-input') && "
+                  "document.querySelector('#skin-studio-workflow-inputs') && "
+                  "document.querySelectorAll('#skin-studio-tokens "
+                  "input[type=color]').length === 10)")
+                  .ExtractBool());
+  ASSERT_TRUE(content::ExecJs(
+      contents, "document.querySelector('#skin-studio-save').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(
+               contents,
+               "document.querySelector('#skin-studio-status').textContent")
+               .ExtractString()
+               .find("Validated and saved") != std::string::npos;
+  }));
+
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "const previousStudioCallback=window.tahaiSkinStudioDraftSaved;"
+      "window.tahaiSkinStudioDraftSaved=result=>{window.tahaiSavedResult=result;"
+      "previousStudioCallback(result)};"
+      "const color=document.querySelector('#skin-studio-tokens "
+      "input[type=color]');color.value='#123456';"
+      "color.dispatchEvent(new Event('input',{bubbles:true}))"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(
+               contents,
+               "window.tahaiSavedResult === 'saved'")
+               .ExtractBool();
+  }));
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "window.tahaiSavedResult='pending';"
+      "const layout=document.querySelector('#skin-studio-layout');"
+      "layout.value='quad';layout.dispatchEvent(new Event('change',{bubbles:true}))"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.tahaiSavedResult === 'saved'")
+        .ExtractBool();
+  }));
+
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "window.tahaiSavedResult='pending';"
+      "document.querySelector('#skin-studio-input-type').value='selection';"
+      "document.querySelector('#skin-studio-input-type').dispatchEvent(new Event('change',{bubbles:true}));"
+      "document.querySelector('#skin-studio-input-name').value='Review scope';"
+      "document.querySelector('#skin-studio-input-options').value='Personal, Team';"
+      "document.querySelector('#skin-studio-input-required').checked=true;"
+      "document.querySelector('#skin-studio-add-input').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.tahaiSavedResult === 'saved'")
+        .ExtractBool();
+  }));
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "window.tahaiSavedResult='pending';"
+      "const railModule=document.querySelector('[data-tahai-rail-module=downloads]');"
+      "railModule.checked=true;railModule.dispatchEvent(new Event('change',{bubbles:true}))"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.tahaiSavedResult === 'saved'")
+        .ExtractBool();
+  }));
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "window.tahaiSavedResult='pending';"
+      "document.querySelectorAll('#skin-studio-rail-order button')[1].click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.tahaiSavedResult === 'saved'")
+        .ExtractBool();
+  }));
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "window.tahaiSavedResult='pending';"
+      "document.querySelector('#skin-studio-step-name').value="
+      "'Document the research handoff';"
+      "document.querySelector('#skin-studio-add-step').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.tahaiSavedResult === 'saved'")
+        .ExtractBool();
+  }));
+
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "const studioSource=document.querySelector('#skin-studio-source');"
+      "const beforeUndo=studioSource.value;studioSource.value=beforeUndo.replace("
+      "'my-operational-skin','undoable-operational-skin');"
+      "studioSource.dispatchEvent(new Event('input',{bubbles:true}));"
+      "document.querySelector('#skin-studio-undo').click()"));
+  EXPECT_TRUE(content::EvalJs(
+                  contents,
+                  "document.querySelector('#skin-studio-source').value."
+                  "includes('my-operational-skin') && !document.querySelector("
+                  "'#skin-studio-source').value.includes('undoable-operational-skin')")
+                  .ExtractBool());
+
+  // Invalid editor input never overwrites the last validated profile draft.
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "document.querySelector('#skin-studio-source').value="
+      "'{\\\"schema_version\\\":2}';"
+      "document.querySelector('#skin-studio-save').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(
+               contents,
+               "document.querySelector('#skin-studio-status').textContent")
+               .ExtractString()
+               .find("not a valid v2") != std::string::npos;
+  }));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+      contents, tahai::kTahaiSkinStudioURL, "TAHAI Skin Studio",
+      "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(
+                  contents,
+                  "document.querySelector('#skin-studio-source').value."
+                  "includes('my-operational-skin') && "
+                  "document.querySelector('#skin-studio-source').value."
+                  "includes('#123456') && "
+                  "document.querySelector('#skin-studio-source').value."
+                  "includes('\\\"layout\\\": \\\"quad\\\"') && "
+                  "document.querySelector('#skin-studio-source').value."
+                  "includes('\\\"rail_modules\\\"') && "
+                  "document.querySelector('#skin-studio-source').value."
+                  "includes('\\\"downloads\\\"') && "
+                  "(()=>{const rail=JSON.parse(document.querySelector('#skin-studio-source').value)."
+                  "operational.surfaces[0].rail_modules;return rail.indexOf('local-oi') < "
+                  "rail.indexOf('mission')})() && "
+                  "document.querySelector('#skin-studio-source').value."
+                  "includes('Document the research handoff') && "
+                  "document.querySelector('#skin-studio-source').value."
+                  "includes('Review scope') && document.querySelector("
+                  "'#skin-studio-source').value.includes('Personal')")
+                  .ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioConditionsAndSimulationStayLocal) {
+  content::WebContents* contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+      contents, tahai::kTahaiSkinStudioURL, "TAHAI Skin Studio",
+      "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    document.querySelector('#skin-studio-input-type').value = 'boolean';
+    document.querySelector('#skin-studio-input-type').dispatchEvent(new Event('change'));
+    document.querySelector('#skin-studio-input-name').value = 'Approved';
+    document.querySelector('#skin-studio-input-required').checked = true;
+    document.querySelector('#skin-studio-add-input').click();
+    document.querySelector('#skin-studio-condition-input').value = 'input-approved';
+    document.querySelector('#skin-studio-condition-input').dispatchEvent(new Event('change'));
+    document.querySelector('#skin-studio-condition-value').value = 'true';
+    document.querySelector('#skin-studio-condition-save').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')")
+        .ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const source = document.querySelector('#skin-studio-source');
+      const before = source.value;
+      document.querySelector('#skin-studio-simulate').click();
+      const status = document.querySelector('#skin-studio-simulation-status');
+      if (!status.textContent.includes('Waiting for required inputs')) return false;
+      const input = document.querySelector('[data-simulation-input="input-approved"]');
+      input.value = 'true'; input.dispatchEvent(new Event('change'));
+      const complete = document.querySelector('#skin-studio-simulation-steps button');
+      if (!complete) return false;
+      complete.click();
+      return status.textContent.includes('Simulation complete') && source.value === before;
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+      contents, tahai::kTahaiSkinStudioURL, "TAHAI Skin Studio",
+      "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const workflow = JSON.parse(document.querySelector('#skin-studio-source').value)
+          .operational.workflows[0];
+      const input = document.querySelector('[data-simulation-input="input-approved"]');
+      return workflow.steps[0].when.input === 'input-approved' &&
+          workflow.steps[0].when.equals === 'true' && input.value === '' &&
+          !Object.hasOwn(workflow.inputs[0], 'value');
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioEditsAndBindsIndependentWorkflows) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+      contents, tahai::kTahaiSkinStudioURL, "TAHAI Skin Studio",
+      "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    window.originalWorkflow = JSON.parse(document.querySelector('#skin-studio-source').value).operational.workflows[0];
+    document.querySelector('#skin-studio-workflow-new-name').value = 'Secondary review';
+    document.querySelector('#skin-studio-workflow-copy').click();
+    document.querySelector('#skin-studio-workflow-name').value = 'Secondary checklist';
+    document.querySelector('#skin-studio-workflow-name').dispatchEvent(new Event('change'));
+    document.querySelector('#skin-studio-input-type').value = 'boolean';
+    document.querySelector('#skin-studio-input-type').dispatchEvent(new Event('change'));
+    document.querySelector('#skin-studio-input-name').value = 'Approved secondary';
+    document.querySelector('#skin-studio-add-input').click();
+    document.querySelector('#skin-studio-condition-input').value = 'input-approved-secondary';
+    document.querySelector('#skin-studio-condition-input').dispatchEvent(new Event('change'));
+    document.querySelector('#skin-studio-condition-value').value = 'false';
+    document.querySelector('#skin-studio-condition-save').click();
+    document.querySelector('#skin-studio-workflow-bind').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')")
+        .ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const source = document.querySelector('#skin-studio-source');
+      const parsed = JSON.parse(source.value), workflows = parsed.operational.workflows;
+      if (workflows.length !== 2 || JSON.stringify(workflows[0]) !== JSON.stringify(window.originalWorkflow) ||
+          workflows[1].name !== 'Secondary checklist' ||
+          workflows[1].steps[0].when.input !== 'input-approved-secondary' ||
+          workflows[1].steps[0].when.equals !== 'false' ||
+          parsed.operational.modes[0].workflow !== workflows[1].id) return false;
+      if (!document.querySelector('#skin-studio-workflow-remove').disabled) return false;
+      document.querySelector('#skin-studio-simulate').click();
+      if (!document.querySelector('#skin-studio-simulation-status').textContent.includes('branch choices')) return false;
+      const input = document.querySelector('[data-simulation-input="input-approved-secondary"]');
+      input.value = 'false'; input.dispatchEvent(new Event('change'));
+      const staleCompletion = document.querySelector('#skin-studio-simulation-steps button');
+      if (!staleCompletion) return false;
+      const before = source.value;
+      let writes = 0; source.addEventListener('input', () => ++writes);
+      const selected = document.querySelector('#skin-studio-workflow-select');
+      selected.value = workflows[0].id; selected.dispatchEvent(new Event('change'));
+      staleCompletion.click();
+      input.value = 'true'; input.dispatchEvent(new Event('change'));
+      document.querySelector('#skin-studio-simulate').click();
+      if (document.querySelector('#skin-studio-simulation-steps').textContent.includes(' — Complete')) return false;
+      if (document.querySelector('#skin-studio-workflow-name').value !== workflows[0].name ||
+          writes !== 0 || source.value !== before) return false;
+      selected.value = workflows[1].id; selected.dispatchEvent(new Event('change'));
+      if (document.querySelector('[data-simulation-input="input-approved-secondary"]').value !== '') return false;
+      // Synthetic stale calls cannot mutate a now read-only draft either.
+      source.readOnly = true;
+      document.querySelector('#skin-studio-workflow-new-name').value = 'Forbidden copy';
+      document.querySelector('#skin-studio-workflow-copy').click();
+      document.querySelector('#skin-studio-workflow-remove').click();
+      source.readOnly = false;
+      return writes === 0 && source.value === before;
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+      contents, tahai::kTahaiSkinStudioURL, "TAHAI Skin Studio",
+      "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const source = document.querySelector('#skin-studio-source');
+      const parsed = JSON.parse(source.value), workflow = parsed.operational.workflows[1];
+      const selected = document.querySelector('#skin-studio-workflow-select');
+      selected.value = workflow.id; selected.dispatchEvent(new Event('change'));
+      return selected.options.length === 2 && workflow.name === 'Secondary checklist' &&
+          parsed.operational.modes[0].workflow === workflow.id &&
+          document.querySelector('#skin-studio-workflow-name').value === workflow.name &&
+          document.querySelector('[data-simulation-input="input-approved-secondary"]').value === '' &&
+          !Object.hasOwn(workflow.inputs[0], 'value');
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioNamedOutputsPersistWithoutSimulatedValues) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id);
+      get('input-type').value = 'text'; get('input-type').dispatchEvent(new Event('change'));
+      get('input-name').value = 'Private source'; get('input-protected').checked = true;
+      get('input-required').checked = true; get('add-input').click();
+      get('output-name').value = 'Private result'; get('output-input').value = 'input-private-source';
+      get('output-add').click();
+      const workflow = JSON.parse(get('source').value).operational.workflows[0];
+      if (workflow.outputs[0].from.input !== 'input-private-source') throw new Error('Missing output binding');
+    })();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), source = get('source').value;
+      get('simulate').click();
+      if (get('simulation-outputs').children.length) return false;
+      const input = document.querySelector('[data-simulation-input=input-private-source]');
+      input.value = 'password=dummy-only:@/output'; input.dispatchEvent(new Event('change'));
+      if (input.value || get('simulation-outputs').children.length) return false;
+      const done = get('simulation-steps').querySelector('button');
+      if (!done) return false; done.click();
+      return get('simulation-outputs').textContent.includes('Protected result (masked)') &&
+          !get('simulation-outputs').textContent.includes('dummy-only') &&
+          get('source').value === source && !source.includes('dummy-only');
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const source = document.querySelector('#skin-studio-source').value;
+      const workflow = JSON.parse(source).operational.workflows[0];
+      return workflow.outputs[0].name === 'Private result' &&
+          workflow.outputs[0].from.input === 'input-private-source' &&
+          document.querySelector('#skin-studio-simulation-outputs').children.length === 0 &&
+          document.querySelector('[data-simulation-input=input-private-source]').value === '' &&
+          !source.includes('dummy-only') && !Object.hasOwn(workflow.outputs[0], 'value');
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioWaitDeadlinePersistsAndSimulatesTerminalFailure) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"(
+    document.querySelector('#skin-studio-wait-seconds').value = '3';
+    document.querySelector('#skin-studio-wait-timeout').value = '5';
+    document.querySelector('#skin-studio-wait-save').click();
+  )"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents, R"(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), original = get('source').value;
+      const step = JSON.parse(original).operational.workflows[0].steps[0];
+      if (step.wait.seconds !== 3 || step.wait.timeout_seconds !== 5) return false;
+      get('simulate').click(); get('simulation-steps').querySelector('button').click();
+      const expire = [...get('simulation-steps').querySelectorAll('button')].find(button =>
+          button.textContent === 'Advance to deadline and fail in simulation');
+      if (!expire) return false; expire.click();
+      return get('simulation-status').textContent.includes('Simulation failed: wait-timed-out') &&
+          !get('simulation-steps').querySelector('button') && !get('simulation-outputs').children.length && original === get('source').value;
+    })()
+  )").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"(
+    document.querySelector('#skin-studio-wait-timeout').value === '5' &&
+    !document.querySelector('#skin-studio-source').value.includes('wait_timeout_remaining_ms') &&
+    !document.querySelector('#skin-studio-simulation-status').textContent.includes('failed')
+  )").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionNativeFailureShowsTerminalOutcomeAndNoResume) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "native-error-workflow"; workflow.name = "Native error workflow";
+  workflow.steps = {{"action", "Action", tahai::TahaiOperationalWorkflowStepKind::kRunCommand, "mission.open"}};
+  for (const char* outcome : {"rejected", "unknown"}) {
+    const auto created = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+    ASSERT_TRUE(created); ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id, "running"));
+    ASSERT_TRUE(service->BeginNativeWorkflowStep(created->id, 0));
+    ASSERT_TRUE(service->FinishNativeWorkflowStep(created->id, 0, outcome));
+    ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+        "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+    EXPECT_TRUE(content::EvalJs(contents, content::JsReplace(R"(
+      (() => {
+        const button = [...document.querySelectorAll('[data-tahai-native-run]')].find(item => item.dataset.tahaiMissionId === $1);
+        const row = button?.closest('.mission-step'), error = row?.querySelector('[data-tahai-native-error]');
+        return button?.disabled && error && !error.hidden && error.getAttribute('role') === 'status' &&
+            error.dataset.tahaiNativeError === $2 && ($2 !== 'unknown' || error.textContent.includes('may have happened')) &&
+            !row.querySelector('[data-tahai-native-refresh]').hidden &&
+            ![...document.querySelectorAll('[data-tahai-workflow-state=running]')].some(item => item.dataset.tahaiMissionId === $1);
+      })()
+    )", created->id, outcome)).ExtractBool());
+    EXPECT_EQ("failed", service->missions().back().operational_workflow->run_state);
+    EXPECT_FALSE(service->SetOperationalWorkflowRunState(created->id, "running"));
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioNativeFailureSimulationIsDisposable) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), source = get('source');
+      const parsed = JSON.parse(source.value);
+      parsed.operational.capabilities = ['mission-checklist'];
+      const workflow = parsed.operational.workflows[0];
+      workflow.inputs = []; workflow.variables = []; workflow.outputs = [];
+      workflow.steps = [{id: 'native', name: 'Native', kind: 'run-command', action: 'mission.open'},
+          {id: 'after', name: 'After', kind: 'checkpoint'}];
+      source.value = JSON.stringify(parsed); source.dispatchEvent(new Event('input', {bubbles: true}));
+      const original = source.value;
+      for (const [label, code] of [['Simulate rejected action', 'native-rejected'], ['Simulate unknown outcome', 'native-outcome-unknown']]) {
+        get('simulate').click();
+        const button = [...get('simulation-steps').querySelectorAll('button')].find(item => item.textContent === label);
+        if (!button || button.disabled) return false;
+        button.click();
+        if (!get('simulation-status').textContent.includes(code) || get('simulation-steps').querySelector('button') ||
+            get('simulation-outputs').children.length || source.value !== original) return false;
+        get('simulation-reset').click();
+        if (get('simulation-status').textContent.includes('failed')) return false;
+      }
+      return true;
+    })()
+  )").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionWaitDeadlineFailsWithoutPageActionAndDisplaysRecordedError) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "deadline-workflow"; workflow.name = "Deadline workflow";
+  workflow.steps = {{"delay", "Delay", tahai::TahaiOperationalWorkflowStepKind::kWait},
+      {"after", "After", tahai::TahaiOperationalWorkflowStepKind::kRunCommand, "mission.open"}};
+  workflow.steps[0].wait_seconds = 1; workflow.steps[0].wait_timeout_seconds = 2;
+  const auto created = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created); ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id, "running"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-wait-control=start]').click()"));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  // No page event, reload, completion request or simulated clock causes expiry.
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return service->missions().back().operational_workflow->run_state == "failed";
+  }));
+  EXPECT_EQ("timed-out", service->missions().back().steps[0].wait_state);
+  EXPECT_FALSE(service->missions().back().steps[0].complete);
+  EXPECT_EQ("ready", service->missions().back().steps[1].action_state);
+  EXPECT_FALSE(service->BeginNativeWorkflowStep(created->id, 1));
+  {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-wait-refresh]').click()"));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_TRUE(content::EvalJs(contents, R"(
+    (() => {
+      const failure = document.querySelector('[data-tahai-wait-error=wait-timed-out]');
+      return failure && failure.getAttribute('role') === 'status' && failure.textContent.includes('This run failed') &&
+          document.querySelector('[data-tahai-wait-control]').disabled &&
+          !document.querySelector('[data-tahai-workflow-state=running]');
+    })()
+  )").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_EQ("timed-out", service->missions().back().steps[0].wait_state);
+  EXPECT_EQ("ready", service->missions().back().steps[1].action_state);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioTimedWaitDefinitionPersistsWithoutSimulationClock) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    document.querySelector('#skin-studio-wait-seconds').value = '3';
+    document.querySelector('#skin-studio-wait-save').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), original = get('source').value;
+      const step = JSON.parse(original).operational.workflows[0].steps[0];
+      if (step.kind !== 'wait' || step.wait.seconds !== 3) return false;
+      get('simulate').click();
+      let button = get('simulation-steps').querySelector('button');
+      if (!button || button.textContent !== 'Start wait in simulation') return false;
+      button.click(); button = get('simulation-steps').querySelector('button');
+      if (!button || button.textContent !== 'Advance time and complete in simulation') return false;
+      button.click();
+      return original === get('source').value && !original.includes('wait_state') && !original.includes('remaining_ms');
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const step = JSON.parse(document.querySelector('#skin-studio-source').value).operational.workflows[0].steps[0];
+      return step.kind === 'wait' && step.wait.seconds === 3 &&
+          document.querySelector('#skin-studio-wait-seconds').value === '3';
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionWaitRequiresCurrentExplicitStartAndCompletionWithoutNextAction) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "wait-workflow"; workflow.name = "Timed wait";
+  workflow.inputs = {{"approved", "Approved", tahai::TahaiOperationalWorkflowInputType::kBoolean, true, {}}};
+  workflow.steps = {{"delay", "Delay", tahai::TahaiOperationalWorkflowStepKind::kWait, {}, "approved", "true"},
+      {"after", "After", tahai::TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  workflow.steps[0].wait_seconds = 1;
+  const auto created = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created);
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id, "approved", "true"));
+  ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id, "running"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_TRUE(content::EvalJs(contents, R"(
+    !document.querySelector('[data-tahai-wait-control=start]').disabled &&
+    !document.querySelector('[data-tahai-input-id=approved]').disabled &&
+    document.querySelector('[data-tahai-mission-action=toggle-step][data-tahai-step-index="0"]').disabled
+  )").ExtractBool());
+  // Even a forged completion message cannot finish an unstarted wait.
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "chrome.send('controlTahaiWorkflowWait', [$1, 0, 'complete', document.querySelector('[data-tahai-wait-control]').dataset.tahaiRunToken])", created->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('Wait not changed')").ExtractBool();
+  }));
+  ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id, "paused"));
+  ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id, "running"));
+  // Another document changed the run: its old controls cannot arm a timer.
+  ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-wait-control=start]').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('Wait not changed')").ExtractBool();
+  }));
+  EXPECT_EQ("ready", service->missions().back().steps[0].wait_state);
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-wait-control=start]').click()"));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ("waiting", service->missions().back().steps[0].wait_state);
+  EXPECT_TRUE(content::EvalJs(contents, R"(
+    (() => {
+      const input = document.querySelector('[data-tahai-input-id=approved]');
+      return input.disabled && input.value === 'true' &&
+          input.getAttribute('aria-describedby').includes('-locked') &&
+          document.body.textContent.includes('Branch choice locked');
+    })()
+  )").ExtractBool());
+  EXPECT_FALSE(service->SetOperationalWorkflowInputValue(created->id, "approved", "false"));
+  EXPECT_EQ("off", content::EvalJs(contents, "document.querySelector('[data-tahai-wait-countdown]').getAttribute('aria-live')"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return tahai::MissionWorkflowWaitRemaining(service->missions().back().steps[0]) == 0;
+  }));
+  EXPECT_FALSE(service->missions().back().steps[0].complete);
+  EXPECT_FALSE(service->missions().back().steps[1].complete);
+  {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-wait-control=complete]').click()"));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ("complete", service->missions().back().steps[0].wait_state);
+  EXPECT_FALSE(service->missions().back().steps[1].complete);
+  EXPECT_EQ("running", service->missions().back().operational_workflow->run_state);
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-wait-control]').disabled").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_EQ("complete", service->missions().back().steps[0].wait_state);
+  EXPECT_FALSE(service->ControlWorkflowWait(created->id, 0, false));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioVariablesAssignmentsAndResultsPersistWithoutSimulationData) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id);
+      get('input-type').value = 'number'; get('input-type').dispatchEvent(new Event('change'));
+      get('input-name').value = 'Amount'; get('input-lower').value = '2'; get('input-upper').value = '4';
+      get('add-input').click();
+      get('variable-name').value = 'Total'; get('variable-template').value = 'input-amount'; get('variable-add').click();
+      get('assignment-target').value = 'variable-total'; get('assignment-source').value = 'input-amount'; get('assignment-save').click();
+      get('output-name').value = 'Total result'; get('output-input').value = 'variable:variable-total'; get('output-add').click();
+      const workflow = JSON.parse(get('source').value).operational.workflows[0];
+      if (workflow.variables[0].type !== 'number' || workflow.variables[0].validation.maximum !== 4 ||
+          workflow.steps[0].kind !== 'assign-variable' || workflow.outputs[0].from.variable !== 'variable-total')
+        throw new Error('Missing typed variable design');
+    })();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), original = get('source').value;
+      const input = document.querySelector('[data-simulation-input=input-amount]');
+      input.value = '3.125'; input.dispatchEvent(new Event('change'));
+      const assign = get('simulation-steps').querySelector('button');
+      if (!assign || assign.textContent !== 'Assign in simulation') return false;
+      assign.click();
+      return get('simulation-outputs').textContent.includes('3.125') && get('source').value === original &&
+          !original.includes('3.125');
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const source = document.querySelector('#skin-studio-source').value;
+      const workflow = JSON.parse(source).operational.workflows[0];
+      return workflow.variables[0].id === 'variable-total' && workflow.steps[0].assign.from.input === 'input-amount' &&
+          workflow.outputs[0].from.variable === 'variable-total' && !Object.hasOwn(workflow.variables[0], 'value') &&
+          !source.includes('3.125') && document.querySelector('#skin-studio-simulation-outputs').children.length === 0;
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionVariableAssignmentRequiresExplicitOrderedValidActionAndSurvivesReload) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "variable-workflow"; workflow.name = "Variable workflow";
+  workflow.inputs = {{"amount", "Amount", tahai::TahaiOperationalWorkflowInputType::kNumber, true, {}}};
+  workflow.variables = {{"total", "Total", tahai::TahaiOperationalWorkflowInputType::kNumber, false, {}}};
+  workflow.variables[0].validation = tahai::TahaiWorkflowInputValidation{{}, {}, 2.0, 4.0};
+  workflow.steps = {{"review", "Review", tahai::TahaiOperationalWorkflowStepKind::kCheckpoint},
+      {"assign-total", "Assign total", tahai::TahaiOperationalWorkflowStepKind::kAssignVariable}};
+  workflow.steps[1].assignment = tahai::TahaiWorkflowAssignment{"total", "amount", false};
+  workflow.outputs = {{"result", "Result", "total", true}};
+  const auto created = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created);
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id, "amount", "5"));
+  ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id, "running"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_TRUE(content::EvalJs(contents, R"(
+    document.querySelector('[data-tahai-variable-assign]').disabled &&
+    document.querySelector('[data-tahai-mission-action=toggle-step][data-tahai-step-index="1"]').disabled
+  )").ExtractBool());
+  // A forged renderer message still cannot skip the preceding checkpoint.
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "chrome.send('assignTahaiWorkflowVariable', [$1, 1, document.querySelector('[data-tahai-variable-assign]').dataset.tahaiRunToken])", created->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('Variable not changed')").ExtractBool();
+  }));
+  {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents,
+        "document.querySelector('[data-tahai-mission-action=toggle-step][data-tahai-step-index=\"0\"]').click()"));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  // Correct order alone is insufficient when the destination limits fail.
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "chrome.send('assignTahaiWorkflowVariable', [$1, 1, document.querySelector('[data-tahai-variable-assign]').dataset.tahaiRunToken])", created->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('Variable not changed')").ExtractBool();
+  }));
+  EXPECT_TRUE(service->missions().back().workflow_variables[0].value.empty());
+  {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, R"(
+      const input = document.querySelector('[data-tahai-input-id=amount]');
+      input.value = '3.125'; input.dispatchEvent(new Event('change', {bubbles: true}));
+    )"));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ("Not set", content::EvalJs(contents, "document.querySelector('[data-tahai-workflow-variable=total]').textContent"));
+  // An old tab cannot assign a value changed in another document, even when
+  // the new value also satisfies all type/limit/order checks.
+  const auto stale_token = service->missions().back().mutation_token;
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id, "amount", "3.5"));
+  EXPECT_NE(stale_token, service->missions().back().mutation_token);
+  ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-variable-assign]').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('Variable not changed')").ExtractBool();
+  }));
+  EXPECT_TRUE(service->missions().back().workflow_variables[0].value.empty());
+  EXPECT_FALSE(service->missions().back().steps[1].complete);
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id, "amount", "3.125"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  for (const char* selector : {"[data-tahai-variable-assign]", "[data-tahai-workflow-state=succeeded]"}) {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("document.querySelector($1).click()", selector)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ("3.125", content::EvalJs(contents, "document.querySelector('[data-tahai-workflow-output=result]').textContent"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_EQ("3.125", content::EvalJs(contents, "document.querySelector('[data-tahai-workflow-variable=total]').textContent"));
+  EXPECT_TRUE(content::EvalJs(contents, R"(
+    document.querySelector('[data-tahai-variable-assign]').disabled &&
+    [...document.querySelectorAll('[data-tahai-evidence-preview=true]')].every(view => !view.textContent.includes('3.125'))
+  )").ExtractBool());
+  EXPECT_FALSE(service->AssignWorkflowVariable(created->id, 1));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioNumericConditionsPersistAndSimulateWithoutActions) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id);
+      get('input-type').value = 'number'; get('input-type').dispatchEvent(new Event('change'));
+      get('input-name').value = 'Amount'; get('add-input').click();
+      get('condition-input').value = 'input-amount'; get('condition-input').dispatchEvent(new Event('change'));
+      get('condition-operation').value = 'at-least'; get('condition-number').value = '3.125'; get('condition-save').click();
+      const when = JSON.parse(get('source').value).operational.workflows[0].steps[0].when;
+      if (when.compare.op !== 'at-least' || when.compare.number !== 3.125 || when.equals)
+        throw new Error('Missing numeric branch definition');
+    })();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), original = get('source').value;
+      get('simulate').click();
+      if (!get('simulation-status').textContent.includes('Amount')) return false;
+      const input = document.querySelector('[data-simulation-input=input-amount]');
+      input.value = '2'; input.dispatchEvent(new Event('change'));
+      if (!get('simulation-steps').textContent.includes('Skipped by condition')) return false;
+      input.value = '4'; input.dispatchEvent(new Event('change'));
+      const button = get('simulation-steps').querySelector('button');
+      if (!button || button.disabled) return false;
+      button.click();
+      return get('source').value === original && get('simulation-status').textContent.includes('Simulation complete');
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id);
+      return get('condition-input').value === 'input-amount' && get('condition-operation').value === 'at-least' &&
+          get('condition-number').value === '3.125' && get('condition-value').disabled &&
+          !get('condition-number').disabled && !get('simulation-steps').children.length;
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioVariableBranchesPersistDefinitionsAndRecordDisposableDecisions) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), doc = JSON.parse(get('source').value);
+      const workflow = doc.operational.workflows[0];
+      workflow.inputs = []; workflow.outputs = []; workflow.variables = [{id:'total', name:'Total', type:'number'}];
+      workflow.steps = [
+        {id:'first', name:'Assign first', kind:'assign-variable', assign:{variable:'total', expression:{number:2}}},
+        {id:'branch', name:'Branch', kind:'checkpoint'},
+        {id:'change', name:'Assign later', kind:'assign-variable', assign:{variable:'total', expression:{number:4}}},
+        {id:'finish', name:'Finish', kind:'checkpoint'}];
+      get('source').value = JSON.stringify(doc); get('source').dispatchEvent(new Event('input', {bubbles:true}));
+      get('condition-step').value = 'branch'; get('condition-step').dispatchEvent(new Event('change'));
+      get('condition-input').value = 'variable:total'; get('condition-input').dispatchEvent(new Event('change'));
+      get('condition-operation').value = 'greater-than'; get('condition-number').value = '3'; get('condition-save').click();
+      const when = JSON.parse(get('source').value).operational.workflows[0].steps[1].when;
+      if (when.variable !== 'total' || when.input || when.compare.number !== 3) throw new Error('Missing variable branch');
+    })();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool(); }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), before = get('source').value;
+      const rows = () => get('simulation-steps').children;
+      get('simulate').click();
+      if (!rows()[1].textContent.includes('Waiting for variable assignment') || !rows()[3].querySelector('button').disabled) return false;
+      rows()[0].querySelector('button').click();
+      if (!rows()[1].textContent.includes('Skipped by condition')) return false;
+      rows()[2].querySelector('button').click();
+      if (!rows()[1].textContent.includes('Skipped by condition (recorded decision)')) return false;
+      rows()[3].querySelector('button').click();
+      return get('simulation-status').textContent.includes('Simulation complete') && get('source').value === before &&
+          !before.includes('variable_condition_result');
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id);
+      get('condition-step').value = 'branch'; get('condition-step').dispatchEvent(new Event('change'));
+      if (get('condition-input').value !== 'variable:total' || get('condition-number').value !== '3' || get('simulation-steps').children.length) return false;
+      get('simulate').click(); return get('simulation-steps').children[1].textContent.includes('Waiting for variable assignment');
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionVariableBranchesBlockUnassignedWorkAndKeepRecordedHistory) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "variable-branch"; workflow.name = "Variable branch";
+  workflow.variables = {{"total", "Total", tahai::TahaiOperationalWorkflowInputType::kNumber, false, {}}};
+  workflow.steps = {{"first", "Assign first", tahai::TahaiOperationalWorkflowStepKind::kAssignVariable},
+      {"branch", "Branch", tahai::TahaiOperationalWorkflowStepKind::kCheckpoint},
+      {"change", "Assign later", tahai::TahaiOperationalWorkflowStepKind::kAssignVariable},
+      {"finish", "Finish", tahai::TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  tahai::TahaiWorkflowNumericExpression expression; expression.number = 2;
+  workflow.steps[0].assignment = tahai::TahaiWorkflowAssignment{"total", {}, false, expression};
+  expression.number = 4; workflow.steps[2].assignment = tahai::TahaiWorkflowAssignment{"total", {}, false, expression};
+  workflow.steps[1].condition_input_id = "total"; workflow.steps[1].condition_from_variable = true;
+  workflow.steps[1].numeric_condition = tahai::TahaiWorkflowNumericCondition{"greater-than", 3};
+  const auto created = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(created);
+  ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id, "running"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-condition-status=unassigned]') !== null").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents,
+      "document.querySelector('[data-tahai-mission-action=toggle-step][data-tahai-step-index=\"3\"]').disabled").ExtractBool());
+  EXPECT_FALSE(service->ToggleStep(created->id, 3));
+  for (const int index : {0, 2}) {
+    ASSERT_FALSE(content::EvalJs(contents, content::JsReplace(
+        "document.querySelector('[data-tahai-variable-assign][data-tahai-step-index=\"' + $1 + '\"]').disabled", index)).ExtractBool());
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+        "document.querySelector('[data-tahai-variable-assign][data-tahai-step-index=\"' + $1 + '\"]').click()", index)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ("4", service->missions().back().workflow_variables[0].value);
+  EXPECT_EQ(false, service->missions().back().steps[1].variable_condition_result);
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-condition-status=skipped]').textContent.includes('recorded decision')").ExtractBool());
+  EXPECT_FALSE(service->ToggleStep(created->id, 1));
+  for (const char* selector : {"[data-tahai-mission-action=toggle-step][data-tahai-step-index=\"3\"]", "[data-tahai-workflow-state=succeeded]"}) {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("document.querySelector($1).click()", selector)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-condition-status=skipped]').textContent.includes('recorded decision')").ExtractBool());
+  EXPECT_EQ("succeeded", service->missions().back().operational_workflow->run_state);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionNumericConditionsCannotRewriteASkippedBranchAfterProgress) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "numeric-branch"; workflow.name = "Numeric branch";
+  workflow.inputs = {{"amount", "Amount", tahai::TahaiOperationalWorkflowInputType::kNumber, false, {}}};
+  workflow.steps = {{"branch", "Numeric branch", tahai::TahaiOperationalWorkflowStepKind::kCheckpoint},
+      {"after", "After branch", tahai::TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  workflow.steps[0].condition_input_id = "amount";
+  workflow.steps[0].numeric_condition = tahai::TahaiWorkflowNumericCondition{"greater-than", 3.125};
+  const auto created = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created);
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-input-id=amount]').required").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-condition-status=unanswered]') !== null").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents,
+      "document.querySelector('[data-tahai-mission-action=toggle-step][data-tahai-step-index=\"0\"]').disabled").ExtractBool());
+  {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, R"JS(
+      const input = document.querySelector('[data-tahai-input-id=amount]');
+      input.value = '2'; input.dispatchEvent(new Event('change', {bubbles: true}));
+    )JS"));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  for (const char* selector : {"[data-tahai-workflow-state=running]", "[data-tahai-mission-action=toggle-step][data-tahai-step-index=\"1\"]"}) {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("document.querySelector($1).click()", selector)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-input-id=amount]').disabled").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents, "document.body.textContent.includes('greater than 3.125')").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-condition-status=skipped]') !== null").ExtractBool());
+  const auto token = service->missions().back().mutation_token;
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "chrome.send('setTahaiOperationalWorkflowInput', [$1, 'amount', '4', $2])", created->id, token)));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('That value was not stored')").ExtractBool();
+  }));
+  EXPECT_EQ(token, service->missions().back().mutation_token);
+  EXPECT_EQ("2", service->missions().back().workflow_inputs[0].value);
+  EXPECT_FALSE(service->missions().back().steps[0].complete); EXPECT_TRUE(service->missions().back().steps[1].complete);
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-input-id=amount]').disabled").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioRepeatRangesPersistAndSimulateDistinctIterations) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    (() => {
+      const get=id=>document.querySelector('#skin-studio-'+id),doc=JSON.parse(get('source').value),w=doc.operational.workflows[0];
+      w.inputs=[];w.variables=[];w.outputs=[];
+      w.steps=[{id:'first',name:'First',kind:'checkpoint'},{id:'last',name:'Last',kind:'checkpoint'}];
+      get('source').value=JSON.stringify(doc);get('source').dispatchEvent(new Event('input',{bubbles:true}));
+      get('repeat-from').value='first';get('repeat-through').value='last';get('repeat-count').value='3';get('repeat-save').click();
+      const saved=JSON.parse(get('source').value).operational.workflows[0];
+      if(saved.steps.length!==2 || saved.repeats[0].count!==3 || !get('repeat-summary').textContent.includes('6 expanded'))
+        throw new Error('Repeat declaration not saved');
+    })();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool(); }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (()=>{
+      const get=id=>document.querySelector('#skin-studio-'+id),before=get('source').value;get('simulate').click();
+      if(get('simulation-steps').children.length!==6)return false;
+      get('simulation-steps').children[0].querySelector('button').click();
+      return get('source').value===before && get('simulation-steps').children[0].textContent.includes('Complete') &&
+          get('simulation-steps').children[2].textContent.includes('[2/3] First') &&
+          get('simulation-steps').children[2].textContent.includes('Ready');
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents,tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio","Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents,R"JS(
+    (()=>{
+      const get=id=>document.querySelector('#skin-studio-'+id),w=JSON.parse(get('source').value).operational.workflows[0];
+      return w.steps.length===2 && w.repeats[0].count===3 && !get('simulation-steps').children.length;
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionRepeatAssignmentsStayExplicitAndRetainIndependentProgress) {
+  auto* contents=browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service=tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow; workflow.id="repeat-flow";workflow.name="Repeat flow";
+  workflow.variables={{"total","Total",tahai::TahaiOperationalWorkflowInputType::kNumber,false,{}}};
+  workflow.steps={{"seed","Initialize",tahai::TahaiOperationalWorkflowStepKind::kAssignVariable},
+      {"increment","Increment",tahai::TahaiOperationalWorkflowStepKind::kAssignVariable}};
+  tahai::TahaiWorkflowNumericExpression zero;zero.number=0;
+  tahai::TahaiWorkflowNumericExpression variable;variable.variable_id="total";
+  tahai::TahaiWorkflowNumericExpression one;one.number=1;
+  tahai::TahaiWorkflowNumericExpression add;add.operation="add";add.arguments={variable,one};
+  workflow.steps[0].assignment=tahai::TahaiWorkflowAssignment{"total",{},false,zero};
+  workflow.steps[1].assignment=tahai::TahaiWorkflowAssignment{"total",{},false,add};
+  workflow.repeats={{"rounds","increment","increment",2}};workflow.outputs={{"result","Result","total",true}};
+  const auto created=service->CreateOperationalWorkflowMission(workflow,"review-skin",std::string(64,'a'),true);ASSERT_TRUE(created);
+  ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id,"running"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents,tahai::kTahaiMissionURL,
+      "Mission Control","Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_TRUE(content::EvalJs(contents,"document.body.textContent.includes('[2/2] Increment')").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents,"document.querySelector('[data-tahai-variable-assign][data-tahai-step-index=\"2\"]').disabled").ExtractBool());
+  for(const int index : {0,1}) {
+    content::TestNavigationObserver reload(contents,1);
+    ASSERT_TRUE(content::ExecJs(contents,content::JsReplace(
+        "document.querySelector('[data-tahai-variable-assign][data-tahai-step-index=\"'+$1+'\"]').click()",index)));
+    reload.Wait();ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ("1",service->missions().back().workflow_variables[0].value);EXPECT_FALSE(service->missions().back().steps[2].complete);
+  for(const char* selector : {"[data-tahai-workflow-state=paused]","[data-tahai-workflow-state=running]",
+      "[data-tahai-variable-assign][data-tahai-step-index=\"2\"]","[data-tahai-workflow-state=succeeded]"}) {
+    content::TestNavigationObserver reload(contents,1);
+    ASSERT_TRUE(content::ExecJs(contents,content::JsReplace("document.querySelector($1).click()",selector)));
+    reload.Wait();ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents,tahai::kTahaiMissionURL,
+      "Mission Control","Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_EQ("succeeded",service->missions().back().operational_workflow->run_state);
+  EXPECT_EQ("2",service->missions().back().workflow_variables[0].value);
+  EXPECT_EQ("r-rounds-1-increment",service->missions().back().steps[1].workflow_step_id);
+  EXPECT_EQ("r-rounds-2-increment",service->missions().back().steps[2].workflow_step_id);
+  EXPECT_FALSE(service->AssignWorkflowVariable(created->id,1));EXPECT_FALSE(service->AssignWorkflowVariable(created->id,2));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioCompoundConditionsPersistAndBlockUnknownOrBranches) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), doc = JSON.parse(get('source').value);
+      const w = doc.operational.workflows[0];
+      w.inputs = [{id:'approved',name:'Approved',type:'boolean',required:false}];
+      w.variables = [{id:'total',name:'Total',type:'number'}]; w.outputs=[];
+      w.steps = [{id:'first',name:'Assign first',kind:'assign-variable',assign:{variable:'total',expression:{number:4}}},
+          {id:'branch',name:'Branch',kind:'checkpoint'}];
+      get('source').value=JSON.stringify(doc); get('source').dispatchEvent(new Event('input',{bubbles:true}));
+      const select = (id,value) => {get(id).value=value;get(id).dispatchEvent(new Event('change'));};
+      select('condition-step','branch'); select('condition-input','variable:total');
+      get('condition-operation').value='greater-than'; get('condition-number').value='3'; get('condition-save').click();
+      select('condition-input','approved'); get('condition-value').value='true';
+      get('condition-combine').value='any'; get('condition-save').click();
+      get('condition-negate').click(); get('condition-negate').click();
+      const tree=JSON.parse(get('condition-expression').value);
+      if(tree.not.not.any[1].input!=='approved') throw new Error('Missing compound condition');
+    })();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool(); }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get=id=>document.querySelector('#skin-studio-'+id), before=get('source').value;
+      const answer=document.querySelector('[data-simulation-input=approved]');
+      answer.value='true'; answer.dispatchEvent(new Event('change'));
+      if(!get('simulation-steps').children[1].textContent.includes('Waiting for variable assignment')) return false;
+      get('simulation-steps').children[0].querySelector('button').click();
+      get('simulation-steps').children[1].querySelector('button').click();
+      return get('simulation-status').textContent.includes('Simulation complete') && get('source').value===before &&
+          get('simulation-steps').children[1].textContent.includes('recorded decision');
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get=id=>document.querySelector('#skin-studio-'+id);
+      get('condition-step').value='branch'; get('condition-step').dispatchEvent(new Event('change'));
+      return JSON.parse(get('condition-expression').value).not.not.any.length===2 && !get('simulation-steps').children.length;
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionCompoundChoicesStayRequiredAndRecordedAfterCheckpointReopen) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow; workflow.id="compound-flow"; workflow.name="Compound flow";
+  workflow.inputs = {{"approved","Approved",tahai::TahaiOperationalWorkflowInputType::kBoolean,false,{}},
+      {"scope","Scope",tahai::TahaiOperationalWorkflowInputType::kBoolean,false,{}}};
+  workflow.steps = {{"branch","Branch",tahai::TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  tahai::TahaiWorkflowPredicate first; first.source_id="approved"; first.equals="true";
+  auto second=first; second.source_id="scope";
+  tahai::TahaiWorkflowPredicate group; group.operation="any"; group.arguments={first,second};
+  workflow.steps[0].predicate=group;
+  const auto created=service->CreateOperationalWorkflowMission(workflow,"review-skin",std::string(64,'a'),true); ASSERT_TRUE(created);
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id,"approved","true"));
+  EXPECT_FALSE(service->SetOperationalWorkflowRunState(created->id,"running"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents,tahai::kTahaiMissionURL,"Mission Control","Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_TRUE(content::EvalJs(contents,"document.querySelector('[data-tahai-input-id=scope]').required").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents,"document.querySelector('[data-tahai-condition-status=unresolved]') !== null").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents,"document.querySelector('[data-tahai-condition-definition]').textContent.includes('any')").ExtractBool());
+  {
+    content::TestNavigationObserver reload(contents,1);
+    ASSERT_TRUE(content::ExecJs(contents,R"JS(
+      const answer=document.querySelector('[data-tahai-input-id=scope]'); answer.value='false';
+      answer.dispatchEvent(new Event('change',{bubbles:true}));
+    )JS")); reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  for (const char* selector : {"[data-tahai-workflow-state=running]", "[data-tahai-mission-action=toggle-step][data-tahai-step-index=\"0\"]",
+       "[data-tahai-mission-action=toggle-step][data-tahai-step-index=\"0\"]"}) {
+    content::TestNavigationObserver reload(contents,1);
+    ASSERT_TRUE(content::ExecJs(contents,content::JsReplace("document.querySelector($1).click()",selector)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_FALSE(service->missions().back().steps[0].complete);
+  EXPECT_EQ(true,service->missions().back().steps[0].variable_condition_result);
+  EXPECT_TRUE(content::EvalJs(contents,"document.querySelector('[data-tahai-input-id=approved]').disabled").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents,"document.querySelector('[data-tahai-condition-status=taken]').textContent.includes('recorded decision')").ExtractBool());
+  EXPECT_FALSE(service->SetOperationalWorkflowInputValue(created->id,"approved","false"));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioCalculationsPersistOnlyDefinitionsAndSimulateLocally) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id);
+      get('input-type').value = 'number'; get('input-type').dispatchEvent(new Event('change'));
+      get('input-name').value = 'Amount'; get('input-upper').value = '4'; get('add-input').click();
+      get('variable-name').value = 'Total'; get('variable-template').value = 'input-amount'; get('variable-add').click();
+      document.querySelector('[data-workflow-variable-upper=variable-total]').value = '10';
+      document.querySelector('[data-workflow-variable-limits=variable-total]').click();
+      get('assignment-target').value = 'variable-total';
+      get('calculation-operation').value = 'multiply'; get('calculation-operation').dispatchEvent(new Event('change'));
+      get('calculation-left').value = 'input-amount'; get('calculation-left').dispatchEvent(new Event('change'));
+      get('calculation-right').value = '$number'; get('calculation-right').dispatchEvent(new Event('change'));
+      get('calculation-right-number').value = '2'; get('calculation-basic-save').click();
+      get('output-name').value = 'Result'; get('output-input').value = 'variable:variable-total'; get('output-add').click();
+      const workflow = JSON.parse(get('source').value).operational.workflows[0];
+      if (workflow.steps[0].assign.expression.op !== 'multiply' || workflow.steps[0].assign.from ||
+          workflow.variables[0].validation.maximum !== 10 || workflow.inputs[0].validation.maximum !== 4)
+        throw new Error('Calculation definition not saved');
+    })();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), original = get('source').value;
+      const input = document.querySelector('[data-simulation-input=input-amount]');
+      input.value = '3.125'; input.dispatchEvent(new Event('change'));
+      get('simulation-steps').querySelector('button').click();
+      if (!get('simulation-outputs').textContent.includes('6.25') || get('source').value !== original) return false;
+      get('calculation-expression').value = '{"number":true}'; get('calculation-save').click();
+      return get('source').value === original && !original.includes('3.125') && !original.includes('6.25');
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), source = get('source').value;
+      const assignment = JSON.parse(source).operational.workflows[0].steps[0].assign;
+      return assignment.expression.op === 'multiply' && !assignment.from &&
+          JSON.parse(get('calculation-expression').value).args[0].input === 'input-amount' &&
+          get('calculation-operation').value === 'multiply' && get('calculation-left').value === 'input-amount' &&
+          get('calculation-right').value === '$number' && get('calculation-right-number').value === '2' &&
+          document.querySelector('[data-workflow-variable-upper=variable-total]').value === '10' &&
+          get('simulation-outputs').children.length === 0 && !source.includes('6.25');
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioVariableLimitsRejectInvalidReadonlyAndStaleEdits) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id);
+      const control = key => document.querySelector('[data-workflow-variable-' + key + '=variable-total]');
+      get('input-type').value = 'number'; get('input-type').dispatchEvent(new Event('change'));
+      get('input-name').value = 'Amount'; get('input-upper').value = '4'; get('add-input').click();
+      get('variable-name').value = 'Total'; get('variable-template').value = 'input-amount'; get('variable-add').click();
+      const original = get('source').value, stale = control('limits'), low = control('lower');
+      low.value = '5'; control('upper').value = '2'; stale.click();
+      if (get('source').value !== original) return false;
+      low.value = '1'; control('upper').value = '10'; stale.click();
+      const saved = get('source').value, workflow = JSON.parse(saved).operational.workflows[0];
+      if (workflow.variables[0].validation.minimum !== 1 || workflow.variables[0].validation.maximum !== 10 ||
+          workflow.inputs[0].validation.maximum !== 4) return false;
+      low.value = '99'; stale.dispatchEvent(new Event('click'));
+      if (get('source').value !== saved || control('lower').getAttribute('aria-describedby') !== 'skin-studio-variable-limits-variable-total') return false;
+      get('source').readOnly = true; get('source').dispatchEvent(new Event('input'));
+      const disabled = ['lower', 'upper', 'limits'].every(key => control(key).disabled);
+      control('limits').dispatchEvent(new Event('click'));
+      const unchanged = get('source').value === saved;
+      get('source').readOnly = false; get('source').dispatchEvent(new Event('input'));
+      return disabled && unchanged;
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    document.querySelector('[data-workflow-variable-lower=variable-total]').value === '1' &&
+    document.querySelector('[data-workflow-variable-upper=variable-total]').value === '10'
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioBasicCalculationsPreserveAdvancedTreesAndPrivacy) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), doc = JSON.parse(get('source').value);
+      const workflow = doc.operational.workflows[0];
+      workflow.inputs = [{id: 'amount', name: 'Amount', type: 'number', required: false},
+          {id: 'private-number', name: 'Private number', type: 'number', required: false, protected: true}];
+      workflow.variables = [{id: 'total', name: 'Total', type: 'number'}]; workflow.outputs = [];
+      workflow.steps = [{id: 'calculate', name: 'Calculate', kind: 'assign-variable', assign: {variable: 'total',
+          expression: {op: 'multiply', args: [{op: 'add', args: [{input: 'amount'}, {number: 1}]}, {number: 2}]}}}];
+      get('source').value = JSON.stringify(doc); get('source').dispatchEvent(new Event('input', {bubbles: true}));
+    })();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), source = get('source'), original = source.value;
+      if (get('calculation-operation').value || !get('calculation-basic-save').disabled ||
+          !get('calculation-basic-status').textContent.includes('preserved') ||
+          [...get('calculation-left').options].some(item => item.value === 'private-number')) return false;
+      get('calculation-basic-save').dispatchEvent(new Event('click'));
+      if (source.value !== original) return false;
+      source.readOnly = true; source.dispatchEvent(new Event('input'));
+      const disabled = ['operation', 'left', 'right', 'left-number', 'right-number', 'basic-save']
+          .every(id => get('calculation-' + id).disabled);
+      get('calculation-basic-save').dispatchEvent(new Event('click'));
+      const unchanged = source.value === original;
+      source.readOnly = false; source.dispatchEvent(new Event('input'));
+      get('calculation-operation').value = 'value'; get('calculation-operation').dispatchEvent(new Event('change'));
+      get('calculation-left').value = '$number'; get('calculation-left').dispatchEvent(new Event('change'));
+      get('calculation-left-number').value = '1000000000001'; get('calculation-basic-save').click();
+      return disabled && unchanged && source.value === original && get('calculation-right').disabled;
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    document.querySelector('#skin-studio-calculation-left-number').value = '3.5';
+    document.querySelector('#skin-studio-calculation-basic-save').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id);
+      const expression = JSON.parse(get('source').value).operational.workflows[0].steps[0].assign.expression;
+      return Object.keys(expression).length === 1 && expression.number === 3.5 &&
+          get('calculation-operation').value === 'value' && get('calculation-left-number').value === '3.5' &&
+          get('calculation-right').disabled;
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionCalculationsShowFailuresAndRequireFreshExplicitAssignment) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "calculation-workflow"; workflow.name = "Calculation workflow";
+  workflow.inputs = {{"amount", "Amount", tahai::TahaiOperationalWorkflowInputType::kNumber, false, {}}};
+  workflow.variables = {{"total", "Total", tahai::TahaiOperationalWorkflowInputType::kNumber, false, {}}};
+  workflow.steps = {{"calculate", "Calculate", tahai::TahaiOperationalWorkflowStepKind::kAssignVariable}};
+  tahai::TahaiWorkflowNumericExpression numerator; numerator.number = 6.25;
+  tahai::TahaiWorkflowNumericExpression denominator; denominator.input_id = "amount";
+  tahai::TahaiWorkflowNumericExpression expression; expression.operation = "divide"; expression.arguments = {numerator, denominator};
+  workflow.steps[0].assignment = tahai::TahaiWorkflowAssignment{"total", {}, false, expression};
+  workflow.outputs = {{"result", "Result", "total", true}};
+  const auto created = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created); ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id, "running"));
+  for (const auto& item : {std::pair{"", "missing-number"}, {"0", "division-by-zero"}}) {
+    ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id, "amount", item.first));
+    ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+        "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+    EXPECT_EQ(item.second, content::EvalJs(contents,
+        "document.querySelector('[data-tahai-calculation-error]').dataset.tahaiCalculationError"));
+    EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-variable-assign]').disabled").ExtractBool());
+    const auto token = service->missions().back().mutation_token;
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+        "chrome.send('assignTahaiWorkflowVariable', [$1, 0, document.querySelector('[data-tahai-variable-assign]').dataset.tahaiRunToken])", created->id)));
+    ASSERT_TRUE(base::test::RunUntil([&] {
+      return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('Variable not changed')").ExtractBool();
+    }));
+    EXPECT_EQ(token, service->missions().back().mutation_token);
+    EXPECT_TRUE(service->missions().back().workflow_variables[0].value.empty());
+    EXPECT_FALSE(service->missions().back().steps[0].complete);
+  }
+  // Editing the source in another view invalidates this document's action token.
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id, "amount", "2"));
+  ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('#mission-status').textContent = ''"));
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "chrome.send('assignTahaiWorkflowVariable', [$1, 0, document.querySelector('[data-tahai-variable-assign]').dataset.tahaiRunToken])", created->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('Variable not changed')").ExtractBool();
+  }));
+  EXPECT_TRUE(service->missions().back().workflow_variables[0].value.empty());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-calculation-error]') === null").ExtractBool());
+  EXPECT_EQ("Not set", content::EvalJs(contents, "document.querySelector('[data-tahai-workflow-variable=total]').textContent"));
+  for (const char* selector : {"[data-tahai-variable-assign]", "[data-tahai-workflow-state=succeeded]"}) {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("document.querySelector($1).click()", selector)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ("3.125", content::EvalJs(contents, "document.querySelector('[data-tahai-workflow-output=result]').textContent"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_EQ("3.125", content::EvalJs(contents, "document.querySelector('[data-tahai-workflow-variable=total]').textContent"));
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-variable-assign]').disabled").ExtractBool());
+  EXPECT_FALSE(service->AssignWorkflowVariable(created->id, 0));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioTextExpressionsAuthorSimulateAndRestoreOnlyDefinitions) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id);
+      get('input-type').value = 'text'; get('input-type').dispatchEvent(new Event('change'));
+      get('input-name').value = 'Source'; get('add-input').click();
+      get('variable-template').value = 'input-source'; get('variable-name').value = 'Result'; get('variable-add').click();
+      get('assignment-target').value = 'variable-result'; get('assignment-target').dispatchEvent(new Event('change'));
+      get('text-operation').value = 'concat'; get('text-operation').dispatchEvent(new Event('change'));
+      get('text-first').value = 'input-source'; get('text-first').dispatchEvent(new Event('change'));
+      get('text-second').value = '$text'; get('text-second').dispatchEvent(new Event('change'));
+      get('text-second-constant').value = ' ready'; get('text-basic-save').click();
+      get('output-name').value = 'Final'; get('output-input').value = 'variable:variable-result'; get('output-add').click();
+      if (JSON.parse(get('source').value).operational.workflows[0].steps[0].assign.text_expression.op !== 'concat') throw new Error('Text definition not saved');
+    })();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const get = id => document.querySelector('#skin-studio-' + id), original = get('source').value;
+      const input = document.querySelector('[data-simulation-input=input-source]'); input.value = 'fixture'; input.dispatchEvent(new Event('change'));
+      get('simulation-steps').querySelector('button').click();
+      if (!get('simulation-outputs').textContent.includes('fixture ready') || get('source').value !== original) return false;
+      get('text-expression').value = '{"text":true}'; get('text-save').click();
+      return get('source').value === original && !original.includes('fixture');
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => { const get = id => document.querySelector('#skin-studio-' + id);
+      return get('text-operation').value === 'concat' && get('text-first').value === 'input-source' &&
+          get('text-second-constant').value === ' ready' && get('simulation-outputs').children.length === 0 && !get('source').value.includes('fixture'); })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionTextExpressionsShowFixedErrorsAndRequireExplicitAssignment) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow; workflow.id = "text-work"; workflow.name = "Text work";
+  workflow.inputs = {{"source", "Source", tahai::TahaiOperationalWorkflowInputType::kText, false, {}}};
+  workflow.variables = {{"result", "Result", tahai::TahaiOperationalWorkflowInputType::kText, false, {}}};
+  workflow.steps = {{"format", "Format", tahai::TahaiOperationalWorkflowStepKind::kAssignVariable}};
+  tahai::TahaiWorkflowTextExpression input; input.input_id = "source";
+  tahai::TahaiWorkflowTextExpression expression; expression.operation = "upper-ascii"; expression.arguments = {input};
+  workflow.steps[0].assignment = tahai::TahaiWorkflowAssignment{"result", {}, false, {}, expression};
+  workflow.outputs = {{"final", "Final", "result", true}};
+  const auto created = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created); ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id, "running"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_EQ("missing-text", content::EvalJs(contents, "document.querySelector('[data-tahai-calculation-error]').dataset.tahaiCalculationError"));
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-variable-assign]').disabled").ExtractBool());
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id, "source", "local fixture"));
+  // A source edit invalidates the old document's assignment token.
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "chrome.send('assignTahaiWorkflowVariable', [$1, 0, document.querySelector('[data-tahai-variable-assign]').dataset.tahaiRunToken])", created->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "document.querySelector('#mission-status').textContent.includes('Variable not changed')").ExtractBool(); }));
+  EXPECT_TRUE(service->missions().back().workflow_variables[0].value.empty());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  for (const char* selector : {"[data-tahai-variable-assign]", "[data-tahai-workflow-state=succeeded]"}) {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("document.querySelector($1).click()", selector)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ("LOCAL FIXTURE", content::EvalJs(contents, "document.querySelector('[data-tahai-workflow-output=final]').textContent"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_EQ("LOCAL FIXTURE", content::EvalJs(contents, "document.querySelector('[data-tahai-workflow-variable=result]').textContent"));
+  EXPECT_FALSE(service->AssignWorkflowVariable(created->id, 0));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionChecklistsRequireCurrentDocumentGestureAndFreshToken) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  const auto created = service->CreateMission("Checklist controls", "incident"); ASSERT_TRUE(created);
+  const auto id = created->id; const auto token = service->missions().back().mutation_token;
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiMissionURL)));
+  EXPECT_FALSE(content::EvalJs(contents, "navigator.userActivation.isActive", content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("chrome.send('toggleTahaiMissionStep', [$1, 0, $2])", id, token), content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+  EXPECT_FALSE(service->missions().back().steps[0].complete);
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("chrome.send('toggleTahaiMissionStep', [$1, 0, $2])", id, token)));
+  EXPECT_FALSE(service->missions().back().steps[0].complete);
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  ASSERT_TRUE(service->ToggleValidationStep(id, 1));
+  ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-mission-action=toggle-step]').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "document.querySelector('#mission-status').textContent.includes('Mission not changed')").ExtractBool(); }));
+  EXPECT_FALSE(service->missions().back().steps[0].complete);
+  for (const auto& action : {std::pair{"toggle-step", "toggleTahaiMissionStep"},
+                            {"toggle-validation", "toggleTahaiValidationStep"}, {"toggle-rollback", "toggleTahaiRollbackStep"}}) {
+    ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+        "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+    const auto current = service->missions().back().mutation_token;
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(R"JS(
+      const button = document.querySelector('[data-tahai-mission-action=' + $1 + ']');
+      button.click(); chrome.send($2, [$3, 0, $4]);
+    )JS", action.first, action.second, id, current)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+    EXPECT_TRUE(service->missions().back().steps[0].complete);
+    if (std::string_view(action.first) != "toggle-step") EXPECT_TRUE(service->missions().back().validation_steps[0].complete);
+    if (std::string_view(action.first) == "toggle-rollback") EXPECT_TRUE(service->missions().back().rollback_steps[0].complete);
+    else EXPECT_FALSE(service->missions().back().rollback_steps[0].complete);
+    EXPECT_NE(current, service->missions().back().mutation_token);
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionStateControlsRejectStaleAndAutomaticTransitions) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow; workflow.id = "state-work"; workflow.name = "State work";
+  workflow.steps = {{"review", "Review", tahai::TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  const auto created = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(created);
+  const auto id = created->id; const auto initial = service->missions().back().mutation_token;
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiMissionURL)));
+  EXPECT_FALSE(content::EvalJs(contents, "navigator.userActivation.isActive", content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("chrome.send('setTahaiOperationalWorkflowState', [$1, 'running', $2])", id, initial), content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+  EXPECT_EQ("ready", service->missions().back().operational_workflow->run_state);
+  content::TestNavigationObserver reload(contents, 1);
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(R"JS(
+    document.querySelector('[data-tahai-workflow-state=running]').click();
+    chrome.send('setTahaiOperationalWorkflowState', [$1, 'cancelled', $2]);
+  )JS", id, initial)));
+  reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  EXPECT_EQ("running", service->missions().back().operational_workflow->run_state);
+  const auto current = service->missions().back().mutation_token;
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("chrome.send('setTahaiOperationalWorkflowState', [$1, 'paused'])", id)));
+  EXPECT_EQ(current, service->missions().back().mutation_token);
+  ASSERT_TRUE(service->ToggleStep(id, 0));
+  ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-workflow-state=paused]').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "document.querySelector('#mission-status').textContent.includes('Mission not changed')").ExtractBool(); }));
+  EXPECT_EQ("running", service->missions().back().operational_workflow->run_state);
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  content::TestNavigationObserver complete(contents, 1);
+  ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-workflow-state=succeeded]').click()"));
+  complete.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  EXPECT_EQ("succeeded", service->missions().back().operational_workflow->run_state);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionMetadataControlsRejectStaleViewsAndDuplicateSubmissions) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  const auto created = service->CreateMission("Metadata controls", "incident"); ASSERT_TRUE(created);
+  const auto archived = service->CreateMission("Archived controls", "incident"); ASSERT_TRUE(archived);
+  ASSERT_TRUE(service->ArchiveMission(archived->id));
+  const auto id = created->id;
+  const auto current_run = [&]() -> const tahai::MissionSummary& {
+    return *std::ranges::find(service->missions(), id, &tahai::MissionSummary::id);
+  };
+  const auto navigate = [&] { return NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."); };
+  ASSERT_TRUE(navigate()); const auto stale = current_run().mutation_token;
+  const auto archived_stale = service->missions().back().mutation_token;
+  ASSERT_TRUE(service->AddLocalNote(id, "Changed in another view"));
+  ASSERT_TRUE(service->RestoreMission(archived->id)); ASSERT_TRUE(service->ArchiveMission(archived->id));
+  const auto saved = browser()->GetProfile()->GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (const auto& request : {std::pair{"toggleTahaiEscalation", ""}, {"addTahaiEvidenceMarker", ""},
+      {"addTahaiMissionNote", "Must not be stored"}, {"setTahaiExportProfile", "internal"},
+      {"archiveTahaiMission", ""}, {"duplicateTahaiMission", ""}, {"restoreTahaiMission", ""}, {"deleteTahaiMission", ""}}) {
+    const bool archived_target = std::string_view(request.first) == "restoreTahaiMission" || std::string_view(request.first) == "deleteTahaiMission";
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+        "document.querySelector('#mission-status').textContent=''; chrome.send($1, [$2, $3, $4])",
+        request.first, archived_target ? archived->id : id, request.second, archived_target ? archived_stale : stale)));
+    ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+        "document.querySelector('#mission-status').textContent.includes('Mission not changed')").ExtractBool(); }));
+    EXPECT_EQ(saved, browser()->GetProfile()->GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  for (const char* action : {"add-note", "add-evidence", "toggle-escalation", "export", "archive", "restore"}) {
+    ASSERT_TRUE(navigate()); content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(R"JS(
+      (() => { const card=document.querySelector('article[data-tahai-mission-id="'+$1+'"]');
+        if ($2==='export') { const select=card.querySelector('[data-tahai-export-profile]'); select.value='internal'; select.dispatchEvent(new Event('change',{bubbles:true})); }
+        else { const button=card.querySelector('[data-tahai-mission-action="'+$2+'"]');
+          if($2==='add-note') document.getElementById(button.dataset.tahaiNoteInput).value='Reviewed local note'; button.click(); }
+      })();
+    )JS", id, action)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ(2u, current_run().notes.size()); EXPECT_EQ("Reviewed local note", current_run().notes.back().text);
+  EXPECT_EQ(1u, current_run().evidence.size()); EXPECT_TRUE(current_run().escalation_required);
+  EXPECT_EQ("internal", current_run().export_profile); EXPECT_FALSE(current_run().archived);
+  ASSERT_TRUE(navigate()); const size_t before = service->missions().size(); const auto token = current_run().mutation_token;
+  content::TestNavigationObserver duplicate(contents, 1);
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(R"JS(
+    document.querySelector('article[data-tahai-mission-id="'+$1+'"] [data-tahai-mission-action=duplicate]').click();
+    chrome.send('duplicateTahaiMission', [$1, '', $2]);
+  )JS", id, token)));
+  duplicate.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents)); EXPECT_EQ(before + 1, service->missions().size());
+  EXPECT_EQ(2u, current_run().notes.size());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionCreationAndMetadataRequireDocumentGestureAndOneSubmission) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  const auto created = service->CreateMission("Original record", "incident"); ASSERT_TRUE(created);
+  const auto id = created->id, token = service->missions().back().mutation_token; const auto initial = service->missions().size();
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiMissionURL)));
+  EXPECT_FALSE(content::EvalJs(contents, "navigator.userActivation.isActive", content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(R"JS(
+    chrome.send('createTahaiMission', ['Automatic record', 'incident']);
+    chrome.send('addTahaiMissionNote', [$1, 'Automatic note', $2]);
+    chrome.send('archiveTahaiMission', [$1, '', $2]);
+  )JS", id, token), content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+  EXPECT_EQ(initial, service->missions().size()); EXPECT_TRUE(service->missions().back().notes.empty()); EXPECT_FALSE(service->missions().back().archived);
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(R"JS(
+    chrome.send('createTahaiMission', ['Wrong document', 'incident']);
+    chrome.send('addTahaiEvidenceMarker', [$1, '', $2]);
+    chrome.send('duplicateTahaiMission', [$1, '', $2]);
+  )JS", id, token)));
+  EXPECT_EQ(initial, service->missions().size()); EXPECT_TRUE(service->missions().back().evidence.empty());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  content::TestNavigationObserver reload(contents, 1);
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    const form=document.querySelector('#new-mission-form'); form.querySelector('[name=title]').value='Explicit record';
+    form.querySelector('[name=type]').value='incident'; form.requestSubmit(); form.requestSubmit();
+  )JS"));
+  reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  ASSERT_EQ(initial + 1, service->missions().size()); EXPECT_EQ("Explicit record", service->missions().back().title);
+  // A new document is not permanently locked by the previous submission.
+  content::TestNavigationObserver another(contents, 1);
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    const form=document.querySelector('#new-mission-form'); form.querySelector('[name=title]').value='Next explicit record'; form.requestSubmit();
+  )JS"));
+  another.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents)); EXPECT_EQ(initial + 2, service->missions().size());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionConsumesEachLaunchAndKeepsRequiredChoiceUnset) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  const size_t initial_count = service->missions().size();
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "research-workflow";
+  workflow.name = "Review workflow";
+  workflow.inputs = {{"confirmed", "Confirmed",
+                      tahai::TahaiOperationalWorkflowInputType::kBoolean,
+                      true, {}}};
+  workflow.steps = {{"review", "Review result",
+                     tahai::TahaiOperationalWorkflowStepKind::kCheckpoint,
+                     {}, "confirmed", "true"}};
+  for (size_t run = 0; run < 2u; ++run) {
+    ASSERT_TRUE(tahai::QueueOperationalWorkflowLaunch(
+        browser()->GetProfile(), workflow, "research-skin", std::string(64u, 'b')));
+    ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+        contents, tahai::kTahaiMissionURL, "Mission Control",
+        "Real tabs. Real WebContents. Bounded mission state."));
+    ASSERT_EQ(initial_count + run + 1u, service->missions().size());
+    EXPECT_FALSE(tahai::GetQueuedOperationalWorkflowLaunch(browser()->GetProfile()));
+    EXPECT_EQ("", content::EvalJs(contents,
+        "[...document.querySelectorAll('[data-tahai-workflow-input=true]')]"
+        ".at(-1).value"));
+    EXPECT_EQ("waiting-for-input",
+              service->missions().back().operational_workflow->run_state);
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionDateAndUrlControlsPersistWithoutNavigationOrExport) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "typed-workflow";
+  workflow.name = "Typed workflow";
+  workflow.inputs = {
+      {"review-day", "Review day", tahai::TahaiOperationalWorkflowInputType::kDate, true, {}},
+      {"reference", "Reference site", tahai::TahaiOperationalWorkflowInputType::kUrl, true, {}}};
+  workflow.steps = {{"review", "Review result",
+                     tahai::TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  ASSERT_TRUE(tahai::QueueOperationalWorkflowLaunch(
+      browser()->GetProfile(), workflow, "review-skin", std::string(64, 'b')));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+      contents, tahai::kTahaiMissionURL, "Mission Control",
+      "Real tabs. Real WebContents. Bounded mission state."));
+  const auto tab_count = browser()->tab_strip_model()->count();
+  const GURL mission_url = contents->GetVisibleURL();
+  EXPECT_EQ("date", content::EvalJs(contents,
+      "document.querySelector('[data-tahai-input-id=review-day]').type"));
+  EXPECT_EQ("url", content::EvalJs(contents,
+      "document.querySelector('[data-tahai-input-id=reference]').type"));
+  EXPECT_TRUE(content::EvalJs(contents,
+      "document.querySelector('[data-tahai-input-id=review-day]').required && "
+      "document.querySelector('[data-tahai-input-id=reference]').required").ExtractBool());
+  for (const auto& [input, value] : {
+           std::pair("review-day", "2032-02-29"),
+           std::pair("reference", "https://example.test/local-reference?q=private-review#notes")}) {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(R"(
+      const control = document.querySelector('[data-tahai-input-id=' + $1 + ']');
+      control.value = $2;
+      control.dispatchEvent(new Event('change', {bubbles: true}));
+    )", input, value)));
+    reload.Wait();
+    ASSERT_TRUE(content::WaitForLoadStop(contents));
+    EXPECT_EQ(value, content::EvalJs(contents, content::JsReplace(
+        "document.querySelector('[data-tahai-input-id=' + $1 + ']').value", input)));
+    EXPECT_EQ(mission_url, contents->GetVisibleURL());
+    EXPECT_EQ(tab_count, browser()->tab_strip_model()->count());
+  }
+  ASSERT_EQ(2u, service->missions().back().workflow_inputs.size());
+  EXPECT_EQ("2032-02-29", service->missions().back().workflow_inputs[0].value);
+  const std::string reference = "https://example.test/local-reference?q=private-review#notes";
+  EXPECT_EQ(reference, service->missions().back().workflow_inputs[1].value);
+  EXPECT_TRUE(content::EvalJs(contents, content::JsReplace(R"(
+    (() => {
+      const previews = [...document.querySelectorAll('[data-tahai-evidence-preview=true]')];
+      return previews.length > 0 && previews.every(
+        view => !view.textContent.includes($1) && !view.textContent.includes('2032-02-29'));
+    })()
+  )", reference)).ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents, R"(
+    const control = document.querySelector('[data-tahai-input-id=reference]');
+    control.value = 'https://user:pass@example.test/';
+    control.dispatchEvent(new Event('change', {bubbles: true}));
+  )"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#mission-status').textContent.includes('not stored')").ExtractBool();
+  }));
+  EXPECT_EQ(reference, service->missions().back().workflow_inputs[1].value);
+  EXPECT_EQ(mission_url, contents->GetVisibleURL());
+  EXPECT_EQ(tab_count, browser()->tab_strip_model()->count());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionNamedOutputsRequireSuccessStayLocalAndMaskProtectedValues) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "output-workflow";
+  workflow.name = "Output workflow";
+  workflow.inputs = {
+      {"reference", "Reference", tahai::TahaiOperationalWorkflowInputType::kUrl, true, {}},
+      {"private-input", "Private", tahai::TahaiOperationalWorkflowInputType::kText, true, {}, true}};
+  workflow.steps = {{"review", "Review result", tahai::TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  workflow.outputs = {{"result", "Result", "reference"}, {"private-result", "Private result", "private-input"}};
+  const auto created = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'));
+  ASSERT_TRUE(created);
+  base::test::TestFuture<bool> ready;
+  service->PrepareProtectedWorkflowInputs(g_browser_process->os_crypt_async(), ready.GetCallback());
+  ASSERT_TRUE(ready.Get());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  const int tabs = browser()->tab_strip_model()->count();
+  const GURL mission_url = contents->GetVisibleURL();
+  const std::string reference = "https://example.test/local-result?q=private-review#notes";
+  const std::string secret = "password=fixture-only:@/private-output";
+  for (const auto& [id, value] : {std::pair("reference", reference), std::pair("private-input", secret)}) {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(R"(
+      (() => {
+        const control = document.querySelector('[data-tahai-input-id=' + $1 + ']');
+        control.value = $2; control.dispatchEvent(new Event('change', {bubbles: true}));
+      })();
+    )", id, value)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ("Available after workflow success", content::EvalJs(contents,
+      "document.querySelector('[data-tahai-workflow-output=result]').textContent"));
+  for (const char* selector : {"[data-tahai-workflow-state=running]",
+      "[data-tahai-mission-action=toggle-step][data-tahai-step-index='0']",
+      "[data-tahai-workflow-state=succeeded]"}) {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("document.querySelector($1).click()", selector)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ(reference, content::EvalJs(contents,
+      "document.querySelector('[data-tahai-workflow-output=result]').textContent"));
+  EXPECT_EQ("Protected result retained (masked)", content::EvalJs(contents,
+      "document.querySelector('[data-tahai-workflow-output=private-result]').textContent"));
+  const std::string cipher = service->missions().back().workflow_inputs[1].protected_value;
+  EXPECT_TRUE(content::EvalJs(contents, content::JsReplace(R"(
+    !document.documentElement.outerHTML.includes($1) && !document.documentElement.outerHTML.includes($2) &&
+    !document.querySelector('[data-tahai-workflow-output] a') &&
+    [...document.querySelectorAll('[data-tahai-evidence-preview=true]')].every(view => !view.textContent.includes($3))
+  )", secret, cipher, reference)).ExtractBool());
+  EXPECT_EQ(mission_url, contents->GetVisibleURL());
+  EXPECT_EQ(tabs, browser()->tab_strip_model()->count());
+  EXPECT_FALSE(service->SetOperationalWorkflowInputValue(created->id, "reference", "https://other.test/"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_EQ(reference, content::EvalJs(contents,
+      "document.querySelector('[data-tahai-workflow-output=result]').textContent"));
+  for (const char* state : {"failed", "cancelled"}) {
+    for (auto& input : workflow.inputs) input.required = false;
+    const auto stopped = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'));
+    ASSERT_TRUE(stopped);
+    ASSERT_TRUE(service->SetOperationalWorkflowRunState(stopped->id, "running"));
+    ASSERT_TRUE(service->SetOperationalWorkflowRunState(stopped->id, state));
+    ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+        "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+    EXPECT_EQ("No result: workflow did not succeed", content::EvalJs(contents, content::JsReplace(
+        "document.querySelector('[data-tahai-workflow-output=result][data-tahai-mission-id=\"' + $1 + '\"]').textContent", stopped->id)));
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionInputLimitsAreExplainedAndEnforcedByNativeService) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "bounded-workflow";
+  workflow.name = "Bounded workflow";
+  workflow.inputs = {{"amount", "Amount", tahai::TahaiOperationalWorkflowInputType::kNumber, true, {}}};
+  workflow.inputs[0].validation = tahai::TahaiWorkflowInputValidation{{}, {}, 2.0, 4.0};
+  workflow.steps = {{"review", "Review result", tahai::TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  ASSERT_TRUE(tahai::QueueOperationalWorkflowLaunch(
+      browser()->GetProfile(), workflow, "review-skin", std::string(64, 'a')));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_TRUE(content::EvalJs(contents, R"(
+    (() => {
+      const control = document.querySelector('[data-tahai-input-id=amount]');
+      return control.min === '2' && control.max === '4' &&
+          document.getElementById(control.getAttribute('aria-describedby')).textContent.includes('Inclusive numeric limits: 2 to 4');
+    })()
+  )").ExtractBool());
+  {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, R"(
+      (() => {
+        const control = document.querySelector('[data-tahai-input-id=amount]');
+        control.value = '3'; control.dispatchEvent(new Event('change', {bubbles: true}));
+      })();
+    )"));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  const auto saved = browser()->GetProfile()->GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  ASSERT_TRUE(content::ExecJs(contents, R"(
+    (() => {
+      const control = document.querySelector('[data-tahai-input-id=amount]');
+      control.removeAttribute('min'); control.removeAttribute('max');
+      control.value = '5'; control.dispatchEvent(new Event('change', {bubbles: true}));
+    })();
+  )"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#mission-status').textContent.includes('not stored')").ExtractBool();
+  }));
+  EXPECT_EQ(saved, browser()->GetProfile()->GetPrefs()->GetList(prefs::kTahaiMissions));
+  EXPECT_EQ("3", service->missions().back().workflow_inputs[0].value);
+  tahai::MissionService restored(browser()->GetProfile());
+  EXPECT_EQ(workflow.inputs[0].validation, restored.missions().back().workflow_inputs[0].validation);
+  EXPECT_EQ("3", restored.missions().back().workflow_inputs[0].value);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioProtectedVariablesPersistWithoutSimulationValues) {
+  auto* contents=browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents,tahai::kTahaiSkinStudioURL,"TAHAI Skin Studio","Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents,R"JS(
+    (()=>{
+      const get=id=>document.querySelector('#skin-studio-'+id),doc=JSON.parse(get('source').value),w=doc.operational.workflows[0];
+      w.inputs=[{id:'secret',name:'Secret',type:'text',required:false,protected:true}];w.variables=[];w.outputs=[];w.repeats=[];
+      w.steps=[{id:'copy',name:'Copy',kind:'checkpoint'}];
+      get('source').value=JSON.stringify(doc);get('source').dispatchEvent(new Event('input',{bubbles:true}));
+      get('variable-template').value='secret';get('variable-template').dispatchEvent(new Event('change'));
+      get('variable-name').value='Private copy';get('variable-add').click();
+      get('assignment-target').value='variable-private-copy';get('assignment-target').dispatchEvent(new Event('change'));
+      get('assignment-source').value='secret';get('assignment-save').click();
+      get('output-name').value='Private result';get('output-input').value='variable:variable-private-copy';get('output-add').click();
+    })();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&]{return content::EvalJs(contents,"document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();}));
+  EXPECT_TRUE(content::EvalJs(contents,R"JS(
+    (()=>{
+      const get=id=>document.querySelector('#skin-studio-'+id),before=get('source').value;
+      const input=document.querySelector('[data-simulation-input=secret]');input.value='password=fixture-only';input.dispatchEvent(new Event('change'));
+      get('simulation-steps').querySelector('button').click();
+      return input.value==='' && get('source').value===before && !before.includes('password=fixture-only') &&
+          get('simulation-outputs').textContent.includes('Protected result (masked)') && !get('simulation-outputs').textContent.includes('password=fixture-only');
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents,tahai::kTahaiSkinStudioURL,"TAHAI Skin Studio","Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents,R"JS(
+    (()=>{const get=id=>document.querySelector('#skin-studio-'+id),w=JSON.parse(get('source').value).operational.workflows[0];
+      return w.variables[0].protected===true && !('value' in w.variables[0]) && !('protected_value' in w.variables[0]) && !get('simulation-steps').children.length;})()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionProtectedVariableCopiesRemainMaskedAcrossReloadAndSuccess) {
+  auto* contents=browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service=tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;workflow.id="private-variables";workflow.name="Private variables";
+  workflow.inputs={{"secret","Secret",tahai::TahaiOperationalWorkflowInputType::kText,false,{},true}};
+  workflow.variables={{"private-copy","Private copy",tahai::TahaiOperationalWorkflowInputType::kText,false,{},true}};
+  workflow.steps={{"copy","Copy privately",tahai::TahaiOperationalWorkflowStepKind::kAssignVariable}};
+  workflow.steps[0].assignment=tahai::TahaiWorkflowAssignment{"private-copy","secret",false};
+  workflow.outputs={{"result","Result","private-copy",true}};
+  const auto created=service->CreateOperationalWorkflowMission(workflow,"review-skin",std::string(64,'a'),true);ASSERT_TRUE(created);
+  base::test::TestFuture<bool> ready;service->PrepareProtectedWorkflowInputs(g_browser_process->os_crypt_async(),ready.GetCallback());ASSERT_TRUE(ready.Get());
+  const std::string secret="password=private-variable-browser-fixture";
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id,"secret",secret));
+  ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id,"running"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents,tahai::kTahaiMissionURL,"Mission Control","Real tabs. Real WebContents. Bounded mission state."));
+  for(const char* selector : {"[data-tahai-variable-assign][data-tahai-step-index=\"0\"]","[data-tahai-workflow-state=succeeded]"}) {
+    content::TestNavigationObserver reload(contents,1);ASSERT_TRUE(content::ExecJs(contents,content::JsReplace("document.querySelector($1).click()",selector)));
+    reload.Wait();ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  const auto& variable=service->missions().back().workflow_variables[0];ASSERT_TRUE(variable.protected_has_value);
+  EXPECT_TRUE(variable.value.empty());EXPECT_FALSE(variable.protected_value.empty());
+  EXPECT_FALSE(base::WriteJson(browser()->GetProfile()->GetPrefs()->GetList(prefs::kTahaiMissions))->contains(secret));
+  EXPECT_TRUE(content::EvalJs(contents,content::JsReplace(R"JS(
+    !document.documentElement.outerHTML.includes($1) && !document.documentElement.outerHTML.includes($2) &&
+    document.querySelector('[data-tahai-workflow-variable=private-copy]').textContent.includes('masked') &&
+    document.querySelector('[data-tahai-workflow-output=result]').textContent.includes('Protected')
+  )JS",secret,variable.protected_value)).ExtractBool());
+  tahai::MissionService restarted(browser()->GetProfile());EXPECT_FALSE(restarted.missions().back().workflow_variables[0].protected_has_value);
+  base::test::TestFuture<bool> recovered;restarted.PrepareProtectedWorkflowInputs(g_browser_process->os_crypt_async(),recovered.GetCallback());ASSERT_TRUE(recovered.Get());
+  EXPECT_TRUE(restarted.missions().back().workflow_variables[0].protected_has_value);
+  EXPECT_FALSE(restarted.AssignWorkflowVariable(created->id,0));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionProtectedVariablesBootstrapStorageWithoutProtectedInputs) {
+  auto* contents=browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service=tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;workflow.id="private-variable-only";workflow.name="Private variable only";
+  workflow.inputs={{"ordinary","Ordinary",tahai::TahaiOperationalWorkflowInputType::kText,false,{}}};
+  workflow.variables={{"private-copy","Private copy",tahai::TahaiOperationalWorkflowInputType::kText,false,{},true}};
+  workflow.steps={{"copy","Copy privately",tahai::TahaiOperationalWorkflowStepKind::kAssignVariable}};
+  workflow.steps[0].assignment=tahai::TahaiWorkflowAssignment{"private-copy","ordinary",false};
+  const auto created=service->CreateOperationalWorkflowMission(workflow,"review-skin",std::string(64,'a'),true);ASSERT_TRUE(created);
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id,"ordinary","Public fixture"));
+  ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id,"running"));
+  ASSERT_FALSE(service->missions().back().workflow_variables[0].protected_storage_ready);
+  // No manual provider preparation: the variable's locked marker must trigger
+  // the real WebUI initialization even though every input is ordinary.
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),GURL(tahai::kTahaiMissionURL)));
+  ASSERT_TRUE(base::test::RunUntil([&]{return service->missions().back().workflow_variables[0].protected_storage_ready;}));
+  ASSERT_TRUE(content::WaitForLoadStop(contents));
+  ASSERT_TRUE(base::test::RunUntil([&]{return content::EvalJs(contents,
+      "Boolean(document.querySelector('[data-tahai-workflow-variable=private-copy][data-tahai-protected-storage=ready]'))").ExtractBool();}));
+  content::TestNavigationObserver reload(contents,1);
+  ASSERT_TRUE(content::ExecJs(contents,"document.querySelector('[data-tahai-variable-assign]').click()"));reload.Wait();ASSERT_TRUE(content::WaitForLoadStop(contents));
+  EXPECT_TRUE(service->missions().back().workflow_variables[0].protected_has_value);
+  EXPECT_TRUE(content::EvalJs(contents,"document.querySelector('[data-tahai-workflow-variable=private-copy]').textContent.includes('masked')").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionProtectedInputIsMaskedStoredEncryptedAndExplicitlyCleared) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow;
+  workflow.id = "protected-workflow";
+  workflow.name = "Protected workflow";
+  workflow.inputs = {{"private-input", "Private input",
+      tahai::TahaiOperationalWorkflowInputType::kText, true, {}, true}};
+  workflow.steps = {{"review", "Review result", tahai::TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  const auto mission = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'));
+  ASSERT_TRUE(mission);
+  // Exercise the platform provider, not a plaintext/fake-key fallback. Failure
+  // is a failed gate, never a skip or success without encrypted storage.
+  base::test::TestFuture<bool> ready;
+  service->PrepareProtectedWorkflowInputs(g_browser_process->os_crypt_async(), ready.GetCallback());
+  ASSERT_TRUE(ready.Get());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_EQ("password", content::EvalJs(contents,
+      "document.querySelector('[data-tahai-workflow-input]').type"));
+  EXPECT_EQ("", content::EvalJs(contents,
+      "document.querySelector('[data-tahai-workflow-input]').value"));
+  const std::string secret = "password=fixture-only:@/private";
+  {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(R"(
+      (() => {
+        const control = document.querySelector('[data-tahai-workflow-input]');
+        control.value = $1; control.dispatchEvent(new Event('change', {bubbles: true}));
+        if (control.value) throw new Error('Protected field was not cleared after sending');
+      })();
+    )", secret)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  const auto& input = service->missions().back().workflow_inputs[0];
+  ASSERT_TRUE(tahai::HasMissionWorkflowInputValue(input));
+  EXPECT_TRUE(input.value.empty());
+  EXPECT_FALSE(input.protected_value.empty());
+  EXPECT_FALSE(base::WriteJson(browser()->GetProfile()->GetPrefs()->GetList(prefs::kTahaiMissions))->contains(secret));
+  EXPECT_TRUE(content::EvalJs(contents, content::JsReplace(R"(
+    !document.documentElement.outerHTML.includes($1) &&
+    !document.documentElement.outerHTML.includes($2) &&
+    document.querySelector('[data-tahai-workflow-input]').value === '' &&
+    document.querySelector('[data-tahai-workflow-input]').placeholder.includes('Saved and protected')
+  )", secret, input.protected_value)).ExtractBool());
+  tahai::MissionService restarted(browser()->GetProfile());
+  EXPECT_FALSE(tahai::HasMissionWorkflowInputValue(restarted.missions().back().workflow_inputs[0]));
+  base::test::TestFuture<bool> recovered;
+  restarted.PrepareProtectedWorkflowInputs(g_browser_process->os_crypt_async(), recovered.GetCallback());
+  ASSERT_TRUE(recovered.Get());
+  EXPECT_TRUE(tahai::HasMissionWorkflowInputValue(restarted.missions().back().workflow_inputs[0]));
+  content::TestNavigationObserver cleared(contents, 1);
+  ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-protected-clear]').click()"));
+  cleared.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  EXPECT_TRUE(input.protected_value.empty());
+  EXPECT_FALSE(tahai::HasMissionWorkflowInputValue(input));
+  EXPECT_FALSE(service->SetOperationalWorkflowRunState(mission->id, "running"));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioActionStatusBindingsAuthorSimulateAndRestoreDefinitions) {
+  auto* contents=browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents,tahai::kTahaiSkinStudioURL,"TAHAI Skin Studio","Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents,R"JS(
+    (()=>{const get=id=>document.querySelector('#skin-studio-'+id),source=get('source'),doc=JSON.parse(source.value),w=doc.operational.workflows[0];
+      if(!doc.operational.capabilities.includes('workspace-layout'))doc.operational.capabilities.push('workspace-layout');
+      w.inputs=[];w.variables=[{id:'outcome',name:'Outcome',type:'text'}];w.steps=[{id:'dispatch',name:'Dispatch',kind:'run-command',action:'layout.dual'},{id:'capture',name:'Record status',kind:'checkpoint'}];
+      w.outputs=[{id:'result',name:'Status',from:{variable:'outcome'}}];w.repeats=[];source.value=JSON.stringify(doc);source.dispatchEvent(new Event('input',{bubbles:true}));
+      get('condition-step').value='capture';get('condition-step').dispatchEvent(new Event('change'));
+      get('assignment-target').value='outcome';get('assignment-target').dispatchEvent(new Event('change'));
+      get('assignment-source').value='action-status:dispatch';get('assignment-save').click();
+    })();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&]{return content::EvalJs(contents,"document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();}));
+  EXPECT_TRUE(content::EvalJs(contents,R"JS(
+    (()=>{const get=id=>document.querySelector('#skin-studio-'+id),before=get('source').value;
+      if(JSON.parse(before).operational.workflows[0].steps[1].assign.from.action_status!=='dispatch')return false;
+      get('simulate').click();get('simulation-steps').children[0].querySelector('button').click();
+      get('simulation-steps').children[1].querySelector('button').click();
+      return get('simulation-outputs').textContent.includes('dispatched') && before===get('source').value;
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents,tahai::kTahaiSkinStudioURL,"TAHAI Skin Studio","Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents,R"JS(
+    (()=>{const get=id=>document.querySelector('#skin-studio-'+id);get('condition-step').value='capture';get('condition-step').dispatchEvent(new Event('change'));
+      return get('assignment-source').value==='action-status:dispatch' && get('simulation-outputs').children.length===0 &&
+        !Object.hasOwn(JSON.parse(get('source').value).operational.workflows[0].variables[0],'value');})()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiWorkflowInputsRejectUnactivatedStaleAndRepeatedEdits) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* profile = browser()->GetProfile();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(profile); ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow; workflow.id="fresh-inputs"; workflow.name="Fresh input edits";
+  workflow.inputs={{"public-input","Public",tahai::TahaiOperationalWorkflowInputType::kText,false,{}},
+      {"private-input","Private",tahai::TahaiOperationalWorkflowInputType::kText,false,{},true}};
+  workflow.steps={{"review","Review",tahai::TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  const auto created=service->CreateOperationalWorkflowMission(workflow,"review-skin",std::string(64,'a'),true); ASSERT_TRUE(created);
+  base::test::TestFuture<bool> ready; service->PrepareProtectedWorkflowInputs(g_browser_process->os_crypt_async(),ready.GetCallback()); ASSERT_TRUE(ready.Get());
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id,"public-input","original"));
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id,"private-input","password=protected-fixture"));
+  const auto token=service->missions().back().mutation_token;
+  const auto cipher=service->missions().back().workflow_inputs[1].protected_value; ASSERT_FALSE(cipher.empty());
+  const auto original=profile->GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(),GURL(tahai::kTahaiMissionURL)));
+  EXPECT_FALSE(content::EvalJs(contents,"navigator.userActivation.isActive",content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents,content::JsReplace(
+      "window.rejected=0; window.tahaiMissionWorkflowInputRejected=()=>++window.rejected; chrome.send('setTahaiOperationalWorkflowInput',[$1,'public-input','automatic',$2])",created->id,token),content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+  ASSERT_TRUE(base::test::RunUntil([&]{return content::EvalJs(contents,"window.rejected===1",content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool();}));
+  EXPECT_EQ(original,profile->GetPrefs()->GetList(prefs::kTahaiMissions));
+  ASSERT_TRUE(service->AddLocalNote(created->id,"Changed in another view"));
+  const auto revised=profile->GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  ASSERT_TRUE(content::ExecJs(contents,content::JsReplace(
+      "chrome.send('setTahaiOperationalWorkflowInput',[$1,'public-input','stale',$2]); chrome.send('setTahaiOperationalWorkflowInput',[$1,'private-input','',$2])",created->id,token)));
+  ASSERT_TRUE(base::test::RunUntil([&]{return content::EvalJs(contents,"window.rejected===3").ExtractBool();}));
+  EXPECT_EQ(revised,profile->GetPrefs()->GetList(prefs::kTahaiMissions));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents,tahai::kTahaiMissionURL,"Mission Control","Real tabs. Real WebContents. Bounded mission state."));
+  {
+    content::TestNavigationObserver reload(contents,1);
+    ASSERT_TRUE(content::ExecJs(contents,content::JsReplace(R"JS(
+      (()=>{const input=document.querySelector('[data-tahai-workflow-input][data-tahai-input-id=public-input]');
+        const token=input.closest('.mission-card').dataset.tahaiRunToken;
+        input.value='fresh';input.dispatchEvent(new Event('change',{bubbles:true}));
+        chrome.send('setTahaiOperationalWorkflowInput',[$1,'public-input','replay',token]);})();
+    )JS",created->id)));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ("fresh",service->missions().back().workflow_inputs[0].value);
+  EXPECT_EQ(cipher,service->missions().back().workflow_inputs[1].protected_value);
+  // A genuine activation on a background Mission is not active-pane routing.
+  chrome::AddTabAt(browser(),GURL(url::kAboutBlankURL),-1,true);
+  ASSERT_NE(contents,browser()->tab_strip_model()->GetActiveWebContents());
+  ASSERT_TRUE(content::ExecJs(contents,content::JsReplace(
+      "chrome.send('setTahaiOperationalWorkflowInput',[$1,'private-input','',$2])",created->id,service->missions().back().mutation_token)));
+  ASSERT_TRUE(base::test::RunUntil([&]{return content::EvalJs(contents,
+      "document.querySelector('#mission-status').textContent.includes('That value was not stored')").ExtractBool();}));
+  EXPECT_EQ(cipher,service->missions().back().workflow_inputs[1].protected_value);
+  browser()->tab_strip_model()->ActivateTabAt(browser()->tab_strip_model()->GetIndexOfWebContents(contents));
+  {
+    content::TestNavigationObserver reload(contents,1);
+    ASSERT_TRUE(content::ExecJs(contents,"document.querySelector('[data-tahai-protected-clear][data-tahai-input-id=private-input]').click()"));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_TRUE(service->missions().back().workflow_inputs[1].protected_value.empty());
+  EXPECT_TRUE(service->missions().back().workflow_inputs[1].value.empty());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiCapsuleMessagesRequireMissionGestureAndVerifiedSingleUseImport) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* profile = browser()->GetProfile();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(profile); ASSERT_TRUE(service);
+  const auto created = service->CreateMission("Private capsule source", "incident"); ASSERT_TRUE(created);
+  const auto keys = profile->GetPrefs()->GetDict(prefs::kTahaiSyncKeyring).Clone();
+  ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste).WriteText(u"capsule-sentinel");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiMissionURL)));
+  EXPECT_FALSE(content::EvalJs(contents, "navigator.userActivation.isActive", content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(R"JS(
+    window.capsuleResult=''; window.tahaiEncryptedMissionCapsuleUpdate=result=>window.capsuleResult=result;
+    chrome.send('copyTahaiMissionHandoff', [$1]); chrome.send('copyTahaiMissionCapsule', [$1]);
+    chrome.send('copyTahaiEncryptedMissionCapsule', [$1]); chrome.send('rotateTahaiEncryptedMissionCapsuleKey', []);
+  )JS", created->id), content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "window.capsuleResult === 'failed'", content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool(); }));
+  EXPECT_EQ(keys, profile->GetPrefs()->GetDict(prefs::kTahaiSyncKeyring));
+  EXPECT_EQ(u"capsule-sentinel", ui::clipboard_test_util::ReadText(ui::Clipboard::GetForCurrentThread(), ui::ClipboardBuffer::kCopyPaste, nullptr));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "window.capsuleResult=''; window.tahaiEncryptedMissionCapsuleUpdate=result=>window.capsuleResult=result; chrome.send('copyTahaiEncryptedMissionCapsule', [$1]); chrome.send('rotateTahaiEncryptedMissionCapsuleKey', [])", created->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "window.capsuleResult === 'failed'").ExtractBool(); }));
+  EXPECT_EQ(keys, profile->GetPrefs()->GetDict(prefs::kTahaiSyncKeyring));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    window.capsuleResult=''; window.tahaiEncryptedMissionCapsuleUpdate=result=>window.capsuleResult=result;
+    document.querySelector('[data-tahai-mission-action=copy-encrypted-capsule]').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "window.capsuleResult !== ''").ExtractBool(); }));
+  ASSERT_EQ("copied", content::EvalJs(contents, "window.capsuleResult"));
+  const auto envelope = ui::clipboard_test_util::ReadText(ui::Clipboard::GetForCurrentThread(), ui::ClipboardBuffer::kCopyPaste, nullptr);
+  ASSERT_NE(u"capsule-sentinel", envelope); ASSERT_FALSE(envelope.empty());
+  EXPECT_EQ(std::u16string::npos, envelope.find(u"Private capsule source"));
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "window.capsuleResult=''; chrome.send('verifyTahaiEncryptedMissionCapsule', [$1])", envelope)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "window.capsuleResult !== ''").ExtractBool(); }));
+  ASSERT_EQ("verified_ready", content::EvalJs(contents, "window.capsuleResult"));
+  // Verification is tied to this document, not the lifetime of the WebUI handler.
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiMissionURL)));
+  ASSERT_TRUE(content::ExecJs(contents, "chrome.send('importTahaiVerifiedMissionCapsule', [])"));
+  EXPECT_EQ(1u, service->missions().size());
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "window.capsuleResult=''; window.tahaiEncryptedMissionCapsuleUpdate=result=>window.capsuleResult=result; chrome.send('verifyTahaiEncryptedMissionCapsule', [$1])", envelope)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "window.capsuleResult !== ''").ExtractBool(); }));
+  ASSERT_EQ("verified_ready", content::EvalJs(contents, "window.capsuleResult"));
+  ASSERT_TRUE(content::ExecJs(contents, "chrome.send('importTahaiVerifiedMissionCapsule', []); chrome.send('importTahaiVerifiedMissionCapsule', [])"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return service->missions().size() == 2u; }));
+  EXPECT_EQ("imported", content::EvalJs(contents, "window.capsuleResult"));
+  EXPECT_NE(created->id, service->missions().back().id);
+  EXPECT_NE("Private capsule source", service->missions().back().title);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiEvidenceReviewIsCardScopedSingleUseAndRevisionBound) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  const auto first = service->CreateMission("First private title", "incident"); ASSERT_TRUE(first);
+  const auto second = service->CreateMission("Second private title", "investigation"); ASSERT_TRUE(second);
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  const auto clipboard = [] { return ui::clipboard_test_util::ReadText(
+      ui::Clipboard::GetForCurrentThread(), ui::ClipboardBuffer::kCopyPaste, nullptr); };
+  const auto sentinel = [] { ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste).WriteText(u"review-sentinel"); };
+  const auto review = [&](const std::string& id) {
+    EXPECT_TRUE(content::ExecJs(contents, content::JsReplace(R"JS(
+      (() => { window.reviewReady = false;
+      const originalReview = window.tahaiEvidencePackReviewReady;
+      window.tahaiEvidencePackReviewReady = (...args) => { originalReview(...args); window.reviewReady = true; window.tahaiEvidencePackReviewReady = originalReview; };
+      [...document.querySelectorAll('.mission-card')].find(card => card.dataset.tahaiMissionId === $1)
+          .querySelector('[data-tahai-mission-action=copy-evidence]').click(); })();
+    )JS", id)));
+    EXPECT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "window.reviewReady === true").ExtractBool(); }));
+  };
+  sentinel(); review(second->id);
+  EXPECT_EQ(u"review-sentinel", clipboard());
+  EXPECT_TRUE(content::EvalJs(contents, content::JsReplace(R"JS(
+    (() => { const cards = [...document.querySelectorAll('.mission-card')];
+      const first = cards.find(card => card.dataset.tahaiMissionId === $1), second = cards.find(card => card.dataset.tahaiMissionId === $2);
+      return first.querySelector('[data-tahai-mission-action=confirm-evidence]').hidden &&
+        !second.querySelector('[data-tahai-mission-action=confirm-evidence]').hidden &&
+        second.querySelector('details.mission-export-preview').open; })()
+  )JS", first->id, second->id)).ExtractBool());
+  const auto reviewed = content::EvalJs(contents, content::JsReplace(
+      "[...document.querySelectorAll('.mission-card')].find(c=>c.dataset.tahaiMissionId===$1).querySelector('[data-tahai-evidence-preview=true]').textContent", second->id)).ExtractString();
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("chrome.send('confirmTahaiEvidencePack', [$1])", second->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return clipboard() == base::UTF8ToUTF16(reviewed); }));
+  EXPECT_TRUE(content::EvalJs(contents, "[...document.querySelectorAll('[data-tahai-mission-action=confirm-evidence]')].every(c=>c.hidden)").ExtractBool());
+  sentinel();
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("chrome.send('confirmTahaiEvidencePack', [$1])", second->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('changed or is unavailable')").ExtractBool(); }));
+  EXPECT_EQ(u"review-sentinel", clipboard());
+  review(first->id);
+  // Even a private note omitted from the generated summary invalidates consent.
+  ASSERT_TRUE(service->AddLocalNote(first->id, "Local only review change"));
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("chrome.send('confirmTahaiEvidencePack', [$1])", first->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('changed or is unavailable')").ExtractBool(); }));
+  EXPECT_EQ(u"review-sentinel", clipboard());
+  review(second->id);
+  // Malformed replacement review must revoke, not leave the old review usable.
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "chrome.send('copyTahaiEvidencePack', [false]); chrome.send('confirmTahaiEvidencePack', [$1])", second->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('changed or is unavailable')").ExtractBool(); }));
+  EXPECT_EQ(u"review-sentinel", clipboard());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiEvidenceReviewRequiresMissionGestureAndCannotSurviveNavigation) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  const auto created = service->CreateMission("Review boundary", "incident"); ASSERT_TRUE(created);
+  ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste).WriteText(u"document-sentinel");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiMissionURL)));
+  EXPECT_FALSE(content::EvalJs(contents, "navigator.userActivation.isActive", content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "window.rejected=0; window.tahaiEvidencePackReviewRejected=()=>++window.rejected; chrome.send('copyTahaiEvidencePack', [$1]); chrome.send('confirmTahaiEvidencePack', [$1])", created->id), content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "window.rejected === 2", content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool(); }));
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "window.ready=false; window.tahaiEvidencePackReviewReady=()=>window.ready=true; chrome.send('copyTahaiEvidencePack', [$1])", created->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "window.ready === true").ExtractBool(); }));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiMissionURL)));
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace("chrome.send('confirmTahaiEvidencePack', [$1])", created->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "document.querySelector('#mission-status').textContent.includes('changed or is unavailable')").ExtractBool(); }));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "window.rejected=0; window.tahaiEvidencePackReviewRejected=()=>++window.rejected; chrome.send('copyTahaiEvidencePack', [$1]); chrome.send('confirmTahaiEvidencePack', [$1])", created->id)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents, "window.rejected === 2").ExtractBool(); }));
+  EXPECT_EQ(u"document-sentinel", ui::clipboard_test_util::ReadText(
+      ui::Clipboard::GetForCurrentThread(), ui::ClipboardBuffer::kCopyPaste, nullptr));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
                        TahaiMissionControlLoadsThroughPublicRoute) {
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();
@@ -823,8 +3695,8 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   Profile* profile = browser()->GetProfile();
   ASSERT_TRUE(profile);
   tahai::MissionService seeded_service(profile);
-  ASSERT_TRUE(
-      seeded_service.CreateMission("Sensitive mission title", "incident"));
+  ASSERT_TRUE(seeded_service.CreateMission(
+      "Sensitive <img id=mission-title-injection src=x>", "incident"));
   EXPECT_TRUE(content::WebUIConfigMap::GetInstance().GetConfig(
       profile, GURL(tahai::kTahaiTrustedMissionURL)));
   EXPECT_FALSE(content::WebUIConfigMap::GetInstance().GetConfig(
@@ -850,6 +3722,8 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
           ").length === 1 && "
           "document.querySelectorAll('[data-tahai-mission-action=add-evidence]'"
           ").length === 1 && "
+          "document.querySelectorAll('[data-tahai-mission-action=add-note]'"
+          ").length === 1 && "
           "document.querySelectorAll('[data-tahai-mission-action=copy-evidence]"
           "').length === 1 && "
           "document.querySelectorAll('[data-tahai-mission-action=copy-capsule]"
@@ -859,10 +3733,30 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
           "=== 7 && "
           "document.querySelectorAll('[data-tahai-export-profile]').length === "
           "1 && "
+          "document.querySelectorAll('[data-tahai-evidence-preview=true]')."
+          "length === 1 && "
+          "document.querySelector('[data-tahai-evidence-preview=true]')."
+          "textContent.includes('TAHAI Sanitized Evidence Pack') && "
+          "!document.querySelector('[data-tahai-evidence-preview=true]')."
+          "textContent.includes('Sensitive <img') && "
+          "!document.querySelector('#mission-title-injection') && "
           "[...document.querySelectorAll('[data-tahai-mission-action=launch-"
           "recipe]')].every("
           "button => /^[-a-z0-9]+$/.test(button.dataset.tahaiRecipeId || '')))")
           .ExtractBool());
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "const noteButton=document.querySelector('[data-tahai-mission-action=add-note]');"
+      "const noteInput=document.getElementById(noteButton.dataset.tahaiNoteInput);"
+      "noteInput.value='Keep this only in the local profile.';noteButton.click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(
+               contents,
+               "document.body.textContent.includes('Keep this only in the local profile.') && "
+               "!document.querySelector('[data-tahai-evidence-preview=true]').textContent."
+               "includes('Keep this only in the local profile.')")
+        .ExtractBool();
+  }));
   ASSERT_TRUE(content::ExecJs(contents,
                               "document.querySelector('[data-tahai-mission-"
                               "action=copy-handoff]').click()"));
@@ -874,6 +3768,10 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
            "Sanitized checkpoint status copied. Mission name and browsing data "
            "were omitted.";
   }));
+  {
+    ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
+        .WriteText(u"evidence-pack-sentinel");
+  }
   ASSERT_TRUE(content::ExecJs(contents,
                               "document.querySelector('[data-tahai-mission-"
                               "action=copy-evidence]').click()"));
@@ -882,8 +3780,101 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
                contents,
                "document.querySelector('#mission-status').textContent")
                .ExtractString() ==
+           "Review the sanitized Evidence Pack, then confirm copying it.";
+  }));
+  EXPECT_TRUE(content::EvalJs(
+                  contents,
+                  "!document.querySelector('[data-tahai-mission-action="
+                  "confirm-evidence]').hidden && "
+                  "document.querySelector('[data-tahai-evidence-preview=true]')"
+                  ".textContent.includes('TAHAI Sanitized Evidence Pack')")
+                  .ExtractBool());
+  const std::string reviewed_evidence =
+      content::EvalJs(contents,
+                      "document.querySelector('[data-tahai-evidence-preview="
+                      "true]').textContent")
+          .ExtractString();
+  EXPECT_EQ(u"evidence-pack-sentinel",
+            ui::clipboard_test_util::ReadText(ui::Clipboard::GetForCurrentThread(),
+                                               ui::ClipboardBuffer::kCopyPaste,
+                                               nullptr));
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "document.querySelector('[data-tahai-mission-action=confirm-evidence]')"
+      ".click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(
+               contents,
+               "document.querySelector('#mission-status').textContent")
+               .ExtractString() ==
            "Sanitized Evidence Pack copied. It contains generated status only.";
   }));
+  EXPECT_EQ(base::UTF8ToUTF16(reviewed_evidence),
+            ui::clipboard_test_util::ReadText(ui::Clipboard::GetForCurrentThread(),
+                                               ui::ClipboardBuffer::kCopyPaste,
+                                               nullptr));
+
+  // Cancelling a fresh review never replaces the caller's clipboard data.
+  {
+    ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
+        .WriteText(u"cancel-sentinel");
+  }
+  ASSERT_TRUE(content::ExecJs(contents,
+                              "document.querySelector('[data-tahai-mission-"
+                              "action=copy-evidence]').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(
+               contents,
+               "document.querySelector('#mission-status').textContent")
+               .ExtractString() ==
+           "Review the sanitized Evidence Pack, then confirm copying it.";
+  }));
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "document.querySelector('[data-tahai-mission-action=cancel-evidence]')"
+      ".click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(
+               contents,
+               "document.querySelector('#mission-status').textContent")
+               .ExtractString() ==
+           "Evidence Pack copy cancelled. Nothing was copied.";
+  }));
+  EXPECT_EQ(u"cancel-sentinel",
+            ui::clipboard_test_util::ReadText(ui::Clipboard::GetForCurrentThread(),
+                                               ui::ClipboardBuffer::kCopyPaste,
+                                               nullptr));
+
+  // A checkpoint change invalidates a pending review instead of silently
+  // copying stale generated evidence.
+  {
+    ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
+        .WriteText(u"stale-sentinel");
+  }
+  ASSERT_TRUE(content::ExecJs(contents,
+                              "document.querySelector('[data-tahai-mission-"
+                              "action=copy-evidence]').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "!document.querySelector('[data-tahai-mission-action=confirm-evidence]').hidden").ExtractBool(); }));
+  auto* live_service = tahai::MissionServiceFactory::GetForProfile(profile);
+  ASSERT_TRUE(live_service);
+  ASSERT_TRUE(live_service->ToggleStep(live_service->missions().front().id, 0));
+  ASSERT_TRUE(content::ExecJs(
+      contents,
+      "document.querySelector('[data-tahai-mission-action=confirm-evidence]')"
+      ".click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(
+               contents,
+               "document.querySelector('#mission-status').textContent")
+               .ExtractString() ==
+           "Evidence Pack changed or is unavailable. Review the refreshed text "
+           "before copying.";
+  }));
+  EXPECT_EQ(u"stale-sentinel",
+            ui::clipboard_test_util::ReadText(ui::Clipboard::GetForCurrentThread(),
+                                               ui::ClipboardBuffer::kCopyPaste,
+                                               nullptr));
   ASSERT_TRUE(content::ExecJs(contents,
                               "document.querySelector('[data-tahai-mission-"
                               "action=copy-capsule]').click()"));
@@ -1098,7 +4089,8 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest, TahaiSupportLoadsThroughRoute) {
   // The support copy control has a browser-side message handler. Keep this
   // assertion here so the page cannot regress into an attractive but inert
   // renderer-only support surface.
-  ASSERT_EQ(1u, contents->GetWebUI()->GetHandlersForTesting()->size());
+  // General commands, geometry-only Studio, and the document-bound workflow bridge.
+  ASSERT_EQ(3u, contents->GetWebUI()->GetHandlersForTesting()->size());
   ASSERT_TRUE(content::ExecJs(contents,
                               "document.querySelector('[data-tahai-support-"
                               "action=copy-summary]').click()"));
@@ -1209,6 +4201,270 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiBuiltinPresetCopyKeepsIndependentCommandPlacement) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiModesURL,
+                                           "Work Modes", "Save editable preset copy"));
+  const auto original = *tahai::FindBuiltinNativeModePreset("builder");
+  const int tab_count = browser()->tab_strip_model()->count();
+  content::TestNavigationObserver copied(contents);
+  ASSERT_TRUE(content::ExecJs(contents,
+      "document.querySelector('[data-tahai-builtin-mode-copy=builder]').click()"));
+  copied.Wait();
+  ASSERT_TRUE(copied.last_navigation_succeeded());
+  ASSERT_EQ(1u, service->custom_modes().size());
+  const std::string id = service->custom_modes()[0].id;
+  EXPECT_NE(original.id, id);
+  EXPECT_EQ(original.native_presentation, service->custom_modes()[0].native_presentation);
+  EXPECT_EQ(original.command_layout, service->custom_modes()[0].command_layout);
+  EXPECT_EQ("daily", controller->active_mode_id());
+  ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
+  const auto before = tahai::ResolveOperationalWindowActions(browser());
+  ASSERT_TRUE(before);
+  ASSERT_EQ(2u, before->toolbar_secondary.size());
+  EXPECT_EQ(IDC_TAHAI_WORK_MODES, before->toolbar_secondary[0].command_id);
+  EXPECT_EQ(IDC_TAHAI_LOCAL_OI, before->toolbar_secondary[1].command_id);
+  content::TestNavigationObserver edited(contents);
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    const editor = document.querySelector('[data-tahai-native-mode-controls]');
+    for (const input of editor.querySelectorAll('[name^="placement."]')) input.value = '0';
+    editor.elements.namedItem('placement.toolbar_primary.mission.open').value = '2';
+    editor.elements.namedItem('placement.toolbar_primary.commands.open').value = '1';
+    editor.elements.namedItem('placement.toolbar_secondary.local-oi.open').value = '1';
+    editor.elements.namedItem('placement.app_menu.modes.open').value = '1';
+    editor.requestSubmit();
+  )JS"));
+  edited.Wait();
+  ASSERT_TRUE(edited.last_navigation_succeeded());
+  const auto after = tahai::ResolveOperationalWindowActions(browser());
+  ASSERT_TRUE(after);
+  ASSERT_EQ(1u, after->toolbar_secondary.size());
+  EXPECT_EQ(IDC_TAHAI_LOCAL_OI, after->toolbar_secondary[0].command_id);
+  ASSERT_EQ(1u, after->app_menu.size());
+  EXPECT_EQ(IDC_TAHAI_WORK_MODES, after->app_menu[0].command_id);
+  EXPECT_FALSE(tahai::CanExecuteWindowModeAction(browser(), before->context,
+                                                IDC_TAHAI_LOCAL_OI));
+  EXPECT_EQ(original, *tahai::FindBuiltinNativeModePreset("builder"));
+  EXPECT_EQ(tab_count, browser()->tab_strip_model()->count());
+  EXPECT_FALSE(chrome::IsTahaiMultiView(browser()));
+  const auto stored = GetProfile()->GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions).Clone();
+  EXPECT_TRUE(content::EvalJs(contents, content::JsReplace(R"JS(
+    new Promise(resolve => {
+      window.tahaiNativeModeRejected = () => resolve(true);
+      chrome.send('updateTahaiNativeCustomMode', [$1, 'Invalid placement',
+        ['mission.open'], '', {toolbar_primary:['support.open'], toolbar_secondary:[], app_menu:[]}]);
+    })
+  )JS", id)).ExtractBool());
+  EXPECT_EQ(stored, GetProfile()->GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions));
+  // Recreating the keyed model simulates reading this profile's saved records;
+  // it does not stand in for the full process restart release gate.
+  tahai::ModeService reloaded(GetProfile());
+  ASSERT_EQ(1u, reloaded.custom_modes().size());
+  EXPECT_EQ(service->custom_modes()[0], reloaded.custom_modes()[0]);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiNativeModeSkinEditsRequirePinnedWindowAndReactivation) {
+  auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  Browser* sibling = CreateBrowser(GetProfile());
+  auto* sibling_mode = tahai::WindowModeController::GetForBrowser(sibling);
+  const auto sibling_before = sibling_mode->CapturePresentation();
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(service->DuplicateBuiltinModePreset("research", "Styled research"));
+  const std::string id = service->custom_modes()[0].id;
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiModesURL,
+                                           "Work Modes", "Use this window's pinned skin"));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    new Promise(resolve => {
+      window.tahaiNativeModeRejected = () => resolve(true);
+      document.querySelector('[data-skin-action=capture]').click();
+    })
+  )JS").ExtractBool());
+  EXPECT_FALSE(service->custom_modes()[0].native_presentation->skin);
+  ASSERT_TRUE(controller->RestorePresentation(
+      {.fixed_mode = "daily", .rail_state = "icons",
+       .skin = tahai::WindowSkinReference{"terminal-green", ""}}));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return !controller->window_skin_restore_pending();
+  }));
+  ASSERT_TRUE(controller->window_skin_palette());
+  content::TestNavigationObserver captured(contents);
+  ASSERT_TRUE(content::ExecJs(contents,
+      "document.querySelector('[data-skin-action=capture]').click()"));
+  captured.Wait();
+  ASSERT_TRUE(captured.last_navigation_succeeded());
+  EXPECT_EQ(controller->CapturePresentation().skin,
+            service->custom_modes()[0].native_presentation->skin);
+  ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return !controller->window_skin_restore_pending();
+  }));
+  const auto before = tahai::ResolveOperationalWindowActions(browser());
+  ASSERT_TRUE(before);
+  ASSERT_FALSE(before->actions.empty());
+  content::TestNavigationObserver cleared(contents);
+  ASSERT_TRUE(content::ExecJs(contents,
+      "document.querySelector('[data-skin-action=clear]').click()"));
+  cleared.Wait();
+  ASSERT_TRUE(cleared.last_navigation_succeeded());
+  EXPECT_FALSE(service->custom_modes()[0].native_presentation->skin);
+  EXPECT_TRUE(controller->CapturePresentation().skin);
+  const auto invalidated = tahai::ResolveOperationalWindowActions(browser());
+  ASSERT_TRUE(invalidated);
+  EXPECT_TRUE(invalidated->actions.empty());
+  EXPECT_FALSE(tahai::CanExecuteWindowModeAction(browser(), before->context,
+                                                IDC_TAHAI_COMMAND_CENTER));
+  ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
+  EXPECT_FALSE(controller->CapturePresentation().skin);
+  const auto restored = tahai::ResolveOperationalWindowActions(browser());
+  ASSERT_TRUE(restored);
+  EXPECT_FALSE(restored->actions.empty());
+  EXPECT_EQ(sibling_before, sibling_mode->CapturePresentation());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiNativeModeEditorRetainsOnlyCommittedLayout) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
+  const tahai::SurfaceDesign design{
+      .nodes = {{.pane = 0, .role = "working"}},
+      .rail_dock = "trailing", .keyboard_order = {0}};
+  ASSERT_TRUE(controller->SetSurfaceDesign(design));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiModesURL,
+                                           "Work Modes", "Create an independent mode"));
+  auto trial_design = design;
+  trial_design.rail_dock = "leading";
+  const auto trial = controller->BeginSurfacePreview(trial_design);
+  ASSERT_TRUE(trial);
+  EXPECT_EQ(trial_design, controller->surface_design());
+  EXPECT_EQ(design, controller->CapturePresentation().surface_design);
+  content::TestNavigationObserver saved(contents);
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    const form = document.querySelector('#tahai-native-mode-form');
+    form.elements.title.value = 'Retained desk';
+    form.elements.retain_layout.checked = true;
+    for (const input of form.querySelectorAll('[name=actions]')) input.checked = input.value === 'mission.open';
+    form.requestSubmit();
+  )JS"));
+  saved.Wait();
+  ASSERT_TRUE(saved.last_navigation_succeeded());
+  ASSERT_EQ(1u, service->custom_modes().size());
+  EXPECT_EQ(design, service->custom_modes()[0].native_presentation->surface_design);
+  // Saving the definition did not promote the unkept preview to a preset.
+  controller->CancelSurfacePreview(*trial);
+  content::TestNavigationObserver cleared(contents);
+  ASSERT_TRUE(content::ExecJs(contents,
+      "document.querySelector('[data-surface-action=clear]').click();"));
+  cleared.Wait();
+  ASSERT_TRUE(cleared.last_navigation_succeeded());
+  EXPECT_FALSE(service->custom_modes()[0].native_presentation->surface_design);
+  EXPECT_EQ(design, controller->surface_design());
+  content::TestNavigationObserver attached(contents);
+  ASSERT_TRUE(content::ExecJs(contents,
+      "document.querySelector('[data-surface-action=capture]').click();"));
+  attached.Wait();
+  ASSERT_TRUE(attached.last_navigation_succeeded());
+  EXPECT_EQ(design, service->custom_modes()[0].native_presentation->surface_design);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiNativeModeEditorCreatesAndRejectsInvalidRequests) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiModesURL,
+                                           "Work Modes", "Create an independent mode"));
+  auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
+  ASSERT_TRUE(service);
+  EXPECT_TRUE(service->custom_modes().empty());
+  const int original_count = browser()->tab_strip_model()->count();
+  content::TestNavigationObserver saved(contents);
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    const form = document.querySelector('#tahai-native-mode-form');
+    form.elements.title.value = 'Review "quotes" <safe>';
+    form.elements.base_mode.value = 'operator';
+    for (const input of form.querySelectorAll('[name=actions]')) {
+      input.checked = input.value === 'mission.open';
+    }
+    form.requestSubmit();
+  )JS"));
+  saved.Wait();
+  ASSERT_TRUE(saved.last_navigation_succeeded());
+  ASSERT_EQ(1u, service->custom_modes().size());
+  EXPECT_EQ("Review \"quotes\" <safe>", service->custom_modes()[0].title);
+  EXPECT_EQ("daily", service->active_mode().id);
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    document.querySelector('[data-tahai-custom-mode-title]').value === 'Review "quotes" <safe>' &&
+    document.querySelector('[data-tahai-custom-mode-action=rename]').dataset.tahaiCustomModeId ===
+      document.querySelector('[data-tahai-native-mode-use]').dataset.tahaiNativeModeUse &&
+    !document.querySelector('safe')
+  )JS").ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents,
+      "document.querySelector('[data-tahai-native-mode-use]').click()"));
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return controller->active_custom_mode_id() == service->custom_modes()[0].id;
+  }));
+  EXPECT_EQ("operator", controller->active_mode_id());
+  EXPECT_EQ(original_count, browser()->tab_strip_model()->count());
+  EXPECT_FALSE(chrome::IsTahaiMultiView(browser()));
+  const auto stored = GetProfile()->GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions).Clone();
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    new Promise(resolve => {
+      window.tahaiNativeModeRejected = () => resolve(true);
+      chrome.send('createTahaiNativeCustomMode',
+        ['Unsafe', 'operator', '', ['https://example.test'], false]);
+    })
+  )JS").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    new Promise(resolve => {
+      window.tahaiNativeModeRejected = () => resolve(true);
+      chrome.send('createTahaiNativeCustomMode',
+        ['Missing pinned skin', 'daily', '', ['mission.open'], true]);
+    })
+  )JS").ExtractBool());
+  EXPECT_EQ(stored, GetProfile()->GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions));
+  content::TestNavigationObserver updated(contents);
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    const editor = document.querySelector('[data-tahai-native-mode-controls]');
+    for (const input of editor.querySelectorAll('[name=actions]')) {
+      input.checked = input.value === 'support.open';
+    }
+    for (const input of editor.querySelectorAll('[name^="placement."]')) input.value = '0';
+    editor.elements.namedItem('placement.toolbar_primary.support.open').value = '1';
+    editor.elements.namedItem('placement.app_menu.support.open').value = '1';
+    editor.requestSubmit();
+  )JS"));
+  updated.Wait();
+  ASSERT_TRUE(updated.last_navigation_succeeded());
+  EXPECT_EQ(std::vector<std::string>({"support.open"}), service->custom_modes()[0].actions);
+  const auto before_copy = *service->custom_modes()[0].native_presentation;
+  content::TestNavigationObserver copied(contents);
+  ASSERT_TRUE(content::ExecJs(contents,
+      "document.querySelector('[data-tahai-custom-mode-title]').value = 'Independent copy';"
+      "document.querySelector('[data-tahai-native-mode-copy]').click()"));
+  copied.Wait();
+  ASSERT_TRUE(copied.last_navigation_succeeded());
+  ASSERT_EQ(2u, service->custom_modes().size());
+  EXPECT_NE(service->custom_modes()[0].id, service->custom_modes()[1].id);
+  EXPECT_EQ(before_copy, service->custom_modes()[1].native_presentation);
+  EXPECT_EQ("Independent copy", service->custom_modes()[1].title);
+  const auto after_copy = GetProfile()->GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions).Clone();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+                                           "Mission Control", "Mission"));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    new Promise(resolve => {
+      window.tahaiNativeModeRejected = () => resolve(true);
+      chrome.send('createTahaiNativeCustomMode',
+        ['Wrong surface', 'daily', '', ['mission.open'], false]);
+    })
+  )JS").ExtractBool());
+  EXPECT_EQ(after_copy, GetProfile()->GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
                        TahaiModesAreTrustedAndExplicitlySelected) {
   ChromeAutocompleteSchemeClassifier scheme_classifier(browser()->GetProfile());
   EXPECT_EQ(metrics::OmniboxInputType::URL,
@@ -1218,7 +4474,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   const int original_tab_count = browser()->tab_strip_model()->count();
   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
       contents, tahai::kTahaiModesURL, "Work Modes", "Choose a work mode."));
-  ASSERT_EQ(1u, contents->GetWebUI()->GetHandlersForTesting()->size());
+  ASSERT_EQ(3u, contents->GetWebUI()->GetHandlersForTesting()->size());
   EXPECT_TRUE(content::EvalJs(
                   contents,
                   "document.body.textContent.includes('Creator Studio') && "
@@ -1320,7 +4576,8 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   ASSERT_TRUE(layout_navigation.last_navigation_succeeded());
   tahai::ModeService reloaded_mode_service(browser()->GetProfile());
   EXPECT_EQ("tri-one-over-two",
-            reloaded_mode_service.active_configuration().layout_variant_id);
+            reloaded_mode_service.configuration_for_mode("creator").layout_variant_id);
+  EXPECT_EQ("daily", reloaded_mode_service.active_mode().id);
   ASSERT_TRUE(content::ExecJs(
       contents,
       "document.querySelector('[data-tahai-open-dialog=mode-templates]')"
@@ -1419,6 +4676,16 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   EXPECT_EQ("bookmarks", rail->selected_module_id());
   RunScheduledLayouts();
   EXPECT_LE(rail->bounds().right(), browser_view->contents_container()->x());
+
+  ASSERT_TRUE(controller->SetOperationalRailModules({"mission", "guard"}));
+  RunScheduledLayouts();
+  EXPECT_EQ("mission", rail->selected_module_id());
+  ASSERT_TRUE(rail->module_button_for_testing(0));
+  EXPECT_TRUE(rail->module_button_for_testing(0)->GetVisible());
+  ASSERT_TRUE(rail->module_button_for_testing(2));
+  EXPECT_FALSE(rail->module_button_for_testing(2)->GetVisible());
+  EXPECT_FALSE(controller->SetOperationalRailModules({"mission", "mission"}));
+  EXPECT_FALSE(controller->SetOperationalRailModules({"untrusted-module"}));
 
   ASSERT_TRUE(controller->SetActiveMode("operator"));
   RunScheduledLayouts();

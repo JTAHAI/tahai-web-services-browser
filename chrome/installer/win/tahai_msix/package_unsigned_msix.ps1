@@ -378,6 +378,8 @@ if ($buildArgs -notmatch '(?m)^is_debug\s*=\s*false\s*$' -or
 Assert-ReleaseBuildIsCurrent
 $validation = Assert-TahaiReleaseEvidence $ValidationEvidence $resolvedBuildDir
 $python = (Get-Command python.exe -ErrorAction Stop).Source
+& $python (Join-Path $nativeSourceRoot 'tools\tahai\source_provenance.py') --source $nativeSourceRoot --build $resolvedBuildDir --compare $validation.SourceProvenance
+if ($LASTEXITCODE -ne 0) { throw 'Source changed since the verified build.' }
 & $python (Join-Path $scriptDirectory 'verify_release_resources.py') --build-dir $resolvedBuildDir
 if ($LASTEXITCODE -ne 0) { throw 'TAHAI release resource/third-party notice verification failed.' }
 
@@ -460,6 +462,8 @@ foreach ($actual in $unpackedPayload) {
 # Detect a concurrent rebuild or edited validation report before issuing any
 # success receipt. Compare the actual packaged core binaries with that evidence.
 $finalValidation = Assert-TahaiReleaseEvidence $ValidationEvidence $resolvedBuildDir
+& $python (Join-Path $nativeSourceRoot 'tools\tahai\source_provenance.py') --source $nativeSourceRoot --build $resolvedBuildDir --compare $validation.SourceProvenance
+if ($LASTEXITCODE -ne 0) { throw 'Source changed while packaging.' }
 Assert-ReleaseBuildIsCurrent
 if ($finalValidation.EvidenceSha256 -ne $validation.EvidenceSha256) {
     throw 'Release evidence changed while packaging.'
@@ -483,6 +487,8 @@ $receipt = [ordered]@{
     unsigned = $true
     storeCertified = $false
     validationEvidenceSha256 = $validation.EvidenceSha256
+    sourceIdentitySha256 = $validation.SourceIdentitySha256
+    sourceHead = $validation.SourceHead
     nativeTestAttempts = $validation.NativeTestAttempts
     browserTestAttempts = $validation.BrowserTestAttempts
     payload = $stagedPayload

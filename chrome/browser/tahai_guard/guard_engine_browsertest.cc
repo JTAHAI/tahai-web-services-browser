@@ -221,7 +221,10 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardEngineBrowserTest,
                        TahaiInputLimitsRejectWholeGeneration) {
   const std::vector<std::pair<std::string, Status>> cases = {
       {"! only a comment\n", Status::kNoRules},
-      {"shop.example##.advert\n", Status::kNoRules},
+      // Declarative cosmetic selectors are supported by the hardened engine
+      // and therefore produce a ready engine even when they cannot block a
+      // network request.
+      {"shop.example##.advert\n", Status::kReady},
       {"||ads.example^\n" + std::string(8193, 'a'), Status::kInputTooLarge},
       {"||ads.example^\ninvalid\x01input", Status::kInvalidInput},
       {std::string(4 * 1024 * 1024 + 1, 'a'), Status::kInputTooLarge},
@@ -232,9 +235,15 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardEngineBrowserTest,
     auto configured = Compile(session, rules);
     ASSERT_TRUE(configured);
     EXPECT_EQ(expected, configured->status);
-    EXPECT_FALSE(session.ready());
-    EXPECT_FALSE(
-        Check(session, "https://ads.example/x", "https://site.example/"));
+    if (expected == Status::kReady) {
+      EXPECT_TRUE(session.ready());
+      EXPECT_EQ(Decision::kAllow,
+                Check(session, "https://ads.example/x", "https://site.example/"));
+    } else {
+      EXPECT_FALSE(session.ready());
+      EXPECT_FALSE(
+          Check(session, "https://ads.example/x", "https://site.example/"));
+    }
   }
 }
 

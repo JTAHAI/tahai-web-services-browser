@@ -173,7 +173,8 @@ LoadedKeyring LoadKeyring(const base::DictValue& stored,
 bool PersistKeyring(PrefService* prefs,
                     const Keyring& keyring,
                     os_crypt_async::Encryptor* encryptor) {
-  if (!encryptor->IsEncryptionAvailable() || keyring.entries.empty() ||
+  if (prefs->IsManagedPreference(prefs::kTahaiSyncKeyring) ||
+      !encryptor->IsEncryptionAvailable() || keyring.entries.empty() ||
       keyring.entries.size() > kTahaiSyncKeyringMaxRetainedKeys ||
       !IsOpaqueKeyId(keyring.active_key_id)) {
     return false;
@@ -231,7 +232,7 @@ TahaiSyncKeyService::~TahaiSyncKeyService() = default;
 
 TahaiSyncKeyringStatus TahaiSyncKeyService::GetStatus() const {
   TahaiSyncKeyringStatus status;
-  if (!persistence_allowed_ || !prefs_) {
+  if (!persistence_allowed_ || !prefs_ || prefs_->IsManagedPreference(prefs::kTahaiSyncKeyring)) {
     return status;
   }
   const base::DictValue& stored = prefs_->GetDict(prefs::kTahaiSyncKeyring);
@@ -284,26 +285,26 @@ TahaiSyncKeyringStatus TahaiSyncKeyService::GetStatus() const {
   return status;
 }
 
-void TahaiSyncKeyService::EnsureActiveKey(KeyCallback callback) {
-  Start(Operation::kEnsureActive, std::string(), std::move(callback));
+void TahaiSyncKeyService::EnsureActiveKey(KeyCallback callback, Authorization authorization) {
+  Start(Operation::kEnsureActive, std::string(), std::move(callback), std::move(authorization));
 }
 
-void TahaiSyncKeyService::RotateActiveKey(KeyCallback callback) {
-  Start(Operation::kRotateActive, std::string(), std::move(callback));
+void TahaiSyncKeyService::RotateActiveKey(KeyCallback callback, Authorization authorization) {
+  Start(Operation::kRotateActive, std::string(), std::move(callback), std::move(authorization));
 }
 
 void TahaiSyncKeyService::GetKeyForId(std::string key_id,
-                                      KeyCallback callback) {
+                                      KeyCallback callback, Authorization authorization) {
   if (!IsOpaqueKeyId(key_id)) {
     std::move(callback).Run(TahaiSyncKeyResult::kKeyNotFound, std::nullopt);
     return;
   }
-  Start(Operation::kLookup, std::move(key_id), std::move(callback));
+  Start(Operation::kLookup, std::move(key_id), std::move(callback), std::move(authorization));
 }
 
 void TahaiSyncKeyService::Start(Operation operation,
                                 std::string key_id,
-                                KeyCallback callback) {
+                                KeyCallback callback, Authorization authorization) {
   if (!persistence_allowed_ || !prefs_) {
     std::move(callback).Run(TahaiSyncKeyResult::kPrivateModeUnavailable,
                             std::nullopt);
@@ -314,9 +315,15 @@ void TahaiSyncKeyService::Start(Operation operation,
                             std::nullopt);
     return;
   }
+  if (prefs_->IsManagedPreference(prefs::kTahaiSyncKeyring) ||
+      (authorization && !authorization.Run()) || pending_operations_.size() >= 16u) {
+    std::move(callback).Run(TahaiSyncKeyResult::kPersistenceFailed, std::nullopt);
+    return;
+  }
   pending_operations_.push_back({.operation = operation,
                                  .key_id = std::move(key_id),
-                                 .callback = std::move(callback)});
+                                 .callback = std::move(callback),
+                                 .authorization = std::move(authorization)});
   StartNextOperation();
 }
 
@@ -339,6 +346,11 @@ void TahaiSyncKeyService::OnEncryptorReady(
   pending_operations_.pop_front();
   operation_in_flight_ = false;
 
+  if (prefs_->IsManagedPreference(prefs::kTahaiSyncKeyring) ||
+      (pending.authorization && !pending.authorization.Run())) {
+    FinishOperation(std::move(pending), TahaiSyncKeyResult::kPersistenceFailed, std::nullopt);
+    return;
+  }
   if (!encryptor || !encryptor->IsDecryptionAvailable()) {
     FinishOperation(std::move(pending), TahaiSyncKeyResult::kOsCryptUnavailable,
                     std::nullopt);

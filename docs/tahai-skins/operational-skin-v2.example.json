@@ -1,0 +1,125 @@
+{
+  "schema_version": 2,
+  "id": "research-flight",
+  "name": "Research Flight",
+  "creator": "TAHAI Example Studio",
+  "license": "CC-BY-4.0",
+  "compatibility": {
+    "min_chromium_major": 152,
+    "max_chromium_major": 152
+  },
+  "appearance": {
+    "density": "comfortable",
+    "reduced_motion": true,
+    "light_tokens": {
+      "shell_background": "#090514",
+      "toolbar_background": "#090514",
+      "toolbar_foreground": "#f6f8ff",
+      "tab_background": "#120b1f",
+      "tab_foreground": "#f6f8ff",
+      "rail_background": "#120b1f",
+      "rail_foreground": "#f6f8ff",
+      "accent": "#9348ed",
+      "panel_background": "#120b1f",
+      "panel_foreground": "#f6f8ff"
+    },
+    "dark_tokens": {
+      "shell_background": "#090514",
+      "toolbar_background": "#090514",
+      "toolbar_foreground": "#f6f8ff",
+      "tab_background": "#120b1f",
+      "tab_foreground": "#f6f8ff",
+      "rail_background": "#120b1f",
+      "rail_foreground": "#f6f8ff",
+      "accent": "#9348ed",
+      "panel_background": "#120b1f",
+      "panel_foreground": "#f6f8ff"
+    },
+    "high_contrast_tokens": {
+      "shell_background": "#090514",
+      "toolbar_background": "#090514",
+      "toolbar_foreground": "#f6f8ff",
+      "tab_background": "#120b1f",
+      "tab_foreground": "#f6f8ff",
+      "rail_background": "#120b1f",
+      "rail_foreground": "#f6f8ff",
+      "accent": "#9348ed",
+      "panel_background": "#120b1f",
+      "panel_foreground": "#f6f8ff"
+    }
+  },
+  "assets": [
+    {
+      "path": "assets/preview.png",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "purpose": "preview"
+    }
+  ],
+  "operational": {
+    "capabilities": [
+      "workspace-layout",
+      "mission-checklist",
+      "guard-control"
+    ],
+    "surfaces": [
+      {
+        "id": "research-quad",
+        "layout": "quad",
+        "rail_state": "expanded",
+        "start_surface": "mission",
+        "rail_modules": [
+          "mission",
+          "local-oi",
+          "guard"
+        ]
+      }
+    ],
+    "workflows": [
+      {
+        "id": "source-review",
+        "name": "Source review",
+        "inputs": [
+          {
+            "id": "research-question",
+            "name": "Research question",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "review-scope",
+            "name": "Review scope",
+            "type": "selection",
+            "required": false,
+            "options": ["Personal", "Team"]
+          }
+        ],
+        "steps": [
+          {
+            "id": "review-sources",
+            "name": "Review the sources you selected",
+            "kind": "instruction"
+          },
+          {
+            "id": "open-checklist",
+            "name": "Open the local checklist",
+            "kind": "run-command",
+            "action": "mission.open"
+          }
+        ]
+      }
+    ],
+    "modes": [
+      {
+        "id": "research-flight",
+        "name": "Research Flight",
+        "surface": "research-quad",
+        "workflow": "source-review",
+        "actions": [
+          "tabs.find",
+          "mission.open",
+          "layout.quad"
+        ]
+      }
+    ]
+  }
+}

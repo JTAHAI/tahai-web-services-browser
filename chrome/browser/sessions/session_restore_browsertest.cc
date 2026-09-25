@@ -1606,6 +1606,30 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreTest,
 
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
 IN_PROC_BROWSER_TEST_F(SessionRestoreTest,
+                       TahaiWindowAppearanceAndRailSurviveSessionRestore) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(url::kAboutBlankURL)));
+  auto* mode = tahai::WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(mode);
+  tahai::WindowPresentation expected{
+      .fixed_mode = "research", .rail_state = "hidden", .rail_width = 320,
+      .rail_modules = {"mission", "guard"},
+      .skin = tahai::WindowSkinReference{"terminal-green", ""}};
+  ASSERT_TRUE(mode->RestorePresentation(expected));
+  ASSERT_TRUE(mode->window_skin_palette());
+  const auto profile_appearance =
+      browser()->GetProfile()->GetPrefs()->GetDict(prefs::kTahaiAppliedSkin).Clone();
+  BrowserWindowInterface* restored = QuitBrowserAndRestore(browser());
+  auto* restored_mode = tahai::WindowModeController::GetForBrowser(
+      restored->GetBrowserForMigrationOnly());
+  ASSERT_TRUE(restored_mode);
+  EXPECT_EQ(expected, restored_mode->CapturePresentation());
+  EXPECT_TRUE(restored_mode->window_skin_palette());
+  EXPECT_EQ(1, restored->GetTabStripModel()->count());
+  EXPECT_EQ(profile_appearance,
+            restored->GetProfile()->GetPrefs()->GetDict(prefs::kTahaiAppliedSkin));
+}
+
+IN_PROC_BROWSER_TEST_F(SessionRestoreTest,
                        PRE_TahaiNamedWorkspaceSurvivesProcessRestart) {
   ASSERT_TRUE(
       ui_test_utils::NavigateToURL(browser(), GURL(url::kAboutBlankURL)));
@@ -1621,6 +1645,11 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreTest,
   auto* mode = tahai::WindowModeController::GetForBrowser(browser());
   ASSERT_TRUE(mode);
   ASSERT_TRUE(mode->ApplyWorkspacePresentation("research", "hidden", 300));
+  auto presentation = mode->CapturePresentation();
+  presentation.skin = tahai::WindowSkinReference{"terminal-green", ""};
+  presentation.rail_modules = {"mission", "guard"};
+  ASSERT_TRUE(mode->RestorePresentation(presentation));
+  ASSERT_TRUE(mode->window_skin_palette());
   auto snapshot =
       tahai::CaptureNamedWorkspace(browser(), "Across process restart");
   ASSERT_TRUE(snapshot.workspace);
@@ -1652,6 +1681,11 @@ IN_PROC_BROWSER_TEST_F(SessionRestoreTest,
   ASSERT_TRUE(mode);
   EXPECT_EQ("research", mode->active_mode_id());
   EXPECT_EQ("hidden", mode->active_configuration().rail_state);
+  EXPECT_TRUE(mode->window_skin_palette());
+  ASSERT_TRUE(mode->CapturePresentation().skin);
+  EXPECT_EQ("terminal-green", mode->CapturePresentation().skin->id);
+  EXPECT_EQ(std::vector<std::string>({"mission", "guard"}),
+            mode->operational_rail_modules());
   EXPECT_EQ(original_count, browser()->tab_strip_model()->count());
 }
 #endif

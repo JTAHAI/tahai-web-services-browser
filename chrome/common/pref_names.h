@@ -3281,12 +3281,32 @@ inline constexpr int kCpuPerformanceTierOverrideNone = -1;
 // page content, request data, and credentials are forbidden from this schema.
 inline constexpr char kTahaiMissions[] = "tahai.missions";
 
+// A one-shot, profile-local handoff from native operational-mode activation
+// into Mission Control. It contains only reviewed workflow identity, revision,
+// and inert checklist labels, and is cleared after Mission creation.
+inline constexpr char kTahaiPendingOperationalWorkflow[] =
+    "tahai.pending_operational_workflow";
+
+// Browser-owned, exact-origin capability reviews for immutable operational
+// provider revisions. This contains review decisions only; it never stores
+// page URLs, selected content, sessions, credentials, or action results.
+inline constexpr char kTahaiCapabilityGrants[] = "tahai.capability_grants";
+
 // Profile-scoped TAHAI work-mode choices. These contain only a fixed mode
 // identifier and fixed, user-selected presentation preferences; they never
 // record pages, URLs, browsing content, account identity, or credentials.
 inline constexpr char kTahaiActiveWorkMode[] = "tahai.active_work_mode";
 inline constexpr char kTahaiWorkModePreferences[] =
     "tahai.work_mode_preferences";
+// Strict declarative custom mode definitions. Entries reference only reviewed
+// operational modes and named workspaces; they never contain URLs, commands,
+// scripts, credentials, or browsing data.
+inline constexpr char kTahaiCustomModeDefinitions[] =
+    "tahai.custom_mode_definitions";
+
+// Profile-local, declarative source for the native Skin Studio. This is an
+// editable design draft, not an installed skin, package archive, or grant.
+inline constexpr char kTahaiSkinStudioDraft[] = "tahai.skin_studio_draft";
 
 // Explicitly saved navigation references. Local only; may contain sensitive
 // URLs, unlike the mode presentation preferences above. Never sync implicitly.
@@ -3324,6 +3344,16 @@ inline constexpr char kTahaiAppliedSkin[] = "tahai.applied_skin";
 inline constexpr char kTahaiSkinsEnabled[] = "tahai.skins_enabled";
 inline constexpr char kTahaiSkinInstallationsAllowed[] =
     "tahai.skin_installations_allowed";
+// A managed-only dictionary of Ed25519 public keys permitted to authorize
+// operational Skin packages. The browser rejects an unmanaged value, so a
+// downloaded Skin cannot bootstrap its own publisher trust.
+inline constexpr char kTahaiOperationalSkinTrustedKeys[] =
+    "tahai.operational_skin_trusted_keys";
+// Explicit native-UI public-key enrollment, local to this regular profile and
+// not synced. Mandatory operational-key policy supersedes this entire store.
+// It contains public keys only; no package may write or enroll its own key.
+inline constexpr char kTahaiLocalSkinTrustedKeys[] =
+    "tahai.local_skin_trusted_keys";
 
 // OS-protected TAHAI Sync envelope keys. The preference contains only
 // OSCrypt-wrapped random key material and public key identifiers; it never

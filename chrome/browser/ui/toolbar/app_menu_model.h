@@ -6,11 +6,13 @@
 #define CHROME_BROWSER_UI_TOOLBAR_APP_MENU_MODEL_H_
 
 #include <memory>
+#include <map>
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
 #include "base/timer/elapsed_timer.h"
 #include "build/build_config.h"
+#include "build/branding_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/safety_hub/safety_hub_constants.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -19,6 +21,10 @@
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/models/button_menu_item_model.h"
 #include "ui/menus/simple_menu_model.h"
+
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+#include "chrome/browser/ui/tahai/tahai_mode_command_model.h"
+#endif
 
 class AppMenuIconController;
 class BookmarkSubMenuModel;
@@ -366,6 +372,9 @@ class AppMenuModel : public ui::SimpleMenuModel,
   PrefChangeRegistrar local_state_pref_change_registrar_;
 
   const AlertMenuItem alert_item_;
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  std::map<int, tahai::WindowModeActionContext> tahai_operational_actions_;
+#endif
 };
 
 #endif  // CHROME_BROWSER_UI_TOOLBAR_APP_MENU_MODEL_H_

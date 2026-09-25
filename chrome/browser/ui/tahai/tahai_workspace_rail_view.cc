@@ -6,7 +6,10 @@
 #include <algorithm>
 #include <array>
 #include <iterator>
+#include <limits>
+#include <optional>
 #include <ranges>
+#include <span>
 #include <string_view>
 
 #include "base/check.h"
@@ -21,10 +24,12 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/tahai/tahai_mode_command_model.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/color/color_provider.h"
+#include "ui/events/event.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/native_theme/native_theme.h"
@@ -34,7 +39,10 @@
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
+#include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/resize_area.h"
+#include "ui/views/controls/scroll_view.h"
+#include "ui/views/controls/scrollbar/overlay_scroll_bar.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view_class_properties.h"
@@ -50,11 +58,30 @@ constexpr int kResizeHandleWidth = 8;
 constexpr std::array<int, 4> kExpandedRailWidthPresets = {220, 280, 360, 480};
 
 struct RailPresentation {
-  std::array<std::string_view, 5> module_ids;
-  std::array<std::u16string_view, 5> modules;
-  std::array<const gfx::VectorIcon*, 5> icons;
+  std::array<std::string_view, kMaximumNativeModeActions> module_ids;
+  std::array<std::u16string_view, kMaximumNativeModeActions> modules;
+  std::array<const gfx::VectorIcon*, kMaximumNativeModeActions> icons;
   std::u16string_view context;
+  size_t module_count = 5u;
 };
+
+struct OperationalRailModule {
+  std::string_view id;
+  std::u16string_view label;
+  raw_ptr<const gfx::VectorIcon> icon;
+};
+
+constexpr std::array<OperationalRailModule, 9> kOperationalRailModules = {{
+    {"tabs", u"Tabs", &kTabIcon},
+    {"saved-workspaces", u"Saved workspaces", &vector_icons::kFolderOpenIcon},
+    {"bookmarks", u"Bookmarks", &kBookmarkManagerIcon},
+    {"history", u"History", &vector_icons::kHistoryIcon},
+    {"downloads", u"Downloads", &vector_icons::kDownloadIcon},
+    {"mission", u"Mission Control", &kMenuBookIcon},
+    {"local-oi", u"Local OI", &vector_icons::kScienceIcon},
+    {"command-center", u"Command Center", &vector_icons::kChecklistIcon},
+    {"guard", u"Guard", &vector_icons::kSettingsIcon},
+}};
 
 // A rail entry must lead to a browser-owned action. The rail is a companion
 // surface, not an imitation of a complete independent application. Grouping
@@ -67,6 +94,10 @@ struct ModuleAction {
 };
 
 ModuleAction GetModuleAction(std::string_view module_id) {
+  if (auto native = FindNativeModeAction(module_id)) {
+    return {native->command_id, native->label,
+            u"Runs this mode's native control in this window only when selected."};
+  }
   if (module_id == "tabs" || module_id == "canvas-tabs" ||
       module_id == "environment-tabs" || module_id == "case-tabs") {
     return {IDC_TAB_SEARCH, u"Open tab search",
@@ -92,13 +123,13 @@ ModuleAction GetModuleAction(std::string_view module_id) {
     return {IDC_DEV_TOOLS, u"Open Developer Tools",
             u"Open Chromium Developer Tools for the active page."};
   }
-  if (module_id == "pane-health" || module_id == "evidence-markers" ||
-      module_id == "mission-timeline") {
+  if (module_id == "local-oi" || module_id == "pane-health" ||
+      module_id == "evidence-markers" || module_id == "mission-timeline") {
     return {IDC_TAHAI_LOCAL_OI, u"Open Local OI",
             u"Review local readiness, evidence markers, and generated "
             u"operational memory for this profile."};
   }
-  if (module_id == "active-runbook" || module_id == "incident-workspaces") {
+  if (module_id == "mission" || module_id == "active-runbook" || module_id == "incident-workspaces") {
     return {IDC_TAHAI_MISSION_CONTROL, u"Open Mission Control",
             u"Open the browser-owned mission workspace for this window."};
   }
@@ -107,7 +138,7 @@ ModuleAction GetModuleAction(std::string_view module_id) {
     return {IDC_TAHAI_SUPPORT, u"Open Support Desk",
             u"Open the browser-owned support workspace for this window."};
   }
-  if (module_id == "notes") {
+  if (module_id == "command-center" || module_id == "notes") {
     return {IDC_TAHAI_COMMAND_CENTER, u"Open Command Center",
             u"Notes do not have a separate editor yet. This opens Command "
             u"Center, where available browser work tools are listed."};
@@ -127,6 +158,10 @@ ModuleAction GetModuleAction(std::string_view module_id) {
     return {IDC_TAHAI_COMMAND_CENTER, u"Open Command Center",
             u"This build label opens Command Center. A separate build tool "
             u"is not available yet."};
+  }
+  if (module_id == "guard") {
+    return {IDC_TAHAI_GUARD_PANEL, u"Open Guard",
+            u"Open the browser-owned Guard control surface."};
   }
   return {IDC_TAHAI_COMMAND_CENTER, u"Open Command Center",
           u"Open Command Center for the browser tools available in this "
@@ -189,7 +224,226 @@ RailPresentation GetRailPresentation(std::string_view mode_id) {
           u"Personal browsing"};
 }
 
+RailPresentation GetRailPresentation(
+    std::string_view mode_id,
+    const std::vector<std::string>& operational_modules) {
+  RailPresentation presentation = GetRailPresentation(mode_id);
+  if (operational_modules.empty()) {
+    return presentation;
+  }
+  presentation.context = u"Custom operational surface";
+  presentation.module_count = operational_modules.size();
+  for (size_t index = 0; index < operational_modules.size(); ++index) {
+    const auto found = std::ranges::find(
+        kOperationalRailModules, operational_modules[index],
+        &OperationalRailModule::id);
+    CHECK(found != kOperationalRailModules.end());
+    presentation.module_ids[index] = found->id;
+    presentation.modules[index] = found->label;
+    presentation.icons[index] = found->icon;
+  }
+  return presentation;
+}
+
+RailPresentation GetWindowRailPresentation(WindowModeController* controller) {
+  const auto actions = ResolveOperationalWindowActions(controller->browser());
+  if (actions && (actions->actions.empty() ||
+                   controller->active_operational_mode_id().empty())) {
+    RailPresentation presentation{};
+    presentation.module_count = 0;
+    presentation.context = actions->actions.empty()
+        ? u"Mode controls unavailable; choose a mode from the toolbar"
+        : u"Mode controls; all controls are also available in Finder";
+    for (const auto& action : actions->actions) {
+      const auto catalog = GetNativeModeActionCatalog();
+      const auto native = std::ranges::find(catalog, action.command_id,
+                                            &NativeModeActionDefinition::command_id);
+      if (native == catalog.end()) {
+        continue;
+      }
+      const size_t index = presentation.module_count++;
+      presentation.module_ids[index] = native->id;
+      presentation.modules[index] = native->label;
+      presentation.icons[index] = &vector_icons::kChecklistIcon;
+      if (presentation.module_count == presentation.module_ids.size()) {
+        break;
+      }
+    }
+    return presentation;
+  }
+  return GetRailPresentation(controller->active_mode_id(),
+                              controller->operational_rail_modules());
+}
+
+bool CanRunRailModule(WindowModeController* controller, std::string_view id) {
+  const auto presentation = GetWindowRailPresentation(controller);
+  const auto available = std::span(presentation.module_ids).first(presentation.module_count);
+  if (std::ranges::find(available, id) == available.end()) {
+    return false;
+  }
+  if (const auto native = FindNativeModeAction(id)) {
+    const auto actions = ResolveOperationalWindowActions(controller->browser());
+    return actions && CanExecuteWindowModeAction(controller->browser(), actions->context,
+                                                  native->command_id);
+  }
+  return chrome::IsCommandEnabled(controller->browser(), GetModuleAction(id).command_id);
+}
+
 }  // namespace
+
+// A physical press belongs to the control shown when it began. Rebinding the
+// same button slot during that press cannot turn release into a different
+// action. Accessibility activation without a preceding press uses current UI.
+class WorkspaceRailActionButton : public views::LabelButton {
+  METADATA_HEADER(WorkspaceRailActionButton, views::LabelButton)
+
+ public:
+  WorkspaceRailActionButton(PressedCallback callback,
+                            base::RepeatingCallback<uint64_t()> generation)
+      : LabelButton(std::move(callback), u""), generation_(std::move(generation)) {
+    SetInstallFocusRingOnFocus(true);
+    // Keep keyboard focus inside the clipped viewport, including the 48-pixel
+    // icon rail. Do not consume the 36-pixel native control's hit target.
+    views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(true);
+    views::FocusRing::Get(this)->SetHaloInset(2);
+  }
+
+  bool OnMousePressed(const ui::MouseEvent& event) override {
+    armed_generation_ = generation_.Run();
+    return LabelButton::OnMousePressed(event);
+  }
+
+  bool OnKeyPressed(const ui::KeyEvent& event) override {
+    if (event.key_code() == ui::VKEY_SPACE ||
+        event.key_code() == ui::VKEY_RETURN) {
+      // A held activation key is one gesture, not fresh consent to whichever
+      // control a mode change puts under it. Enter dispatches on key-down on
+      // Windows, so retaining only the release guard would miss its repeats.
+      if (event.is_repeat()) {
+        return true;
+      }
+      armed_generation_ = generation_.Run();
+    }
+    return LabelButton::OnKeyPressed(event);
+  }
+
+  void OnGestureEvent(ui::GestureEvent* event) override {
+    if (event->type() == ui::EventType::kGestureTapDown) {
+      armed_generation_ = generation_.Run();
+    }
+    LabelButton::OnGestureEvent(event);
+  }
+
+ protected:
+  void NotifyClick(const ui::Event& event) override {
+    const bool current = !armed_generation_ ||
+        (!event.IsMouseEvent() && !event.IsKeyEvent() && !event.IsGestureEvent()) ||
+        *armed_generation_ == generation_.Run();
+    armed_generation_.reset();
+    if (current) {
+      // The callback may destroy this button/window. Do not access members
+      // after forwarding the activation.
+      LabelButton::NotifyClick(event);
+    }
+  }
+
+ private:
+  base::RepeatingCallback<uint64_t()> generation_;
+  std::optional<uint64_t> armed_generation_;
+};
+
+BEGIN_METADATA(WorkspaceRailActionButton)
+END_METADATA
+
+// Own one physical gesture. The generic ResizeArea's capture-loss callback
+// converts its initial screen coordinate a second time, so retain the last
+// real delta. A mode/preset/dock change cancels the gesture rather than letting
+// its later events resize the new presentation.
+class WorkspaceRailResizeArea : public views::ResizeArea,
+                                private views::ResizeAreaDelegate {
+  METADATA_HEADER(WorkspaceRailResizeArea, views::ResizeArea)
+
+ public:
+  explicit WorkspaceRailResizeArea(WorkspaceRailView* rail)
+      : ResizeArea(this), rail_(rail) {}
+
+  void Cancel() {
+    active_ = false;
+    last_amount_ = 0;
+  }
+
+  bool OnMousePressed(const ui::MouseEvent& event) override {
+    if (!ResizeArea::OnMousePressed(event)) {
+      return false;
+    }
+    return Begin();
+  }
+
+  bool OnMouseDragged(const ui::MouseEvent& event) override {
+    return active_ && ResizeArea::OnMouseDragged(event);
+  }
+
+  void OnMouseReleased(const ui::MouseEvent& event) override {
+    ResizeArea::OnMouseReleased(event);
+    if (active_) {
+      OnResize(last_amount_, true);
+    }
+  }
+
+  void OnMouseCaptureLost() override {
+    capture_lost_ = true;
+    ResizeArea::OnMouseCaptureLost();
+    capture_lost_ = false;
+  }
+
+  void OnGestureEvent(ui::GestureEvent* event) override {
+    if (event->type() == ui::EventType::kGestureTapDown && !Begin()) {
+      return;
+    }
+    ResizeArea::OnGestureEvent(event);
+    if (event->type() == ui::EventType::kGestureEnd && active_) {
+      OnResize(last_amount_, true);
+    }
+  }
+
+ private:
+  bool Begin() {
+    Cancel();
+    active_ = rail_->BeginResize();
+    if (active_) {
+      window_bounds_ = GetWidget()->GetWindowBoundsInScreen();
+    }
+    return active_;
+  }
+
+  void OnResize(int amount, bool done) override {
+    if (!active_) {
+      return;
+    }
+    if (!GetWidget() ||
+        window_bounds_ != GetWidget()->GetWindowBoundsInScreen()) {
+      // A window move/resize invalidates screen-coordinate deltas. Restore
+      // the last committed width without writing to the new geometry.
+      rail_->OnTahaiWindowModeChanged();
+      return;
+    }
+    if (capture_lost_) {
+      amount = last_amount_;
+    }
+    last_amount_ = amount;
+    active_ = !done;
+    rail_->OnResize(amount, done);
+  }
+
+  const raw_ptr<WorkspaceRailView> rail_;
+  gfx::Rect window_bounds_;
+  bool active_ = false;
+  bool capture_lost_ = false;
+  int last_amount_ = 0;
+};
+
+BEGIN_METADATA(WorkspaceRailResizeArea)
+END_METADATA
 
 WorkspaceRailView::WorkspaceRailView(WindowModeController* mode_controller)
     : mode_controller_(mode_controller) {
@@ -200,9 +454,28 @@ WorkspaceRailView::WorkspaceRailView(WindowModeController* mode_controller)
   layout->set_cross_axis_alignment(
       views::BoxLayout::CrossAxisAlignment::kStretch);
 
-  mode_label_ = AddChildView(std::make_unique<views::Label>());
-  mode_context_label_ = AddChildView(std::make_unique<views::Label>());
-  decoration_ = AddChildView(std::make_unique<views::ImageView>());
+  body_scroll_ = AddChildView(std::make_unique<views::ScrollView>());
+  body_scroll_->SetHorizontalScrollBarMode(
+      views::ScrollView::ScrollBarMode::kDisabled);
+  // Bound the plain contents view so ScrollView lays out its preferred height
+  // within the rail's flex allocation. Overlay scrollbars preserve the full
+  // 36-pixel hit target in the collapsed rail on every Windows scrollbar style.
+  body_scroll_->SetVerticalScrollBar(std::make_unique<views::OverlayScrollBar>(
+      views::ScrollBar::Orientation::kVertical));
+  body_scroll_->ClipHeightTo(0, std::numeric_limits<int>::max());
+  body_scroll_->SetDrawOverflowIndicator(true);
+  body_scroll_->SetAllowKeyboardScrolling(true);
+  body_scroll_->GetViewAccessibility().SetName(
+      u"Workspace controls; scroll for more");
+  layout->SetFlexForView(body_scroll_, 1);
+  body_ = body_scroll_->SetContents(std::make_unique<views::View>());
+  auto* body_layout = body_->SetLayoutManager(std::make_unique<views::BoxLayout>(
+      views::BoxLayout::Orientation::kVertical, gfx::Insets(), 6));
+  body_layout->set_cross_axis_alignment(
+      views::BoxLayout::CrossAxisAlignment::kStretch);
+  mode_label_ = body_->AddChildView(std::make_unique<views::Label>());
+  mode_context_label_ = body_->AddChildView(std::make_unique<views::Label>());
+  decoration_ = body_->AddChildView(std::make_unique<views::ImageView>());
   decoration_->SetCanProcessEventsWithinSubtree(false);
   decoration_->GetViewAccessibility().SetIsIgnored(true);
   decoration_->SetVisible(false);
@@ -210,22 +483,29 @@ WorkspaceRailView::WorkspaceRailView(WindowModeController* mode_controller)
       base::BindRepeating(&WorkspaceRailView::ToggleCollapsed,
                           base::Unretained(this)),
       u""));
+  // Expansion and hiding remain outside the scrolling contents.
+  ReorderChildView(collapse_button_, 0);
   width_button_ = AddChildView(std::make_unique<views::LabelButton>(
       base::BindRepeating(&WorkspaceRailView::CyclePreferredWidth,
                           base::Unretained(this)),
       u""));
+  ReorderChildView(width_button_, 1);
   for (size_t index = 0; index < module_buttons_.size(); ++index) {
-    module_buttons_[index] = AddChildView(std::make_unique<views::LabelButton>(
+    module_buttons_[index] = body_->AddChildView(std::make_unique<WorkspaceRailActionButton>(
         base::BindRepeating(&WorkspaceRailView::ActivateModule,
                             base::Unretained(this), index),
-        u""));
+        base::BindRepeating([](WorkspaceRailView* rail) {
+          return rail->binding_generation_;
+        }, base::Unretained(this))));
   }
-  active_section_label_ = AddChildView(std::make_unique<views::Label>());
-  module_summary_label_ = AddChildView(std::make_unique<views::Label>());
-  module_action_button_ = AddChildView(std::make_unique<views::LabelButton>(
+  active_section_label_ = body_->AddChildView(std::make_unique<views::Label>());
+  module_summary_label_ = body_->AddChildView(std::make_unique<views::Label>());
+  module_action_button_ = body_->AddChildView(std::make_unique<WorkspaceRailActionButton>(
       base::BindRepeating(&WorkspaceRailView::OpenSelectedModule,
                           base::Unretained(this)),
-      u""));
+      base::BindRepeating([](WorkspaceRailView* rail) {
+        return rail->binding_generation_;
+      }, base::Unretained(this))));
   hide_button_ = AddChildView(std::make_unique<views::LabelButton>(
       base::BindRepeating(&WorkspaceRailView::HideRail, base::Unretained(this)),
       u""));
@@ -240,7 +520,7 @@ WorkspaceRailView::WorkspaceRailView(WindowModeController* mode_controller)
   active_section_label_->SetEnabledColor(kColorToolbarText);
   module_summary_label_->SetEnabledColor(kColorToolbarText);
   module_summary_label_->SetMultiLine(true);
-  resize_area_ = AddChildView(std::make_unique<views::ResizeArea>(this));
+  resize_area_ = AddChildView(std::make_unique<WorkspaceRailResizeArea>(this));
   resize_area_->SetProperty(views::kViewIgnoredByLayoutKey, true);
   resize_area_->GetViewAccessibility().SetName(u"Resize workspace rail");
 
@@ -275,8 +555,21 @@ views::LabelButton* WorkspaceRailView::module_button_for_testing(
                                         : nullptr;
 }
 
+views::ResizeArea* WorkspaceRailView::resize_area_for_testing() const {
+  return resize_area_.get();
+}
+
+views::ScrollView* WorkspaceRailView::scroll_view_for_testing() const {
+  return body_scroll_;
+}
+
+views::LabelButton* WorkspaceRailView::collapse_button_for_testing() const {
+  return collapse_button_;
+}
+
 void WorkspaceRailView::ActivateModule(size_t index) {
-  if (index >= module_buttons_.size()) {
+  const RailPresentation presentation = GetWindowRailPresentation(mode_controller_);
+  if (index >= module_buttons_.size() || index >= presentation.module_count) {
     return;
   }
   SelectModule(index);
@@ -305,14 +598,25 @@ void WorkspaceRailView::SelectModule(size_t index) {
   if (index >= module_buttons_.size()) {
     return;
   }
-  const RailPresentation presentation =
-      GetRailPresentation(mode_controller_->active_mode_id());
+  const RailPresentation presentation = GetWindowRailPresentation(mode_controller_);
+  if (index >= presentation.module_count) {
+    return;
+  }
   selected_module_id_ = presentation.module_ids[index];
   UpdateModePresentation();
 }
 
 void WorkspaceRailView::OpenSelectedModule() {
-  if (selected_module_id_.empty()) {
+  if (selected_module_id_.empty() ||
+      !CanRunRailModule(mode_controller_, selected_module_id_)) {
+    return;
+  }
+  if (const auto native = FindNativeModeAction(selected_module_id_)) {
+    const auto actions = ResolveOperationalWindowActions(mode_controller_->browser());
+    if (actions) {
+      ExecuteWindowModeAction(mode_controller_->browser(), actions->context,
+                               native->command_id);
+    }
     return;
   }
   const ModuleAction action = GetModuleAction(selected_module_id_);
@@ -323,6 +627,7 @@ void WorkspaceRailView::OpenSelectedModule() {
 }
 
 void WorkspaceRailView::OnTahaiWindowModeChanged() {
+  resize_area_->Cancel();
   const WorkModeWorkspaceConfiguration& configuration =
       mode_controller_->active_configuration();
   is_collapsed_ = configuration.rail_state == "icons";
@@ -331,14 +636,24 @@ void WorkspaceRailView::OnTahaiWindowModeChanged() {
       std::clamp(configuration.rail_width, kMinimumExpandedRailWidth,
                  kMaximumExpandedRailWidth);
   starting_width_on_resize_ = -1;
-  const RailPresentation presentation =
-      GetRailPresentation(mode_controller_->active_mode_id());
-  if (std::ranges::find(presentation.module_ids, selected_module_id_) ==
-      presentation.module_ids.end()) {
+  const RailPresentation presentation = GetWindowRailPresentation(mode_controller_);
+  if (std::find(presentation.module_ids.begin(),
+                presentation.module_ids.begin() + presentation.module_count,
+                selected_module_id_) ==
+      presentation.module_ids.begin() + presentation.module_count) {
     selected_module_id_.clear();
   }
   UpdateModePresentation();
   UpdateLayoutWidth();
+}
+
+bool WorkspaceRailView::BeginResize() {
+  starting_width_on_resize_ = -1;
+  if (is_collapsed_ || is_hidden_ || !IsDrawn() || !GetWidget()) {
+    return false;
+  }
+  starting_width_on_resize_ = preferred_width_;
+  return true;
 }
 
 void WorkspaceRailView::OnResize(int resize_amount, bool done_resizing) {
@@ -351,8 +666,11 @@ void WorkspaceRailView::OnResize(int resize_amount, bool done_resizing) {
     // immediately by a drag remains continuous.
     starting_width_on_resize_ = preferred_width_;
   }
+  const bool trailing = mode_controller_->surface_design() &&
+                        mode_controller_->surface_design()->rail_dock == "trailing";
   const int proposed_width = std::clamp(
-      base::ClampAdd(starting_width_on_resize_, resize_amount).RawValue(),
+      (trailing ? base::ClampSub(starting_width_on_resize_, resize_amount)
+                : base::ClampAdd(starting_width_on_resize_, resize_amount)).RawValue(),
       kMinimumExpandedRailWidth, kMaximumExpandedRailWidth);
   if (done_resizing) {
     starting_width_on_resize_ = -1;
@@ -393,7 +711,9 @@ gfx::Size WorkspaceRailView::GetMinimumSize() const {
 
 void WorkspaceRailView::Layout(PassKey) {
   LayoutSuperclass<views::View>(this);
-  resize_area_->SetBounds(std::max(0, width() - kResizeHandleWidth), 0,
+  const bool trailing = mode_controller_->surface_design() &&
+                        mode_controller_->surface_design()->rail_dock == "trailing";
+  resize_area_->SetBounds(trailing ? 0 : std::max(0, width() - kResizeHandleWidth), 0,
                           kResizeHandleWidth, height());
 }
 
@@ -410,9 +730,14 @@ void WorkspaceRailView::UpdateSkinColors() {
   ui::ColorVariant foreground = kColorToolbarText;
   auto* service = skins::SkinProfileServiceFactory::GetForProfile(
       mode_controller_->browser()->GetProfile());
-  const auto* palette = service ? service->GetColorSupplier() : nullptr;
+  const auto* palette = mode_controller_->window_skin_palette();
+  if (!palette && service) {
+    palette = service->GetColorSupplier();
+  }
   auto* layout = static_cast<views::BoxLayout*>(GetLayoutManager());
   layout->set_between_child_spacing(
+      palette && palette->density() == TahaiSkinDensity::kCompact ? 2 : 6);
+  static_cast<views::BoxLayout*>(body_->GetLayoutManager())->set_between_child_spacing(
       palette && palette->density() == TahaiSkinDensity::kCompact ? 2 : 6);
   // Decoration is confined to a noninteractive rail slot, never behind text,
   // origins, permission prompts or focus indicators. All skin artwork is still.
@@ -443,6 +768,7 @@ void WorkspaceRailView::UpdateSkinColors() {
     }
   }
   SetBackground(views::CreateSolidBackground(background));
+  body_scroll_->SetBackgroundColor(background);
   for (auto* label :
        {mode_label_.get(), mode_context_label_.get(),
         active_section_label_.get(), module_summary_label_.get()}) {
@@ -452,9 +778,12 @@ void WorkspaceRailView::UpdateSkinColors() {
                        hide_button_.get(), module_action_button_.get()}) {
     button->SetEnabledTextColors(foreground);
   }
-  const auto presentation =
-      GetRailPresentation(mode_controller_->active_mode().id);
+  const auto presentation = GetWindowRailPresentation(mode_controller_);
   for (size_t index = 0; index < module_buttons_.size(); ++index) {
+    if (index >= presentation.module_count) {
+      module_buttons_[index]->SetVisible(false);
+      continue;
+    }
     auto* button = module_buttons_[index].get();
     button->SetEnabledTextColors(foreground);
     button->SetImageModel(views::Button::STATE_NORMAL,
@@ -474,9 +803,10 @@ void WorkspaceRailView::UpdateSkinColors() {
 }
 
 void WorkspaceRailView::UpdateModePresentation() {
-  const WorkModeDefinition& mode = mode_controller_->active_mode();
-  const RailPresentation presentation = GetRailPresentation(mode.id);
-  const std::u16string mode_title = base::UTF8ToUTF16(mode.title);
+  ++binding_generation_;
+  const RailPresentation presentation = GetWindowRailPresentation(mode_controller_);
+  const std::u16string mode_title =
+      base::UTF8ToUTF16(mode_controller_->active_mode_title());
 
   const bool was_visible = GetVisible();
   SetVisible(!is_hidden_);
@@ -490,6 +820,22 @@ void WorkspaceRailView::UpdateModePresentation() {
         Contains(focus_manager->GetFocusedView())) {
       chrome::FocusToolbar(mode_controller_->browser());
     }
+  }
+  body_scroll_->SetVerticalScrollBarMode(is_collapsed_
+      ? views::ScrollView::ScrollBarMode::kHiddenButEnabled
+      : views::ScrollView::ScrollBarMode::kEnabled);
+  for (size_t index = 0; index < module_buttons_.size(); ++index) {
+    const std::string next = index < presentation.module_count
+        ? std::string(presentation.module_ids[index]) : std::string();
+    if (!is_hidden_ && module_buttons_[index]->HasFocus() &&
+        (next.empty() || next != module_button_ids_[index])) {
+      collapse_button_->RequestFocus();
+    }
+    module_button_ids_[index] = next;
+  }
+  if (!is_hidden_ && module_action_button_->HasFocus() &&
+      (!presentation.module_count || is_collapsed_)) {
+    collapse_button_->RequestFocus();
   }
   mode_label_->SetVisible(!is_collapsed_);
   mode_label_->SetText(u"TAHAI · " + mode_title);
@@ -554,11 +900,36 @@ void WorkspaceRailView::UpdateModePresentation() {
         u" pixels");
   }
 
+  if (!presentation.module_count) {
+    selected_module_id_.clear();
+    for (const auto& button : module_buttons_) {
+      button->SetVisible(false);
+      button->SetEnabled(false);
+    }
+    active_section_label_->SetVisible(!is_collapsed_);
+    active_section_label_->SetText(u"Mode controls unavailable");
+    active_section_label_->SetTooltipText(u"Mode controls unavailable");
+    active_section_label_->GetViewAccessibility().SetName(u"Mode controls unavailable");
+    module_summary_label_->SetVisible(!is_collapsed_);
+    module_summary_label_->SetText(u"Choose a valid mode from the toolbar. Missing or revoked settings do not enable replacement controls.");
+    const std::u16string unavailable_summary(module_summary_label_->GetText());
+    module_summary_label_->SetTooltipText(unavailable_summary);
+    module_summary_label_->GetViewAccessibility().SetName(unavailable_summary);
+    module_action_button_->SetVisible(false);
+    module_action_button_->SetEnabled(false);
+    UpdateSkinColors();
+    return;
+  }
   if (selected_module_id_.empty()) {
     selected_module_id_ = presentation.module_ids.front();
   }
   size_t selected_index = 0;
   for (size_t index = 0; index < module_buttons_.size(); ++index) {
+    if (index >= presentation.module_count) {
+      module_buttons_[index]->SetVisible(false);
+      continue;
+    }
+    module_buttons_[index]->SetVisible(true);
     const bool is_selected =
         selected_module_id_ == presentation.module_ids[index];
     if (is_selected) {
@@ -586,11 +957,8 @@ void WorkspaceRailView::UpdateModePresentation() {
         is_selected ? views::CreateRoundedRectBackground(
                           kColorToolbarBackgroundSubtleEmphasis, 6)
                     : nullptr);
-    module_buttons_[index]->SetEnabled(
-        mode_controller_->browser() &&
-        chrome::IsCommandEnabled(
-            mode_controller_->browser(),
-            GetModuleAction(presentation.module_ids[index]).command_id));
+    module_buttons_[index]->SetEnabled(CanRunRailModule(
+        mode_controller_, presentation.module_ids[index]));
     module_buttons_[index]->SetTooltipText(full_label);
     module_buttons_[index]->GetViewAccessibility().SetName(
         (is_selected ? u"Selected workspace section: "
@@ -609,8 +977,7 @@ void WorkspaceRailView::UpdateModePresentation() {
 
   const ModuleAction action = GetModuleAction(selected_module_id_);
   const bool module_action_available =
-      mode_controller_->browser() &&
-      chrome::IsCommandEnabled(mode_controller_->browser(), action.command_id);
+      CanRunRailModule(mode_controller_, selected_module_id_);
   module_summary_label_->SetVisible(!is_collapsed_);
   module_summary_label_->SetText(action.summary);
   module_summary_label_->SetTooltipText(std::u16string(action.summary));

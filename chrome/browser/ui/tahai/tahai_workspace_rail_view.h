@@ -6,12 +6,14 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
+#include "chrome/browser/ui/tahai/tahai_mode_command_model.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/controls/resize_area_delegate.h"
 #include "ui/views/metadata/view_factory.h"
@@ -22,9 +24,12 @@ class Label;
 class ImageView;
 class LabelButton;
 class ResizeArea;
+class ScrollView;
 }  // namespace views
 
 namespace tahai {
+
+class WorkspaceRailResizeArea;
 
 // A window-local companion rail for workspaces and mode-specific navigation.
 // It deliberately lives beside Chromium's existing tab and side-panel surfaces
@@ -46,6 +51,9 @@ class WorkspaceRailView : public views::View,
   std::string_view selected_module_id() const { return selected_module_id_; }
   // Returns a browser-owned module control for accessibility/layout tests.
   views::LabelButton* module_button_for_testing(size_t index) const;
+  views::ResizeArea* resize_area_for_testing() const;
+  views::ScrollView* scroll_view_for_testing() const;
+  views::LabelButton* collapse_button_for_testing() const;
   void ToggleCollapsed();
   void HideRail();
   void CyclePreferredWidth();
@@ -66,6 +74,8 @@ class WorkspaceRailView : public views::View,
   void OnThemeChanged() override;
 
  private:
+  friend class WorkspaceRailResizeArea;
+  bool BeginResize();
   void ActivateModule(size_t index);
   void UpdateModePresentation();
   void UpdateSkinColors();
@@ -81,8 +91,11 @@ class WorkspaceRailView : public views::View,
   raw_ptr<views::Label> active_section_label_ = nullptr;
   raw_ptr<views::Label> module_summary_label_ = nullptr;
   raw_ptr<views::LabelButton> module_action_button_ = nullptr;
-  std::array<raw_ptr<views::LabelButton>, 5> module_buttons_;
-  raw_ptr<views::ResizeArea> resize_area_ = nullptr;
+  std::array<raw_ptr<views::LabelButton>, kMaximumNativeModeActions> module_buttons_;
+  std::array<std::string, kMaximumNativeModeActions> module_button_ids_;
+  raw_ptr<views::ScrollView> body_scroll_ = nullptr;
+  raw_ptr<views::View> body_ = nullptr;
+  raw_ptr<WorkspaceRailResizeArea> resize_area_ = nullptr;
   base::ScopedObservation<WindowModeController, WindowModeController::Observer>
       mode_observation_{this};
   bool is_collapsed_ = true;
@@ -90,6 +103,7 @@ class WorkspaceRailView : public views::View,
   int preferred_width_ = 280;
   int starting_width_on_resize_ = -1;
   std::string selected_module_id_;
+  uint64_t binding_generation_ = 0;
 };
 
 }  // namespace tahai

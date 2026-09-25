@@ -22,6 +22,7 @@ inline constexpr char kTahaiSupportURL[] = "tahai://support/";
 inline constexpr char kTahaiPolicyURL[] = "tahai://policy/";
 inline constexpr char kTahaiModesURL[] = "tahai://modes/";
 inline constexpr char kTahaiLocalOiURL[] = "tahai://local-oi/";
+inline constexpr char kTahaiSkinStudioURL[] = "tahai://skin-studio/";
 
 inline constexpr char kTahaiTrustedNewTabURL[] = "chrome://tahai/";
 inline constexpr char kTahaiTrustedMissionURL[] = "chrome://tahai/mission/";
@@ -31,6 +32,8 @@ inline constexpr char kTahaiTrustedSupportURL[] = "chrome://tahai/support/";
 inline constexpr char kTahaiTrustedPolicyURL[] = "chrome://tahai/policy/";
 inline constexpr char kTahaiTrustedModesURL[] = "chrome://tahai/modes/";
 inline constexpr char kTahaiTrustedLocalOiURL[] = "chrome://tahai/local-oi/";
+inline constexpr char kTahaiTrustedSkinStudioURL[] =
+    "chrome://tahai/skin-studio/";
 
 }  // namespace tahai
 

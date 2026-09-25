@@ -22,6 +22,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window_state.h"
 #include "chrome/browser/ui/immersive/immersive_mode_controller.h"
+#include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view.h"
 #include "chrome/browser/ui/views/frame/browser_native_widget.h"
@@ -493,6 +494,11 @@ ui::ColorProviderKey BrowserWidget::GetColorProviderKey() const {
     if (auto* skins = tahai::skins::SkinProfileServiceFactory::GetForProfile(
             browser_view_->browser()->GetProfile())) {
       if (auto* palette = skins->GetColorSupplier()) {
+        key.custom_theme = palette;
+      }
+    }
+    if (auto* controller = browser_view_->tahai_window_mode_controller()) {
+      if (auto* palette = controller->window_skin_palette()) {
         key.custom_theme = palette;
       }
     }

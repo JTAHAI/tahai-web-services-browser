@@ -952,6 +952,8 @@ bool HandleTahaiPublicURL(GURL* url, content::BrowserContext* browser_context) {
     trusted_url = tahai::kTahaiTrustedModesURL;
   } else if (host == "local-oi") {
     trusted_url = tahai::kTahaiTrustedLocalOiURL;
+  } else if (host == "skin-studio") {
+    trusted_url = tahai::kTahaiTrustedSkinStudioURL;
   } else {
     return false;
   }
@@ -986,6 +988,8 @@ bool ReverseTahaiPublicURL(GURL* url,
     public_url = tahai::kTahaiModesURL;
   } else if (path == "/local-oi/") {
     public_url = tahai::kTahaiLocalOiURL;
+  } else if (path == "/skin-studio/") {
+    public_url = tahai::kTahaiSkinStudioURL;
   } else {
     return false;
   }

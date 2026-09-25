@@ -1491,6 +1491,7 @@ policies:
   1490: TahaiGuardCustomRules
   1491: TahaiSkinsEnabled
   1492: TahaiSkinInstallationsAllowed
+  1493: TahaiOperationalSkinTrustedKeys
 
 atomic_groups:
   1: Homepage

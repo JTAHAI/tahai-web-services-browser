@@ -37,13 +37,39 @@ SkinDecodeResult Revalidate(mojom::DecodedPackagePtr package) {
       package->assets.empty() || package->assets.size() > kMaxAssets) {
     return result;
   }
+  if ((!package->signing_key_id.empty() &&
+       (package->signing_key_id.size() > 64 ||
+        package->signature.size() != 64)) ||
+      (package->signing_key_id.empty() && package->signature.size() != 0)) {
+    return result;
+  }
   auto candidate = std::make_unique<DecodedSkin>();
   const auto value = base::JSONReader::ReadDict(package->manifest_json,
                                                 base::JSON_PARSE_RFC, 16);
-  if (!value ||
-      ValidateTahaiSkinManifest(*value, &candidate->manifest) !=
-          TahaiSkinManifestValidationResult::kValid ||
-      package->assets.size() != candidate->manifest.assets.size()) {
+  if (!value) {
+    return result;
+  }
+  const std::optional<int> schema_version = value->FindInt("schema_version");
+  if (!schema_version) {
+    return result;
+  }
+  if (*schema_version == 1) {
+    if (ValidateTahaiSkinManifest(*value, &candidate->manifest) !=
+        TahaiSkinManifestValidationResult::kValid) {
+      return result;
+    }
+  } else if (*schema_version == 2) {
+    TahaiOperationalSkinManifest operational;
+    if (ValidateTahaiOperationalSkinManifest(*value, &operational) !=
+        TahaiOperationalSkinManifestValidationResult::kValid) {
+      return result;
+    }
+    candidate->manifest = operational.appearance;
+    candidate->operational_manifest = std::move(operational);
+  } else {
+    return result;
+  }
+  if (package->assets.size() != candidate->manifest.assets.size()) {
     return result;
   }
   int major = 0;
@@ -94,6 +120,9 @@ SkinDecodeResult Revalidate(mojom::DecodedPackagePtr package) {
   }
   result.outcome = DecodeOutcome::kDecoded;
   candidate->manifest_json = std::move(package->manifest_json);
+  candidate->signing_key_id = std::move(package->signing_key_id);
+  candidate->signature.assign(package->signature.begin(),
+                              package->signature.end());
   result.skin = std::move(candidate);
   return result;
 }

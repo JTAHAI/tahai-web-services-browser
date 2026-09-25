@@ -46,10 +46,15 @@
 #include "ui/gfx/geometry/outsets.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
+#include "ui/views/focus/focus_manager.h"
 #include "ui/views/layout/flex_layout_types.h"
 #include "ui/views/layout/layout_types.h"
 #include "ui/views/layout/proposed_layout.h"
 #include "ui/views/view_class_properties.h"
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+#include "chrome/browser/ui/tahai/tahai_surface_resize_area.h"
+#include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
+#endif
 
 namespace {
 constexpr int kSnapDistance = 15;
@@ -212,6 +217,9 @@ MultiContentsView::~MultiContentsView() {
   resize_area_ = nullptr;
   tahai_row_resize_area_ = nullptr;
   tahai_column_resize_area_ = nullptr;
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  surface_dividers_.clear();
+#endif
   contents_separators_.Reset();
   background_view_ = nullptr;
   RemoveAllChildViews();
@@ -291,6 +299,9 @@ void MultiContentsView::SetWebContentsAtIndex(
   if (contents_container_views_[index]->contents_view()->web_contents() !=
       web_contents) {
     tahai_grid_resize_state_.reset();
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+    surface_resize_state_.reset();
+#endif
   }
   contents_container_views_[index]->contents_view()->SetWebContents(
       web_contents);
@@ -312,6 +323,9 @@ void MultiContentsView::SetWebContentsAtIndex(
 
 void MultiContentsView::ClearWebContents() {
   tahai_grid_resize_state_.reset();
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  surface_resize_state_.reset();
+#endif
   for (ContentsContainerView* container : contents_container_views_) {
     container->contents_view()->SetWebContents(nullptr);
   }
@@ -389,6 +403,10 @@ void MultiContentsView::SwapContentsViews(size_t first, size_t second) {
   } else if (active_index_ == static_cast<int>(second)) {
     active_index_ = static_cast<int>(first);
   }
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  surface_resize_state_.reset();
+  UpdateTahaiSurfaceFocusOrder();
+#endif
 }
 
 void MultiContentsView::SynchronizeContentsInSplitView(
@@ -430,7 +448,12 @@ void MultiContentsView::SetActiveIndex(int index) {
   // keyboard tab navigation may select another hidden member; reveal that
   // native WebContents atomically instead of rejecting the active-target
   // change.
-  CHECK(tahai_focus_mode_ || contents_container_views_[index]->GetVisible());
+  bool compact_surface = false;
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  compact_surface = HasTahaiSurfaceDesign() && surface_geometry_ && surface_geometry_->compact;
+  surface_resize_state_.reset();
+#endif
+  CHECK(tahai_focus_mode_ || compact_surface || contents_container_views_[index]->GetVisible());
   active_index_ = index;
   for (size_t view_index = 0; view_index < contents_container_views_.size();
        ++view_index) {
@@ -444,8 +467,12 @@ void MultiContentsView::SetActiveIndex(int index) {
 }
 
 bool MultiContentsView::SetTahaiFocusMode(bool enabled) {
+  bool authored_surface = false;
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  authored_surface = HasTahaiSurfaceDesign();
+#endif
   if (!IsInSplitView() ||
-      (GetVisibleContentsCount() < 2u && !tahai_focus_mode_)) {
+      (GetVisibleContentsCount() < 2u && !tahai_focus_mode_ && !authored_surface)) {
     return false;
   }
   if (tahai_focus_mode_ == enabled) {
@@ -459,6 +486,115 @@ bool MultiContentsView::SetTahaiFocusMode(bool enabled) {
   GetActiveContentsView()->RequestFocus();
   return true;
 }
+
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+void MultiContentsView::SetTahaiSurfaceDesign(
+    const std::optional<tahai::SurfaceDesign>& design, bool preserve_resize) {
+  if ((design && !tahai::ValidateSurfaceDesign(*design)) || surface_design_ == design) {
+    return;
+  }
+  surface_design_ = design;
+  if (design && surface_dividers_.empty()) {
+    for (size_t slot = 0; slot < 3u; ++slot) {
+      auto* divider = AddChildView(
+          std::make_unique<tahai::SurfaceResizeArea>(this, slot));
+      divider->SetVisible(false);
+      surface_dividers_.push_back(divider);
+    }
+  }
+  if (!preserve_resize) {
+    surface_resize_state_.reset();
+  }
+  surface_geometry_.reset();
+  tahai_grid_resize_state_.reset();
+  UpdatePaneVisibility();
+  InvalidateLayout();
+}
+
+bool MultiContentsView::HasTahaiSurfaceDesign() const {
+  if (!surface_design_) {
+    return false;
+  }
+  const int count = tahai::SurfacePaneCount(*surface_design_);
+  for (int index = 0; index < kMaxContentsViews; ++index) {
+    if ((contents_container_views_[index]->contents_view()->web_contents() != nullptr) !=
+        (index < count)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void MultiContentsView::UpdateTahaiSurfaceFocusOrder() {
+  // View traversal is independent from tab/member identity. Preserve the slots
+  // of overlays, separators and native controls while permuting container views.
+  std::vector<int> order = {0, 1, 2, 3};
+  if (HasTahaiSurfaceDesign()) {
+    std::copy(surface_design_->keyboard_order.begin(),
+              surface_design_->keyboard_order.end(), order.begin());
+  }
+  std::vector<views::View*> children_in_order(children().begin(), children().end());
+  size_t pane = 0;
+  for (auto*& child : children_in_order) {
+    if (std::ranges::any_of(contents_container_views_,
+                           [child](const auto& view) { return view.get() == child; })) {
+      child = contents_container_views_[order[pane++]];
+    }
+  }
+  for (size_t index = 0; index < children_in_order.size(); ++index) {
+    if (children()[index] != children_in_order[index]) {
+      ReorderChildView(children_in_order[index], index);
+    }
+  }
+}
+
+bool MultiContentsView::BeginTahaiSurfaceResize(size_t slot) {
+  surface_resize_state_.reset();
+  const auto* tab = browser_view_->browser()->tab_strip_model()->GetActiveTab();
+  if (!HasTahaiSurfaceDesign() || tahai_focus_mode_ || !tab || !tab->GetSplit() ||
+      !surface_geometry_ || surface_geometry_->compact ||
+      slot >= surface_geometry_->dividers.size()) {
+    return false;
+  }
+  const auto& divider = surface_geometry_->dividers[slot];
+  surface_resize_state_ = SurfaceResizeState{*tab->GetSplit(), slot, divider.node,
+                                            divider.first_extent, divider.total_extent};
+  return true;
+}
+
+void MultiContentsView::ResizeTahaiSurface(size_t slot, int delta, bool done) {
+  const auto* tab = browser_view_->browser()->tab_strip_model()->GetActiveTab();
+  if (!surface_resize_state_ || !HasTahaiSurfaceDesign() || tahai_focus_mode_ ||
+      !tab || tab->GetSplit() != surface_resize_state_->split_id ||
+      slot != surface_resize_state_->slot) {
+    surface_resize_state_.reset();
+    return;
+  }
+  const auto state = *surface_resize_state_;
+  const int64_t requested = static_cast<int64_t>(state.start) + delta;
+  const int percent = static_cast<int>(std::clamp<int64_t>(
+      requested * 100 / std::max(1, state.total), 10, 90));
+  if (done) {
+    surface_resize_state_.reset();
+  }
+  auto* controller = browser_view_->tahai_window_mode_controller();
+  if (controller) {
+    controller->SetSurfaceDividerPercent(state.node, percent);
+  }
+}
+
+void MultiContentsView::ResetTahaiSurfaceDivider(size_t slot) {
+  if (!BeginTahaiSurfaceResize(slot)) {
+    return;
+  }
+  const int node = surface_resize_state_->node;
+  surface_resize_state_.reset();
+  auto* controller = browser_view_->tahai_window_mode_controller();
+  if (controller) {
+    controller->SetSurfaceDividerPercent(node, 50);
+  }
+}
+#endif
 
 bool MultiContentsView::IsAnyInactiveContentsViewFocused() const {
   for (size_t index = 0; index < contents_container_views_.size(); ++index) {
@@ -528,7 +664,15 @@ void MultiContentsView::SetIsAnimatingContent(bool is_animating) {
 
 std::vector<views::View*> MultiContentsView::GetAccessiblePanes() {
   std::vector<views::View*> accessible_panes;
-  for (auto& contents_container_view : contents_container_views_) {
+  std::vector<int> order = {0, 1, 2, 3};
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  if (HasTahaiSurfaceDesign()) {
+    std::copy(surface_design_->keyboard_order.begin(),
+              surface_design_->keyboard_order.end(), order.begin());
+  }
+#endif
+  for (int index : order) {
+    auto* contents_container_view = contents_container_views_[index].get();
     if (!contents_container_view->GetVisible()) {
       continue;
     }
@@ -544,6 +688,13 @@ std::vector<views::View*> MultiContentsView::GetAccessiblePanes() {
       accessible_panes.push_back(divider->GetAccessibleResizeHandle());
     }
   }
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  for (const auto& divider : surface_dividers_) {
+    if (divider->GetVisible()) {
+      accessible_panes.push_back(divider->GetAccessibleResizeHandle());
+    }
+  }
+#endif
   return accessible_panes;
 }
 
@@ -710,10 +861,21 @@ void MultiContentsView::UpdatePaneVisibility() {
         (!tahai_focus_mode_ || index == static_cast<size_t>(active_index_));
     container->SetVisible(visible);
   }
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  UpdateTahaiSurfaceFocusOrder();
+#endif
   UpdateResizeAreaVisibility();
 }
 
 void MultiContentsView::UpdateResizeAreaVisibility() {
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  if (HasTahaiSurfaceDesign()) {
+    resize_area_->SetVisible(false);
+    tahai_row_resize_area_->SetVisible(false);
+    tahai_column_resize_area_->SetVisible(false);
+    return;
+  }
+#endif
   const size_t count = GetVisibleContentsCount();
   resize_area_->SetVisible(!tahai_focus_mode_ && count == 2u);
   tahai_row_resize_area_->SetVisible(!tahai_focus_mode_ && count >= 3u);
@@ -796,6 +958,36 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
   if (IsInSplitView()) {
     available_space.Inset(split_view_insets_);
   }
+
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  if (HasTahaiSurfaceDesign() && !tahai_focus_mode_) {
+    auto geometry = tahai::ResolveSurfaceGeometry(*surface_design_,
+        available_space.width(), available_space.height(), active_index_);
+    if (geometry) {
+      for (size_t index = 0; index < contents_container_views_.size(); ++index) {
+        const auto& bounds = geometry->panes[index];
+        layouts.child_layouts.emplace_back(contents_container_views_[index],
+            geometry->visible[index], gfx::Rect(available_space.x() + bounds.x,
+                available_space.y() + bounds.y, bounds.width, bounds.height));
+      }
+      for (size_t slot = 0; slot < surface_dividers_.size(); ++slot) {
+        const bool visible = slot < geometry->dividers.size();
+        const auto bounds = visible ? geometry->dividers[slot].bounds : tahai::SurfaceRect();
+        layouts.child_layouts.emplace_back(surface_dividers_[slot].get(), visible,
+            gfx::Rect(available_space.x() + bounds.x, available_space.y() + bounds.y,
+                       bounds.width, bounds.height));
+      }
+      layouts.child_layouts.emplace_back(resize_area_.get(), false, gfx::Rect());
+      layouts.child_layouts.emplace_back(tahai_row_resize_area_.get(), false, gfx::Rect());
+      layouts.child_layouts.emplace_back(tahai_column_resize_area_.get(), false, gfx::Rect());
+      layouts.host_size = gfx::Size(width, height);
+      return layouts;
+    }
+  }
+  for (const auto& divider : surface_dividers_) {
+    layouts.child_layouts.emplace_back(divider.get(), false, gfx::Rect());
+  }
+#endif
 
   const size_t visible_count = GetVisibleContentsCount();
   if (visible_count < 3u) {
@@ -936,9 +1128,51 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
 }
 
 void MultiContentsView::BeforeApplyLayout(const views::ProposedLayout& layout) {
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  // A breakpoint or mode switch may hide the currently focused native handle.
+  // Move only this window's existing descendant focus; never focus an idle window.
+  auto* focused = GetFocusManager() ? GetFocusManager()->GetFocusedView() : nullptr;
+  if (focused && Contains(focused)) {
+    for (const auto& child : layout.child_layouts) {
+      if (!child.visible && child.child_view->Contains(focused)) {
+        GetActiveContentsView()->RequestFocus();
+        break;
+      }
+    }
+  }
+  surface_geometry_.reset();
+  if (HasTahaiSurfaceDesign() && !tahai_focus_mode_) {
+    gfx::Rect region;
+    for (const auto& child : layout.child_layouts) {
+      if (child.visible && (std::ranges::any_of(contents_container_views_,
+              [&](const auto& view) { return view.get() == child.child_view; }) ||
+          std::ranges::any_of(surface_dividers_,
+              [&](const auto& view) { return view.get() == child.child_view; }))) {
+        region.Union(child.bounds);
+      }
+    }
+    surface_geometry_ = tahai::ResolveSurfaceGeometry(*surface_design_,
+        region.width(), region.height(), active_index_);
+    if (surface_geometry_) {
+      for (size_t slot = 0; slot < surface_geometry_->dividers.size(); ++slot) {
+        const auto& divider = surface_geometry_->dividers[slot];
+        surface_dividers_[slot]->Configure(divider.rows,
+            static_cast<double>(divider.first_extent) / divider.total_extent);
+      }
+      if (surface_resize_state_ &&
+          (surface_resize_state_->slot >= surface_geometry_->dividers.size() ||
+           surface_resize_state_->total !=
+               surface_geometry_->dividers[surface_resize_state_->slot].total_extent)) {
+        surface_resize_state_.reset();
+      }
+    }
+  } else {
+    surface_resize_state_.reset();
+  }
+#endif
   // Announce the effective constrained geometry, including after restart and
   // viewport/DPI changes, not an unconstrained preferred ratio.
-  if (GetVisibleContentsCount() >= 3u) {
+  if (GetVisibleContentsCount() >= 3u && tahai_row_resize_area_->GetVisible()) {
     gfx::Rect pane_union;
     const gfx::Rect* row_bounds = nullptr;
     const gfx::Rect* column_bounds = nullptr;
@@ -977,7 +1211,11 @@ void MultiContentsView::BeforeApplyLayout(const views::ProposedLayout& layout) {
           (pane_union.width() - column_bounds->width()));
     }
   }
-  if (!target_content_bounds_) {
+  bool authored_surface = false;
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  authored_surface = HasTahaiSurfaceDesign();
+#endif
+  if (!target_content_bounds_ || authored_surface) {
     for (auto& contents : contents_container_views_) {
       contents->SetTargetContentBounds(std::nullopt);
     }

@@ -13,6 +13,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/values.h"
+#include "chrome/browser/ui/tahai/tahai_window_presentation.h"
 #include "components/split_tabs/split_tab_visual_data.h"
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "url/gurl.h"
@@ -44,6 +45,7 @@ struct NamedWorkspace {
   std::vector<NamedWorkspaceTab> tabs;
   std::vector<tab_groups::TabGroupVisualData> groups;
   std::vector<NamedWorkspaceSplit> splits;
+  std::optional<WindowPresentation> presentation;
 };
 
 // UI-sequence, profile-local, non-syncable pref storage. Every operation reads

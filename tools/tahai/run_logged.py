@@ -4,6 +4,7 @@
 """Preserve native output and exit codes across PowerShell versions."""
 
 import argparse
+import os
 from pathlib import Path
 import subprocess
 
@@ -25,6 +26,8 @@ def main():
         try:
             return subprocess.run(command, stdin=subprocess.DEVNULL,
                                   stdout=output, stderr=subprocess.STDOUT,
+                                  creationflags=(subprocess.CREATE_NO_WINDOW
+                                                 if os.name == "nt" else 0),
                                   check=False).returncode
         except OSError as error:
             output.write((f"Could not start command: {error}\n").encode())

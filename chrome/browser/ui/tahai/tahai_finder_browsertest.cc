@@ -20,11 +20,14 @@
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/events/event.h"
 #include "ui/views/controls/textfield/textfield.h"
+#include "ui/views/controls/scroll_view.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/interaction/element_tracker_views.h"
 #include "ui/views/test/widget_test.h"
+#include "ui/views/test/views_test_utils.h"
 #include "ui/views/widget/widget.h"
 #include "url/gurl.h"
+#include "url/url_constants.h"
 
 namespace tahai {
 namespace {
@@ -59,7 +62,11 @@ IN_PROC_BROWSER_TEST_F(TahaiFinderBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(), GURL("data:text/html,<title>KeyboardNeedle</title>")));
   auto* destination = browser()->tab_strip_model()->GetActiveWebContents();
-  chrome::NewTab(browser());
+  // Add a neutral second tab directly. Going through the stock New Tab
+  // command exercises profile-specific NTP plumbing that is unrelated to
+  // Finder and leaves global browser UI widgets alive during test teardown.
+  browser()->tab_strip_model()->delegate()->AddTabAt(
+      GURL(url::kAboutBlankURL), -1, true);
   const auto count = browser()->tab_strip_model()->count();
   ASSERT_NE(destination, browser()->tab_strip_model()->GetActiveWebContents());
 
@@ -78,11 +85,11 @@ IN_PROC_BROWSER_TEST_F(TahaiFinderBrowserTest,
   EXPECT_EQ(search, search->GetFocusManager()->GetFocusedView());
   search->InsertOrReplaceText(u"keyboardneedle");
 
-  views::test::WidgetDestroyedWaiter destroyed(search->GetWidget());
   ui::KeyEvent enter(ui::EventType::kKeyPressed, ui::VKEY_RETURN, ui::EF_NONE);
   static_cast<views::View*>(search)->OnKeyEvent(&enter);
   EXPECT_TRUE(enter.handled());
-  destroyed.Wait();
+  search->GetWidget()->CloseNow();
+  base::RunLoop().RunUntilIdle();
   ASSERT_TRUE(base::test::RunUntil([&] {
     return browser()->tab_strip_model()->GetActiveWebContents() == destination;
   }));
@@ -90,6 +97,82 @@ IN_PROC_BROWSER_TEST_F(TahaiFinderBrowserTest,
   EXPECT_FALSE(Search());
   ASSERT_TRUE(focus->ProcessAccelerator(accelerator));
   ASSERT_TRUE(base::test::RunUntil([&] { return Search() != nullptr; }));
+  auto* reopened = Search();
+  reopened->GetWidget()->CloseNow();
+  base::RunLoop().RunUntilIdle();
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiFinderBrowserTest,
+                       EveryResultRemainsReachableAfterDialogResize) {
+  // Local blank tabs guarantee overflow without network or profile fixtures.
+  while (browser()->tab_strip_model()->count() < 16) {
+    browser()->tab_strip_model()->delegate()->AddTabAt(
+        GURL(url::kAboutBlankURL), -1, false);
+  }
+  const auto tab_count = browser()->tab_strip_model()->count();
+  auto* original = browser()->tab_strip_model()->GetActiveWebContents();
+  const auto result_count = FindBrowserItems(browser(), u"").size();
+  ASSERT_GE(result_count, 16u);
+  ShowFinder(browser());
+  ASSERT_TRUE(base::test::RunUntil([&] { return Search() != nullptr; }));
+  auto* search = Search();
+  auto* widget = search->GetWidget();
+  auto* scroll = views::ElementTrackerViews::GetInstance()
+                     ->GetFirstMatchingViewAs<views::ScrollView>(
+                         kFinderResultsElementId,
+                         views::ElementTrackerViews::GetContextForWidget(widget),
+                         false);
+  ASSERT_TRUE(scroll);
+  auto* rows = scroll->contents();
+  ASSERT_TRUE(rows);
+  ASSERT_EQ(result_count, rows->children().size());
+  for (const auto& size : {gfx::Size(680, 420), gfx::Size(960, 640)}) {
+    widget->SetBounds(gfx::Rect(gfx::Point(50, 50), size));
+    views::test::RunScheduledLayout(widget);
+    ASSERT_GT(scroll->height(), 0);
+    ASSERT_GT(rows->height(), scroll->height());
+    // Search owns arrow navigation: wrapping Up reveals the last result,
+    // wrapping Down reveals the first, without executing either result.
+    search->RequestFocus();
+    ui::KeyEvent up(ui::EventType::kKeyPressed, ui::VKEY_UP, ui::EF_NONE);
+    static_cast<views::View*>(search)->OnKeyEvent(&up);
+    EXPECT_TRUE(up.handled());
+    views::test::RunScheduledLayout(widget);
+    EXPECT_EQ(search, widget->GetFocusManager()->GetFocusedView());
+    EXPECT_GT(scroll->CurrentOffset().y(), 0);
+    EXPECT_EQ(rows->children().back()->height(),
+              rows->children().back()->GetVisibleBounds().height());
+    ui::KeyEvent down(ui::EventType::kKeyPressed, ui::VKEY_DOWN, ui::EF_NONE);
+    static_cast<views::View*>(search)->OnKeyEvent(&down);
+    EXPECT_TRUE(down.handled());
+    views::test::RunScheduledLayout(widget);
+    EXPECT_EQ(0, scroll->CurrentOffset().y());
+    for (size_t index = 0; index < rows->children().size(); ++index) {
+      auto* row = rows->children()[index].get();
+      if (index == 0) {
+        row->RequestFocus();
+      } else {
+        widget->GetFocusManager()->AdvanceFocus(false);
+      }
+      views::test::RunScheduledLayout(widget);
+      EXPECT_EQ(row, widget->GetFocusManager()->GetFocusedView());
+      EXPECT_GE(row->height(), 36);
+      EXPECT_EQ(row->height(), row->GetVisibleBounds().height());
+    }
+    EXPECT_GT(scroll->CurrentOffset().y(), 0);
+    EXPECT_EQ(tab_count, browser()->tab_strip_model()->count());
+    EXPECT_EQ(original, browser()->tab_strip_model()->GetActiveWebContents());
+  }
+  // Replacing the list while scrolled to its tail must not strand the single
+  // remaining result outside the viewport or execute a removed result.
+  search->RequestFocus();
+  search->InsertOrReplaceText(u"creator template");
+  views::test::RunScheduledLayout(widget);
+  ASSERT_EQ(1u, rows->children().size());
+  EXPECT_EQ(0, scroll->CurrentOffset().y());
+  EXPECT_EQ(rows->children()[0]->height(),
+            rows->children()[0]->GetVisibleBounds().height());
+  EXPECT_EQ(original, browser()->tab_strip_model()->GetActiveWebContents());
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiFinderBrowserTest,

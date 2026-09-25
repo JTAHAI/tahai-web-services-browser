@@ -61,6 +61,23 @@ if ($buildResult.buildExitCode -ne 0 -or
 $copiedBuildLog = Copy-EvidenceFile (Join-Path $RunDirectory 'build.log')
 $copiedNative = Copy-EvidenceFile (Join-Path $RunDirectory 'native-tests.json')
 $copiedBrowser = Copy-EvidenceFile (Join-Path $RunDirectory 'browser-tests.json')
+$testResults = Get-Content -LiteralPath (Join-Path $RunDirectory 'test-results.json') -Raw | ConvertFrom-Json
+if ($testResults.nativeExitCode -isnot [int] -or $testResults.nativeExitCode -ne 0 -or
+    $testResults.browserExitCode -isnot [int] -or $testResults.browserExitCode -ne 0 -or
+    [string]::IsNullOrWhiteSpace($testResults.isolatedTestSession)) {
+  throw 'Recorded successful exits from both isolated test processes are required.'
+}
+$sourcePath = Join-Path $RunDirectory 'source-provenance.json'
+$source = Get-Content -LiteralPath $sourcePath -Raw | ConvertFrom-Json
+$nativeSource = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+& python.exe (Join-Path $PSScriptRoot 'source_provenance.py') --source $nativeSource --build $BuildDirectory --compare $sourcePath
+if ($LASTEXITCODE -ne 0) { throw 'Source differs from the verified build snapshot.' }
+if ($source.sourceSnapshot.file -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
+  throw 'Invalid source snapshot filename.'
+}
+$copiedSource = Copy-EvidenceFile $sourcePath
+$null = Copy-EvidenceFile (Join-Path $RunDirectory $source.sourceSnapshot.file)
+$copiedTestResults = Copy-EvidenceFile (Join-Path $RunDirectory 'test-results.json')
 
 $smoke = Get-Content -LiteralPath $SmokePath -Raw | ConvertFrom-Json
 if ($smoke.schemaVersion -ne 1 -or $null -eq $smoke.checks) {
@@ -102,15 +119,17 @@ $release = [ordered]@{
   buildFinishedUnixMs = [int64]$buildResult.buildFinishedUnixMs
   artifacts = @($artifacts)
   buildLog = Get-Record $copiedBuildLog
+  sourceProvenance = Get-Record $copiedSource
+  testResults = Get-Record $copiedTestResults
   nativeTests = [ordered]@{
     file = (Get-Item -LiteralPath $copiedNative).Name
     sha256 = (Get-FileHash -LiteralPath $copiedNative -Algorithm SHA256).Hash
-    exitCode = 0
+    exitCode = [int]$testResults.nativeExitCode
   }
   browserTests = [ordered]@{
     file = (Get-Item -LiteralPath $copiedBrowser).Name
     sha256 = (Get-FileHash -LiteralPath $copiedBrowser -Algorithm SHA256).Hash
-    exitCode = 0
+    exitCode = [int]$testResults.browserExitCode
   }
   smoke = Get-Record $copiedSmoke
 }

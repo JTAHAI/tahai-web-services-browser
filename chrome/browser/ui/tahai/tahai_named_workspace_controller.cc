@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/tahai/tahai_named_workspace_controller.h"
 
+#include <algorithm>
 #include <map>
 #include <set>
 #include <vector>
@@ -24,6 +25,32 @@
 #include "content/public/browser/web_contents.h"
 
 namespace tahai {
+
+Browser* ActivateNativeCustomMode(Browser* source, std::string_view id) {
+  if (!source || !source->is_type_normal() ||
+      !source->GetProfile()->IsRegularProfile() || source->GetProfile()->IsOffTheRecord()) {
+    return nullptr;
+  }
+  auto* modes = ModeServiceFactory::GetForProfile(source->GetProfile());
+  if (!modes) {
+    return nullptr;
+  }
+  const auto custom = std::ranges::find(modes->custom_modes(), id,
+                                       &TahaiCustomModeDefinition::id);
+  if (custom == modes->custom_modes().end() || !custom->native_presentation) {
+    return nullptr;
+  }
+  // Copy before creating a window, which may synchronously notify observers.
+  auto presentation = *custom->native_presentation;
+  presentation.custom_mode = custom->id;
+  const std::string workspace_id = custom->workspace_id;
+  if (!ValidateWindowPresentation(presentation)) {
+    return nullptr;
+  }
+  Browser* target = workspace_id.empty() ? source : OpenNamedWorkspace(source, workspace_id);
+  auto* controller = WindowModeController::GetForBrowser(target);
+  return controller && controller->RestorePresentation(presentation) ? target : nullptr;
+}
 
 NamedWorkspaceCaptureResult CaptureNamedWorkspace(Browser* browser,
                                                   std::string_view name) {
@@ -48,6 +75,7 @@ NamedWorkspaceCaptureResult CaptureNamedWorkspace(Browser* browser,
   workspace.mode = mode->active_mode_id();
   workspace.rail_state = mode->active_configuration().rail_state;
   workspace.rail_width = mode->active_configuration().rail_width;
+  workspace.presentation = mode->CapturePresentation();
   workspace.active_tab = model->active_index();
   std::map<tab_groups::TabGroupId, int> group_indices;
   std::set<split_tabs::SplitTabId> seen_splits;
@@ -176,8 +204,11 @@ Browser* OpenNamedWorkspace(Browser* source, std::string_view id) {
   }
   auto* mode = WindowModeController::GetForBrowser(restored);
   if (!mode ||
-      !mode->ApplyWorkspacePresentation(workspace->mode, workspace->rail_state,
-                                        workspace->rail_width)) {
+      !(workspace->presentation
+            ? mode->RestorePresentation(*workspace->presentation)
+            : mode->ApplyWorkspacePresentation(workspace->mode,
+                                                workspace->rail_state,
+                                                workspace->rail_width))) {
     restored->GetWindow()->Show();
     return nullptr;
   }

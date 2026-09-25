@@ -71,14 +71,18 @@ class TahaiSyncKeyService {
   TahaiSyncKeyringStatus GetStatus() const;
 
   // Creates the initial random AES-256 key when no keyring exists.
-  void EnsureActiveKey(KeyCallback callback);
+  // An optional browser-owned lease is checked before queueing and again after
+  // asynchronous provider work, before any key is exposed or storage mutated.
+  using Authorization = base::RepeatingCallback<bool()>;
+  void EnsureActiveKey(KeyCallback callback, Authorization authorization = {});
 
   // Retains a bounded decrypt-only history so existing capsules can be opened
   // after a rotation. Recovery/export is deliberately not implemented here.
-  void RotateActiveKey(KeyCallback callback);
+  void RotateActiveKey(KeyCallback callback, Authorization authorization = {});
 
   // Looks up a previously persisted key by its public opaque identifier.
-  void GetKeyForId(std::string key_id, KeyCallback callback);
+  void GetKeyForId(std::string key_id, KeyCallback callback,
+                   Authorization authorization = {});
 
  private:
   enum class Operation {
@@ -91,9 +95,11 @@ class TahaiSyncKeyService {
     Operation operation;
     std::string key_id;
     KeyCallback callback;
+    Authorization authorization;
   };
 
-  void Start(Operation operation, std::string key_id, KeyCallback callback);
+  void Start(Operation operation, std::string key_id, KeyCallback callback,
+             Authorization authorization);
   void StartNextOperation();
   void OnEncryptorReady(scoped_refptr<os_crypt_async::Encryptor> encryptor);
   void FinishOperation(PendingOperation pending,

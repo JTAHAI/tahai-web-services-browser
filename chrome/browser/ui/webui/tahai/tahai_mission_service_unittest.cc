@@ -11,13 +11,16 @@
 #include <string_view>
 #include <utility>
 
+#include "base/check.h"
 #include "base/containers/span.h"
+#include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/pickle.h"
 #include "base/scoped_observation.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/test/bind.h"
+#include "base/test/test_future.h"
 #include "base/uuid.h"
 #include "base/values.h"
 #include "chrome/browser/tahai_guard/tahai_guard_configuration.h"
@@ -26,6 +29,8 @@
 #include "chrome/browser/ui/tahai/tahai_identity_lane.h"
 #include "chrome/browser/ui/tahai/tahai_mode_service.h"
 #include "chrome/browser/ui/tahai/tahai_named_workspace_store.h"
+#include "chrome/common/tahai_url_constants.h"
+#include "chrome/browser/ui/tahai/tahai_operational_workflow_queue.h"
 #include "chrome/browser/ui/webui/tahai/tahai_change_lens_contract.h"
 #include "chrome/browser/ui/webui/tahai/tahai_environment_guard.h"
 #include "chrome/browser/ui/webui/tahai/tahai_local_oi_model.h"
@@ -53,8 +58,10 @@
 #include "chrome/browser/ui/webui/tahai/tahai_sync_key_service.h"
 #include "chrome/browser/ui/webui/tahai/tahai_team_mission_contract.h"
 #include "chrome/common/pref_names.h"
+#include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/prefs/pref_service.h"
+#include "components/os_crypt/async/browser/test_utils.h"
 #include "components/sessions/core/session_service_commands.h"
 #include "components/split_tabs/split_tab_visual_data.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
@@ -124,6 +131,33 @@ TEST_F(MissionServiceTest, TahaiNamedWorkspaceNameValidationUsesStoredBytes) {
   EXPECT_FALSE(NamedWorkspaceStore::IsValidName({}));
   EXPECT_FALSE(NamedWorkspaceStore::IsValidName(std::string(121, 'a')));
   EXPECT_FALSE(NamedWorkspaceStore::IsValidName("line\nbreak"));
+}
+
+TEST_F(MissionServiceTest, TahaiNamedWorkspacePreservesWindowSkinWithoutAuthority) {
+  auto workspace = ExampleNamedWorkspace();
+  workspace.presentation = WindowPresentation{
+      .fixed_mode = workspace.mode,
+      .rail_state = workspace.rail_state,
+      .rail_width = workspace.rail_width,
+      .rail_modules = {"mission", "guard"},
+      .skin = WindowSkinReference{"installed-skin", std::string(64, 'a')},
+      .operational_mode = "source-review"};
+  const auto encoded = NamedWorkspaceStore::Encode(workspace);
+  auto decoded = NamedWorkspaceStore::Decode(encoded);
+  ASSERT_TRUE(decoded);
+  EXPECT_EQ(workspace.presentation, decoded->presentation);
+  EXPECT_TRUE(NamedWorkspaceStore::IsRestorableUrl(GURL(kTahaiSkinStudioURL)));
+  EXPECT_EQ(GURL(kTahaiTrustedSkinStudioURL),
+            NamedWorkspaceStore::CanonicalizeInternalUrl(GURL(kTahaiSkinStudioURL)));
+  auto corrupt = encoded.Clone();
+  corrupt.Set("presentation", "unrecognized");
+  EXPECT_FALSE(NamedWorkspaceStore::Decode(corrupt));
+  corrupt = encoded.Clone();
+  corrupt.FindDict("presentation")->Set("width", workspace.rail_width + 1);
+  EXPECT_FALSE(NamedWorkspaceStore::Decode(corrupt));
+  corrupt = encoded.Clone();
+  corrupt.FindDict("presentation")->Set("actions", base::ListValue());
+  EXPECT_FALSE(NamedWorkspaceStore::Decode(corrupt));
 }
 
 TEST_F(MissionServiceTest, TahaiNamedWorkspaceRejectsUnsafeUrlsAndPartitions) {
@@ -376,6 +410,67 @@ TEST_F(MissionServiceTest, CreatesAndReloadsProfileScopedMetadata) {
             reloaded.missions().front().timeline.front().entry_hash.size());
 }
 
+TEST_F(MissionServiceTest, ManagedAndShutdownMissionsRejectChecklistAndRunStateChanges) {
+  MissionService service(&profile_);
+  const auto generic = service.CreateMission("Policy record", "incident"); ASSERT_TRUE(generic);
+  TahaiOperationalWorkflow workflow; workflow.id = "policy-work"; workflow.name = "Policy work";
+  workflow.steps = {{"review", "Review", TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  const auto operational = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(operational);
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(operational->id, "running"));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  const auto generic_token = service.missions()[0].mutation_token, workflow_token = service.missions()[1].mutation_token;
+  const auto check_rejected = [&] {
+    for (const auto& id : {generic->id, operational->id}) {
+      EXPECT_FALSE(service.ToggleStep(id, 0)); EXPECT_FALSE(service.ToggleValidationStep(id, 0)); EXPECT_FALSE(service.ToggleRollbackStep(id, 0));
+    }
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(operational->id, "paused"));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(operational->id, "cancelled"));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(operational->id, "failed"));
+    for (const auto& run : service.missions()) {
+      EXPECT_FALSE(run.steps[0].complete); EXPECT_FALSE(run.validation_steps[0].complete); EXPECT_FALSE(run.rollback_steps[0].complete);
+    }
+    EXPECT_EQ(generic_token, service.missions()[0].mutation_token); EXPECT_EQ(workflow_token, service.missions()[1].mutation_token);
+    EXPECT_EQ("running", service.missions()[1].operational_workflow->run_state);
+  };
+  profile_.GetTestingPrefService()->SetManagedPref(prefs::kTahaiMissions, base::Value(saved.Clone()));
+  check_rejected(); EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  profile_.GetTestingPrefService()->RemoveManagedPref(prefs::kTahaiMissions);
+  service.Shutdown(); check_rejected(); EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+}
+
+TEST_F(MissionServiceTest, ManagedAndShutdownMissionsRejectMetadataCreationAndOrdinaryInputWrites) {
+  MissionService service(&profile_);
+  const auto generic = service.CreateMission("Policy record", "incident"); ASSERT_TRUE(generic);
+  const auto archived = service.CreateMission("Archived policy record", "incident"); ASSERT_TRUE(archived);
+  ASSERT_TRUE(service.ArchiveMission(archived->id));
+  TahaiOperationalWorkflow workflow; workflow.id = "policy-work"; workflow.name = "Policy work";
+  workflow.inputs = {{"source", "Source", TahaiOperationalWorkflowInputType::kText, false, {}}};
+  workflow.steps = {{"review", "Review", TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  const auto operational = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(operational);
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(operational->id, "source", "before"));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  std::vector<std::string> tokens; for (const auto& run : service.missions()) tokens.push_back(run.mutation_token);
+  const auto check_rejected = [&] {
+    EXPECT_FALSE(service.CreateMission("Denied record", "incident")); EXPECT_FALSE(service.DuplicateMission(generic->id));
+    EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+    EXPECT_FALSE(service.ToggleEscalation(generic->id)); EXPECT_FALSE(service.AddEvidenceMarker(generic->id));
+    EXPECT_FALSE(service.AddLocalNote(generic->id, "Denied note")); EXPECT_FALSE(service.SetExportProfile(generic->id, "sanitized-handoff"));
+    EXPECT_FALSE(service.ArchiveMission(generic->id)); EXPECT_FALSE(service.RestoreMission(archived->id)); EXPECT_FALSE(service.DeleteMission(archived->id));
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(operational->id, "source", "changed"));
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(operational->id, "source", "before"));
+    ASSERT_EQ(3u, service.missions().size());
+    for (size_t i = 0; i < tokens.size(); ++i) EXPECT_EQ(tokens[i], service.missions()[i].mutation_token);
+    EXPECT_FALSE(service.missions()[0].archived); EXPECT_TRUE(service.missions()[1].archived);
+    EXPECT_FALSE(service.missions()[0].escalation_required); EXPECT_TRUE(service.missions()[0].notes.empty()); EXPECT_TRUE(service.missions()[0].evidence.empty());
+    EXPECT_EQ("before", service.missions()[2].workflow_inputs[0].value);
+  };
+  profile_.GetTestingPrefService()->SetManagedPref(prefs::kTahaiMissions, base::Value(saved.Clone()));
+  check_rejected(); EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  profile_.GetTestingPrefService()->RemoveManagedPref(prefs::kTahaiMissions);
+  service.Shutdown(); check_rejected(); EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  base::test::TestFuture<bool> prepared; service.PrepareProtectedWorkflowInputs(nullptr, prepared.GetCallback()); EXPECT_FALSE(prepared.Get());
+}
+
 TEST_F(MissionServiceTest, RejectsMalformedOrOversizedInput) {
   MissionService service(&profile_);
   EXPECT_FALSE(service.CreateMission("", "incident"));
@@ -383,6 +478,2514 @@ TEST_F(MissionServiceTest, RejectsMalformedOrOversizedInput) {
   EXPECT_FALSE(service.CreateMission("Unsafe\nname", "incident"));
   EXPECT_FALSE(service.CreateMission("Valid name", "arbitrary"));
   EXPECT_TRUE(service.missions().empty());
+}
+
+TEST_F(MissionServiceTest,
+       OperationalWorkflowMissionPinsRevisionAndRestoresChecklistSnapshot) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "research-workflow";
+  workflow.name = "Research workflow";
+  workflow.steps = {
+      {"scope", "Set a bounded research scope",
+       TahaiOperationalWorkflowStepKind::kInstruction, {}},
+      {"review", "Review the collected result",
+       TahaiOperationalWorkflowStepKind::kCheckpoint, {}},
+      {"document", "Document the approved handoff",
+       TahaiOperationalWorkflowStepKind::kRunCommand, "save-evidence"},
+  };
+  std::string mission_id;
+  {
+    MissionService service(&profile_);
+    const auto mission = service.CreateOperationalWorkflowMission(
+        workflow, "research-skin", std::string(64u, 'a'));
+    ASSERT_TRUE(mission);
+    mission_id = mission->id;
+    EXPECT_EQ("documentation", mission->type);
+    ASSERT_TRUE(mission->operational_workflow);
+    EXPECT_EQ("research-skin", mission->operational_workflow->skin_id);
+    EXPECT_EQ("research-workflow", mission->operational_workflow->workflow_id);
+    EXPECT_EQ(std::string(64u, 'a'),
+              mission->operational_workflow->archive_sha256);
+    ASSERT_EQ(3u, mission->steps.size());
+    EXPECT_EQ("Set a bounded research scope", mission->steps[0].label);
+    // The run-command symbol remains a checklist item. Mission creation never
+    // dispatches it or persists its action name.
+    EXPECT_EQ("Document the approved handoff", mission->steps[2].label);
+    EXPECT_TRUE(service.SetOperationalWorkflowRunState(mission_id, "running"));
+    EXPECT_TRUE(service.ToggleStep(mission_id, 1u));
+    EXPECT_TRUE(service.SetOperationalWorkflowRunState(mission_id, "paused"));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(mission_id, "ready"));
+    EXPECT_FALSE(service.CreateOperationalWorkflowMission(
+        workflow, "research-skin", "not-a-sha256"));
+  }
+
+  MissionService reloaded(&profile_);
+  ASSERT_EQ(1u, reloaded.missions().size());
+  const MissionSummary& mission = reloaded.missions().front();
+  ASSERT_TRUE(mission.operational_workflow);
+  EXPECT_EQ("research-skin", mission.operational_workflow->skin_id);
+  EXPECT_EQ("research-workflow", mission.operational_workflow->workflow_id);
+  EXPECT_EQ("paused", mission.operational_workflow->run_state);
+  ASSERT_EQ(3u, mission.steps.size());
+  EXPECT_EQ("Review the collected result", mission.steps[1].label);
+  EXPECT_TRUE(mission.steps[1].complete);
+}
+
+TahaiOperationalWorkflow ProtectedWorkflow() {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "protected-workflow";
+  workflow.name = "Protected workflow";
+  workflow.inputs = {{"private-input", "Private input",
+      TahaiOperationalWorkflowInputType::kText, true, {}, true}};
+  workflow.steps = {{"review", "Review result", TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  return workflow;
+}
+
+bool PrepareInputs(MissionService& service, os_crypt_async::OSCryptAsync* provider) {
+  base::test::TestFuture<bool> ready;
+  service.PrepareProtectedWorkflowInputs(provider, ready.GetCallback());
+  return ready.Get();
+}
+
+TahaiOperationalWorkflow VariableWorkflow() {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "variables-workflow";
+  workflow.name = "Variables workflow";
+  workflow.inputs = {{"amount", "Amount", TahaiOperationalWorkflowInputType::kNumber, false, {}}};
+  workflow.variables = {{"total", "Total", TahaiOperationalWorkflowInputType::kNumber, false, {}},
+                        {"copy", "Copy", TahaiOperationalWorkflowInputType::kNumber, false, {}}};
+  workflow.variables[0].validation = TahaiWorkflowInputValidation{{}, {}, 2.0, 4.0};
+  workflow.steps = {{"review", "Review", TahaiOperationalWorkflowStepKind::kCheckpoint},
+      {"assign-total", "Assign total", TahaiOperationalWorkflowStepKind::kAssignVariable},
+      {"assign-copy", "Assign copy", TahaiOperationalWorkflowStepKind::kAssignVariable},
+      {"overwrite", "Overwrite total", TahaiOperationalWorkflowStepKind::kAssignVariable}};
+  workflow.steps[1].assignment = TahaiWorkflowAssignment{"total", "amount", false};
+  workflow.steps[2].assignment = TahaiWorkflowAssignment{"copy", "total", true};
+  workflow.steps[3].assignment = TahaiWorkflowAssignment{"total", "amount", false};
+  workflow.outputs = {{"result", "Result", "copy", true}};
+  return workflow;
+}
+
+TahaiOperationalWorkflow WaitWorkflow() {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "wait-workflow"; workflow.name = "Timed wait";
+  workflow.inputs = {{"approved", "Approved", TahaiOperationalWorkflowInputType::kBoolean, true, {}},
+      {"note", "Note", TahaiOperationalWorkflowInputType::kText, true, {}}};
+  workflow.steps = {{"review", "Review", TahaiOperationalWorkflowStepKind::kCheckpoint},
+      {"delay", "Delay", TahaiOperationalWorkflowStepKind::kWait, {}, "approved", "true"},
+      {"after", "After", TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  workflow.steps[1].wait_seconds = 3;
+  return workflow;
+}
+
+TahaiOperationalWorkflow CalculationWorkflow() {
+  auto workflow = VariableWorkflow();
+  workflow.inputs.push_back({"divisor", "Divisor", TahaiOperationalWorkflowInputType::kNumber, false, {}});
+  workflow.steps.resize(3);
+  TahaiWorkflowNumericExpression numerator; numerator.input_id = "amount";
+  TahaiWorkflowNumericExpression denominator; denominator.input_id = "divisor";
+  TahaiWorkflowNumericExpression expression;
+  expression.operation = "divide"; expression.arguments = {numerator, denominator};
+  workflow.steps[1].assignment = TahaiWorkflowAssignment{"total", {}, false, expression};
+  return workflow;
+}
+
+TahaiOperationalWorkflow NumericBranchWorkflow() {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "numeric-branch"; workflow.name = "Numeric branch";
+  workflow.inputs = {{"amount", "Amount", TahaiOperationalWorkflowInputType::kNumber, false, {}}};
+  workflow.steps = {{"branch", "Numeric branch", TahaiOperationalWorkflowStepKind::kCheckpoint},
+      {"after", "After branch", TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  workflow.steps[0].condition_input_id = "amount";
+  workflow.steps[0].numeric_condition = TahaiWorkflowNumericCondition{"greater-than", 3.125};
+  return workflow;
+}
+
+class MissionWaitTest : public testing::Test {
+ protected:
+  std::string Start(MissionService& service, int timeout_seconds = 0) {
+    auto workflow = WaitWorkflow(); workflow.steps[1].wait_timeout_seconds = timeout_seconds;
+    if (!QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')) ||
+        !service.ConsumeQueuedOperationalWorkflow()) return {};
+    const auto id = service.missions().back().id;
+    if (!service.SetOperationalWorkflowInputValue(id, "approved", "true") ||
+        !service.SetOperationalWorkflowInputValue(id, "note", "Local note") ||
+        !service.SetOperationalWorkflowRunState(id, "running")) return {};
+    return id;
+  }
+  content::BrowserTaskEnvironment environment_{base::test::TaskEnvironment::TimeSource::MOCK_TIME};
+  TestingProfile profile_;
+};
+
+TahaiOperationalWorkflow VariableBranchWorkflow() {
+  auto workflow = NumericBranchWorkflow();
+  // Deliberately collide namespaces: a variable condition never requires or
+  // consumes the similarly named optional input.
+  workflow.variables = {{"amount", "Saved amount", TahaiOperationalWorkflowInputType::kNumber, false, {}}};
+  workflow.steps[0].condition_from_variable = true;
+  auto later = workflow.steps[0]; later.id = "later"; later.name = "Later branch";
+  TahaiOperationalWorkflowStep first{"initial", "Initial assignment", TahaiOperationalWorkflowStepKind::kAssignVariable};
+  TahaiWorkflowNumericExpression expression; expression.number = 2;
+  first.assignment = TahaiWorkflowAssignment{"amount", {}, false, expression};
+  workflow.steps.insert(workflow.steps.begin(), first);
+  workflow.steps[2] = first; workflow.steps[2].id = "change"; workflow.steps[2].name = "Later assignment";
+  workflow.steps[2].assignment->expression->number = 4;
+  workflow.steps.push_back(later);
+  workflow.outputs = {{"result", "Result", "amount", true}};
+  return workflow;
+}
+
+TEST_F(MissionServiceTest, VariableBranchesFreezeBeforeMutationAndRecoverWithoutReevaluatingHistory) {
+  const auto workflow = VariableBranchWorkflow(); std::string id;
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  {
+    MissionService service(&profile_); ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    const auto& run = service.missions().front(); id = run.id;
+    EXPECT_FALSE(IsMissionWorkflowInputRequired(run, run.workflow_inputs[0]));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    EXPECT_FALSE(IsMissionWorkflowStepConditionResolved(run, 1));
+    EXPECT_FALSE(service.ToggleStep(id, 3)); EXPECT_FALSE(service.AssignWorkflowVariable(id, 2));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 0)); EXPECT_EQ("2", run.workflow_variables[0].value);
+    EXPECT_TRUE(IsMissionWorkflowStepConditionResolved(run, 1));
+    EXPECT_FALSE(IsMissionWorkflowStepConditionSatisfied(run, 1)); EXPECT_FALSE(run.steps[1].variable_condition_result);
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 2)); EXPECT_EQ("4", run.workflow_variables[0].value);
+    EXPECT_EQ(false, run.steps[1].variable_condition_result); EXPECT_FALSE(run.steps[1].complete);
+    EXPECT_FALSE(IsMissionWorkflowStepConditionSatisfied(run, 1)); EXPECT_FALSE(service.ToggleStep(id, 1));
+    EXPECT_TRUE(IsMissionWorkflowStepConditionSatisfied(run, 3)); EXPECT_FALSE(run.steps[3].variable_condition_result);
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+  }
+  MissionService restored(&profile_); ASSERT_EQ(1u, restored.missions().size());
+  const auto& run = restored.missions().front(); ASSERT_TRUE(run.operational_workflow);
+  EXPECT_EQ(false, run.steps[1].variable_condition_result); EXPECT_EQ("4", run.workflow_variables[0].value);
+  EXPECT_FALSE(IsMissionWorkflowStepConditionSatisfied(run, 1));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(restored.ToggleStep(id, 3)); EXPECT_EQ(true, run.steps[3].variable_condition_result);
+  ASSERT_TRUE(restored.ToggleStep(id, 3)); EXPECT_EQ(true, run.steps[3].variable_condition_result);
+  ASSERT_TRUE(restored.ToggleStep(id, 3));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "succeeded"));
+  const auto output = ResolveMissionWorkflowOutput(run, "result"); ASSERT_TRUE(output); EXPECT_EQ("4", output->value);
+  const auto capsule = BuildTahaiMissionCapsule(run); ASSERT_TRUE(capsule);
+  EXPECT_FALSE(capsule->contains("variable_condition_result")); EXPECT_FALSE(capsule->contains("condition_from_variable"));
+  MissionService restarted(&profile_); ASSERT_TRUE(restarted.missions().front().operational_workflow);
+  EXPECT_EQ(false, restarted.missions().front().steps[1].variable_condition_result);
+  EXPECT_EQ(true, restarted.missions().front().steps[3].variable_condition_result);
+}
+
+TEST_F(MissionServiceTest, VariableBranchesRejectMalformedDecisionsAndPrivateOrLegacyBindings) {
+  auto workflow = VariableBranchWorkflow(); MissionService service(&profile_);
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  MissionService private_service(profile_.GetPrimaryOTRProfile(true));
+  EXPECT_FALSE(private_service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  workflow.variables[0].is_protected = true;
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  workflow = VariableBranchWorkflow();
+  const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created); const auto id = created->id;
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(service.AssignWorkflowVariable(id, 0)); ASSERT_TRUE(service.AssignWorkflowVariable(id, 2));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (int change = 0; change < 7; ++change) {
+    auto invalid = saved.Clone(); auto& steps = *invalid[0].GetDict().FindList("steps");
+    auto& branch = steps[1].GetDict();
+    switch (change) {
+      case 0: branch.Remove("variable_condition_result"); break;
+      case 1: branch.Set("variable_condition_result", base::Value()); break;
+      case 2: branch.Set("variable_condition_result", "false"); break;
+      case 3: branch.Set("condition_from_variable", false); break;
+      case 4: branch.Remove("condition_from_variable"); break;
+      case 5: branch.Set("complete", true); break;
+      case 6: steps[0].GetDict().Set("variable_condition_result", true); break;
+    }
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, invalid.Clone());
+    MissionService restored(&profile_); ASSERT_EQ(1u, restored.missions().size());
+    EXPECT_FALSE(restored.missions().front().operational_workflow) << change;
+    EXPECT_FALSE(restored.AssignWorkflowVariable(id, 2));
+    EXPECT_EQ(invalid, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+}
+
+TEST_F(MissionServiceTest, VariableBranchSuccessRequiresRecordedTrailingDecisions) {
+  auto workflow = VariableBranchWorkflow(); workflow.steps.resize(2);
+  MissionService service(&profile_);
+  const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(created);
+  const auto id = created->id;
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running")); ASSERT_TRUE(service.AssignWorkflowVariable(id, 0));
+  EXPECT_FALSE(service.missions().back().steps[1].variable_condition_result);
+  auto forged_success = service.missions().back(); forged_success.operational_workflow->run_state = "succeeded";
+  EXPECT_FALSE(ResolveMissionWorkflowOutput(forged_success, "result"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+  EXPECT_EQ(false, service.missions().back().steps[1].variable_condition_result);
+  EXPECT_TRUE(ResolveMissionWorkflowOutput(service.missions().back(), "result"));
+  MissionService restarted(&profile_); ASSERT_TRUE(restarted.missions().back().operational_workflow);
+  EXPECT_EQ(false, restarted.missions().back().steps[1].variable_condition_result);
+  auto invalid = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  (*invalid.back().GetDict().FindList("steps"))[1].GetDict().Remove("variable_condition_result");
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, invalid.Clone());
+  MissionService malformed(&profile_); EXPECT_FALSE(malformed.missions().back().operational_workflow);
+  EXPECT_FALSE(ResolveMissionWorkflowOutput(malformed.missions().back(), "result"));
+  EXPECT_EQ(invalid, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+}
+
+TahaiOperationalWorkflow CompoundBranchWorkflow() {
+  auto workflow = VariableBranchWorkflow();
+  workflow.inputs.push_back({"approved", "Approved", TahaiOperationalWorkflowInputType::kBoolean, false, {}});
+  workflow.steps[1].condition_input_id.clear(); workflow.steps[1].numeric_condition.reset();
+  workflow.steps[1].condition_from_variable = false;
+  const auto definition = base::JSONReader::Read(R"({"all":[{"input":"approved","equals":"true"},
+      {"not":{"variable":"amount","compare":{"op":"at-most","number":3}}}]})", base::JSON_PARSE_RFC);
+  TahaiWorkflowPredicate predicate;
+  CHECK(definition && ParseTahaiWorkflowPredicate(&*definition, &predicate));
+  workflow.steps[1].predicate = std::move(predicate);
+  return workflow;
+}
+
+TEST_F(MissionServiceTest, CompoundBranchesRequireAllSourcesAndRetainRecordedHistoryAcrossRestart) {
+  const auto workflow = CompoundBranchWorkflow(); std::string id;
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  {
+    MissionService service(&profile_); ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    const auto& run = service.missions().front(); id = run.id;
+    EXPECT_TRUE(IsMissionWorkflowInputRequired(run, run.workflow_inputs[1]));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "running"));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "approved", "true"));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    EXPECT_FALSE(IsMissionWorkflowStepConditionResolved(run, 1)); EXPECT_FALSE(service.ToggleStep(id, 3));
+    auto disjunction = run; disjunction.steps[1].predicate->operation = "any";
+    EXPECT_FALSE(IsMissionWorkflowStepConditionResolved(disjunction, 1));
+    EXPECT_FALSE(CanAssignMissionWorkflowVariable(disjunction, 2));
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 0));
+    EXPECT_TRUE(IsMissionWorkflowStepConditionResolved(run, 1)); EXPECT_FALSE(IsMissionWorkflowStepConditionSatisfied(run, 1));
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 2));
+    EXPECT_EQ(false, run.steps[1].variable_condition_result); EXPECT_EQ("4", run.workflow_variables[0].value);
+    EXPECT_TRUE(IsMissionWorkflowInputBranchLocked(run, "approved"));
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "approved", "false"));
+    EXPECT_FALSE(service.ToggleStep(id, 1)); ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+  }
+  MissionService restored(&profile_); const auto& run = restored.missions().front(); ASSERT_TRUE(run.operational_workflow);
+  EXPECT_EQ(workflow.steps[1].predicate, run.steps[1].predicate); EXPECT_EQ(false, run.steps[1].variable_condition_result);
+  EXPECT_FALSE(IsMissionWorkflowStepConditionSatisfied(run, 1));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running")); ASSERT_TRUE(restored.ToggleStep(id, 3));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "succeeded"));
+  const auto result = ResolveMissionWorkflowOutput(run, "result"); ASSERT_TRUE(result); EXPECT_EQ("4", result->value);
+}
+
+TEST_F(MissionServiceTest, CompoundPredicatesFailClosedOnMixedPrivateMalformedAndUnrecordedState) {
+  auto workflow = CompoundBranchWorkflow(); MissionService service(&profile_);
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  workflow.steps[1].condition_input_id = "approved"; workflow.steps[1].condition_equals = "true";
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  workflow = CompoundBranchWorkflow(); workflow.inputs[1].is_protected = true;
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  workflow = CompoundBranchWorkflow();
+  const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(created);
+  const auto id = created->id; ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "approved", "true"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(service.AssignWorkflowVariable(id, 0)); ASSERT_TRUE(service.AssignWorkflowVariable(id, 2));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (int change = 0; change < 6; ++change) {
+    auto invalid = saved.Clone(); auto& step = (*invalid[0].GetDict().FindList("steps"))[1].GetDict();
+    switch (change) {
+      case 0: step.Set("condition_predicate", base::Value()); break;
+      case 1: step.Set("condition_predicate", base::DictValue().Set("all", base::ListValue())); break;
+      case 2: step.Set("condition_input_id", "approved"); step.Set("condition_equals", "true"); break;
+      case 3: step.Remove("variable_condition_result"); break;
+      case 4: step.Set("variable_condition_result", "false"); break;
+      case 5: step.Set("complete", true); break;
+    }
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, invalid.Clone());
+    MissionService restored(&profile_); ASSERT_EQ(1u, restored.missions().size());
+    EXPECT_FALSE(restored.missions().front().operational_workflow) << change;
+    EXPECT_EQ(invalid, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+}
+
+TEST_F(MissionServiceTest, BoundedRepeatsCarryVariablesAndRecoverIndependentIterationDecisions) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "repeat-flow"; workflow.name = "Repeat flow";
+  workflow.variables = {{"total", "Total", TahaiOperationalWorkflowInputType::kNumber, false, {}}};
+  workflow.steps = {{"seed", "Initialize", TahaiOperationalWorkflowStepKind::kAssignVariable},
+      {"increment", "Increment", TahaiOperationalWorkflowStepKind::kAssignVariable},
+      {"review", "Review", TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  TahaiWorkflowNumericExpression zero; zero.number = 0;
+  TahaiWorkflowNumericExpression total; total.variable_id = "total";
+  TahaiWorkflowNumericExpression one; one.number = 1;
+  TahaiWorkflowNumericExpression add; add.operation = "add"; add.arguments = {total, one};
+  workflow.steps[0].assignment = TahaiWorkflowAssignment{"total", {}, false, zero};
+  workflow.steps[1].assignment = TahaiWorkflowAssignment{"total", {}, false, add};
+  workflow.steps[2].condition_input_id = "total"; workflow.steps[2].condition_from_variable = true;
+  workflow.steps[2].numeric_condition = TahaiWorkflowNumericCondition{"greater-than", 1};
+  workflow.repeats = {{"rounds", "increment", "review", 3}};
+  workflow.outputs = {{"result", "Result", "total", true}};
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  const auto queued = GetQueuedOperationalWorkflowLaunch(&profile_); ASSERT_TRUE(queued);
+  EXPECT_EQ(workflow.repeats, queued->workflow.repeats); EXPECT_EQ(3u, queued->workflow.steps.size());
+  std::string id;
+  {
+    MissionService service(&profile_); ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    const auto& run = service.missions().front(); id = run.id; ASSERT_EQ(7u, run.steps.size());
+    EXPECT_EQ("r-rounds-2-increment", run.steps[3].workflow_step_id); EXPECT_EQ("[3/3] Review", run.steps[6].label);
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    EXPECT_FALSE(service.AssignWorkflowVariable(id, 3));
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 0)); ASSERT_TRUE(service.AssignWorkflowVariable(id, 1));
+    EXPECT_FALSE(service.AssignWorkflowVariable(id, 1)); ASSERT_TRUE(service.AssignWorkflowVariable(id, 3));
+    EXPECT_EQ("2", run.workflow_variables[0].value); EXPECT_EQ(false, run.steps[2].variable_condition_result);
+    EXPECT_FALSE(service.AssignWorkflowVariable(id, 5));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+  }
+  MissionService restored(&profile_); const auto& run = restored.missions().front();
+  ASSERT_TRUE(run.operational_workflow); EXPECT_EQ("paused", run.operational_workflow->run_state);
+  EXPECT_EQ("2", run.workflow_variables[0].value); EXPECT_EQ(false, run.steps[2].variable_condition_result);
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+  EXPECT_FALSE(restored.AssignWorkflowVariable(id, 3)); ASSERT_TRUE(restored.ToggleStep(id, 4));
+  ASSERT_TRUE(restored.AssignWorkflowVariable(id, 5)); ASSERT_TRUE(restored.ToggleStep(id, 6));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "succeeded"));
+  EXPECT_EQ(false, run.steps[2].variable_condition_result); EXPECT_EQ(true, run.steps[4].variable_condition_result);
+  EXPECT_EQ(true, run.steps[6].variable_condition_result);
+  const auto output = ResolveMissionWorkflowOutput(run, "result"); ASSERT_TRUE(output); EXPECT_EQ("3", output->value);
+}
+
+TEST_F(MissionWaitTest, BoundedRepeatsRejectInvalidHandoffsAndKeepWaitBudgetsSeparate) {
+  auto workflow = WaitWorkflow(); workflow.repeats = {{"rounds", "delay", "delay", 2}};
+  MissionService service(&profile_);
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  auto invalid = workflow; invalid.repeats[0].count = 9;
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, invalid, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(invalid, "review-skin", std::string(64, 'a'), true));
+  const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(created);
+  const auto id = created->id; const auto& run = service.missions().front();
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "approved", "true"));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "note", "Local note"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running")); ASSERT_TRUE(service.ToggleStep(id, 0));
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 2, false)); ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+  environment_.FastForwardBy(base::Seconds(3)); ASSERT_TRUE(service.ControlWorkflowWait(id, 1, true));
+  EXPECT_EQ("ready", run.steps[2].wait_state); EXPECT_EQ(3000, run.steps[2].wait_remaining_ms);
+  ASSERT_TRUE(service.ControlWorkflowWait(id, 2, false)); EXPECT_FALSE(service.ControlWorkflowWait(id, 2, true));
+  environment_.FastForwardBy(base::Seconds(3)); ASSERT_TRUE(service.ControlWorkflowWait(id, 2, true));
+  EXPECT_NE(run.steps[1].workflow_step_id, run.steps[2].workflow_step_id);
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  auto malformed = profile_.GetPrefs()->GetDict(prefs::kTahaiPendingOperationalWorkflow).Clone();
+  malformed.FindDict("workflow")->Set("repeats", base::Value());
+  profile_.GetPrefs()->SetDict(prefs::kTahaiPendingOperationalWorkflow, std::move(malformed));
+  EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(&profile_));
+}
+
+TEST_F(MissionServiceTest, VariableBranchesRecordDecisionsBeforeWaitsAndNativeAttempts) {
+  for (const bool native : {false, true}) {
+    auto workflow = VariableBranchWorkflow(); workflow.steps.resize(3);
+    workflow.steps[2].assignment.reset();
+    workflow.steps[2].kind = native ? TahaiOperationalWorkflowStepKind::kRunCommand : TahaiOperationalWorkflowStepKind::kWait;
+    if (native) workflow.steps[2].action = "mission.open"; else workflow.steps[2].wait_seconds = 3;
+    MissionService service(&profile_);
+    const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(created);
+    const auto id = created->id; ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    EXPECT_FALSE(native ? service.BeginNativeWorkflowStep(id, 2) : service.ControlWorkflowWait(id, 2, false));
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 0));
+    ASSERT_TRUE(native ? service.BeginNativeWorkflowStep(id, 2) : service.ControlWorkflowWait(id, 2, false));
+    EXPECT_EQ(false, service.missions().back().steps[1].variable_condition_result);
+    if (native) ASSERT_TRUE(service.FinishNativeWorkflowStep(id, 2, "unknown"));
+    else ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+  }
+}
+
+TEST_F(MissionServiceTest, TypedVariableDecisionsPrecedeSelfAssignmentAndCannotBeReopenedIntoAnotherBranch) {
+  for (const bool selection : {false, true}) {
+    const std::string initial = selection ? "No" : "false", changed = selection ? "Yes" : "true";
+    const auto type = selection ? TahaiOperationalWorkflowInputType::kSelection : TahaiOperationalWorkflowInputType::kBoolean;
+    auto workflow = VariableBranchWorkflow();
+    workflow.inputs[0].type = workflow.variables[0].type = type;
+    if (selection) workflow.inputs[0].options = workflow.variables[0].options = {"Yes", "No"};
+    workflow.steps.resize(3);
+    workflow.steps[0].assignment = TahaiWorkflowAssignment{"amount", "amount", false};
+    workflow.steps[1].kind = TahaiOperationalWorkflowStepKind::kAssignVariable;
+    workflow.steps[1].assignment = workflow.steps[0].assignment;
+    workflow.steps[1].numeric_condition.reset(); workflow.steps[1].condition_equals = initial;
+    workflow.steps[2].kind = TahaiOperationalWorkflowStepKind::kCheckpoint; workflow.steps[2].assignment.reset();
+    workflow.steps[2].condition_input_id = "amount"; workflow.steps[2].condition_from_variable = true;
+    workflow.steps[2].condition_equals = changed;
+    MissionService service(&profile_);
+    const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(created);
+    const auto id = created->id;
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", initial));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running")); ASSERT_TRUE(service.AssignWorkflowVariable(id, 0));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", changed));
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 1));
+    const auto& run = service.missions().back(); EXPECT_EQ(changed, run.workflow_variables[0].value);
+    EXPECT_EQ(true, run.steps[1].variable_condition_result); EXPECT_TRUE(IsMissionWorkflowStepConditionSatisfied(run, 1));
+    ASSERT_TRUE(service.ToggleStep(id, 2)); ASSERT_TRUE(service.ToggleStep(id, 2));
+    EXPECT_EQ(true, run.steps[2].variable_condition_result);
+    EXPECT_FALSE(service.ToggleStep(id, 1)); EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+    ASSERT_TRUE(service.ToggleStep(id, 2)); ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+    MissionService restarted(&profile_); EXPECT_EQ(true, restarted.missions().back().steps[1].variable_condition_result);
+  }
+}
+
+TEST_F(MissionWaitTest, WaitRequiresOrderedExplicitStartAndElapsedExplicitCompletion) {
+  MissionService service(&profile_);
+  const auto id = Start(service); ASSERT_FALSE(id.empty());
+  const auto& run = service.missions().back();
+  EXPECT_EQ(3, run.steps[1].wait_seconds); EXPECT_EQ("ready", run.steps[1].wait_state);
+  EXPECT_EQ(3000, MissionWorkflowWaitRemaining(run.steps[1]));
+  EXPECT_FALSE(IsMissionWorkflowInputBranchLocked(run, "approved"));
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 1, false));
+  ASSERT_TRUE(service.ToggleStep(id, 0));
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 1, true));
+  EXPECT_FALSE(service.ToggleStep(id, 1));
+  const auto old_token = run.mutation_token;
+  ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+  EXPECT_NE(old_token, run.mutation_token);
+  EXPECT_TRUE(IsMissionWorkflowInputBranchLocked(run, "approved"));
+  EXPECT_FALSE(IsMissionWorkflowInputBranchLocked(run, "note"));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  EXPECT_FALSE((*saved[0].GetDict().FindList("steps"))[1].GetDict().contains("wait_started"));
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 1, false));
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 1, true));
+  EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "approved", "false"));
+  environment_.FastForwardBy(base::Milliseconds(2999));
+  EXPECT_EQ(1, MissionWorkflowWaitRemaining(run.steps[1]));
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 1, true));
+  environment_.FastForwardBy(base::Milliseconds(1));
+  EXPECT_EQ(0, MissionWorkflowWaitRemaining(run.steps[1]));
+  EXPECT_FALSE(run.steps[1].complete); EXPECT_FALSE(run.steps[2].complete);
+  EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+  ASSERT_TRUE(service.ControlWorkflowWait(id, 1, true));
+  EXPECT_TRUE(run.steps[1].complete); EXPECT_EQ("complete", run.steps[1].wait_state);
+  EXPECT_FALSE(run.steps[2].complete);
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 1, false));
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 1, true));
+  EXPECT_FALSE(service.ToggleStep(id, 1));
+  ASSERT_TRUE(service.ToggleStep(id, 2));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+  MissionService restored(&profile_);
+  ASSERT_TRUE(restored.missions().back().operational_workflow);
+  EXPECT_EQ("complete", restored.missions().back().steps[1].wait_state);
+  EXPECT_TRUE(HasValidMissionWorkflowWaits(restored.missions().back()));
+}
+
+TEST_F(MissionWaitTest, PauseInputLossAndShutdownFreezeRemainingTimeWithoutAutoResume) {
+  std::string id;
+  {
+    MissionService service(&profile_); id = Start(service); ASSERT_FALSE(id.empty());
+    ASSERT_TRUE(service.ToggleStep(id, 0));
+    ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+    environment_.FastForwardBy(base::Seconds(1));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+    const auto& step = service.missions().back().steps[1];
+    EXPECT_EQ("paused", step.wait_state); EXPECT_EQ(2000, MissionWorkflowWaitRemaining(step));
+    environment_.FastForwardBy(base::Hours(24));
+    EXPECT_EQ(2000, MissionWorkflowWaitRemaining(step));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    EXPECT_EQ("paused", step.wait_state);
+    EXPECT_FALSE(service.ControlWorkflowWait(id, 1, true));
+    ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+    environment_.FastForwardBy(base::Milliseconds(500));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "note", ""));
+    EXPECT_EQ("waiting-for-input", service.missions().back().operational_workflow->run_state);
+    EXPECT_EQ("paused", step.wait_state); EXPECT_EQ(1500, MissionWorkflowWaitRemaining(step));
+    environment_.FastForwardBy(base::Hours(24));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "note", "Restored note"));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+    environment_.FastForwardBy(base::Milliseconds(500));
+    service.Shutdown();
+    EXPECT_EQ("paused", step.wait_state); EXPECT_EQ(1000, MissionWorkflowWaitRemaining(step));
+    EXPECT_FALSE(service.ControlWorkflowWait(id, 1, false));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "running"));
+    const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+    service.Shutdown(); EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  environment_.FastForwardBy(base::Days(2));
+  MissionService restored(&profile_);
+  const auto& run = restored.missions().back(); ASSERT_TRUE(run.operational_workflow);
+  EXPECT_EQ("paused", run.operational_workflow->run_state);
+  EXPECT_EQ("paused", run.steps[1].wait_state); EXPECT_EQ(1000, MissionWorkflowWaitRemaining(run.steps[1]));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+  EXPECT_FALSE(restored.ControlWorkflowWait(id, 1, true));
+  ASSERT_TRUE(restored.ControlWorkflowWait(id, 1, false));
+  environment_.FastForwardBy(base::Seconds(1));
+  ASSERT_TRUE(restored.ControlWorkflowWait(id, 1, true));
+  EXPECT_FALSE(run.steps[2].complete);
+}
+
+TEST_F(MissionWaitTest, AbruptRestartUsesSavedProgressOnlyAndNeverReplaysWait) {
+  std::string id;
+  {
+    MissionService service(&profile_); id = Start(service); ASSERT_FALSE(id.empty());
+    ASSERT_TRUE(service.ToggleStep(id, 0)); ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+    environment_.FastForwardBy(base::Seconds(1));
+    ASSERT_TRUE(service.AddLocalNote(id, "Save this local checkpoint"));
+    EXPECT_EQ(2000, (*profile_.GetPrefs()->GetList(prefs::kTahaiMissions)[0].GetDict().FindList("steps"))[1].GetDict().FindInt("wait_remaining_ms"));
+    environment_.FastForwardBy(base::Seconds(10));
+    EXPECT_EQ(0, MissionWorkflowWaitRemaining(service.missions().back().steps[1]));
+    // Intentionally omit Shutdown to model an interrupted run, not graceful exit.
+  }
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  MissionService restored(&profile_);
+  const auto& run = restored.missions().back(); ASSERT_TRUE(run.operational_workflow);
+  EXPECT_EQ("paused", run.operational_workflow->run_state);
+  EXPECT_EQ("paused", run.steps[1].wait_state); EXPECT_FALSE(run.steps[1].wait_started);
+  EXPECT_EQ(2000, MissionWorkflowWaitRemaining(run.steps[1]));
+  EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  environment_.FastForwardBy(base::Days(1)); EXPECT_EQ(2000, MissionWorkflowWaitRemaining(run.steps[1]));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(restored.ControlWorkflowWait(id, 1, false));
+  EXPECT_FALSE(restored.ControlWorkflowWait(id, 1, true));
+  environment_.FastForwardBy(base::Seconds(2)); ASSERT_TRUE(restored.ControlWorkflowWait(id, 1, true));
+}
+
+TEST_F(MissionWaitTest, WaitRejectsManagedPrivateLegacyAndTerminalActions) {
+  MissionService service(&profile_);
+  const auto workflow = WaitWorkflow();
+  MissionService private_service(profile_.GetPrimaryOTRProfile(true));
+  EXPECT_FALSE(private_service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  const auto id = Start(service); ASSERT_FALSE(id.empty()); ASSERT_TRUE(service.ToggleStep(id, 0));
+  profile_.GetTestingPrefService()->SetManagedPref(prefs::kTahaiMissions, base::Value(base::ListValue()));
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 1, false));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  profile_.GetTestingPrefService()->RemoveManagedPref(prefs::kTahaiMissions);
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 0, false)); EXPECT_FALSE(service.ControlWorkflowWait(id, 32, false));
+  ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "cancelled"));
+  EXPECT_EQ("paused", service.missions().back().steps[1].wait_state);
+  environment_.FastForwardBy(base::Hours(24));
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 1, false)); EXPECT_FALSE(service.ControlWorkflowWait(id, 1, true));
+  ASSERT_TRUE(service.ArchiveMission(id)); EXPECT_FALSE(service.ControlWorkflowWait(id, 1, false));
+  const auto copy = service.DuplicateMission(id); ASSERT_TRUE(copy);
+  EXPECT_FALSE(copy->operational_workflow);
+  for (const auto& step : copy->steps) EXPECT_EQ(0, step.wait_seconds);
+  const auto archived_id = Start(service); ASSERT_FALSE(archived_id.empty());
+  ASSERT_TRUE(service.ToggleStep(archived_id, 0));
+  ASSERT_TRUE(service.ControlWorkflowWait(archived_id, 1, false));
+  environment_.FastForwardBy(base::Seconds(1));
+  ASSERT_TRUE(service.ArchiveMission(archived_id));
+  const auto& archived = service.missions().back();
+  EXPECT_EQ("paused", archived.operational_workflow->run_state);
+  EXPECT_EQ("paused", archived.steps[1].wait_state);
+  environment_.FastForwardBy(base::Hours(1));
+  EXPECT_EQ(2000, MissionWorkflowWaitRemaining(archived.steps[1]));
+  EXPECT_FALSE(service.ControlWorkflowWait(archived_id, 1, false));
+}
+
+TEST_F(MissionWaitTest, MalformedWaitDefinitionsAndSavedClocksFailClosed) {
+  MissionService service(&profile_);
+  for (int seconds : {0, -1, 86401}) {
+    auto workflow = WaitWorkflow(); workflow.steps[1].wait_seconds = seconds;
+    EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+    EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  }
+  auto workflow = WaitWorkflow(); workflow.steps[1].kind = TahaiOperationalWorkflowStepKind::kCheckpoint;
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  workflow = WaitWorkflow(); workflow.steps[1].action = "mission.open";
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  const auto id = Start(service); ASSERT_FALSE(id.empty());
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (int mutation = 0; mutation < 12; ++mutation) {
+    auto changed = saved.Clone(); auto& run = changed[0].GetDict();
+    auto& step = (*run.FindList("steps"))[1].GetDict();
+    switch (mutation) {
+      case 0: step.Set("wait_seconds", 0); break;
+      case 1: step.Set("wait_seconds", 86401); break;
+      case 2: step.Set("wait_seconds", true); break;
+      case 3: step.Set("wait_remaining_ms", -1); break;
+      case 4: step.Set("wait_remaining_ms", 3001); break;
+      case 5: step.Set("wait_remaining_ms", 0); break; // Ready must mean full duration.
+      case 6: step.Set("wait_state", "complete"); break;
+      case 7: step.Set("complete", true); break;
+      case 8: step.Set("wait_started", 1); break;
+      case 9: step.Remove("wait_state"); break;
+      case 10: step.Set("wait_state", "waiting"); run.Set("archived", true); break;
+      case 11: step.Set("wait_state", "waiting"); run.FindDict("operational_workflow")->Set("run_state", "paused"); break;
+    }
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, changed.Clone());
+    MissionService restored(&profile_); ASSERT_EQ(1u, restored.missions().size());
+    EXPECT_FALSE(restored.missions().front().operational_workflow) << mutation;
+    EXPECT_FALSE(restored.ControlWorkflowWait(id, 1, false));
+    EXPECT_EQ(changed, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+}
+
+TEST_F(MissionWaitTest, DeadlineExpiresWithoutRendererAndPersistsFailureWithoutReplay) {
+  std::string id;
+  {
+    MissionService service(&profile_); id = Start(service, 5); ASSERT_FALSE(id.empty());
+    ASSERT_TRUE(service.ToggleStep(id, 0)); ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+    const auto& run = service.missions().back();
+    EXPECT_EQ(5000, MissionWorkflowWaitTimeoutRemaining(run.steps[1]));
+    environment_.FastForwardBy(base::Seconds(3));
+    EXPECT_EQ(0, MissionWorkflowWaitRemaining(run.steps[1]));
+    EXPECT_EQ(2000, MissionWorkflowWaitTimeoutRemaining(run.steps[1]));
+    EXPECT_EQ("running", run.operational_workflow->run_state);
+    EXPECT_FALSE(run.steps[1].complete);
+    environment_.FastForwardBy(base::Milliseconds(1999));
+    EXPECT_TRUE(CanControlMissionWorkflowWait(run, 1, true));
+    environment_.FastForwardBy(base::Milliseconds(1));
+    EXPECT_EQ("failed", run.operational_workflow->run_state);
+    EXPECT_EQ("timed-out", run.steps[1].wait_state);
+    EXPECT_FALSE(run.steps[1].complete); EXPECT_FALSE(run.steps[2].complete);
+    EXPECT_FALSE(run.steps[1].wait_started);
+    EXPECT_TRUE(HasValidMissionWorkflowWaits(run));
+    EXPECT_FALSE(service.ControlWorkflowWait(id, 1, true));
+    EXPECT_FALSE(service.ControlWorkflowWait(id, 1, false));
+    EXPECT_FALSE(service.ToggleStep(id, 1));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "running"));
+    EXPECT_EQ(1, std::ranges::count_if(run.timeline, [](const auto& event) {
+      return event.detail == "Local workflow wait timed out";
+    }));
+    EXPECT_TRUE(run.timeline_integrity_verified);
+    const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+    environment_.FastForwardBy(base::Days(1));
+    EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  MissionService restored(&profile_);
+  const auto& run = restored.missions().back(); ASSERT_TRUE(run.operational_workflow);
+  EXPECT_EQ("failed", run.operational_workflow->run_state); EXPECT_EQ("timed-out", run.steps[1].wait_state);
+  EXPECT_TRUE(HasValidMissionWorkflowWaits(run)); EXPECT_TRUE(run.timeline_integrity_verified);
+  EXPECT_FALSE(restored.ControlWorkflowWait(id, 1, false));
+}
+
+TEST_F(MissionWaitTest, CompletionDisarmsDeadlineAndPauseFreezesBothBudgets) {
+  MissionService service(&profile_); const auto id = Start(service, 5); ASSERT_FALSE(id.empty());
+  ASSERT_TRUE(service.ToggleStep(id, 0)); ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+  environment_.FastForwardBy(base::Seconds(2));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+  const auto& run = service.missions().back();
+  EXPECT_EQ(1000, MissionWorkflowWaitRemaining(run.steps[1]));
+  EXPECT_EQ(3000, MissionWorkflowWaitTimeoutRemaining(run.steps[1]));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  environment_.FastForwardBy(base::Days(1));
+  EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+  environment_.FastForwardBy(base::Hours(1));
+  EXPECT_EQ("paused", run.steps[1].wait_state); EXPECT_EQ(3000, MissionWorkflowWaitTimeoutRemaining(run.steps[1]));
+  ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+  environment_.FastForwardBy(base::Seconds(1));
+  ASSERT_TRUE(service.ControlWorkflowWait(id, 1, true));
+  EXPECT_EQ(0, MissionWorkflowWaitTimeoutRemaining(run.steps[1]));
+  ASSERT_TRUE(service.ToggleStep(id, 2)); ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+  const auto completed = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  environment_.FastForwardBy(base::Days(1));
+  EXPECT_EQ("succeeded", run.operational_workflow->run_state);
+  EXPECT_EQ(completed, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  MissionService restored(&profile_);
+  ASSERT_TRUE(restored.missions().back().operational_workflow);
+  EXPECT_EQ("complete", restored.missions().back().steps[1].wait_state);
+}
+
+TEST_F(MissionWaitTest, DeadlinesScheduleAcrossRunsAndStopOnInputLossArchiveOrCancel) {
+  MissionService service(&profile_);
+  const auto first = Start(service, 5); ASSERT_FALSE(first.empty());
+  ASSERT_TRUE(service.ToggleStep(first, 0)); ASSERT_TRUE(service.ControlWorkflowWait(first, 1, false));
+  environment_.FastForwardBy(base::Seconds(1));
+  const auto second = Start(service, 6); ASSERT_FALSE(second.empty());
+  ASSERT_TRUE(service.ToggleStep(second, 0)); ASSERT_TRUE(service.ControlWorkflowWait(second, 1, false));
+  environment_.FastForwardBy(base::Seconds(4));
+  EXPECT_EQ("failed", service.missions().front().operational_workflow->run_state);
+  EXPECT_EQ("running", service.missions().back().operational_workflow->run_state);
+  EXPECT_EQ(2000, MissionWorkflowWaitTimeoutRemaining(service.missions().back().steps[1]));
+  ASSERT_TRUE(service.ArchiveMission(second));
+  environment_.FastForwardBy(base::Hours(1));
+  EXPECT_EQ("paused", service.missions().back().steps[1].wait_state);
+  EXPECT_EQ(2000, MissionWorkflowWaitTimeoutRemaining(service.missions().back().steps[1]));
+  const auto third = Start(service, 7); ASSERT_FALSE(third.empty());
+  ASSERT_TRUE(service.ToggleStep(third, 0)); ASSERT_TRUE(service.ControlWorkflowWait(third, 1, false));
+  environment_.FastForwardBy(base::Seconds(1));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(third, "note", ""));
+  environment_.FastForwardBy(base::Hours(1));
+  EXPECT_EQ("waiting-for-input", service.missions().back().operational_workflow->run_state);
+  EXPECT_EQ(6000, MissionWorkflowWaitTimeoutRemaining(service.missions().back().steps[1]));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(third, "note", "Ready"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(third, "running"));
+  ASSERT_TRUE(service.ControlWorkflowWait(third, 1, false));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(third, "cancelled"));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  environment_.FastForwardBy(base::Hours(1));
+  EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  EXPECT_EQ("cancelled", service.missions().back().operational_workflow->run_state);
+}
+
+TEST_F(MissionWaitTest, DeadlineRecoveryRetainsSavedBudgetWithoutOfflineExpiryOrAutoResume) {
+  std::string id;
+  {
+    MissionService service(&profile_); id = Start(service, 5); ASSERT_FALSE(id.empty());
+    ASSERT_TRUE(service.ToggleStep(id, 0)); ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+    environment_.FastForwardBy(base::Seconds(1));
+    ASSERT_TRUE(service.AddLocalNote(id, "Save local progress"));
+    // Destruction without Shutdown models an interrupted active timer.
+  }
+  environment_.FastForwardBy(base::Days(1));
+  {
+    MissionService restored(&profile_);
+    const auto& run = restored.missions().back(); ASSERT_TRUE(run.operational_workflow);
+    EXPECT_EQ("paused", run.operational_workflow->run_state);
+    EXPECT_EQ(2000, MissionWorkflowWaitRemaining(run.steps[1]));
+    EXPECT_EQ(4000, MissionWorkflowWaitTimeoutRemaining(run.steps[1]));
+    ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+    ASSERT_TRUE(restored.ControlWorkflowWait(id, 1, false));
+    environment_.FastForwardBy(base::Seconds(1)); restored.Shutdown();
+    EXPECT_EQ(1000, MissionWorkflowWaitRemaining(run.steps[1]));
+    EXPECT_EQ(3000, MissionWorkflowWaitTimeoutRemaining(run.steps[1]));
+  }
+  environment_.FastForwardBy(base::Days(1));
+  MissionService restarted(&profile_); const auto& run = restarted.missions().back();
+  ASSERT_TRUE(run.operational_workflow); EXPECT_EQ("paused", run.operational_workflow->run_state);
+  EXPECT_EQ(3000, MissionWorkflowWaitTimeoutRemaining(run.steps[1]));
+  ASSERT_TRUE(restarted.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(restarted.ControlWorkflowWait(id, 1, false));
+  environment_.FastForwardBy(base::Seconds(3));
+  EXPECT_EQ("timed-out", run.steps[1].wait_state); EXPECT_EQ("failed", run.operational_workflow->run_state);
+  // A crash can land between saving an elapsed active budget and delivering
+  // its queued expiry callback. That exact record must fail, never resume.
+  auto boundary = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  boundary[0].GetDict().FindDict("operational_workflow")->Set("run_state", "running");
+  (*boundary[0].GetDict().FindList("steps"))[1].GetDict().Set("wait_state", "waiting");
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, boundary.Clone());
+  MissionService boundary_restore(&profile_);
+  const auto& recovered = boundary_restore.missions().back(); ASSERT_TRUE(recovered.operational_workflow);
+  EXPECT_EQ("failed", recovered.operational_workflow->run_state);
+  EXPECT_EQ("timed-out", recovered.steps[1].wait_state);
+  EXPECT_FALSE(boundary_restore.SetOperationalWorkflowRunState(id, "running"));
+  EXPECT_FALSE(boundary_restore.ControlWorkflowWait(id, 1, false));
+  EXPECT_EQ(boundary, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+}
+
+TEST_F(MissionWaitTest, ExpiredDeadlineCannotBeBypassedBeforeTimerDelivery) {
+  MissionService service(&profile_);
+  for (int operation = 0; operation < 3; ++operation) {
+    const auto id = Start(service, 5); ASSERT_FALSE(id.empty());
+    ASSERT_TRUE(service.ToggleStep(id, 0)); ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+    environment_.AdvanceClock(base::Seconds(5));
+    EXPECT_FALSE(CanControlMissionWorkflowWait(service.missions().back(), 1, true));
+    if (operation == 0) EXPECT_FALSE(service.ControlWorkflowWait(id, 1, true));
+    else if (operation == 1) EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "paused"));
+    else EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "note", ""));
+    EXPECT_EQ("failed", service.missions().back().operational_workflow->run_state);
+    EXPECT_EQ("timed-out", service.missions().back().steps[1].wait_state);
+    environment_.RunUntilIdle();
+    EXPECT_EQ(1, std::ranges::count_if(service.missions().back().timeline, [](const auto& event) {
+      return event.detail == "Local workflow wait timed out";
+    }));
+  }
+}
+
+TEST_F(MissionWaitTest, MalformedDeadlineSnapshotsAndManagedTimerWritesFailClosed) {
+  MissionService service(&profile_);
+  for (int timeout : {-1, 1, 3, 86401}) {
+    auto workflow = WaitWorkflow(); workflow.steps[1].wait_timeout_seconds = timeout;
+    EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+    EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  }
+  const auto id = Start(service, 5); ASSERT_FALSE(id.empty());
+  const auto initial = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (int mutation = 0; mutation < 13; ++mutation) {
+    auto changed = initial.Clone(); auto& run = changed[0].GetDict();
+    auto& step = (*run.FindList("steps"))[1].GetDict();
+    switch (mutation) {
+      case 0: step.Set("wait_timeout_seconds", 0); break;
+      case 1: step.Set("wait_timeout_seconds", 3); break;
+      case 2: step.Set("wait_timeout_seconds", 86401); break;
+      case 3: step.Set("wait_timeout_seconds", true); break;
+      case 4: step.Remove("wait_timeout_seconds"); break;
+      case 5: step.Remove("wait_timeout_remaining_ms"); break;
+      case 6: step.Set("wait_timeout_remaining_ms", -1); break;
+      case 7: step.Set("wait_timeout_remaining_ms", 5001); break;
+      case 8: step.Set("wait_timeout_remaining_ms", 4999); break; // Ready means full budget.
+      case 9: step.Set("wait_state", "timed-out"); break;
+      case 10: step.Set("wait_state", "paused"); step.Set("wait_timeout_remaining_ms", 0); break;
+      case 11: step.Remove("wait_seconds"); break;
+      case 12: step.Set("wait_timeout_remaining_ms", 5000.0); break;
+    }
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, changed.Clone());
+    MissionService restored(&profile_); ASSERT_EQ(1u, restored.missions().size());
+    EXPECT_FALSE(restored.missions().front().operational_workflow) << mutation;
+    EXPECT_EQ(changed, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, initial.Clone());
+  ASSERT_TRUE(service.ToggleStep(id, 0)); ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+  const auto before_policy = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  profile_.GetTestingPrefService()->SetManagedPref(prefs::kTahaiMissions, base::Value(base::ListValue()));
+  environment_.FastForwardBy(base::Seconds(5));
+  EXPECT_TRUE(profile_.GetPrefs()->GetList(prefs::kTahaiMissions).empty());
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 1, true));
+  profile_.GetTestingPrefService()->RemoveManagedPref(prefs::kTahaiMissions);
+  EXPECT_EQ(before_policy, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  EXPECT_FALSE(service.ControlWorkflowWait(id, 1, true));
+  EXPECT_EQ("timed-out", service.missions().back().steps[1].wait_state);
+}
+
+TEST_F(MissionServiceTest, VariablesAssignExplicitlyPersistWithoutReplayAndStayOutOfExports) {
+  auto workflow = VariableWorkflow();
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  std::string id;
+  std::string prior_token;
+  {
+    MissionService service(&profile_);
+    ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    id = service.missions().front().id;
+    const auto& run = service.missions().front();
+    const auto initial_token = run.mutation_token;
+    EXPECT_TRUE(base::Uuid::ParseLowercase(initial_token).is_valid());
+    ASSERT_EQ(2u, run.workflow_variables.size());
+    EXPECT_TRUE(run.workflow_variables[0].value.empty());
+    EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "3.125"));
+    EXPECT_NE(initial_token, run.mutation_token);
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+    ASSERT_TRUE(service.ToggleStep(id, 0));
+    EXPECT_FALSE(service.ToggleStep(id, 1));
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 1));
+    EXPECT_EQ("3.125", run.workflow_variables[0].value);
+    EXPECT_TRUE(run.steps[1].complete);
+    EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+    EXPECT_FALSE(service.ToggleStep(id, 1));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "4"));
+    EXPECT_EQ("3.125", run.workflow_variables[0].value);
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+    EXPECT_FALSE(service.AssignWorkflowVariable(id, 2));
+    prior_token = run.mutation_token;
+    const auto& saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).front().GetDict();
+    EXPECT_FALSE(saved.contains("mutation_token"));
+  }
+  MissionService restored(&profile_);
+  ASSERT_EQ(1u, restored.missions().size());
+  const auto& run = restored.missions().front();
+  EXPECT_NE(prior_token, run.mutation_token);
+  EXPECT_TRUE(base::Uuid::ParseLowercase(run.mutation_token).is_valid());
+  ASSERT_TRUE(run.operational_workflow);
+  EXPECT_EQ("paused", run.operational_workflow->run_state);
+  EXPECT_EQ("3.125", run.workflow_variables[0].value);
+  EXPECT_TRUE(run.workflow_variables[1].value.empty());
+  EXPECT_FALSE(restored.AssignWorkflowVariable(id, 1));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(restored.AssignWorkflowVariable(id, 2));
+  EXPECT_EQ("3.125", run.workflow_variables[1].value);
+  ASSERT_TRUE(restored.AssignWorkflowVariable(id, 3));
+  EXPECT_EQ("4", run.workflow_variables[0].value);
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "succeeded"));
+  auto result = ResolveMissionWorkflowOutput(run, "result");
+  ASSERT_TRUE(result);
+  EXPECT_EQ("3.125", result->value);
+  const auto capsule = BuildTahaiMissionCapsule(run);
+  ASSERT_TRUE(capsule);
+  EXPECT_FALSE(capsule->contains("3.125"));
+  EXPECT_FALSE(capsule->contains("workflow_variables"));
+  for (const auto& event : run.timeline) EXPECT_FALSE(event.detail.contains("3.125"));
+  EXPECT_FALSE(restored.AssignWorkflowVariable(id, 3));
+  ASSERT_TRUE(restored.ArchiveMission(id));
+  const auto copy = restored.DuplicateMission(id);
+  ASSERT_TRUE(copy);
+  EXPECT_TRUE(copy->workflow_variables.empty());
+  EXPECT_TRUE(copy->workflow_outputs.empty());
+  MissionService restarted(&profile_);
+  EXPECT_EQ("3.125", ResolveMissionWorkflowOutput(restarted.missions().front(), "result")->value);
+}
+
+TEST_F(MissionServiceTest, VariableAssignmentsEnforceLimitsConditionsLifecycleAndExplicitClear) {
+  auto workflow = VariableWorkflow();
+  MissionService service(&profile_);
+  const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created);
+  const auto id = created->id;
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(service.ToggleStep(id, 0));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "5"));
+  const auto before = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+  EXPECT_EQ(before, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "3"));
+  profile_.GetTestingPrefService()->SetManagedPref(prefs::kTahaiMissions, base::Value(base::ListValue()));
+  EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+  profile_.GetTestingPrefService()->RemoveManagedPref(prefs::kTahaiMissions);
+  ASSERT_TRUE(service.AssignWorkflowVariable(id, 1));
+  auto snapshot = service.missions().front();
+  snapshot.steps[2].condition_input_id = "missing";
+  snapshot.steps[2].condition_equals = "true";
+  EXPECT_FALSE(CanAssignMissionWorkflowVariable(snapshot, 2));
+  snapshot = service.missions().front();
+  snapshot.steps[0].action_state = "pending";
+  EXPECT_FALSE(CanAssignMissionWorkflowVariable(snapshot, 2));
+  snapshot = service.missions().front();
+  snapshot.archived = true;
+  EXPECT_FALSE(CanAssignMissionWorkflowVariable(snapshot, 2));
+  EXPECT_FALSE(service.AssignWorkflowVariable(id, 32));
+  ASSERT_TRUE(service.AssignWorkflowVariable(id, 2));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", ""));
+  ASSERT_TRUE(service.AssignWorkflowVariable(id, 3));
+  EXPECT_TRUE(service.missions().front().workflow_variables[0].value.empty());
+  EXPECT_EQ("3", service.missions().front().workflow_variables[1].value);
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "cancelled"));
+  EXPECT_FALSE(service.AssignWorkflowVariable(id, 3));
+  EXPECT_FALSE(ResolveMissionWorkflowOutput(service.missions().front(), "result"));
+}
+
+TEST_F(MissionServiceTest, MalformedVariablesAndProtectedAssignmentsFailClosedOnCreateQueueAndRestore) {
+  auto workflow = VariableWorkflow();
+  MissionService service(&profile_);
+  MissionService private_service(profile_.GetPrimaryOTRProfile(true));
+  EXPECT_FALSE(private_service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  profile_.GetTestingPrefService()->SetManagedPref(prefs::kTahaiMissions, base::Value(base::ListValue()));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  profile_.GetTestingPrefService()->RemoveManagedPref(prefs::kTahaiMissions);
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  workflow.inputs[0].is_protected = true;
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  workflow = VariableWorkflow();
+  workflow.variables[0].is_protected = true;
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  workflow = VariableWorkflow();
+  const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created);
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (const char* field : {"value", "protected", "required", "script", "type"}) {
+    auto changed = saved.Clone();
+    auto& variable = (*changed[0].GetDict().FindList("workflow_variables"))[0].GetDict();
+    variable.Set(field, field == std::string_view("value") ? "password=private" : "invalid");
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, changed.Clone());
+    MissionService restored(&profile_);
+    ASSERT_EQ(1u, restored.missions().size());
+    EXPECT_FALSE(restored.missions().front().operational_workflow) << field;
+    EXPECT_TRUE(restored.missions().front().workflow_variables.empty());
+    EXPECT_EQ(changed, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  auto changed = saved.Clone();
+  (*changed[0].GetDict().FindList("steps"))[1].GetDict().Set("assign",
+      base::DictValue().Set("variable", "total").Set("from", base::DictValue().Set("input", "missing")));
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, std::move(changed));
+  MissionService restored(&profile_);
+  EXPECT_FALSE(restored.missions().front().operational_workflow);
+}
+
+TEST_F(MissionServiceTest, NumericBranchesRequireAnswersAndPreserveSkippedHistoryAcrossRestart) {
+  const auto workflow = NumericBranchWorkflow();
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  std::string id;
+  {
+    MissionService service(&profile_); ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    const auto& run = service.missions().front(); id = run.id;
+    EXPECT_TRUE(IsMissionWorkflowInputRequired(run, run.workflow_inputs[0]));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "running"));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "3.125"));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    EXPECT_FALSE(IsMissionWorkflowStepConditionSatisfied(run, 0));
+    EXPECT_FALSE(service.ToggleStep(id, 0)); EXPECT_FALSE(IsMissionWorkflowInputBranchLocked(run, "amount"));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "4"));
+    EXPECT_TRUE(IsMissionWorkflowStepConditionSatisfied(run, 0)); EXPECT_FALSE(run.steps[0].complete);
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "2"));
+    ASSERT_TRUE(service.ToggleStep(id, 1));
+    EXPECT_TRUE(IsMissionWorkflowInputBranchLocked(run, "amount"));
+    const auto before = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone(); const auto token = run.mutation_token;
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "amount", "4"));
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "amount", ""));
+    EXPECT_EQ(token, run.mutation_token); EXPECT_EQ(before, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+  }
+  MissionService restored(&profile_); ASSERT_EQ(1u, restored.missions().size());
+  const auto& run = restored.missions().front(); ASSERT_TRUE(run.operational_workflow);
+  EXPECT_EQ(workflow.steps[0].numeric_condition, run.steps[0].numeric_condition);
+  EXPECT_EQ("2", run.workflow_inputs[0].value); EXPECT_FALSE(run.steps[0].complete); EXPECT_TRUE(run.steps[1].complete);
+  EXPECT_TRUE(IsMissionWorkflowInputBranchLocked(run, "amount"));
+  EXPECT_FALSE(restored.SetOperationalWorkflowInputValue(id, "amount", "4"));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "succeeded"));
+  EXPECT_FALSE(restored.ToggleStep(id, 0));
+  const auto positive = restored.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(positive); ASSERT_TRUE(restored.SetOperationalWorkflowInputValue(positive->id, "amount", "4.125"));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(positive->id, "running"));
+  EXPECT_TRUE(IsMissionWorkflowStepConditionSatisfied(restored.missions().back(), 0));
+  ASSERT_TRUE(restored.ToggleStep(positive->id, 0));
+  EXPECT_FALSE(restored.SetOperationalWorkflowInputValue(positive->id, "amount", "2"));
+  ASSERT_TRUE(restored.ToggleStep(positive->id, 1));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(positive->id, "succeeded"));
+  MissionService restarted(&profile_);
+  EXPECT_EQ("4.125", restarted.missions().back().workflow_inputs[0].value);
+  EXPECT_TRUE(restarted.missions().back().steps[0].complete);
+  EXPECT_TRUE(IsMissionWorkflowInputBranchLocked(restarted.missions().back(), "amount"));
+}
+
+TEST_F(MissionServiceTest, NumericBranchesRejectPrivateMixedAndMalformedPersistedDefinitions) {
+  auto workflow = NumericBranchWorkflow(); MissionService service(&profile_);
+  MissionService private_service(profile_.GetPrimaryOTRProfile(true));
+  EXPECT_FALSE(private_service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  workflow.inputs[0].is_protected = true;
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  workflow = NumericBranchWorkflow(); workflow.steps[0].condition_equals = "3";
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  workflow = NumericBranchWorkflow();
+  const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created);
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (const char* compare : {"null", "[]", R"({"op":"equal","number":"3"})",
+      R"({"op":"eval","number":3})", R"({"op":"equal","number":true})"}) {
+    auto invalid = saved.Clone();
+    (*invalid[0].GetDict().FindList("steps"))[0].GetDict().Set("condition_compare",
+        base::JSONReader::Read(compare, base::JSON_PARSE_RFC)->Clone());
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, invalid.Clone());
+    MissionService restored(&profile_); ASSERT_EQ(1u, restored.missions().size());
+    EXPECT_FALSE(restored.missions().front().operational_workflow);
+    EXPECT_EQ(invalid, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  for (const char* field : {"condition_input_id", "condition_equals"}) {
+    auto invalid = saved.Clone(); (*invalid[0].GetDict().FindList("steps"))[0].GetDict().Set(field, base::Value());
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, invalid.Clone());
+    MissionService restored(&profile_); EXPECT_FALSE(restored.missions().front().operational_workflow);
+    EXPECT_EQ(invalid, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+}
+
+TEST_F(MissionServiceTest, SkippedBranchesLockWhenLaterAssignmentsWaitsOrNativeAttemptsStart) {
+  for (const auto kind : {TahaiOperationalWorkflowStepKind::kAssignVariable,
+       TahaiOperationalWorkflowStepKind::kWait, TahaiOperationalWorkflowStepKind::kRunCommand}) {
+    auto workflow = NumericBranchWorkflow(); workflow.steps[1].kind = kind;
+    if (kind == TahaiOperationalWorkflowStepKind::kAssignVariable) {
+      workflow.variables = {{"total", "Total", TahaiOperationalWorkflowInputType::kNumber, false, {}}};
+      workflow.steps[1].assignment = TahaiWorkflowAssignment{"total", "amount", false};
+    } else if (kind == TahaiOperationalWorkflowStepKind::kWait) workflow.steps[1].wait_seconds = 3;
+    else workflow.steps[1].action = "mission.open";
+    MissionService service(&profile_);
+    const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+    ASSERT_TRUE(created); const auto id = created->id;
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "2"));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    if (kind == TahaiOperationalWorkflowStepKind::kAssignVariable) ASSERT_TRUE(service.AssignWorkflowVariable(id, 1));
+    else if (kind == TahaiOperationalWorkflowStepKind::kWait) ASSERT_TRUE(service.ControlWorkflowWait(id, 1, false));
+    else ASSERT_TRUE(service.BeginNativeWorkflowStep(id, 1));
+    EXPECT_TRUE(IsMissionWorkflowInputBranchLocked(service.missions().back(), "amount"));
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "amount", "4"));
+    if (kind == TahaiOperationalWorkflowStepKind::kRunCommand) ASSERT_TRUE(service.FinishNativeWorkflowStep(id, 1, "dispatched"));
+  }
+  // The same consumed-branch rule applies to the existing boolean grammar.
+  auto workflow = NumericBranchWorkflow(); workflow.inputs[0].type = TahaiOperationalWorkflowInputType::kBoolean;
+  workflow.steps[0].numeric_condition.reset(); workflow.steps[0].condition_equals = "true";
+  MissionService service(&profile_);
+  const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created); ASSERT_TRUE(service.SetOperationalWorkflowInputValue(created->id, "amount", "false"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(created->id, "running"));
+  ASSERT_TRUE(service.ToggleStep(created->id, 1));
+  EXPECT_FALSE(service.SetOperationalWorkflowInputValue(created->id, "amount", "true"));
+  ASSERT_TRUE(service.ToggleStep(created->id, 1));  // Reopen an ordinary checkpoint, not an external effect.
+  EXPECT_TRUE(service.SetOperationalWorkflowInputValue(created->id, "amount", "true"));
+}
+
+TahaiOperationalWorkflow TextExpressionWorkflow() {
+  auto definition = base::JSONReader::ReadDict(R"({"id":"text-work","name":"Text work",
+    "inputs":[{"id":"source","name":"Source","type":"text","required":false}],
+    "variables":[{"id":"result","name":"Result","type":"text","validation":{"max_bytes":8}}],
+    "steps":[{"id":"seed","name":"Seed","kind":"assign-variable","assign":{"variable":"result","from":{"input":"source"}}},
+      {"id":"format","name":"Format","kind":"assign-variable","assign":{"variable":"result","text_expression":{"op":"concat","args":[{"op":"upper-ascii","args":[{"input":"source"}]},{"text":"!"}]}}}],
+    "outputs":[{"id":"final","name":"Final","from":{"variable":"result"}}]})", base::JSON_PARSE_RFC);
+  CHECK(definition); TahaiOperationalWorkflow workflow;
+  CHECK(ValidateTahaiOperationalWorkflow(*definition, {}, &workflow)); return workflow;
+}
+
+TahaiOperationalWorkflow ActionStatusWorkflow() {
+  TahaiOperationalWorkflow workflow; workflow.id="action-results"; workflow.name="Action results";
+  workflow.variables={{"outcome","Outcome",TahaiOperationalWorkflowInputType::kSelection,false,{"dispatched","rejected","unknown"}}};
+  workflow.steps={{"dispatch","Dispatch",TahaiOperationalWorkflowStepKind::kRunCommand,"layout.dual"},
+      {"capture","Record status",TahaiOperationalWorkflowStepKind::kAssignVariable}};
+  workflow.steps[1].assignment=TahaiWorkflowAssignment{"outcome","dispatch",false,{}, {},true};
+  workflow.outputs={{"result","Dispatch status","outcome",true}};
+  return workflow;
+}
+
+TEST_F(MissionServiceTest, ActionStatusBindingsPersistWithoutReplayAndRejectForgedSources) {
+  const auto workflow=ActionStatusWorkflow();
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_,workflow,"review-skin",std::string(64,'a')));
+  const auto queued=profile_.GetPrefs()->GetDict(prefs::kTahaiPendingOperationalWorkflow).Clone();
+  auto forged=queued.Clone(); forged.Set("command_steps",base::ListValue());
+  profile_.GetPrefs()->SetDict(prefs::kTahaiPendingOperationalWorkflow,std::move(forged));
+  EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(&profile_));
+  profile_.GetPrefs()->SetDict(prefs::kTahaiPendingOperationalWorkflow,queued.Clone());
+  ASSERT_TRUE(GetQueuedOperationalWorkflowLaunch(&profile_));
+  std::string id;
+  {
+    MissionService service(&profile_); ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    id=service.missions().back().id;
+    ASSERT_TRUE(service.missions().back().steps[1].assignment->from_action_status);
+    if(service.missions().back().operational_workflow->run_state!="running") ASSERT_TRUE(service.SetOperationalWorkflowRunState(id,"running"));
+    EXPECT_FALSE(service.AssignWorkflowVariable(id,1));
+    ASSERT_TRUE(service.BeginNativeWorkflowStep(id,0));
+    EXPECT_FALSE(service.AssignWorkflowVariable(id,1));
+    ASSERT_TRUE(service.FinishNativeWorkflowStep(id,0,"dispatched"));
+    EXPECT_FALSE(service.AssignWorkflowVariable(id,1));
+    ASSERT_TRUE(service.ToggleStep(id,0)); ASSERT_TRUE(service.AssignWorkflowVariable(id,1));
+    EXPECT_EQ("dispatched",service.missions().back().workflow_variables[0].value);
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id,"succeeded"));
+    const auto capsule=BuildTahaiMissionCapsule(service.missions().back()); ASSERT_TRUE(capsule);
+    EXPECT_EQ(std::string::npos,capsule->find("action_status")); EXPECT_EQ(std::string::npos,capsule->find("workflow_variables"));
+  }
+  const auto saved=profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  {
+    MissionService restored(&profile_); ASSERT_TRUE(restored.missions().back().operational_workflow);
+    EXPECT_EQ("dispatched",restored.missions().back().workflow_variables[0].value);
+    EXPECT_FALSE(restored.BeginNativeWorkflowStep(id,0)); EXPECT_FALSE(restored.AssignWorkflowVariable(id,1));
+    EXPECT_EQ(saved,profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  auto corrupt=saved.Clone(); (*corrupt.back().GetDict().FindList("steps"))[1].GetDict().FindDict("assign")->FindDict("from")->Set("action_status","capture");
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions,corrupt.Clone());
+  MissionService inert(&profile_); EXPECT_FALSE(inert.missions().back().operational_workflow);
+  EXPECT_EQ(corrupt,profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+}
+
+TEST_F(MissionServiceTest, ActionStatusBindingsRespectEachIterationAndTargetConstraints) {
+  MissionService service(&profile_); auto workflow=ActionStatusWorkflow();workflow.repeats={{"rounds","dispatch","capture",2}};
+  const auto created=service.CreateOperationalWorkflowMission(workflow,"review-skin",std::string(64,'a'),true);ASSERT_TRUE(created);
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(created->id,"running"));
+  for(size_t index:{0u,2u}) {
+    EXPECT_FALSE(service.AssignWorkflowVariable(created->id,index+1));
+    ASSERT_TRUE(service.BeginNativeWorkflowStep(created->id,index));ASSERT_TRUE(service.FinishNativeWorkflowStep(created->id,index,"dispatched"));
+    ASSERT_TRUE(service.ToggleStep(created->id,index));ASSERT_TRUE(service.AssignWorkflowVariable(created->id,index+1));
+    EXPECT_EQ("dispatched",service.missions().back().workflow_variables[0].value);
+  }
+  workflow.repeats.clear();workflow.variables[0].type=TahaiOperationalWorkflowInputType::kText;workflow.variables[0].options.clear();
+  workflow.variables[0].validation.emplace().max_bytes=3;
+  const auto bounded=service.CreateOperationalWorkflowMission(workflow,"review-skin",std::string(64,'a'),true);ASSERT_TRUE(bounded);
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(bounded->id,"running"));ASSERT_TRUE(service.BeginNativeWorkflowStep(bounded->id,0));
+  ASSERT_TRUE(service.FinishNativeWorkflowStep(bounded->id,0,"dispatched"));ASSERT_TRUE(service.ToggleStep(bounded->id,0));
+  const auto before=profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  EXPECT_FALSE(service.AssignWorkflowVariable(bounded->id,1));EXPECT_EQ(before,profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  EXPECT_TRUE(service.missions().back().workflow_variables[0].value.empty());
+}
+
+TEST_F(MissionServiceTest, TextExpressionsPersistExactDefinitionsAndNeverReplayOrExportValues) {
+  const auto workflow = TextExpressionWorkflow();
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  std::string id;
+  {
+    MissionService service(&profile_); ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    const auto& run = service.missions().front(); id = run.id;
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "source", "local"));
+    EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 0));
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 1)); EXPECT_EQ("LOCAL!", run.workflow_variables[0].value);
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "source", "changed"));
+    EXPECT_EQ("LOCAL!", run.workflow_variables[0].value);
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+  }
+  MissionService restored(&profile_); const auto& run = restored.missions().front();
+  ASSERT_TRUE(run.operational_workflow); EXPECT_EQ("paused", run.operational_workflow->run_state);
+  EXPECT_EQ(workflow.steps[1].assignment, run.steps[1].assignment);
+  EXPECT_EQ("LOCAL!", run.workflow_variables[0].value); EXPECT_FALSE(restored.AssignWorkflowVariable(id, 1));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "succeeded"));
+  const auto result = ResolveMissionWorkflowOutput(run, "final"); ASSERT_TRUE(result); EXPECT_EQ("LOCAL!", result->value);
+  const auto capsule = BuildTahaiMissionCapsule(run); ASSERT_TRUE(capsule); EXPECT_FALSE(capsule->contains("LOCAL!"));
+  for (const auto& event : run.timeline) EXPECT_FALSE(event.detail.contains("LOCAL!"));
+}
+
+TEST_F(MissionServiceTest, TextExpressionFailuresPreservePriorValueProgressAndMalformedPreferences) {
+  auto workflow = TextExpressionWorkflow(); MissionService service(&profile_);
+  const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created); const auto id = created->id; const auto& run = service.missions().front();
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "source", "prior"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running")); ASSERT_TRUE(service.AssignWorkflowVariable(id, 0));
+  for (const auto& item : {std::pair{"", "missing-text"}, {"oversize", "target-constraint"}}) {
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "source", item.first));
+    const auto before = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone(); const auto token = run.mutation_token;
+    EXPECT_EQ(item.second, MissionWorkflowCalculationError(run, 1)); EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+    EXPECT_EQ("prior", run.workflow_variables[0].value); EXPECT_EQ(token, run.mutation_token); EXPECT_FALSE(run.steps[1].complete);
+    EXPECT_EQ(before, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  auto snapshot = run; snapshot.workflow_inputs[0].is_protected = true;
+  EXPECT_FALSE(CanAssignMissionWorkflowVariable(snapshot, 1));
+  snapshot = run; snapshot.workflow_variables[0].definition.validation.reset();
+  TahaiWorkflowTextExpression sensitive; sensitive.text = "password=fixture";
+  snapshot.steps[1].assignment->text_expression = sensitive;
+  EXPECT_EQ("target-constraint", MissionWorkflowCalculationError(snapshot, 1));
+  EXPECT_FALSE(CanAssignMissionWorkflowVariable(snapshot, 1));
+  workflow.inputs[0].is_protected = true;
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (const char* node : {R"({"input":"missing"})", R"({"text":true})", R"({"op":"eval","args":[]})"}) {
+    auto invalid = saved.Clone();
+    (*invalid[0].GetDict().FindList("steps"))[1].GetDict().FindDict("assign")->Set("text_expression", base::JSONReader::Read(node, base::JSON_PARSE_RFC)->Clone());
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, invalid.Clone()); MissionService restored(&profile_);
+    ASSERT_EQ(1u, restored.missions().size()); EXPECT_FALSE(restored.missions().front().operational_workflow);
+    EXPECT_FALSE(restored.AssignWorkflowVariable(id, 1)); EXPECT_EQ(invalid, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+}
+
+TEST_F(MissionServiceTest, CalculationsRequireExplicitOrderAndPersistWithoutReplayOrExportValues) {
+  auto workflow = CalculationWorkflow();
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  std::string id, token;
+  {
+    MissionService service(&profile_); ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    const auto& run = service.missions().front(); id = run.id;
+    EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "6.25"));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "divisor", "2"));
+    EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+    ASSERT_TRUE(service.ToggleStep(id, 0));
+    EXPECT_TRUE(MissionWorkflowCalculationError(run, 1).empty());
+    const auto before = run.mutation_token;
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 1));
+    EXPECT_NE(before, run.mutation_token); EXPECT_EQ("3.125", run.workflow_variables[0].value);
+    EXPECT_TRUE(run.steps[1].complete); EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "8"));
+    EXPECT_EQ("3.125", run.workflow_variables[0].value);
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused")); token = run.mutation_token;
+  }
+  MissionService restored(&profile_); ASSERT_EQ(1u, restored.missions().size());
+  const auto& run = restored.missions().front(); ASSERT_TRUE(run.operational_workflow);
+  EXPECT_EQ("paused", run.operational_workflow->run_state); EXPECT_NE(token, run.mutation_token);
+  ASSERT_TRUE(run.steps[1].assignment); EXPECT_EQ(workflow.steps[1].assignment, run.steps[1].assignment);
+  EXPECT_EQ("3.125", run.workflow_variables[0].value); EXPECT_TRUE(run.steps[1].complete);
+  EXPECT_FALSE(restored.AssignWorkflowVariable(id, 1));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(restored.AssignWorkflowVariable(id, 2));
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "succeeded"));
+  const auto result = ResolveMissionWorkflowOutput(run, "result"); ASSERT_TRUE(result); EXPECT_EQ("3.125", result->value);
+  const auto capsule = BuildTahaiMissionCapsule(run); ASSERT_TRUE(capsule); EXPECT_FALSE(capsule->contains("3.125"));
+  for (const auto& event : run.timeline) EXPECT_FALSE(event.detail.contains("3.125"));
+}
+
+TEST_F(MissionServiceTest, CalculationFailuresPreserveValuesTokensAndPreferencesAndMalformedRestoreIsInert) {
+  auto workflow = CalculationWorkflow();
+  // Seed total through an earlier explicit assignment, then attempt a calculation.
+  workflow.steps[0].kind = TahaiOperationalWorkflowStepKind::kAssignVariable;
+  workflow.steps[0].assignment = TahaiWorkflowAssignment{"total", "amount", false};
+  MissionService service(&profile_);
+  const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created); const auto id = created->id; const auto& run = service.missions().front();
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "3.125"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(service.AssignWorkflowVariable(id, 0));
+  for (const auto& item : {std::pair{"", "missing-number"}, {"0", "division-by-zero"},
+                          {"-0", "division-by-zero"}, {"0.01", "target-constraint"}}) {
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "divisor", item.first));
+    const auto before = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone(); const auto token = run.mutation_token;
+    EXPECT_EQ(item.second, MissionWorkflowCalculationError(run, 1));
+    EXPECT_FALSE(service.AssignWorkflowVariable(id, 1)); EXPECT_EQ("3.125", run.workflow_variables[0].value);
+    EXPECT_FALSE(run.steps[1].complete); EXPECT_EQ("running", run.operational_workflow->run_state);
+    EXPECT_EQ(token, run.mutation_token); EXPECT_EQ(before, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "divisor", "1"));
+  EXPECT_TRUE(MissionWorkflowCalculationError(run, 1).empty());
+  auto snapshot = run; snapshot.workflow_inputs[0].is_protected = true;
+  EXPECT_FALSE(CanAssignMissionWorkflowVariable(snapshot, 1));
+  EXPECT_EQ("invalid-expression", MissionWorkflowCalculationError(snapshot, 1));
+  workflow.inputs[0].is_protected = true;
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (const char* node : {R"({"input":"missing"})", R"({"number":true})", R"({"op":"eval","args":[]})"}) {
+    auto invalid = saved.Clone();
+    (*invalid[0].GetDict().FindList("steps"))[1].GetDict().FindDict("assign")->Set("expression",
+        base::JSONReader::Read(node, base::JSON_PARSE_RFC)->Clone());
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, invalid.Clone());
+    MissionService restored(&profile_); ASSERT_EQ(1u, restored.missions().size());
+    EXPECT_FALSE(restored.missions().front().operational_workflow);
+    EXPECT_FALSE(restored.AssignWorkflowVariable(id, 1));
+    EXPECT_EQ(invalid, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+}
+
+TEST_F(MissionServiceTest, NamedOutputsResolveOnlyAfterSuccessAndRetainTheirOwnRun) {
+  auto workflow = ProtectedWorkflow();
+  workflow.inputs[0].is_protected = false;
+  workflow.inputs[0].type = TahaiOperationalWorkflowInputType::kUrl;
+  workflow.inputs.push_back({"optional-input", "Optional input", TahaiOperationalWorkflowInputType::kText, false, {}});
+  workflow.outputs = {{"result", "Result", "private-input"}, {"optional-result", "Optional result", "optional-input"}};
+  const std::string value = "https://example.test/local-result?q=private-review#notes";
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  std::string id;
+  {
+    MissionService service(&profile_);
+    ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    id = service.missions().front().id;
+    const auto& run = service.missions().front();
+    EXPECT_EQ(workflow.outputs, run.workflow_outputs);
+    EXPECT_FALSE(ResolveMissionWorkflowOutput(run, "result"));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "private-input", value));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+    ASSERT_TRUE(service.ToggleStep(id, 0));
+    EXPECT_FALSE(ResolveMissionWorkflowOutput(run, "result"));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+    auto result = ResolveMissionWorkflowOutput(run, "result");
+    ASSERT_TRUE(result);
+    EXPECT_EQ(value, result->value);
+    EXPECT_EQ("url", result->type);
+    for (const char* state : {"ready", "running", "waiting-for-input", "paused", "failed", "cancelled"}) {
+      auto not_successful = run;
+      not_successful.operational_workflow->run_state = state;
+      EXPECT_FALSE(ResolveMissionWorkflowOutput(not_successful, "result"));
+    }
+    EXPECT_TRUE(result->has_value);
+    EXPECT_FALSE(result->is_protected);
+    auto corrupted = run;
+    corrupted.workflow_inputs[0].value.clear();
+    EXPECT_FALSE(ResolveMissionWorkflowOutput(corrupted, "optional-result"));
+    corrupted = run;
+    corrupted.steps[0].requires_native_action = true;
+    corrupted.steps[0].action_state = "unknown";
+    EXPECT_FALSE(ResolveMissionWorkflowOutput(corrupted, "result"));
+    result = ResolveMissionWorkflowOutput(run, "optional-result");
+    ASSERT_TRUE(result);
+    EXPECT_FALSE(result->has_value);
+    EXPECT_TRUE(result->value.empty());
+    EXPECT_FALSE(ResolveMissionWorkflowOutput(run, "missing"));
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "private-input", "https://other.test/"));
+    EXPECT_FALSE(service.ToggleStep(id, 0));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "running"));
+  }
+  MissionService restored(&profile_);
+  ASSERT_EQ(1u, restored.missions().size());
+  EXPECT_EQ(workflow.outputs, restored.missions().front().workflow_outputs);
+  EXPECT_EQ(value, ResolveMissionWorkflowOutput(restored.missions().front(), "result")->value);
+  const auto capsule = BuildTahaiMissionCapsule(restored.missions().front());
+  ASSERT_TRUE(capsule);
+  EXPECT_EQ(std::string::npos, capsule->find(value));
+  EXPECT_EQ(std::string::npos, capsule->find("workflow_outputs"));
+  for (const auto& event : restored.missions().front().timeline) EXPECT_FALSE(event.detail.contains(value));
+  ASSERT_TRUE(restored.ArchiveMission(id));
+  EXPECT_EQ(value, ResolveMissionWorkflowOutput(restored.missions().front(), "result")->value);
+  auto copy = restored.DuplicateMission(id);
+  ASSERT_TRUE(copy);
+  EXPECT_TRUE(copy->workflow_outputs.empty());
+  EXPECT_TRUE(copy->workflow_inputs.empty());
+  EXPECT_FALSE(copy->operational_workflow);
+  TestingProfile separate_profile;
+  MissionService separate(&separate_profile);
+  EXPECT_TRUE(separate.missions().empty());
+  MissionService private_service(profile_.GetPrimaryOTRProfile(true));
+  EXPECT_TRUE(private_service.missions().empty());
+  ASSERT_TRUE(restored.DeleteMission(id));
+  for (const auto& run : restored.missions()) EXPECT_FALSE(ResolveMissionWorkflowOutput(run, "result"));
+}
+
+TEST_F(MissionServiceTest, NamedProtectedOutputsNeverReturnPlaintextOrCiphertext) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  auto workflow = ProtectedWorkflow();
+  workflow.outputs = {{"result", "Private result", "private-input"}};
+  const std::string secret = "password=fixture-only:@/private-output";
+  std::string id, ciphertext;
+  {
+    MissionService service(&profile_);
+    const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'));
+    ASSERT_TRUE(created);
+    id = created->id;
+    ASSERT_TRUE(PrepareInputs(service, provider.get()));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "private-input", secret));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    ASSERT_TRUE(service.ToggleStep(id, 0));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+    const auto& run = service.missions().front();
+    auto result = ResolveMissionWorkflowOutput(run, "result");
+    ASSERT_TRUE(result);
+    EXPECT_TRUE(result->is_protected);
+    EXPECT_TRUE(result->has_value);
+    EXPECT_FALSE(result->unavailable);
+    EXPECT_TRUE(result->value.empty());
+    ciphertext = run.workflow_inputs[0].protected_value;
+    const auto& record = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).front().GetDict();
+    const auto outputs = base::WriteJson(*record.FindList("workflow_outputs"));
+    ASSERT_TRUE(outputs);
+    EXPECT_FALSE(outputs->contains(secret));
+    EXPECT_FALSE(outputs->contains(ciphertext));
+    EXPECT_FALSE(base::WriteJson(record)->contains(secret));
+    EXPECT_FALSE(BuildTahaiMissionCapsule(run)->contains(secret));
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "private-input", ""));
+  }
+  MissionService restored(&profile_);
+  auto result = ResolveMissionWorkflowOutput(restored.missions().front(), "result");
+  ASSERT_TRUE(result);
+  EXPECT_TRUE(result->is_protected);
+  EXPECT_TRUE(result->unavailable);
+  EXPECT_FALSE(result->has_value);
+  EXPECT_TRUE(result->value.empty());
+  ASSERT_TRUE(PrepareInputs(restored, provider.get()));
+  result = ResolveMissionWorkflowOutput(restored.missions().front(), "result");
+  ASSERT_TRUE(result);
+  EXPECT_TRUE(result->has_value);
+  EXPECT_FALSE(result->unavailable);
+  EXPECT_TRUE(result->value.empty());
+  auto tampered = restored.missions().front();
+  tampered.workflow_inputs[0].value = secret;
+  EXPECT_FALSE(ResolveMissionWorkflowOutput(tampered, "result"));
+  EXPECT_EQ(ciphertext, restored.missions().front().workflow_inputs[0].protected_value);
+}
+
+TEST_F(MissionServiceTest, InvalidOutputBindingsFailClosedOnCreateQueueAndRestore) {
+  auto workflow = ProtectedWorkflow();
+  workflow.inputs[0].is_protected = false;
+  workflow.outputs = {{"result", "Result", "missing"}};
+  MissionService service(&profile_);
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  workflow.outputs[0].input_id = "private-input";
+  ASSERT_TRUE(service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (const char* mutation : {"dangling", "payload", "declassify", "wrong-shape", "duplicate"}) {
+    SCOPED_TRACE(mutation);
+    auto broken = saved.Clone();
+    auto& record = broken.front().GetDict();
+    auto* outputs = record.FindList("workflow_outputs");
+    auto& output = outputs->front().GetDict();
+    const std::string kind(mutation);
+    if (kind == "dangling") output.FindDict("from")->Set("input", "missing");
+    else if (kind == "payload") output.Set("value", "unreviewed");
+    else if (kind == "declassify") output.Set("protected", false);
+    else if (kind == "duplicate") outputs->Append(outputs->front().Clone());
+    else record.Set("workflow_outputs", false);
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, broken.Clone());
+    MissionService restored(&profile_);
+    const auto& run = restored.missions().front();
+    EXPECT_FALSE(run.operational_workflow);
+    EXPECT_TRUE(run.workflow_outputs.empty());
+    EXPECT_FALSE(ResolveMissionWorkflowOutput(run, "result"));
+    EXPECT_EQ(broken, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+}
+
+TEST_F(MissionServiceTest, InputValidationSurvivesQueueRestartAndRejectsWithoutMutation) {
+  auto workflow = ProtectedWorkflow();
+  workflow.inputs[0].is_protected = false;
+  workflow.inputs[0].validation = TahaiWorkflowInputValidation{2, 4, {}, {}};
+  workflow.inputs.push_back({"amount", "Amount", TahaiOperationalWorkflowInputType::kNumber, true, {}});
+  workflow.inputs[1].validation = TahaiWorkflowInputValidation{{}, {}, -0.5, 10.0};
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  std::string id;
+  {
+    MissionService service(&profile_);
+    ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    const auto& run = service.missions().front();
+    id = run.id;
+    ASSERT_EQ(2u, run.workflow_inputs.size());
+    EXPECT_EQ(workflow.inputs[0].validation, run.workflow_inputs[0].validation);
+    EXPECT_EQ(workflow.inputs[1].validation, run.workflow_inputs[1].validation);
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "private-input", "okay"));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "amount", "-.5"));
+    const auto before = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+    for (const char* value : {"x", "excess"})
+      EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "private-input", value));
+    for (const char* value : {"-0.51", "10.01", "1e1", "NaN", "inf"})
+      EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "amount", value));
+    EXPECT_EQ(before, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "private-input", ""));
+    EXPECT_EQ("waiting-for-input", run.operational_workflow->run_state);
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "private-input", "ok"));
+  }
+  MissionService restored(&profile_);
+  const auto& run = restored.missions().front();
+  EXPECT_EQ(workflow.inputs[0].validation, run.workflow_inputs[0].validation);
+  EXPECT_EQ(workflow.inputs[1].validation, run.workflow_inputs[1].validation);
+  EXPECT_EQ("ok", run.workflow_inputs[0].value);
+  EXPECT_EQ("-.5", run.workflow_inputs[1].value);
+  EXPECT_FALSE(restored.SetOperationalWorkflowInputValue(id, "amount", "11"));
+  EXPECT_TRUE(restored.SetOperationalWorkflowInputValue(id, "amount", "10"));
+  EXPECT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+}
+
+TEST_F(MissionServiceTest, InvalidStoredValidationNeverSilentlyDropsRequiredGate) {
+  auto workflow = ProtectedWorkflow();
+  workflow.inputs[0].is_protected = false;
+  workflow.inputs[0].validation = TahaiWorkflowInputValidation{2, 4, {}, {}};
+  {
+    MissionService service(&profile_);
+    auto run = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'));
+    ASSERT_TRUE(run);
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(run->id, "private-input", "okay"));
+  }
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (const char* mutation : {"malformed", "wrong-type", "value-outside"}) {
+    auto corrupt = saved.Clone();
+    auto& input = corrupt.front().GetDict().FindList("workflow_inputs")->front().GetDict();
+    if (std::string(mutation) == "malformed") input.Set("validation", true);
+    else if (std::string(mutation) == "wrong-type") input.Set("validation", base::DictValue().Set("minimum", 0));
+    else input.Set("value", "x");
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, corrupt.Clone());
+    MissionService restored(&profile_);
+    EXPECT_FALSE(restored.missions().front().operational_workflow);
+    EXPECT_TRUE(restored.missions().front().workflow_inputs.empty());
+    EXPECT_EQ(corrupt, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  workflow.inputs[0].validation = TahaiWorkflowInputValidation{4, 2, {}, {}};
+  MissionService invalid(&profile_);
+  EXPECT_FALSE(invalid.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+}
+
+TahaiOperationalWorkflow ProtectedVariableWorkflow() {
+  auto workflow = ProtectedWorkflow(); workflow.inputs[0].required = false;
+  workflow.inputs.push_back({"public-input", "Public input", TahaiOperationalWorkflowInputType::kText, false, {}});
+  workflow.variables = {{"private-one", "Private one", TahaiOperationalWorkflowInputType::kText, false, {}, true},
+      {"private-two", "Private two", TahaiOperationalWorkflowInputType::kText, false, {}, true}};
+  workflow.steps = {{"save", "Save privately", TahaiOperationalWorkflowStepKind::kAssignVariable},
+      {"copy", "Copy privately", TahaiOperationalWorkflowStepKind::kAssignVariable},
+      {"clear", "Update privately", TahaiOperationalWorkflowStepKind::kAssignVariable}};
+  workflow.steps[0].assignment = TahaiWorkflowAssignment{"private-one", "private-input", false};
+  workflow.steps[1].assignment = TahaiWorkflowAssignment{"private-two", "private-one", true};
+  workflow.steps[2].assignment = workflow.steps[0].assignment;
+  workflow.outputs = {{"result", "Protected result", "private-two", true}};
+  return workflow;
+}
+
+TEST_F(MissionServiceTest, ProtectedVariablesEncryptRebindAndRecoverWithoutPlaintextOrReplay) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  const std::string secret = "password=private-variable-fixture";
+  const auto workflow = ProtectedVariableWorkflow(); std::string id, first_cipher;
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+  {
+    MissionService service(&profile_); ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    const auto& run = service.missions().front(); id = run.id;
+    ASSERT_TRUE(PrepareInputs(service, provider.get()));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "private-input", secret));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    ASSERT_TRUE(service.AssignWorkflowVariable(id, 0)); EXPECT_FALSE(service.AssignWorkflowVariable(id, 0));
+    EXPECT_TRUE(run.workflow_variables[0].value.empty()); EXPECT_TRUE(run.workflow_variables[0].protected_has_value);
+    first_cipher = run.workflow_variables[0].protected_value; EXPECT_FALSE(first_cipher.empty());
+    EXPECT_NE(run.workflow_inputs[0].protected_value, first_cipher);
+    const auto& saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions)[0].GetDict().FindList("workflow_variables")->front().GetDict();
+    EXPECT_FALSE(saved.contains("value")); EXPECT_FALSE(saved.contains("protected_has_value"));
+    EXPECT_EQ(first_cipher, *saved.FindString("protected_value"));
+    EXPECT_FALSE(base::WriteJson(profile_.GetPrefs()->GetList(prefs::kTahaiMissions))->contains(secret));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+  }
+  MissionService restored(&profile_); const auto& run = restored.missions().front();
+  ASSERT_TRUE(run.operational_workflow); EXPECT_EQ("paused", run.operational_workflow->run_state);
+  EXPECT_FALSE(run.workflow_variables[0].protected_has_value); EXPECT_TRUE(run.workflow_variables[0].value.empty());
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running")); EXPECT_FALSE(restored.AssignWorkflowVariable(id, 1));
+  ASSERT_TRUE(PrepareInputs(restored, provider.get())); EXPECT_EQ(first_cipher, run.workflow_variables[0].protected_value);
+  EXPECT_FALSE(restored.AssignWorkflowVariable(id, 0)); ASSERT_TRUE(restored.AssignWorkflowVariable(id, 1));
+  const auto second_cipher = run.workflow_variables[1].protected_value;
+  EXPECT_NE(first_cipher, second_cipher); EXPECT_FALSE(second_cipher.empty());
+  ASSERT_TRUE(restored.SetOperationalWorkflowInputValue(id, "private-input", ""));
+  ASSERT_TRUE(restored.AssignWorkflowVariable(id, 2)); EXPECT_TRUE(run.workflow_variables[0].protected_value.empty());
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "succeeded"));
+  const auto output = ResolveMissionWorkflowOutput(run, "result"); ASSERT_TRUE(output);
+  EXPECT_TRUE(output->is_protected); EXPECT_TRUE(output->has_value); EXPECT_TRUE(output->value.empty());
+  const auto capsule = BuildTahaiMissionCapsule(run); ASSERT_TRUE(capsule);
+  for (const auto& sensitive : {secret, first_cipher, second_cipher}) {
+    EXPECT_FALSE(capsule->contains(sensitive));
+    for (const auto& event : run.timeline) EXPECT_FALSE(event.detail.contains(sensitive));
+  }
+  EXPECT_FALSE(PrepareInputs(restored, nullptr));
+  const auto unavailable = ResolveMissionWorkflowOutput(run, "result"); ASSERT_TRUE(unavailable);
+  EXPECT_TRUE(unavailable->unavailable); EXPECT_FALSE(unavailable->has_value); EXPECT_TRUE(unavailable->value.empty());
+}
+
+TEST_F(MissionServiceTest, ProtectedVariableFailuresPreserveCiphertextTokensAndProgress) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  auto workflow = ProtectedVariableWorkflow(); workflow.steps.resize(2); workflow.outputs.clear();
+  workflow.steps[1].assignment = TahaiWorkflowAssignment{"private-one", "public-input", false};
+  workflow.variables[0].validation = TahaiWorkflowInputValidation{2, 4, {}, {}};
+  MissionService service(&profile_); const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created); const auto id = created->id; const auto& run = service.missions().front();
+  ASSERT_TRUE(PrepareInputs(service, provider.get()));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "private-input", "oversized"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+  const auto before = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone(); const auto token = run.mutation_token;
+  EXPECT_FALSE(service.AssignWorkflowVariable(id, 0)); EXPECT_FALSE(run.steps[0].complete);
+  EXPECT_EQ(token, run.mutation_token); EXPECT_EQ(before, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "private-input", "okay")); ASSERT_TRUE(service.AssignWorkflowVariable(id, 0));
+  const auto cipher = run.workflow_variables[0].protected_value;
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "public-input", "next"));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone(); const auto saved_token = run.mutation_token;
+  EXPECT_FALSE(PrepareInputs(service, nullptr)); EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+  auto wrong_keys = os_crypt_async::GetTestOSCryptAsyncForTesting(); ASSERT_TRUE(PrepareInputs(service, wrong_keys.get()));
+  EXPECT_FALSE(run.workflow_variables[0].protected_has_value); EXPECT_FALSE(service.AssignWorkflowVariable(id, 1));
+  EXPECT_EQ(cipher, run.workflow_variables[0].protected_value); EXPECT_EQ(saved_token, run.mutation_token);
+  EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  ASSERT_TRUE(PrepareInputs(service, provider.get())); EXPECT_TRUE(run.workflow_variables[0].protected_has_value);
+  EXPECT_FALSE(run.steps[1].complete); EXPECT_EQ(cipher, run.workflow_variables[0].protected_value);
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "public-input", "")); EXPECT_FALSE(PrepareInputs(service, nullptr));
+  ASSERT_TRUE(service.AssignWorkflowVariable(id, 1)); EXPECT_TRUE(run.workflow_variables[0].protected_value.empty());
+  EXPECT_FALSE(run.workflow_variables[0].protected_has_value);
+}
+
+TEST_F(MissionServiceTest, ProtectedVariableContextTamperingAndPlaintextPreferencesFailClosed) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  auto workflow = ProtectedVariableWorkflow(); MissionService service(&profile_);
+  const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(created);
+  ASSERT_TRUE(PrepareInputs(service, provider.get()));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(created->id, "private-input", "fixture-secret"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(created->id, "running")); ASSERT_TRUE(service.AssignWorkflowVariable(created->id, 0));
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  const auto input_cipher = service.missions().front().workflow_inputs[0].protected_value;
+  for (int change = 0; change < 8; ++change) {
+    auto altered = saved.Clone(); auto& variable = altered[0].GetDict().FindList("workflow_variables")->front().GetDict();
+    switch (change) {
+      case 0: variable.Set("name", "Changed label"); break;
+      case 1: variable.Set("validation", base::DictValue().Set("max_bytes", 200)); break;
+      case 2: variable.Set("protected_value", input_cipher); break;
+      case 3: variable.Set("value", "plaintext-must-not-load"); break;
+      case 4: variable.Set("protected_has_value", true); break;
+      case 5: variable.Set("protected_value", "not-base64"); break;
+      case 6: altered[0].GetDict().Set("id", base::Uuid::GenerateRandomV4().AsLowercaseString()); break;
+      case 7: altered[0].GetDict().FindDict("operational_workflow")->Set("archive_sha256", std::string(64, 'b')); break;
+    }
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, altered.Clone()); MissionService restored(&profile_);
+    ASSERT_EQ(1u, restored.missions().size()); ASSERT_TRUE(PrepareInputs(restored, provider.get()));
+    const auto& run = restored.missions().front();
+    if (change < 3 || change >= 6) {
+      ASSERT_TRUE(run.operational_workflow); EXPECT_FALSE(run.workflow_variables[0].protected_has_value);
+      ASSERT_TRUE(restored.SetOperationalWorkflowRunState(run.id, "running")); EXPECT_FALSE(restored.AssignWorkflowVariable(run.id, 1));
+    } else EXPECT_FALSE(run.operational_workflow);
+    if (change >= 3 && change < 6) EXPECT_EQ(altered, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  auto other = TestingProfile::Builder().SetPath(profile_.GetPath().AppendASCII("other-protected-variables")).Build();
+  other->GetPrefs()->SetList(prefs::kTahaiMissions, saved.Clone()); MissionService copied(other.get());
+  ASSERT_TRUE(PrepareInputs(copied, provider.get())); ASSERT_TRUE(copied.missions().front().operational_workflow);
+  EXPECT_FALSE(copied.missions().front().workflow_variables[0].protected_has_value);
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, saved.Clone());
+  MissionService private_service(profile_.GetPrimaryOTRProfile(true));
+  EXPECT_FALSE(private_service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true));
+  EXPECT_TRUE(private_service.missions().empty());
+}
+
+TEST_F(MissionServiceTest, ProtectedVariablesPreserveAllTypedValuesAndRejectManagedWrites) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting(); MissionService service(&profile_);
+  ASSERT_TRUE(PrepareInputs(service, provider.get()));
+  const std::array<TahaiOperationalWorkflowInputType, 6> types = {
+      TahaiOperationalWorkflowInputType::kText, TahaiOperationalWorkflowInputType::kNumber,
+      TahaiOperationalWorkflowInputType::kBoolean, TahaiOperationalWorkflowInputType::kSelection,
+      TahaiOperationalWorkflowInputType::kDate, TahaiOperationalWorkflowInputType::kUrl};
+  const std::array<const char*, 6> values = {"password=fixture", "-.25", "false", "Team", "2024-02-29", "https://example.test/?access_token=fixture"};
+  for (size_t index = 0; index < types.size(); ++index) {
+    auto workflow = ProtectedVariableWorkflow(); workflow.steps.resize(2);
+    for (auto& input : workflow.inputs) { input.type = types[index]; if (types[index] == TahaiOperationalWorkflowInputType::kSelection) input.options = {"Team", "Personal"}; }
+    for (auto& variable : workflow.variables) { variable.type = types[index]; if (types[index] == TahaiOperationalWorkflowInputType::kSelection) variable.options = {"Team", "Personal"}; }
+    const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(created);
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(created->id, "private-input", values[index]));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(created->id, "running"));
+    ASSERT_TRUE(service.AssignWorkflowVariable(created->id, 0)); ASSERT_TRUE(service.AssignWorkflowVariable(created->id, 1));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(created->id, "succeeded"));
+    const auto& run = service.missions().back(); EXPECT_TRUE(run.workflow_variables[1].value.empty());
+    const auto output = ResolveMissionWorkflowOutput(run, "result"); ASSERT_TRUE(output);
+    EXPECT_TRUE(output->is_protected); EXPECT_TRUE(output->has_value); EXPECT_TRUE(output->value.empty());
+    EXPECT_EQ(TahaiOperationalWorkflowInputTypeName(types[index]), output->type);
+  }
+  const auto created = service.CreateOperationalWorkflowMission(ProtectedVariableWorkflow(), "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(created);
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(created->id, "private-input", "fixture-secret"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(created->id, "running"));
+  profile_.GetTestingPrefService()->SetManagedPref(prefs::kTahaiMissions, base::Value(base::ListValue()));
+  EXPECT_FALSE(service.AssignWorkflowVariable(created->id, 0)); EXPECT_FALSE(PrepareInputs(service, provider.get()));
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(ProtectedVariableWorkflow(), "review-skin", std::string(64, 'a'), true));
+  EXPECT_FALSE(service.missions().back().steps[0].complete);
+  EXPECT_TRUE(profile_.GetPrefs()->GetList(prefs::kTahaiMissions).empty());
+}
+
+TEST_F(MissionServiceTest, ProtectedVariableRepeatIterationsSeparateInputNamespaceAndNeverReplay) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  auto workflow = ProtectedVariableWorkflow(); workflow.steps.resize(1); workflow.outputs.clear();
+  workflow.inputs.resize(1); workflow.variables.resize(1);
+  workflow.inputs[0].id = "private-one"; workflow.inputs[0].name = "Private one";
+  workflow.steps[0].assignment->source_id = "private-one";
+  workflow.repeats = {{"rounds", "save", "save", 2}};
+  std::string id; base::ListValue saved;
+  {
+    MissionService service(&profile_); const auto created = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true); ASSERT_TRUE(created);
+    id = created->id; ASSERT_TRUE(PrepareInputs(service, provider.get()));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "private-one", "first-private"));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running")); ASSERT_TRUE(service.AssignWorkflowVariable(id, 0));
+    ASSERT_EQ(2u, service.missions().front().steps.size()); EXPECT_FALSE(service.missions().front().steps[1].complete);
+    saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  }
+  {
+    MissionService restored(&profile_); ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+    EXPECT_FALSE(restored.AssignWorkflowVariable(id, 0)); EXPECT_FALSE(restored.AssignWorkflowVariable(id, 1));
+    ASSERT_TRUE(PrepareInputs(restored, provider.get()));
+    const auto first_cipher = restored.missions().front().workflow_variables[0].protected_value;
+    ASSERT_TRUE(restored.SetOperationalWorkflowInputValue(id, "private-one", "second-private"));
+    EXPECT_EQ(first_cipher, restored.missions().front().workflow_variables[0].protected_value);
+    ASSERT_TRUE(restored.AssignWorkflowVariable(id, 1)); EXPECT_TRUE(restored.missions().front().workflow_variables[0].value.empty());
+    EXPECT_NE(first_cipher, restored.missions().front().workflow_variables[0].protected_value);
+    EXPECT_FALSE(restored.AssignWorkflowVariable(id, 1));
+  }
+  auto& record = saved[0].GetDict();
+  const auto input_cipher = *record.FindList("workflow_inputs")->front().GetDict().FindString("protected_value");
+  // IDs, names, types, required/options/limits all match. Only the native
+  // namespace/purpose context separates this input from its destination.
+  record.FindList("workflow_variables")->front().GetDict().Set("protected_value", input_cipher);
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, saved.Clone()); MissionService swapped(&profile_);
+  ASSERT_TRUE(PrepareInputs(swapped, provider.get()));
+  EXPECT_TRUE(HasMissionWorkflowInputValue(swapped.missions().front().workflow_inputs[0]));
+  EXPECT_FALSE(swapped.missions().front().workflow_variables[0].protected_has_value);
+  ASSERT_TRUE(swapped.SetOperationalWorkflowRunState(id, "running")); EXPECT_FALSE(swapped.AssignWorkflowVariable(id, 1));
+}
+
+TEST_F(MissionServiceTest, ProtectedValidationRejectsBeforeEncryptionAndBindsCiphertext) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  auto workflow = ProtectedWorkflow();
+  workflow.inputs[0].validation = TahaiWorkflowInputValidation{2, 4, {}, {}};
+  base::ListValue saved;
+  {
+    MissionService service(&profile_);
+    auto run = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'));
+    ASSERT_TRUE(run);
+    ASSERT_TRUE(PrepareInputs(service, provider.get()));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(run->id, "private-input", "\xc3\xa9\xc3\xa9"));
+    saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(run->id, "private-input", "\xc3\xa9\xc3\xa9\xc3\xa9"));
+    EXPECT_EQ(saved, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  {
+    MissionService restored(&profile_);
+    ASSERT_TRUE(PrepareInputs(restored, provider.get()));
+    EXPECT_TRUE(HasMissionWorkflowInputValue(restored.missions().front().workflow_inputs[0]));
+  }
+  for (bool remove : {false, true}) {
+    auto tampered = saved.Clone();
+    auto& input = tampered.front().GetDict().FindList("workflow_inputs")->front().GetDict();
+    if (remove) input.Remove("validation");
+    else input.FindDict("validation")->Set("max_bytes", 8);
+    const std::string ciphertext = *input.FindString("protected_value");
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, std::move(tampered));
+    MissionService restored(&profile_);
+    ASSERT_TRUE(PrepareInputs(restored, provider.get()));
+    const auto& run = restored.missions().front();
+    EXPECT_FALSE(HasMissionWorkflowInputValue(run.workflow_inputs[0]));
+    EXPECT_EQ(ciphertext, run.workflow_inputs[0].protected_value);
+    EXPECT_FALSE(restored.SetOperationalWorkflowRunState(run.id, "running"));
+    EXPECT_TRUE(restored.SetOperationalWorkflowInputValue(run.id, "private-input", ""));
+  }
+}
+
+TEST_F(MissionServiceTest, ProtectedInputEncryptionMasksSnapshotsAndRestartRequiresResume) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  const std::string secret = "password=fixture-only:@/private";
+  std::string id, ciphertext;
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, ProtectedWorkflow(), "review-skin", std::string(64, 'a')));
+  {
+    MissionService service(&profile_);
+    ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    id = service.missions().front().id;
+    EXPECT_TRUE(service.missions().front().workflow_inputs[0].is_protected);
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "private-input", secret));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "running"));
+    ASSERT_TRUE(PrepareInputs(service, provider.get()));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "private-input", secret));
+    const auto& input = service.missions().front().workflow_inputs[0];
+    EXPECT_TRUE(input.value.empty());
+    EXPECT_TRUE(HasMissionWorkflowInputValue(input));
+    ciphertext = input.protected_value;
+    EXPECT_FALSE(ciphertext.empty());
+    EXPECT_EQ(std::string::npos, base::WriteJson(profile_.GetPrefs()->GetList(prefs::kTahaiMissions))->find(secret));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    const auto capsule = BuildTahaiMissionCapsule(service.missions().front());
+    ASSERT_TRUE(capsule);
+    EXPECT_EQ(std::string::npos, capsule->find(secret));
+    EXPECT_EQ(std::string::npos, capsule->find(ciphertext));
+    for (const auto& event : service.missions().front().timeline) EXPECT_FALSE(event.detail.contains(secret));
+  }
+  MissionService restored(&profile_);
+  ASSERT_EQ(1u, restored.missions().size());
+  const auto& input = restored.missions().front().workflow_inputs[0];
+  EXPECT_TRUE(input.value.empty());
+  EXPECT_FALSE(HasMissionWorkflowInputValue(input));
+  EXPECT_EQ("waiting-for-input", restored.missions().front().operational_workflow->run_state);
+  ASSERT_TRUE(PrepareInputs(restored, provider.get()));
+  EXPECT_TRUE(HasMissionWorkflowInputValue(input));
+  EXPECT_EQ(ciphertext, input.protected_value);
+  EXPECT_EQ("waiting-for-input", restored.missions().front().operational_workflow->run_state);
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(restored.SetOperationalWorkflowInputValue(id, "private-input", ""));
+  EXPECT_TRUE(input.protected_value.empty());
+  EXPECT_FALSE(HasMissionWorkflowInputValue(input));
+  EXPECT_FALSE(restored.SetOperationalWorkflowRunState(id, "running"));
+}
+
+TEST_F(MissionServiceTest, ProtectedInputUnavailableKeysNeverOverwriteSavedCiphertext) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  MissionService service(&profile_);
+  const auto mission = service.CreateOperationalWorkflowMission(ProtectedWorkflow(), "review-skin", std::string(64, 'a'));
+  ASSERT_TRUE(mission);
+  ASSERT_TRUE(PrepareInputs(service, provider.get()));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(mission->id, "private-input", "fixture-secret"));
+  const std::string ciphertext = service.missions().front().workflow_inputs[0].protected_value;
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(mission->id, "running"));
+  EXPECT_FALSE(PrepareInputs(service, nullptr));
+  EXPECT_EQ("waiting-for-input", service.missions().front().operational_workflow->run_state);
+  EXPECT_FALSE(service.SetOperationalWorkflowInputValue(mission->id, "private-input", "replacement"));
+  EXPECT_EQ(ciphertext, service.missions().front().workflow_inputs[0].protected_value);
+  auto wrong_keys = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  EXPECT_TRUE(PrepareInputs(service, wrong_keys.get()));
+  EXPECT_FALSE(HasMissionWorkflowInputValue(service.missions().front().workflow_inputs[0]));
+  EXPECT_EQ(ciphertext, service.missions().front().workflow_inputs[0].protected_value);
+  ASSERT_TRUE(PrepareInputs(service, provider.get()));
+  EXPECT_TRUE(HasMissionWorkflowInputValue(service.missions().front().workflow_inputs[0]));
+  EXPECT_FALSE(PrepareInputs(service, nullptr));
+  EXPECT_TRUE(service.SetOperationalWorkflowInputValue(mission->id, "private-input", ""));
+  EXPECT_TRUE(service.missions().front().workflow_inputs[0].protected_value.empty());
+}
+
+TEST_F(MissionServiceTest, ProtectedInputContextAndCorruptionCannotSatisfyRequiredField) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  MissionService service(&profile_);
+  auto mission = service.CreateOperationalWorkflowMission(ProtectedWorkflow(), "review-skin", std::string(64, 'a'));
+  ASSERT_TRUE(mission);
+  ASSERT_TRUE(PrepareInputs(service, provider.get()));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(mission->id, "private-input", "fixture-secret"));
+  const auto original = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (const char* mutation : {"id", "skin_id", "workflow_id", "archive_sha256", "input-id", "name", "required", "type", "corrupt"}) {
+    SCOPED_TRACE(mutation);
+    auto saved = original.Clone();
+    auto& record = saved.front().GetDict();
+    auto& input = record.FindList("workflow_inputs")->front().GetDict();
+    const std::string kind(mutation);
+    if (kind == "id") record.Set("id", base::Uuid::GenerateRandomV4().AsLowercaseString());
+    else if (kind == "skin_id" || kind == "workflow_id" || kind == "archive_sha256")
+      record.FindDict("operational_workflow")->Set(kind, kind == "archive_sha256" ? std::string(64, 'b') : "other-identity");
+    else if (kind == "input-id") input.Set("id", "other-input");
+    else if (kind == "name") input.Set("name", "Changed definition");
+    else if (kind == "required") input.Set("required", false);
+    else if (kind == "type") input.Set("type", "url");
+    else input.Set("protected_value", "damaged-ciphertext");
+    const std::string preserved = *input.FindString("protected_value");
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, std::move(saved));
+    MissionService restored(&profile_);
+    ASSERT_EQ(1u, restored.missions().front().workflow_inputs.size());
+    ASSERT_TRUE(PrepareInputs(restored, provider.get()));
+    const auto& checked = restored.missions().front().workflow_inputs[0];
+    EXPECT_FALSE(HasMissionWorkflowInputValue(checked));
+    EXPECT_TRUE(checked.value.empty());
+    EXPECT_EQ(preserved, checked.protected_value);
+    ASSERT_TRUE(restored.AddLocalNote(restored.missions().front().id, "Keep encrypted record"));
+    EXPECT_EQ(preserved, *profile_.GetPrefs()->GetList(prefs::kTahaiMissions).front().GetDict()
+        .FindList("workflow_inputs")->front().GetDict().FindString("protected_value"));
+  }
+}
+
+TEST_F(MissionServiceTest, ProtectedInputsRejectPrivateManagedAndSecretBranches) {
+  auto workflow = ProtectedWorkflow();
+  auto* private_profile = profile_.GetPrimaryOTRProfile(true);
+  MissionService private_service(private_profile);
+  EXPECT_FALSE(private_service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  EXPECT_FALSE(PrepareInputs(private_service, provider.get()));
+  profile_.GetTestingPrefService()->SetManagedPref(prefs::kTahaiMissions, base::Value(base::ListValue()));
+  MissionService managed_service(&profile_);
+  EXPECT_FALSE(managed_service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(PrepareInputs(managed_service, provider.get()));
+  profile_.GetTestingPrefService()->RemoveManagedPref(prefs::kTahaiMissions);
+  workflow.inputs[0].type = TahaiOperationalWorkflowInputType::kBoolean;
+  workflow.steps[0].condition_input_id = "private-input";
+  workflow.steps[0].condition_equals = "true";
+  EXPECT_FALSE(managed_service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a')));
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'a')));
+}
+
+TEST_F(MissionServiceTest, ProtectedInputTypeAndSizeChecksPrecedeEncryption) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  auto workflow = ProtectedWorkflow();
+  workflow.inputs = {
+      {"private-text", "Private text", TahaiOperationalWorkflowInputType::kText, false, {}, true},
+      {"private-number", "Private number", TahaiOperationalWorkflowInputType::kNumber, false, {}, true},
+      {"private-bool", "Private boolean", TahaiOperationalWorkflowInputType::kBoolean, false, {}, true},
+      {"private-choice", "Private choice", TahaiOperationalWorkflowInputType::kSelection, false, {"Team", "Personal"}, true},
+      {"private-date", "Private date", TahaiOperationalWorkflowInputType::kDate, false, {}, true},
+      {"private-url", "Private URL", TahaiOperationalWorkflowInputType::kUrl, false, {}, true}};
+  MissionService service(&profile_);
+  const auto mission = service.CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'));
+  ASSERT_TRUE(mission);
+  ASSERT_TRUE(PrepareInputs(service, provider.get()));
+  constexpr std::array<const char*, 6> valid = {"password=dummy", "-.25", "false", "Team", "2024-02-29", "https://example.test/?access_token=dummy"};
+  constexpr std::array<const char*, 6> invalid = {"bad\nvalue", "NaN", "yes", "Other", "2026-02-29", "https://user:pass@example.test"};
+  for (size_t index = 0; index < valid.size(); ++index) {
+    const auto& input = service.missions().front().workflow_inputs[index];
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(mission->id, input.id, valid[index]));
+    const std::string ciphertext = input.protected_value;
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(mission->id, input.id, invalid[index]));
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(mission->id, input.id, std::string(257, 'x')));
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(mission->id, input.id, std::string("\xff", 1)));
+    EXPECT_EQ(ciphertext, input.protected_value);
+    EXPECT_TRUE(input.value.empty());
+  }
+  const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  auto other = TestingProfile::Builder().SetPath(profile_.GetPath().AppendASCII("other-profile")).Build();
+  other->GetPrefs()->SetList(prefs::kTahaiMissions, saved.Clone());
+  MissionService transplanted(other.get());
+  ASSERT_TRUE(PrepareInputs(transplanted, provider.get()));
+  for (const auto& input : transplanted.missions().front().workflow_inputs)
+    EXPECT_FALSE(HasMissionWorkflowInputValue(input));
+}
+
+TEST_F(MissionServiceTest, ProtectedInputAsyncReplyRechecksManagedPolicy) {
+  auto provider = os_crypt_async::GetTestOSCryptAsyncForTesting();
+  MissionService service(&profile_);
+  const auto mission = service.CreateOperationalWorkflowMission(ProtectedWorkflow(), "review-skin", std::string(64, 'a'));
+  ASSERT_TRUE(mission);
+  base::test::TestFuture<bool> ready;
+  service.PrepareProtectedWorkflowInputs(provider.get(), ready.GetCallback());
+  profile_.GetTestingPrefService()->SetManagedPref(prefs::kTahaiMissions, base::Value(base::ListValue()));
+  EXPECT_FALSE(ready.Get());
+  EXPECT_FALSE(service.missions().front().workflow_inputs[0].protected_storage_ready);
+  EXPECT_FALSE(service.SetOperationalWorkflowInputValue(mission->id, "private-input", "fixture-secret"));
+}
+
+TEST_F(MissionServiceTest,
+       OperationalWorkflowInputValuesAreTypedLocalAndPersisted) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "research-workflow";
+  workflow.name = "Research workflow";
+  workflow.inputs = {
+      {"question", "Research question",
+       TahaiOperationalWorkflowInputType::kText, true, {}},
+      {"scope", "Review scope",
+       TahaiOperationalWorkflowInputType::kSelection, false,
+       {"Personal", "Team"}},
+      {"confirmed", "Scope confirmed",
+       TahaiOperationalWorkflowInputType::kBoolean, true, {}},
+  };
+  workflow.steps = {{"review", "Review the collected result",
+                     TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  workflow.steps[0].condition_input_id = "confirmed";
+  workflow.steps[0].condition_equals = "true";
+  std::string mission_id;
+  {
+    MissionService service(&profile_);
+    const auto mission = service.CreateOperationalWorkflowMission(
+        workflow, "research-skin", std::string(64u, 'a'));
+    ASSERT_TRUE(mission);
+    mission_id = mission->id;
+    ASSERT_EQ(3u, mission->workflow_inputs.size());
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(mission_id, "running"));
+    EXPECT_FALSE(service.ToggleStep(mission_id, 0u));
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(
+        mission_id, "scope", "https://example.test"));
+    EXPECT_TRUE(service.SetOperationalWorkflowInputValue(
+        mission_id, "question", "Compare approved sources"));
+    EXPECT_TRUE(service.SetOperationalWorkflowInputValue(mission_id, "scope",
+                                                          "Team"));
+    EXPECT_TRUE(service.SetOperationalWorkflowInputValue(
+        mission_id, "confirmed", "true"));
+    EXPECT_TRUE(service.SetOperationalWorkflowRunState(mission_id, "running"));
+    EXPECT_TRUE(service.ToggleStep(mission_id, 0u));
+  }
+  MissionService reloaded(&profile_);
+  ASSERT_EQ(1u, reloaded.missions().size());
+  const MissionSummary& restored = reloaded.missions().front();
+  ASSERT_EQ(3u, restored.workflow_inputs.size());
+  EXPECT_EQ("Compare approved sources", restored.workflow_inputs[0].value);
+  EXPECT_EQ("Team", restored.workflow_inputs[1].value);
+  EXPECT_EQ("true", restored.workflow_inputs[2].value);
+}
+
+TEST_F(MissionServiceTest,
+       DateAndUrlWorkflowInputsValidatePersistAndStayOutOfExports) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "typed-workflow";
+  workflow.name = "Typed workflow";
+  workflow.inputs = {
+      {"review-day", "Review day", TahaiOperationalWorkflowInputType::kDate, true, {}},
+      {"reference", "Reference site", TahaiOperationalWorkflowInputType::kUrl, true, {}}};
+  workflow.steps = {{"review", "Review result",
+                     TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(
+      &profile_, workflow, "review-skin", std::string(64, 'a')));
+  const std::string reference = "https://example.test/local-reference?q=private-review#notes";
+  std::string id;
+  {
+    MissionService service(&profile_);
+    ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    ASSERT_EQ(1u, service.missions().size());
+    id = service.missions().front().id;
+    ASSERT_EQ(2u, service.missions().front().workflow_inputs.size());
+    EXPECT_EQ("date", service.missions().front().workflow_inputs[0].type);
+    EXPECT_EQ("url", service.missions().front().workflow_inputs[1].type);
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "running"));
+    for (const char* value : {"0001-01-01", "2000-02-29", "2024-02-29", "9999-12-31"}) {
+      SCOPED_TRACE(value);
+      EXPECT_TRUE(service.SetOperationalWorkflowInputValue(id, "review-day", value));
+    }
+    for (const char* value : {"0000-01-01", "1900-02-29", "2100-02-29", "2026-02-29",
+                             "2026-04-31", "2026-13-01", "2026-00-01", "2026-01-00",
+                             "2026-9-25", "2026-09-25T00:00:00Z", " 2026-09-25", "10000-01-01"}) {
+      SCOPED_TRACE(value);
+      EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "review-day", value));
+      EXPECT_EQ("9999-12-31", service.missions().front().workflow_inputs[0].value);
+    }
+    for (const char* value : {"https://example.test/reference", "http://localhost:8080/",
+                             "https://[::1]/", "HTTPS://example.test/path?q=review#section"}) {
+      SCOPED_TRACE(value);
+      EXPECT_TRUE(service.SetOperationalWorkflowInputValue(id, "reference", value));
+    }
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "reference", reference));
+    for (const char* value : {"example.test", "//example.test", "https:///example.test",
+                             "file:///private", "javascript:alert(1)", "tahai://mission",
+                             "https://user@example.test", "https://user:pass@example.test",
+                             "https://@example.test", "https://example.test:99999/",
+                             "https://example.test/a b", "https://example.test/\\file",
+                             "https://example.test/\n", "https://example.test/?access_token=secret",
+                             "https://example.test/?session=value"}) {
+      SCOPED_TRACE(value);
+      EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "reference", value));
+      EXPECT_EQ(reference, service.missions().front().workflow_inputs[1].value);
+    }
+    EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "reference", std::string(257, 'a')));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "review-day", "2032-02-29"));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+    ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+  }
+  MissionService restored(&profile_);
+  ASSERT_EQ(1u, restored.missions().size());
+  const auto& mission = restored.missions().front();
+  ASSERT_TRUE(mission.operational_workflow);
+  EXPECT_EQ("paused", mission.operational_workflow->run_state);
+  ASSERT_EQ(2u, mission.workflow_inputs.size());
+  EXPECT_EQ("2032-02-29", mission.workflow_inputs[0].value);
+  EXPECT_EQ(reference, mission.workflow_inputs[1].value);
+  const auto capsule = BuildTahaiMissionCapsule(mission);
+  ASSERT_TRUE(capsule);
+  EXPECT_EQ(std::string::npos, capsule->find(reference));
+  EXPECT_EQ(std::string::npos, capsule->find("2032-02-29"));
+  for (const auto& event : mission.timeline) {
+    EXPECT_EQ(std::string::npos, event.detail.find(reference));
+    EXPECT_EQ(std::string::npos, event.detail.find("2032-02-29"));
+  }
+  ASSERT_TRUE(restored.SetOperationalWorkflowInputValue(id, "review-day", ""));
+  EXPECT_FALSE(restored.SetOperationalWorkflowRunState(id, "running"));
+}
+
+TEST_F(MissionServiceTest,
+       OperationalWorkflowRejectsTextAndUnknownSelectionConditions) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "research-workflow";
+  workflow.name = "Research workflow";
+  workflow.inputs = {
+      {"question", "Research question",
+       TahaiOperationalWorkflowInputType::kText, false, {}},
+      {"scope", "Review scope",
+       TahaiOperationalWorkflowInputType::kSelection, false,
+       {"Personal", "Team"}},
+  };
+  workflow.steps = {{"review", "Review the collected result",
+                     TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  workflow.steps[0].condition_input_id = "question";
+  workflow.steps[0].condition_equals = "approved";
+  MissionService service(&profile_);
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(
+      workflow, "research-skin", std::string(64u, 'a')));
+
+  workflow.steps[0].condition_input_id = "scope";
+  workflow.steps[0].condition_equals = "Unreviewed";
+  EXPECT_FALSE(service.CreateOperationalWorkflowMission(
+      workflow, "research-skin", std::string(64u, 'a')));
+}
+
+TEST_F(MissionServiceTest,
+       OperationalWorkflowCompletionAndBranchResultsAreImmutable) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "review-workflow";
+  workflow.name = "Review workflow";
+  workflow.inputs = {{"scope", "Scope",
+                      TahaiOperationalWorkflowInputType::kSelection, true,
+                      {"Personal", "Team"}}};
+  workflow.steps = {
+      {"review", "Review result", TahaiOperationalWorkflowStepKind::kCheckpoint,
+       {}, "scope", "Team"},
+      {"personal", "Personal review", TahaiOperationalWorkflowStepKind::kCheckpoint,
+       {}, "scope", "Personal"}};
+  MissionService service(&profile_);
+  const auto mission = service.CreateOperationalWorkflowMission(
+      workflow, "review-skin", std::string(64u, 'a'));
+  ASSERT_TRUE(mission);
+  const std::string id = mission->id;
+  EXPECT_FALSE(service.ToggleStep(id, 0));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "scope", "Team"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+  EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "paused"));
+  EXPECT_FALSE(service.ToggleStep(id, 0));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(service.ToggleStep(id, 0));
+  EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "scope", "Personal"));
+  EXPECT_FALSE(service.ToggleStep(id, 1));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+  EXPECT_FALSE(service.ToggleStep(id, 0));
+  EXPECT_FALSE(service.ToggleValidationStep(id, 0));
+  EXPECT_FALSE(service.SetOperationalWorkflowInputValue(id, "scope", "Personal"));
+  EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "running"));
+  MissionService restored(&profile_);
+  ASSERT_EQ(1u, restored.missions().size());
+  ASSERT_TRUE(restored.missions().front().operational_workflow);
+  EXPECT_EQ("succeeded", restored.missions().front().operational_workflow->run_state);
+  EXPECT_TRUE(restored.missions().front().steps[0].complete);
+  EXPECT_FALSE(restored.missions().front().steps[1].complete);
+}
+
+TEST_F(MissionServiceTest, ClearingRequiredWorkflowInputWaitsAndRetainsDefinition) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "review-workflow";
+  workflow.name = "Review workflow";
+  workflow.inputs = {{"count", "Count", TahaiOperationalWorkflowInputType::kNumber, true, {}}};
+  workflow.steps = {{"review", "Review result", TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  MissionService service(&profile_);
+  const auto mission = service.CreateOperationalWorkflowMission(
+      workflow, "review-skin", std::string(64u, 'a'));
+  ASSERT_TRUE(mission);
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(mission->id, "count", "3"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(mission->id, "running"));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(mission->id, "count", ""));
+  EXPECT_EQ("waiting-for-input", service.missions().front().operational_workflow->run_state);
+  EXPECT_FALSE(service.ToggleStep(mission->id, 0));
+  MissionService restored(&profile_);
+  ASSERT_EQ(1u, restored.missions().front().workflow_inputs.size());
+  EXPECT_TRUE(restored.missions().front().workflow_inputs.front().required);
+  EXPECT_FALSE(restored.SetOperationalWorkflowRunState(mission->id, "running"));
+  EXPECT_TRUE(restored.SetOperationalWorkflowRunState(mission->id, "cancelled"));
+  EXPECT_FALSE(restored.SetOperationalWorkflowInputValue(mission->id, "count", "4"));
+}
+
+TEST_F(MissionServiceTest, OptionalBranchChoiceCannotSilentlySkipAWorkflow) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "review-workflow";
+  workflow.name = "Review workflow";
+  workflow.inputs = {{"approved", "Approved",
+                      TahaiOperationalWorkflowInputType::kBoolean, false, {}},
+                     {"context", "Optional context",
+                      TahaiOperationalWorkflowInputType::kText, false, {}}};
+  workflow.steps = {{"review", "Review result",
+                     TahaiOperationalWorkflowStepKind::kCheckpoint, {},
+                     "approved", "true"}};
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(
+      &profile_, workflow, "review-skin", std::string(64u, 'a')));
+  MissionService service(&profile_);
+  ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+  ASSERT_EQ(1u, service.missions().size());
+  const auto& mission = service.missions().front();
+  const std::string id = mission.id;
+  EXPECT_FALSE(mission.workflow_inputs[0].required);
+  EXPECT_TRUE(IsMissionWorkflowInputRequired(mission, mission.workflow_inputs[0]));
+  EXPECT_FALSE(IsMissionWorkflowInputRequired(mission, mission.workflow_inputs[1]));
+  EXPECT_EQ("waiting-for-input", mission.operational_workflow->run_state);
+  EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "running"));
+  EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "approved", "true"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+  EXPECT_FALSE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "approved", ""));
+  EXPECT_EQ("waiting-for-input", mission.operational_workflow->run_state);
+  // Explicit false is a valid answer and deliberately excludes the branch.
+  ASSERT_TRUE(service.SetOperationalWorkflowInputValue(id, "approved", "false"));
+  ASSERT_TRUE(service.SetOperationalWorkflowRunState(id, "running"));
+  EXPECT_FALSE(service.ToggleStep(id, 0u));
+  EXPECT_TRUE(service.SetOperationalWorkflowRunState(id, "succeeded"));
+  MissionService restored(&profile_);
+  EXPECT_EQ("succeeded", restored.missions().front().operational_workflow->run_state);
+  EXPECT_EQ("false", restored.missions().front().workflow_inputs[0].value);
+}
+
+TEST_F(MissionServiceTest, RestoredUnansweredBranchRequiresAnExplicitResume) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "review-workflow";
+  workflow.name = "Review workflow";
+  workflow.inputs = {{"scope", "Scope",
+                      TahaiOperationalWorkflowInputType::kSelection, false,
+                      {"Personal", "Team"}}};
+  workflow.steps = {{"review", "Review result",
+                     TahaiOperationalWorkflowStepKind::kCheckpoint, {},
+                     "scope", "Team"}};
+  std::string id;
+  {
+    MissionService service(&profile_);
+    auto mission = service.CreateOperationalWorkflowMission(
+        workflow, "review-skin", std::string(64u, 'a'));
+    ASSERT_TRUE(mission);
+    id = mission->id;
+  }
+  auto stored = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  stored.front().GetDict().FindDict("operational_workflow")->Set("run_state", "running");
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, std::move(stored));
+  MissionService restored(&profile_);
+  ASSERT_EQ(1u, restored.missions().size());
+  const auto& mission = restored.missions().front();
+  EXPECT_EQ("waiting-for-input", mission.operational_workflow->run_state);
+  EXPECT_TRUE(mission.timeline_integrity_verified);
+  EXPECT_FALSE(restored.ToggleStep(id, 0));
+  EXPECT_FALSE(restored.SetOperationalWorkflowRunState(id, "running"));
+  EXPECT_FALSE(restored.SetOperationalWorkflowInputValue(id, "scope", "Other"));
+  ASSERT_TRUE(restored.SetOperationalWorkflowInputValue(id, "scope", "Team"));
+  EXPECT_EQ("waiting-for-input", mission.operational_workflow->run_state);
+  ASSERT_TRUE(restored.SetOperationalWorkflowRunState(id, "running"));
+  EXPECT_TRUE(restored.ToggleStep(id, 0));
+}
+
+TEST_F(MissionServiceTest,
+       OperationalWorkflowRestoreFailsClosedOnUnreviewedConditionValue) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "research-workflow";
+  workflow.name = "Research workflow";
+  workflow.inputs = {{"scope", "Review scope",
+                      TahaiOperationalWorkflowInputType::kSelection, false,
+                      {"Personal", "Team"}}};
+  workflow.steps = {{"review", "Review the collected result",
+                     TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  workflow.steps[0].condition_input_id = "scope";
+  workflow.steps[0].condition_equals = "Team";
+  {
+    MissionService service(&profile_);
+    ASSERT_TRUE(service.CreateOperationalWorkflowMission(
+        workflow, "research-skin", std::string(64u, 'a')));
+  }
+
+  base::ListValue stored_missions =
+      profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  ASSERT_FALSE(stored_missions.empty());
+  base::ListValue* saved_steps =
+      stored_missions.front().GetDict().FindList("steps");
+  ASSERT_TRUE(saved_steps);
+  saved_steps->front().GetDict().Set("condition_equals", "Unreviewed");
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions,
+                               std::move(stored_missions));
+
+  MissionService reloaded(&profile_);
+  ASSERT_EQ(1u, reloaded.missions().size());
+  const MissionSummary& restored = reloaded.missions().front();
+  EXPECT_FALSE(restored.operational_workflow);
+  EXPECT_TRUE(restored.workflow_inputs.empty());
+  EXPECT_EQ("Define the bounded outcome", restored.steps.front().label);
+}
+
+TEST_F(MissionServiceTest,
+       RejectsMalformedOperationalWorkflowSnapshotBeforeRestoringLabels) {
+  base::DictValue mission;
+  mission.Set("id", base::Uuid::GenerateRandomV4().AsLowercaseString());
+  mission.Set("title", "Operational record");
+  mission.Set("type", "documentation");
+  mission.Set("created_at", "1");
+  base::DictValue source;
+  source.Set("skin_id", "research-skin");
+  source.Set("workflow_id", "research-workflow");
+  source.Set("archive_sha256", std::string(64u, 'a'));
+  mission.Set("operational_workflow", std::move(source));
+  base::ListValue steps;
+  base::DictValue injected_step;
+  injected_step.Set("label", "Private page title must not be restored\n");
+  injected_step.Set("complete", true);
+  steps.Append(std::move(injected_step));
+  mission.Set("steps", std::move(steps));
+  base::ListValue stored_missions;
+  stored_missions.Append(std::move(mission));
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions,
+                               std::move(stored_missions));
+
+  MissionService service(&profile_);
+  ASSERT_EQ(1u, service.missions().size());
+  const MissionSummary& restored = service.missions().front();
+  EXPECT_FALSE(restored.operational_workflow);
+  EXPECT_EQ("Define the bounded outcome", restored.steps.front().label);
+  EXPECT_FALSE(restored.steps.front().complete);
+}
+
+TEST_F(MissionServiceTest,
+       ConsumesOneShotNativeOperationalWorkflowLaunchWithoutActionPayload) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "research-workflow";
+  workflow.name = "Research workflow";
+  workflow.steps = {
+      {"review", "Review the collected result",
+       TahaiOperationalWorkflowStepKind::kRunCommand, "mission.open"},
+  };
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(
+      &profile_, workflow, "research-skin", std::string(64u, 'b')));
+  ASSERT_TRUE(GetQueuedOperationalWorkflowLaunch(&profile_));
+
+  MissionService service(&profile_);
+  ASSERT_TRUE(service.missions().empty());
+  ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+  ASSERT_EQ(1u, service.missions().size());
+  const MissionSummary& mission = service.missions().front();
+  ASSERT_TRUE(mission.operational_workflow);
+  EXPECT_EQ("running", mission.operational_workflow->run_state);
+  EXPECT_EQ("Review the collected result", mission.steps.front().label);
+  EXPECT_EQ(1, mission.operational_workflow->adapter_version);
+  EXPECT_TRUE(mission.steps.front().requires_native_action);
+  EXPECT_EQ("review", mission.steps.front().workflow_step_id);
+  EXPECT_EQ("ready", mission.steps.front().action_state);
+  EXPECT_FALSE(service.ToggleStep(mission.id, 0));
+  EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(&profile_));
+}
+
+TEST_F(MissionServiceTest, OperationalHandoffVersionTwoRemainsInert) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "review-workflow";
+  workflow.name = "Review workflow";
+  workflow.steps = {{"review", "Review result",
+      TahaiOperationalWorkflowStepKind::kRunCommand, "mission.open"}};
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'b')));
+  auto queued = profile_.GetPrefs()->GetDict(prefs::kTahaiPendingOperationalWorkflow).Clone();
+  queued.Set("schema_version", 2);
+  queued.Remove("command_steps");
+  profile_.GetPrefs()->SetDict(prefs::kTahaiPendingOperationalWorkflow, std::move(queued));
+  MissionService service(&profile_);
+  ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+  ASSERT_EQ(1u, service.missions().size());
+  EXPECT_EQ(0, service.missions()[0].operational_workflow->adapter_version);
+  EXPECT_FALSE(service.missions()[0].steps[0].requires_native_action);
+  EXPECT_TRUE(service.ToggleStep(service.missions()[0].id, 0));
+}
+
+TEST_F(MissionServiceTest, OperationalHandoffRejectsDuplicateOrUnknownNativeStepIds) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "review-workflow";
+  workflow.name = "Review workflow";
+  workflow.steps = {
+      {"review", "Review result", TahaiOperationalWorkflowStepKind::kRunCommand, "mission.open"},
+      {"closeout", "Check result", TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  for (const char* id : {"review", "unknown"}) {
+    ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin", std::string(64, 'b')));
+    auto queued = profile_.GetPrefs()->GetDict(prefs::kTahaiPendingOperationalWorkflow).Clone();
+    queued.FindList("command_steps")->Append(id);
+    profile_.GetPrefs()->SetDict(prefs::kTahaiPendingOperationalWorkflow, std::move(queued));
+    EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(&profile_));
+  }
+}
+
+TEST_F(MissionServiceTest,
+       OperationalLaunchRetainsRequiredInputsAndConditionsAcrossRestart) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "research-workflow";
+  workflow.name = "Research workflow";
+  workflow.inputs = {
+      {"scope", "Review scope", TahaiOperationalWorkflowInputType::kSelection,
+       true, {"Personal", "Team"}},
+      {"confirmed", "Scope confirmed", TahaiOperationalWorkflowInputType::kBoolean,
+       true, {}},
+  };
+  workflow.steps = {{"review", "Review result",
+                     TahaiOperationalWorkflowStepKind::kCheckpoint, {},
+                     "confirmed", "true"}};
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(
+      &profile_, workflow, "research-skin", std::string(64u, 'a')));
+  std::string mission_id;
+  {
+    MissionService service(&profile_);
+    ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    ASSERT_EQ(1u, service.missions().size());
+    const MissionSummary& mission = service.missions().front();
+    mission_id = mission.id;
+    ASSERT_TRUE(mission.operational_workflow);
+    EXPECT_EQ("waiting-for-input", mission.operational_workflow->run_state);
+    ASSERT_EQ(2u, mission.workflow_inputs.size());
+    EXPECT_EQ("confirmed", mission.steps.front().condition_input_id);
+    EXPECT_FALSE(service.ToggleStep(mission_id, 0u));
+    ASSERT_TRUE(service.SetOperationalWorkflowInputValue(mission_id, "scope", "Team"));
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(mission_id, "running"));
+    EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(&profile_));
+  }
+  {
+    MissionService restored(&profile_);
+    ASSERT_EQ(1u, restored.missions().size());
+    const auto& mission = restored.missions().front();
+    ASSERT_EQ(2u, mission.workflow_inputs.size());
+    EXPECT_EQ("Team", mission.workflow_inputs[0].value);
+    EXPECT_TRUE(mission.workflow_inputs[1].value.empty());
+    EXPECT_TRUE(mission.workflow_inputs[1].required);
+    EXPECT_FALSE(restored.SetOperationalWorkflowRunState(mission_id, "running"));
+    ASSERT_TRUE(restored.SetOperationalWorkflowInputValue(mission_id, "confirmed", "true"));
+    ASSERT_TRUE(restored.SetOperationalWorkflowRunState(mission_id, "running"));
+    EXPECT_TRUE(restored.ToggleStep(mission_id, 0u));
+  }
+  MissionService final_restore(&profile_);
+  ASSERT_EQ(1u, final_restore.missions().size());
+  EXPECT_TRUE(final_restore.missions().front().steps.front().complete);
+}
+
+TEST_F(MissionServiceTest,
+       RejectsMalformedOperationalInputsWithoutRemovingRequiredGate) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "research-workflow";
+  workflow.name = "Research workflow";
+  workflow.inputs = {{"confirmed", "Confirmed",
+                      TahaiOperationalWorkflowInputType::kBoolean, true, {}}};
+  workflow.steps = {{"review", "Review result",
+                     TahaiOperationalWorkflowStepKind::kCheckpoint, {}}};
+  {
+    MissionService service(&profile_);
+    ASSERT_TRUE(service.CreateOperationalWorkflowMission(
+        workflow, "research-skin", std::string(64u, 'a')));
+  }
+  auto original = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (int corruption = 0; corruption < 3; ++corruption) {
+    SCOPED_TRACE(corruption);
+    auto stored = original.Clone();
+    auto& mission = stored.front().GetDict();
+    if (corruption == 0) {
+      mission.Set("workflow_inputs", "invalid");
+    } else if (corruption == 1) {
+      mission.FindList("workflow_inputs")->front().GetDict().Set("type", "unknown");
+    } else {
+      auto* inputs = mission.FindList("workflow_inputs");
+      for (size_t i = 0; i < 12u; ++i) {
+        inputs->Append(inputs->front().Clone());
+      }
+    }
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, std::move(stored));
+    MissionService service(&profile_);
+    ASSERT_EQ(1u, service.missions().size());
+    EXPECT_FALSE(service.missions().front().operational_workflow);
+    EXPECT_FALSE(service.SetOperationalWorkflowRunState(
+        service.missions().front().id, "running"));
+  }
+}
+
+TEST_F(MissionServiceTest,
+       EveryMissionVisitConsumesANewLaunchWithoutRestartOrReplay) {
+  MissionService service(&profile_);
+  ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "research-workflow";
+  workflow.name = "Research workflow";
+  workflow.steps = {{"review", "Review result",
+                     TahaiOperationalWorkflowStepKind::kInstruction, {}}};
+  for (size_t run = 0; run < 2u; ++run) {
+    ASSERT_TRUE(QueueOperationalWorkflowLaunch(
+        &profile_, workflow, "research-skin", std::string(64u, 'b')));
+    EXPECT_EQ(run, service.missions().size());
+    ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    ASSERT_EQ(run + 1u, service.missions().size());
+    EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(&profile_));
+    EXPECT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    EXPECT_EQ(run + 1u, service.missions().size());
+  }
+  EXPECT_NE(service.missions()[0].id, service.missions()[1].id);
+  MissionService restored(&profile_);
+  EXPECT_TRUE(restored.ConsumeQueuedOperationalWorkflow());
+  EXPECT_EQ(2u, restored.missions().size());
+}
+
+TEST_F(MissionServiceTest,
+       RejectsAndClearsOperationalWorkflowHandoffWithUnknownFields) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "research-workflow";
+  workflow.name = "Research workflow";
+  workflow.steps = {{"review", "Review the collected result",
+                     TahaiOperationalWorkflowStepKind::kInstruction, {}}};
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(
+      &profile_, workflow, "research-skin", std::string(64u, 'c')));
+  base::DictValue queued =
+      profile_.GetPrefs()
+          ->GetDict(prefs::kTahaiPendingOperationalWorkflow)
+          .Clone();
+  queued.Set("unexpected", "not-accepted");
+  profile_.GetPrefs()->SetDict(prefs::kTahaiPendingOperationalWorkflow,
+                               std::move(queued));
+  EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(&profile_));
+
+  MissionService service(&profile_);
+  EXPECT_FALSE(service.ConsumeQueuedOperationalWorkflow());
+  EXPECT_TRUE(service.missions().empty());
+  EXPECT_TRUE(profile_.GetPrefs()
+                  ->GetDict(prefs::kTahaiPendingOperationalWorkflow)
+                  .empty());
 }
 
 TEST_F(MissionServiceTest, RejectsTamperedTimestampPayloads) {
@@ -2284,6 +4887,8 @@ TEST_F(MissionServiceTest, PersistsGeneratedRunbookAndEvidencePackState) {
     EXPECT_TRUE(service.ToggleRollbackStep(mission_id, 0u));
     EXPECT_TRUE(service.ToggleEscalation(mission_id));
     EXPECT_TRUE(service.AddEvidenceMarker(mission_id));
+    EXPECT_TRUE(service.AddLocalNote(mission_id, "Confirm owner in the local checklist."));
+    EXPECT_FALSE(service.AddLocalNote(mission_id, "Authorization: bearer secret"));
     EXPECT_TRUE(service.SetExportProfile(mission_id, "incident-packet"));
     EXPECT_FALSE(service.SetExportProfile(mission_id, "arbitrary-profile"));
   }
@@ -2297,6 +4902,11 @@ TEST_F(MissionServiceTest, PersistsGeneratedRunbookAndEvidencePackState) {
   EXPECT_EQ("incident-packet", mission.export_profile);
   ASSERT_EQ(1u, mission.evidence.size());
   EXPECT_EQ("operator-confirmed", mission.evidence.front().capture_scope);
+  ASSERT_EQ(1u, mission.notes.size());
+  EXPECT_EQ("Confirm owner in the local checklist.", mission.notes.front().text);
+  const std::optional<std::string> capsule = BuildTahaiMissionCapsule(mission);
+  ASSERT_TRUE(capsule);
+  EXPECT_FALSE(capsule->contains("Confirm owner in the local checklist."));
 }
 
 TEST_F(MissionServiceTest, DeletesOnlyKnownMission) {
@@ -2328,6 +4938,7 @@ TEST_F(MissionServiceTest, ArchivesImmutableRecordsAndPersistsRestore) {
     EXPECT_FALSE(service.ToggleRollbackStep(mission_id, 0u));
     EXPECT_FALSE(service.ToggleEscalation(mission_id));
     EXPECT_FALSE(service.AddEvidenceMarker(mission_id));
+    EXPECT_FALSE(service.AddLocalNote(mission_id, "This archived Mission is immutable."));
     EXPECT_FALSE(service.SetExportProfile(mission_id, "change-record"));
   }
 
@@ -2347,6 +4958,7 @@ TEST_F(MissionServiceTest, DuplicatesOnlyTheGeneratedMissionFamily) {
   ASSERT_TRUE(source.has_value());
   ASSERT_TRUE(service.ToggleStep(source->id, 0u));
   ASSERT_TRUE(service.AddEvidenceMarker(source->id));
+  ASSERT_TRUE(service.AddLocalNote(source->id, "Keep this only in the source Mission."));
 
   const auto duplicate = service.DuplicateMission(source->id);
   ASSERT_TRUE(duplicate.has_value());
@@ -2355,6 +4967,7 @@ TEST_F(MissionServiceTest, DuplicatesOnlyTheGeneratedMissionFamily) {
   EXPECT_EQ(source->type, duplicate->type);
   EXPECT_FALSE(duplicate->steps.front().complete);
   EXPECT_TRUE(duplicate->evidence.empty());
+  EXPECT_TRUE(duplicate->notes.empty());
   ASSERT_EQ(1u, duplicate->timeline.size());
   EXPECT_EQ("Mission created", duplicate->timeline.front().detail);
   EXPECT_FALSE(service.DuplicateMission("not-a-uuid"));
@@ -2588,6 +5201,35 @@ TEST_F(MissionServiceTest, WorkModeTemplatesAreBoundedToTheirMode) {
       service.SetActiveConfigurationValue("template", "incident-bridge"));
 }
 
+TEST_F(MissionServiceTest, CustomModesHaveGeneratedIdsAndPersist) {
+  {
+    ModeService service(&profile_);
+    EXPECT_FALSE(service.CreateCustomMode("", "operator", ""));
+    EXPECT_FALSE(
+        service.CreateCustomMode("Untrusted", "https://example.test", ""));
+    ASSERT_TRUE(service.CreateCustomMode("Research Desk Copy", "operator",
+                                         "workspace-2026"));
+    ASSERT_EQ(1u, service.custom_modes().size());
+    const TahaiCustomModeDefinition& created = service.custom_modes().front();
+    EXPECT_TRUE(base::StartsWith(created.id, "custom-"));
+    EXPECT_EQ("Research Desk Copy", created.title);
+    EXPECT_EQ("operator", created.operational_mode_id);
+    EXPECT_EQ("workspace-2026", created.workspace_id);
+    ASSERT_TRUE(service.RenameCustomMode(created.id, "Research Desk Review"));
+    EXPECT_EQ("Research Desk Review", service.custom_modes().front().title);
+    EXPECT_FALSE(service.RenameCustomMode("unknown-custom", "Ignored"));
+  }
+
+  ModeService reloaded(&profile_);
+  ASSERT_EQ(1u, reloaded.custom_modes().size());
+  EXPECT_EQ("Research Desk Review", reloaded.custom_modes().front().title);
+  EXPECT_EQ("operator", reloaded.custom_modes().front().operational_mode_id);
+  EXPECT_EQ("workspace-2026", reloaded.custom_modes().front().workspace_id);
+  EXPECT_TRUE(reloaded.RemoveCustomMode(reloaded.custom_modes().front().id));
+  EXPECT_TRUE(reloaded.custom_modes().empty());
+  EXPECT_FALSE(reloaded.RemoveCustomMode("unknown-custom"));
+}
+
 TEST_F(MissionServiceTest, OffTheRecordModesAreEphemeralAndDefaultToDaily) {
   Profile* incognito = profile_.GetPrimaryOTRProfile(/*create_if_needed=*/true);
   ASSERT_TRUE(incognito);
@@ -2601,6 +5243,197 @@ TEST_F(MissionServiceTest, OffTheRecordModesAreEphemeralAndDefaultToDaily) {
   ModeService recreated(incognito);
   EXPECT_EQ("daily", recreated.active_mode().id);
   EXPECT_FALSE(recreated.IsModifierEnabled("focus"));
+}
+
+TEST_F(MissionServiceTest, NativeCustomModesCloneAndEditIndependentConfiguration) {
+  std::string id;
+  WindowPresentation saved;
+  {
+    ModeService service(&profile_);
+    ASSERT_TRUE(service.SetConfigurationValueForMode("research", "accent", "amber"));
+    ASSERT_TRUE(service.CreateNativeCustomMode("Research copy",
+        {.fixed_mode = "research", .rail_state = "expanded", .rail_width = 330},
+        {"mission.open", "workspaces.open"}, "saved-research"));
+    ASSERT_EQ(1u, service.custom_modes().size());
+    id = service.custom_modes()[0].id;
+    EXPECT_TRUE(base::StartsWith(id, "custom-"));
+    ASSERT_TRUE(service.SetConfigurationValueForMode("research", "accent", "teal"));
+    EXPECT_EQ("amber", service.custom_modes()[0].native_presentation->configuration.at("accent"));
+    ASSERT_TRUE(service.SetNativeCustomModeConfiguration(id, "density", "spacious"));
+    ASSERT_TRUE(service.SetNativeCustomModeConfiguration(id, "layout_variant", "tri-one-over-two"));
+    ASSERT_TRUE(service.SetNativeCustomModeConfiguration(id, "rail_width", "410"));
+    EXPECT_EQ(280, service.configuration_for_mode("research").rail_width);
+    ASSERT_TRUE(service.RenameCustomMode(id, "Research review"));
+    saved = *service.custom_modes()[0].native_presentation;
+    EXPECT_EQ(410, saved.rail_width);
+    EXPECT_EQ("tri", saved.configuration.at("layout"));
+    EXPECT_EQ("spacious", saved.configuration.at("density"));
+    EXPECT_FALSE(service.SetNativeCustomModeConfiguration(id, "url", "https://example.test"));
+  }
+  ModeService reloaded(&profile_);
+  ASSERT_EQ(1u, reloaded.custom_modes().size());
+  EXPECT_EQ(saved, reloaded.custom_modes()[0].native_presentation);
+  EXPECT_EQ("Research review", reloaded.custom_modes()[0].title);
+  ASSERT_TRUE(reloaded.ResetNativeCustomModeConfiguration(id));
+  EXPECT_EQ("mode", reloaded.custom_modes()[0].native_presentation->configuration.at("accent"));
+  ASSERT_TRUE(reloaded.RemoveCustomMode(id));
+  EXPECT_TRUE(reloaded.custom_modes().empty());
+}
+
+TEST_F(MissionServiceTest, CustomModeWritesPreserveCorruptAndManagedPreferences) {
+  ModeService service(&profile_);
+  const WindowPresentation presentation{.fixed_mode = "daily", .rail_state = "icons"};
+  ASSERT_TRUE(service.CreateNativeCustomMode("Before corruption", presentation,
+                                              {"mission.open"}, ""));
+  const std::string id = service.custom_modes()[0].id;
+  const auto valid = profile_.GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions).Clone();
+  auto corrupted = valid.Clone();
+  corrupted.FindList("modes")->front().GetDict().Set("actions",
+      base::ListValue().Append("untrusted.execute"));
+  profile_.GetPrefs()->SetDict(prefs::kTahaiCustomModeDefinitions, corrupted.Clone());
+  EXPECT_TRUE(service.custom_modes().empty());
+  EXPECT_FALSE(service.CreateNativeCustomMode("New mode", presentation, {"mission.open"}, ""));
+  EXPECT_FALSE(service.CreateCustomMode("New alias", "review-mode", ""));
+  EXPECT_FALSE(service.RenameCustomMode(id, "Replacement"));
+  EXPECT_FALSE(service.RemoveCustomMode(id));
+  EXPECT_FALSE(service.SetNativeCustomModeConfiguration(id, "theme", "light"));
+  EXPECT_FALSE(service.ResetNativeCustomModeConfiguration(id));
+  EXPECT_FALSE(service.SetNativeCustomModeSurface(id, std::nullopt));
+  EXPECT_FALSE(service.SetNativeCustomModeSkin(id, std::nullopt));
+  EXPECT_FALSE(service.DuplicateBuiltinModePreset("daily", "Copy"));
+  EXPECT_FALSE(service.SetCustomModes(valid.Clone()));
+  EXPECT_EQ(corrupted, profile_.GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions));
+
+  profile_.GetPrefs()->SetDict(prefs::kTahaiCustomModeDefinitions, valid.Clone());
+  ASSERT_EQ(1u, service.custom_modes().size());
+  profile_.GetTestingPrefService()->SetManagedPref(prefs::kTahaiCustomModeDefinitions,
+                                                 base::Value(valid.Clone()));
+  EXPECT_FALSE(service.CreateNativeCustomMode("Managed", presentation, {"mission.open"}, ""));
+  EXPECT_FALSE(service.RenameCustomMode(id, "Managed"));
+  EXPECT_FALSE(service.RemoveCustomMode(id));
+  EXPECT_FALSE(service.SetCustomModes(valid.Clone()));
+  EXPECT_FALSE(service.SetNativeCustomModeSurface(id, std::nullopt));
+  EXPECT_FALSE(service.SetNativeCustomModeSkin(id, std::nullopt));
+  EXPECT_FALSE(service.DuplicateBuiltinModePreset("daily", "Copy"));
+  profile_.GetTestingPrefService()->RemoveManagedPref(prefs::kTahaiCustomModeDefinitions);
+  ModeService private_modes(profile_.GetPrimaryOTRProfile(true));
+  EXPECT_TRUE(private_modes.custom_modes().empty());
+  EXPECT_FALSE(private_modes.CreateNativeCustomMode("Private", presentation, {"mission.open"}, ""));
+  EXPECT_FALSE(private_modes.SetCustomModes(valid.Clone()));
+  EXPECT_FALSE(private_modes.SetNativeCustomModeSurface(id, std::nullopt));
+  EXPECT_FALSE(private_modes.SetNativeCustomModeSkin(id, std::nullopt));
+  EXPECT_FALSE(private_modes.DuplicateBuiltinModePreset("daily", "Copy"));
+  EXPECT_EQ(valid, profile_.GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions));
+}
+
+TEST_F(MissionServiceTest, WindowConfigurationRejectsContradictionsAndUnknownFields) {
+  ModeService service(&profile_);
+  WindowPresentation presentation{.fixed_mode = "research", .rail_state = "expanded"};
+  presentation.custom_mode = "native-review";
+  presentation.configuration = ModeService::EncodeConfiguration(service.configuration_for_mode("research"));
+  EXPECT_EQ(presentation, DecodeWindowPresentation(EncodeWindowPresentation(presentation)));
+  for (const auto& change : std::vector<std::pair<std::string, std::string>>{
+           {"layout", "quad"}, {"compact_controls", "true"}, {"template", "daily-review"},
+           {"rail_width", "480"}, {"rail_width", "0280"}, {"theme", "remote-theme"}}) {
+    auto invalid = presentation;
+    invalid.configuration[change.first] = change.second;
+    EXPECT_FALSE(ValidateWindowPresentation(invalid));
+  }
+  auto encoded = EncodeWindowPresentation(presentation);
+  encoded.FindDict("configuration")->Set("theme", true);
+  EXPECT_FALSE(DecodeWindowPresentation(encoded));
+  encoded = EncodeWindowPresentation(presentation);
+  encoded.FindDict("configuration")->Remove("theme");
+  EXPECT_FALSE(DecodeWindowPresentation(encoded));
+  encoded = EncodeWindowPresentation(presentation);
+  encoded.FindDict("configuration")->Set("script", "alert(1)");
+  EXPECT_FALSE(DecodeWindowPresentation(encoded));
+}
+
+TEST_F(MissionServiceTest, NativeModeCopiesAndControlEditsKeepTheirOwnRevision) {
+  ModeService service(&profile_);
+  ASSERT_TRUE(service.CreateNativeCustomMode("Original",
+      {.fixed_mode = "research", .rail_state = "expanded",
+       .skin = WindowSkinReference{"terminal-green", ""}}, {"mission.open"}, ""));
+  const auto original = service.custom_modes()[0];
+  ASSERT_TRUE(service.DuplicateCustomMode(original.id, "Copy"));
+  ASSERT_EQ(2u, service.custom_modes().size());
+  const auto copy = service.custom_modes()[1];
+  EXPECT_NE(original.id, copy.id);
+  EXPECT_EQ(original.native_presentation, copy.native_presentation);
+  EXPECT_EQ(original.actions, copy.actions);
+  ASSERT_TRUE(service.UpdateNativeCustomMode(copy.id, "Edited copy",
+                                             {"layout.dual", "support.open"}, "saved-copy"));
+  EXPECT_EQ(original, service.custom_modes()[0]);
+  EXPECT_EQ(copy.native_presentation, service.custom_modes()[1].native_presentation);
+  EXPECT_EQ("saved-copy", service.custom_modes()[1].workspace_id);
+  const auto edited = service.custom_modes()[1];
+  EXPECT_FALSE(service.UpdateNativeCustomMode(copy.id, "Bad", {}, ""));
+  EXPECT_FALSE(service.UpdateNativeCustomMode(copy.id, "Bad", {"arbitrary.run"}, ""));
+  EXPECT_FALSE(service.UpdateNativeCustomMode(copy.id, "Bad", {"mission.open", "mission.open"}, ""));
+  EXPECT_EQ(edited, service.custom_modes()[1]);
+  EXPECT_FALSE(service.DuplicateCustomMode("missing-mode", "Missing"));
+  EXPECT_FALSE(service.DuplicateCustomMode(original.id, ""));
+  ASSERT_TRUE(service.CreateCustomMode("Legacy", "review-mode", ""));
+  const auto legacy = service.custom_modes().back();
+  EXPECT_FALSE(service.UpdateNativeCustomMode(legacy.id, "Not a native mode", {"mission.open"}, ""));
+  EXPECT_EQ(legacy, service.custom_modes().back());
+}
+
+TEST_F(MissionServiceTest, NativeSurfaceCopyEditAndReloadPreserveIndependentDefinitions) {
+  ModeService service(&profile_);
+  const SurfaceDesign design{.nodes = {{.pane = 0, .role = "working"}},
+                              .rail_dock = "trailing", .keyboard_order = {0}};
+  ASSERT_TRUE(service.CreateNativeCustomMode("Surface mode",
+      {.fixed_mode = "daily", .rail_state = "icons", .surface_design = design},
+      {"mission.open"}, ""));
+  const std::string id = service.custom_modes()[0].id;
+  ASSERT_TRUE(service.DuplicateCustomMode(id, "Independent copy"));
+  const std::string copy_id = service.custom_modes()[1].id;
+  EXPECT_EQ(design, service.custom_modes()[1].native_presentation->surface_design);
+  auto changed = design;
+  changed.gap = 16;
+  changed.rail_dock = "leading";
+  ASSERT_TRUE(service.SetNativeCustomModeSurface(copy_id, changed));
+  EXPECT_EQ(design, service.custom_modes()[0].native_presentation->surface_design);
+  ModeService reloaded(&profile_);
+  EXPECT_EQ(changed, reloaded.custom_modes()[1].native_presentation->surface_design);
+  const auto before = profile_.GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions).Clone();
+  changed.nodes[0].pane = 4;
+  EXPECT_FALSE(service.SetNativeCustomModeSurface(copy_id, changed));
+  EXPECT_FALSE(service.SetNativeCustomModeSurface("missing-mode", design));
+  EXPECT_EQ(before, profile_.GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions));
+  ASSERT_TRUE(service.SetNativeCustomModeSurface(copy_id, std::nullopt));
+  EXPECT_FALSE(service.custom_modes()[1].native_presentation->surface_design);
+  EXPECT_EQ(design, service.custom_modes()[0].native_presentation->surface_design);
+}
+
+TEST_F(MissionServiceTest, NativePresetCopiesKeepSkinAndPlacementChangesLocal) {
+  ModeService service(&profile_);
+  const auto preset = *FindBuiltinNativeModePreset("research");
+  ASSERT_TRUE(service.DuplicateBuiltinModePreset("research", "Local research"));
+  const std::string id = service.custom_modes()[0].id;
+  ASSERT_TRUE(service.SetNativeCustomModeSkin(id, WindowSkinReference{"terminal-green", ""}));
+  const auto with_skin = service.custom_modes()[0];
+  EXPECT_EQ(preset, *FindBuiltinNativeModePreset("research"));
+  EXPECT_FALSE(service.SetNativeCustomModeSkin(id, WindowSkinReference{"not-installed", ""}));
+  EXPECT_FALSE(service.SetNativeCustomModeSkin("missing-mode", std::nullopt));
+  EXPECT_EQ(with_skin, service.custom_modes()[0]);
+  NativeModeCommandLayout placement{{"launchpad.open"}, {}, {"commands.open"}};
+  ASSERT_TRUE(service.UpdateNativeCustomMode(id, "Placed research", preset.actions, "", placement));
+  ModeService reloaded(&profile_);
+  ASSERT_EQ(1u, reloaded.custom_modes().size());
+  EXPECT_EQ(service.custom_modes()[0], reloaded.custom_modes()[0]);
+  // Legacy controls editor removes a declared action without retaining an
+  // executable stale placement or adding a default command group.
+  ASSERT_TRUE(service.UpdateNativeCustomMode(id, "Reduced research", {"launchpad.open"}, ""));
+  ASSERT_TRUE(service.custom_modes()[0].command_layout);
+  EXPECT_TRUE(service.custom_modes()[0].command_layout->app_menu.empty());
+  EXPECT_EQ(std::vector<std::string>({"launchpad.open"}),
+            service.custom_modes()[0].command_layout->toolbar_primary);
+  ASSERT_TRUE(service.SetNativeCustomModeSkin(id, std::nullopt));
+  EXPECT_FALSE(service.custom_modes()[0].native_presentation->skin);
+  EXPECT_EQ(preset, *FindBuiltinNativeModePreset("research"));
 }
 
 TEST_F(MissionServiceTest, SyncContractNeverEnablesPrivateBrowserState) {
@@ -2860,6 +5693,72 @@ TEST_F(MissionServiceTest, SyncKeyringStatusDoesNotExposeOrInventKeyMaterial) {
         EXPECT_FALSE(key);
       }));
   EXPECT_TRUE(private_callback_called);
+}
+
+class DeferredCapsuleCrypt final : public os_crypt_async::OSCryptAsync {
+ public:
+  DeferredCapsuleCrypt() : OSCryptAsync({}), encryptor_(os_crypt_async::GetTestEncryptorForTesting()) {}
+  void GetInstance(InitCallback callback) override { callbacks_.push_back(std::move(callback)); }
+  void Release() {
+    ASSERT_FALSE(callbacks_.empty());
+    auto callback = std::move(callbacks_.front()); callbacks_.erase(callbacks_.begin());
+    std::move(callback).Run(encryptor_);
+  }
+  size_t pending() const { return callbacks_.size(); }
+ private:
+  scoped_refptr<os_crypt_async::TestEncryptor> encryptor_;
+  std::vector<InitCallback> callbacks_;
+};
+
+TEST_F(MissionServiceTest, CapsuleKeyLeasesRecheckAfterProviderAndPreserveManagedStorage) {
+  DeferredCapsuleCrypt provider;
+  TahaiSyncKeyService service(profile_.GetPrefs(), &provider);
+  bool allowed = true;
+  const auto lease = base::BindLambdaForTesting([&] { return allowed; });
+  base::test::TestFuture<TahaiSyncKeyResult, std::optional<TahaiSyncEnvelopeKey>> revoked;
+  service.EnsureActiveKey(revoked.GetCallback(), lease);
+  ASSERT_EQ(1u, provider.pending()); allowed = false; provider.Release();
+  EXPECT_EQ(TahaiSyncKeyResult::kPersistenceFailed, revoked.Get<0>()); EXPECT_FALSE(revoked.Get<1>());
+  EXPECT_TRUE(profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring).empty());
+  allowed = true;
+  base::test::TestFuture<TahaiSyncKeyResult, std::optional<TahaiSyncEnvelopeKey>> created;
+  service.EnsureActiveKey(created.GetCallback(), lease); provider.Release();
+  ASSERT_EQ(TahaiSyncKeyResult::kOk, created.Get<0>()); ASSERT_TRUE(created.Get<1>());
+  const auto original = profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring).Clone();
+  base::test::TestFuture<TahaiSyncKeyResult, std::optional<TahaiSyncEnvelopeKey>> rotate;
+  service.RotateActiveKey(rotate.GetCallback(), lease); allowed = false; provider.Release();
+  EXPECT_EQ(TahaiSyncKeyResult::kPersistenceFailed, rotate.Get<0>()); EXPECT_FALSE(rotate.Get<1>());
+  EXPECT_EQ(original, profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring));
+  allowed = true;
+  base::test::TestFuture<TahaiSyncKeyResult, std::optional<TahaiSyncEnvelopeKey>> lookup;
+  service.GetKeyForId(created.Get<1>()->key_id, lookup.GetCallback(), lease);
+  profile_.GetTestingPrefService()->SetManagedPref(prefs::kTahaiSyncKeyring, base::Value(original.Clone()));
+  provider.Release();
+  EXPECT_EQ(TahaiSyncKeyResult::kPersistenceFailed, lookup.Get<0>()); EXPECT_FALSE(lookup.Get<1>());
+  EXPECT_FALSE(service.GetStatus().has_stored_keyring);
+  EXPECT_EQ(original, profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring));
+  base::test::TestFuture<TahaiSyncKeyResult, std::optional<TahaiSyncEnvelopeKey>> managed;
+  service.RotateActiveKey(managed.GetCallback(), lease);
+  EXPECT_EQ(TahaiSyncKeyResult::kPersistenceFailed, managed.Get<0>()); EXPECT_EQ(0u, provider.pending());
+  profile_.GetTestingPrefService()->RemoveManagedPref(prefs::kTahaiSyncKeyring);
+  EXPECT_EQ(original, profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring));
+}
+
+TEST_F(MissionServiceTest, CapsuleKeyQueueIsBoundedAndRevokedRequestsNeverGenerateKeys) {
+  DeferredCapsuleCrypt provider;
+  TahaiSyncKeyService service(profile_.GetPrefs(), &provider);
+  size_t callbacks = 0; bool allowed = true;
+  const auto lease = base::BindLambdaForTesting([&] { return allowed; });
+  for (size_t i = 0; i < 64u; ++i) {
+    service.RotateActiveKey(base::BindLambdaForTesting([&](TahaiSyncKeyResult result, std::optional<TahaiSyncEnvelopeKey> key) {
+      ++callbacks; EXPECT_EQ(TahaiSyncKeyResult::kPersistenceFailed, result); EXPECT_FALSE(key);
+    }), lease);
+  }
+  EXPECT_EQ(48u, callbacks); EXPECT_EQ(1u, provider.pending());
+  allowed = false;
+  for (size_t i = 0; i < 16u; ++i) provider.Release();
+  EXPECT_EQ(64u, callbacks); EXPECT_EQ(0u, provider.pending());
+  EXPECT_TRUE(profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring).empty());
 }
 
 TEST_F(MissionServiceTest, MissionCapsuleIsSanitizedAndIntegrityChecked) {

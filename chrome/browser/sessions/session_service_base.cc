@@ -18,6 +18,7 @@
 #include "base/strings/to_string.h"
 #include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
+#include "build/branding_buildflags.h"
 #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
@@ -51,6 +52,10 @@
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/session_storage_namespace.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
+
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+#include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
+#endif
 
 #if BUILDFLAG(IS_MAC)
 #include "chrome/browser/app_controller_mac.h"
@@ -713,6 +718,16 @@ void SessionServiceBase::BuildCommandsForBrowser(
   command_storage_manager()->AppendRebuildCommand(
       sessions::CreateSetSelectedTabInWindowCommand(
           browser->session_id(), browser->tab_strip_model()->active_index()));
+
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  if (auto* mode = tahai::WindowModeController::GetForBrowser(browser)) {
+    if (auto json = mode->SerializePresentation()) {
+      command_storage_manager()->AppendRebuildCommand(
+          sessions::CreateAddWindowExtraDataCommand(
+              browser->session_id(), tahai::kWindowPresentationSessionKey, *json));
+    }
+  }
+#endif
 
   // Set the visual data for each tab group.
   TabStripModel* tab_strip = browser->tab_strip_model();

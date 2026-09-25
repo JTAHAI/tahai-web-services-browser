@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -13,6 +14,7 @@
 #include "base/containers/span.h"
 #include "base/json/json_reader.h"
 #include "chrome/common/tahai_skins/skin_limits.h"
+#include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
 #include "chrome/common/tahai_skins/tahai_skin_manifest.h"
 #include "chrome/common/tahai_skins/tahai_skin_package.h"
 #include "mojo/public/cpp/base/big_buffer.h"
@@ -29,6 +31,11 @@ namespace {
 
 using Status = mojom::DecodeStatus;
 
+constexpr char kSigningKeyEntry[] = "META-INF/tahai-key-id";
+constexpr char kSignatureEntry[] = "META-INF/tahai-signature.ed25519";
+constexpr size_t kMaximumSigningKeyBytes = 64;
+constexpr size_t kEd25519SignatureBytes = 64;
+
 bool IsSafeRegularEntry(const zip::ZipReader::Entry& entry) {
   // ZipReader intentionally normalizes names for general-purpose extraction.
   // For skins accept the literal name only, never its normalized replacement.
@@ -44,6 +51,8 @@ bool IsSafeRegularEntry(const zip::ZipReader::Entry& entry) {
          (posix_type == 0 || posix_type == kPosixRegularFile) &&
          (entry.compression_method == 0 || entry.compression_method == 8) &&
          (entry.raw_path == "manifest.json" ||
+          entry.raw_path == kSigningKeyEntry ||
+          entry.raw_path == kSignatureEntry ||
           IsSafeTahaiSkinAssetPath(entry.raw_path));
 }
 
@@ -111,27 +120,46 @@ Status DecodeArchive(const std::string& archive,
                      mojom::DecodedPackagePtr* decoded) {
   zip::ZipReader directory;
   if (!directory.OpenFromString(archive) || directory.num_entries() < 2 ||
-      static_cast<size_t>(directory.num_entries()) > kMaxAssets + 1) {
+      static_cast<size_t>(directory.num_entries()) > kMaxAssets + 3) {
     return Status::kInvalidArchive;
   }
   std::set<std::string> names;
   std::vector<TahaiSkinPackageEntry> inventory;
   std::string manifest_json;
+  std::string signing_key_id;
+  std::string signature;
   for (const zip::ZipReader::Entry* entry = directory.Next(); entry;
        entry = directory.Next()) {
-    if (names.size() >= kMaxAssets + 1 || !IsSafeRegularEntry(*entry) ||
+    if (names.size() >= kMaxAssets + 3 || !IsSafeRegularEntry(*entry) ||
         !names.insert(entry->raw_path).second) {
       return Status::kUnsafeEntry;
     }
     const bool manifest_entry = entry->raw_path == "manifest.json";
-    if (!IsBoundedEntry(*entry, manifest_entry ? kMaxManifestBytes
-                                               : kMaxEncodedAssetBytes)) {
+    const bool signing_key_entry = entry->raw_path == kSigningKeyEntry;
+    const bool signature_entry = entry->raw_path == kSignatureEntry;
+    const size_t entry_limit = manifest_entry ? kMaxManifestBytes
+                               : signing_key_entry ? kMaximumSigningKeyBytes
+                               : signature_entry ? kEd25519SignatureBytes
+                                                 : kMaxEncodedAssetBytes;
+    if (!IsBoundedEntry(*entry, entry_limit)) {
       return Status::kExceededLimits;
     }
     if (manifest_entry) {
       if (!directory.ExtractCurrentEntryToString(kMaxManifestBytes,
                                                  &manifest_json) ||
           manifest_json.size() != static_cast<uint64_t>(entry->original_size)) {
+          return Status::kInvalidArchive;
+      }
+    } else if (signing_key_entry) {
+      if (!directory.ExtractCurrentEntryToString(kMaximumSigningKeyBytes,
+                                                 &signing_key_id) ||
+          signing_key_id.size() != entry->original_size) {
+        return Status::kInvalidArchive;
+      }
+    } else if (signature_entry) {
+      if (!directory.ExtractCurrentEntryToString(kEd25519SignatureBytes,
+                                                 &signature) ||
+          signature.size() != kEd25519SignatureBytes) {
         return Status::kInvalidArchive;
       }
     } else {
@@ -146,8 +174,26 @@ Status DecodeArchive(const std::string& archive,
   const auto value =
       base::JSONReader::ReadDict(manifest_json, base::JSON_PARSE_RFC, 16);
   TahaiSkinManifest manifest;
-  if (!value || ValidateTahaiSkinManifest(*value, &manifest) !=
-                    TahaiSkinManifestValidationResult::kValid) {
+  if (!value) {
+    return Status::kInvalidManifest;
+  }
+  const std::optional<int> schema_version = value->FindInt("schema_version");
+  if (!schema_version) {
+    return Status::kInvalidManifest;
+  }
+  if (*schema_version == 1) {
+    if (ValidateTahaiSkinManifest(*value, &manifest) !=
+        TahaiSkinManifestValidationResult::kValid) {
+      return Status::kInvalidManifest;
+    }
+  } else if (*schema_version == 2) {
+    TahaiOperationalSkinManifest operational;
+    if (ValidateTahaiOperationalSkinManifest(*value, &operational) !=
+        TahaiOperationalSkinManifestValidationResult::kValid) {
+      return Status::kInvalidManifest;
+    }
+    manifest = std::move(operational.appearance);
+  } else {
     return Status::kInvalidManifest;
   }
   if (ValidateTahaiSkinPackageLayout(manifest, inventory) !=
@@ -163,10 +209,15 @@ Status DecodeArchive(const std::string& archive,
   }
   auto candidate = mojom::DecodedPackage::New();
   candidate->manifest_json = std::move(manifest_json);
+  candidate->signing_key_id = std::move(signing_key_id);
+  candidate->signature = mojo_base::BigBuffer(signature.size());
+  std::copy(signature.begin(), signature.end(), candidate->signature.data());
   size_t total_pixels = 0;
   for (const zip::ZipReader::Entry* entry = reader.Next(); entry;
        entry = reader.Next()) {
-    if (entry->raw_path == "manifest.json") {
+    if (entry->raw_path == "manifest.json" ||
+        entry->raw_path == kSigningKeyEntry ||
+        entry->raw_path == kSignatureEntry) {
       continue;
     }
     std::string bytes;

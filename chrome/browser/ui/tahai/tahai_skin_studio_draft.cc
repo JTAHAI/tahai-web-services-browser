@@ -1,0 +1,142 @@
+// Copyright 2026 TAHAI Web Services
+// SPDX-License-Identifier: Apache-2.0
+
+#include "chrome/browser/ui/tahai/tahai_skin_studio_draft.h"
+
+#include <optional>
+#include <utility>
+
+#include "base/json/json_reader.h"
+#include "base/json/json_writer.h"
+#include "chrome/common/pref_names.h"
+#include "chrome/common/tahai_skins/skin_limits.h"
+#include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
+#include "components/prefs/pref_service.h"
+
+namespace tahai {
+namespace {
+
+constexpr char kManifestJsonKey[] = "manifest_json";
+
+constexpr char kDefaultDraft[] = R"TAHAI({
+  "schema_version": 2,
+  "id": "my-operational-skin",
+  "name": "My Operational Skin",
+  "creator": "Local author",
+  "license": "BSD-3-Clause",
+  "compatibility": {
+    "min_chromium_major": 152,
+    "max_chromium_major": 152
+  },
+  "appearance": {
+    "density": "comfortable",
+    "reduced_motion": false,
+    "light_tokens": {
+      "shell_background": "#10131c", "toolbar_background": "#182033",
+      "toolbar_foreground": "#f5f7ff", "tab_background": "#202b43",
+      "tab_foreground": "#f5f7ff", "rail_background": "#161e30",
+      "rail_foreground": "#e8efff", "accent": "#397eea",
+      "panel_background": "#1b2438", "panel_foreground": "#f5f7ff"
+    },
+    "dark_tokens": {
+      "shell_background": "#10131c", "toolbar_background": "#182033",
+      "toolbar_foreground": "#f5f7ff", "tab_background": "#202b43",
+      "tab_foreground": "#f5f7ff", "rail_background": "#161e30",
+      "rail_foreground": "#e8efff", "accent": "#397eea",
+      "panel_background": "#1b2438", "panel_foreground": "#f5f7ff"
+    },
+    "high_contrast_tokens": {
+      "shell_background": "#000000", "toolbar_background": "#000000",
+      "toolbar_foreground": "#ffffff", "tab_background": "#000000",
+      "tab_foreground": "#ffffff", "rail_background": "#000000",
+      "rail_foreground": "#ffffff", "accent": "#00ffff",
+      "panel_background": "#000000", "panel_foreground": "#ffffff"
+    }
+  },
+  "assets": [{
+    "path": "assets/preview.png",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "purpose": "preview"
+  }],
+  "operational": {
+    "capabilities": ["workspace-layout", "mission-checklist", "guard-control"],
+    "surfaces": [{
+      "id": "my-workspace", "layout": "dual", "rail_state": "expanded",
+      "start_surface": "mission", "rail_modules": ["mission", "local-oi", "guard"]
+    }],
+    "workflows": [{
+      "id": "my-checklist", "name": "My local checklist",
+      "steps": [{"id": "review", "name": "Review before acting", "kind": "checkpoint"}]
+    }],
+    "modes": [{
+      "id": "my-mode", "name": "My mode", "surface": "my-workspace",
+      "workflow": "my-checklist", "actions": ["layout.dual", "mission.open"]
+    }]
+  }
+})TAHAI";
+
+TahaiSkinStudioDraftResult ValidateAndCanonicalize(std::string manifest_json) {
+  if (manifest_json.empty() || manifest_json.size() > skins::kMaxManifestBytes) {
+    return {TahaiSkinStudioDraftStatus::kTooLarge, {}};
+  }
+  std::optional<base::DictValue> value =
+      base::JSONReader::ReadDict(manifest_json, base::JSON_PARSE_RFC);
+  TahaiOperationalSkinManifest parsed;
+  if (!value) {
+    return {TahaiSkinStudioDraftStatus::kInvalidJson, {}};
+  }
+  if (ValidateTahaiOperationalSkinManifest(*value, &parsed) !=
+      TahaiOperationalSkinManifestValidationResult::kValid) {
+    return {TahaiSkinStudioDraftStatus::kInvalidManifest, {}};
+  }
+  std::string canonical;
+  base::JSONWriter::WriteWithOptions(
+      *value, base::JSONWriter::OPTIONS_PRETTY_PRINT, &canonical);
+  return {TahaiSkinStudioDraftStatus::kOk, std::move(canonical)};
+}
+
+}  // namespace
+
+std::string GetTahaiSkinStudioDefaultDraft() {
+  return kDefaultDraft;
+}
+
+TahaiSkinStudioDraftResult LoadTahaiSkinStudioDraft(PrefService* prefs) {
+  if (!prefs) {
+    return {TahaiSkinStudioDraftStatus::kUnavailable, {}};
+  }
+  const std::string* saved =
+      prefs->GetDict(prefs::kTahaiSkinStudioDraft).FindString(kManifestJsonKey);
+  TahaiSkinStudioDraftResult result =
+      ValidateAndCanonicalize(saved ? *saved : GetTahaiSkinStudioDefaultDraft());
+  if (result.status != TahaiSkinStudioDraftStatus::kOk) {
+    result = ValidateAndCanonicalize(GetTahaiSkinStudioDefaultDraft());
+  }
+  if (prefs->IsManagedPreference(prefs::kTahaiSkinStudioDraft)) {
+    result.status = TahaiSkinStudioDraftStatus::kManaged;
+  }
+  return result;
+}
+
+TahaiSkinStudioDraftResult SaveTahaiSkinStudioDraft(
+    PrefService* prefs,
+    std::string manifest_json) {
+  if (!prefs) {
+    return {TahaiSkinStudioDraftStatus::kUnavailable, {}};
+  }
+  if (prefs->IsManagedPreference(prefs::kTahaiSkinStudioDraft)) {
+    TahaiSkinStudioDraftResult result = LoadTahaiSkinStudioDraft(prefs);
+    result.status = TahaiSkinStudioDraftStatus::kManaged;
+    return result;
+  }
+  TahaiSkinStudioDraftResult result =
+      ValidateAndCanonicalize(std::move(manifest_json));
+  if (result.status != TahaiSkinStudioDraftStatus::kOk) {
+    return result;
+  }
+  prefs->SetDict(prefs::kTahaiSkinStudioDraft,
+                 base::DictValue().Set(kManifestJsonKey, result.manifest_json));
+  return result;
+}
+
+}  // namespace tahai

@@ -84,6 +84,96 @@ try {
         return [ordered]@{ file = $Name; sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
     }
     $native = New-TestSummary @(
+        'TahaiOperationalSkinManifestTest.NamedOutputsAreBoundedBindingsWithoutValuesOrPrivacyOverrides',
+        'TahaiOperationalSkinManifestTest.TypedVariablesAndAssignmentsRejectPrivacyDowngradesAndMalformedBindings',
+        'TahaiOperationalSkinManifestTest.NumericExpressionsAreClosedBoundedAndRejectProtectedReferences',
+        'TahaiOperationalSkinManifestTest.NumericConditionsAreClosedTypedAndExcludeProtectedInputs',
+        'TahaiOperationalSkinManifestTest.NumericComparisonsCoverEveryBoundaryWithoutCoercion',
+        'MissionServiceTest.NumericBranchesRequireAnswersAndPreserveSkippedHistoryAcrossRestart',
+        'MissionServiceTest.NumericBranchesRejectPrivateMixedAndMalformedPersistedDefinitions',
+        'MissionServiceTest.SkippedBranchesLockWhenLaterAssignmentsWaitsOrNativeAttemptsStart',
+        'TahaiWorkflowNativeTest.NumericBranchDefinitionAndAnswerAreRecheckedBeforeNativeDispatch',
+        'TahaiOperationalSkinManifestTest.VariableConditionsUseExplicitNamespacesAndNeverAdmitRunDecisions',
+        'MissionServiceTest.VariableBranchesFreezeBeforeMutationAndRecoverWithoutReevaluatingHistory',
+        'MissionServiceTest.VariableBranchesRejectMalformedDecisionsAndPrivateOrLegacyBindings',
+        'MissionServiceTest.VariableBranchSuccessRequiresRecordedTrailingDecisions',
+        'MissionServiceTest.VariableBranchesRecordDecisionsBeforeWaitsAndNativeAttempts',
+        'MissionServiceTest.TypedVariableDecisionsPrecedeSelfAssignmentAndCannotBeReopenedIntoAnotherBranch',
+        'TahaiWorkflowNativeTest.VariableBranchNamespaceAndRecordedDecisionAreCheckedBeforeDispatch',
+        'TahaiOperationalSkinManifestTest.CompoundPredicatesAreClosedBoundedAndValidateEveryReference',
+        'TahaiOperationalSkinManifestTest.CompoundEvaluationNeverShortCircuitsUnknownValuesIntoAuthority',
+        'MissionServiceTest.CompoundBranchesRequireAllSourcesAndRetainRecordedHistoryAcrossRestart',
+        'MissionServiceTest.CompoundPredicatesFailClosedOnMixedPrivateMalformedAndUnrecordedState',
+        'TahaiWorkflowNativeTest.CompoundPredicateDefinitionsAndPendingDecisionsArePinnedBeforeDispatch',
+        'TahaiOperationalSkinManifestTest.BoundedRepeatsExpandDistinctStepsWithoutChangingAuthoredDefinitions',
+        'TahaiOperationalSkinManifestTest.BoundedRepeatsRejectOverlapCollisionsCoercionAndExpansionOverflow',
+        'MissionServiceTest.BoundedRepeatsCarryVariablesAndRecoverIndependentIterationDecisions',
+        'MissionWaitTest.BoundedRepeatsRejectInvalidHandoffsAndKeepWaitBudgetsSeparate',
+        'TahaiWorkflowNativeTest.BoundedRepeatActionsPinEveryIterationAndCannotReuseCompletedAttempts',
+        'TahaiOperationalSkinManifestTest.ProtectedVariableBindingsAreMonotonicAndExcludeConditionsCalculationsAndRunData',
+        'MissionServiceTest.ProtectedVariablesEncryptRebindAndRecoverWithoutPlaintextOrReplay',
+        'MissionServiceTest.ProtectedVariableFailuresPreserveCiphertextTokensAndProgress',
+        'MissionServiceTest.ProtectedVariableContextTamperingAndPlaintextPreferencesFailClosed',
+        'MissionServiceTest.ProtectedVariablesPreserveAllTypedValuesAndRejectManagedWrites',
+        'MissionServiceTest.ProtectedVariableRepeatIterationsSeparateInputNamespaceAndNeverReplay',
+        'TahaiWorkflowNativeTest.ProtectedVariablePrivacyIsPinnedBeforeNativeDispatch',
+        'TahaiOperationalSkinManifestTest.TextExpressionsAreClosedBoundedTypedAndExcludeProtectedSources',
+        'TahaiOperationalSkinManifestTest.TextExpressionEvaluationUsesLiteralBoundedUnicodeAndFixedErrors',
+        'MissionServiceTest.TextExpressionsPersistExactDefinitionsAndNeverReplayOrExportValues',
+        'MissionServiceTest.TextExpressionFailuresPreservePriorValueProgressAndMalformedPreferences',
+        'TahaiWorkflowNativeTest.TextExpressionsRemainExactlyRevisionPinnedBeforeNativeDispatch',
+        'MissionServiceTest.ManagedAndShutdownMissionsRejectChecklistAndRunStateChanges',
+        'MissionServiceTest.ManagedAndShutdownMissionsRejectMetadataCreationAndOrdinaryInputWrites',
+        'MissionServiceTest.CapsuleKeyLeasesRecheckAfterProviderAndPreserveManagedStorage',
+        'MissionServiceTest.CapsuleKeyQueueIsBoundedAndRevokedRequestsNeverGenerateKeys',
+        'TahaiOperationalSkinManifestTest.ActionStatusBindingsAreTypedPrecedingAndIterationScoped',
+        'MissionServiceTest.ActionStatusBindingsPersistWithoutReplayAndRejectForgedSources',
+        'MissionServiceTest.ActionStatusBindingsRespectEachIterationAndTargetConstraints',
+        'TahaiWorkflowNativeTest.ActionStatusBindingsAreExactlyPinnedBeforeAnyDispatch',
+        'TahaiOperationalSkinManifestTest.NumericEvaluatorEnforcesEveryIntermediateAndDecimalResultBudget',
+        'MissionServiceTest.CalculationsRequireExplicitOrderAndPersistWithoutReplayOrExportValues',
+        'MissionServiceTest.CalculationFailuresPreserveValuesTokensAndPreferencesAndMalformedRestoreIsInert',
+        'TahaiWorkflowNativeTest.CalculationDefinitionsMustMatchExactlyBeforeNativeDispatch',
+        'MissionServiceTest.VariablesAssignExplicitlyPersistWithoutReplayAndStayOutOfExports',
+        'MissionServiceTest.VariableAssignmentsEnforceLimitsConditionsLifecycleAndExplicitClear',
+        'MissionServiceTest.MalformedVariablesAndProtectedAssignmentsFailClosedOnCreateQueueAndRestore',
+        'TahaiWorkflowNativeTest.VariableDefinitionsAndAssignmentsMustMatchBeforeNativeDispatch',
+        'TahaiOperationalSkinManifestTest.TimedWaitsAreBoundedDefinitionsWithoutClockStateOrActions',
+        'MissionWaitTest.WaitRequiresOrderedExplicitStartAndElapsedExplicitCompletion',
+        'MissionWaitTest.PauseInputLossAndShutdownFreezeRemainingTimeWithoutAutoResume',
+        'MissionWaitTest.AbruptRestartUsesSavedProgressOnlyAndNeverReplaysWait',
+        'MissionWaitTest.WaitRejectsManagedPrivateLegacyAndTerminalActions',
+        'MissionWaitTest.MalformedWaitDefinitionsAndSavedClocksFailClosed',
+        'TahaiWorkflowNativeTest.WaitDefinitionAndCompletionMustMatchBeforeNativeDispatch',
+        'TahaiOperationalSkinManifestTest.WaitDeadlinesRequireBoundedLaterWholeSeconds',
+        'MissionWaitTest.DeadlineExpiresWithoutRendererAndPersistsFailureWithoutReplay',
+        'MissionWaitTest.CompletionDisarmsDeadlineAndPauseFreezesBothBudgets',
+        'MissionWaitTest.DeadlinesScheduleAcrossRunsAndStopOnInputLossArchiveOrCancel',
+        'MissionWaitTest.DeadlineRecoveryRetainsSavedBudgetWithoutOfflineExpiryOrAutoResume',
+        'MissionWaitTest.ExpiredDeadlineCannotBeBypassedBeforeTimerDelivery',
+        'MissionWaitTest.MalformedDeadlineSnapshotsAndManagedTimerWritesFailClosed',
+        'TahaiWorkflowNativeTest.WaitDeadlineCannotBeChangedOrRemovedBeforeNativeDispatch',
+        'TahaiWorkflowNativeTest.RejectedAndUnknownOutcomesFailRunWithoutReplayOrOutputs',
+        'TahaiWorkflowNativeTest.LateFailurePreservesCancellationAndClosesPausedOrArchivedRun',
+        'TahaiWorkflowNativeTest.SavedNativeFailuresCloseWithoutRewritingPreferencesOrFalseSuccess',
+        'TahaiWorkflowNativeTest.ManagedPolicyDuringNativeCompletionCannotRewriteUserStorage',
+        'TahaiWorkflowNativeTest.NativeDeadlineExpiresWithoutRendererAndSurvivesRestart',
+        'TahaiWorkflowNativeTest.NativeDeadlineCannotBeBypassedBeforeTimerDeliveryOrWithInvalidClock',
+        'TahaiWorkflowNativeTest.NativeCompletionDisarmsDeadlineAndLateResultsCannotOverwriteOutcome',
+        'TahaiWorkflowNativeTest.NativeDeadlineContinuesAcrossPauseCancelArchiveAndOtherRuns',
+        'TahaiWorkflowNativeTest.NativeDeadlineCannotBlessLateManagedResultOrResumeAfterShutdown',
+        'TahaiWorkflowNativeTest.SharedDeadlineTimerKeepsNativeAndAuthoredWaitBudgetsIndependent',
+        'TahaiWorkflowNativeTest.PersistedNativeClocksAndMalformedDeadlineErrorsAreInert',
+        'MissionServiceTest.NamedOutputsResolveOnlyAfterSuccessAndRetainTheirOwnRun',
+        'MissionServiceTest.NamedProtectedOutputsNeverReturnPlaintextOrCiphertext',
+        'MissionServiceTest.InvalidOutputBindingsFailClosedOnCreateQueueAndRestore',
+        'TahaiWorkflowNativeTest.NamedOutputBindingsMustMatchTheTrustedRevision',
+        'TahaiOperationalSkinManifestTest.InputValidationRulesAreClosedTypedAndBounded',
+        'TahaiOperationalSkinManifestTest.InputValidationMatchesUtf8BytesAndInclusiveNumbers',
+        'MissionServiceTest.InputValidationSurvivesQueueRestartAndRejectsWithoutMutation',
+        'MissionServiceTest.InvalidStoredValidationNeverSilentlyDropsRequiredGate',
+        'MissionServiceTest.ProtectedValidationRejectsBeforeEncryptionAndBindsCiphertext',
+        'TahaiWorkflowNativeTest.ValidationRulesCannotBeChangedRemovedOrBypassedAtDispatch',
         'MissionServiceTest.WorkspaceRailStatesAreFiniteAndPersistPerMode',
         'MissionServiceTest.SkinPathsRejectWindowsDeviceAndTrailingDotAliases',
         'MissionServiceTest.SkinPackageExactRatioAndPurposeCannotBypassLimits',
@@ -160,6 +250,66 @@ try {
         'TahaiSkinDecoderBrowserTest.TahaiSkinOwnerCancellationAndDisconnectCannotPublish',
         'TahaiSkinDecoderBrowserTest.TahaiSkinOwnerTimeoutAndInputBoundsFailClosed',
         'TahaiSkinProfileBrowserTest.TahaiSkinInstallUpdateRollbackAndRestart',
+        'TahaiSkinProfileBrowserTest.TahaiLocalPublisherStartupCannotSurviveRevokedGeneration',
+        'TahaiSkinManagerBrowserTest.PRE_TahaiLocalPublisherRevocationSurvivesProcessRestart',
+        'TahaiSkinManagerBrowserTest.TahaiLocalPublisherRevocationSurvivesProcessRestart',
+        'TahaiSkinProfileBrowserTest.TahaiLocalPublisherEnrollmentIsExplicitPersistentAndRevocable',
+        'TahaiSkinProfileBrowserTest.TahaiLocalPublisherPolicyOverridesAndStaleReviewNeverFallsBack',
+        'TahaiSkinProfileBrowserTest.TahaiLocalPublisherBoundsAndCorruptionFailClosed',
+        'TahaiSkinManagerBrowserTest.PRE_TahaiLocalPublisherTrustSurvivesProcessRestart',
+        'TahaiSkinManagerBrowserTest.TahaiLocalPublisherTrustSurvivesProcessRestart',
+        'TahaiSkinManagerBrowserTest.TahaiNativeLocalPublisherRequiresConfirmationAndSupportsRevocation',
+        'TahaiSkinRevisionDiffTest.ExactValuesOrderingTypesAndAbsentAreVisible',
+        'TahaiSkinRevisionDiffTest.AddedAndRemovedTreesDoNotHideProtectedFlags',
+        'TahaiSkinRevisionDiffTest.LimitsFailWithoutPartialReview',
+        'TahaiSkinProfileBrowserTest.TahaiRevisionReviewRequiresExactAcknowledgementAndRollback',
+        'TahaiSkinProfileBrowserTest.TahaiRevisionReviewRejectsSupersededCandidateAndForgedCachedManifest',
+        'TahaiOperationalModeBrowserTest.TahaiRevisionReviewReportsCapabilitiesDefinitionsAndPolicyRevocation',
+        'TahaiOperationalModeBrowserTest.TahaiRevisionReviewExposesKeyRotationAndHistoricalRevocation',
+        'TahaiSkinManagerBrowserTest.TahaiNativeRevisionReviewRequiresCheckboxAndConfirmation',
+        'TahaiOperationalModeBrowserTest.TahaiPublisherReviewBindsKeyFingerprintAndRevokesWithPolicy',
+        'TahaiOperationalModeBrowserTest.TahaiNativeTrustReviewShowsCapabilitiesAndClearsOnRevocation',
+        'TahaiWebUIBrowserTest.TahaiMissionProtectedInputIsMaskedStoredEncryptedAndExplicitlyCleared',
+        'TahaiWebUIBrowserTest.TahaiMissionInputLimitsAreExplainedAndEnforcedByNativeService',
+        'TahaiWebUIBrowserTest.TahaiMissionNamedOutputsRequireSuccessStayLocalAndMaskProtectedValues',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioNamedOutputsPersistWithoutSimulatedValues',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioVariablesAssignmentsAndResultsPersistWithoutSimulationData',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioCalculationsPersistOnlyDefinitionsAndSimulateLocally',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioNumericConditionsPersistAndSimulateWithoutActions',
+        'TahaiWebUIBrowserTest.TahaiMissionNumericConditionsCannotRewriteASkippedBranchAfterProgress',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioBasicCalculationsPreserveAdvancedTreesAndPrivacy',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioVariableLimitsRejectInvalidReadonlyAndStaleEdits',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioVariableBranchesPersistDefinitionsAndRecordDisposableDecisions',
+        'TahaiWebUIBrowserTest.TahaiMissionVariableBranchesBlockUnassignedWorkAndKeepRecordedHistory',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioCompoundConditionsPersistAndBlockUnknownOrBranches',
+        'TahaiWebUIBrowserTest.TahaiMissionCompoundChoicesStayRequiredAndRecordedAfterCheckpointReopen',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioRepeatRangesPersistAndSimulateDistinctIterations',
+        'TahaiWebUIBrowserTest.TahaiMissionRepeatAssignmentsStayExplicitAndRetainIndependentProgress',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioProtectedVariablesPersistWithoutSimulationValues',
+        'TahaiWebUIBrowserTest.TahaiMissionProtectedVariableCopiesRemainMaskedAcrossReloadAndSuccess',
+        'TahaiWebUIBrowserTest.TahaiMissionProtectedVariablesBootstrapStorageWithoutProtectedInputs',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioTextExpressionsAuthorSimulateAndRestoreOnlyDefinitions',
+        'TahaiWebUIBrowserTest.TahaiMissionTextExpressionsShowFixedErrorsAndRequireExplicitAssignment',
+        'TahaiWebUIBrowserTest.TahaiMissionChecklistsRequireCurrentDocumentGestureAndFreshToken',
+        'TahaiWebUIBrowserTest.TahaiMissionStateControlsRejectStaleAndAutomaticTransitions',
+        'TahaiWebUIBrowserTest.TahaiMissionMetadataControlsRejectStaleViewsAndDuplicateSubmissions',
+        'TahaiWebUIBrowserTest.TahaiMissionCreationAndMetadataRequireDocumentGestureAndOneSubmission',
+        'TahaiWebUIBrowserTest.TahaiEvidenceReviewIsCardScopedSingleUseAndRevisionBound',
+        'TahaiWebUIBrowserTest.TahaiEvidenceReviewRequiresMissionGestureAndCannotSurviveNavigation',
+        'TahaiWebUIBrowserTest.TahaiCapsuleMessagesRequireMissionGestureAndVerifiedSingleUseImport',
+        'TahaiWebUIBrowserTest.TahaiWorkflowInputsRejectUnactivatedStaleAndRepeatedEdits',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioActionStatusBindingsAuthorSimulateAndRestoreDefinitions',
+        'TahaiOperationalModeBrowserTest.TahaiActionStatusBindingFollowsRealDispatchAndExplicitCheckpoint',
+        'TahaiWebUIBrowserTest.TahaiMissionCalculationsShowFailuresAndRequireFreshExplicitAssignment',
+        'TahaiWebUIBrowserTest.TahaiMissionVariableAssignmentRequiresExplicitOrderedValidActionAndSurvivesReload',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioTimedWaitDefinitionPersistsWithoutSimulationClock',
+        'TahaiWebUIBrowserTest.TahaiMissionWaitRequiresCurrentExplicitStartAndCompletionWithoutNextAction',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioWaitDeadlinePersistsAndSimulatesTerminalFailure',
+        'TahaiWebUIBrowserTest.TahaiMissionWaitDeadlineFailsWithoutPageActionAndDisplaysRecordedError',
+        'TahaiWebUIBrowserTest.TahaiMissionNativeFailureShowsTerminalOutcomeAndNoResume',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioNativeFailureSimulationIsDisposable',
+        'TahaiOperationalModeBrowserTest.TahaiWorkflowNativeActionDispatchesOnceAndRevokesAtUse',
+        'TahaiOperationalModeBrowserTest.TahaiWorkflowNativeDeadlineStopsDelayedJournalDispatch',
         'TahaiSkinProfileBrowserTest.TahaiSkinProfileIsolationAndPrivateDenial',
         'TahaiSkinProfileBrowserTest.TahaiSkinManagedPolicyRevokesReviewAndRetainsPackages',
         'TahaiSkinProfileBrowserTest.TahaiSkinCancelledAndSupersededReviewsCannotCommit',
@@ -233,18 +383,45 @@ try {
     }
     $smoke = [ordered]@{schemaVersion=1; isolatedProfile=$true; cleanExit=$true; exitCode=0;
         chromeSha256=$artifacts[0].sha256; chromeDllSha256=$artifacts[1].sha256; checks=$checks}
+    [IO.File]::WriteAllText((Join-Path $buildDir 'args.gn'), 'SYNTHETIC args fixture')
+    $source = [ordered]@{
+        schemaVersion=1; identitySha256=('a' * 64)
+        identity=@{head=('b' * 40); buildArgsSha256=(Get-FileHash -LiteralPath (Join-Path $buildDir 'args.gn') -Algorithm SHA256).Hash}
+        sourceSnapshot=(Write-FixtureEvidence 'source.zip' @{synthetic=$true})
+    }
+    $testResults = @{nativeExitCode=0; browserExitCode=0; isolatedTestSession='SYNTHETIC fixture only'}
     $evidence = [ordered]@{schemaVersion=1; buildExitCode=0;
         buildStartedUnixMs=$started; buildFinishedUnixMs=$finished; artifacts=$artifacts;
         buildLog=@{file='build.log';sha256=(Get-FileHash -LiteralPath $logPath -Algorithm SHA256).Hash};
         nativeTests=$nativeRecord; browserTests=$browserRecord;
+        sourceProvenance=(Write-FixtureEvidence 'source-provenance.json' $source);
+        testResults=(Write-FixtureEvidence 'test-results.json' $testResults);
         smoke=(Write-FixtureEvidence 'smoke.json' $smoke)}
     $evidencePath = Join-Path $fixtureRoot 'release.json'
     $null = Write-FixtureEvidence 'release.json' $evidence
     $result = Assert-TahaiReleaseEvidence $evidencePath $buildDir
-    if ($result.NativeTestAttempts -ne 25 -or $result.BrowserTestAttempts -ne 107) {
+    if ($result.NativeTestAttempts -ne 115 -or $result.BrowserTestAttempts -ne 167) {
         throw 'Positive fixture counts were incorrect.'
     }
     $script:cases++
+
+    $source.identity.buildArgsSha256 = 'c' * 64
+    $evidence.sourceProvenance = Write-FixtureEvidence 'source-provenance.json' $source
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'source configuration mismatch'
+    $source.identity.buildArgsSha256 = (Get-FileHash -LiteralPath (Join-Path $buildDir 'args.gn') -Algorithm SHA256).Hash
+    $evidence.sourceProvenance = Write-FixtureEvidence 'source-provenance.json' $source
+    $testResults.browserExitCode = $null
+    $evidence.testResults = Write-FixtureEvidence 'test-results.json' $testResults
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'missing actual browser exit'
+    $testResults.browserExitCode = 0
+    $evidence.testResults = Write-FixtureEvidence 'test-results.json' $testResults
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    [IO.File]::AppendAllText((Join-Path $fixtureRoot 'source.zip'), 'changed')
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'changed source snapshot'
+    $source.sourceSnapshot = Write-FixtureEvidence 'source.zip' @{synthetic=$true}
+    $evidence.sourceProvenance = Write-FixtureEvidence 'source-provenance.json' $source
 
     $evidence.buildExitCode = 1
     $null = Write-FixtureEvidence 'release.json' $evidence

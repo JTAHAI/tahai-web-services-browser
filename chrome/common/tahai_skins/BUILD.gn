@@ -15,6 +15,10 @@ source_set("manifest") {
     "tahai_skin_catalog.h",
     "tahai_skin_manifest.cc",
     "tahai_skin_manifest.h",
+    "tahai_operational_skin_manifest.cc",
+    "tahai_operational_skin_manifest.h",
+    "tahai_surface_design.cc",
+    "tahai_surface_design.h",
     "tahai_skin_package.cc",
     "tahai_skin_package.h",
   ]

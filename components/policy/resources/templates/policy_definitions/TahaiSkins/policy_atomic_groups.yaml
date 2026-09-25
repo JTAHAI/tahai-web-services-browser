@@ -3,3 +3,4 @@ TahaiSkins:
   policies:
   - TahaiSkinsEnabled
   - TahaiSkinInstallationsAllowed
+  - TahaiOperationalSkinTrustedKeys

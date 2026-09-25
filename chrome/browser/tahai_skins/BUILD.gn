@@ -28,6 +28,7 @@ source_set("profile_service") {
   public_deps = [
     ":decode_session",
     ":package_store",
+    ":signature",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/themes",
     "//components/keyed_service/core",
@@ -40,6 +41,18 @@ source_set("profile_service") {
     "//content/public/browser",
     "//ui/color",
   ]
+}
+
+source_set("signature") {
+  sources = [
+    "tahai_skin_signature.cc",
+    "tahai_skin_signature.h",
+  ]
+  public_deps = [
+    ":decode_session",
+    "//base",
+  ]
+  deps = [ "//crypto" ]
 }
 
 source_set("unit_tests") {
@@ -82,11 +95,15 @@ source_set("browser_tests") {
   deps = [
     ":decode_session",
     ":profile_service",
+    ":signature",
     "//base/test:test_support",
     "//chrome:strings",
     "//chrome/browser/ui",
+    "//chrome/browser/ui/webui:configs",
     "//chrome/common:constants",
     "//chrome/test:test_support",
+    "//components/policy/core/browser",
+    "//components/policy/core/common:test_support",
     "//components/sync_preferences:test_support",
     "//content/test:test_support",
     "//crypto",

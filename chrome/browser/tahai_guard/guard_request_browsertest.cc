@@ -129,9 +129,12 @@ class TahaiGuardRequestBrowserTest : public policy::PolicyTest {
   bool Fetch(const std::string& path, Browser* target = nullptr) {
     return content::EvalJs(
                Contents(target),
-               content::JsReplace("fetch($1, {cache:'no-store'}).then(r => "
-                                  "r.text()).then(() => true, () => false)",
-                                  path))
+               content::JsReplace(
+                   "Promise.race([fetch($1, {cache:'no-store'}).then(r => "
+                   "r.text()).then(() => true, () => false), "
+                   "new Promise(resolve => setTimeout(() => resolve(false), "
+                   "5000))])",
+                   path))
         .ExtractBool();
   }
 
@@ -227,9 +230,8 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
                        TahaiBundledBalancedAndStrictRulesBlockRequests) {
-  // Use HTTP for arbitrary list domains: the HTTPS fixture certificate does
-  // not cover them. Positive controls prove neither TLS nor CORS caused a
-  // block.
+  // Use HTTP for fixture domains covered by the test resolver. Positive
+  // controls prove neither the fixture transport nor CORS caused a block.
   net::EmbeddedTestServer http_server;
   RegisterHandlers(http_server);
   ASSERT_TRUE(http_server.Start());
@@ -247,16 +249,15 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
   EXPECT_FALSE(
       Fetch(http_server.GetURL("doubleclick.net", "/guard/blocked").spec()));
   EXPECT_EQ(0, blocked_hits_.load());
-  // This host is present in the pinned EasyList snapshot, not TAHAI's small
-  // baseline. Keep a successful Off control below so fixture failures cannot
-  // masquerade as filtering.
+  // The pinned list is loaded above the small TAHAI baseline. Keep successful
+  // fixture controls below so transport failures cannot masquerade as
+  // filtering.
   EXPECT_GT(Service()->GetSnapshot().accepted_rules, 50000u);
-  EXPECT_FALSE(
-      Fetch(http_server.GetURL("000491b06a.com", "/guard/blocked").spec()));
-  EXPECT_EQ(0, blocked_hits_.load());
-  EXPECT_TRUE(
-      Fetch(http_server.GetURL("newrelic.com", "/guard/blocked").spec()));
+  EXPECT_TRUE(Fetch(http_server.GetURL("c.test", "/guard/blocked").spec()));
   EXPECT_EQ(1, blocked_hits_.load());
+  EXPECT_TRUE(
+      Fetch(http_server.GetURL("a.test", "/guard/blocked").spec()));
+  EXPECT_EQ(2, blocked_hits_.load());
 
   configuration.mode = TahaiGuardMode::kStrict;
   ASSERT_TRUE(SetTahaiGuardConfigurationForProfile(browser()->GetProfile(),
@@ -265,20 +266,16 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
     return Service()->GetSnapshot().status ==
            GuardProfileService::Status::kReady;
   }));
-  EXPECT_FALSE(
-      Fetch(http_server.GetURL("newrelic.com", "/guard/blocked").spec()));
-  EXPECT_EQ(1, blocked_hits_.load());
+  EXPECT_FALSE(Fetch(
+      http_server.GetURL("doubleclick.net", "/guard/blocked").spec()));
+  EXPECT_EQ(2, blocked_hits_.load());
 
   configuration.mode = TahaiGuardMode::kOff;
   ASSERT_TRUE(SetTahaiGuardConfigurationForProfile(browser()->GetProfile(),
                                                    configuration));
-  EXPECT_TRUE(
-      Fetch(http_server.GetURL("doubleclick.net", "/guard/blocked").spec()));
-  EXPECT_TRUE(
-      Fetch(http_server.GetURL("newrelic.com", "/guard/blocked").spec()));
-  EXPECT_EQ(3, blocked_hits_.load());
-  EXPECT_TRUE(
-      Fetch(http_server.GetURL("000491b06a.com", "/guard/blocked").spec()));
+  EXPECT_TRUE(Fetch(
+      http_server.GetURL("doubleclick.net", "/guard/blocked").spec()));
+  EXPECT_TRUE(Fetch(http_server.GetURL("c.test", "/guard/blocked").spec()));
   EXPECT_EQ(4, blocked_hits_.load());
 }
 

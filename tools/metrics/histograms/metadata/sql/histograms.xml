@@ -101,6 +101,8 @@ chromium-metrics-reviews@google.com.
   <variant name="SQLiteDiagnostics" summary="SQLiteDiagnostics"/>
   <variant name="TabStateStorage" summary="TabStateStorage"/>
   <variant name="TahaiSkins" summary="Profile-local TAHAI skin packages"/>
+  <variant name="TahaiWorkflowJournal"
+      summary="Profile-local TAHAI native workflow attempt journal"/>
   <variant name="Test" summary="Test"/>
   <variant name="Thumbnail" summary="Thumbnail"/>
   <variant name="TopSites" summary="TopSites"/>

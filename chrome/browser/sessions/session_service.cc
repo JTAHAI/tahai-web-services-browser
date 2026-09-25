@@ -18,6 +18,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/values.h"
 #include "build/build_config.h"
+#include "build/branding_buildflags.h"
 #include "chrome/browser/apps/app_service/launch_utils.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/buildflags.h"
@@ -63,6 +64,10 @@
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/session_storage_namespace.h"
 #include "content/public/browser/web_contents.h"
+
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+#include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
+#endif
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/crostini/crostini_util.h"
@@ -418,6 +423,14 @@ void SessionService::WindowOpened(Browser* browser) {
   SetWindowVisibleOnAllWorkspaces(
       browser->session_id(),
       BrowserWindow::FromBrowser(browser)->IsVisibleOnAllWorkspaces());
+#if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
+  if (auto* mode = tahai::WindowModeController::GetForBrowser(browser)) {
+    if (auto json = mode->SerializePresentation()) {
+      AddWindowExtraData(browser->session_id(),
+                         tahai::kWindowPresentationSessionKey, *json);
+    }
+  }
+#endif
 }
 
 void SessionService::WindowClosing(SessionID window_id) {
