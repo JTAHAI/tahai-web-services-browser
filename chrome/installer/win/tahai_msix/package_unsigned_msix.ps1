@@ -20,6 +20,7 @@ if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
     throw "Could not resolve the TAHAI MSIX packager directory."
 }
 . (Join-Path $scriptDirectory 'release_evidence.ps1')
+. (Join-Path $scriptDirectory 'tahai_package_helpers.ps1')
 $nativeSourceRoot = (Resolve-Path -LiteralPath (Join-Path $scriptDirectory '..\..\..\..')).Path
 if ([string]::IsNullOrWhiteSpace($BuildDir)) {
     $BuildDir = Join-Path $scriptDirectory "..\..\..\..\out\tahai_release_x64"
@@ -384,8 +385,9 @@ Assert-ReleaseBuildIsCurrent
 $validation = Assert-TahaiReleaseEvidence $ValidationEvidence $resolvedBuildDir
 & $ProvenancePython (Join-Path $nativeSourceRoot 'tools\tahai\source_provenance.py') --source $nativeSourceRoot --build $resolvedBuildDir --compare $validation.SourceProvenance
 if ($LASTEXITCODE -ne 0) { throw 'Source changed since the verified build.' }
-& $python (Join-Path $scriptDirectory 'verify_release_resources.py') --build-dir $resolvedBuildDir
-if ($LASTEXITCODE -ne 0) { throw 'TAHAI release resource/third-party notice verification failed.' }
+Invoke-TahaiReleaseResourceValidation -PythonExecutable $ProvenancePython `
+    -ValidatorScript (Join-Path $scriptDirectory 'verify_release_resources.py') `
+    -BuildDirectory $resolvedBuildDir
 
 $versionParts = $Version -split '\.'
 if ($versionParts.Count -ne 4 -or @($versionParts | Where-Object {
