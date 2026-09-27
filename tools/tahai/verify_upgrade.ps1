@@ -1,6 +1,10 @@
 param(
   [string]$BuildDirectory = 'out\tahai_release_x64',
   [string]$DepotTools = 'D:\dev\depot_tools',
+  # The recovered release toolchain is deliberately pinned.  Do not replace
+  # either path with a discovery of the newest VS or bootstrap directory.
+  [string]$VisualStudioPath = 'C:\PROGRA~2\MICROS~2\18\BUILDT~1',
+  [string]$BootstrapPython = 'D:\dev\depot_tools\bootstrap-2@3_11_8_chromium_35_bin\python3\bin\python3.exe',
   # Optional creator-test interpreter with cryptography/Ed25519 installed.
   # This never changes Chromium's recovered Python or build environment.
   [string]$CreatorPython = '',
@@ -126,37 +130,34 @@ try {
   if (-not $BuildOnly -and [string]::IsNullOrWhiteSpace($IsolatedTestSession)) {
     throw 'Interactive gates require a designated isolated Windows session. Use BuildOnly on the everyday desktop.'
   }
-  $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-  $installation = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -format json | ConvertFrom-Json
-  if (-not $installation.installationPath) { throw 'Visual Studio C++ build tools were not found.' }
-  # Chromium's local VS setup invokes vcvarsall through cmd.exe. A VS 18
-  # BuildTools install below Program Files (x86) can otherwise hit cmd's
-  # parentheses parsing path in that invocation. Resolve the real installed
-  # directory to its Win32 short form once and use the same path for every GN
-  # and Ninja recipe in this release run.
-  $fileSystem = New-Object -ComObject Scripting.FileSystemObject
-  $visualStudioPath = [string]$fileSystem.GetFolder([string]$installation.installationPath).ShortPath
-  if (-not $visualStudioPath) { throw 'Could not resolve a stable Visual Studio path.' }
-  if ($installation.installationVersion -like '18.*') {
-    $env:vs2026_install = $visualStudioPath
-  } else {
-    $env:vs2022_install = $visualStudioPath
+  # Chromium's local VS setup invokes vcvarsall through cmd.exe.  Preserve the
+  # recovered short path instead of letting a new VS install silently change
+  # the generator and linker environment mid-release.
+  if (-not (Test-Path -LiteralPath $VisualStudioPath -PathType Container)) {
+    throw "Recovered Visual Studio path is unavailable: $VisualStudioPath"
   }
+  $visualStudioPath = $VisualStudioPath.TrimEnd('\')
+  $env:vs2026_install = $visualStudioPath
   $env:GYP_MSVS_OVERRIDE_PATH = $visualStudioPath
   $env:DEPOT_TOOLS_WIN_TOOLCHAIN = '0'
-  # Keep GN's Python selection stable between generations. Alternating system
+  # Keep GN's Python selection stable between generations.  Alternating system
   # Python and depot_tools Python invalidates thousands of action commands.
-  $bootstrapPython = Get-ChildItem -LiteralPath $DepotTools -Directory -Filter 'bootstrap-*_bin' |
-    Sort-Object LastWriteTime -Descending | Select-Object -First 1
-  if (-not $bootstrapPython) { throw 'Run depot_tools bootstrap before building.' }
-  $pythonDirectory = Join-Path $bootstrapPython.FullName 'python3\bin'
-  $python = Join-Path $pythonDirectory 'python3.exe'
+  if (-not (Test-Path -LiteralPath $DepotTools -PathType Container) -or
+      -not (Test-Path -LiteralPath $BootstrapPython -PathType Leaf)) {
+    throw 'Recovered depot_tools or its pinned bootstrap Python is unavailable.'
+  }
+  $depotToolsRoot = [IO.Path]::GetFullPath($DepotTools).TrimEnd('\')
+  $python = [IO.Path]::GetFullPath($BootstrapPython)
+  if (-not $python.StartsWith($depotToolsRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Pinned bootstrap Python must remain under the selected depot_tools root.'
+  }
+  $pythonDirectory = Split-Path -Parent $python
   $creatorTestExecutable = if ([string]::IsNullOrWhiteSpace($CreatorPython)) { $python } else { $CreatorPython }
   if (-not (Test-Path -LiteralPath $creatorTestExecutable -PathType Leaf)) {
     throw 'CreatorPython must identify an existing Python executable with Ed25519 support.'
   }
   $logged = Join-Path $nativeSource 'tools\tahai\run_logged.py'
-  $env:PATH = $pythonDirectory + ';' + $DepotTools + ';' + $env:PATH.Replace('"', '')
+  $env:PATH = $pythonDirectory + ';' + $depotToolsRoot + ';' + $env:PATH.Replace('"', '')
 
   $stage = 'creator and bundled-list checks'
   Write-UpgradeStatus 'running'

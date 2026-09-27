@@ -7,7 +7,9 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$SmokePath,
   [Parameter(Mandatory = $true)]
-  [string]$EvidenceDirectory
+  [string]$EvidenceDirectory,
+  # Keep provenance verification on Chromium's recovered bootstrap runtime.
+  [string]$ProvenancePython = 'D:\dev\depot_tools\bootstrap-2@3_11_8_chromium_35_bin\python3\bin\python3.exe'
 )
 
 # Assemble, but never invent, the evidence consumed by the Store packager. The
@@ -45,6 +47,9 @@ function Copy-EvidenceFile([string]$Path) {
 $RunDirectory = (Resolve-Path -LiteralPath $RunDirectory).Path
 $BuildDirectory = (Resolve-Path -LiteralPath $BuildDirectory).Path
 $SmokePath = (Resolve-Path -LiteralPath $SmokePath).Path
+if (-not (Test-Path -LiteralPath $ProvenancePython -PathType Leaf)) {
+  throw "Recovered provenance Python is unavailable: $ProvenancePython"
+}
 if (Test-Path -LiteralPath $EvidenceDirectory) {
   throw "Evidence output directory must be new: $EvidenceDirectory"
 }
@@ -70,7 +75,7 @@ if ($testResults.nativeExitCode -isnot [int] -or $testResults.nativeExitCode -ne
 $sourcePath = Join-Path $RunDirectory 'source-provenance.json'
 $source = Get-Content -LiteralPath $sourcePath -Raw | ConvertFrom-Json
 $nativeSource = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
-& python.exe (Join-Path $PSScriptRoot 'source_provenance.py') --source $nativeSource --build $BuildDirectory --compare $sourcePath
+& $ProvenancePython (Join-Path $PSScriptRoot 'source_provenance.py') --source $nativeSource --build $BuildDirectory --compare $sourcePath
 if ($LASTEXITCODE -ne 0) { throw 'Source differs from the verified build snapshot.' }
 if ($source.sourceSnapshot.file -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
   throw 'Invalid source snapshot filename.'

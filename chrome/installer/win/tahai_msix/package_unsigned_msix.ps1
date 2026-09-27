@@ -9,7 +9,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
     [Parameter(Mandatory = $true)]
-    [string]$ValidationEvidence
+    [string]$ValidationEvidence,
+    # Do not resolve an arbitrary system Python while validating frozen source.
+    [string]$ProvenancePython = 'D:\dev\depot_tools\bootstrap-2@3_11_8_chromium_35_bin\python3\bin\python3.exe'
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,6 +23,9 @@ if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
 $nativeSourceRoot = (Resolve-Path -LiteralPath (Join-Path $scriptDirectory '..\..\..\..')).Path
 if ([string]::IsNullOrWhiteSpace($BuildDir)) {
     $BuildDir = Join-Path $scriptDirectory "..\..\..\..\out\tahai_release_x64"
+}
+if (-not (Test-Path -LiteralPath $ProvenancePython -PathType Leaf)) {
+    throw "Recovered provenance Python is unavailable: $ProvenancePython"
 }
 
 function Copy-RequiredFile {
@@ -377,8 +382,7 @@ if ($buildArgs -notmatch '(?m)^is_debug\s*=\s*false\s*$' -or
 }
 Assert-ReleaseBuildIsCurrent
 $validation = Assert-TahaiReleaseEvidence $ValidationEvidence $resolvedBuildDir
-$python = (Get-Command python.exe -ErrorAction Stop).Source
-& $python (Join-Path $nativeSourceRoot 'tools\tahai\source_provenance.py') --source $nativeSourceRoot --build $resolvedBuildDir --compare $validation.SourceProvenance
+& $ProvenancePython (Join-Path $nativeSourceRoot 'tools\tahai\source_provenance.py') --source $nativeSourceRoot --build $resolvedBuildDir --compare $validation.SourceProvenance
 if ($LASTEXITCODE -ne 0) { throw 'Source changed since the verified build.' }
 & $python (Join-Path $scriptDirectory 'verify_release_resources.py') --build-dir $resolvedBuildDir
 if ($LASTEXITCODE -ne 0) { throw 'TAHAI release resource/third-party notice verification failed.' }
@@ -462,7 +466,7 @@ foreach ($actual in $unpackedPayload) {
 # Detect a concurrent rebuild or edited validation report before issuing any
 # success receipt. Compare the actual packaged core binaries with that evidence.
 $finalValidation = Assert-TahaiReleaseEvidence $ValidationEvidence $resolvedBuildDir
-& $python (Join-Path $nativeSourceRoot 'tools\tahai\source_provenance.py') --source $nativeSourceRoot --build $resolvedBuildDir --compare $validation.SourceProvenance
+& $ProvenancePython (Join-Path $nativeSourceRoot 'tools\tahai\source_provenance.py') --source $nativeSourceRoot --build $resolvedBuildDir --compare $validation.SourceProvenance
 if ($LASTEXITCODE -ne 0) { throw 'Source changed while packaging.' }
 Assert-ReleaseBuildIsCurrent
 if ($finalValidation.EvidenceSha256 -ne $validation.EvidenceSha256) {
