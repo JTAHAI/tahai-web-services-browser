@@ -167,7 +167,7 @@ try {
   $result.failure = $_.ToString()
   $_ | Out-String | Set-Content -LiteralPath (Join-Path $evidence 'runner-error.log') -Encoding utf8
 } finally {
-  if (Test-Path -LiteralPath $record) {
+  if ($record -and (Test-Path -LiteralPath $record)) {
     & $python $logged --log (Join-Path $evidence 'source-comparison.log') -- $python tools/tahai/source_provenance.py --source $source --build $build --compare $record
     $result.sourceComparisonExitCode = $LASTEXITCODE
   }
