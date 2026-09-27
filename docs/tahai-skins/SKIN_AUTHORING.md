@@ -116,8 +116,17 @@ Starters contain no entered values, live progress, website references, native
 actions or connector configuration. Required inputs and conditional steps can
 be tried in the local simulator. Research capture, creative publishing,
 calendar/task access and diagnostics remain manual work outside these starter
-checklists; the gallery does not implement those integrations. These workflow
-starters are not the complete operational-skin surface/template collection.
+checklists; the gallery does not implement those integrations.
+
+The offline creator kit also includes six complete, editable v2 package sources
+under `templates/`, with corresponding `.tahaiskin` archives. Each has a distinct
+mode, native pane layout, rail arrangement, typed workflow and local walkthrough.
+The shared `assets/preview.png` is starter artwork, not a screenshot of a live
+browser session. Review a template's `manifest.json`, edit it, then rebuild it
+with `build_skin.py` before signing or importing. An unsigned example does not
+acquire operational trust or grant a website capability by being present in the
+kit. Chromium extensions remain the supported route for third-party service
+integrations; these templates carry no connector or credential configuration.
 
 Normal validation, undo/redo, autosave and reload apply after adding a starter.
 Invalid source, a read-only draft, the 24-workflow quota or the source-size limit

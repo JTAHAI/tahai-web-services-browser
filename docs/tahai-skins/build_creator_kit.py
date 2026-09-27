@@ -5,7 +5,10 @@ import base64
 import io
 import json
 from pathlib import Path
+import tempfile
 import zipfile
+
+from operational_templates import TEMPLATES, readme, source_manifest
 
 ROOT = Path(__file__).resolve().parent
 
@@ -29,7 +32,7 @@ def outputs():
             (ROOT / "operational-skin-v2.example.json").read_bytes(),
     }
     for name in ("studio.html", "studio.css", "studio.js", "build_skin.py",
-                 "SKIN_AUTHORING.md"):
+                 "build_creator_kit.py", "SKIN_AUTHORING.md"):
         entries[name] = (ROOT / name).read_bytes()
     for path in sorted(starter.rglob("*")):
         if path.is_file():
@@ -37,6 +40,19 @@ def outputs():
     for path in sorted(operational_starter.rglob("*")):
         if path.is_file():
             entries["operational-starter-skin/" + path.relative_to(operational_starter).as_posix()] = path.read_bytes()
+    preview = (operational_starter / "assets/preview.png").read_bytes()
+    with tempfile.TemporaryDirectory(prefix="tahai-creator-templates-") as directory:
+        for name in sorted(TEMPLATES):
+            source = Path(directory) / name
+            (source / "assets").mkdir(parents=True)
+            manifest = (json.dumps(source_manifest(name), indent=2) + "\n").encode("utf-8")
+            (source / "manifest.json").write_bytes(manifest)
+            (source / "assets/preview.png").write_bytes(preview)
+            entries[f"templates/{name}/manifest.json"] = manifest
+            entries[f"templates/{name}/assets/preview.png"] = preview
+            entries[f"templates/{name}/README.md"] = readme(name)
+            entries[f"templates/{name}.tahaiskin"] = build(source)
+    entries["operational_templates.py"] = (ROOT / "operational_templates.py").read_bytes()
     entries["README.md"] = (starter / "README.md").read_bytes()
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_STORED) as result:

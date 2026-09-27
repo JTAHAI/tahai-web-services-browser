@@ -12,6 +12,7 @@ import zipfile
 
 import build_skin
 import build_creator_kit
+import operational_templates
 
 
 class CreatorTests(unittest.TestCase):
@@ -596,6 +597,32 @@ class CreatorTests(unittest.TestCase):
             with zipfile.ZipFile(io.BytesIO(
                     archive.read("operational-starter-skin.tahaiskin"))) as skin:
                 self.assertEqual(2, json.loads(skin.read("manifest.json"))["schema_version"])
+
+    def test_creator_kit_ships_six_distinct_editable_operational_templates(self):
+        kit = build_creator_kit.outputs()["skin-creator-kit.zip"]
+        signatures = set()
+        with zipfile.ZipFile(io.BytesIO(kit)) as archive:
+            for name in operational_templates.TEMPLATES:
+                with self.subTest(template=name):
+                    stem = f"templates/{name}"
+                    source = json.loads(archive.read(f"{stem}/manifest.json"))
+                    self.assertIn(f"{stem}/README.md", archive.namelist())
+                    self.assertIn(f"{stem}/assets/preview.png", archive.namelist())
+                    with zipfile.ZipFile(io.BytesIO(archive.read(f"{stem}.tahaiskin"))) as skin:
+                        packaged = json.loads(skin.read("manifest.json"))
+                        self.assertIsNone(skin.testzip())
+                        self.assertEqual(source["id"], packaged["id"])
+                        self.assertEqual(2, packaged["schema_version"])
+                        self.assertEqual(
+                            build_skin.hashlib.sha256(skin.read("assets/preview.png")).hexdigest(),
+                            packaged["assets"][0]["sha256"])
+                        self.assertNotIn("credential", json.dumps(packaged).lower())
+                        operational = packaged["operational"]
+                        self.assertEqual(1, len(operational["modes"]))
+                        self.assertEqual(1, len(operational["surfaces"]))
+                        self.assertEqual(1, len(operational["workflows"]))
+                        signatures.add(json.dumps(operational["workflows"][0], sort_keys=True))
+        self.assertEqual(6, len(signatures))
 
 
 class SurfaceDesignTests(unittest.TestCase):
