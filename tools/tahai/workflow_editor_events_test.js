@@ -103,6 +103,10 @@ const blocks = [...resource.matchAll(/R"TAHAI\(([\s\S]*?)\)TAHAI"/g)];
 for (const index of [0, 1, 3, 2]) vm.runInContext(blocks[index][1], context, {timeout: 1000});
 const tools = read('chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_tools.h').match(/R"TAHAI\(([\s\S]*?)\)TAHAI"/)[1];
 vm.runInContext(tools, context, {timeout: 1000});
+const conditionTree = read('chrome/browser/ui/webui/tahai/tahai_skin_studio_condition_tree.h').match(/R"TAHAI\(([\s\S]*?)\)TAHAI"/)[1];
+vm.runInContext(conditionTree, context, {timeout: 1000});
+const outline = [...read('chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_outline.h').matchAll(/R"TAHAI\(([\s\S]*?)\)TAHAI"/g)][1][1];
+vm.runInContext(outline, context, {timeout: 1000});
 const get = id => document.querySelector('#skin-studio-' + id);
 const change = (id, value) => { get(id).value = value; get(id).dispatchEvent(new Event('change')); };
 const click = id => get(id).click();
@@ -148,6 +152,16 @@ check(() => {
   assert(completion); completion.click();
   assert(get('simulation-status').textContent.includes('Simulation complete'));
   assert.equal(source.value, before);
+});
+check(() => {
+  get('compensation-name').value = 'Confirm actual authority'; click('compensation-add');
+  assert.deepEqual(JSON.parse(JSON.stringify(selected().compensation_steps)),
+    [{id: 'recovery-confirm-actual-authority', name: 'Confirm actual authority'}]);
+  const name = get('compensation-steps').find(node => node.dataset.workflowCompensationName === 'recovery-confirm-actual-authority');
+  const before = source.value; name.value = '<unsafe>'; name.dispatchEvent(new Event('change'));
+  assert.equal(source.value, before); assert.equal(name.value, 'Confirm actual authority');
+  get('compensation-steps').find(node => node.dataset.workflowCompensationRemove === 'recovery-confirm-actual-authority').click();
+  assert(!Object.hasOwn(selected(), 'compensation_steps'));
 });
 check(() => {
   const stale = get('workflow-steps').find(node => node.dataset.workflowStep === 'review');
@@ -203,7 +217,7 @@ check(() => {
 check(() => {
   const before = source.value; source.readOnly = true;
   change('workflow-name', 'Forbidden'); get('workflow-new-name').value = 'Forbidden';
-  for (const id of ['workflow-create', 'workflow-copy', 'workflow-bind', 'workflow-remove', 'add-input', 'add-step']) click(id);
+  for (const id of ['workflow-create', 'workflow-copy', 'workflow-bind', 'workflow-remove', 'add-input', 'add-step', 'compensation-add']) click(id);
   assert.equal(source.value, before); source.readOnly = false; source.dispatchEvent(new Event('input'));
 });
 check(() => {
@@ -261,7 +275,7 @@ const palette = add('select', 'palette'), dark = new Element('option'); dark.val
 add('div', 'tokens'); add('article', 'preview');
 // Scheduled native autosave is deliberately disconnected in this test double.
 context.window.clearTimeout = () => {}; context.window.setTimeout = () => 1;
-const paletteScript = ui.match(/constexpr char kSkinStudioJs\[\] = R"TAHAI\(([\s\S]*?)\)TAHAI";/)[1];
+const paletteScript = read('chrome/browser/ui/webui/tahai/tahai_skin_studio_editor.h').match(/R"TAHAI\(([\s\S]*?)\)TAHAI"/)[1];
 vm.runInContext(paletteScript, context, {timeout: 1000});
 check(() => {
   const simInput = get('simulation-inputs').find(node => node.dataset.simulationInput === 'approved');
@@ -920,5 +934,282 @@ check(()=>{
 check(()=>{
   change('condition-step','dispatch');assert(!get('assignment-source').options.some(item=>item.value==='action-status:dispatch'));
   change('condition-step','capture');assert.equal(get('assignment-source').value,'action-status:dispatch');
+});
+check(() => {
+  const doc = parsed(), w = doc.operational.workflows[0];
+  w.inputs = [{id:'approved',name:'Approved',type:'boolean',required:false},
+    {id:'amount',name:'Amount',type:'number',required:false}];
+  w.variables = [{id:'outcome',name:'Outcome',type:'text'}]; w.outputs = [];
+  w.steps = [{id:'review',name:'Review',kind:'checkpoint',when:{all:[
+    {input:'approved',equals:'true'},{input:'amount',compare:{op:'greater-than',number:1}}]}},
+    {id:'dispatch',name:'Dispatch',kind:'run-command',action:'layout.dual'},
+    {id:'capture',name:'Record',kind:'assign-variable',assign:{variable:'outcome',from:{action_status:'dispatch'}}},
+    {id:'delay',name:'Delay',kind:'wait',wait:{seconds:1,timeout_seconds:5}}];
+  w.repeats = [{id:'twice',from:'dispatch',through:'capture',count:2}];
+  source.value = JSON.stringify(doc); source.dispatchEvent(new Event('input'));
+  assert.equal(get('flow').children.length, 4);
+  assert(get('flow-summary').textContent.includes('4 authored steps; 6 steps after repeat expansion'));
+});
+const graphButtons = () => get('flow').children.map(row => row.find(node => node.tagName === 'button'));
+check(() => {
+  const text = get('flow').textContent;
+  for (const expected of ['Input Approved equals "true"', 'Input Amount is greater than 1',
+      'False: skip this step', 'Missing value: stop here', '2 total iterations of steps 2–3',
+      'Return to the first step', 'Explicit native action: layout.dual',
+      'Explicit assignment to variable: outcome', 'deadline 5 active seconds']) assert(text.includes(expected), expected);
+});
+check(() => {
+  const before = source.value;
+  graphButtons()[2].click();
+  assert.equal(get('condition-step').value, 'capture');
+  assert.equal(get('assignment-target').value, 'outcome');
+  assert.equal(graphButtons()[2]['aria-pressed'], 'true');
+  assert.equal(graphButtons().filter(button => button.tabIndex === 0).length, 1);
+  assert.equal(source.value, before);
+});
+for (const [key, target] of [['Home','review'], ['ArrowDown','dispatch'], ['End','delay'], ['ArrowDown','delay'], ['ArrowUp','capture']]) check(() => {
+  const before = source.value; let prevented = false;
+  graphButtons().find(button => button.tabIndex === 0).dispatchEvent({type:'keydown',key,preventDefault:()=>prevented=true});
+  assert(prevented); assert.equal(get('condition-step').value, target);
+  assert(graphButtons().find(button => button.dataset.flowStep === target).focused);
+  assert.equal(source.value, before);
+});
+check(() => {
+  change('condition-step', 'delay');
+  assert.equal(graphButtons()[3]['aria-pressed'], 'true');
+  assert.equal(graphButtons()[3].tabIndex, 0);
+});
+check(() => {
+  const stale = graphButtons()[1], before = source.value;
+  source.readOnly = true; source.dispatchEvent(new Event('input'));
+  assert(get('condition-step').disabled);
+  graphButtons()[0].click(); assert.equal(get('condition-step').value, 'review');
+  stale.dispatchEvent(new Event('click')); assert.equal(get('condition-step').value, 'review');
+  assert.equal(source.value, before);
+  source.readOnly = false; source.dispatchEvent(new Event('input'));
+});
+check(() => {
+  const before = source.value, stale = graphButtons()[0];
+  source.value = '{'; source.dispatchEvent(new Event('input'));
+  assert.equal(get('flow').children.length, 0); assert(get('flow-summary').textContent.includes('valid workflow'));
+  stale.dispatchEvent(new Event('click')); assert.equal(source.value, '{');
+  source.value = before; source.dispatchEvent(new Event('input'));
+  assert.equal(get('flow').children.length, 4);
+});
+check(() => {
+  const stale = graphButtons()[0];
+  get('workflow-new-name').value = 'Outline copy'; click('workflow-copy');
+  const before = source.value, selectedStep = get('condition-step').value;
+  stale.dispatchEvent(new Event('click'));
+  assert.equal(get('condition-step').value, selectedStep); assert.equal(source.value, before);
+  assert(get('flow-summary').textContent.includes('Outline copy'));
+});
+check(() => {
+  assert.equal(get('workflow-template-choice').options.length, 6);
+  const before = source.value;
+  change('workflow-template-choice','creator');
+  assert(get('workflow-template-description').textContent.includes('separate manual website action'));
+  assert(get('workflow-template-preview').textContent.includes('conditional'));
+  assert.equal(source.value, before);
+});
+for (const id of ['research','creator','planning','learning','operations','focus']) check(() => {
+  const before = parsed(), count = before.operational.workflows.length;
+  change('workflow-template-choice',id); click('workflow-template');
+  const after = parsed(); assert.equal(after.operational.workflows.length, count+1);
+  assert.equal(selected().id, after.operational.workflows.at(-1).id);
+  const restored = JSON.parse(JSON.stringify(after)); restored.operational.workflows.pop();
+  assert.deepEqual(restored,before);
+  assert(get('flow-summary').textContent.includes(selected().name));
+});
+check(() => {
+  const before=source.value;source.readOnly=true;source.dispatchEvent(new Event('input'));
+  assert(get('workflow-template').disabled);
+  get('workflow-template').dispatchEvent(new Event('click'));assert.equal(source.value,before);
+  source.readOnly=false;source.value='{';source.dispatchEvent(new Event('input'));
+  assert(get('workflow-template').disabled);
+  get('workflow-template').dispatchEvent(new Event('click'));assert.equal(source.value,'{');
+  source.value=before;source.dispatchEvent(new Event('input'));
+});
+check(()=>{
+  const doc=parsed(),current=doc.operational.workflows.find(item=>item.id===selected().id);
+  current.inputs=[{id:'flag',name:'Flag',type:'boolean',required:false}];
+  current.variables=[{id:'result',name:'Result',type:'boolean'}];delete current.outputs;delete current.repeats;
+  current.steps=[{id:'review',name:'Review',kind:'checkpoint',when:{input:'flag',equals:'true'}}];
+  source.value=JSON.stringify(doc);source.dispatchEvent(new Event('input'));
+  change('condition-step','review');change('assignment-target','result');
+  assert(!get('boolean-from-condition').disabled);click('boolean-from-condition');
+  assert.equal(selected().steps[0].assign.boolean_expression.input,'flag');assert(!selected().steps[0].when);
+  assert.equal(selected().steps[0].kind,'assign-variable');assert(get('boolean-from-condition').disabled);
+  assert.equal(JSON.parse(get('boolean-expression').value).equals,'true');
+});
+check(()=>{const expression={not:{input:'flag',equals:'true'}};get('boolean-expression').value=JSON.stringify(expression);click('boolean-save');
+  assert.equal(JSON.stringify(selected().steps[0].assign.boolean_expression),JSON.stringify(expression));
+});
+for(const text of ['{','null','{}',JSON.stringify({input:'flag',equals:true}),' '.repeat(8193)])check(()=>{
+  const before=source.value;get('boolean-expression').value=text;click('boolean-save');assert.equal(source.value,before);
+});
+check(()=>{source.dispatchEvent(new Event('input'));const before=source.value;
+  get('workflow-inputs').children[0].find(node=>node.tagName==='button'&&node.textContent==='Remove').click();
+  assert.equal(source.value,before);assert(status.textContent.includes('assignments'));
+  source.readOnly=true;source.dispatchEvent(new Event('input'));assert(get('boolean-save').disabled);
+  get('boolean-save').dispatchEvent(new Event('click'));assert.equal(source.value,before);
+  source.readOnly=false;source.dispatchEvent(new Event('input'));
+});
+const traceKinds = () => get('simulation-trace').children.map(row=>row.dataset.simulationTraceKind);
+const traceStepButton = (index,label) => get('simulation-steps').children[index].find(node=>node.tagName==='button'&&(!label||node.textContent===label));
+const traceFixture = (steps,inputs=[],variables=[]) => {
+  const doc=parsed(), current=doc.operational.workflows.find(item=>item.id===selected().id);
+  doc.operational.capabilities=['mission-checklist','workspace-layout','guard-control'];
+  current.inputs=inputs;current.variables=variables;current.steps=steps;delete current.repeats;delete current.outputs;
+  source.value=JSON.stringify(doc);source.dispatchEvent(new Event('input'));click('simulate');
+};
+check(()=>{
+  traceFixture([{id:'copy--source',name:'Copy',kind:'assign-variable',assign:{variable:'private-copy',from:{input:'private-source'}}},
+    {id:'delay',name:'Delay',kind:'wait',wait:{seconds:1,timeout_seconds:3}},
+    {id:'dispatch',name:'Dispatch',kind:'run-command',action:'mission.open'},
+    {id:'finish',name:'Finish',kind:'checkpoint'}],
+    [{id:'private-source',name:'Private',type:'text',protected:true,required:false}],
+    [{id:'private-copy',name:'Private copy',type:'text',protected:true}]);
+  const control=get('simulation-inputs').find(node=>node.dataset.simulationInput==='private-source');
+  control.value='TRACE-PRIVATE-SENTINEL';control.dispatchEvent(new Event('change'));
+  const before=source.value;assert.equal(get('simulation-trace').children.length,0);
+  traceStepButton(0).click();traceStepButton(1).click();traceStepButton(1).click();traceStepButton(2).click();traceStepButton(3).click();
+  assert.deepEqual(traceKinds(),['assignment-completed','wait-started','wait-completed','action-dispatched','checkpoint-completed']);
+  assert.equal(get('simulation-trace').children[0].dataset.simulationTraceStep,'copy--source');
+  assert(!get('simulation-trace').textContent.includes('TRACE-PRIVATE-SENTINEL'));assert.equal(source.value,before);
+  const result=get('simulation-status').textContent;click('simulate');assert.equal(get('simulation-trace').children.length,5);
+  click('simulation-trace-clear');assert.equal(get('simulation-trace').children.length,0);assert.equal(get('simulation-status').textContent,result);
+  assert.equal(get('simulation-steps').find(node=>node.tagName==='button'),null);assert.equal(source.value,before);
+});
+check(()=>{
+  traceFixture([{id:'calculate',name:'Calculate',kind:'assign-variable',assign:{variable:'total',expression:{op:'divide',args:[{number:1},{number:0}]}}}],[],[{id:'total',name:'Total',type:'number'}]);
+  const before=source.value,blocked=traceStepButton(0);
+  for(let i=0;i<140;++i)blocked.click();
+  assert.equal(get('simulation-trace').children.length,128);assert(traceKinds().every(kind=>kind==='assignment-blocked'));
+  assert(get('simulation-trace').children[0].textContent.startsWith('13. '));assert(get('simulation-trace').children.at(-1).textContent.startsWith('140. '));
+  assert(get('simulation-trace-status').textContent.includes('Older events were omitted'));assert.equal(source.value,before);
+  click('simulation-reset');assert.equal(get('simulation-trace').children.length,0);blocked.click();assert.equal(get('simulation-trace').children.length,0);
+});
+for(const [button,kind] of [['Simulate rejected action','action-rejected'],['Simulate unknown outcome','action-unknown']])check(()=>{
+  traceFixture([{id:'dispatch',name:'Dispatch',kind:'run-command',action:'mission.open'}]);
+  const stale=traceStepButton(0,button),before=source.value;stale.click();assert.deepEqual(traceKinds(),[kind]);
+  stale.click();assert.deepEqual(traceKinds(),[kind]);assert.equal(source.value,before);
+  source.dispatchEvent(new Event('tahai-workflow-selection'));assert.equal(get('simulation-trace').children.length,0);
+  stale.click();assert.equal(get('simulation-trace').children.length,0);
+});
+check(()=>{
+  traceFixture([{id:'delay',name:'Delay',kind:'wait',wait:{seconds:1,timeout_seconds:3}}]);
+  traceStepButton(0).click();traceStepButton(0,'Advance to deadline and fail in simulation').click();
+  assert.deepEqual(traceKinds(),['wait-started','wait-timed-out']);
+  source.value='{';source.dispatchEvent(new Event('input'));assert.equal(get('simulation-trace').children.length,0);
+});
+check(()=>{
+  source.value=JSON.stringify(fixture);source.dispatchEvent(new Event('input'));
+  traceFixture([{id:'conditional',name:'Conditional',kind:'checkpoint',when:{all:[{input:'flag',equals:'true'},{input:'flag',equals:'true'}]}},
+    {id:'finish',name:'Finish',kind:'checkpoint'}],[{id:'flag',name:'Flag',type:'boolean',required:false}]);
+  const control=get('simulation-inputs').find(node=>node.dataset.simulationInput==='flag');
+  control.value='false';control.dispatchEvent(new Event('change'));traceStepButton(1).click();
+  assert.deepEqual(traceKinds(),['branch-recorded','checkpoint-completed']);
+  assert(!get('simulation-trace').textContent.includes('false'));
+  control.value='true';control.dispatchEvent(new Event('change'));assert.equal(get('simulation-trace').children.length,0);
+  traceStepButton(0).click();assert.deepEqual(traceKinds(),['branch-recorded','checkpoint-completed']);
+  const before=source.value;source.dispatchEvent(new Event('input'));assert.equal(get('simulation-trace').children.length,0);assert.equal(source.value,before);
+});
+check(()=>{
+  traceFixture([{id:'review',name:'Review',kind:'checkpoint'}]);const doc=parsed(),current=doc.operational.workflows.find(item=>item.id===selected().id);
+  current.repeats=[{id:'twice',from:'review',through:'review',count:2}];source.value=JSON.stringify(doc);source.dispatchEvent(new Event('input'));click('simulate');
+  traceStepButton(0).click();traceStepButton(1).click();assert.deepEqual(get('simulation-trace').children.map(row=>row.dataset.simulationTraceStep),['r-twice-1-review','r-twice-2-review']);
+});
+const treeButton = (node, edit) => get('condition-tree').find(item => item.dataset.conditionNode === node && item.dataset.conditionEdit === edit);
+const conditionFixture = when => {
+  traceFixture([{id:'review',name:'Review',kind:'checkpoint',...(when ? {when} : {})},
+      {id:'other',name:'Other',kind:'checkpoint',when:{input:'flag',equals:'false'}}],
+    [{id:'flag',name:'Flag',type:'boolean',required:false}, {id:'amount',name:'Amount',type:'number',required:false},
+     {id:'scope',name:'Scope',type:'selection',options:['Public','Personal'],required:false},
+     {id:'secret',name:'Secret',type:'number',protected:true,required:false}],
+    [{id:'ready',name:'Ready',type:'boolean'}]);
+  change('condition-step','review');
+};
+const flagCheck = {input:'flag',equals:'true'};
+const treeCondition = () => JSON.parse(JSON.stringify(selected().steps[0].when));
+check(()=>{
+  conditionFixture({all:[flagCheck,{not:{any:[flagCheck,{input:'amount',compare:{op:'at-least',number:2}}]}}]});
+  const before=source.value;
+  assert(get('condition-tree-status').textContent.startsWith('6 of 31'));
+  assert(get('condition-tree').textContent.includes('AND — every check'));
+  assert(get('condition-tree').textContent.includes('Input: Amount is at least 2'));
+  source.dispatchEvent(new Event('input'));assert.equal(source.value,before,'Rendering cannot rewrite a condition');
+});
+check(()=>{
+  change('condition-input','scope');change('condition-value','Personal');treeButton('all/1/not/any/1','replace').click();
+  assert.deepEqual(treeCondition().all[1].not.any[1],{input:'scope',equals:'Personal'});
+  assert(treeButton('all/1/not/any/1','replace').focused);
+  assert.deepEqual(treeCondition().all[0],flagCheck);
+});
+check(()=>{
+  treeButton('all/1/not','switch').click();assert(selected().steps[0].when.all[1].not.all);
+  treeButton('all/1','negate').click();assert(selected().steps[0].when.all[1].all);
+  change('condition-input','variable:ready');change('condition-value','false');treeButton('all/1','append').click();
+  assert.deepEqual(treeCondition().all[1].all.at(-1),{variable:'ready',equals:'false'});
+});
+check(()=>{
+  treeButton('all/1/all/2','up').click();assert.equal(selected().steps[0].when.all[1].all[1].variable,'ready');
+  treeButton('all/1/all/0','down').click();assert.equal(selected().steps[0].when.all[1].all[0].variable,'ready');
+  assert(treeButton('all/1/all/0','up').disabled);assert(treeButton('all/1/all/2','down').disabled);
+});
+check(()=>{
+  treeButton('all/1/all/2','remove').click();assert.equal(selected().steps[0].when.all[1].all.length,2);
+  treeButton('all/1/all/1','remove').click();assert.deepEqual(treeCondition().all[1],{variable:'ready',equals:'false'});
+  treeButton('all/0','remove').click();assert.deepEqual(treeCondition(),{variable:'ready',equals:'false'});
+});
+check(()=>{
+  change('condition-input','amount');change('condition-operation','less-than');get('condition-number').value='3.5';
+  treeButton('','wrap-any').click();assert.deepEqual(treeCondition().any[1],{input:'amount',compare:{op:'less-than',number:3.5}});
+  treeButton('any/1','negate').click();assert(selected().steps[0].when.any[1].not);
+});
+for(const bad of ['', 'Infinity', '1e13','no','1'.repeat(257)])check(()=>{
+  change('condition-input','amount');get('condition-number').value=bad;const before=source.value;
+  treeButton('','replace').click();assert.equal(source.value,before);assert(get('condition-tree-status').textContent.includes('No source was changed'));
+});
+check(()=>{
+  const option=new Element('option');option.value='secret';get('condition-input').append(option);get('condition-input').value='secret';
+  const before=source.value;treeButton('','replace').click();assert.equal(source.value,before,'Protected comparisons cannot be forged through a DOM choice');
+});
+check(()=>{
+  conditionFixture({all:Array.from({length:8},()=>({...flagCheck}))});const before=source.value;
+  assert(treeButton('','append').disabled);treeButton('','append').dispatchEvent(new Event('click'));assert.equal(source.value,before);
+});
+check(()=>{
+  let predicate=flagCheck;for(let i=0;i<4;++i)predicate={not:predicate};conditionFixture(predicate);
+  const before=source.value;treeButton('not/not/not/not','negate').click();assert.equal(source.value,before);
+  assert(get('condition-tree-status').textContent.includes('limits'));
+});
+check(()=>{
+  const children=Array.from({length:3},()=>({all:Array.from({length:8},()=>({...flagCheck}))}));
+  children.push({...flagCheck},{...flagCheck},{...flagCheck});conditionFixture({all:children});
+  assert(get('condition-tree-status').textContent.startsWith('31 of 31'));const before=source.value;
+  treeButton('','negate').click();assert.equal(source.value,before);assert(get('condition-tree-status').textContent.includes('limits'));
+});
+check(()=>{
+  conditionFixture(flagCheck);const stale=treeButton('','negate'),before=source.value;change('condition-step','other');
+  stale.click();assert.equal(source.value,before);change('condition-step','review');stale.click();assert.equal(source.value,before);
+});
+check(()=>{
+  const stale=treeButton('','remove'),before=source.value;source.value=before+' ';stale.click();assert.equal(source.value,before+' ');
+  source.value=before;source.dispatchEvent(new Event('input'));stale.click();assert.equal(source.value,before);
+});
+for(const property of ['readOnly','disabled'])check(()=>{
+  const control=treeButton('','negate'),before=source.value;source[property]=true;control.dispatchEvent(new Event('click'));assert.equal(source.value,before);
+  source.dispatchEvent(new Event('input'));assert(treeButton('','negate').disabled);assert(get('condition-tree-status').textContent.includes('read-only'));
+  source[property]=false;source.dispatchEvent(new Event('input'));
+});
+check(()=>{
+  const stale=treeButton('','negate');treeButton('','remove').click();assert(!selected().steps[0].when);
+  assert.equal(get('condition-tree').children.length,0);const before=source.value;stale.click();assert.equal(source.value,before);
+  click('condition-save');assert(selected().steps[0].when);assert(treeButton('','negate'));
+});
+check(()=>{
+  const stale=treeButton('','negate');source.value='{';source.dispatchEvent(new Event('input'));
+  assert.equal(get('condition-tree').children.length,0);stale.click();assert.equal(source.value,'{');
 });
 console.log(`${checks} actual Studio event-listener checks passed in a DOM test double; no browser, desktop, native messages or clipboard used.`);

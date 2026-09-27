@@ -129,5 +129,27 @@ TEST_F(TahaiCapabilityBrokerTest, RevokingProviderRemovesEveryRevision) {
   EXPECT_FALSE(broker.RevokeAllForProvider("connector-demo"));
 }
 
+TEST_F(TahaiCapabilityBrokerTest, DisabledSkinsStillAllowReviewAndRevocation) {
+  TahaiCapabilityBroker broker(profile());
+  const auto request = Request();
+  ASSERT_TRUE(broker.GrantReviewed(request));
+  profile()->GetPrefs()->SetBoolean(prefs::kTahaiSkinsEnabled, false);
+  EXPECT_FALSE(broker.IsAllowed(request));
+  EXPECT_FALSE(broker.GrantReviewed(request));
+  const auto grants = broker.GetReviewableGrants();
+  ASSERT_TRUE(grants);
+  ASSERT_EQ(1u, grants->size());
+  EXPECT_TRUE(broker.Revoke(grants->front()));
+  profile()->GetPrefs()->SetBoolean(prefs::kTahaiSkinsEnabled, true);
+  EXPECT_FALSE(broker.IsAllowed(request));
+  ASSERT_TRUE(broker.GetReviewableGrants());
+  EXPECT_TRUE(broker.GetReviewableGrants()->empty());
+
+  profile()->GetPrefs()->SetDict(prefs::kTahaiCapabilityGrants,
+      base::DictValue().Set("schema_version", 999));
+  EXPECT_FALSE(broker.GetReviewableGrants());
+  EXPECT_FALSE(broker.Revoke(grants->front()));
+}
+
 }  // namespace
 }  // namespace tahai

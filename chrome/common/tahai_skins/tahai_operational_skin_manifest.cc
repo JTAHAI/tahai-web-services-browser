@@ -40,8 +40,9 @@ constexpr std::array<std::string_view, 4> kOperationalFields = {
     "capabilities", "surfaces", "workflows", "modes"};
 constexpr std::array<std::string_view, 6> kSurfaceFields = {
     "id", "layout", "rail_state", "start_surface", "rail_modules", "design"};
-constexpr std::array<std::string_view, 7> kWorkflowFields = {
-    "id", "name", "inputs", "steps", "outputs", "variables", "repeats"};
+constexpr std::array<std::string_view, 8> kWorkflowFields = {
+    "id", "name", "inputs", "steps", "outputs", "variables", "repeats",
+    "compensation_steps"};
 constexpr std::array<std::string_view, 7> kWorkflowInputFields = {
     "id", "name", "type", "required", "options", "protected", "validation"};
 constexpr std::array<std::string_view, 7> kWorkflowStepFields = {
@@ -1087,6 +1088,13 @@ bool ParseTahaiWorkflowAssignment(const base::Value* source,
   *assignment = {};
   const auto* dict = source ? source->GetIfDict() : nullptr;
   const auto* target = dict ? dict->FindString("variable") : nullptr;
+  if (dict && dict->size() == 2 && target && IsSafeIdentifier(*target) && dict->contains("boolean_expression")) {
+    TahaiWorkflowPredicate expression;
+    if (!ParseTahaiWorkflowPredicate(dict->Find("boolean_expression"), &expression)) return false;
+    assignment->variable_id = *target;
+    assignment->boolean_expression = std::move(expression);
+    return true;
+  }
   if (dict && dict->size() == 2 && target && IsSafeIdentifier(*target) && dict->contains("text_expression")) {
     TahaiWorkflowTextExpression expression;
     size_t count = 0;
@@ -1116,6 +1124,16 @@ bool ParseTahaiWorkflowAssignment(const base::Value* source,
 
 base::DictValue SerializeTahaiWorkflowAssignment(
     const TahaiWorkflowAssignment& assignment) {
+  if (assignment.boolean_expression) {
+    auto result = base::DictValue().Set("variable", assignment.variable_id)
+        .Set("boolean_expression", SerializeTahaiWorkflowPredicate(*assignment.boolean_expression));
+    // Mixed representations stay invalid after serialization, never normalized.
+    if (assignment.expression) result.Set("expression", base::Value());
+    if (assignment.text_expression) result.Set("text_expression", base::Value());
+    if (!assignment.source_id.empty() || assignment.from_variable || assignment.from_action_status)
+      result.Set("from", base::Value());
+    return result;
+  }
   if (assignment.from_action_status) {
     auto from = base::DictValue().Set("action_status", assignment.source_id);
     if (assignment.from_variable) from.Set("variable", assignment.source_id);
@@ -1160,6 +1178,15 @@ bool ValidateTahaiWorkflowAssignment(
   const auto origins = assignment.from_variable ? variables : inputs;
   const auto target = std::ranges::find(variables, assignment.variable_id,
                                        &TahaiOperationalWorkflowInput::id);
+  if (assignment.boolean_expression) {
+    return !assignment.expression && !assignment.text_expression &&
+        !assignment.from_variable && !assignment.from_action_status && assignment.source_id.empty() &&
+        IsSafeIdentifier(assignment.variable_id) && target != variables.end() &&
+        target->type == TahaiOperationalWorkflowInputType::kBoolean &&
+        !target->required && !target->is_protected &&
+        std::ranges::count(variables, assignment.variable_id, &TahaiOperationalWorkflowInput::id) == 1 &&
+        ValidateTahaiWorkflowPredicate(*assignment.boolean_expression, inputs, variables);
+  }
   if (assignment.from_action_status) {
     return !assignment.from_variable && !assignment.expression && !assignment.text_expression &&
         IsSafeIdentifier(assignment.source_id) && IsSafeIdentifier(assignment.variable_id) &&
@@ -1238,6 +1265,40 @@ base::ListValue SerializeTahaiWorkflowRepeats(
     value.Set("from", repeat.from);
     value.Set("through", repeat.through);
     value.Set("count", repeat.count);
+    result.Append(std::move(value));
+  }
+  return result;
+}
+
+bool ParseTahaiWorkflowCompensationSteps(
+    const base::Value* source,
+    std::vector<TahaiWorkflowCompensationStep>* compensation_steps) {
+  if (!compensation_steps) return false;
+  compensation_steps->clear();
+  if (!source) return true;
+  const auto* list = source->GetIfList();
+  if (!list || list->empty() || list->size() > 8u) return false;
+  std::vector<TahaiWorkflowCompensationStep> candidate;
+  std::set<std::string> ids;
+  for (const base::Value& value : *list) {
+    const auto* dict = value.GetIfDict();
+    const std::string* id = dict ? dict->FindString("id") : nullptr;
+    const std::string* name = dict ? dict->FindString("name") : nullptr;
+    if (!dict || dict->size() != 2u || !id || !name || !IsSafeIdentifier(*id) ||
+        !IsSafeMetadata(*name) || !ids.insert(*id).second) return false;
+    candidate.push_back({*id, *name});
+  }
+  *compensation_steps = std::move(candidate);
+  return true;
+}
+
+base::ListValue SerializeTahaiWorkflowCompensationSteps(
+    base::span<const TahaiWorkflowCompensationStep> compensation_steps) {
+  base::ListValue result;
+  for (const auto& step : compensation_steps) {
+    base::DictValue value;
+    value.Set("id", step.id);
+    value.Set("name", step.name);
     result.Append(std::move(value));
   }
   return result;
@@ -1342,6 +1403,8 @@ bool ValidateTahaiOperationalWorkflow(
       !ParseWorkflowSteps(*steps, capabilities, candidate.inputs, candidate.variables,
                           &candidate.steps) ||
       !ParseTahaiWorkflowRepeats(source.Find("repeats"), &candidate.repeats) ||
+      !ParseTahaiWorkflowCompensationSteps(source.Find("compensation_steps"),
+                                           &candidate.compensation_steps) ||
       !ValidateTahaiWorkflowActionBindings(candidate.steps, inert_native_handoff) ||
       !ExpandTahaiWorkflowSteps(candidate)) {
     return false;

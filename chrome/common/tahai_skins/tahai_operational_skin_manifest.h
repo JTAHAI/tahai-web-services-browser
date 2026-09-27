@@ -160,26 +160,6 @@ TahaiWorkflowTextResult EvaluateTahaiWorkflowTextExpression(
     const TahaiWorkflowTextExpression& expression,
     base::FunctionRef<std::optional<std::string>(std::string_view, bool)> resolve);
 
-struct TahaiWorkflowAssignment {
-  std::string variable_id;
-  std::string source_id;
-  bool from_variable = false;
-  std::optional<TahaiWorkflowNumericExpression> expression;
-  std::optional<TahaiWorkflowTextExpression> text_expression;
-  // Closed browser dispatch status, never website data or proof of completion.
-  // The source must be a preceding run-command step in the same workflow.
-  bool from_action_status = false;
-  bool operator==(const TahaiWorkflowAssignment&) const = default;
-};
-bool ParseTahaiWorkflowAssignment(const base::Value* source,
-                                 TahaiWorkflowAssignment* assignment);
-base::DictValue SerializeTahaiWorkflowAssignment(
-    const TahaiWorkflowAssignment& assignment);
-bool ValidateTahaiWorkflowAssignment(
-    const TahaiWorkflowAssignment& assignment,
-    base::span<const TahaiOperationalWorkflowInput> inputs,
-    base::span<const TahaiOperationalWorkflowInput> variables);
-
 struct TahaiOperationalSurface {
   std::string id;
   TahaiOperationalSurfaceLayout layout = TahaiOperationalSurfaceLayout::kOne;
@@ -229,6 +209,28 @@ bool TahaiWorkflowPredicateUsesSource(const TahaiWorkflowPredicate& predicate,
 // branches. Null is unresolved/invalid, never an implicit false or permission.
 std::optional<bool> EvaluateTahaiWorkflowPredicate(const TahaiWorkflowPredicate& predicate,
     base::FunctionRef<std::optional<bool>(const TahaiWorkflowPredicate&)> evaluate_leaf);
+
+struct TahaiWorkflowAssignment {
+  std::string variable_id;
+  std::string source_id;
+  bool from_variable = false;
+  std::optional<TahaiWorkflowNumericExpression> expression;
+  std::optional<TahaiWorkflowTextExpression> text_expression;
+  // Closed browser dispatch status, never website data or proof of completion.
+  // The source must be a preceding run-command step in the same workflow.
+  bool from_action_status = false;
+  // Bounded ordinary-value predicate; never reads protected values.
+  std::optional<TahaiWorkflowPredicate> boolean_expression;
+  bool operator==(const TahaiWorkflowAssignment&) const = default;
+};
+bool ParseTahaiWorkflowAssignment(const base::Value* source,
+                                 TahaiWorkflowAssignment* assignment);
+base::DictValue SerializeTahaiWorkflowAssignment(
+    const TahaiWorkflowAssignment& assignment);
+bool ValidateTahaiWorkflowAssignment(
+    const TahaiWorkflowAssignment& assignment,
+    base::span<const TahaiOperationalWorkflowInput> inputs,
+    base::span<const TahaiOperationalWorkflowInput> variables);
 
 struct TahaiOperationalWorkflowStep {
   std::string id;
@@ -299,6 +301,23 @@ bool ParseTahaiWorkflowRepeats(const base::Value* source,
 base::ListValue SerializeTahaiWorkflowRepeats(
     base::span<const TahaiWorkflowRepeat> repeats);
 
+// An optional, manual-only recovery checklist. These declarations are not
+// executable workflow steps: they cannot name actions, waits, variables,
+// conditions, URLs or providers. A terminal Mission presents them only for
+// explicit human acknowledgement after every in-flight result has settled.
+// They never automatically compensate an external effect.
+struct TahaiWorkflowCompensationStep {
+  std::string id;
+  std::string name;
+  bool operator==(const TahaiWorkflowCompensationStep&) const = default;
+};
+
+bool ParseTahaiWorkflowCompensationSteps(
+    const base::Value* source,
+    std::vector<TahaiWorkflowCompensationStep>* compensation_steps);
+base::ListValue SerializeTahaiWorkflowCompensationSteps(
+    base::span<const TahaiWorkflowCompensationStep> compensation_steps);
+
 struct TahaiOperationalWorkflow {
   std::string id;
   std::string name;
@@ -307,6 +326,7 @@ struct TahaiOperationalWorkflow {
   std::vector<TahaiOperationalWorkflowOutput> outputs;
   std::vector<TahaiOperationalWorkflowInput> variables;
   std::vector<TahaiWorkflowRepeat> repeats;
+  std::vector<TahaiWorkflowCompensationStep> compensation_steps;
 };
 
 // Validates repeat ranges, expanded identifiers/labels and the total 32-step

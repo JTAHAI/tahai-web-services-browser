@@ -103,6 +103,26 @@ class CreatorTests(unittest.TestCase):
         self.mutate(lambda manifest: manifest["operational"]["workflows"][0]["outputs"][0].update(value="private-run-value"))
         with self.assertRaises(ValueError): build_skin.build(self.source)
 
+    def test_manual_compensation_reviews_are_bounded_inert_definitions(self):
+        operational = json.loads((Path(__file__).parent / "operational-starter-skin" /
+                                   "manifest.json").read_text(encoding="utf-8"))["operational"]
+        workflow = operational["workflows"][0]
+        workflow["compensation_steps"] = [
+            {"id": "confirm-authority", "name": "Confirm actual authority"},
+            {"id": "record-outcome", "name": "Record actual outcome"}]
+        self.mutate(lambda manifest: manifest.update(schema_version=2, operational=operational))
+        with zipfile.ZipFile(io.BytesIO(build_skin.build(self.source))) as archive:
+            saved = json.loads(archive.read("manifest.json"))["operational"]["workflows"][0]
+            self.assertEqual(workflow["compensation_steps"], saved["compensation_steps"])
+            self.assertEqual({"id", "name"}, set(saved["compensation_steps"][0]))
+        valid = json.dumps(operational)
+        for steps in ([], None, [{}], [{"id": "review", "name": "Review", "action": "delete"}],
+                      [{"id": "same", "name": "One"}, {"id": "same", "name": "Two"}],
+                      [{"id": f"review-{i}", "name": "Review"} for i in range(9)]):
+            invalid = json.loads(valid); invalid["workflows"][0]["compensation_steps"] = steps
+            with self.subTest(steps=steps), self.assertRaises(ValueError):
+                build_skin.validate_operational(invalid)
+
     def test_variables_and_assignments_roundtrip_without_run_values(self):
         operational = json.loads((Path(__file__).parent / "operational-starter-skin" /
                                    "manifest.json").read_text(encoding="utf-8"))["operational"]
@@ -302,6 +322,36 @@ class CreatorTests(unittest.TestCase):
                 if change == "number": current["variables"][0]["type"] = "number"
                 if change == "ambiguous": current["steps"][1]["assign"]["from"]["input"] = "dispatch"
                 with self.assertRaises(ValueError): build_skin.validate_operational(altered)
+
+    def test_boolean_expression_roundtrip_bounds_privacy_and_no_coercion(self):
+        operational = json.loads((Path(__file__).parent / "operational-starter-skin" / "manifest.json").read_text(encoding="utf-8"))["operational"]
+        workflow = operational["workflows"][0]
+        workflow["inputs"] = [{"id":"flag", "name":"Flag", "type":"boolean", "required":False}]
+        workflow["variables"] = [{"id":"result", "name":"Result", "type":"boolean"}]
+        expression = {"not":{"input":"flag", "equals":"true"}}
+        workflow["steps"] = [{"id":"calculate", "name":"Calculate", "kind":"assign-variable", "assign":{"variable":"result", "boolean_expression":expression}}]
+        self.mutate(lambda manifest: manifest.update(schema_version=2, operational=operational))
+        with zipfile.ZipFile(io.BytesIO(build_skin.build(self.source))) as archive:
+            self.assertEqual(expression, json.loads(archive.read("manifest.json"))["operational"]["workflows"][0]["steps"][0]["assign"]["boolean_expression"])
+        tree = {"input":"flag", "equals":"true"}
+        for _ in range(4): tree = {"all":[tree, tree]}
+        workflow["steps"][0]["assign"]["boolean_expression"] = tree
+        build_skin.validate_operational(operational)
+        for node in [None, [], {}, {"all":[]}, {"input":"flag", "equals":True}, {"input":"missing", "equals":"true"}, {"not":tree}]:
+            workflow["steps"][0]["assign"]["boolean_expression"] = node
+            with self.subTest(node=node), self.assertRaises(ValueError): build_skin.validate_operational(operational)
+        workflow["steps"][0]["assign"]["boolean_expression"] = expression
+        for field in (workflow["inputs"][0], workflow["variables"][0]):
+            field["protected"] = True
+            with self.assertRaises(ValueError): build_skin.validate_operational(operational)
+            field.pop("protected")
+            field["type"] = "text"
+            with self.assertRaises(ValueError): build_skin.validate_operational(operational)
+            field["type"] = "boolean"
+        for key, value in (("from", {"input":"flag"}), ("expression", {"number":1}), ("text_expression", {"text":"true"})):
+            workflow["steps"][0]["assign"][key] = value
+            with self.assertRaises(ValueError): build_skin.validate_operational(operational)
+            workflow["steps"][0]["assign"].pop(key)
 
     def test_text_expression_roundtrip_bounds_privacy_and_no_coercion(self):
         operational = json.loads((Path(__file__).parent / "operational-starter-skin" / "manifest.json").read_text(encoding="utf-8"))["operational"]

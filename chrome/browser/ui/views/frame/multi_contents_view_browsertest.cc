@@ -13,6 +13,8 @@
 
 #include "base/check_deref.h"
 #include "base/files/file_path.h"
+#include "base/json/json_reader.h"
+#include "base/json/json_writer.h"
 #include "base/notreached.h"
 #include "base/scoped_observation.h"
 #include "base/strings/string_number_conversions.h"
@@ -21,7 +23,6 @@
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
-#include "base/json/json_writer.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
@@ -38,6 +39,7 @@
 #include "chrome/browser/ui/tahai/tahai_named_workspace_controller.h"
 #include "chrome/browser/ui/tahai/tahai_operational_workflow_queue.h"
 #include "chrome/browser/ui/tahai/tahai_pane_layout_transition.h"
+#include "chrome/browser/ui/tahai/tahai_skin_studio_draft.h"
 #include "chrome/browser/ui/tahai/tahai_surface_resize_area.h"
 #include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
 #include "chrome/browser/ui/tahai/tahai_workspace_rail_view.h"
@@ -104,7 +106,19 @@ using testing::ReturnRef;
 
 namespace {
 
-class TahaiWebUIBrowserTest : public InProcessBrowserTest {};
+class TahaiWebUIBrowserTest : public InProcessBrowserTest {
+ protected:
+  void SeedCapabilityGrantFixture() {
+    base::ListValue grants;
+    for (const auto* operation : {"read-explicit-selection", "navigate-approved-origin"}) {
+      grants.Append(base::DictValue().Set("provider_id", "review-fixture")
+          .Set("revision_sha256", std::string(64, 'a'))
+          .Set("origin", "https://review.example/").Set("operation", operation));
+    }
+    browser()->GetProfile()->GetPrefs()->SetDict(prefs::kTahaiCapabilityGrants,
+        base::DictValue().Set("schema_version", 1).Set("grants", std::move(grants)));
+  }
+};
 
 bool NavigateAndVerifyTahaiSurface(content::WebContents* contents,
                                    const char* url,
@@ -1083,13 +1097,85 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
     document.getElementById('surface-try').click();
   )JS"));
   ASSERT_TRUE(base::test::RunUntil([&] { return controller->surface_design().has_value(); }));
-  ASSERT_TRUE(content::ExecJs(contents, "chrome.send('keepTahaiSurface', []);"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "!document.getElementById('surface-keep').disabled").ExtractBool(); }));
+  ASSERT_TRUE(content::ExecJs(contents, "document.getElementById('surface-keep').click();"));
   ASSERT_TRUE(base::test::RunUntil([&] {
     return controller->CapturePresentation().surface_design.has_value();
   }));
   const auto kept = controller->surface_design();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(url::kAboutBlankURL)));
   EXPECT_EQ(kept, controller->surface_design());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiSurfaceStudioRejectsStaleEditsAndTrialRequests) {
+  AddBlankTabsUntilCount(browser(), 3u);
+  ASSERT_TRUE(chrome::OpenTahaiTriView(browser(), chrome::TahaiTriViewLayout::kTwoOverOne));
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* controller = tahai::WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(controller);
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Surface canvas"));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (function(){
+      const get=id=>document.getElementById('surface-'+id),source=document.getElementById('skin-studio-source');
+      get('template').value='tri';get('template-use').click();
+      const stale=get('node-0-percent');get('template').value='one';get('template-use').click();
+      const before=source.value;stale.value='17';stale.dispatchEvent(new Event('change'));
+      if(source.value!==before)return false;
+      get('template').value='tri';get('template-use').click();
+      window.surfaceRequestFixture=JSON.parse(source.value).operational.surfaces[0].design;
+      window.surfaceRequestReplies=[];
+      const original=window.tahaiSurfacePreviewResult;
+      window.tahaiSurfacePreviewResult=(result,id)=>{window.surfaceRequestReplies.push({result,id});original(result,id)};
+      return true;
+    })()
+  )JS").ExtractBool());
+  auto send_and_wait = [&](const std::string& script, int count, int id,
+                           std::string_view result) {
+    EXPECT_TRUE(content::ExecJs(contents, script));
+    EXPECT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+        content::JsReplace("window.surfaceRequestReplies.length === $1", count)).ExtractBool(); }));
+    EXPECT_EQ(id, content::EvalJs(contents, "window.surfaceRequestReplies.at(-1).id"));
+    EXPECT_EQ(result, content::EvalJs(contents, "window.surfaceRequestReplies.at(-1).result"));
+  };
+  send_and_wait("surfaceRequestFixture.nodes[0].percent=35;chrome.send('previewTahaiSurface',[surfaceRequestFixture,71]);", 1, 71, "previewing");
+  ASSERT_TRUE(controller->surface_design());
+  EXPECT_EQ(35, controller->surface_design()->nodes[0].percent);
+  send_and_wait("surfaceRequestFixture.nodes[0].percent=65;chrome.send('previewTahaiSurface',[surfaceRequestFixture,72]);", 2, 72, "previewing");
+  send_and_wait("chrome.send('keepTahaiSurface',[71]);", 3, 71, "expired");
+  send_and_wait("chrome.send('revertTahaiSurface',[71]);", 4, 71, "expired");
+  send_and_wait("chrome.send('keepTahaiSurface',[]);", 5, 0, "expired");
+  send_and_wait("surfaceRequestFixture.nodes[0].percent=45;chrome.send('previewTahaiSurface',[surfaceRequestFixture,71]);", 6, 71, "rejected");
+  send_and_wait("chrome.send('resetTahaiSurface',[71]);", 7, 71, "rejected");
+  ASSERT_TRUE(controller->surface_design());
+  EXPECT_EQ(65, controller->surface_design()->nodes[0].percent);
+  EXPECT_FALSE(controller->CapturePresentation().surface_design);
+  send_and_wait("chrome.send('keepTahaiSurface',[72]);", 8, 72, "kept");
+  ASSERT_TRUE(controller->CapturePresentation().surface_design);
+  EXPECT_EQ(65, controller->CapturePresentation().surface_design->nodes[0].percent);
+  send_and_wait("chrome.send('keepTahaiSurface',[72]);", 9, 72, "expired");
+  EXPECT_EQ(65, controller->CapturePresentation().surface_design->nodes[0].percent);
+  // A fresh Studio document starts its request counter at one, even when a
+  // browser-side WebUI handler is reused. It still cannot replace the kept
+  // layout without another explicit Keep.
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Surface canvas"));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    document.getElementById('surface-template').value='tri';
+    document.getElementById('surface-template-use').click();
+    document.getElementById('surface-try').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "!document.getElementById('surface-keep').disabled").ExtractBool(); }));
+  ASSERT_TRUE(controller->surface_design());
+  EXPECT_EQ(50, controller->surface_design()->nodes[0].percent);
+  EXPECT_EQ(65, controller->CapturePresentation().surface_design->nodes[0].percent);
+  ASSERT_TRUE(content::ExecJs(contents, "document.getElementById('surface-revert').click();"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return controller->surface_design() && controller->surface_design()->nodes[0].percent == 65;
+  }));
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
@@ -1512,6 +1598,194 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
 // renderer-backed Mission Control surface. This deliberately verifies the
 // product route rather than an implementation-only host.
 IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioPrivateSurfaceNeverReadsRegularDraft) {
+  auto* profile = browser()->GetProfile();
+  auto source = base::JSONReader::ReadDict(tahai::GetTahaiSkinStudioDefaultDraft(), base::JSON_PARSE_RFC);
+  ASSERT_TRUE(source);
+  source->Set("name", "Regular-only draft privacy sentinel");
+  const auto json = base::WriteJson(*source);
+  ASSERT_TRUE(json);
+  ASSERT_EQ(tahai::TahaiSkinStudioDraftStatus::kOk,
+            tahai::SaveTahaiSkinStudioDraft(profile->GetPrefs(), *json).status);
+  const auto before = profile->GetPrefs()->GetDict(prefs::kTahaiSkinStudioDraft).Clone();
+  auto* regular = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(regular, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(regular,
+      "document.querySelector('#skin-studio-source').value.includes('Regular-only draft privacy sentinel')").ExtractBool());
+  auto* private_browser = CreateIncognitoBrowser(profile);
+  ASSERT_TRUE(private_browser);
+  auto* private_contents = private_browser->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(private_contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(private_contents,
+      "document.querySelector('#skin-studio-source').readOnly && "
+      "document.querySelector('#skin-studio-source').value === '' && "
+      "!document.documentElement.outerHTML.includes('Regular-only draft privacy sentinel')").ExtractBool());
+  ASSERT_TRUE(content::ExecJs(private_contents, content::JsReplace(
+      "window.privateDraftReply='pending';window.tahaiSkinStudioDraftSaved=s=>window.privateDraftReply=s;"
+      "chrome.send('saveTahaiSkinStudioDraft',[$1]);", *json)));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(private_contents, "window.privateDraftReply==='unavailable'").ExtractBool();
+  }));
+  EXPECT_EQ(before, profile->GetPrefs()->GetDict(prefs::kTahaiSkinStudioDraft));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiCapabilityReviewRevokesWhileDisabledAndHidesPrivateState) {
+  SeedCapabilityGrantFixture();
+  auto* prefs = browser()->GetProfile()->GetPrefs();
+  prefs->SetBoolean(prefs::kTahaiSkinsEnabled, false);
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiPolicyURL,
+      "TAHAI Policy", "Policy can restrict features. It cannot grant authorization."));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelectorAll('#capability-grants button').length===2").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents,
+      "document.querySelector('#capability-grants').textContent.includes('https://review.example/') && "
+      "document.querySelector('#capability-grants').textContent.includes('Read explicitly selected content')").ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents,
+      "document.querySelector('#capability-grants button').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#capability-status').textContent.startsWith('Grant revoked.')").ExtractBool();
+  }));
+  const auto& remaining = prefs->GetDict(prefs::kTahaiCapabilityGrants);
+  ASSERT_EQ(1u, remaining.FindList("grants")->size());
+  EXPECT_EQ("navigate-approved-origin",
+      *remaining.FindList("grants")->front().GetDict().FindString("operation"));
+  const auto before = remaining.Clone();
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiPolicyURL)));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelectorAll('#capability-grants button').length===1").ExtractBool();
+  }));
+  auto* private_browser = CreateIncognitoBrowser(browser()->GetProfile());
+  ASSERT_TRUE(private_browser);
+  auto* private_contents = private_browser->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(private_contents, tahai::kTahaiPolicyURL,
+      "TAHAI Policy", "Policy can restrict features. It cannot grant authorization."));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(private_contents,
+        "document.querySelector('#capability-status').textContent.includes('unavailable')").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(private_contents,
+      "document.querySelector('#capability-grants').children.length===0 && "
+      "!document.documentElement.outerHTML.includes('review.example')").ExtractBool());
+  EXPECT_EQ(before, prefs->GetDict(prefs::kTahaiCapabilityGrants));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiCapabilityReviewRejectsUnreviewedAndGesturelessRevocation) {
+  SeedCapabilityGrantFixture();
+  auto* prefs = browser()->GetProfile()->GetPrefs();
+  const auto before = prefs->GetDict(prefs::kTahaiCapabilityGrants).Clone();
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  // The general surface helper evaluates the page with a synthetic gesture.
+  // This negative case must begin without ever granting activation.
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiPolicyURL)));
+  EXPECT_FALSE(content::EvalJs(contents, "navigator.userActivation.isActive",
+      content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    window.reviewToken='';window.revoked=null;
+    window.tahaiCapabilityGrants=(available,token)=>window.reviewToken=token;
+    window.tahaiCapabilityRevoked=result=>window.revoked=result;
+    chrome.send('getTahaiCapabilityGrants',[]);
+  )JS", content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.reviewToken.length>0",
+        content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool();
+  }));
+  ASSERT_TRUE(content::ExecJs(contents,
+      "chrome.send('revokeTahaiCapabilityGrant',[window.reviewToken,0])",
+      content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.revoked===false",
+        content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool();
+  }));
+  EXPECT_EQ(before, prefs->GetDict(prefs::kTahaiCapabilityGrants));
+  // A denied attempt consumes the review; adding a gesture cannot replay it.
+  ASSERT_TRUE(content::ExecJs(contents,
+      "window.revoked=null;chrome.send('revokeTahaiCapabilityGrant',[window.reviewToken,0])"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.revoked===false").ExtractBool();
+  }));
+  EXPECT_EQ(before, prefs->GetDict(prefs::kTahaiCapabilityGrants));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiMissionURL)));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    window.reviewAvailable=null;
+    window.tahaiCapabilityGrants=available=>window.reviewAvailable=available;
+    chrome.send('getTahaiCapabilityGrants',[]);
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.reviewAvailable===false").ExtractBool();
+  }));
+  EXPECT_EQ(before, prefs->GetDict(prefs::kTahaiCapabilityGrants));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioDiagnosticsStayBoundToSubmittedSource) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+      contents, tahai::kTahaiSkinStudioURL, "TAHAI Skin Studio",
+      "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    window.studioReplies=[];
+    window.deliverStudioReply=window.tahaiSkinStudioDraftSaved;
+    window.tahaiSkinStudioDraftSaved=(...args)=>window.studioReplies.push(args);
+    document.querySelector('#skin-studio-save').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.studioReplies.length===1").ExtractBool();
+  }));
+  const auto before = browser()->GetProfile()->GetPrefs()->GetDict(
+      prefs::kTahaiSkinStudioDraft).Clone();
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (function(){
+      const source=document.querySelector('#skin-studio-source');
+      source.value='{\n"private-sentinel": invalid}';
+      source.dispatchEvent(new Event('input',{bubbles:true}));
+      const status=document.querySelector('#skin-studio-status'), before=status.textContent;
+      window.deliverStudioReply(...window.studioReplies[0]);
+      const ignored=status.textContent===before;
+      document.querySelector('#skin-studio-save').click();
+      return ignored;
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.studioReplies.length===2").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (function(){
+      const reply=window.studioReplies[1];
+      window.deliverStudioReply(...reply);
+      const status=document.querySelector('#skin-studio-status').textContent;
+      return reply[0]==='invalid-json'&&reply[1].category==='syntax'&&
+        reply[1].line===2&&reply[1].column>0&&reply[2]===2&&
+        status.includes('line 2, column ')&&!status.includes('private-sentinel');
+    })()
+  )JS").ExtractBool());
+  EXPECT_EQ(before, browser()->GetProfile()->GetPrefs()->GetDict(
+      prefs::kTahaiSkinStudioDraft));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    const source=document.querySelector('#skin-studio-source');
+    source.value='[]';source.dispatchEvent(new Event('input',{bubbles:true}));
+    document.querySelector('#skin-studio-save').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.studioReplies.length===3").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    window.deliverStudioReply(...window.studioReplies[2]);
+    document.querySelector('#skin-studio-status').textContent.includes('one JSON object')
+  )JS").ExtractBool());
+  EXPECT_EQ(before, browser()->GetProfile()->GetPrefs()->GetDict(
+      prefs::kTahaiSkinStudioDraft));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
                        TahaiSkinStudioSavesOnlyValidatedDraftSource) {
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();
@@ -1564,8 +1838,8 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   ASSERT_TRUE(content::ExecJs(
       contents,
       "const previousStudioCallback=window.tahaiSkinStudioDraftSaved;"
-      "window.tahaiSkinStudioDraftSaved=result=>{window.tahaiSavedResult=result;"
-      "previousStudioCallback(result)};"
+      "window.tahaiSkinStudioDraftSaved=(...args)=>{window.tahaiSavedResult=args[0];"
+      "previousStudioCallback(...args)};"
       "const color=document.querySelector('#skin-studio-tokens "
       "input[type=color]');color.value='#123456';"
       "color.dispatchEvent(new Event('input',{bubbles:true}))"));
@@ -1677,6 +1951,160 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
                   "includes('Review scope') && document.querySelector("
                   "'#skin-studio-source').value.includes('Personal')")
                   .ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioUndoRespectsTextFieldsAndRestoresSource) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    window.historyOriginal = document.querySelector('#skin-studio-source').value;
+    document.querySelector('#skin-studio-input-type').value='text';
+    document.querySelector('#skin-studio-input-type').dispatchEvent(new Event('change'));
+    document.querySelector('#skin-studio-input-name').value='Private sample';
+    document.querySelector('#skin-studio-input-protected').checked=true;
+    document.querySelector('#skin-studio-add-input').click();
+    window.historyEdited = document.querySelector('#skin-studio-source').value;
+    document.querySelector('#skin-studio-save').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(browser()));
+  ASSERT_TRUE(content::ExecJs(contents,
+      "document.querySelector('#skin-studio-simulation-inputs input[type=password]').focus()"));
+  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_X, false, false, false, false));
+  EXPECT_FALSE(content::EvalJs(contents,
+      "document.querySelector('#skin-studio-simulation-inputs input[type=password]').value").ExtractString().empty());
+  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_Z, true, false, false, false));
+  EXPECT_EQ("", content::EvalJs(contents,
+      "document.querySelector('#skin-studio-simulation-inputs input[type=password]').value"));
+  EXPECT_TRUE(content::EvalJs(contents,
+      "document.querySelector('#skin-studio-source').value===window.historyEdited").ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('#skin-studio-source').focus()"));
+  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_Z, true, false, false, false));
+  EXPECT_TRUE(content::EvalJs(contents,
+      "document.querySelector('#skin-studio-source').value===window.historyOriginal").ExtractBool());
+  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_Y, true, false, false, false));
+  EXPECT_TRUE(content::EvalJs(contents,
+      "document.querySelector('#skin-studio-source').value===window.historyEdited && "
+      "document.querySelector('#skin-studio-simulation-inputs input[type=password]').value===''").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (()=>{
+      const source=document.querySelector('#skin-studio-source');
+      source.value='é'.repeat(32769);source.dispatchEvent(new Event('input'));
+      if(!document.querySelector('#skin-studio-redo').disabled)return false;
+      document.querySelector('#skin-studio-undo').click();
+      return source.value===window.historyEdited && document.querySelector('#skin-studio-redo').disabled;
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioLocalStartersPersistWithoutAuthorityOrBindingChanges) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* prefs = browser()->GetProfile()->GetPrefs();
+  const auto grants = prefs->GetDict(prefs::kTahaiCapabilityGrants).Clone();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const source=document.querySelector('#skin-studio-source');
+      const before=source.value, original=JSON.parse(before);
+      const choice=document.querySelector('#skin-studio-workflow-template-choice');
+      if(choice.options.length!==6)return false;
+      window.galleryMessages=[];
+      const send=chrome.send.bind(chrome);
+      chrome.send=(name,args)=>{window.galleryMessages.push(name);send(name,args)};
+      choice.value='creator';choice.dispatchEvent(new Event('change'));
+      if(source.value!==before || !document.querySelector('#skin-studio-workflow-template-description').textContent.includes('separate manual website action'))return false;
+      for(const id of ['research','creator','planning','learning','operations','focus']){
+        choice.value=id;choice.dispatchEvent(new Event('change'));
+        document.querySelector('#skin-studio-workflow-template').click();
+      }
+      const result=JSON.parse(source.value);
+      if(result.operational.workflows.length!==original.operational.workflows.length+6)return false;
+      result.operational.workflows.splice(original.operational.workflows.length);
+      return JSON.stringify(result)===JSON.stringify(original) && window.galleryMessages.length===0;
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('#skin-studio-save').click()"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  EXPECT_TRUE(content::EvalJs(contents,
+      "window.galleryMessages.length>0 && window.galleryMessages.every(name=>name==='saveTahaiSkinStudioDraft')").ExtractBool());
+  EXPECT_EQ(grants, prefs->GetDict(prefs::kTahaiCapabilityGrants));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const workflows=JSON.parse(document.querySelector('#skin-studio-source').value).operational.workflows;
+      return workflows.length===7 && workflows.slice(1).every(workflow=>
+        workflow.steps.every(step=>['instruction','checkpoint'].includes(step.kind)) &&
+        (workflow.inputs||[]).every(input=>!Object.hasOwn(input,'value'))) &&
+        new Set(workflows.map(workflow=>workflow.id)).size===7;
+    })()
+  )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioWorkflowOutlineTracksInspectorWithoutMutatingDraft) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    const source = document.querySelector('#skin-studio-source');
+    const draft = JSON.parse(source.value), workflow = draft.operational.workflows[0];
+    workflow.inputs = [{id:'approved', name:'Approved', type:'boolean', required:false}];
+    workflow.steps = [
+      {id:'review',name:'Review',kind:'checkpoint',when:{input:'approved',equals:'true'}},
+      {id:'dispatch',name:'Arrange panes',kind:'run-command',action:'layout.dual'},
+      {id:'delay',name:'Wait',kind:'wait',wait:{seconds:1,timeout_seconds:5}}];
+    workflow.repeats = [{id:'twice',from:'review',through:'dispatch',count:2}];
+    source.value = JSON.stringify(draft); source.dispatchEvent(new Event('input'));
+    document.querySelector('#skin-studio-save').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+        "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
+  }));
+  const auto saved = browser()->GetProfile()->GetPrefs()->GetDict(prefs::kTahaiSkinStudioDraft).Clone();
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const source = document.querySelector('#skin-studio-source'), before = source.value;
+      const list = document.querySelector('#skin-studio-flow');
+      const inspector = document.querySelector('#skin-studio-condition-step');
+      const buttons = [...list.querySelectorAll('button')];
+      if (buttons.length !== 3 || !document.querySelector('#skin-studio-flow-summary').textContent.includes('5 steps after repeat expansion')) return false;
+      if (!list.textContent.includes('False: skip this step') || !list.textContent.includes('2 total iterations')) return false;
+      buttons[1].click();
+      if (inspector.value !== 'dispatch' || document.activeElement !== inspector) return false;
+      buttons[1].focus();
+      buttons[1].dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true,cancelable:true}));
+      if (inspector.value !== 'delay' || document.activeElement !== buttons[2] || buttons[2].tabIndex !== 0) return false;
+      inspector.value = 'review'; inspector.dispatchEvent(new Event('change'));
+      if (buttons[0].getAttribute('aria-pressed') !== 'true') return false;
+      return source.value === before && buttons.filter(button=>button.tabIndex===0).length===1;
+    })()
+  )JS").ExtractBool());
+  EXPECT_EQ(saved, browser()->GetProfile()->GetPrefs()->GetDict(prefs::kTahaiSkinStudioDraft));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (() => {
+      const source=document.querySelector('#skin-studio-source');
+      const stale=document.querySelector('#skin-studio-flow button');
+      if(document.querySelectorAll('#skin-studio-flow button').length!==3)return false;
+      source.value='{';source.dispatchEvent(new Event('input'));stale.click();
+      return document.querySelectorAll('#skin-studio-flow button').length===0 && source.value==='{' &&
+          document.querySelector('#skin-studio-flow-summary').textContent.includes('valid workflow');
+    })()
+  )JS").ExtractBool());
+  EXPECT_EQ(saved, browser()->GetProfile()->GetPrefs()->GetDict(prefs::kTahaiSkinStudioDraft));
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
@@ -2877,6 +3305,240 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
       return get('text-operation').value === 'concat' && get('text-first').value === 'input-source' &&
           get('text-second-constant').value === ' ready' && get('simulation-outputs').children.length === 0 && !get('source').value.includes('fixture'); })()
   )JS").ExtractBool());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiFailedMissionRecoveryReviewRequiresFreshGestureAndNeverResumes) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  tahai::TahaiOperationalWorkflow workflow; workflow.id = "recovery-native"; workflow.name = "Recovery native";
+  workflow.steps = {{"dispatch", "Dispatch", tahai::TahaiOperationalWorkflowStepKind::kRunCommand, "address.focus"}};
+  workflow.compensation_steps = {{"confirm-authority", "Confirm actual authority"},
+                                 {"record-outcome", "Record actual outcome"}};
+  const auto created = service->CreateOperationalWorkflowMission(workflow, "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created); const auto id = created->id;
+  ASSERT_TRUE(service->SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(service->BeginNativeWorkflowStep(id, 0));
+  ASSERT_TRUE(service->FinishNativeWorkflowStep(id, 0, "unknown"));
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiMissionURL)));
+  const auto old_token = service->missions().back().mutation_token;
+  EXPECT_FALSE(content::EvalJs(contents, "navigator.userActivation.isActive", content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool());
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "chrome.send('toggleTahaiRollbackStep',[$1,0,$2])", id, old_token), content::EXECUTE_SCRIPT_NO_USER_GESTURE));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (function(){
+      const recovery=document.querySelector('[data-tahai-mission-action=toggle-rollback]');
+      return !recovery.disabled&&recovery.textContent==='Mark reviewed'&&
+        document.body.textContent.includes('Confirm actual authority')&&
+        document.querySelector('[data-tahai-recovery-notice]').textContent.includes('never executes rollback')&&
+        document.querySelector('[data-tahai-mission-action=toggle-step]').disabled&&
+        document.querySelector('[data-tahai-mission-action=toggle-validation]').disabled;
+    })()
+  )JS", content::EXECUTE_SCRIPT_NO_USER_GESTURE).ExtractBool());
+  EXPECT_FALSE(service->missions().back().rollback_steps[0].complete);
+  {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-mission-action=toggle-rollback]').click()"));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  const auto& run = service->missions().back();
+  EXPECT_TRUE(run.rollback_steps[0].complete); EXPECT_FALSE(run.steps[0].complete);
+  ASSERT_EQ(2u, run.rollback_steps.size());
+  EXPECT_EQ("Confirm actual authority", run.rollback_steps[0].label);
+  EXPECT_EQ("Record actual outcome", run.rollback_steps[1].label);
+  EXPECT_EQ("unknown", run.steps[0].action_state); EXPECT_EQ("failed", run.operational_workflow->run_state);
+  EXPECT_TRUE(run.timeline.front().detail.starts_with("Recovery review completed: "));
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "chrome.send('toggleTahaiRollbackStep',[$1,0,$2])", id, old_token)));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "document.querySelector('#mission-status').textContent.includes('Mission not changed')").ExtractBool(); }));
+  EXPECT_TRUE(run.rollback_steps[0].complete);
+  EXPECT_FALSE(service->BeginNativeWorkflowStep(id, 0)); EXPECT_FALSE(service->SetOperationalWorkflowRunState(id, "running"));
+  ASSERT_TRUE(service->ArchiveMission(id));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-mission-action=toggle-rollback]').disabled").ExtractBool());
+  EXPECT_FALSE(service->ToggleRollbackStep(id, 0));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioNestedConditionsEditSaveAndRejectStaleControls) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  const size_t missions_before = service->missions().size();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (function(){
+      const get=id=>document.querySelector('#skin-studio-'+id);
+      const source=get('source'),doc=JSON.parse(source.value),workflow=doc.operational.workflows[0];
+      const originalSend=chrome.send;window.conditionMessages=[];
+      chrome.send=(name,args)=>{window.conditionMessages.push(name);return originalSend(name,args)};
+      workflow.inputs=[{id:'flag',name:'Flag',type:'boolean',required:false},
+        {id:'amount',name:'Amount',type:'number',required:false},
+        {id:'secret',name:'Secret',type:'number',required:false,protected:true}];
+      workflow.variables=[];delete workflow.outputs;delete workflow.repeats;
+      workflow.steps=[{id:'review',name:'Review',kind:'checkpoint',when:{all:[{input:'flag',equals:'true'},
+        {not:{any:[{input:'flag',equals:'false'},{input:'amount',compare:{op:'at-least',number:2}}]}}]}},
+        {id:'other',name:'Other',kind:'checkpoint',when:{input:'flag',equals:'false'}}];
+      source.value=JSON.stringify(doc);source.dispatchEvent(new Event('input',{bubbles:true}));
+      const change=(id,value)=>{get(id).value=value;get(id).dispatchEvent(new Event('change'))};
+      const button=(path,action)=>Array.from(get('condition-tree').querySelectorAll('button')).find(b=>b.dataset.conditionNode===path&&b.dataset.conditionEdit===action);
+      change('condition-step','review');
+      const before=source.value;if(!get('condition-tree-status').textContent.startsWith('6 of 31'))return false;
+      change('condition-input','amount');change('condition-operation','less-than');get('condition-number').value='7';
+      const stale=button('all/1/not/any/1','replace');stale.click();
+      let condition=JSON.parse(source.value).operational.workflows[0].steps[0].when;
+      if(condition.all[1].not.any[1].compare.number!==7||source.value===before||
+          document.activeElement!==button('all/1/not/any/1','replace'))return false;
+      const edited=source.value;stale.click();if(source.value!==edited)return false;
+      button('all/1/not/any/0','remove').click();
+      condition=JSON.parse(source.value).operational.workflows[0].steps[0].when;
+      if(condition.all[1].not.input!=='amount'||condition.all[1].not.compare.number!==7)return false;
+      const detached=button('all/1','negate');change('condition-step','other');const switched=source.value;
+      detached.click();if(source.value!==switched)return false;change('condition-step','review');
+      const control=button('all/1','negate');source.readOnly=true;control.dispatchEvent(new Event('click'));
+      if(source.value!==switched)return false;source.readOnly=false;
+      const protectedSource=document.createElement('option');protectedSource.value='secret';get('condition-input').append(protectedSource);
+      get('condition-input').value='secret';button('','replace').click();if(source.value!==switched)return false;
+      source.dispatchEvent(new Event('input',{bubbles:true}));
+      get('save').click();
+      return window.conditionMessages.every(name=>name==='saveTahaiSkinStudioDraft');
+    })()
+  )JS").ExtractBool());
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool(); }));
+  const auto draft = tahai::LoadTahaiSkinStudioDraft(browser()->GetProfile()->GetPrefs());
+  ASSERT_EQ(tahai::TahaiSkinStudioDraftStatus::kOk, draft.status);
+  auto manifest = base::JSONReader::ReadDict(draft.manifest_json, base::JSON_PARSE_RFC);
+  ASSERT_TRUE(manifest);
+  tahai::TahaiOperationalSkinManifest parsed;
+  ASSERT_EQ(tahai::TahaiOperationalSkinManifestValidationResult::kValid,
+            tahai::ValidateTahaiOperationalSkinManifest(*manifest, &parsed));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (function(){
+      const source=document.querySelector('#skin-studio-source'),before=source.value;
+      const condition=JSON.parse(before).operational.workflows[0].steps[0].when;
+      const tree=document.querySelector('#skin-studio-condition-tree');
+      return condition.all[1].not.compare.number===7&&condition.all[1].not.compare.op==='less-than'&&
+          tree.textContent.includes('Input: Amount is less than 7')&&source.value===before;
+    })()
+  )JS").ExtractBool());
+  EXPECT_EQ(missions_before, service->missions().size());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiSkinStudioSimulationTraceIsBoundedPrivateAndInert) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  const size_t missions_before = service->missions().size();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (function(){
+      const originalSend=chrome.send;window.traceMessages=[];
+      chrome.send=(name,args)=>{window.traceMessages.push(name);return originalSend(name,args)};
+      const source=document.querySelector('#skin-studio-source'),doc=JSON.parse(source.value),workflow=doc.operational.workflows[0];
+      workflow.inputs=[{id:'private-source',name:'Private',type:'text',protected:true,required:false}];
+      workflow.variables=[{id:'private-copy',name:'Private copy',type:'text',protected:true}];
+      workflow.steps=[{id:'copy--source',name:'Copy',kind:'assign-variable',assign:{variable:'private-copy',from:{input:'private-source'}}},
+        {id:'delay',name:'Delay',kind:'wait',wait:{seconds:1,timeout_seconds:3}},
+        {id:'dispatch',name:'Dispatch',kind:'run-command',action:'mission.open'}];
+      source.value=JSON.stringify(doc);source.dispatchEvent(new Event('input',{bubbles:true}));
+      const input=document.querySelector('[data-simulation-input=private-source]');
+      input.value='TRACE-PRIVATE-SENTINEL';input.dispatchEvent(new Event('change'));
+      const before=source.value,trace=document.querySelector('#skin-studio-simulation-trace');
+      const action=(index,label)=>Array.from(document.querySelector('#skin-studio-simulation-steps').children[index].querySelectorAll('button')).find(b=>!label||b.textContent===label);
+      action(0).click();action(1).click();action(1).click();
+      const failure=action(2,'Simulate unknown outcome');failure.click();
+      const kinds=Array.from(trace.children,r=>r.dataset.simulationTraceKind);
+      const correct=JSON.stringify(kinds)===JSON.stringify(['assignment-completed','wait-started','wait-completed','action-unknown']);
+      const status=document.querySelector('#skin-studio-simulation-status').textContent;
+      const privateSafe=!trace.textContent.includes('TRACE-PRIVATE-SENTINEL')&&input.value===''&&source.value===before;
+      failure.click();if(trace.children.length!==4)return false;
+      document.querySelector('#skin-studio-simulation-trace-clear').click();
+      const cleared=trace.children.length===0&&document.querySelector('#skin-studio-simulation-status').textContent===status;
+      document.querySelector('#skin-studio-simulation-reset').click();failure.click();
+      return correct&&privateSafe&&cleared&&trace.children.length===0&&source.value===before;
+    })()
+  )JS").ExtractBool());
+  EXPECT_TRUE(content::EvalJs(contents, R"JS(
+    (function(){
+      const source=document.querySelector('#skin-studio-source'),doc=JSON.parse(source.value),workflow=doc.operational.workflows[0];
+      workflow.inputs=[];workflow.variables=[{id:'total',name:'Total',type:'number'}];
+      workflow.steps=[{id:'calculate',name:'Calculate',kind:'assign-variable',assign:{variable:'total',expression:{op:'divide',args:[{number:1},{number:0}]}}}];
+      source.value=JSON.stringify(doc);source.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#skin-studio-simulate').click();
+      const before=source.value,button=document.querySelector('#skin-studio-simulation-steps button'),trace=document.querySelector('#skin-studio-simulation-trace');
+      for(let i=0;i<140;++i)button.click();
+      const bounded=trace.children.length===128&&trace.firstElementChild.textContent.startsWith('13. ')&&trace.lastElementChild.textContent.startsWith('140. ');
+      const fixed=Array.from(trace.children).every(row=>row.dataset.simulationTraceKind==='assignment-blocked');
+      const explained=document.querySelector('#skin-studio-simulation-trace-status').textContent.includes('Older events were omitted');
+      source.dispatchEvent(new Event('input',{bubbles:true}));button.click();
+      return bounded&&fixed&&explained&&trace.children.length===0&&source.value===before&&
+        window.traceMessages.every(name=>name==='saveTahaiSkinStudioDraft');
+    })()
+  )JS").ExtractBool());
+  EXPECT_EQ(missions_before, service->missions().size());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiBooleanAssignmentsAuthorSaveAndRunWithoutAutomaticEffects) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    const source=document.querySelector('#skin-studio-source'), doc=JSON.parse(source.value);
+    const workflow=doc.operational.workflows[0];
+    workflow.inputs=[{id:'flag',name:'Flag',type:'boolean',required:false}];
+    workflow.variables=[{id:'result',name:'Result',type:'boolean'}];
+    workflow.steps=[{id:'calculate',name:'Calculate',kind:'checkpoint',when:{input:'flag',equals:'true'}}];
+    workflow.outputs=[{id:'final',name:'Final',from:{variable:'result'}}];
+    source.value=JSON.stringify(doc);source.dispatchEvent(new Event('input',{bubbles:true}));
+    const steps=document.querySelector('#skin-studio-condition-step');steps.value='calculate';steps.dispatchEvent(new Event('change'));
+    const target=document.querySelector('#skin-studio-assignment-target');target.value='result';target.dispatchEvent(new Event('change'));
+    document.querySelector('#skin-studio-boolean-from-condition').click();
+    document.querySelector('#skin-studio-save').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return content::EvalJs(contents,
+      "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool(); }));
+  const auto draft = tahai::LoadTahaiSkinStudioDraft(browser()->GetProfile()->GetPrefs());
+  ASSERT_EQ(tahai::TahaiSkinStudioDraftStatus::kOk, draft.status);
+  auto manifest = base::JSONReader::ReadDict(draft.manifest_json, base::JSON_PARSE_RFC);
+  ASSERT_TRUE(manifest); tahai::TahaiOperationalSkinManifest parsed;
+  ASSERT_EQ(tahai::TahaiOperationalSkinManifestValidationResult::kValid,
+            tahai::ValidateTahaiOperationalSkinManifest(*manifest, &parsed));
+  ASSERT_TRUE(parsed.workflows.front().steps.front().assignment);
+  ASSERT_TRUE(parsed.workflows.front().steps.front().assignment->boolean_expression);
+  EXPECT_TRUE(parsed.workflows.front().steps.front().condition_input_id.empty());
+  // Reopening Studio retains definitions, never simulator values or execution.
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
+      "TAHAI Skin Studio", "Build an operational skin without granting it power."));
+  EXPECT_EQ("flag", content::EvalJs(contents,
+      "JSON.parse(document.querySelector('#skin-studio-source').value).operational.workflows[0].steps[0].assign.boolean_expression.input"));
+  auto* service = tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
+  const auto created = service->CreateOperationalWorkflowMission(parsed.workflows.front(), "review-skin", std::string(64, 'a'), true);
+  ASSERT_TRUE(created); ASSERT_TRUE(service->SetOperationalWorkflowRunState(created->id, "running"));
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  EXPECT_EQ("missing-condition-value", content::EvalJs(contents, "document.querySelector('[data-tahai-calculation-error]').dataset.tahaiCalculationError"));
+  EXPECT_TRUE(content::EvalJs(contents, "document.querySelector('[data-tahai-variable-assign]').disabled").ExtractBool());
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id, "flag", "false"));
+  EXPECT_TRUE(service->missions().back().workflow_variables[0].value.empty());
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
+      "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
+  {
+    content::TestNavigationObserver reload(contents, 1);
+    ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('[data-tahai-variable-assign]').click()"));
+    reload.Wait(); ASSERT_TRUE(content::WaitForLoadStop(contents));
+  }
+  EXPECT_EQ("false", service->missions().back().workflow_variables[0].value);
+  EXPECT_TRUE(service->missions().back().steps[0].complete);
+  EXPECT_FALSE(service->AssignWorkflowVariable(created->id, 0));
+  ASSERT_TRUE(service->SetOperationalWorkflowInputValue(created->id, "flag", "true"));
+  EXPECT_EQ("false", service->missions().back().workflow_variables[0].value);
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,

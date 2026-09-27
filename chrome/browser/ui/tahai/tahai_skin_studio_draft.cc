@@ -79,19 +79,59 @@ TahaiSkinStudioDraftResult ValidateAndCanonicalize(std::string manifest_json) {
   if (manifest_json.empty() || manifest_json.size() > skins::kMaxManifestBytes) {
     return {TahaiSkinStudioDraftStatus::kTooLarge, {}};
   }
-  std::optional<base::DictValue> value =
-      base::JSONReader::ReadDict(manifest_json, base::JSON_PARSE_RFC);
+  auto value = base::JSONReader::ReadAndReturnValueWithError(
+      manifest_json, base::JSON_PARSE_RFC);
   TahaiOperationalSkinManifest parsed;
   if (!value) {
-    return {TahaiSkinStudioDraftStatus::kInvalidJson, {}};
+    return {TahaiSkinStudioDraftStatus::kInvalidJson, {}, "syntax",
+            value.error().line, value.error().column};
   }
-  if (ValidateTahaiOperationalSkinManifest(*value, &parsed) !=
-      TahaiOperationalSkinManifestValidationResult::kValid) {
-    return {TahaiSkinStudioDraftStatus::kInvalidManifest, {}};
+  if (!value->is_dict()) {
+    return {TahaiSkinStudioDraftStatus::kInvalidManifest, {}, "root-object"};
+  }
+  const auto validation =
+      ValidateTahaiOperationalSkinManifest(value->GetDict(), &parsed);
+  if (validation != TahaiOperationalSkinManifestValidationResult::kValid) {
+    std::string diagnostic;
+    switch (validation) {
+      case TahaiOperationalSkinManifestValidationResult::kValid:
+        break;
+      case TahaiOperationalSkinManifestValidationResult::kUnknownField:
+        diagnostic = "unknown-field";
+        break;
+      case TahaiOperationalSkinManifestValidationResult::kInvalidSchema:
+        diagnostic = "schema";
+        break;
+      case TahaiOperationalSkinManifestValidationResult::kInvalidAppearance:
+        diagnostic = "appearance";
+        break;
+      case TahaiOperationalSkinManifestValidationResult::kInvalidCapabilities:
+        diagnostic = "capabilities";
+        break;
+      case TahaiOperationalSkinManifestValidationResult::kInvalidSurface:
+        diagnostic = "surface";
+        break;
+      case TahaiOperationalSkinManifestValidationResult::kInvalidWorkflow:
+        diagnostic = "workflow";
+        break;
+      case TahaiOperationalSkinManifestValidationResult::kInvalidMode:
+        diagnostic = "mode";
+        break;
+    }
+    return {TahaiSkinStudioDraftStatus::kInvalidManifest, {},
+            std::move(diagnostic)};
   }
   std::string canonical;
-  base::JSONWriter::WriteWithOptions(
-      *value, base::JSONWriter::OPTIONS_PRETTY_PRINT, &canonical);
+  if (!base::JSONWriter::WriteWithOptions(
+          *value, base::JSONWriter::OPTIONS_PRETTY_PRINT, &canonical)) {
+    return {TahaiSkinStudioDraftStatus::kInvalidJson, {}};
+  }
+  // The persisted/exported representation must satisfy the same byte budget
+  // as the next load. Formatting a compact source can otherwise turn a
+  // successful save into an unreadable draft on restart.
+  if (canonical.empty() || canonical.size() > skins::kMaxManifestBytes) {
+    return {TahaiSkinStudioDraftStatus::kTooLarge, {}};
+  }
   return {TahaiSkinStudioDraftStatus::kOk, std::move(canonical)};
 }
 

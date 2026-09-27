@@ -237,7 +237,7 @@ def validate_operational(operational):
             "operational.workflows: declare 1-24 workflows")
     workflow_ids = set()
     for workflow in workflows:
-        optional_fields(workflow, {"id", "name", "steps"}, {"inputs", "outputs", "variables", "repeats"}, "Workflow")
+        optional_fields(workflow, {"id", "name", "steps"}, {"inputs", "outputs", "variables", "repeats", "compensation_steps"}, "Workflow")
         safe_id(workflow["id"], "Workflow.id")
         safe_metadata(workflow["name"], "Workflow.name")
         require(workflow["id"] not in workflow_ids, "Workflow.id must be unique")
@@ -389,6 +389,18 @@ def validate_operational(operational):
             binding_source(output["from"])
             require(output["id"] not in output_ids, "Output IDs must be unique")
             output_ids.add(output["id"])
+        compensation_steps = workflow.get("compensation_steps", [])
+        require(isinstance(compensation_steps, list) and
+                ("compensation_steps" not in workflow or 1 <= len(compensation_steps) <= 8),
+                "Workflow.compensation_steps: declare 1-8 manual recovery reviews when present")
+        compensation_ids = set()
+        for step in compensation_steps:
+            fields(step, {"id", "name"}, "Workflow compensation step")
+            safe_id(step["id"], "Workflow compensation step.id")
+            safe_metadata(step["name"], "Workflow compensation step.name")
+            require(step["id"] not in compensation_ids,
+                    "Workflow compensation step IDs must be unique")
+            compensation_ids.add(step["id"])
         steps = workflow["steps"]
         require(isinstance(steps, list) and 1 <= len(steps) <= 32,
                 "Workflow.steps: declare 1-32 steps")
@@ -420,11 +432,14 @@ def validate_operational(operational):
                 validate_actions([step["action"]], capabilities, "Workflow step.action")
             if step["kind"] == "assign-variable":
                 require(isinstance(step["assign"], dict), "Workflow assignment must be an object")
-                fields(step["assign"], {"variable", "text_expression"} if "text_expression" in step["assign"] else {"variable", "expression"} if "expression" in step["assign"]
+                fields(step["assign"], {"variable", "boolean_expression"} if "boolean_expression" in step["assign"] else {"variable", "text_expression"} if "text_expression" in step["assign"] else {"variable", "expression"} if "expression" in step["assign"]
                        else {"variable", "from"}, "Workflow assignment")
                 safe_id(step["assign"]["variable"], "Assignment variable")
                 target = variable_by_id.get(step["assign"]["variable"])
-                if "text_expression" in step["assign"]:
+                if "boolean_expression" in step["assign"]:
+                    require(target is not None and target["type"] == "boolean" and not target.get("protected", False), "Boolean expressions require an ordinary boolean destination")
+                    validate_condition(step["assign"]["boolean_expression"])
+                elif "text_expression" in step["assign"]:
                     require(target is not None and target["type"] == "text" and not target.get("protected", False), "Text expressions require an ordinary text destination")
                     validate_text_expression(step["assign"]["text_expression"])
                 elif "expression" in step["assign"]:

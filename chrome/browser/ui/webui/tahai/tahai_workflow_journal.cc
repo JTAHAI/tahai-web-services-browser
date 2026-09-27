@@ -20,6 +20,10 @@
 namespace tahai {
 namespace {
 
+constexpr char kAttemptsSchema[] =
+    "CREATE TABLE attempts(attempt_key TEXT PRIMARY KEY NOT NULL,"
+    "state TEXT NOT NULL CHECK(state IN ('intent','dispatched','rejected')))";
+
 bool ValidHash(std::string_view hash) {
   return hash.size() == 64 && std::ranges::all_of(hash, [](char c) {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
@@ -79,14 +83,25 @@ class Journal {
     }
     if (!existed) {
       sql::Transaction transaction(&database_);
-      if (!transaction.Begin() || !database_.Execute(
-              "CREATE TABLE attempts(attempt_key TEXT PRIMARY KEY NOT NULL,"
-              "state TEXT NOT NULL CHECK(state IN ('intent','dispatched','rejected')))") ||
+      if (!transaction.Begin() || !database_.Execute(kAttemptsSchema) ||
           !database_.Execute("PRAGMA user_version=1") || !transaction.Commit()) {
         return false;
       }
     }
-    return !failed_ && database_.DoesTableExist("attempts");
+    // A version number and table name are not enough: a changed table or an
+    // INSERT trigger could acknowledge an intent without retaining its row.
+    // This private, versioned database has one exact schema. Reject unfamiliar
+    // objects without running their triggers, migrating, repairing or razing.
+    sql::Statement schema(database_.GetUniqueStatement(
+        "SELECT type,name,sql FROM sqlite_schema "
+        "WHERE name NOT GLOB 'sqlite_*'"));
+    if (!schema.Step() || schema.ColumnStringView(0) != "table" ||
+        schema.ColumnStringView(1) != "attempts" ||
+        schema.ColumnStringView(2) != kAttemptsSchema || schema.Step() ||
+        !schema.Succeeded()) {
+      return false;
+    }
+    return !failed_;
   }
 
   WorkflowAttempt Reserve(std::string_view key) {
@@ -120,7 +135,8 @@ class Journal {
     sql::Statement insert(database_.GetUniqueStatement(
         "INSERT INTO attempts(attempt_key,state) VALUES(?,'intent')"));
     insert.BindString(0, key);
-    if (!insert.Run() || failed_ || !transaction.Commit()) {
+    if (!insert.Run() || database_.GetLastChangeCount() != 1 || failed_ ||
+        !transaction.Commit()) {
       return WorkflowAttempt::kUnavailable;
     }
     return WorkflowAttempt::kReserved;

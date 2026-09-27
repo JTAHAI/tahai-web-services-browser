@@ -84,7 +84,28 @@ try {
         return [ordered]@{ file = $Name; sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
     }
     $native = New-TestSummary @(
+        'TahaiWorkflowJournalTest.IntentSurvivesReopenAndCannotReplay',
+        'TahaiSkinStudioDraftTest.CanonicalGrowthCannotReplaceLastReloadableDraft',
+        'TahaiCapabilityBrokerTest.ExactOriginRevisionAndOperationAreRequired',
+        'TahaiCapabilityBrokerTest.SameOriginNavigationExpiresCapturedDocument',
+        'TahaiCapabilityBrokerTest.RejectsPrivateForeignAndManagedProfiles',
+        'TahaiCapabilityBrokerTest.PreservesMalformedStateAndDeniesGrants',
+        'TahaiCapabilityBrokerTest.RevokingProviderRemovesEveryRevision',
+        'TahaiCapabilityBrokerTest.DisabledSkinsStillAllowReviewAndRevocation',
+        'TahaiSkinStudioDraftTest.OversizedStoredDraftFallbackNeverOverwritesOriginalBytes',
+        'TahaiSkinStudioDraftTest.JsonDiagnosticsNeverEchoRejectedSource',
+        'TahaiSkinStudioDraftTest.ManifestDiagnosticsIdentifyBoundedSections',
+        'TahaiWorkflowJournalTest.RejectedAttemptCannotBeRetried',
+        'TahaiWorkflowJournalTest.KeysAreBoundedAndSeparateRunsRevisionsAndSteps',
+        'TahaiWorkflowJournalTest.CorruptFileIsPreservedWithoutDispatch',
+        'TahaiWorkflowJournalTest.FutureVersionIsPreservedAndNotExecuted',
+        'TahaiWorkflowJournalTest.QuotaCannotDiscardOldAttemptToAllowReplay',
+        'TahaiWorkflowJournalTest.UnexpectedSchemaCannotAcknowledgeUnpersistedIntent',
+        'TahaiWorkflowJournalTest.BlockedRollbackJournalCannotAuthorizeOrEraseAttempts',
+        'TahaiWorkflowJournalTest.ExclusiveWriterCannotAuthorizeOrEraseAttempts',
+        'TahaiWorkflowJournalTest.AbruptWriterExitRollsBackWithoutReplay',
         'TahaiOperationalSkinManifestTest.NamedOutputsAreBoundedBindingsWithoutValuesOrPrivacyOverrides',
+        'TahaiOperationalSkinManifestTest.CompensationChecklistsAreBoundedManualAndRoundTrip',
         'TahaiOperationalSkinManifestTest.TypedVariablesAndAssignmentsRejectPrivacyDowngradesAndMalformedBindings',
         'TahaiOperationalSkinManifestTest.NumericExpressionsAreClosedBoundedAndRejectProtectedReferences',
         'TahaiOperationalSkinManifestTest.NumericConditionsAreClosedTypedAndExcludeProtectedInputs',
@@ -118,6 +139,13 @@ try {
         'MissionServiceTest.ProtectedVariableRepeatIterationsSeparateInputNamespaceAndNeverReplay',
         'TahaiWorkflowNativeTest.ProtectedVariablePrivacyIsPinnedBeforeNativeDispatch',
         'TahaiOperationalSkinManifestTest.TextExpressionsAreClosedBoundedTypedAndExcludeProtectedSources',
+        'TahaiOperationalSkinManifestTest.BooleanAssignmentsAreBoundedTypedAndExcludeProtectedSources',
+        'MissionServiceTest.BooleanAssignmentsFailClosedPersistFalseAndNeverReplay',
+        'MissionServiceTest.TerminalRecoveryReviewPersistsWithoutResumingOrChangingRunProgress',
+        'MissionServiceTest.AuthoredCompensationIsManualTerminalOnlyAndPersists',
+        'MissionServiceTest.CancelledRecoveryWaitsForNativeOutcomeAndNeverReplaysIt',
+        'MissionWaitTest.RecoveryReviewRequiresFreshStateAfterDeadlineSettlement',
+        'TahaiWorkflowNativeTest.BooleanAssignmentsRemainExactlyRevisionPinnedBeforeNativeDispatch',
         'TahaiOperationalSkinManifestTest.TextExpressionEvaluationUsesLiteralBoundedUnicodeAndFixedErrors',
         'MissionServiceTest.TextExpressionsPersistExactDefinitionsAndNeverReplayOrExportValues',
         'MissionServiceTest.TextExpressionFailuresPreservePriorValueProgressAndMalformedPreferences',
@@ -178,6 +206,10 @@ try {
         'MissionServiceTest.SkinPathsRejectWindowsDeviceAndTrailingDotAliases',
         'MissionServiceTest.SkinPackageExactRatioAndPurposeCannotBypassLimits',
         'TahaiSkinStoreTest.AtomicUpdateRetainsOneRevisionAcrossRestart',
+        'TahaiSkinStoreTest.OperationalPackagesUseTheExistingBoundedStoreAndRollback',
+        'TahaiSkinStoreTest.UnexpectedSchemaCannotDiscardRollbackOrAcknowledgeUpdate',
+        'TahaiSkinStoreTest.DiskFullUpdatePreservesCurrentAndRollbackAfterReopen',
+        'TahaiSkinStoreTest.DiskFullRemovalPreservesCurrentAndRollbackAfterReopen',
         'TahaiSkinStoreTest.RemovalRequiresReviewedRevisionAndStaysProfileLocal',
         'TahaiSkinStoreTest.InvalidInputCannotReplaceExistingData',
         'TahaiSkinStoreTest.QuotasRejectWithoutEvictingPackagesOrRollback',
@@ -273,6 +305,14 @@ try {
         'TahaiWebUIBrowserTest.TahaiMissionInputLimitsAreExplainedAndEnforcedByNativeService',
         'TahaiWebUIBrowserTest.TahaiMissionNamedOutputsRequireSuccessStayLocalAndMaskProtectedValues',
         'TahaiWebUIBrowserTest.TahaiSkinStudioNamedOutputsPersistWithoutSimulatedValues',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioSavesOnlyValidatedDraftSource',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioPrivateSurfaceNeverReadsRegularDraft',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioWorkflowOutlineTracksInspectorWithoutMutatingDraft',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioLocalStartersPersistWithoutAuthorityOrBindingChanges',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioUndoRespectsTextFieldsAndRestoresSource',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioDiagnosticsStayBoundToSubmittedSource',
+        'TahaiWebUIBrowserTest.TahaiCapabilityReviewRevokesWhileDisabledAndHidesPrivateState',
+        'TahaiWebUIBrowserTest.TahaiCapabilityReviewRejectsUnreviewedAndGesturelessRevocation',
         'TahaiWebUIBrowserTest.TahaiSkinStudioVariablesAssignmentsAndResultsPersistWithoutSimulationData',
         'TahaiWebUIBrowserTest.TahaiSkinStudioCalculationsPersistOnlyDefinitionsAndSimulateLocally',
         'TahaiWebUIBrowserTest.TahaiSkinStudioNumericConditionsPersistAndSimulateWithoutActions',
@@ -290,6 +330,11 @@ try {
         'TahaiWebUIBrowserTest.TahaiMissionProtectedVariablesBootstrapStorageWithoutProtectedInputs',
         'TahaiWebUIBrowserTest.TahaiSkinStudioTextExpressionsAuthorSimulateAndRestoreOnlyDefinitions',
         'TahaiWebUIBrowserTest.TahaiMissionTextExpressionsShowFixedErrorsAndRequireExplicitAssignment',
+        'TahaiWebUIBrowserTest.TahaiBooleanAssignmentsAuthorSaveAndRunWithoutAutomaticEffects',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioSimulationTraceIsBoundedPrivateAndInert',
+        'TahaiWebUIBrowserTest.TahaiSkinStudioNestedConditionsEditSaveAndRejectStaleControls',
+        'MultiContentsViewBrowserTest.TahaiSurfaceStudioRejectsStaleEditsAndTrialRequests',
+        'TahaiWebUIBrowserTest.TahaiFailedMissionRecoveryReviewRequiresFreshGestureAndNeverResumes',
         'TahaiWebUIBrowserTest.TahaiMissionChecklistsRequireCurrentDocumentGestureAndFreshToken',
         'TahaiWebUIBrowserTest.TahaiMissionStateControlsRejectStaleAndAutomaticTransitions',
         'TahaiWebUIBrowserTest.TahaiMissionMetadataControlsRejectStaleViewsAndDuplicateSubmissions',
@@ -400,10 +445,19 @@ try {
     $evidencePath = Join-Path $fixtureRoot 'release.json'
     $null = Write-FixtureEvidence 'release.json' $evidence
     $result = Assert-TahaiReleaseEvidence $evidencePath $buildDir
-    if ($result.NativeTestAttempts -ne 115 -or $result.BrowserTestAttempts -ne 167) {
+    if ($result.NativeTestAttempts -ne 147 -or $result.BrowserTestAttempts -ne 180) {
         throw 'Positive fixture counts were incorrect.'
     }
     $script:cases++
+
+    $native.per_iteration_data[0].PSObject.Properties.Remove('TahaiWorkflowJournalTest.AbruptWriterExitRollsBackWithoutReplay')
+    $evidence.nativeTests = Write-FixtureEvidence 'native.json' $native
+    $evidence.nativeTests.exitCode = 0
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'missing actual crash-recovery journal test'
+    $native = New-TestSummary $native.all_tests
+    $evidence.nativeTests = Write-FixtureEvidence 'native.json' $native
+    $evidence.nativeTests.exitCode = 0
 
     $source.identity.buildArgsSha256 = 'c' * 64
     $evidence.sourceProvenance = Write-FixtureEvidence 'source-provenance.json' $source

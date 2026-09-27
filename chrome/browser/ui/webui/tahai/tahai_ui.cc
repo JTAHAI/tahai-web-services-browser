@@ -24,6 +24,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
+#include "base/unguessable_token.h"
 #include "base/values.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/browser_process.h"
@@ -41,6 +42,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tahai/tahai_capability_broker.h"
 #include "chrome/browser/ui/tahai/tahai_environment_guard_registry.h"
 #include "chrome/browser/ui/tahai/tahai_identity_lane.h"
 #include "chrome/browser/ui/tahai/tahai_mode_service.h"
@@ -50,11 +52,16 @@
 #include "chrome/browser/ui/tahai/tahai_skin_studio_draft.h"
 #include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
 #include "chrome/browser/ui/webui/tahai/tahai_native_mode_editor.h"
+#include "chrome/browser/ui/webui/tahai/tahai_capability_review_ui.h"
 #include "chrome/browser/ui/webui/tahai/tahai_surface_editor_handler.h"
 #include "chrome/browser/ui/webui/tahai/tahai_workflow_native_handler.h"
 #include "chrome/browser/ui/webui/tahai/tahai_surface_designer.h"
 #include "chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_model.h"
 #include "chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_tools.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_outline.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_condition_tree.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_history.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_editor.h"
 #include "chrome/browser/ui/webui/tahai/tahai_change_lens_contract.h"
 #include "chrome/browser/ui/webui/tahai/tahai_environment_guard.h"
 #include "chrome/browser/ui/webui/tahai/tahai_local_oi_model.h"
@@ -1055,9 +1062,6 @@ constexpr char kCustomModesJs[] = R"TAHAI(
 (()=>{'use strict';const form=document.querySelector('#tahai-custom-mode-form'),status=document.querySelector('#mode-status');if(!status)return;if(form)form.addEventListener('submit',event=>{event.preventDefault();const data=new FormData(form),title=String(data.get('title')||'').trim(),operational=String(data.get('operational_mode_id')||''),workspace=String(data.get('workspace_id')||'');if(!title||title.length>80||!operational)return;status.textContent='Creating the bounded custom workspace…';chrome.send('createTahaiCustomMode',[title,operational,workspace])});for(const control of document.querySelectorAll('[data-tahai-custom-mode-action]'))control.addEventListener('click',()=>{const id=String(control.dataset.tahaiCustomModeId||''),action=String(control.dataset.tahaiCustomModeAction||''),card=control.closest('[data-tahai-custom-mode-card]'),input=card?.querySelector('[data-tahai-custom-mode-title]'),title=String(input?.value||'').trim();if(!id||!['rename','delete'].includes(action)||(action==='rename'&&(!title||title.length>80))||(action==='delete'&&!window.confirm('Delete this custom workspace? The saved workspace itself is not deleted.')))return;status.textContent=action==='rename'?'Renaming custom workspace…':'Deleting custom workspace…';chrome.send('updateTahaiCustomMode',[id,action,title])});window.tahaiCustomModeCreated=()=>{status.textContent='Custom workspace saved for this profile.';window.setTimeout(()=>location.replace('tahai://modes/'),300)};window.tahaiCustomModeUpdated=()=>{status.textContent='Custom workspace updated.';window.setTimeout(()=>location.replace('tahai://modes/'),300)};window.tahaiCustomModeRejected=()=>{status.textContent='That custom workspace request was rejected. Keep a reviewed operational skin applied and choose an existing saved workspace if needed.'}})();
 )TAHAI";
 
-constexpr char kSkinStudioJs[] = R"TAHAI(
-(()=>{'use strict';const source=document.querySelector('#skin-studio-source'),status=document.querySelector('#skin-studio-status'),save=document.querySelector('#skin-studio-save'),copy=document.querySelector('#skin-studio-copy'),palette=document.querySelector('#skin-studio-palette'),tokens=document.querySelector('#skin-studio-tokens'),preview=document.querySelector('#skin-studio-preview');if(!source||!status)return;const tokenNames=['shell_background','toolbar_background','toolbar_foreground','tab_background','tab_foreground','rail_background','rail_foreground','accent','panel_background','panel_foreground'];let timer=0;const draft=()=>{try{const value=JSON.parse(source.value);return value&&typeof value==='object'?value:null}catch{return null}};const queueSave=()=>{if(source.readOnly||source.disabled)return;window.clearTimeout(timer);timer=window.setTimeout(submit,700)};const submit=()=>{if(source.readOnly||source.disabled)return;status.textContent='Validating the local operational-skin source…';chrome.send('saveTahaiSkinStudioDraft',[source.value])};const renderPalette=()=>{if(!tokens)return;tokens.replaceChildren();const value=draft(),name=palette?.value||'dark_tokens',values=value?.appearance?.[name];if(!values||typeof values!=='object'){status.textContent='Source JSON must contain a complete appearance palette before it can be previewed.';return}for(const token of tokenNames){const color=String(values[token]||'');if(!/^#[0-9a-f]{6}$/i.test(color))continue;const label=document.createElement('label'),caption=document.createElement('span'),input=document.createElement('input');caption.textContent=`${token.replaceAll('_',' ')} · ${color.toLowerCase()}`;input.type='color';input.value=color;input.disabled=source.readOnly||source.disabled;input.addEventListener('input',()=>{const next=draft();if(source.readOnly||source.disabled||!next?.appearance?.[name])return;next.appearance[name][token]=input.value.toLowerCase();source.value=JSON.stringify(next,null,2);source.dispatchEvent(new Event('input',{bubbles:true}))});label.append(caption,input);tokens.append(label);if(preview)preview.style.setProperty(`--studio-${token}`,color)}if(preview){preview.style.background=`linear-gradient(145deg,var(--studio-toolbar_background),var(--studio-panel_background))`;preview.style.color='var(--studio-panel_foreground)'}};source.addEventListener('input',()=>{renderPalette();queueSave()});palette?.addEventListener('change',renderPalette);save?.addEventListener('click',submit);copy?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(source.value);status.textContent='Source copied to the clipboard. No package was created.'}catch{status.textContent='The browser could not copy this source.'}});window.tahaiSkinStudioDraftSaved=result=>{const messages={saved:'Validated and saved only as a profile-local source draft.',managed:'This Studio draft is managed and cannot be changed here.',unavailable:'This profile cannot retain a Studio draft.',"too-large":'The source exceeds the Studio size limit.',"invalid-json":'The source is not valid JSON. The prior draft was kept.',"invalid-manifest":'The source is not a valid v2 operational-skin declaration. The prior draft was kept.'};status.textContent=messages[String(result)]||'The Studio draft was not saved.'};renderPalette()})();
-)TAHAI";
 
 constexpr char kSkinStudioImportExportJs[] = R"TAHAI(
 (()=>{
@@ -1234,30 +1238,6 @@ constexpr char kSkinStudioSurfaceEditorJs[] = R"TAHAI(
 })();
 )TAHAI";
 
-
-// History is intentionally renderer-local and bounded. It only replays the
-// existing declarative draft text through the same validation/autosave path;
-// undoing an edit cannot install, sign, apply, or export a skin package.
-constexpr char kSkinStudioHistoryJs[] = R"TAHAI(
-(()=>{
-  'use strict';
-  const source=document.querySelector('#skin-studio-source');
-  const status=document.querySelector('#skin-studio-status');
-  const undo=document.querySelector('#skin-studio-undo');
-  const redo=document.querySelector('#skin-studio-redo');
-  if(!source||!status||!undo||!redo)return;
-  const history=[source.value];let position=0,replaying=false;
-  const writable=()=>!source.readOnly&&!source.disabled;
-  const update=()=>{undo.disabled=!writable()||position===0;redo.disabled=!writable()||position+1>=history.length};
-  const record=()=>{if(replaying||!writable()||history[position]===source.value){update();return}history.splice(position+1);history.push(source.value);if(history.length>50){history.shift()}position=history.length-1;update()};
-  const restore=next=>{if(!writable()||next<0||next>=history.length)return;position=next;replaying=true;source.value=history[position];source.dispatchEvent(new Event('input',{bubbles:true}));replaying=false;update();status.textContent='Draft edit restored locally and is being validated before saving.'};
-  source.addEventListener('input',record);
-  undo.addEventListener('click',()=>restore(position-1));
-  redo.addEventListener('click',()=>restore(position+1));
-  document.addEventListener('keydown',event=>{if(!writable()||event.altKey||!(event.ctrlKey||event.metaKey))return;const key=event.key.toLowerCase();if(key==='z'){event.preventDefault();restore(event.shiftKey?position+1:position-1)}else if(key==='y'){event.preventDefault();restore(position+1)}});
-  update();
-})();
-)TAHAI";
 
 constexpr char kProfilesJs[] = R"TAHAI(
 (()=>{'use strict';const status=document.querySelector('#identity-lane-status');for(const button of document.querySelectorAll('[data-tahai-identity-lane]'))button.addEventListener('click',()=>{const lane=button.dataset.tahaiIdentityLane||'',destination=button.dataset.tahaiLaneDestination||'workspace';if(!/^[0-9A-Fa-f]{32}$/.test(lane))return;if(status)status.textContent='Opening a new window in the selected Chromium Profile boundary…';chrome.send('openTahaiIdentityLane',[lane,destination])});window.tahaiIdentityLaneOpened=result=>{if(!status)return;const messages={opened:'Identity Lane opened in its own Chromium Profile window.',unknown_lane:'That Identity Lane is no longer available.',signin_required:'Chromium requires profile sign-in before this lane can open.',invalid_destination:'The requested fixed TAHAI destination was rejected.',profile_unavailable:'Chromium could not load that profile.'};status.textContent=messages[result]||'The Identity Lane request did not complete.'}})();
@@ -2761,10 +2741,10 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
       const std::string native_disabled =
           step.assignment || step.wait_seconds || (step.requires_native_action && step.action_state != "dispatched") ? " disabled" : "";
       if (step.assignment) {
-        const bool calculation = step.assignment->expression.has_value() || step.assignment->text_expression.has_value();
+        const bool calculation = step.assignment->expression.has_value() || step.assignment->text_expression.has_value() || step.assignment->boolean_expression.has_value();
         const auto calculation_error = step.complete ? std::string_view() : MissionWorkflowCalculationError(mission, index);
         native_action += base::StrCat({
-            "<span class=muted>", step.assignment->text_expression ? "Calculate text result for variable " : calculation ? "Calculate numeric result for variable " : "Copy ",
+            "<span class=muted>", step.assignment->boolean_expression ? "Calculate yes/no result for variable " : step.assignment->text_expression ? "Calculate text result for variable " : calculation ? "Calculate numeric result for variable " : "Copy ",
             calculation ? "" : step.assignment->from_variable ? "variable " : "input ",
             calculation ? "" : base::EscapeForHTML(step.assignment->source_id), calculation ? "" : " to variable ",
             base::EscapeForHTML(step.assignment->variable_id), "</span>",
@@ -2838,14 +2818,14 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
                 "\"><span class=mission-step-label>" +
                 base::EscapeForHTML(item.label) +
                 "</span><button class=chip type=button" + mutability_disabled +
-                (workflow_running ? "" : " disabled") +
+                (workflow_running || (action == "toggle-rollback" && CanReviewMissionRecovery(mission)) ? "" : " disabled") +
                 " "
                 "data-tahai-mission-action=\"" +
                 std::string(action) + "\" data-tahai-mission-id=\"" +
                 base::EscapeForHTML(mission.id) +
                 "\" data-tahai-step-index=\"" + base::NumberToString(index) +
                 "\" data-tahai-run-token=\"" + base::EscapeForHTML(mission.mutation_token) +
-                "\">" + (item.complete ? "Reopen" : "Complete") +
+                "\">" + (item.complete ? "Reopen" : action == "toggle-rollback" && CanReviewMissionRecovery(mission) ? "Mark reviewed" : "Complete") +
                 "</button></li>";
           }
           return result;
@@ -3134,7 +3114,12 @@ std::string MissionHtml(MissionService* service, ModeService* mode_service) {
         "</ul></div><div><p class=eyebrow>Validation rail</p><ul class=\"list "
         "mission-steps\">" +
         validation +
-        "</ul></div><div><p class=eyebrow>Rollback rail</p><ul class=\"list "
+        "</ul></div><div><p class=eyebrow>Rollback rail</p>" +
+        (mission.operational_workflow ? std::string(
+            "<p class=muted data-tahai-recovery-notice>Manual recovery review only. Check the actual outcome and authority before acting. "
+            "Marking these items never executes rollback, replays an action, or changes a failed/cancelled run to success. "
+            "Recovery review remains locked while a native attempt is pending.</p>") : std::string()) +
+        "<ul class=\"list "
         "mission-steps\">" +
         rollback + "</ul><div class=actions><button class=chip type=button" +
         mutability_disabled +
@@ -4191,6 +4176,7 @@ std::string PolicyHtml(ModeService* mode_service, PrefService* prefs) {
        R"TAHAI(<article class=panel><h2>Sentinel Watch</h2><p class=muted>Manual rechecks are bounded to explicitly configured public DNS, TLS, HTTPS status, redirect, response-header, and content-hash checks; they never browse authenticated consoles or run a background watch daemon.</p></article></div></section>)TAHAI",
        R"TAHAI(<section class=section><div class=three>)TAHAI",
        LocalOiPolicyStatusHtml(prefs),
+       R"TAHAI(<article class=panel><h2>Stored capability grants</h2><p class=boundary>Review and revoke exact provider-revision permissions. This surface cannot grant access or run a connector. Revoking permission does not undo earlier work. Review remains available when skins are disabled.</p><button id=capability-refresh class=button type=button>Refresh grant review</button><p id=capability-status role=status aria-live=polite>Loading grant review…</p><ul id=capability-grants class=list></ul></article><script src=/capability-review.js></script>)TAHAI",
        R"TAHAI(<article class=panel><p class=eyebrow>Collection baseline</p><h2>What remains off by default</h2><p class=boundary>Browser history metadata and any local model are disabled by default. Local OI does not collect page bodies, tabs, URLs, downloads, cookies, credentials, forms, raw headers, or account data through any policy setting.</p></article><article class=panel><p class=eyebrow>Operator truth</p><h2>Explicit actions stay explicit</h2><p class=muted>Support probes, digests, artifact entries, documentation pointers, Environment Guard classifications, and manual recheck entries each require an operator action in the browser. Policy does not turn them into background monitoring.</p></article></div></section>
 )TAHAI"});
   return PageFrame("Policy", content, ActiveTheme(mode_service),
@@ -4221,9 +4207,13 @@ std::string SkinStudioHtml(Profile* profile,
                            PrefService* prefs) {
   CHECK(profile);
   CHECK(mode_service);
-  const TahaiSkinStudioDraftResult draft = LoadTahaiSkinStudioDraft(prefs);
   const bool unavailable = profile->IsOffTheRecord() ||
                            !profile->IsRegularProfile();
+  // Off-the-record preferences can inherit the regular profile's draft.
+  // Read-only controls alone do not prevent disclosure of that source.
+  const TahaiSkinStudioDraftResult draft = unavailable
+      ? TahaiSkinStudioDraftResult{TahaiSkinStudioDraftStatus::kUnavailable, {}}
+      : LoadTahaiSkinStudioDraft(prefs);
   const bool read_only = draft.status == TahaiSkinStudioDraftStatus::kManaged ||
                          draft.status == TahaiSkinStudioDraftStatus::kUnavailable ||
                          unavailable;
@@ -4384,6 +4374,14 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   ~TahaiCommandHandler() override = default;
 
   void RegisterMessages() override {
+    web_ui()->RegisterMessageCallback(
+        "getTahaiCapabilityGrants",
+        base::BindRepeating(&TahaiCommandHandler::GetCapabilityGrants,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "revokeTahaiCapabilityGrant",
+        base::BindRepeating(&TahaiCommandHandler::RevokeCapabilityGrant,
+                            base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "executeTahaiCommand",
         base::BindRepeating(&TahaiCommandHandler::Execute,
@@ -5760,11 +5758,77 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         updated ? "tahaiCustomModeUpdated" : "tahaiCustomModeRejected");
   }
 
+  bool IsCapabilityReviewDocument() {
+    auto* contents = web_ui()->GetWebContents();
+    auto* frame = web_ui()->GetRenderFrameHost();
+    auto* browser = FindBrowserForWebContents(contents);
+    if (!profile_ || !profile_->IsRegularProfile() || profile_->IsOffTheRecord() ||
+        !contents || !frame || !frame->IsActive() ||
+        frame != contents->GetPrimaryMainFrame() || !browser ||
+        browser->GetProfile() != profile_ ||
+        browser->tab_strip_model()->GetActiveWebContents() != contents) {
+      return false;
+    }
+    const auto& url = contents->GetLastCommittedURL();
+    return url == GURL(kTahaiPolicyURL) || url == GURL(kTahaiTrustedPolicyURL);
+  }
+
+  void GetCapabilityGrants(const base::ListValue& args) {
+    capability_review_token_.clear();
+    capability_review_grants_.clear();
+    capability_review_document_ = {};
+    std::optional<std::vector<TahaiCapabilityGrant>> grants;
+    if (args.empty() && IsCapabilityReviewDocument()) {
+      grants = TahaiCapabilityBroker(profile_).GetReviewableGrants();
+    }
+    base::ListValue rows;
+    if (grants) {
+      capability_review_grants_ = std::move(*grants);
+      capability_review_token_ = base::UnguessableToken::Create().ToString();
+      capability_review_document_ = web_ui()->GetRenderFrameHost()->GetWeakDocumentPtr();
+      capability_review_deadline_ = base::TimeTicks::Now() + base::Minutes(5);
+      for (const auto& grant : capability_review_grants_) {
+        rows.Append(base::DictValue().Set("provider", grant.provider_id)
+            .Set("revision", grant.revision_sha256)
+            .Set("origin", grant.approved_origin.spec())
+            .Set("operation", grant.operation == TahaiCapabilityOperation::kReadExplicitSelection
+                ? "Read explicitly selected content" : "Navigate within approved origin"));
+      }
+    }
+    web_ui()->CallJavascriptFunctionUnsafe("tahaiCapabilityGrants",
+        base::Value(grants.has_value()), base::Value(capability_review_token_), rows);
+  }
+
+  void RevokeCapabilityGrant(const base::ListValue& args) {
+    bool revoked = false;
+    if (IsCapabilityReviewDocument() && args.size() == 2u &&
+        args[0].is_string() && args[1].is_int() && args[1].GetInt() >= 0 &&
+        !capability_review_token_.empty() && args[0].GetString() == capability_review_token_ &&
+        static_cast<size_t>(args[1].GetInt()) < capability_review_grants_.size() &&
+        capability_review_document_.AsRenderFrameHostIfValid() == web_ui()->GetRenderFrameHost() &&
+        base::TimeTicks::Now() < capability_review_deadline_ &&
+        web_ui()->GetRenderFrameHost()->HasTransientUserActivation()) {
+      // The renderer chooses only a browser-held reviewed row, not a provider,
+      // origin, operation, revision, or replacement grant.
+      revoked = TahaiCapabilityBroker(profile_).Revoke(
+          capability_review_grants_[args[1].GetInt()]);
+    }
+    capability_review_token_.clear();
+    capability_review_grants_.clear();
+    capability_review_document_ = {};
+    web_ui()->CallJavascriptFunctionUnsafe("tahaiCapabilityRevoked", base::Value(revoked));
+  }
+
   void SaveSkinStudioDraft(const base::ListValue& args) {
     TahaiSkinStudioDraftResult result;
+    // Optional bounded request ID correlates UI responses, never authority.
+    const int request = args.size() == 2u && args[1].is_int() &&
+                                args[1].GetInt() > 0
+                            ? args[1].GetInt() : 0;
     if (!profile_ || !IsTahaiSkinStudioWebContents(web_ui()->GetWebContents()) ||
         profile_->IsOffTheRecord() ||
-        !profile_->IsRegularProfile() || args.size() != 1u ||
+        !profile_->IsRegularProfile() ||
+        (args.size() != 1u && !(args.size() == 2u && request > 0)) ||
         !args.front().is_string()) {
       result.status = TahaiSkinStudioDraftStatus::kUnavailable;
     } else {
@@ -5772,7 +5836,10 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     }
     web_ui()->CallJavascriptFunctionUnsafe(
         "tahaiSkinStudioDraftSaved",
-        base::Value(std::string(SkinStudioDraftStatusName(result.status))));
+        base::Value(std::string(SkinStudioDraftStatusName(result.status))),
+        base::DictValue().Set("category", result.diagnostic)
+            .Set("line", result.error_line).Set("column", result.error_column),
+        base::Value(request));
   }
 
   void OpenIdentityLane(const base::ListValue& args) {
@@ -6755,6 +6822,10 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   bool protected_inputs_preparing_ = false;
   content::WeakDocumentPtr protected_inputs_document_;
   content::WeakDocumentPtr mission_mutation_document_;
+  std::vector<TahaiCapabilityGrant> capability_review_grants_;
+  std::string capability_review_token_;
+  content::WeakDocumentPtr capability_review_document_;
+  base::TimeTicks capability_review_deadline_;
   uint64_t protected_inputs_generation_ = 0;
   base::WeakPtrFactory<TahaiCommandHandler> weak_factory_{this};
 };
@@ -6787,7 +6858,8 @@ void TahaiPlaceholderSource::StartDataRequest(
     html =
         base::StrCat({kSharedCss, kModeCss, kModeActionCss, kModeSignatureCss,
                       kLocalOiCss, kLocalOiSearchCss, kLocalOiGraphExplorerCss,
-                      kLocalOiControlCss, kLocalOiCapabilityCss});
+                      kLocalOiControlCss, kLocalOiCapabilityCss,
+                      kSkinStudioWorkflowOutlineCss, kSkinStudioConditionTreeCss});
   } else if (url.path() == "/actions.js") {
     html = kActionsJs;
   } else if (url.path() == "/command-center.js") {
@@ -6837,7 +6909,11 @@ void TahaiPlaceholderSource::StartDataRequest(
                          kSkinStudioWorkflowInputBootstrapJs,
                          kSkinStudioWorkflowInputEditorJs,
                          kSkinStudioWorkflowToolsJs,
+                         kSkinStudioConditionTreeJs,
+                         kSkinStudioWorkflowOutlineJs,
                          kSkinStudioHistoryJs});
+  } else if (url.path() == "/capability-review.js") {
+    html = kCapabilityReviewJs;
   } else if (url.path() == "/profiles.js") {
     html = kProfilesJs;
   } else {
@@ -6897,6 +6973,9 @@ void TahaiPlaceholderSource::StartDataRequest(
 }
 
 std::string TahaiPlaceholderSource::GetMimeType(const GURL& url) {
+  if (url.path() == "/capability-review.js") {
+    return "text/javascript";
+  }
   if (url.path() == "/brand.png") {
     return "image/png";
   }

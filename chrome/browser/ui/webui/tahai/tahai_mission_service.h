@@ -220,6 +220,9 @@ bool IsMissionWorkflowInputBranchLocked(const MissionSummary& mission,
                                        std::string_view input_id);
 bool CanControlMissionWorkflowWait(const MissionSummary& mission,
                                    size_t step_index, bool complete);
+// Manual review only after a failed/cancelled run has no in-flight attempt.
+// Never grants action authority, changes the terminal state or permits replay.
+bool CanReviewMissionRecovery(const MissionSummary& mission);
 
 // Owns Mission metadata for one Profile. Ordinary notes/inputs are screened;
 // explicitly protected inputs are OS-encrypted, masked, and never exposed to

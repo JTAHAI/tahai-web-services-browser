@@ -3,6 +3,7 @@
 
 #include "chrome/browser/tahai_skins/skin_package_store.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
@@ -21,6 +22,8 @@
 #include "chrome/common/tahai_skins/tahai_skin_catalog.h"
 #include "crypto/sha2.h"
 #include "sql/statement.h"
+#include "sql/sqlite_result_code_values.h"
+#include "sql/test/drive_error_test_vfs.h"
 #include "sql/test/test_helpers.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -289,6 +292,102 @@ TEST_F(TahaiSkinStoreTest, UnknownVersionAndCorruptionAreNeverRazed) {
   SkinPackageStore corrupt(directory_.GetPath());
   EXPECT_EQ(SkinStoreError::kCorrupt,
             corrupt.Read(original.id, original.archive_sha256).error());
+}
+
+TEST_F(TahaiSkinStoreTest, UnexpectedSchemaCannotDiscardRollbackOrAcknowledgeUpdate) {
+  const auto first = OperationalFixture("operational-skin", "version one");
+  const auto second = OperationalFixture("operational-skin", "version two");
+  const auto third = OperationalFixture("operational-skin", "version three");
+  {
+    SkinPackageStore store(directory_.GetPath());
+    ASSERT_TRUE(store.Install(first, std::nullopt).has_value());
+    ASSERT_TRUE(store.Install(second, first.archive_sha256).has_value());
+  }
+  const auto path = directory_.GetPath().AppendASCII("TAHAI Skins");
+  {
+    sql::Database database(sql::test::kTestTag);
+    ASSERT_TRUE(database.Open(path));
+    ASSERT_TRUE(database.Execute(
+        "CREATE TRIGGER erase_rollback AFTER UPDATE ON skins BEGIN "
+        "UPDATE skins SET previous_manifest=NULL,previous_hash=NULL,"
+        "previous_archive=NULL; END"));
+  }
+  std::string before, after;
+  ASSERT_TRUE(base::ReadFileToString(path, &before));
+  {
+    SkinPackageStore store(directory_.GetPath());
+    EXPECT_EQ(SkinStoreError::kCorrupt, store.List().error());
+    EXPECT_EQ(SkinStoreError::kCorrupt,
+              store.Install(third, second.archive_sha256).error());
+    EXPECT_EQ(SkinStoreError::kCorrupt,
+              store.Remove(second.id, second.archive_sha256).error());
+    EXPECT_EQ(SkinStoreError::kCorrupt,
+              store.Read(first.id, first.archive_sha256, true).error());
+  }
+  ASSERT_TRUE(base::ReadFileToString(path, &after));
+  EXPECT_EQ(before, after);
+}
+
+TEST_F(TahaiSkinStoreTest, DiskFullUpdatePreservesCurrentAndRollbackAfterReopen) {
+  sql::test::DriveErrorTestVfs vfs;
+  const auto first = OperationalFixture("operational-skin", "version one");
+  const auto second = OperationalFixture("operational-skin", "version two");
+  const auto third = OperationalFixture("operational-skin", std::string(1024 * 1024, 'x'));
+  {
+    SkinPackageStore store(directory_.GetPath());
+    ASSERT_TRUE(store.Install(first, std::nullopt).has_value());
+    ASSERT_TRUE(store.Install(second, first.archive_sha256).has_value());
+    vfs.set_drive_full(true);
+    const auto failed = store.Install(third, second.archive_sha256);
+    vfs.set_drive_full(false);  // Always restore I/O before closing the store.
+    ASSERT_FALSE(failed.has_value());
+    EXPECT_EQ(SkinStoreError::kUnavailable, failed.error());
+    EXPECT_NE(vfs.errors_produced().end(), std::ranges::find(
+        vfs.errors_produced(), sql::SqliteErrorCode::kFullDisk));
+    // A connection which saw an I/O error stays inert, even if space returns.
+    EXPECT_EQ(SkinStoreError::kUnavailable, store.List().error());
+  }
+  SkinPackageStore reopened(directory_.GetPath());
+  auto current = reopened.Read(second.id, second.archive_sha256);
+  ASSERT_TRUE(current.has_value());
+  EXPECT_EQ(second.archive, current->archive);
+  auto previous = reopened.Read(first.id, first.archive_sha256, true);
+  ASSERT_TRUE(previous.has_value());
+  EXPECT_EQ(first.archive, previous->archive);
+  EXPECT_EQ(SkinStoreError::kConflict, reopened.Read(third.id, third.archive_sha256).error());
+  ASSERT_TRUE(reopened.Install(third, second.archive_sha256).has_value());
+  previous = reopened.Read(second.id, second.archive_sha256, true);
+  ASSERT_TRUE(previous.has_value());
+  EXPECT_EQ(second.archive, previous->archive);
+}
+
+TEST_F(TahaiSkinStoreTest, DiskFullRemovalPreservesCurrentAndRollbackAfterReopen) {
+  sql::test::DriveErrorTestVfs vfs;
+  const auto first = OperationalFixture("operational-skin", "version one");
+  const auto second = OperationalFixture("operational-skin", "version two");
+  {
+    SkinPackageStore store(directory_.GetPath());
+    ASSERT_TRUE(store.Install(first, std::nullopt).has_value());
+    ASSERT_TRUE(store.Install(second, first.archive_sha256).has_value());
+    vfs.set_drive_full(true);
+    const auto failed = store.Remove(second.id, second.archive_sha256);
+    vfs.set_drive_full(false);
+    ASSERT_FALSE(failed.has_value());
+    EXPECT_EQ(SkinStoreError::kUnavailable, failed.error());
+    EXPECT_NE(vfs.errors_produced().end(), std::ranges::find(
+        vfs.errors_produced(), sql::SqliteErrorCode::kFullDisk));
+  }
+  SkinPackageStore reopened(directory_.GetPath());
+  auto current = reopened.Read(second.id, second.archive_sha256);
+  ASSERT_TRUE(current.has_value());
+  EXPECT_EQ(second.archive, current->archive);
+  auto previous = reopened.Read(first.id, first.archive_sha256, true);
+  ASSERT_TRUE(previous.has_value());
+  EXPECT_EQ(first.archive, previous->archive);
+  ASSERT_TRUE(reopened.Remove(second.id, second.archive_sha256).has_value());
+  auto catalog = reopened.List();
+  ASSERT_TRUE(catalog.has_value());
+  EXPECT_TRUE(catalog->empty());
 }
 
 }  // namespace

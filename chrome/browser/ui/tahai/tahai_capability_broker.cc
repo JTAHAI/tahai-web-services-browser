@@ -80,10 +80,14 @@ bool ParseOperation(std::string_view value, TahaiCapabilityOperation* output) {
   return false;
 }
 
-bool IsEligibleProfile(Profile* profile) {
+bool CanManageGrants(Profile* profile) {
   return profile && profile->IsRegularProfile() && !profile->IsOffTheRecord() &&
-         profile->GetPrefs()->GetBoolean(prefs::kTahaiSkinsEnabled) &&
          !profile->GetPrefs()->IsManagedPreference(prefs::kTahaiCapabilityGrants);
+}
+
+bool IsEligibleProfile(Profile* profile) {
+  return CanManageGrants(profile) &&
+         profile->GetPrefs()->GetBoolean(prefs::kTahaiSkinsEnabled);
 }
 
 bool IsValidRequest(Profile* profile, const TahaiCapabilityRequest& request) {
@@ -113,7 +117,7 @@ bool IsSameGrant(const TahaiCapabilityGrant& first,
 
 std::optional<std::vector<TahaiCapabilityGrant>> ReadGrants(Profile* profile) {
   std::vector<TahaiCapabilityGrant> grants;
-  if (!IsEligibleProfile(profile)) {
+  if (!CanManageGrants(profile)) {
     return std::nullopt;
   }
   const base::DictValue& stored =
@@ -216,7 +220,7 @@ bool TahaiCapabilityBroker::IsAllowed(
 }
 
 bool TahaiCapabilityBroker::Revoke(const TahaiCapabilityGrant& grant) {
-  if (!IsEligibleProfile(profile_) || !IsSafeIdentifier(grant.provider_id) ||
+  if (!CanManageGrants(profile_) || !IsSafeIdentifier(grant.provider_id) ||
       !IsSha256(grant.revision_sha256) || !IsExactHttpsOrigin(grant.approved_origin) ||
       !IsAllowedOperation(grant.operation)) {
     return false;
@@ -239,7 +243,7 @@ bool TahaiCapabilityBroker::Revoke(const TahaiCapabilityGrant& grant) {
 }
 
 bool TahaiCapabilityBroker::RevokeAllForProvider(std::string_view provider_id) {
-  if (!IsEligibleProfile(profile_) || !IsSafeIdentifier(provider_id)) {
+  if (!CanManageGrants(profile_) || !IsSafeIdentifier(provider_id)) {
     return false;
   }
   auto loaded = ReadGrants(profile_);
@@ -262,6 +266,11 @@ bool TahaiCapabilityBroker::RevokeAllForProvider(std::string_view provider_id) {
 
 std::vector<TahaiCapabilityGrant> TahaiCapabilityBroker::GetGrants() const {
   return ReadGrants(profile_).value_or(std::vector<TahaiCapabilityGrant>());
+}
+
+std::optional<std::vector<TahaiCapabilityGrant>>
+TahaiCapabilityBroker::GetReviewableGrants() const {
+  return ReadGrants(profile_);
 }
 
 }  // namespace tahai

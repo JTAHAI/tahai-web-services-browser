@@ -42,11 +42,12 @@ the last valid source through these controls. New Mission runs use the
 versioned native action adapter described in `OPERATIONAL_SKIN_V2.md`; legacy
 checklist-only runs remain inert. Simulation is not runtime execution evidence.
 
-Use **Typed local variables** to create an empty slot by copying an ordinary
-input or variable's type, options and limits. Select an instruction/checkpoint
+Use **Typed local variables** to create an empty slot by copying an
+input or variable's type, privacy, options and limits. Select an instruction/checkpoint
 and use **Set assignment step** to choose its typed source and destination.
-Native actions remain separate. Assignments cannot read protected inputs and
-do not convert types; an empty source clears the destination. Each explicit
+Native actions remain separate. Protected inputs/variables can only be copied
+into protected destinations; assignments do not convert types. Protected values
+remain masked and encrypted. An empty source clears the destination. Each explicit
 assignment runs once per step, with later assignments allowed to overwrite.
 The Mission displays current local values; changing an input does not alter a
 previously captured value. Restart never assigns automatically. Rename/remove
@@ -82,6 +83,69 @@ only in Studio's password-style simulation fields; simulation does not save
 secrets or grant connector access. Mission Control offers replacement, explicit
 clearing and retry when OS storage is unavailable. A restored required value
 must be successfully decrypted before the person can explicitly resume the run.
+
+### Undo and redo boundaries
+
+Studio retains up to 50 draft text states, with at most 64 KiB UTF-8 per state
+and 2 MiB of retained UTF-8 text in total. Older states are evicted first.
+History stays in the current document and is cleared on reload/close; this is
+not a separate backup. Use **Download source** before discarding work.
+
+Undo/Redo buttons and Ctrl+Z/Ctrl+Y (or Command+Z/Shift+Command+Z) restore draft
+source through normal validation and autosave. In other text fields, including
+protected simulation inputs, keyboard undo belongs to that field and does not
+replace the whole draft. Composition, already-handled events and Alt-modified
+shortcuts are not intercepted. Simulation values never enter draft history.
+
+An oversized edit is not retained for Redo. Undo first returns to the last
+retained draft rather than skipping it; the oversized edit itself is not a
+saved backup. Read-only drafts cannot replay changes. Restoring source never
+installs, signs, applies or executes a package.
+
+### Local workflow starters
+
+Studio's **Local workflow starters** gallery previews six editable checklists:
+Research desk, Creator studio, Personal planning, Learning space, Operations
+console and Blank focus checklist. Selecting a preview changes nothing in the
+draft. **Add starter as new workflow** adds an independent definition with a
+unique ID and selects it for editing. Existing workflows, mode bindings,
+surfaces, capabilities and grants are unchanged. Use the separate mode-binding
+control when you actually want a mode to use the new workflow.
+
+Starters contain no entered values, live progress, website references, native
+actions or connector configuration. Required inputs and conditional steps can
+be tried in the local simulator. Research capture, creative publishing,
+calendar/task access and diagnostics remain manual work outside these starter
+checklists; the gallery does not implement those integrations. These workflow
+starters are not the complete operational-skin surface/template collection.
+
+Normal validation, undo/redo, autosave and reload apply after adding a starter.
+Invalid source, a read-only draft, the 24-workflow quota or the source-size limit
+prevents addition without replacing existing work. Repeated additions receive
+distinct IDs; they never overwrite a previous copy.
+
+### Visual workflow outline
+
+The native Studio's **Workflow outline** shows the selected workflow in authored
+order, including conditions, explicit native actions, assignments, timed waits
+and bounded repeat ranges. Its summary distinguishes authored steps from the
+expanded iteration count. This is a view of the supported ordered workflow,
+not an arbitrary graph of jumps or an execution trace.
+
+Select a step card to focus that step in the existing condition/assignment/wait
+inspector. Up/Down and Home/End move the selection within the outline; Enter
+focuses the inspector. The inspector's Move step up/down controls still validate
+the entire definition before changing source. The outline updates after source
+edits, undo/redo, workflow selection and reload. Invalid source clears the outline
+instead of showing a stale valid graph. Selecting a card does not save, grant a
+permission, dispatch an action or start a simulation.
+
+A false condition skips only its own step. Missing input/variable values block
+progress; they are not treated as false. A repeat revisits its bounded range for
+the declared total iteration count, with independently recorded runtime progress.
+The diagram never implies that selecting a node executes it or that a repeat
+automatically performs native actions. Completion and run success remain explicit.
+Private Studio pages have no inherited regular-profile draft to diagram.
 
 ## Local modes and built-in presets
 
@@ -345,6 +409,124 @@ can disable skins or package installation. OS forced colors always take
 precedence.
 
 ## Troubleshooting
+
+### Reviewing a failed or cancelled Mission
+
+The generated rollback rail remains available for manual recovery review after
+a workflow fails or is cancelled, once no native action or wait is in flight.
+Use **Mark reviewed** only after checking the actual outcome and authority to
+act. An unknown native outcome does not mean an action never happened.
+These checklist controls do not execute rollback, grant permissions, replay an
+action, reopen the run, mark it successful, or change forward checkpoints.
+The review is saved locally and survives restart; its timeline entries say
+“Recovery review”, distinct from ordinary running-workflow rollback checkpoints.
+Archived, managed and shutdown records remain immutable. A stale document/token
+or a gestureless request cannot acknowledge recovery. If a deadline settles an
+attempt while a request is handled, refresh the page before reviewing its result.
+Authors may optionally add `compensation_steps` to a workflow: one to eight
+unique `{ "id", "name" }` entries. They replace the generic recovery checklist
+for that run, persist with its Mission, and remain manual acknowledgements only.
+They cannot contain an action, URL, provider, wait, variable, condition, value,
+script, automatic retry, or undo command. Studio labels this as a **Manual
+recovery checklist** and keeps it out of simulation; it is deliberately not
+author-defined compensation execution.
+
+### Studio simulation trace
+
+The simulator's trace shows the ordered rehearsal events for checkpoint
+completion, variable assignment, waits, substituted native actions and explicit
+failure tests. A failed assignment records a fixed blocked event and leaves the
+old simulated value and progress unchanged. Recorded branch events omit the
+comparison's input and result values. Expanded repeat IDs distinguish iterations.
+
+This is not a real execution log or release evidence. It stores only step IDs,
+fixed event types and sequence numbers in the current Studio page. It never
+captures form values, variable values, pages, credentials, timestamps or native
+effects. Only the latest 128 events are retained; the status explicitly reports
+when older events have been omitted. **Clear trace only** removes the trace
+without resetting the simulated run. Resetting simulation, changing any input,
+editing source, selecting another workflow or closing the page clears the trace.
+It is not written into source drafts, packages, Mission state or exports.
+
+### Typed yes/no calculations
+
+An `assign-variable` step can store the result of a bounded condition in an
+ordinary boolean variable. For example:
+
+```json
+{"variable":"ready","boolean_expression":{"all":[
+  {"input":"approved","equals":"true"},
+  {"input":"quantity","compare":{"op":"at-least","number":1}}
+]}}
+```
+
+The referenced inputs/variables must be declared ordinary boolean, selection or
+numeric values as required by each comparison. Protected sources and destinations
+are forbidden. The condition grammar and limits apply: `all`, `any`, `not`,
+at most 31 nodes and five levels. Every reference must resolve, even where
+boolean short-circuiting could otherwise hide missing data. Missing or invalid
+values preserve the previous result and checkpoint. The fixed diagnostic is
+`missing-condition-value`; results are typed `true` or `false`, not scripts.
+
+In Studio, choose a boolean destination in the assignment inspector. The yes/no
+calculation editor accepts the same condition JSON. To author without JSON,
+use the step's existing condition controls and then **Turn this step's condition
+into a yes/no calculation**. This explicitly removes that step's availability
+condition and moves it into the assignment so either result can be recorded.
+Studio simulation does not perform native actions or persist simulation values.
+Real Mission assignment requires explicit progress, stores a local result,
+survives restart, and never automatically recalculates or replays a completed
+step. These expressions do not add external connectors, grants or credentials.
+
+### Editing nested conditions without JSON
+
+Studio's **Visual condition tree** shows the selected step's ordinary comparisons
+and AND/OR/NOT groups. Choose an input or variable and a comparison in the controls
+above it. At any node, use **Replace with comparison above** or combine that node
+with the comparison using AND/OR. Within a group, add a comparison, change AND to
+OR (or back), move checks up/down, or remove a member. Removing one of two members
+replaces the group with the remaining check. **Wrap in NOT** and **Remove NOT**
+are explicit inversions. The root offers **Remove entire condition**.
+
+Each accepted edit updates the same source draft and participates in Studio
+undo/redo and autosave. Unrelated checks and workflow definitions are preserved.
+The controls never run a Mission or read its inputs. Protected values are not
+available as comparison sources. Every edit passes the workflow draft validator:
+31 nodes, five levels and eight children per group remain hard limits; exceeding
+them leaves the source unchanged. Native validation checks the complete manifest
+before a profile draft is saved. Read-only, detached and stale controls cannot
+change the current draft. Invalid source must be repaired before visual editing.
+These controls also compose expressions that can be explicitly moved into a
+yes/no assignment using the button described above. All referenced values must
+be present at runtime; OR/NOT never bypass missing-data checks.
+
+### Surface editing and preview lifetime
+
+Surface outline and keyboard-order edits are tied to the displayed source and
+surface. Replaced controls cannot change another surface or a newer tree.
+Visual edits leave the source unchanged if formatted output would exceed the
+64 KiB Studio limit. Duplicate surface IDs, malformed source and oversized source
+disable this editor; complete native manifest validation still occurs on save.
+
+Every layout trial has a document-local request identity in addition to its
+browser-owned transaction. Editing source, switching surfaces or leaving Studio
+cancels even a trial whose response has not arrived yet. Delayed responses cannot
+re-enable Keep for another trial; stale Keep/Revert/Reset/Preview requests cannot
+commit or cancel a newer layout. Native profile, active-window/document, gesture,
+pane-count and 30-second-expiry checks still apply. This trial changes geometry,
+not page content, tab membership, website permissions or workflow progress.
+
+### Source validation and packaging checks
+
+Studio reports JSON syntax line/column positions and fixed validation categories
+for rejected source saves. Manifest categories identify a broad section, not an
+exact field path; appearance validation also covers package metadata and assets.
+The source must be one JSON object. Neither raw parser errors nor rejected source
+snippets are displayed. Invalid source and oversized formatted drafts retain the
+last valid profile-local draft. A save response applies only to the submitted
+edit: changing source invalidates its pending success/error message, including
+an edit followed by Undo to the same text. Saving a source draft still does not
+create, sign, install, or grant authority to a skin package.
 
 Release verification uses `test_build_skin.py --release-gate -v`: all creator
 tests must run without skips, including generated-key Ed25519 signing, modified

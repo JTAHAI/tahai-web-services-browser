@@ -24,6 +24,10 @@ enum class TahaiSkinStudioDraftStatus {
 struct TahaiSkinStudioDraftResult {
   TahaiSkinStudioDraftStatus status = TahaiSkinStudioDraftStatus::kUnavailable;
   std::string manifest_json;
+  // Fixed validator category and position only; never parser text or source.
+  std::string diagnostic = {};
+  int error_line = 0;
+  int error_column = 0;
 };
 
 // Returns a valid, inert v2 source template. It is a draft, not an installed

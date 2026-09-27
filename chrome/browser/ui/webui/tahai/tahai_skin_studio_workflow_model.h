@@ -155,7 +155,7 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
     if (assignment?.from?.[kind] === sourceId) return true;
     const visit = (node, depth = 1) => record(node) && depth <= 5 &&
         (node[kind] === sourceId || Array.isArray(node.args) && node.args.some(item => visit(item, depth + 1)));
-    return visit(assignment?.expression) || visit(assignment?.text_expression);
+    return visit(assignment?.expression) || visit(assignment?.text_expression) || usesConditionSource(assignment?.boolean_expression, kind, sourceId);
   };
   const expand = workflow => {
     if (!record(workflow) || !Array.isArray(workflow.steps) || !workflow.steps.length || workflow.steps.length > 32) return null;
@@ -201,7 +201,7 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
     return steps;
   };
   const validate = (workflow, capabilities) => {
-    if (!fields(workflow, ['id', 'name', 'inputs', 'steps', 'outputs', 'variables', 'repeats']) || !id(workflow.id) || !label(workflow.name) ||
+    if (!fields(workflow, ['id', 'name', 'inputs', 'steps', 'outputs', 'variables', 'repeats', 'compensation_steps']) || !id(workflow.id) || !label(workflow.name) ||
         !Array.isArray(capabilities) || !Array.isArray(workflow.steps) || !workflow.steps.length ||
         workflow.steps.length > 32 || (own(workflow, 'inputs') && !Array.isArray(workflow.inputs))) return false;
     const inputs = workflow.inputs || [];
@@ -226,6 +226,15 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
             fields(output.from, ['input', 'variable']) && Object.keys(output.from).length === 1 &&
             (own(output.from, 'variable') ? variables : inputs).some(input =>
                 id(output.from.variable ?? output.from.input) && input.id === (output.from.variable ?? output.from.input)))) return false;
+    // Recovery items are intentionally just bounded human review labels. They
+    // do not identify an action, site, provider, wait, value, or compensation
+    // command, and are never available to the simulation executor.
+    const compensation = own(workflow, 'compensation_steps') ? workflow.compensation_steps : [];
+    if (!Array.isArray(compensation) || (own(workflow, 'compensation_steps') &&
+        (!compensation.length || compensation.length > 8)) ||
+        new Set(compensation.map(item => item?.id)).size !== compensation.length ||
+        !compensation.every(item => fields(item, ['id', 'name']) && Object.keys(item).length === 2 &&
+            id(item.id) && label(item.name))) return false;
     if (!expand(workflow)) return false;
     return workflow.steps.every((step, stepIndex) => {
       if (!fields(step, ['id', 'name', 'kind', 'action', 'when', 'assign', 'wait']) || !id(step.id) || !label(step.name) ||
@@ -236,9 +245,12 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
       } else if (own(step, 'action')) return false;
       if (step.kind === 'assign-variable') {
         const assign = step.assign;
-        if (!fields(assign, ['variable', 'from', 'expression', 'text_expression']) || !id(assign.variable) || Object.keys(assign).length !== 2) return false;
+        if (!fields(assign, ['variable', 'from', 'expression', 'text_expression', 'boolean_expression']) || !id(assign.variable) || Object.keys(assign).length !== 2) return false;
         const target = variables.find(variable => variable.id === assign.variable);
-        if (own(assign, 'text_expression')) {
+        if (own(assign, 'boolean_expression')) {
+          if (target?.type !== 'boolean' || target.protected || !record(assign.boolean_expression) ||
+              !validCondition(assign.boolean_expression, inputs, variables)) return false;
+        } else if (own(assign, 'text_expression')) {
           if (target?.type !== 'text' || target.protected || !validTextExpression(assign.text_expression, inputs, variables)) return false;
         } else if (own(assign, 'expression')) {
           if (target?.type !== 'number' || target.protected || !validExpression(assign.expression, inputs, variables)) return false;
@@ -283,6 +295,51 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
     const text = JSON.stringify(parsed, null, 2);
     return parse(text) ? text : null;
   };
+  // Local starter definitions only. No entered values, sites, permissions,
+  // provider configuration, external effects or live run state are copied.
+  const workflowTemplates = [
+    {id: 'research', name: 'Research desk', description: 'Frame a question, manually review sources and prepare a brief. No page content is captured.',
+      inputs: [{id: 'question', name: 'Research question', type: 'text', required: true}],
+      steps: [{id: 'scope', name: 'Review the research question', kind: 'checkpoint'},
+        {id: 'sources', name: 'Manually review chosen sources in browser tabs', kind: 'instruction'},
+        {id: 'compare', name: 'Compare findings and note uncertainty', kind: 'checkpoint'},
+        {id: 'brief', name: 'Review your brief before exporting it separately', kind: 'checkpoint'}],
+      outputs: [{id: 'question-result', name: 'Research question', from: {input: 'question'}}]},
+    {id: 'creator', name: 'Creator studio', description: 'Develop a brief and review creative work. Publishing remains a separate manual website action, not an adapter invocation.',
+      inputs: [{id: 'brief', name: 'Creative brief', type: 'text', required: true},
+        {id: 'publish', name: 'Plan a separate manual publishing review', type: 'boolean', required: true}],
+      steps: [{id: 'assets', name: 'Gather references and check usage rights', kind: 'instruction'},
+        {id: 'create', name: 'Create your work in your chosen editor', kind: 'checkpoint'},
+        {id: 'review', name: 'Review quality and privacy before sharing', kind: 'checkpoint'},
+        {id: 'publish-review', name: 'Review publication separately on your chosen site', kind: 'instruction', when: {input: 'publish', equals: 'true'}}],
+      outputs: [{id: 'brief-result', name: 'Creative brief', from: {input: 'brief'}}]},
+    {id: 'planning', name: 'Personal planning', description: 'Collect priorities and record a plan using a local checklist. No calendar or account access.',
+      inputs: [{id: 'priority', name: 'Main priority', type: 'text', required: true},
+        {id: 'horizon', name: 'Planning horizon', type: 'selection', required: true, options: ['Today', 'This week']}],
+      steps: [{id: 'collect', name: 'Collect priorities without entering secrets', kind: 'checkpoint'},
+        {id: 'compare', name: 'Manually compare commitments and available time', kind: 'instruction'},
+        {id: 'plan', name: 'Record your plan in your chosen tool', kind: 'checkpoint'},
+        {id: 'follow-up', name: 'Record a follow-up outside this checklist', kind: 'checkpoint'}],
+      outputs: [{id: 'priority-result', name: 'Priority', from: {input: 'priority'}}]},
+    {id: 'learning', name: 'Learning space', description: 'Choose a lesson, practice and review progress. The workflow does not read a course account or grade your work.',
+      inputs: [{id: 'lesson', name: 'Lesson topic', type: 'text', required: true},
+        {id: 'extra-practice', name: 'Include extra practice', type: 'boolean', required: true}],
+      steps: [{id: 'choose', name: 'Choose a lesson and learning objective', kind: 'checkpoint'},
+        {id: 'practice', name: 'Complete exercises on your chosen learning site', kind: 'instruction'},
+        {id: 'extra', name: 'Complete an additional practice exercise', kind: 'instruction', when: {input: 'extra-practice', equals: 'true'}},
+        {id: 'review', name: 'Review what you learned and record the next topic', kind: 'checkpoint'}],
+      outputs: [{id: 'lesson-result', name: 'Lesson topic', from: {input: 'lesson'}}]},
+    {id: 'operations', name: 'Operations console', description: 'Review scope, inspect manually, validate and prepare a handoff. No diagnostics, remote writes or credential access are started.',
+      inputs: [{id: 'scope', name: 'Work scope without secrets', type: 'text', required: true}],
+      steps: [{id: 'scope-review', name: 'Confirm scope and independent authorization', kind: 'checkpoint'},
+        {id: 'inspect', name: 'Manually inspect the chosen system and documentation', kind: 'instruction'},
+        {id: 'validate', name: 'Validate the outcome and review recovery options', kind: 'checkpoint'},
+        {id: 'handoff', name: 'Prepare and redact a handoff for separate review', kind: 'checkpoint'}],
+      outputs: [{id: 'scope-result', name: 'Reviewed scope', from: {input: 'scope'}}]},
+    {id: 'focus', name: 'Blank focus checklist', description: 'One local checkpoint to customize. This starter does not change layout, accessibility settings or browser controls.',
+      inputs: [], steps: [{id: 'focus', name: 'Choose one task and review its completion', kind: 'checkpoint'}]}
+  ];
+  const templates = () => JSON.parse(JSON.stringify(workflowTemplates));
   const uniqueId = (name, items) => {
     const stem = 'workflow-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 44).replace(/-+$/g, '');
     const base = stem.endsWith('-') ? stem + 'new' : stem;
@@ -299,7 +356,15 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
     const workflows = parsed.operational.workflows, workflow = workflows.find(item => item.id === selectedId);
     if (!workflow) return {error: 'Select an existing workflow first.'};
     let selected = selectedId;
-    if (operation === 'create' || operation === 'copy') {
+    if (operation === 'template') {
+      const template = workflowTemplates.find(item => item.id === value);
+      if (!template) return {error: 'Choose an available local workflow starter.'};
+      if (workflows.length >= 24) return {error: 'A package supports up to 24 workflows.'};
+      selected = uniqueId(template.name, workflows);
+      if (!selected) return {error: 'Choose a more distinct workflow name.'};
+      const next = JSON.parse(JSON.stringify(template));
+      delete next.description; next.id = selected; workflows.push(next);
+    } else if (operation === 'create' || operation === 'copy') {
       if (!label(value)) return {error: 'Use a name of 1–128 printable characters, without quotes, backslashes or angle brackets.'};
       if (workflows.length >= 24) return {error: 'A package supports up to 24 workflows.'};
       selected = uniqueId(value, workflows);
@@ -459,7 +524,11 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
     const target = workflow.variables.find(item => item.id === step.assign.variable);
     const from = step.assign.from;
     let value;
-    if (step.assign.text_expression) {
+    if (step.assign.boolean_expression) {
+      const decision = evaluateCondition(step.assign.boolean_expression, values, variables);
+      if (decision === null) return {error: 'Calculation unavailable: missing-condition-value'};
+      value = decision ? 'true' : 'false';
+    } else if (step.assign.text_expression) {
       const calculation = calculateText(step.assign.text_expression, values, variables);
       if (calculation.error) return {error: 'Calculation unavailable: ' + calculation.error};
       value = calculation.value;
@@ -516,7 +585,7 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
     return {code: outcome === 'rejected' ? 'native-rejected' : 'native-outcome-unknown', stepId,
       decisions: freezeDecisions(workflow, result.steps, index, decisions)};
   };
-  window.tahaiWorkflowDesign = Object.freeze({validate, parse, encode, mutate, expand, simulate, assign, advance, wait, expireWait, failNative, allowedActions, usesAssignmentSource, usesConditionSource});
+  window.tahaiWorkflowDesign = Object.freeze({validate, parse, encode, mutate, templates, expand, simulate, assign, advance, wait, expireWait, failNative, allowedActions, usesAssignmentSource, usesConditionSource});
 
   const source = document.querySelector('#skin-studio-source');
   const status = document.querySelector('#skin-studio-status');
@@ -533,10 +602,33 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
     <button type="button" class="button" id="skin-studio-workflow-remove">Remove unused workflow</button></div>
     <div class="grid"><label>Mode <select id="skin-studio-workflow-mode" class="button"></select></label>
     <button type="button" class="button" id="skin-studio-workflow-bind">Use selected workflow for this mode</button></div>
-    <p id="skin-studio-workflow-binding" class="muted"></p>`;
+    <p id="skin-studio-workflow-binding" class="muted"></p>
+    <h3>Local workflow starters</h3>
+    <p class="muted">Preview a starter, then add an independent editable workflow. Existing definitions, mode bindings, surfaces and permissions stay unchanged. These are local manual-work checklists, not complete surface templates or connected service integrations.</p>
+    <label>Starter <select id="skin-studio-workflow-template-choice" class="button"></select></label>
+    <p id="skin-studio-workflow-template-description" class="muted"></p>
+    <ol id="skin-studio-workflow-template-preview" class="list" aria-label="Starter step preview"></ol>
+    <button type="button" class="button" id="skin-studio-workflow-template">Add starter as new workflow</button>`;
   title.parentElement.before(section);
   const get = id => section.querySelector('#skin-studio-workflow-' + id);
   const selection = get('select'), modeChoice = get('mode'), newName = get('new-name');
+  const templateChoice = get('template-choice');
+  const refreshTemplate = () => {
+    const template = workflowTemplates.find(item => item.id === templateChoice.value);
+    get('template-description').textContent = template?.description || 'Choose a local workflow starter.';
+    get('template-preview').replaceChildren();
+    for (const step of template?.steps || []) {
+      const row = document.createElement('li');
+      row.textContent = step.name + (step.when ? ' (conditional; answer the declared input first)' : '');
+      get('template-preview').append(row);
+    }
+  };
+  for (const template of workflowTemplates) {
+    const option = document.createElement('option'); option.value = template.id; option.textContent = template.name;
+    templateChoice.append(option);
+  }
+  templateChoice.addEventListener('change', refreshTemplate);
+  refreshTemplate();
   let selectedId = '';
   const writable = () => !source.readOnly && !source.disabled;
   const current = () => {
@@ -565,6 +657,7 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
     selection.disabled = !parsed;
     modeChoice.disabled = newName.disabled = !parsed || !writable();
     get('create').disabled = get('copy').disabled = !parsed || !writable() || workflows.length >= 24;
+    get('template').disabled = !parsed || !writable() || workflows.length >= 24;
     get('remove').disabled = !parsed || !writable() || workflows.length <= 1 ||
         parsed.operational.modes.some(mode => mode.workflow === selectedId);
     refreshBinding();
@@ -578,9 +671,10 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
     status.textContent = 'Workflow selected for editing. No draft change or run was started.';
   });
   modeChoice.addEventListener('change', refreshBinding);
-  for (const operation of ['create', 'copy', 'remove', 'bind']) get(operation).addEventListener('click', () => {
+  for (const operation of ['create', 'copy', 'remove', 'bind', 'template']) get(operation).addEventListener('click', () => {
     if (!writable()) return;
-    const result = mutate(source.value, selectedId, operation, operation === 'bind' ? modeChoice.value : newName.value.trim());
+    const result = mutate(source.value, selectedId, operation,
+        operation === 'bind' ? modeChoice.value : operation === 'template' ? templateChoice.value : newName.value.trim());
     if (result.error) { status.textContent = result.error; return; }
     selectedId = result.selected; source.value = JSON.stringify(result.parsed, null, 2); newName.value = '';
     source.dispatchEvent(new Event('input', {bubbles: true}));

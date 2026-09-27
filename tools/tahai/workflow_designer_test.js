@@ -14,7 +14,7 @@ assert.equal(blocks.length, 4, 'The real model and extracted editor resources mu
 const context = {window: {}, document: {querySelector: () => null}, Map, Set, TextEncoder, URL};
 for (const [index, block] of blocks.entries()) vm.runInNewContext(block[1], context,
     {timeout: 1000, filename: `actual-workflow-resource-${index}.js`});
-const {validate, parse, encode, mutate, simulate, assign, wait, expireWait, failNative, usesAssignmentSource} = context.window.tahaiWorkflowDesign;
+const {validate, parse, encode, mutate, expand, simulate, assign, wait, expireWait, failNative, usesAssignmentSource} = context.window.tahaiWorkflowDesign;
 const caps = ['mission-checklist', 'workspace-layout', 'browser-navigation', 'guard-control'];
 const clone = value => JSON.parse(JSON.stringify(value));
 const workflow = () => ({id: 'research-workflow', name: 'Research workflow', inputs: [
@@ -42,6 +42,27 @@ check(() => {
   assert.deepEqual(clone(copy.parsed.operational.workflows[1].outputs), w.outputs);
   assert.deepEqual(clone(parse(encode(d)).operational.workflows[0].outputs), w.outputs);
 });
+check(() => {
+  const w = workflow();
+  w.compensation_steps = [{id: 'confirm-authority', name: 'Confirm actual authority'},
+    {id: 'record-outcome', name: 'Record actual outcome'}];
+  assert(validate(w, caps));
+  const d = document(); d.operational.workflows[0] = w;
+  const copy = mutate(JSON.stringify(d), w.id, 'copy', 'Recovery copy');
+  assert.deepEqual(clone(copy.parsed.operational.workflows[1].compensation_steps), w.compensation_steps);
+  assert.deepEqual(clone(parse(encode(d)).operational.workflows[0].compensation_steps), w.compensation_steps);
+  // Recovery definitions are inert workflow metadata, not simulator steps.
+  const authoredSteps = expand(w);
+  assert.equal(authoredSteps.length, w.steps.length);
+  assert(!authoredSteps.some(step => step.id === 'confirm-authority'));
+});
+for (const compensation_steps of [null, {}, true, [], [null], [{}],
+  [{id: 'review', name: 'Review', action: 'delete'}],
+  [{id: 'review', name: 'Review', url: 'https://example.test'}],
+  [{id: 'review', name: '<unsafe>'}],
+  [{id: 'same', name: 'One'}, {id: 'same', name: 'Two'}],
+  Array.from({length: 9}, (_, i) => ({id: 'review-' + i, name: 'Review'}))
+]) check(() => { const w = workflow(); w.compensation_steps = compensation_steps; assert.equal(validate(w, caps), false); });
 for (const outputs of [null, {}, true, [null], [{}],
   [{id: 'result', name: 'Result', from: 'question'}],
   [{id: 'result', name: 'Result', from: {input: 'missing'}}],
@@ -806,4 +827,91 @@ check(()=>{const w=actionStatusWorkflow();w.repeats=[{id:'rounds',from:'dispatch
   assert.equal(context.window.tahaiWorkflowDesign.expand(w).at(-1).assign.from.action_status,'r-rounds-2-dispatch');});
 check(()=>{const w=actionStatusWorkflow();w.variables[0]={id:'outcome',name:'Outcome',type:'text',validation:{max_bytes:3}};assert(validate(w,caps));
   const values=new Map([['outcome','old']]);assert(assign(w,caps,new Map(),new Set(['dispatch']),values,'capture').error);assert.equal(values.get('outcome'),'old');});
+const starters = context.window.tahaiWorkflowDesign.templates();
+check(() => assert.equal(starters.length, 6));
+for (const starter of starters) {
+  check(() => {
+    const doc = document(), before = clone(doc);
+    const result = mutate(JSON.stringify(doc), workflow().id, 'template', starter.id);
+    assert(!result.error, starter.id);
+    const added = result.parsed.operational.workflows.at(-1);
+    assert(validate(added, []));
+    assert(!Object.hasOwn(added, 'description'));
+    assert(added.steps.every(step => ['instruction','checkpoint'].includes(step.kind)));
+    assert((added.inputs || []).every(input => !Object.hasOwn(input, 'value')));
+    const withoutNew = clone(result.parsed); withoutNew.operational.workflows.pop();
+    assert.deepEqual(withoutNew, before);
+    assert.equal(result.selected, added.id);
+    const repeated = mutate(encode(result.parsed), result.selected, 'template', starter.id);
+    assert(!repeated.error); assert.notEqual(repeated.selected, result.selected);
+    assert.deepEqual(clone(repeated.parsed.operational.workflows[1]), clone(added));
+  });
+  for (const booleanValue of ['false','true']) check(() => {
+    const doc = mutate(JSON.stringify(document()), workflow().id, 'template', starter.id).parsed;
+    const w = doc.operational.workflows.at(-1);
+    const values = new Map((w.inputs || []).map(input => [input.id,
+      input.type === 'boolean' ? booleanValue : input.type === 'selection' ? input.options[0] : 'Example local topic']));
+    const preview = simulate(w, [], values, new Set());
+    assert(!preview.error && !preview.missing);
+    const done = new Set(preview.steps.filter(step => step.available).map(step => step.id));
+    const result = simulate(w, [], values, done);
+    assert.equal(result.pending, 0);
+    assert.equal(JSON.stringify(w).includes('Example local topic'), false);
+  });
+}
+for (const value of ['unknown', '__proto__', '', null, {}]) check(() => {
+  const text = JSON.stringify(document());
+  assert(mutate(text, workflow().id, 'template', value).error);
+  assert.deepEqual(JSON.parse(text), document());
+});
+check(() => {
+  starters[0].name = 'Changed outside'; starters[0].steps[0].kind = 'run-command';
+  assert.equal(context.window.tahaiWorkflowDesign.templates()[0].name, 'Research desk');
+  assert(!mutate(JSON.stringify(document()), workflow().id, 'template', 'research').error);
+});
+check(() => {
+  const doc = document();
+  for (let index=1;index<24;++index) doc.operational.workflows.push({...workflow(),id:'workflow-'+index});
+  const text = JSON.stringify(doc); assert(parse(text));
+  assert(mutate(text, workflow().id, 'template', 'focus').error);
+  assert.equal(JSON.parse(text).operational.workflows.length, 24);
+});
+check(() => {
+  const doc = document(); doc.sentinel = {padding:'x'.repeat(64000)};
+  const text = JSON.stringify(doc); assert(parse(text));
+  assert(mutate(text, workflow().id, 'template', 'research').error);
+});
+const booleanWorkflow = expression => ({id:'boolean-work',name:'Boolean work',
+  inputs:[{id:'flag',name:'Flag',type:'boolean',required:false},
+    {id:'scope',name:'Scope',type:'selection',options:['accept','deny'],required:false},
+    {id:'amount',name:'Amount',type:'number',required:false}],
+  variables:[{id:'result',name:'Result',type:'boolean'}],
+  steps:[{id:'calculate',name:'Calculate',kind:'assign-variable',assign:{variable:'result',boolean_expression:expression}}],
+  outputs:[{id:'final',name:'Final',from:{variable:'result'}}]});
+for(const [expression,expected] of [
+  [{input:'flag',equals:'true'},'false'],[{not:{input:'flag',equals:'true'}},'true'],
+  [{all:[{input:'flag',equals:'false'},{input:'scope',equals:'accept'},{input:'amount',compare:{op:'at-least',number:2}}]},'true'],
+  [{any:[{input:'flag',equals:'true'},{variable:'result',equals:'false'}]},'false']
+])check(()=>{const w=booleanWorkflow(expression);assert(validate(w,[]));const before=JSON.stringify(w);
+  const values=new Map([['flag','false'],['scope','accept'],['amount','3']]),variables=new Map([['result','true']]);
+  const result=assign(w,[],values,new Set(),variables,'calculate');assert(!result.error);assert.equal(result.variables.get('result'),expected);
+  assert.equal(variables.get('result'),'true');assert.equal(simulate(w,[],values,result.completed,result.variables).outputs[0].value,expected);
+  assert.equal(JSON.stringify(w),before);assert(assign(w,[],values,result.completed,result.variables,'calculate').error);
+});
+for(const op of ['all','any'])check(()=>{const w=booleanWorkflow({[op]:[{input:'flag',equals:'false'},{variable:'result',equals:'true'}]});
+  const variables=new Map(),completed=new Set(),decisions=new Map();
+  const result=assign(w,[],new Map([['flag',op==='all'?'true':'false']]),completed,variables,'calculate',decisions);
+  assert.match(result.error,/missing-condition-value/);assert.equal(variables.size,0);assert.equal(completed.size,0);assert.equal(decisions.size,0);
+});
+for(const node of [null,[],{},{input:'missing',equals:'true'},{input:'flag',equals:true},{input:'flag',equals:'yes'},
+  {input:'flag',compare:{op:'equal',number:0}},{all:[]},{not:null},{all:[{input:'flag',equals:'true'}]},
+  {op:'eval',args:[]},{input:'flag',equals:'true',script:'x'}])check(()=>assert(!validate(booleanWorkflow(node),[])));
+for(const alter of [w=>w.inputs[0].protected=true,w=>w.inputs[0].type='text',w=>w.variables[0].protected=true,
+  w=>w.variables[0].type='text',w=>w.steps[0].assign.from={input:'flag'},w=>w.steps[0].assign.expression={number:1},
+  w=>w.steps[0].assign.text_expression={text:'true'}])check(()=>{const w=booleanWorkflow({input:'flag',equals:'true'});alter(w);assert(!validate(w,[]))});
+check(()=>{let tree={input:'flag',equals:'true'};for(let i=0;i<4;++i)tree={all:[clone(tree),clone(tree)]};
+  assert(validate(booleanWorkflow(tree),[]));assert(!validate(booleanWorkflow({not:tree}),[]));
+  assert(usesAssignmentSource(booleanWorkflow(tree).steps[0].assign,'input','flag'));
+  assert(usesAssignmentSource(booleanWorkflow({not:{variable:'result',equals:'true'}}).steps[0].assign,'variable','result'));
+});
 console.log(`${checks} actual workflow model/validation/simulation checks passed; no browser or native action executed.`);

@@ -708,6 +708,49 @@ TEST(TahaiOperationalSkinManifestTest, CompoundEvaluationNeverShortCircuitsUnkno
   EXPECT_FALSE(EvaluateTahaiWorkflowPredicate(negate, [](const TahaiWorkflowPredicate&) { ADD_FAILURE(); return std::optional<bool>(true); }));
 }
 
+TEST(TahaiOperationalSkinManifestTest, BooleanAssignmentsAreBoundedTypedAndExcludeProtectedSources) {
+  auto valid = base::JSONReader::ReadDict(R"({"id":"boolean-work","name":"Boolean work",
+    "inputs":[{"id":"source","name":"Source","type":"boolean","required":false}],
+    "variables":[{"id":"result","name":"Result","type":"boolean"}],
+    "steps":[{"id":"calculate","name":"Calculate","kind":"assign-variable",
+      "assign":{"variable":"result","boolean_expression":{"not":{"input":"source","equals":"true"}}}}]
+  })", base::JSON_PARSE_RFC);
+  ASSERT_TRUE(valid); TahaiOperationalWorkflow parsed;
+  ASSERT_TRUE(ValidateTahaiOperationalWorkflow(*valid, {}, &parsed));
+  const auto assignment = *parsed.steps[0].assignment;
+  base::Value encoded(SerializeTahaiWorkflowAssignment(assignment)); TahaiWorkflowAssignment decoded;
+  ASSERT_TRUE(ParseTahaiWorkflowAssignment(&encoded, &decoded)); EXPECT_EQ(assignment, decoded);
+  for (const char* text : {"null", "[]", "{}", R"({"input":"missing","equals":"true"})",
+      R"({"input":"source","equals":true})", R"({"all":[]})", R"({"eval":"source"})"}) {
+    auto invalid = valid->Clone();
+    invalid.FindList("steps")->front().GetDict().FindDict("assign")->Set(
+        "boolean_expression", base::JSONReader::Read(text, base::JSON_PARSE_RFC)->Clone());
+    EXPECT_FALSE(ValidateTahaiOperationalWorkflow(invalid, {}, &parsed)) << text;
+  }
+  for (const char* collection : {"inputs", "variables"}) {
+    auto invalid = valid->Clone(); invalid.FindList(collection)->front().GetDict().Set("protected", true);
+    EXPECT_FALSE(ValidateTahaiOperationalWorkflow(invalid, {}, &parsed));
+    invalid = valid->Clone(); invalid.FindList(collection)->front().GetDict().Set("type", "text");
+    EXPECT_FALSE(ValidateTahaiOperationalWorkflow(invalid, {}, &parsed));
+  }
+  for (int kind = 0; kind < 5; ++kind) {
+    auto conflict = assignment;
+    if (kind == 0) conflict.expression = TahaiWorkflowNumericExpression{};
+    if (kind == 1) conflict.text_expression = TahaiWorkflowTextExpression{};
+    if (kind == 2) conflict.source_id = "source";
+    if (kind == 3) conflict.from_variable = true;
+    if (kind == 4) conflict.from_action_status = true;
+    encoded = base::Value(SerializeTahaiWorkflowAssignment(conflict));
+    EXPECT_FALSE(ParseTahaiWorkflowAssignment(&encoded, &decoded));
+  }
+  TahaiWorkflowPredicate tree; tree.source_id = "source"; tree.equals = "true";
+  for (int i = 0; i < 4; ++i) { TahaiWorkflowPredicate parent; parent.operation = "all"; parent.arguments = {tree, tree}; tree = parent; }
+  auto bounded = assignment; bounded.boolean_expression = tree;
+  encoded = base::Value(SerializeTahaiWorkflowAssignment(bounded)); EXPECT_TRUE(ParseTahaiWorkflowAssignment(&encoded, &decoded));
+  TahaiWorkflowPredicate deeper; deeper.operation = "not"; deeper.arguments = {tree}; bounded.boolean_expression = deeper;
+  encoded = base::Value(SerializeTahaiWorkflowAssignment(bounded)); EXPECT_FALSE(ParseTahaiWorkflowAssignment(&encoded, &decoded));
+}
+
 TEST(TahaiOperationalSkinManifestTest, TextExpressionsAreClosedBoundedTypedAndExcludeProtectedSources) {
   auto valid = base::JSONReader::ReadDict(R"({"id":"text-work","name":"Text work",
     "inputs":[{"id":"source","name":"Source","type":"text","required":false}],
@@ -910,6 +953,50 @@ TEST(TahaiOperationalSkinManifestTest, NamedOutputsAreBoundedBindingsWithoutValu
   EXPECT_EQ(TahaiOperationalSkinManifestValidationResult::kValid,
             ValidateTahaiOperationalSkinManifest(manifest, &parsed));
   EXPECT_TRUE(parsed.workflows[0].outputs.empty());
+}
+
+TEST(TahaiOperationalSkinManifestTest,
+     CompensationChecklistsAreBoundedManualAndRoundTrip) {
+  const std::vector<TahaiWorkflowCompensationStep> expected = {
+      {"confirm-authority", "Confirm the actual authority"},
+      {"record-outcome", "Record the actual outcome"}};
+  base::Value encoded(SerializeTahaiWorkflowCompensationSteps(expected));
+  std::vector<TahaiWorkflowCompensationStep> parsed;
+  ASSERT_TRUE(ParseTahaiWorkflowCompensationSteps(&encoded, &parsed));
+  EXPECT_EQ(expected, parsed);
+
+  auto manifest = ValidOperationalSkin();
+  auto& workflow = manifest.FindDict("operational")
+                       ->FindList("workflows")
+                       ->front()
+                       .GetDict();
+  workflow.Set("compensation_steps",
+               SerializeTahaiWorkflowCompensationSteps(expected));
+  TahaiOperationalSkinManifest manifest_parsed;
+  ASSERT_EQ(TahaiOperationalSkinManifestValidationResult::kValid,
+            ValidateTahaiOperationalSkinManifest(manifest, &manifest_parsed));
+  EXPECT_EQ(expected, manifest_parsed.workflows[0].compensation_steps);
+
+  for (const char* invalid : {
+           "null", "{}", "[]", "[{}]",
+           R"([{"id":"confirm-authority","name":"Confirm","action":"delete"}])",
+           R"([{"id":"confirm-authority","name":"Confirm","url":"https://example.test"}])",
+           R"([{"id":"same-item","name":"One"},{"id":"same-item","name":"Two"}])"}) {
+    SCOPED_TRACE(invalid);
+    auto value = base::JSONReader::Read(invalid, base::JSON_PARSE_RFC);
+    ASSERT_TRUE(value);
+    EXPECT_FALSE(ParseTahaiWorkflowCompensationSteps(&*value, &parsed));
+    workflow.Set("compensation_steps", std::move(*value));
+    EXPECT_EQ(TahaiOperationalSkinManifestValidationResult::kInvalidWorkflow,
+              ValidateTahaiOperationalSkinManifest(manifest, &manifest_parsed));
+  }
+  std::vector<TahaiWorkflowCompensationStep> too_many;
+  for (int i = 0; i < 9; ++i)
+    too_many.push_back({"review-" + std::to_string(i), "Review outcome"});
+  base::Value too_many_value(SerializeTahaiWorkflowCompensationSteps(too_many));
+  EXPECT_FALSE(ParseTahaiWorkflowCompensationSteps(&too_many_value, &parsed));
+  EXPECT_TRUE(ParseTahaiWorkflowCompensationSteps(nullptr, &parsed));
+  EXPECT_TRUE(parsed.empty());
 }
 
 TEST(TahaiOperationalSkinManifestTest, InputValidationRulesAreClosedTypedAndBounded) {

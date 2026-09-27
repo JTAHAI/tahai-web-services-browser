@@ -328,6 +328,22 @@ TEST_F(TahaiWorkflowNativeTest, ActionStatusBindingsAreExactlyPinnedBeforeAnyDis
   workflow.steps[1].assignment->from_action_status=false;EXPECT_FALSE(resolve(valid));
 }
 
+TEST_F(TahaiWorkflowNativeTest, BooleanAssignmentsRemainExactlyRevisionPinnedBeforeNativeDispatch) {
+  ASSERT_TRUE(service_->ToggleStep(id_, 0)); auto snapshot = mission(); auto& workflow = manifest_.workflows[0];
+  workflow.variables = {{"result", "Result", TahaiOperationalWorkflowInputType::kBoolean, false, {}}};
+  snapshot.workflow_variables.push_back({workflow.variables[0], "true"});
+  TahaiWorkflowPredicate predicate; predicate.source_id = "result"; predicate.from_variable = true; predicate.equals = "true";
+  workflow.steps[0].kind = TahaiOperationalWorkflowStepKind::kAssignVariable;
+  TahaiWorkflowAssignment assignment; assignment.variable_id = "result"; assignment.boolean_expression = predicate;
+  workflow.steps[0].assignment = assignment;
+  EXPECT_FALSE(Resolve(snapshot)); snapshot.steps[0].assignment = assignment;
+  EXPECT_EQ(IDC_FOCUS_LOCATION, Resolve(snapshot)); const auto valid = snapshot;
+  snapshot.steps[0].assignment->boolean_expression->equals = "false"; EXPECT_FALSE(Resolve(snapshot));
+  snapshot = valid; snapshot.steps[0].assignment->boolean_expression->from_variable = false; EXPECT_FALSE(Resolve(snapshot));
+  snapshot = valid; snapshot.steps[0].assignment->expression = TahaiWorkflowNumericExpression{}; EXPECT_FALSE(Resolve(snapshot));
+  snapshot = valid; snapshot.workflow_variables[0].definition.is_protected = true; EXPECT_FALSE(Resolve(snapshot));
+}
+
 TEST_F(TahaiWorkflowNativeTest, TextExpressionsRemainExactlyRevisionPinnedBeforeNativeDispatch) {
   ASSERT_TRUE(service_->ToggleStep(id_, 0)); auto snapshot = mission(); auto& workflow = manifest_.workflows[0];
   workflow.variables = {{"result", "Result", TahaiOperationalWorkflowInputType::kText, false, {}}};

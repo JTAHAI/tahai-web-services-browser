@@ -4,6 +4,7 @@
 #ifndef CHROME_BROWSER_UI_TAHAI_TAHAI_CAPABILITY_BROKER_H_
 #define CHROME_BROWSER_UI_TAHAI_TAHAI_CAPABILITY_BROKER_H_
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -67,6 +68,10 @@ class TahaiCapabilityBroker {
   bool Revoke(const TahaiCapabilityGrant& grant);
   bool RevokeAllForProvider(std::string_view provider_id);
   std::vector<TahaiCapabilityGrant> GetGrants() const;
+  // Distinguishes an empty valid store from unavailable/malformed storage.
+  // Review and revocation remain available while skins are disabled; neither
+  // operation can enable a grant or repair unfamiliar persisted data.
+  std::optional<std::vector<TahaiCapabilityGrant>> GetReviewableGrants() const;
 
  private:
   raw_ptr<Profile> profile_;

@@ -24,6 +24,15 @@
 namespace tahai {
 namespace {
 
+// Legacy callers use zero. New Studio requests carry a positive document-local
+// ID; control messages must name that exact trial, never whichever is current.
+std::optional<int> RequestId(const base::ListValue& args, size_t index) {
+  if (args.size() == index) return 0;
+  if (args.size() == index + 1u && args[index].is_int() && args[index].GetInt() > 0)
+    return args[index].GetInt();
+  return std::nullopt;
+}
+
 class SurfaceEditorHandler final : public content::WebUIMessageHandler,
                                    public content::WebContentsObserver {
  public:
@@ -74,74 +83,101 @@ class SurfaceEditorHandler final : public content::WebUIMessageHandler,
     return WindowModeController::GetForBrowser(browser);
   }
 
-  void Reply(std::string_view result) {
+  void Reply(std::string_view result, int request_id) {
     if (Target(false)) {
       AllowJavascript();
-      CallJavascriptFunction("tahaiSurfacePreviewResult", base::Value(result));
+      CallJavascriptFunction("tahaiSurfacePreviewResult", base::Value(result),
+                             base::Value(request_id));
     }
   }
 
-  bool OwnsCurrentPreview(WindowModeController* target) const {
+  bool OwnsCurrentPreview(WindowModeController* target, int request_id) const {
     return target && target == preview_controller_.get() && preview_token_ &&
+           request_id == preview_request_id_ &&
            preview_document_.AsRenderFrameHostIfValid() ==
                web_contents()->GetPrimaryMainFrame() &&
            target->IsSurfacePreviewCurrent(*preview_token_);
   }
 
+  bool AcceptNewRequestId(int request_id) {
+    auto* frame = web_contents()->GetPrimaryMainFrame();
+    if (!frame) return false;
+    if (request_document_.AsRenderFrameHostIfValid() != frame) {
+      // A reload may reuse the WebUI handler, but the new document's counter
+      // starts over. Keep replay protection within each document, not across it.
+      greatest_request_id_ = 0;
+      request_document_ = frame->GetWeakDocumentPtr();
+    }
+    if (request_id == 0) return greatest_request_id_ == 0;
+    if (request_id <= greatest_request_id_) return false;
+    greatest_request_id_ = request_id;
+    return true;
+  }
+
   void Preview(const base::ListValue& args) {
     auto* target = Target(true);
-    auto design = args.size() == 1u && args[0].is_dict()
+    const auto request_id = RequestId(args, 1u);
+    auto design = request_id && args[0].is_dict()
         ? DecodeSurfaceDesign(args[0].GetDict()) : std::nullopt;
-    if (!target || !design) {
-      Reply("rejected");
+    if (!target || !design || !AcceptNewRequestId(*request_id)) {
+      Reply("rejected", request_id.value_or(0));
       return;
     }
     RevertOwnedPreview();
     auto token = target->BeginSurfacePreview(std::move(*design));
     if (!token) {
-      Reply("pane-count");
+      Reply("pane-count", *request_id);
       return;
     }
     preview_token_ = token;
+    preview_request_id_ = *request_id;
     preview_controller_ = target->GetWeakPtr();
     preview_document_ = web_contents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
-    Reply("previewing");
+    Reply("previewing", *request_id);
   }
 
   void Keep(const base::ListValue& args) {
     auto* target = Target(true);
-    if (!args.empty() || !OwnsCurrentPreview(target)) {
-      RevertOwnedPreview();
-      Reply("expired");
+    const auto request_id = RequestId(args, 0u);
+    if (!request_id || !OwnsCurrentPreview(target, *request_id)) {
+      // A stale/malformed keep must not cancel a newer trial either.
+      Reply("expired", request_id.value_or(0));
       return;
     }
     const bool kept = target->CommitSurfacePreview(*preview_token_);
     preview_token_.reset();
     preview_controller_.reset();
-    Reply(kept ? "kept" : "expired");
+    preview_document_ = {};
+    preview_request_id_ = 0;
+    Reply(kept ? "kept" : "expired", *request_id);
   }
 
   void Revert(const base::ListValue& args) {
-    if (args.empty() && Target(false)) {
-      RevertOwnedPreview();
-      Reply("reverted");
+    const auto request_id = RequestId(args, 0u);
+    if (request_id && Target(false)) {
+      const bool owned = *request_id == preview_request_id_;
+      if (owned) RevertOwnedPreview();
+      Reply(owned ? "reverted" : "expired", *request_id);
     }
   }
 
   void Reset(const base::ListValue& args) {
     auto* target = Target(true);
-    if (!args.empty() || !target) {
-      Reply("rejected");
+    const auto request_id = RequestId(args, 0u);
+    if (!request_id || !target || !AcceptNewRequestId(*request_id)) {
+      Reply("rejected", request_id.value_or(0));
       return;
     }
     RevertOwnedPreview();
     target->SetSurfaceDesign(std::nullopt);
-    Reply("reset");
+    Reply("reset", *request_id);
   }
 
   void State(const base::ListValue& args) {
-    if (args.empty()) {
-      Reply(OwnsCurrentPreview(Target(false)) ? "previewing" : "expired");
+    const auto request_id = RequestId(args, 0u);
+    if (request_id) {
+      Reply(OwnsCurrentPreview(Target(false), *request_id) ? "previewing" : "expired",
+            *request_id);
     }
   }
 
@@ -154,11 +190,15 @@ class SurfaceEditorHandler final : public content::WebUIMessageHandler,
     preview_token_.reset();
     preview_controller_.reset();
     preview_document_ = {};
+    preview_request_id_ = 0;
   }
 
   const raw_ptr<Profile> profile_;
   base::WeakPtr<WindowModeController> preview_controller_;
   std::optional<base::UnguessableToken> preview_token_;
+  int preview_request_id_ = 0;
+  int greatest_request_id_ = 0;
+  content::WeakDocumentPtr request_document_;
   content::WeakDocumentPtr preview_document_;
 };
 

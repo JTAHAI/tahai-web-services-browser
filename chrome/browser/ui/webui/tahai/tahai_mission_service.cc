@@ -303,6 +303,24 @@ std::vector<MissionStep> DefaultRollbackSteps(std::string_view type) {
           {"Record rollback or no-rollback decision", false}};
 }
 
+std::optional<std::vector<MissionStep>> OperationalCompensationSteps(
+    const TahaiOperationalWorkflow& workflow) {
+  if (workflow.compensation_steps.empty()) return std::vector<MissionStep>();
+  base::Value encoded(SerializeTahaiWorkflowCompensationSteps(
+      workflow.compensation_steps));
+  std::vector<TahaiWorkflowCompensationStep> parsed;
+  if (!ParseTahaiWorkflowCompensationSteps(&encoded, &parsed) ||
+      parsed != workflow.compensation_steps) return std::nullopt;
+  std::vector<MissionStep> steps;
+  steps.reserve(parsed.size());
+  for (const auto& step : parsed) {
+    if (!IsSafeOperationalIdentifier(step.id) || !IsSafeTitle(step.name))
+      return std::nullopt;
+    steps.push_back({step.name, false});
+  }
+  return steps;
+}
+
 std::optional<std::vector<MissionStep>> OperationalWorkflowSteps(
     const TahaiOperationalWorkflow& workflow, bool native_adapter) {
   const auto expanded = ExpandTahaiWorkflowSteps(workflow);
@@ -574,7 +592,7 @@ base::DictValue ProtectedVariableContext(const Profile& profile,
 
 std::optional<MissionWorkflowInput> AssignmentSource(const MissionSummary& mission,
                                                    const TahaiWorkflowAssignment& assignment) {
-  if (assignment.expression || assignment.text_expression || assignment.from_action_status) return std::nullopt;
+  if (assignment.expression || assignment.text_expression || assignment.boolean_expression || assignment.from_action_status) return std::nullopt;
   if (assignment.from_variable) {
     const auto origin = std::ranges::find_if(mission.workflow_variables,
         [&assignment](const auto& item) { return item.definition.id == assignment.source_id; });
@@ -768,7 +786,9 @@ bool IsGeneratedTimelineDetail(const MissionSummary& mission,
   }
   if (kind == "rollback") {
     return MatchesGeneratedStepEvent(detail, "Rollback",
-                                     mission.rollback_steps);
+                                     mission.rollback_steps) ||
+           (mission.operational_workflow &&
+            MatchesGeneratedStepEvent(detail, "Recovery review", mission.rollback_steps));
   }
   if (kind == "evidence") {
     return detail == "Evidence marker added";
@@ -805,13 +825,14 @@ bool ToggleGeneratedStep(MissionSummary* mission,
   if (!mission || !steps || step_index >= steps->size()) {
     return false;
   }
+  const bool recovery_review = steps == &mission->rollback_steps && CanReviewMissionRecovery(*mission);
   if (mission->operational_workflow &&
-      (mission->operational_workflow->run_state != "running" ||
+      ((!recovery_review && mission->operational_workflow->run_state != "running") ||
        !HasValidOperationalWorkflowConditions(mission->steps, mission->workflow_inputs, mission->workflow_variables))) {
     return false;
   }
   MissionStep& step = (*steps)[step_index];
-  if (step.assignment || step.wait_seconds) return false;
+  if (step.assignment || step.wait_seconds || (recovery_review && step.requires_native_action)) return false;
   if (step.requires_native_action && step.action_state != "dispatched") {
     return false;
   }
@@ -842,6 +863,19 @@ bool IsMissionWorkflowInputRequired(const MissionSummary& mission,
          std::ranges::any_of(mission.steps, [&input](const MissionStep& step) {
            return ConditionUsesInput(step, input.id);
          });
+}
+
+bool CanReviewMissionRecovery(const MissionSummary& mission) {
+  if (mission.archived || !mission.operational_workflow ||
+      (mission.operational_workflow->run_state != "failed" &&
+       mission.operational_workflow->run_state != "cancelled")) return false;
+  // Cancellation is not proof that a previously dispatched effect did not
+  // happen. Wait for its bounded result/unknown state before recording review.
+  return std::ranges::none_of(mission.steps, [](const auto& step) {
+           return step.action_state == "pending" || step.wait_state == "waiting";
+         }) && HasValidMissionWorkflowVariables(mission) &&
+         HasValidMissionWorkflowWaits(mission) &&
+         HasValidOperationalWorkflowConditions(mission.steps, mission.workflow_inputs, mission.workflow_variables);
 }
 
 bool HasMissionWorkflowInputValue(const MissionWorkflowInput& input) {
@@ -934,6 +968,13 @@ TahaiWorkflowTextResult CalculateTextAssignment(const MissionSummary& mission,
 
 std::optional<std::string> AssignmentValue(const MissionSummary& mission,
                                           const TahaiWorkflowAssignment& assignment) {
+  if (assignment.boolean_expression) {
+    MissionStep condition;
+    condition.predicate = assignment.boolean_expression;
+    const auto result = OperationalConditionResult(mission, condition);
+    if (!result) return std::nullopt;
+    return *result ? "true" : "false";
+  }
   if (assignment.from_action_status) {
     const auto origin = std::ranges::find(mission.steps, assignment.source_id, &MissionStep::workflow_step_id);
     if (origin != mission.steps.end() && origin->requires_native_action &&
@@ -996,15 +1037,20 @@ bool HasValidMissionWorkflowVariables(const MissionSummary& mission) {
       if (!ValidateTahaiWorkflowAssignment(assignment, {}, variables) || origin == mission.steps.end() ||
           !origin->requires_native_action || &*origin >= &step ||
           std::ranges::count(mission.steps, assignment.source_id, &MissionStep::workflow_step_id) != 1) return false;
-    } else if (assignment.expression || assignment.text_expression) {
+    } else if (assignment.expression || assignment.text_expression || assignment.boolean_expression) {
       std::vector<TahaiOperationalWorkflowInput> inputs;
       for (const auto& input : mission.workflow_inputs) {
-        // Preserve non-text types as non-text: no implicit conversion or
-        // declassification can make them eligible for a text expression.
-        TahaiOperationalWorkflowInput definition{input.id, input.name,
-            input.type == "number" ? TahaiOperationalWorkflowInputType::kNumber :
-            input.type == "text" ? TahaiOperationalWorkflowInputType::kText : TahaiOperationalWorkflowInputType::kBoolean,
-            input.required, input.options};
+        // Retain the exact wire type; dates/URLs/unknown values must never be
+        // treated as booleans (or implicitly converted for any calculation).
+        std::optional<TahaiOperationalWorkflowInputType> type;
+        for (const auto candidate : {TahaiOperationalWorkflowInputType::kText,
+             TahaiOperationalWorkflowInputType::kNumber, TahaiOperationalWorkflowInputType::kBoolean,
+             TahaiOperationalWorkflowInputType::kSelection, TahaiOperationalWorkflowInputType::kDate,
+             TahaiOperationalWorkflowInputType::kUrl}) {
+          if (TahaiOperationalWorkflowInputTypeName(candidate) == input.type) type = candidate;
+        }
+        if (!type) return false;
+        TahaiOperationalWorkflowInput definition{input.id, input.name, *type, input.required, input.options};
         definition.is_protected = input.is_protected;
         definition.validation = input.validation;
         inputs.push_back(std::move(definition));
@@ -1027,9 +1073,12 @@ bool HasValidMissionWorkflowVariables(const MissionSummary& mission) {
 
 std::string_view MissionWorkflowCalculationError(const MissionSummary& mission, size_t index) {
   if (index >= mission.steps.size() || !mission.steps[index].assignment ||
-      (!mission.steps[index].assignment->expression && !mission.steps[index].assignment->text_expression)) return {};
+      (!mission.steps[index].assignment->expression && !mission.steps[index].assignment->text_expression &&
+       !mission.steps[index].assignment->boolean_expression)) return {};
   if (!HasValidMissionWorkflowVariables(mission)) return "invalid-expression";
   const auto& assignment = *mission.steps[index].assignment;
+  if (assignment.boolean_expression)
+    return AssignmentValue(mission, assignment) ? std::string_view() : "missing-condition-value";
   std::optional<std::string> text;
   if (assignment.text_expression) {
     const auto result = CalculateTextAssignment(mission, assignment);
@@ -1493,6 +1542,8 @@ std::optional<MissionSummary> MissionService::CreateOperationalWorkflowMission(
       OperationalWorkflowSteps(workflow, native_adapter);
   const std::optional<std::vector<MissionWorkflowInput>> inputs =
       OperationalWorkflowInputs(workflow);
+  const std::optional<std::vector<MissionStep>> compensation_steps =
+      OperationalCompensationSteps(workflow);
   if (std::ranges::any_of(workflow.steps, [](const auto& step) { return step.wait_seconds != 0; }) &&
       (!native_adapter || !CanStoreProtectedInputs() || shutting_down_)) return std::nullopt;
   std::vector<std::string_view> input_ids;
@@ -1508,7 +1559,7 @@ std::optional<MissionSummary> MissionService::CreateOperationalWorkflowMission(
   for (const auto& variable : variables) variable_ids.push_back(variable.id);
   std::vector<MissionSummary::Variable> variable_state;
   for (const auto& variable : variables) variable_state.push_back({variable, {}});
-  if (!steps || !inputs || !IsSafeOperationalIdentifier(skin_id) ||
+  if (!steps || !inputs || !compensation_steps || !IsSafeOperationalIdentifier(skin_id) ||
       !ValidateTahaiWorkflowOutputs(workflow.outputs, input_ids, variable_ids) ||
       !IsLedgerHash(archive_sha256) ||
       !HasValidOperationalWorkflowConditions(*steps, *inputs, variable_state) ||
@@ -1538,7 +1589,8 @@ std::optional<MissionSummary> MissionService::CreateOperationalWorkflowMission(
         input_encryptor_->IsEncryptionAvailable() && input_encryptor_->IsDecryptionAvailable();
   }
   mission.validation_steps = DefaultValidationSteps(mission.type);
-  mission.rollback_steps = DefaultRollbackSteps(mission.type);
+  mission.rollback_steps = compensation_steps->empty()
+      ? DefaultRollbackSteps(mission.type) : *compensation_steps;
   mission.export_profile = "sanitized-handoff";
   mission.operational_workflow = OperationalWorkflowSource{
       std::string(skin_id), workflow.id, std::string(archive_sha256), "ready",
@@ -1806,10 +1858,16 @@ bool MissionService::ToggleValidationStep(std::string_view mission_id,
 bool MissionService::ToggleRollbackStep(std::string_view mission_id,
                                         size_t step_index) {
   if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  const auto* prior = FindMission(mission_id);
+  if (!prior) return false;
+  const std::string token = prior->mutation_token;
+  OnWorkflowDeadline();
   MissionSummary* mission = FindMission(mission_id);
-  if (!mission || mission->archived ||
+  // A newly settled deadline changes what the person is reviewing. Require a
+  // fresh document/token instead of acknowledging recovery against stale UI.
+  if (!mission || mission->mutation_token != token || mission->archived ||
       !ToggleGeneratedStep(mission, &mission->rollback_steps, step_index,
-                           "rollback", "Rollback")) {
+                           "rollback", CanReviewMissionRecovery(*mission) ? "Recovery review" : "Rollback")) {
     return false;
   }
   Save();

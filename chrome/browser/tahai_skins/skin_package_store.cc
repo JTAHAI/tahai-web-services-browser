@@ -24,6 +24,13 @@
 namespace tahai::skins {
 namespace {
 
+constexpr char kSkinsSchema[] =
+    "CREATE TABLE skins("
+    "id TEXT PRIMARY KEY NOT NULL,"
+    "manifest_json TEXT NOT NULL,archive_hash TEXT NOT NULL,"
+    "archive BLOB NOT NULL,previous_manifest TEXT,"
+    "previous_hash TEXT,previous_archive BLOB)";
+
 bool ValidHash(std::string_view value) {
   return value.size() == 64 && std::ranges::all_of(value, [](char c) {
            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
@@ -158,20 +165,27 @@ base::expected<void, SkinStoreError> SkinPackageStore::Open() {
   if (!existed) {
     sql::Transaction transaction(&database_);
     if (!transaction.Begin() ||
-        !database_.Execute(
-            "CREATE TABLE skins("
-            "id TEXT PRIMARY KEY NOT NULL,"
-            "manifest_json TEXT NOT NULL,archive_hash TEXT NOT NULL,"
-            "archive BLOB NOT NULL,previous_manifest TEXT,"
-            "previous_hash TEXT,previous_archive BLOB)") ||
+        !database_.Execute(kSkinsSchema) ||
         !database_.Execute("PRAGMA user_version=1") || !transaction.Commit()) {
       // Let the transaction roll back before closing this connection.
       open_error_ = SkinStoreError::kUnavailable;
       return base::unexpected(*open_error_);
     }
-  } else if (!database_.DoesTableExist("skins")) {
+  }
+  // This is a private, versioned store, not an extensible SQL database. A
+  // matching version/table name must not admit a modified schema or triggers
+  // that could discard the rollback revision while reporting a successful
+  // update. Preserve unfamiliar databases and make this connection inert.
+  sql::Statement schema(database_.GetUniqueStatement(
+      "SELECT type,name,sql FROM sqlite_schema "
+      "WHERE name NOT GLOB 'sqlite_*'"));
+  if (!schema.Step() || schema.ColumnStringView(0) != "table" ||
+      schema.ColumnStringView(1) != "skins" ||
+      schema.ColumnStringView(2) != kSkinsSchema || schema.Step() ||
+      !schema.Succeeded()) {
     return fail(SkinStoreError::kCorrupt);
   }
+  if (database_error_) return fail(SkinStoreError::kUnavailable);
   return base::ok();
 }
 

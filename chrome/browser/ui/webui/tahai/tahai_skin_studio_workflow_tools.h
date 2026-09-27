@@ -116,6 +116,12 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
     <button type="button" class="button" id="skin-studio-text-basic-save">Set basic text expression</button>
     <label>Advanced text expression (JSON tree) <textarea id="skin-studio-text-expression" rows="5" maxlength="8192" spellcheck="false" aria-describedby="skin-studio-text-help"></textarea></label>
     <button type="button" class="button" id="skin-studio-text-save">Set text expression step</button>
+    <h3>Yes/no calculation</h3>
+    <p id="skin-studio-boolean-help" class="muted">Choose an ordinary boolean destination above. Reuse the bounded condition language: all, any, not, ordinary yes/no or selection comparisons, and numeric comparisons. Every referenced value must be present, even in a branch that would otherwise short-circuit. Missing values leave the previous variable and progress unchanged. Protected values and external effects are excluded.</p>
+    <label>Boolean expression (JSON tree) <textarea id="skin-studio-boolean-expression" rows="5" maxlength="8192" spellcheck="false" aria-describedby="skin-studio-boolean-help"></textarea></label>
+    <button type="button" class="button" id="skin-studio-boolean-save">Set yes/no calculation step</button>
+    <button type="button" class="button" id="skin-studio-boolean-from-condition">Turn this step's condition into a yes/no calculation</button>
+    <p class="muted">The second button moves the condition made with the condition controls into the calculation, removing that step's availability condition so both true and false can be assigned. It does not run the workflow.</p>
     <h3>Named local outputs</h3>
     <p class="muted">Bind a named result to an input or variable in this run. Results appear only after success, remain local, and inherit the source's type and privacy. Protected values stay masked. No website or service receives a result.</p>
     <div class="grid">
@@ -124,6 +130,13 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
       <button type="button" class="button" id="skin-studio-output-add">Add named output</button>
     </div>
     <ul id="skin-studio-outputs" class="list"></ul>
+    <h3>Manual recovery checklist</h3>
+    <p class="muted">Add up to eight explicit human reviews for a failed or cancelled Mission. They are shown only after every pending action and wait settles. Checking a review never sends, deletes, publishes, navigates, repeats an action, rolls a website back, or changes a failed run into success.</p>
+    <div class="grid">
+      <label>Recovery review <input id="skin-studio-compensation-name" maxlength="128" autocomplete="off"></label>
+      <button type="button" class="button" id="skin-studio-compensation-add">Add recovery review</button>
+    </div>
+    <ul id="skin-studio-compensation-steps" class="list" aria-label="Manual recovery reviews"></ul>
     <h3>Try the workflow</h3>
     <p class="muted">Try input values and step completion here. Actions are simulated. Values are cleared when the draft changes or this page closes.</p>
     <div id="skin-studio-simulation-inputs" class="grid"></div>
@@ -131,19 +144,68 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
     <button type="button" class="button" id="skin-studio-simulation-reset">Reset simulation</button>
     <p id="skin-studio-simulation-status" role="status" aria-live="polite"></p>
     <ol id="skin-studio-simulation-steps" class="list"></ol>
-    <ul id="skin-studio-simulation-outputs" class="list" aria-label="Simulated local outputs"></ul>`;
+    <ul id="skin-studio-simulation-outputs" class="list" aria-label="Simulated local outputs"></ul>
+    <h3>Simulation trace</h3>
+    <p class="muted">Local rehearsal only, not evidence of a real browser action. Records step IDs and fixed event types, never input values, variable values, page content or credentials. The latest 128 events stay in memory only. Changing source, workflow or input values, resetting, or closing Studio clears the trace.</p>
+    <button type="button" class="button" id="skin-studio-simulation-trace-clear">Clear trace only</button>
+    <p id="skin-studio-simulation-trace-status" role="status" aria-live="polite"></p>
+    <ol id="skin-studio-simulation-trace" class="list" aria-label="Simulated step event sequence"></ol>`;
   anchor.insertAdjacentElement('afterend', section);
   const get = id => section.querySelector('#skin-studio-' + id);
   const stepChoice = get('condition-step'), inputChoice = get('condition-input');
   const valueChoice = get('condition-value'), simInputs = get('simulation-inputs');
   const simSteps = get('simulation-steps'), simStatus = get('simulation-status');
   const outputName = get('output-name'), outputInput = get('output-input'), outputList = get('outputs');
+  const compensationName = get('compensation-name'), compensationList = get('compensation-steps');
   const simOutputs = get('simulation-outputs');
+  const traceList = get('simulation-trace'), traceStatus = get('simulation-trace-status');
+  const traceKinds = Object.freeze({
+    'branch-recorded':'Branch decision recorded in simulation',
+    'checkpoint-completed':'Checkpoint completed in simulation',
+    'assignment-completed':'Variable assigned in simulation (value omitted)',
+    'assignment-blocked':'Assignment blocked; no simulated value or progress changed',
+    'wait-started':'Wait started in simulation',
+    'wait-completed':'Simulated time advanced and wait completed',
+    'wait-blocked':'Wait transition blocked',
+    'wait-timed-out':'Simulated deadline reached; run failed',
+    'action-dispatched':'Native action substituted in simulation; no real action ran',
+    'action-rejected':'Simulated native rejection; run failed',
+    'action-unknown':'Simulated uncertain outcome; run failed, never replay automatically',
+    'transition-blocked':'Simulated transition blocked'
+  });
+  const trace = [];
+  let traceSequence = 0;
+  const renderTrace = () => {
+    traceList.replaceChildren();
+    for (const entry of trace) {
+      const row = document.createElement('li');
+      row.dataset.simulationTraceKind = entry.kind;
+      row.dataset.simulationTraceStep = entry.stepId;
+      row.textContent = entry.sequence + '. ' + entry.stepId + ' — ' + traceKinds[entry.kind];
+      traceList.append(row);
+    }
+    traceStatus.textContent = trace.length ? trace.length + ' simulated events shown.' +
+        (traceSequence > trace.length ? ' Older events were omitted by the 128-event limit.' : '') :
+        'No simulated step events recorded.';
+  };
+  const recordTrace = (stepId, kind) => {
+    if (!Object.hasOwn(traceKinds, kind) || typeof stepId !== 'string' || stepId.length < 3 || stepId.length > 64 ||
+        !/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(stepId)) return;
+    traceSequence = Math.min(traceSequence + 1, Number.MAX_SAFE_INTEGER);
+    trace.push({sequence:traceSequence,stepId,kind});
+    if (trace.length > 128) trace.shift();
+    renderTrace();
+  };
+  const clearTrace = () => { trace.length = 0; traceSequence = 0; renderTrace(); };
+  get('simulation-trace-clear').addEventListener('click', clearTrace);
   const simValues = new Map(), completed = new Set();
   const simVariables = new Map();
   const simDecisions = new Map();
   const rememberDecisions = result => {
-    if (result.decisions) { simDecisions.clear(); for (const [id, value] of result.decisions) simDecisions.set(id, value); }
+    if (result.decisions) {
+      for (const [id] of result.decisions) if (!simDecisions.has(id)) recordTrace(id, 'branch-recorded');
+      simDecisions.clear(); for (const [id, value] of result.decisions) simDecisions.set(id, value);
+    }
   };
   const simWaiting = new Set();
   let simFailure = null;
@@ -244,6 +306,9 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
     get('text-expression').disabled = get('text-save').disabled = !enabled || target?.type !== 'text' || Boolean(target?.protected);
     get('text-expression').value = JSON.stringify(step?.assign?.text_expression || {op: 'concat', args: [{text: ''}, {text: ''}]}, null, 2);
     refreshTextExpression(current, step?.assign?.text_expression);
+    get('boolean-expression').disabled = get('boolean-save').disabled = !enabled || target?.type !== 'boolean' || Boolean(target?.protected);
+    get('boolean-from-condition').disabled = get('boolean-save').disabled || !step?.when;
+    get('boolean-expression').value = JSON.stringify(step?.assign?.boolean_expression || step?.when || {}, null, 2);
   };
   const refreshVariables = current => {
     const enabled = writable() && Boolean(current), items = sources(current?.workflow);
@@ -477,6 +542,36 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
     current.workflow.outputs = outputs;
     if (save(current)) outputName.value = '';
   });
+  get('compensation-add').addEventListener('click', () => {
+    const current = state(), name = compensationName.value.trim();
+    if (!current || !writable() || !name) return;
+    const items = current.workflow.compensation_steps || [];
+    if (items.length >= 8) return;
+    const base = 'recovery-' + (name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '').slice(0, 50).replace(/-+$/g, '') || 'review');
+    let id = base, suffix = 2;
+    while (items.some(item => item.id === id) && suffix < 100) id = base + '-' + suffix++;
+    if (items.some(item => item.id === id)) return;
+    items.push({id, name});
+    current.workflow.compensation_steps = items;
+    if (save(current)) compensationName.value = '';
+  });
+  for (const operation of ['save', 'from-condition']) get('boolean-' + operation).addEventListener('click', () => {
+    const current = state(), step = current?.workflow.steps.find(item => item.id === stepChoice.value);
+    if (!current || !writable() || !step || step.kind === 'run-command') return;
+    let expression;
+    if (operation === 'from-condition') {
+      if (!step.when) { status.textContent = 'Set a step condition first. No source was changed.'; return; }
+      expression = step.when; delete step.when;
+    } else {
+      const text = get('boolean-expression').value;
+      if (new TextEncoder().encode(text).length > 8192) { status.textContent = 'The expression exceeds the editor limit. No source was changed.'; return; }
+      try { expression = JSON.parse(text); } catch { status.textContent = 'Enter a valid boolean expression JSON tree. No source was changed.'; return; }
+    }
+    step.kind = 'assign-variable'; delete step.wait;
+    step.assign = {variable: get('assignment-target').value, boolean_expression: expression};
+    save(current);
+  });
   get('text-save').addEventListener('click', () => {
     const current = state(), step = current?.workflow.steps.find(item => item.id === stepChoice.value);
     const text = get('text-expression').value;
@@ -578,6 +673,37 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
       row.append(nameLabel, fromLabel, remove); outputList.append(row);
     }
   };
+  const refreshCompensation = current => {
+    const enabled = writable() && Boolean(current);
+    const items = current?.workflow.compensation_steps || [];
+    compensationName.disabled = !enabled;
+    get('compensation-add').disabled = !enabled || items.length >= 8;
+    compensationList.replaceChildren();
+    for (const item of items) {
+      const row = document.createElement('li'), label = document.createElement('label');
+      const name = document.createElement('input'), remove = document.createElement('button');
+      label.textContent = 'Manual review '; name.type = 'text'; name.maxLength = 128; name.autocomplete = 'off';
+      name.value = item.name; name.dataset.workflowCompensationName = item.id; label.append(name);
+      remove.type = 'button'; remove.className = 'chip'; remove.textContent = 'Remove recovery review';
+      remove.dataset.workflowCompensationRemove = item.id;
+      name.disabled = remove.disabled = !enabled;
+      const workflowId = current.workflow.id;
+      const mutate = (control, operation) => {
+        const next = state();
+        if (!next || !writable() || next.workflow.id !== workflowId || !control.isConnected) return;
+        const index = next.workflow.compensation_steps?.findIndex(candidate => candidate.id === item.id) ?? -1;
+        if (index < 0) return;
+        operation(next.workflow.compensation_steps, index, next.workflow);
+        if (!save(next)) name.value = item.name;
+      };
+      name.addEventListener('change', () => mutate(name, (steps, index) => { steps[index].name = name.value.trim(); }));
+      remove.addEventListener('click', () => mutate(remove, (steps, index, workflow) => {
+        steps.splice(index, 1);
+        if (!steps.length) delete workflow.compensation_steps;
+      }));
+      row.append(label, remove); compensationList.append(row);
+    }
+  };
   get('condition-expression-save').addEventListener('click', () => {
     const current = state(), text = get('condition-expression').value;
     const step = current?.workflow.steps.find(item => item.id === stepChoice.value);
@@ -672,23 +798,26 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
           if (step.kind === 'wait') {
             const waited = window.tahaiWorkflowDesign.wait(current.workflow, current.parsed.operational.capabilities,
                 simValues, completed, simVariables, simWaiting, step.id, step.waiting, simDecisions);
-            if (waited.error) { simStatus.textContent = waited.error; return; }
+            if (waited.error) { recordTrace(step.id, 'wait-blocked'); simStatus.textContent = waited.error; return; }
             simWaiting.clear(); for (const id of waited.waiting) simWaiting.add(id);
             completed.clear(); for (const id of waited.completed) completed.add(id);
             rememberDecisions(waited);
+            recordTrace(step.id, step.waiting ? 'wait-completed' : 'wait-started');
             simulate(); return;
           }
           if (step.kind === 'assign-variable') {
             const assigned = window.tahaiWorkflowDesign.assign(current.workflow, current.parsed.operational.capabilities,
                 simValues, completed, simVariables, step.id, simDecisions);
-            if (assigned.error) { simStatus.textContent = assigned.error; return; }
+            if (assigned.error) { recordTrace(step.id, 'assignment-blocked'); simStatus.textContent = assigned.error; return; }
             simVariables.clear(); for (const [id, value] of assigned.variables) simVariables.set(id, value);
             rememberDecisions(assigned);
+            recordTrace(step.id, 'assignment-completed');
           } else {
             const advanced = window.tahaiWorkflowDesign.advance(current.workflow, current.parsed.operational.capabilities,
                 simValues, completed, simVariables, simWaiting, step.id, simDecisions);
-            if (advanced.error) { simStatus.textContent = advanced.error; return; }
+            if (advanced.error) { recordTrace(step.id, 'transition-blocked'); simStatus.textContent = advanced.error; return; }
             rememberDecisions(advanced);
+            recordTrace(step.id, step.kind === 'run-command' ? 'action-dispatched' : 'checkpoint-completed');
           }
           completed.add(step.id); simulate();
         });
@@ -703,7 +832,9 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
             const failed = window.tahaiWorkflowDesign.failNative(current.workflow, current.parsed.operational.capabilities,
                 simValues, completed, simVariables, simWaiting, step.id, outcome, simDecisions);
             if (failed.error) { simStatus.textContent = failed.error; return; }
-            rememberDecisions(failed); simFailure = failed; simulate();
+            rememberDecisions(failed);
+            recordTrace(step.id, outcome === 'rejected' ? 'action-rejected' : 'action-unknown');
+            simFailure = failed; simulate();
           });
           row.append(fail);
         }
@@ -716,7 +847,7 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
             const failed = window.tahaiWorkflowDesign.expireWait(current.workflow, current.parsed.operational.capabilities,
                 simValues, completed, simVariables, simWaiting, step.id, simDecisions);
             if (failed.error) { simStatus.textContent = failed.error; return; }
-            simFailure = failed; simulate();
+            recordTrace(step.id, 'wait-timed-out'); simFailure = failed; simulate();
           });
           row.append(expire);
         }
@@ -742,9 +873,11 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
     stepChoice.disabled = !writable() || !current;
     refreshCondition();
     refreshOutputs(current);
+    refreshCompensation(current);
     refreshVariables(current);
     refreshRepeat();
     simValues.clear(); simVariables.clear(); simDecisions.clear(); simWaiting.clear(); simFailure = null; completed.clear(); simInputs.replaceChildren(); simSteps.replaceChildren(); simOutputs.replaceChildren();
+    clearTrace();
     simStatus.textContent = 'Ready to simulate.';
     get('simulate').disabled = !current;
     const sourceSnapshot = source.value, workflowId = current?.workflow.id;
@@ -766,7 +899,7 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
         ++simulationEpoch;
         simValues.set(input.id, control.value);
         if (input.protected) control.value = '';
-        completed.clear(); simVariables.clear(); simDecisions.clear(); simWaiting.clear(); simFailure = null; simulate();
+        completed.clear(); simVariables.clear(); simDecisions.clear(); simWaiting.clear(); simFailure = null; clearTrace(); simulate();
       });
       label.append(control); simInputs.append(label);
     }
@@ -776,7 +909,7 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
   get('simulate').addEventListener('click', simulate);
   get('simulation-reset').addEventListener('click', refresh);
   source.addEventListener('input', refresh);
-  source.addEventListener('tahai-workflow-selection', () => { outputName.value = ''; refresh(); });
+  source.addEventListener('tahai-workflow-selection', () => { outputName.value = ''; compensationName.value = ''; refresh(); });
   refresh();
 })();
 )TAHAI";

@@ -122,25 +122,38 @@ inline constexpr char kSurfaceDesignerJs[] = R"TAHAI(
   };
   const state = () => {
     try {
+      if (source.value.length > 65536 || new TextEncoder().encode(source.value).length > 65536) return null;
       const parsed = JSON.parse(source.value), surfaces = parsed?.operational?.surfaces;
-      if (!Array.isArray(surfaces) || !integer(surfaces.length, 1, 12) ||
-          !surfaces.every(s => s && typeof s.id === 'string' && ['one', 'dual', 'tri', 'quad'].includes(s.layout))) return null;
+      if (parsed?.schema_version !== 2 || !Array.isArray(surfaces) || !integer(surfaces.length, 1, 12) ||
+          !surfaces.every(s => s && typeof s.id === 'string' && /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(s.id) && ['one', 'dual', 'tri', 'quad'].includes(s.layout)) ||
+          new Set(surfaces.map(s=>s.id)).size !== surfaces.length) return null;
       const surface = surfaces.find(s => s.id === get('choice').value) || surfaces[0];
       return {parsed, surfaces, surface};
     } catch { return null; }
   };
   const validDesign = surface => surface && validate(surface.design) &&
       surface.design.keyboard_order.length === ['one', 'dual', 'tri', 'quad'].indexOf(surface.layout) + 1;
-  let live = false, poll = 0, trialStarted = 0;
+  let live = false, poll = 0, trialStarted = 0, serial = 0, activeRequest = 0, expected = null;
+  let trialSource = '', trialSurface = '';
   const cancel = () => {
     window.clearInterval(poll); poll = 0;
-    if (live) chrome.send('revertTahaiSurface', []);
+    if (activeRequest) {
+      expected = {id:activeRequest, kind:'cancel'};
+      chrome.send('revertTahaiSurface', [activeRequest]);
+    }
+    activeRequest = 0;
     live = false; get('keep').disabled = get('revert').disabled = true;
   };
   const save = current => {
+    const text = JSON.stringify(current.parsed, null, 2);
+    if (!writable() || text.length > 65536 || new TextEncoder().encode(text).length > 65536) {
+      get('canvas-status').textContent = 'This edit exceeds the Studio source limit. No source was changed.';
+      return false;
+    }
     cancel();
-    source.value = JSON.stringify(current.parsed, null, 2);
+    source.value = text;
     source.dispatchEvent(new Event('input', {bubbles: true}));
+    return true;
   };
   const edit = mutation => {
     const current = state();
@@ -174,6 +187,12 @@ inline constexpr char kSurfaceDesignerJs[] = R"TAHAI(
   const render = () => {
     const focusedId = section.contains(document.activeElement) ? document.activeElement.id : '';
     const current = state();
+    const snapshot = source.value, surfaceId = current?.surface.id;
+    const editFrom = (control, mutation) => {
+      if (!control.isConnected || control.disabled || source.value !== snapshot ||
+          state()?.surface.id !== surfaceId) return;
+      edit(mutation);
+    };
     choose(get('choice'), (current?.surfaces || []).map(s => [s.id, s.id]), current?.surface.id);
     const valid = validDesign(current?.surface), d = valid ? current.surface.design : null;
     for (const [id, key] of [['dock', 'rail_dock'], ['gap', 'gap'], ['narrow', 'narrow_width'], ['short', 'short_height']]) {
@@ -197,7 +216,7 @@ inline constexpr char kSurfaceDesignerJs[] = R"TAHAI(
       choose(choice, (node.kind === 'pane' ? roles : ['rows', 'columns']).map(v => [v, v]),
              node.kind === 'pane' ? node.role : node.kind);
       choice.disabled = !writable();
-      choice.addEventListener('change', () => edit(design => {
+      choice.addEventListener('change', () => editFrom(choice, design => {
         design.nodes[index][node.kind === 'pane' ? 'role' : 'kind'] = choice.value;
       }));
       row.append(choice);
@@ -206,11 +225,11 @@ inline constexpr char kSurfaceDesignerJs[] = R"TAHAI(
         ratio.id = `surface-node-${index}-percent`;
         ratio.type = 'number'; ratio.min = '10'; ratio.max = '90'; ratio.step = '1'; ratio.value = node.percent;
         ratio.setAttribute('aria-label', `Node ${index} first child percent`); ratio.disabled = !writable();
-        ratio.addEventListener('change', () => edit(design => { design.nodes[index].percent = Number(ratio.value); }));
+        ratio.addEventListener('change', () => editFrom(ratio, design => { design.nodes[index].percent = Number(ratio.value); }));
         const swap = document.createElement('button'); swap.type = 'button'; swap.className = 'chip';
         swap.id = `surface-node-${index}-swap`;
         swap.textContent = 'Swap children'; swap.disabled = !writable();
-        swap.addEventListener('click', () => edit(design => {
+        swap.addEventListener('click', () => editFrom(swap, design => {
           const n = design.nodes[index]; [n.first, n.second] = [n.second, n.first];
         }));
         row.append(ratio, swap);
@@ -225,7 +244,7 @@ inline constexpr char kSurfaceDesignerJs[] = R"TAHAI(
         button.textContent = label; button.setAttribute('aria-label', `Move pane ${pane + 1} ${label.toLowerCase()}`);
         button.disabled = !writable() || index + delta < 0 || index + delta >= d.keyboard_order.length;
         button.addEventListener('click', () => {
-          edit(design => { const o = design.keyboard_order; [o[index], o[index + delta]] = [o[index + delta], o[index]]; });
+          editFrom(button, design => { const o = design.keyboard_order; [o[index], o[index + delta]] = [o[index + delta], o[index]]; });
           get('choice').focus();
         });
         row.append(button);
@@ -263,15 +282,33 @@ inline constexpr char kSurfaceDesignerJs[] = R"TAHAI(
   }
   for (const id of ['width', 'height', 'active']) get(id).addEventListener('change', renderCanvas);
   get('choice').addEventListener('change', () => { cancel(); render(); });
+  const requestId = () => {
+    if (serial === 2147483647) { get('live-status').textContent = 'Reload Studio before another layout request.'; return 0; }
+    return ++serial;
+  };
   get('try').addEventListener('click', () => {
     const current = state(); if (!writable() || !validDesign(current?.surface)) return;
-    chrome.send('previewTahaiSurface', [current.surface.design]);
+    cancel(); const id = requestId(); if (!id) return;
+    activeRequest = id; expected = {id,kind:'preview'}; trialSource = source.value; trialSurface = current.surface.id;
     trialStarted = Date.now();
+    chrome.send('previewTahaiSurface', [current.surface.design, id]);
   });
-  get('keep').addEventListener('click', () => chrome.send('keepTahaiSurface', []));
+  get('keep').addEventListener('click', () => {
+    if (!live || !activeRequest || !writable() || source.value !== trialSource || state()?.surface.id !== trialSurface) { cancel(); return; }
+    expected = {id:activeRequest,kind:'keep'}; get('keep').disabled = true;
+    chrome.send('keepTahaiSurface', [activeRequest]);
+  });
   get('revert').addEventListener('click', () => { cancel(); });
-  get('window-reset').addEventListener('click', () => chrome.send('resetTahaiSurface', []));
-  window.tahaiSurfacePreviewResult = result => {
+  get('window-reset').addEventListener('click', () => {
+    if (!writable()) return; cancel(); const id = requestId(); if (!id) return;
+    expected = {id,kind:'reset'}; chrome.send('resetTahaiSurface', [id]);
+  });
+  window.tahaiSurfacePreviewResult = (result, id) => {
+    if (!integer(id, 1, 2147483647) || id !== expected?.id) return;
+    const allowed = {preview:['previewing','pane-count','rejected','expired'], keep:['kept','expired'],
+      cancel:['reverted','expired'], reset:['reset','rejected']};
+    if (!allowed[expected.kind].includes(result)) return;
+    if (result === 'previewing' && (!writable() || source.value !== trialSource || state()?.surface.id !== trialSurface)) { cancel(); return; }
     const messages = {previewing: 'Trying this layout. Keep it within 30 seconds or it will revert.',
         kept: 'Window layout saved. No tabs, sites or permissions were changed.',
         reverted: 'Trial reverted. The previous layout is restored.', reset: 'Window layout reset; tabs are retained.',
@@ -279,12 +316,13 @@ inline constexpr char kSurfaceDesignerJs[] = R"TAHAI(
         'pane-count': 'Open the matching number of native panes first. No tabs were created or changed.',
         rejected: 'The layout request was rejected. Select Studio and use its controls again.'};
     live = result === 'previewing';
+    if (!live) { activeRequest = 0; expected = null; }
     get('keep').disabled = get('revert').disabled = !live;
     get('live-status').textContent = messages[result] || 'The layout was not changed.';
     if (!live) { window.clearInterval(poll); poll = 0; }
     else if (!poll) poll = window.setInterval(() => {
       if (Date.now() - trialStarted > 32000) { cancel(); get('live-status').textContent = messages.expired; }
-      else chrome.send('getTahaiSurfacePreviewState', []);
+      else if (live && expected?.kind === 'preview') chrome.send('getTahaiSurfacePreviewState', [activeRequest]);
     }, 1000);
   };
   source.addEventListener('input', () => { cancel(); render(); });

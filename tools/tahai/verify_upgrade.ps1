@@ -24,12 +24,17 @@ param(
 $ErrorActionPreference = 'Stop'
 $nativeSource = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $nativeBuild = Join-Path $nativeSource $BuildDirectory
-$runDirectory = Join-Path $nativeBuild ('upgrade-checks-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-New-Item -ItemType Directory -Path $runDirectory | Out-Null
-$statusFile = Join-Path $runDirectory 'status.json'
 $runnerStartedUtc = [Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().ToString('o')
+$buildLockDirectory = Join-Path $nativeBuild '.tahai-release-build.lock'
+$buildLockOwner = Join-Path $buildLockDirectory 'owner.json'
+$buildLockHeld = $false
+$runDirectory = $null
+$statusFile = $null
 $stage = 'setup'
 function Write-UpgradeStatus([string]$state, [int]$code = 0) {
+  if ([string]::IsNullOrWhiteSpace($statusFile)) {
+    return
+  }
   [ordered]@{
     state = $state
     stage = $stage
@@ -43,8 +48,80 @@ function Write-UpgradeStatus([string]$state, [int]$code = 0) {
   } | ConvertTo-Json | Set-Content -LiteralPath $statusFile -Encoding utf8
 }
 
+# Only the runner that created this directory may remove it.  A stale or
+# malformed lock remains evidence for an operator instead of being deleted by
+# a later invocation.  This prevents a rebooted/abandoned runner from being
+# mistaken for a live compiler and prevents two builds from sharing outputs.
+function Acquire-TahaiBuildLock {
+  if (Test-Path -LiteralPath $buildLockDirectory) {
+    $owner = $null
+    try {
+      $lockItem = Get-Item -LiteralPath $buildLockDirectory -ErrorAction Stop
+      $ownerItem = Get-Item -LiteralPath $buildLockOwner -ErrorAction Stop
+      if (-not $lockItem.PSIsContainer -or $ownerItem.PSIsContainer -or
+          ($ownerItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw 'lock metadata is not a regular owner record'
+      }
+      $owner = Get-Content -LiteralPath $buildLockOwner -Raw -ErrorAction Stop |
+        ConvertFrom-Json -ErrorAction Stop
+      $ownerProcess = Get-Process -Id ([int]$owner.processId) -ErrorAction Stop
+      $ownerStartedUtc = $ownerProcess.StartTime.ToUniversalTime().ToString('o')
+      if ($owner.schemaVersion -eq 1 -and
+          $owner.source -ceq $nativeSource -and
+          $owner.build -ceq $nativeBuild -and
+          $owner.processStartedUtc -ceq $ownerStartedUtc) {
+        throw ("Build directory is owned by live runner PID {0} since {1}; no competing run started." -f
+          $owner.processId, $owner.processStartedUtc)
+      }
+      throw 'lock owner identity does not match a live release runner'
+    } catch {
+      throw ("Refusing to reuse existing build lock '{0}': {1}" -f
+        $buildLockDirectory, $_.Exception.Message)
+    }
+  }
+  try {
+    New-Item -ItemType Directory -Path $buildLockDirectory -ErrorAction Stop | Out-Null
+    [ordered]@{
+      schemaVersion = 1
+      processId = $PID
+      processStartedUtc = $runnerStartedUtc
+      source = $nativeSource
+      build = $nativeBuild
+      commandLine = [Environment]::CommandLine
+      acquiredUtc = [DateTime]::UtcNow.ToString('o')
+    } | ConvertTo-Json | Set-Content -LiteralPath $buildLockOwner -Encoding utf8 -NoNewline
+    $script:buildLockHeld = $true
+  } catch {
+    throw ("Could not acquire exclusive build lock '{0}': {1}" -f
+      $buildLockDirectory, $_.Exception.Message)
+  }
+}
+
+function Release-TahaiBuildLock {
+  if (-not $script:buildLockHeld) {
+    return
+  }
+  try {
+    $owner = Get-Content -LiteralPath $buildLockOwner -Raw -ErrorAction Stop |
+      ConvertFrom-Json -ErrorAction Stop
+    if ($owner.schemaVersion -ne 1 -or $owner.processId -ne $PID -or
+        $owner.processStartedUtc -cne $runnerStartedUtc -or
+        $owner.source -cne $nativeSource -or $owner.build -cne $nativeBuild) {
+      throw 'owner record changed while this runner held the lock'
+    }
+    Remove-Item -LiteralPath $buildLockDirectory -Recurse -Force -ErrorAction Stop
+    $script:buildLockHeld = $false
+  } catch {
+    Write-Warning ("Release runner left its build lock for inspection: {0}" -f $_.Exception.Message)
+  }
+}
+
 Push-Location $nativeSource
 try {
+  Acquire-TahaiBuildLock
+  $runDirectory = Join-Path $nativeBuild ('upgrade-checks-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+  New-Item -ItemType Directory -Path $runDirectory -ErrorAction Stop | Out-Null
+  $statusFile = Join-Path $runDirectory 'status.json'
   Write-UpgradeStatus 'running'
   if (-not $BuildOnly -and [string]::IsNullOrWhiteSpace($IsolatedTestSession)) {
     throw 'Interactive gates require a designated isolated Windows session. Use BuildOnly on the everyday desktop.'
@@ -181,5 +258,6 @@ try {
   Write-UpgradeStatus 'failed' 1
   throw
 } finally {
+  Release-TahaiBuildLock
   Pop-Location
 }
