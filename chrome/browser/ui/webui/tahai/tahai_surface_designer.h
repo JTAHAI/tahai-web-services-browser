@@ -81,34 +81,68 @@ inline constexpr char kSurfaceDesignerJs[] = R"TAHAI(
   if (!source || !anchor) return;
   const section = document.createElement('section');
   section.className = 'mode-config-group';
-  section.innerHTML = `<h3>Surface canvas</h3>
-    <p class="muted">Arrange existing native panes. Roles label panes; they do not read or replace their pages. Content preview sizes are in device-independent pixels.</p>
-    <div class="grid">
-      <label>Surface <select id="surface-choice"></select></label>
-      <label>Template <select id="surface-template"><option value="one">Accessible focus</option><option value="dual">Reference and work</option><option value="tri">Reference, work and tasks</option><option value="quad">Four-pane desk</option></select></label>
-      <button class="button" type="button" id="surface-template-use">Use layout template</button>
-      <button class="button" type="button" id="surface-tree-reset">Reset draft tree</button>
-    </div>
-    <div class="grid">
-      <label>Rail dock <select id="surface-dock"><option value="leading">Leading edge</option><option value="trailing">Trailing edge</option></select></label>
-      <label>Pane gap <input id="surface-gap" type="number" min="4" max="24" step="1"></label>
-      <label>Narrow breakpoint <input id="surface-narrow" type="number" min="320" max="1600" step="1"></label>
-      <label>Short breakpoint <input id="surface-short" type="number" min="200" max="900" step="1"></label>
-      <label>Preview width <input id="surface-width" type="number" min="200" max="3840" value="1280" step="1"></label>
-      <label>Preview height <input id="surface-height" type="number" min="150" max="2160" value="720" step="1"></label>
-      <label>Active pane <select id="surface-active"></select></label>
-    </div>
-    <p id="surface-canvas-status" role="status" aria-live="polite"></p>
-    <div id="surface-canvas" aria-label="Native pane layout preview" style="position:relative;min-height:120px;border:2px solid currentColor;overflow:hidden"></div>
-    <h4>Outline and properties</h4><ol id="surface-outline" class="list"></ol>
-    <h4>Keyboard pane order</h4><ol id="surface-order" class="list"></ol>
-    <h4>Try in this window</h4><p class="muted">First open the same number of panes using the browser layout controls. A 30-second trial changes only geometry. It does not navigate, run actions, install a skin or grant permissions. Keep explicitly to save the layout; leaving Studio reverts an unkept trial.</p>
-    <div class="actions">
-      <button class="button" type="button" id="surface-try">Try for 30 seconds</button>
-      <button class="button" type="button" id="surface-keep" disabled>Keep window layout</button>
-      <button class="button" type="button" id="surface-revert" disabled>Revert trial</button>
-      <button class="button" type="button" id="surface-window-reset">Reset window layout</button>
-    </div><p id="surface-live-status" role="status" aria-live="polite"></p>`;
+  const element = (tag, attributes = {}, text = '') => {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attributes)) {
+      if (name === 'class') node.className = value;
+      else if (name === 'text') node.textContent = value;
+      else node.setAttribute(name, value);
+    }
+    if (text) node.textContent = text;
+    return node;
+  };
+  const append = (parent, ...children) => parent.append(...children);
+  const option = (value, text) => element('option', {value}, text);
+  const field = (label, control) => {
+    const node = element('label');
+    append(node, document.createTextNode(label + ' '), control);
+    return node;
+  };
+  const select = id => element('select', {id: 'surface-' + id});
+  const input = (id, min, max, value = '', step = '1') =>
+    element('input', {id: 'surface-' + id, type: 'number', min, max, step, value});
+  const button = (id, label, disabled = false) =>
+    element('button', {class: 'button', type: 'button', id: 'surface-' + id,
+                       ...(disabled ? {disabled: ''} : {})}, label);
+  append(section,
+      element('h3', {}, 'Surface canvas'),
+      element('p', {class: 'muted'}, 'Arrange existing native panes. Roles label panes; they do not read or replace their pages. Content preview sizes are in device-independent pixels.'));
+  const surfaceGrid = element('div', {class: 'grid'});
+  const surfaceChoice = select('choice');
+  const template = select('template');
+  append(template, option('one', 'Accessible focus'),
+      option('dual', 'Reference and work'),
+      option('tri', 'Reference, work and tasks'),
+      option('quad', 'Four-pane desk'));
+  append(surfaceGrid, field('Surface', surfaceChoice), field('Template', template),
+      button('template-use', 'Use layout template'),
+      button('tree-reset', 'Reset draft tree'));
+  append(section, surfaceGrid);
+  const settingsGrid = element('div', {class: 'grid'});
+  const dock = select('dock');
+  append(dock, option('leading', 'Leading edge'), option('trailing', 'Trailing edge'));
+  const active = select('active');
+  append(settingsGrid, field('Rail dock', dock), field('Pane gap', input('gap', '4', '24')),
+      field('Narrow breakpoint', input('narrow', '320', '1600')),
+      field('Short breakpoint', input('short', '200', '900')),
+      field('Preview width', input('width', '200', '3840', '1280')),
+      field('Preview height', input('height', '150', '2160', '720')),
+      field('Active pane', active));
+  append(section, settingsGrid,
+      element('p', {id: 'surface-canvas-status', role: 'status', 'aria-live': 'polite'}),
+      element('div', {id: 'surface-canvas', 'aria-label': 'Native pane layout preview',
+          style: 'position:relative;min-height:120px;border:2px solid currentColor;overflow:hidden'}),
+      element('h4', {}, 'Outline and properties'),
+      element('ol', {id: 'surface-outline', class: 'list'}),
+      element('h4', {}, 'Keyboard pane order'),
+      element('ol', {id: 'surface-order', class: 'list'}),
+      element('h4', {}, 'Try in this window'),
+      element('p', {class: 'muted'}, 'First open the same number of panes using the browser layout controls. A 30-second trial changes only geometry. It does not navigate, run actions, install a skin or grant permissions. Keep explicitly to save the layout; leaving Studio reverts an unkept trial.'));
+  const actions = element('div', {class: 'actions'});
+  append(actions, button('try', 'Try for 30 seconds'), button('keep', 'Keep window layout', true),
+      button('revert', 'Revert trial', true), button('window-reset', 'Reset window layout'));
+  append(section, actions,
+      element('p', {id: 'surface-live-status', role: 'status', 'aria-live': 'polite'}));
   anchor.closest('.mode-config-group').append(section);
   const get = id => section.querySelector('#surface-' + id);
   const writable = () => !source.readOnly && !source.disabled;

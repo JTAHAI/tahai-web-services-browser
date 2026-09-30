@@ -25,7 +25,7 @@ class Element {
   dispatchEvent(event){for(const fn of this.listeners.get(event.type)||[])fn(event)}
   click(){if(!this.disabled)this.dispatchEvent(new Event('click'))}
   focus(){this.focused=true}
-  setAttribute(name,value){this[name]=String(value)}
+  setAttribute(name,value){if(name==='style'){this.styleText=String(value);return}this[name]=String(value)}
   set innerHTML(html){
     this.replaceChildren();const stack=[this],voids=new Set(['input','br']);
     for(const token of html.match(/<[^>]*>|[^<]+/g)||[]){
@@ -49,7 +49,7 @@ function setup(){
   source.value=JSON.stringify(doc);
   const messages=[],timers=new Map(),events=new Map();let timer=0,now=10000;
   const window={clearInterval:id=>timers.delete(id),setInterval:fn=>{timers.set(++timer,fn);return timer},addEventListener:(type,fn)=>events.set(type,fn)};
-  const document={querySelector:id=>body.querySelector(id),createElement:tag=>new Element(tag),getElementById:id=>body.querySelector('#'+id)};
+  const document={querySelector:id=>body.querySelector(id),createElement:tag=>new Element(tag),createTextNode:text=>{const node=new Element('#text');node.textContent=String(text);return node},getElementById:id=>body.querySelector('#'+id)};
   vm.runInNewContext(script,{window,document,Event,TextEncoder,Date:{now:()=>now},chrome:{send:(name,args)=>messages.push({name,args:JSON.parse(JSON.stringify(args))})}},{timeout:1000});
   const get=id=>document.getElementById('surface-'+id),change=(id,value)=>{get(id).value=value;get(id).dispatchEvent(new Event('change'))};
   const parsed=()=>JSON.parse(source.value),edit=doc=>{source.value=JSON.stringify(doc);source.dispatchEvent(new Event('input'))};

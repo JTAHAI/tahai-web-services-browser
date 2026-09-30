@@ -237,7 +237,7 @@ const std::vector<TahaiCustomModeDefinition>& GetBuiltinNativeModePresets() {
       NativeModeCommandLayout commands;
     };
     const Preset source[] = {
-        {"daily", "Daily Driver", "dark", "quiet", "comfortable", "standard",
+        {"daily", "Daily Driver", "dark", "mode", "comfortable", "standard",
          "launchpad", "one", "one", "daily-review", "icons", false,
          {{"workspaces.open", "profiles.open"}, {"modes.open", "profiles.open"},
           {"workspaces.open", "modes.open", "profiles.open"}}},

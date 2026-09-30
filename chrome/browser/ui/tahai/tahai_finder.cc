@@ -125,6 +125,16 @@ Finders& OpenFinders() {
   return *finders;
 }
 
+class FinderContentsView final : public views::View {
+ public:
+  gfx::Size GetMinimumSize() const override {
+    // BoxLayout's zero-bounds minimum includes every result's preferred
+    // height, even when the ScrollView has flex. Do not turn that complete
+    // list into the native window's minimum height: keep it in the viewport.
+    return gfx::Size(360, 240);
+  }
+};
+
 class FinderView final : public views::DialogDelegate,
                          public views::TextfieldController {
  public:
@@ -136,7 +146,7 @@ class FinderView final : public views::DialogDelegate,
                    l10n_util::GetStringUTF16(IDS_CLOSE));
     SetShowCloseButton(true);
     SetCanResize(true);
-    auto body = std::make_unique<views::View>();
+    auto body = std::make_unique<FinderContentsView>();
     auto* layout = body->SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kVertical, gfx::Insets(16), 10));
     body->SetPreferredSize(gfx::Size(680, 540));

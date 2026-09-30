@@ -436,7 +436,10 @@ if (is_win) {
   source_set("tahai_browser_tests") {
     testonly = true
     defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
-    sources = [ "tahai/tahai_local_oi_browsertest.cc" ]
+    sources = [
+      "tahai/tahai_capability_broker_unittest.cc",
+      "tahai/tahai_local_oi_browsertest.cc",
+    ]
     deps = [
       ":configs",
       "//base",
@@ -446,6 +449,8 @@ if (is_win) {
       "//chrome/browser/ui/tabs:tab_strip",
       "//chrome/common",
       "//chrome/test:test_support",
+      "//components/prefs:test_support",
+      "//components/sync_preferences:test_support",
       "//content/test:test_support",
       "//net",
       "//net:test_support",
@@ -463,7 +468,6 @@ if (is_win) {
       "tahai/tahai_mission_service_unittest.cc",
       "tahai/tahai_workflow_native_unittest.cc",
       "tahai/tahai_workflow_journal_unittest.cc",
-      "tahai/tahai_capability_broker_unittest.cc",
       "tahai/tahai_custom_mode_registry_unittest.cc",
       "tahai/tahai_skin_studio_draft_unittest.cc",
       "tahai/tahai_window_presentation_unittest.cc",

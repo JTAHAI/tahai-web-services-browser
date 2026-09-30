@@ -233,10 +233,17 @@ TahaiSkinManifestValidationResult ValidateTahaiSkinManifest(
   }
   *parsed_manifest = TahaiSkinManifest();
 
+  // Check the schema before the v1 field allowlist. Operational v2 manifests
+  // intentionally add a top-level `operational` object, but this legacy parser
+  // should report that the schema is unsupported rather than treating the
+  // versioned extension as an ambiguous v1 field.
+  const std::optional<int> schema_version = manifest.FindInt("schema_version");
+  if (!schema_version || *schema_version != kTahaiSkinSchemaVersion) {
+    return TahaiSkinManifestValidationResult::kInvalidSchema;
+  }
   if (!HasOnlyFields(manifest, kManifestFields)) {
     return TahaiSkinManifestValidationResult::kUnknownField;
   }
-  const std::optional<int> schema_version = manifest.FindInt("schema_version");
   const std::string* id = manifest.FindString("id");
   const std::string* name = manifest.FindString("name");
   const std::string* creator = manifest.FindString("creator");

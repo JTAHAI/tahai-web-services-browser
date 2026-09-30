@@ -1598,6 +1598,32 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
 // renderer-backed Mission Control surface. This deliberately verifies the
 // product route rather than an implementation-only host.
 IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiStockLaunchpadUsesRoyalDefaultAppearance) {
+  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
+      contents, tahai::kTahaiNewTabURL, "TAHAI New Tab",
+      "THE Operational Browser."));
+  EXPECT_TRUE(content::EvalJs(
+                  contents,
+                  "document.body.classList.contains('mode-daily') && "
+                  "!document.body.classList.contains('theme-light') && "
+                  "getComputedStyle(document.body).backgroundColor === "
+                  "'rgb(7, 5, 14)' && "
+                  "getComputedStyle(document.querySelector('.button.primary'))"
+                  ".color === 'rgb(27, 9, 46)'")
+                  .ExtractBool());
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents,
+                           "document.querySelector('.brand .mark').complete")
+        .ExtractBool();
+  }));
+  EXPECT_EQ(512, content::EvalJs(contents,
+                                 "document.querySelector('.brand .mark')"
+                                 ".naturalWidth")
+                     .ExtractInt());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
                        TahaiSkinStudioPrivateSurfaceNeverReadsRegularDraft) {
   auto* profile = browser()->GetProfile();
   auto source = base::JSONReader::ReadDict(tahai::GetTahaiSkinStudioDefaultDraft(), base::JSON_PARSE_RFC);
@@ -4675,7 +4701,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest, TahaiNewTabLoadsThroughRoute) {
             "New Tab");
   EXPECT_TRUE(content::EvalJs(contents, "document.body.innerText")
                   .ExtractString()
-                  .find("Focused browsing across complex work.") !=
+                  .find("THE Operational Browser.") !=
               std::string::npos);
   EXPECT_TRUE(
       content::EvalJs(

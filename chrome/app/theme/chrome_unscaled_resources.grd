@@ -14,6 +14,9 @@
   </outputs>
   <release seq="1">
     <includes>
+      <if expr="is_win">
+        <include name="IDR_TAHAI_ROYAL_MARK_512" file="tahai/brand/royal_mark_512.png" type="BINDATA" />
+      </if>
       <if expr="is_linux">
         <then>
           <include name="IDR_PRODUCT_LOGO_64" file="${branding_path_component}/linux/product_logo_64.png" type="BINDATA" />

@@ -129,6 +129,7 @@ IN_PROC_BROWSER_TEST_F(TahaiFinderBrowserTest,
   for (const auto& size : {gfx::Size(680, 420), gfx::Size(960, 640)}) {
     widget->SetBounds(gfx::Rect(gfx::Point(50, 50), size));
     views::test::RunScheduledLayout(widget);
+    EXPECT_LE(widget->GetWindowBoundsInScreen().height(), size.height());
     ASSERT_GT(scroll->height(), 0);
     ASSERT_GT(rows->height(), scroll->height());
     // Search owns arrow navigation: wrapping Up reveals the last result,

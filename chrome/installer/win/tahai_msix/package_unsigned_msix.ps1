@@ -239,6 +239,15 @@ function Assert-ReleaseBuildIsCurrent {
                 $_.FullName.Substring($sourceRoot.Length).TrimStart('\\')
             })
     }
+    # Brand assets are build inputs too. A fresh source-side tile must never
+    # disguise an executable or resource pack still carrying the previous mark.
+    foreach ($brandRoot in @('chrome\app\theme\tahai',
+                             'chrome\app\theme\default_100_percent\tahai',
+                             'chrome\app\theme\default_200_percent\tahai')) {
+        $releaseSources += @(Get-ChildItem -LiteralPath (Join-Path $sourceRoot $brandRoot) -Recurse -File |
+            Where-Object { $_.Extension -in @('.png', '.svg', '.ico', '.json') } |
+            ForEach-Object { $_.FullName.Substring($sourceRoot.Length).TrimStart('\') })
+    }
     foreach ($relativeSource in $releaseSources) {
         $source = Join-Path $sourceRoot $relativeSource
         if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {

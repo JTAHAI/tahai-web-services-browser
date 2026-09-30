@@ -14,7 +14,7 @@ class Element {
     this.tagName = tag; this.children = []; this.parentElement = null;
     this.listeners = new Map(); this.dataset = {}; this._text = ''; this._value = undefined;
     this.disabled = false; this.readOnly = false; this.checked = false; this.connected = connected;
-    this.style = {setProperty: () => {}};
+    this.style = {setProperty: () => {}, removeProperty: () => {}};
   }
   get isConnected() { return this.connected || Boolean(this.parentElement?.isConnected); }
   get options() { return this.children.filter(child => child.tagName === 'option'); }
@@ -39,6 +39,7 @@ class Element {
     this.append(...items);
   }
   before(item) { this.parentElement.insertBefore(item, this); }
+  after(item) { this.insertAdjacentElement('afterend', item); }
   insertBefore(item, reference) {
     item.remove(); this.children.splice(this.children.indexOf(reference), 0, item); item.parentElement = this;
   }
@@ -78,7 +79,7 @@ class Element {
   }
 }
 const body = new Element('body', true), document = {body,
-  querySelector: selector => body.querySelector(selector), createElement: tag => new Element(tag)};
+  addEventListener: () => {}, querySelector: selector => body.querySelector(selector), createElement: tag => new Element(tag)};
 const add = (tag, id, value = '') => {
   const node = new Element(tag); node.id = 'skin-studio-' + id; node.value = value; body.append(node); return node;
 };

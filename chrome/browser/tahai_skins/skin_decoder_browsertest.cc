@@ -1702,6 +1702,40 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
+                       TahaiStockRoyalPaletteRespectsExplicitLightAndUserTheme) {
+  auto* theme = ThemeServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(theme);
+  ASSERT_TRUE(theme->UsingDefaultTheme());
+  auto* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
+  ASSERT_TRUE(browser_view);
+
+  theme->SetBrowserColorScheme(ThemeService::BrowserColorScheme::kDark);
+  EXPECT_EQ(SkColorSetRGB(0x09, 0x06, 0x12),
+            browser_view->GetColorProvider()->GetColor(kColorToolbar));
+  EXPECT_EQ(SkColorSetRGB(0xf6, 0xf8, 0xff),
+            browser_view->GetColorProvider()->GetColor(kColorToolbarText));
+  EXPECT_EQ(SkColorSetRGB(0x17, 0x10, 0x26),
+            browser_view->GetColorProvider()->GetColor(
+                kColorTabBackgroundActiveFrameActive));
+  EXPECT_EQ(SkColorSetRGB(0x07, 0x05, 0x0e),
+            browser_view->GetColorProvider()->GetColor(
+                kColorTabBackgroundInactiveFrameActive));
+
+  theme->SetBrowserColorScheme(ThemeService::BrowserColorScheme::kLight);
+  EXPECT_EQ(SK_ColorWHITE,
+            browser_view->GetColorProvider()->GetColor(kColorToolbar));
+
+  theme->SetUserColorAndBrowserColorVariant(
+      SK_ColorMAGENTA, ui::mojom::BrowserColorVariant::kExpressive);
+  // A user-color theme can retain the default ThemeSupplier. Test the actual
+  // preference and resulting colors, not the supplier's classification.
+  EXPECT_EQ(SK_ColorMAGENTA, theme->GetUserColor());
+  theme->SetBrowserColorScheme(ThemeService::BrowserColorScheme::kDark);
+  EXPECT_NE(SkColorSetRGB(0x09, 0x06, 0x12),
+            browser_view->GetColorProvider()->GetColor(kColorToolbar));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
                        TahaiSkinManagerAllModesAndOneWindowPerProfile) {
   auto* mode = WindowModeController::GetForBrowser(browser());
   ASSERT_TRUE(mode);

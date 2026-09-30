@@ -53,6 +53,32 @@ TEST(TahaiSkinStudioDraftTest, DoesNotTreatDraftAsPackageOrCapability) {
   EXPECT_FALSE(stored.contains("credential"));
 }
 
+TEST(TahaiSkinStudioDraftTest, FreshDraftUsesDistinctRoyalLightAndDarkPalettes) {
+  TestingPrefServiceSimple prefs;
+  prefs.registry()->RegisterDictionaryPref(prefs::kTahaiSkinStudioDraft);
+  const auto draft = LoadTahaiSkinStudioDraft(&prefs);
+  ASSERT_EQ(TahaiSkinStudioDraftStatus::kOk, draft.status);
+  auto source = base::JSONReader::ReadDict(draft.manifest_json,
+                                         base::JSON_PARSE_RFC);
+  ASSERT_TRUE(source);
+  const auto* appearance = source->FindDict("appearance");
+  ASSERT_TRUE(appearance);
+  const auto* light = appearance->FindDict("light_tokens");
+  const auto* dark = appearance->FindDict("dark_tokens");
+  ASSERT_TRUE(light);
+  ASSERT_TRUE(dark);
+  ASSERT_TRUE(light->FindString("toolbar_background"));
+  ASSERT_TRUE(dark->FindString("toolbar_background"));
+  ASSERT_TRUE(dark->FindString("tab_background"));
+  ASSERT_TRUE(dark->FindString("shell_background"));
+  EXPECT_EQ("#ffffff", *light->FindString("toolbar_background"));
+  EXPECT_EQ("#090612", *dark->FindString("toolbar_background"));
+  EXPECT_EQ("#171026", *dark->FindString("tab_background"));
+  EXPECT_NE(*dark->FindString("tab_background"),
+            *dark->FindString("shell_background"));
+  EXPECT_TRUE(prefs.GetDict(prefs::kTahaiSkinStudioDraft).empty());
+}
+
 TEST(TahaiSkinStudioDraftTest, DoesNotOverwriteManagedDraft) {
   TestingPrefServiceSimple prefs;
   prefs.registry()->RegisterDictionaryPref(prefs::kTahaiSkinStudioDraft);

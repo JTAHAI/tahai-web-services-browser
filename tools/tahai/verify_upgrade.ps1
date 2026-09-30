@@ -67,7 +67,7 @@ function Acquire-TahaiBuildLock {
         throw 'lock metadata is not a regular owner record'
       }
       $owner = Get-Content -LiteralPath $buildLockOwner -Raw -ErrorAction Stop |
-        ConvertFrom-Json -ErrorAction Stop
+        ConvertFrom-Json -DateKind String -ErrorAction Stop
       $ownerProcess = Get-Process -Id ([int]$owner.processId) -ErrorAction Stop
       $ownerStartedUtc = $ownerProcess.StartTime.ToUniversalTime().ToString('o')
       if ($owner.schemaVersion -eq 1 -and
@@ -107,7 +107,7 @@ function Release-TahaiBuildLock {
   }
   try {
     $owner = Get-Content -LiteralPath $buildLockOwner -Raw -ErrorAction Stop |
-      ConvertFrom-Json -ErrorAction Stop
+      ConvertFrom-Json -DateKind String -ErrorAction Stop
     if ($owner.schemaVersion -ne 1 -or $owner.processId -ne $PID -or
         $owner.processStartedUtc -cne $runnerStartedUtc -or
         $owner.source -cne $nativeSource -or $owner.build -cne $nativeBuild) {

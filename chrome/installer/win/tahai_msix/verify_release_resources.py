@@ -32,6 +32,12 @@ def validate_credits(credits):
         raise ValueError('Release credits are sample/incomplete; regenerate the real third-party notices')
 
 
+def verify_resource(resources, identifier, expected, label):
+    if resources.get(identifier) != expected:
+        raise ValueError(f'Packaged resource differs from release source: {label}')
+    return hashlib.sha256(expected).hexdigest()
+
+
 def unpack_credits(blob, build):
     if not blob.startswith(b'\x1e\x9b') or len(blob) < 9:
         raise ValueError('Expected Chromium Brotli-compressed credits resource')
@@ -62,9 +68,22 @@ def verify(build):
             ('IDR_TAHAI_GUARD_EASYPRIVACY', 'third_party/tahai_guard_lists/easyprivacy-network.txt'),
             ('IDR_TAHAI_SKIN_CREATOR_KIT', 'docs/tahai-skins/skin-creator-kit.zip')):
         expected = (SOURCE / relative).read_bytes()
-        if resources[resource_id(header, symbol)] != expected:
-            raise ValueError(f'Packaged resource differs from release source: {symbol}')
-        checks[symbol] = hashlib.sha256(expected).hexdigest()
+        checks[symbol] = verify_resource(resources, resource_id(header, symbol),
+                                         expected, symbol)
+    # This mark is linked through chrome_unscaled_resources, not the browser
+    # resource header. Compare compiled bytes so an old blue-mark binary
+    # cannot be packaged alongside new Royal source artwork.
+    royal = (SOURCE / 'chrome/app/theme/tahai/brand/royal_mark_512.png').read_bytes()
+    royal_id = resource_id(build / 'gen/chrome/grit/chrome_unscaled_resources.h',
+                           'IDR_TAHAI_ROYAL_MARK_512')
+    checks['IDR_TAHAI_ROYAL_MARK_512'] = verify_resource(
+        resources, royal_id, royal, 'IDR_TAHAI_ROYAL_MARK_512')
+    for size in (64, 128, 256):
+        symbol = f'IDR_PRODUCT_LOGO_{size}'
+        expected = (SOURCE / f'chrome/app/theme/tahai/product_logo_{size}.png').read_bytes()
+        checks[symbol] = verify_resource(
+            resources, resource_id(build / 'gen/chrome/grit/chrome_unscaled_resources.h', symbol),
+            expected, symbol)
     return checks
 
 

@@ -1537,7 +1537,10 @@ std::optional<MissionSummary> MissionService::CreateOperationalWorkflowMission(
     std::string_view skin_id,
     std::string_view archive_sha256,
     bool native_adapter) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return std::nullopt;
+  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions) ||
+      (native_adapter && !CanStoreProtectedInputs())) {
+    return std::nullopt;
+  }
   const std::optional<std::vector<MissionStep>> steps =
       OperationalWorkflowSteps(workflow, native_adapter);
   const std::optional<std::vector<MissionWorkflowInput>> inputs =
@@ -1743,10 +1746,17 @@ bool MissionService::SetOperationalWorkflowRunState(
   OnWorkflowDeadline();
   MissionSummary* mission = FindMission(mission_id);
   if (shutting_down_ || !mission || mission->archived || !mission->operational_workflow ||
-      !IsAllowedOperationalWorkflowTransition(
-          mission->operational_workflow->run_state, run_state)) {
+      (!IsOperationalWorkflowRunState(run_state) ||
+       (mission->operational_workflow->run_state != run_state &&
+        !IsAllowedOperationalWorkflowTransition(
+          mission->operational_workflow->run_state, run_state)))) {
     return false;
   }
+  // Launch can already have placed a recipe in its requested state before a
+  // second UI surface reports that same state. Treat a duplicate report as an
+  // idempotent acknowledgement: never duplicate events or re-save sensitive
+  // workflow inputs merely because browser surfaces raced.
+  if (mission->operational_workflow->run_state == run_state) return true;
   if (!CanStoreProtectedInputs() && (std::ranges::any_of(mission->workflow_inputs,
       [](const auto& input) { return input.is_protected; }) ||
       std::ranges::any_of(mission->workflow_variables, [](const auto& variable) { return variable.definition.is_protected; }))) return false;
@@ -2275,6 +2285,31 @@ void MissionService::Load() {
             }
           }
         }
+        std::vector<MissionStep> restored_compensation;
+        if (valid_steps) {
+          if (const base::ListValue* saved_compensation =
+                  dict->FindList("rollback_steps")) {
+            if (saved_compensation->empty() ||
+                saved_compensation->size() > kMaximumOperationalWorkflowSteps) {
+              valid_steps = false;
+            } else {
+              restored_compensation.reserve(saved_compensation->size());
+              for (const base::Value& saved_step : *saved_compensation) {
+                const base::DictValue* step = saved_step.GetIfDict();
+                const std::string* label =
+                    step ? step->FindString("label") : nullptr;
+                const std::optional<bool> complete =
+                    step ? step->FindBool("complete") : std::nullopt;
+                if (!step || step->size() != 2 || !label || !complete ||
+                    !IsSafeTitle(*label)) {
+                  valid_steps = false;
+                  break;
+                }
+                restored_compensation.push_back({*label, *complete});
+              }
+            }
+          }
+        }
         if (valid_steps) {
           mission.operational_workflow = OperationalWorkflowSource{
               *skin_id, *workflow_id, *archive_sha256,
@@ -2282,6 +2317,9 @@ void MissionService::Load() {
           if (interrupted_wait) mission.operational_workflow->run_state = "paused";
           if (interrupted_timeout) mission.operational_workflow->run_state = "failed";
           mission.steps = std::move(restored_steps);
+          if (!restored_compensation.empty()) {
+            mission.rollback_steps = std::move(restored_compensation);
+          }
           const base::ListValue* saved_inputs = dict->FindList("workflow_inputs");
           bool valid_inputs = !dict->contains("workflow_inputs") ||
                               (saved_inputs && saved_inputs->size() <=

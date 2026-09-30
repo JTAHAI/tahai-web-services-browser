@@ -153,7 +153,8 @@ Status DecodeArchive(const std::string& archive,
     } else if (signing_key_entry) {
       if (!directory.ExtractCurrentEntryToString(kMaximumSigningKeyBytes,
                                                  &signing_key_id) ||
-          signing_key_id.size() != entry->original_size) {
+          signing_key_id.size() !=
+              static_cast<uint64_t>(entry->original_size)) {
         return Status::kInvalidArchive;
       }
     } else if (signature_entry) {

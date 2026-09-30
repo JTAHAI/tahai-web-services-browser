@@ -32,18 +32,18 @@ constexpr char kDefaultDraft[] = R"TAHAI({
     "density": "comfortable",
     "reduced_motion": false,
     "light_tokens": {
-      "shell_background": "#10131c", "toolbar_background": "#182033",
-      "toolbar_foreground": "#f5f7ff", "tab_background": "#202b43",
-      "tab_foreground": "#f5f7ff", "rail_background": "#161e30",
-      "rail_foreground": "#e8efff", "accent": "#397eea",
-      "panel_background": "#1b2438", "panel_foreground": "#f5f7ff"
+      "shell_background": "#f6f3fc", "toolbar_background": "#ffffff",
+      "toolbar_foreground": "#1b092e", "tab_background": "#eee6fa",
+      "tab_foreground": "#1b092e", "rail_background": "#6e4aaf",
+      "rail_foreground": "#ffffff", "accent": "#6e4aaf",
+      "panel_background": "#ffffff", "panel_foreground": "#1b092e"
     },
     "dark_tokens": {
-      "shell_background": "#10131c", "toolbar_background": "#182033",
-      "toolbar_foreground": "#f5f7ff", "tab_background": "#202b43",
-      "tab_foreground": "#f5f7ff", "rail_background": "#161e30",
-      "rail_foreground": "#e8efff", "accent": "#397eea",
-      "panel_background": "#1b2438", "panel_foreground": "#f5f7ff"
+      "shell_background": "#07050e", "toolbar_background": "#090612",
+      "toolbar_foreground": "#f6f8ff", "tab_background": "#171026",
+      "tab_foreground": "#f6f8ff", "rail_background": "#100a1b",
+      "rail_foreground": "#d9e0f2", "accent": "#c4a5ff",
+      "panel_background": "#100a1b", "panel_foreground": "#f6f8ff"
     },
     "high_contrast_tokens": {
       "shell_background": "#000000", "toolbar_background": "#000000",

@@ -9,7 +9,9 @@
 
 #include "base/command_line.h"
 #include "base/functional/bind.h"
+#include "base/memory/ref_counted.h"
 #include "base/metrics/user_metrics.h"
+#include "base/no_destructor.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/browser/app_mode/app_mode_utils.h"
@@ -61,8 +63,10 @@
 #include "media/capture/capture_switches.h"
 #include "ui/wm/core/window_properties.h"
 #if BUILDFLAG(TAHAI_BRANDING)
+#include "chrome/browser/tahai_skins/skin_color_supplier.h"
 #include "chrome/browser/tahai_skins/skin_profile_service.h"
 #include "chrome/browser/tahai_skins/skin_profile_service_factory.h"
+#include "chrome/common/tahai_skins/tahai_skin_catalog.h"
 #endif
 #endif
 
@@ -501,6 +505,24 @@ ui::ColorProviderKey BrowserWidget::GetColorProviderKey() const {
       if (auto* palette = controller->window_skin_palette()) {
         key.custom_theme = palette;
       }
+    }
+    // A fresh/default TAHAI window starts in the website's royal dark palette.
+    // User themes, explicit light mode, private windows and system forced
+    // colors remain authoritative; this does not write a profile preference.
+    if (!profile->IsOffTheRecord() && !key.custom_theme &&
+        !theme_service->GetUserColor().has_value() &&
+        theme_service->UsingDefaultTheme() &&
+        !theme_service->UsingDeviceTheme() &&
+        key.forced_colors == ui::ColorProviderKey::ForcedColors::kNone) {
+      static const base::NoDestructor<
+          scoped_refptr<tahai::skins::SkinColorSupplier>> kRoyalStockPalette(
+          base::MakeRefCounted<tahai::skins::SkinColorSupplier>(
+              *tahai::GetTahaiBuiltInSkinAppearance("tahai-royal")));
+      if (theme_service->GetBrowserColorScheme() ==
+          ThemeService::BrowserColorScheme::kSystem) {
+        key.color_mode = ui::ColorProviderKey::ColorMode::kDark;
+      }
+      key.custom_theme = kRoyalStockPalette->get();
     }
   }
 #endif

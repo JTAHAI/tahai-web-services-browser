@@ -40,7 +40,7 @@ function Acquire-TahaiWorkflowLock {
         throw 'lock metadata is not a regular owner record'
       }
       $owner = Get-Content -LiteralPath $buildLockOwner -Raw -ErrorAction Stop |
-        ConvertFrom-Json -ErrorAction Stop
+        ConvertFrom-Json -DateKind String -ErrorAction Stop
       $ownerProcess = Get-Process -Id ([int]$owner.processId) -ErrorAction Stop
       if ($owner.schemaVersion -eq 1 -and $owner.source -ceq $source -and
           $owner.build -ceq $build -and
@@ -78,7 +78,7 @@ function Release-TahaiWorkflowLock {
   }
   try {
     $owner = Get-Content -LiteralPath $buildLockOwner -Raw -ErrorAction Stop |
-      ConvertFrom-Json -ErrorAction Stop
+      ConvertFrom-Json -DateKind String -ErrorAction Stop
     if ($owner.schemaVersion -ne 1 -or $owner.processId -ne $PID -or
         $owner.processStartedUtc -cne $runnerStartedUtc -or
         $owner.source -cne $source -or $owner.build -cne $build) {
@@ -145,7 +145,7 @@ try {
     'obj/chrome/browser/ui/webui/tahai_mission_service_tests/tahai_operational_skin_manifest_unittest.obj',
     'obj/chrome/browser/ui/webui/tahai_mission_service_tests/tahai_custom_mode_registry_unittest.obj',
     'obj/chrome/browser/ui/webui/tahai_mission_service_tests/tahai_skin_studio_draft_unittest.obj',
-    'obj/chrome/browser/ui/webui/tahai_mission_service_tests/tahai_capability_broker_unittest.obj',
+    'obj/chrome/browser/ui/webui/tahai_browser_tests/tahai_capability_broker_unittest.obj',
     'obj/chrome/browser/ui/webui/tahai_mission_service_tests/tahai_workflow_native_unittest.obj',
     'obj/chrome/browser/ui/webui/tahai_mission_service_tests/tahai_workflow_journal_unittest.obj',
     'obj/chrome/browser/tahai_skins/browser_tests/skin_decoder_browsertest.obj',

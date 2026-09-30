@@ -444,6 +444,67 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
+                       TahaiRuleChangesRequireActiveSupportGesture) {
+  ASSERT_EQ(Update::kInstalled, Install());
+  for (const char* url : {kTahaiSupportURL, kTahaiLocalOiURL}) {
+    SCOPED_TRACE(url);
+    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(url)));
+    const int options = GURL(url) == GURL(kTahaiSupportURL)
+                            ? content::EXECUTE_SCRIPT_NO_USER_GESTURE
+                            : content::EXECUTE_SCRIPT_DEFAULT_OPTIONS;
+    EXPECT_EQ(false, content::EvalJs(Contents(), R"JS(
+      new Promise(resolve => {
+        window.tahaiGuardConfigurationStored = stored => resolve(stored);
+        chrome.send('setTahaiGuardConfiguration', [{schema_version:1,
+          mode:'off', local_statistics_enabled:false, site_overrides:[]}]);
+      });
+    )JS", options));
+    EXPECT_EQ(false, content::EvalJs(Contents(), R"JS(
+      new Promise(resolve => {
+        window.tahaiGuardRulesUpdated = stored => resolve(stored);
+        chrome.send('installTahaiGuardCustomRules', ['/guard/allowed']);
+      });
+    )JS", options));
+    EXPECT_EQ(false, content::EvalJs(Contents(), R"JS(
+      new Promise(resolve => {
+        window.tahaiGuardRulesUpdated = stored => resolve(stored);
+        chrome.send('clearTahaiGuardCustomRules', []);
+      });
+    )JS", options));
+    EXPECT_EQ(TahaiGuardMode::kCustom,
+              GetTahaiGuardConfigurationForProfile(browser()->GetProfile()).mode);
+    EXPECT_EQ("/guard/blocked", browser()->GetProfile()->GetPrefs()->GetString(
+                                    prefs::kTahaiGuardCustomRules));
+  }
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(kTahaiSupportURL)));
+  EXPECT_EQ(true, content::EvalJs(Contents(), R"JS(
+    new Promise(resolve => {
+      window.tahaiGuardRulesUpdated = stored => resolve(stored);
+      chrome.send('installTahaiGuardCustomRules', ['/guard/allowed']);
+    });
+  )JS"));
+  EXPECT_EQ("/guard/allowed", browser()->GetProfile()->GetPrefs()->GetString(
+                                  prefs::kTahaiGuardCustomRules));
+  EXPECT_EQ(true, content::EvalJs(Contents(), R"JS(
+    new Promise(resolve => {
+      window.tahaiGuardRulesUpdated = stored => resolve(stored);
+      chrome.send('clearTahaiGuardCustomRules', []);
+    });
+  )JS"));
+  EXPECT_TRUE(browser()->GetProfile()->GetPrefs()->GetString(
+                  prefs::kTahaiGuardCustomRules).empty());
+  EXPECT_EQ(true, content::EvalJs(Contents(), R"JS(
+    new Promise(resolve => {
+      window.tahaiGuardConfigurationStored = stored => resolve(stored);
+      chrome.send('setTahaiGuardConfiguration', [{schema_version:1,
+        mode:'off', local_statistics_enabled:false, site_overrides:[]}]);
+    });
+  )JS"));
+  EXPECT_EQ(TahaiGuardMode::kOff,
+            GetTahaiGuardConfigurationForProfile(browser()->GetProfile()).mode);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
                        TahaiPrivateEditorCannotMutateInheritedRules) {
   ASSERT_EQ(Update::kInstalled, Install());
   Browser* private_browser = CreateIncognitoBrowser(browser()->GetProfile());

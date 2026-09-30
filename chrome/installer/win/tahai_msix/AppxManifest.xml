@@ -7,7 +7,7 @@
   <Properties>
     <DisplayName>TAHAI Browser</DisplayName>
     <PublisherDisplayName>TAHAI Web Services</PublisherDisplayName>
-    <Description>TAHAI Browser is a native Chromium-based browser for focused browsing, research, and technical work.</Description>
+    <Description>TAHAI Browser. The Operational Browser. For Everyone. Native Chromium browsing, workspaces, and profile-local missions. Your web. Your way.</Description>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
   <Resources>
@@ -19,7 +19,7 @@
   <Applications>
     <Application Id="TAHAIBrowser" Executable="chrome.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements DisplayName="TAHAI Browser"
-                          Description="TAHAI Browser is a native Chromium-based browser for focused browsing, research, and technical work."
+                          Description="TAHAI Browser. The Operational Browser. For Everyone. Native Chromium browsing, workspaces, and profile-local missions. Your web. Your way."
                           BackgroundColor="transparent"
                           Square150x150Logo="Assets\Logo.png"
                           Square44x44Logo="Assets\SmallLogo.png">

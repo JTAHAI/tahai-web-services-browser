@@ -3,6 +3,7 @@
 
 #include "chrome/browser/ui/webui/tahai/tahai_ui.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -52,6 +53,7 @@
 #include "chrome/browser/ui/tahai/tahai_skin_studio_draft.h"
 #include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
 #include "chrome/browser/ui/webui/tahai/tahai_native_mode_editor.h"
+#include "chrome/browser/ui/webui/tahai/tahai_royal_brand.h"
 #include "chrome/browser/ui/webui/tahai/tahai_capability_review_ui.h"
 #include "chrome/browser/ui/webui/tahai/tahai_surface_editor_handler.h"
 #include "chrome/browser/ui/webui/tahai/tahai_workflow_native_handler.h"
@@ -901,6 +903,31 @@ body.header-minimal header{padding:10px 14px}body.header-minimal header .mark{wi
 body.runbook-rail-hidden .mode-runbook-rail{display:none}
 )TAHAI";
 
+// The stock dark Daily Driver follows the current TAHAI Browser website. Keep
+// this scoped to the uncustomized default; light, alternate work modes, user
+// accents and surface choices retain their own visual identities.
+constexpr char kRoyalDefaultCss[] = R"TAHAI(
+body.mode-daily:not(.theme-light):not(.accent-slate):not(.accent-azure):not(.accent-teal):not(.accent-violet):not(.accent-amber){--cyan:#c8b3ff;--blue:#a378f2;--mint:#c8b3ff;--violet:#9348ed;--muted:#b1a8c3;--line:#ae90e033;--mode-accent:#9348ed;--mode-accent-strong:#c4a5ff;--mode-surface:#0d0917ed;--mode-surface-2:#171026e8;--mode-border:#ae90e040;--mode-shadow:#00000080}
+body.mode-daily:not(.theme-light):not(.surface-quiet):not(.surface-grid):not(.surface-paper){background:radial-gradient(ellipse at 80% 3%,#6a2cc129,transparent 36%),radial-gradient(ellipse at 91% 83%,#50217d30,transparent 37%),#07050e}
+body.mode-daily:not(.theme-light){color:#f6f8ff}
+body.mode-daily:not(.theme-light) header{border-color:#ae90e033;border-radius:16px;background:#090612e8}
+body.mode-daily:not(.theme-light) .hero,body.mode-daily:not(.theme-light) .panel{border-color:var(--mode-border);border-radius:22px;background:linear-gradient(145deg,#100a1beb,#0b0713eb 62%,#1b0c2beb)}
+body.mode-daily:not(.theme-light) .card{border-color:var(--mode-border);border-radius:15px;background:#140d20e8}
+body.mode-daily:not(.theme-light) .button,body.mode-daily:not(.theme-light) .chip{border-color:var(--mode-border);border-radius:12px;background:#120d1bea;color:#f6f8ff}
+body.mode-daily:not(.theme-light):not(.accent-slate):not(.accent-azure):not(.accent-teal):not(.accent-violet):not(.accent-amber) .button.primary,body.mode-daily:not(.theme-light):not(.accent-slate):not(.accent-azure):not(.accent-teal):not(.accent-violet):not(.accent-amber) .chip.selected{border-color:#c4a5ff;background:linear-gradient(135deg,#c4a5ff,#a378f2);color:#1b092e;box-shadow:0 8px 28px #6a2cc13d}
+body.mode-daily:not(.theme-light) .mark{border:0;border-radius:0;background:transparent;box-shadow:none;object-fit:contain}
+body.mode-daily:not(.theme-light) .hero-art img{border-radius:0;object-fit:contain;filter:drop-shadow(0 0 35px #8f4ded55)}
+body.mode-daily:not(.theme-light) .hero-art::before{border-color:#a378f255;box-shadow:0 0 55px #9348ed44,inset 0 0 48px #a378f222}
+body.mode-daily:not(.theme-light) .eyebrow,body.mode-daily:not(.theme-light) .scope,body.mode-daily:not(.theme-light) .mode-card-title,body.mode-daily:not(.theme-light) .product-lane{color:#c8b3ff}
+body.mode-daily:not(.theme-light) .mode-grid .card.mode-active{border-color:#c4a5ff;box-shadow:0 0 28px #9348ed33}
+body.mode-daily:not(.theme-light) .mode-grid .card.mode-active::before{border-color:#c4a5ff99;box-shadow:inset 0 0 18px #9348ed22,0 0 18px #9348ed33}
+body.mode-daily:not(.theme-light) .mode-dialog,body.mode-daily:not(.theme-light) .command-palette{color:#f6f8ff;border-color:#ae90e080;background:linear-gradient(145deg,#100a1b,#1b0d2d 62%,#0b0713)}
+body.mode-daily:not(.theme-light) .button:hover,body.mode-daily:not(.theme-light) .chip:hover{border-color:#c4a5ff;box-shadow:0 10px 26px #0008,0 0 20px #9348ed33}
+body.mode-daily:not(.theme-light) .search input,body.mode-daily:not(.theme-light) .command-input{border-color:#ae90e080;background:#0b0713e8;color:#f6f8ff}
+body.mode-daily:not(.theme-light) :focus-visible{outline:2px solid #d2bdff;outline-offset:2px}
+@media(forced-colors:active){body.mode-daily:not(.theme-light) .button.primary,body.mode-daily:not(.theme-light) .chip.selected{border-color:ButtonText;background:ButtonFace;color:ButtonText;box-shadow:none}}
+)TAHAI";
+
 // Local OI borrows the visual language of the TAHAI command deck—dense, calm,
 // and state-forward—while remaining a browser-local, profile-scoped surface.
 // It intentionally has no connector, tenant, or hosted-control-plane chrome.
@@ -1048,7 +1075,84 @@ constexpr char kRecallJs[] = R"TAHAI(
 )TAHAI";
 
 constexpr char kActionsJs[] = R"TAHAI(
-(()=>{'use strict';const send=command=>chrome.send('executeTahaiCommand',[command]);for(const control of document.querySelectorAll('[data-tahai-command]')){control.addEventListener('click',()=>send(control.dataset.tahaiCommand))}const dialog=document.querySelector('#tahai-command-palette');if(!dialog)return;const input=dialog.querySelector('#tahai-palette-input'),commands=[...dialog.querySelectorAll('[data-tahai-palette-command]')];const open=()=>{dialog.showModal();input.focus();input.select()};const render=()=>{const query=input.value.trim().toLowerCase();for(const command of commands)command.hidden=!!query&&!command.dataset.tahaiPaletteSearch.includes(query)};document.addEventListener('keydown',event=>{if(event.ctrlKey&&event.shiftKey&&event.code==='Space'){event.preventDefault();if(dialog.open)dialog.close();else open()}else if(event.key==='Escape'&&dialog.open)dialog.close()});input.addEventListener('input',render);for(const command of commands){command.addEventListener('click',()=>{dialog.close();send(command.dataset.tahaiPaletteCommand)})}for(const close of dialog.querySelectorAll('[data-tahai-close-palette]'))close.addEventListener('click',()=>dialog.close());dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()})})();
+(() => {
+  'use strict';
+  const send = command => chrome.send('executeTahaiCommand', [command]);
+  const usable = control => control.isConnected && !control.disabled && !control.hidden &&
+      control.getAttribute('aria-disabled') !== 'true';
+  for (const control of document.querySelectorAll('[data-tahai-command]')) {
+    control.addEventListener('click', () => {
+      if (usable(control)) send(control.dataset.tahaiCommand);
+    });
+  }
+  const dialog = document.querySelector('#tahai-command-palette');
+  if (!dialog) return;
+  const input = dialog.querySelector('#tahai-palette-input');
+  const commands = [...dialog.querySelectorAll('[data-tahai-palette-command]')];
+  if (!input) return;
+  const status = document.createElement('p');
+  status.id = 'tahai-palette-status'; status.className = 'muted';
+  status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+  input.after(status); input.setAttribute('aria-describedby', status.id);
+  let returnFocus = null;
+  const visible = () => commands.filter(usable);
+  const render = () => {
+    const terms = input.value.trim().toLowerCase().slice(0, 256).split(/\s+/).filter(Boolean);
+    for (const command of commands) {
+      const search = ((command.dataset.tahaiPaletteSearch || '') + ' ' +
+          (command.dataset.tahaiPaletteCommand || '').replaceAll('.', ' ') + ' ' +
+          command.textContent).toLowerCase();
+      command.hidden = !terms.every(term => search.includes(term));
+    }
+    const count = visible().length;
+    status.textContent = count ? `${count} commands. Use Up/Down to choose; Enter to run.` :
+        'No matching commands. Clear the filter to see all commands.';
+  };
+  const open = () => {
+    if (dialog.open || !dialog.isConnected) return;
+    returnFocus = document.activeElement;
+    input.value = ''; render(); dialog.showModal(); input.focus(); input.select();
+  };
+  const run = command => {
+    if (!dialog.open || !usable(command)) return;
+    // The native action owns focus after dispatch (for example the omnibox).
+    returnFocus = null; dialog.close(); send(command.dataset.tahaiPaletteCommand);
+  };
+  dialog.addEventListener('close', () => {
+    const target = returnFocus; returnFocus = null;
+    if (target?.isConnected && !target.disabled) target.focus();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.defaultPrevented || event.isComposing || event.altKey) return;
+    if (event.ctrlKey && event.shiftKey && event.code === 'Space') {
+      if (event.repeat) return;
+      event.preventDefault(); if (dialog.open) dialog.close(); else open();
+      return;
+    }
+    if (!dialog.open || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const target = event.composedPath?.()[0] || event.target;
+    if (event.key === 'Escape') { event.preventDefault(); dialog.close(); return; }
+    const choices = visible(), index = choices.indexOf(target);
+    if (target !== input && index < 0) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault(); if (!choices.length) return;
+      const next = index < 0 ? (event.key === 'ArrowDown' ? 0 : choices.length - 1) :
+          (index + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length;
+      choices[next].focus();
+    } else if (index >= 0 && (event.key === 'Home' || event.key === 'End')) {
+      event.preventDefault(); choices[event.key === 'Home' ? 0 : choices.length - 1].focus();
+    } else if (target === input && event.key === 'Enter') {
+      event.preventDefault(); if (!event.repeat && choices.length) run(choices[0]);
+    }
+  });
+  input.maxLength = 256;
+  input.addEventListener('input', render);
+  for (const command of commands) command.addEventListener('click', () => run(command));
+  for (const close of dialog.querySelectorAll('[data-tahai-close-palette]'))
+    close.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+  render();
+})();
 )TAHAI";
 
 constexpr char kModesJs[] = R"TAHAI(
@@ -1703,11 +1807,11 @@ constexpr char kLocalOiControlsJs[] = R"TAHAI(
     setStatus(setting + ' was updated locally. Existing results stay visible; refresh this page only when you are ready.');
   };
   window.tahaiLocalOiProjectionRefreshed = (refreshed) => {
+    if (rebuild) rebuild.disabled = false;
     if (!refreshed) {
       setStatus('The bounded Mission projection could not refresh because Local OI or Mission ingestion is disabled by policy.');
       return;
     }
-    if (rebuild) rebuild.disabled = false;
     document.dispatchEvent(new CustomEvent('tahai-local-oi-updated',
         {detail: {setting: 'mission-projection'}}));
     setStatus('The bounded Mission projection was refreshed locally. Existing results stay visible; refresh this page only when you are ready.');
@@ -1715,6 +1819,7 @@ constexpr char kLocalOiControlsJs[] = R"TAHAI(
   for (const button of document.querySelectorAll('[data-tahai-oi-setting]')) {
     controls.set(button.dataset.tahaiOiSetting, button);
     button.addEventListener('click', () => {
+      if (button.disabled || !button.isConnected) return;
       const setting = button.dataset.tahaiOiSetting;
       const enabled = button.dataset.tahaiOiEnabled === 'true';
       if (!setting) return;
@@ -1725,6 +1830,7 @@ constexpr char kLocalOiControlsJs[] = R"TAHAI(
   }
   rebuild = document.querySelector('[data-tahai-oi-action=rebuild-local]');
   if (rebuild) rebuild.addEventListener('click', () => {
+    if (rebuild.disabled || !rebuild.isConnected) return;
     rebuild.disabled = true;
     setStatus('Refreshing the bounded local Mission projection…');
     chrome.send('rebuildTahaiLocalOiIndex');
@@ -2543,10 +2649,10 @@ std::string NewTabHtml(MissionService* service, ModeService* mode_service) {
         "Mission Control</a></article>";
   }
   return PageFrame(
-      "New Tab",
+      kNewTabTitle,
       base::StrCat(
           {R"TAHAI(
-<section class="hero launch-hero"><div><p class=eyebrow>TAHAI Browser</p><h2>Focused browsing across complex work.</h2><p class=muted>Native professional workspace for ordinary browsing, deliberate layouts, and profile-scoped missions. Search the web, return to an open page, or save a useful setup while Chromium keeps your permissions and browsing data in its own profile.</p><div class=actions><button class="button primary" type=button data-tahai-command="address.focus">Search the web or enter a web address</button><button class=button type=button data-tahai-command="tabs.find">Find a tab</button><button class=button type=button data-tahai-command="workspaces.open">Saved workspaces</button></div></div><div class=hero-art><img src="/brand.png" alt="TAHAI Browser mark"><span class=hero-badge>Native professional workspace</span></div></section>
+<section class="hero launch-hero"><div><p class=eyebrow>TAHAI Web Services · Your web. Your way.</p><h2>THE Operational Browser. <span class=brand-tagline>For Everyone.</span></h2><p class=muted>Browse. Learn. Create. Compare. Plan. Native professional workspace for ordinary browsing, deliberate layouts, and profile-scoped missions. Search the web, return to an open page, or save a useful setup while Chromium keeps your permissions and browsing data in its own profile.</p><div class=actions><button class="button primary" type=button data-tahai-command="address.focus">Search the web or enter a web address</button><button class=button type=button data-tahai-command="tabs.find">Find a tab</button><button class=button type=button data-tahai-command="workspaces.open">Saved workspaces</button></div></div><div class=hero-art><img src="/brand.png" alt="TAHAI Browser Royal circuit-spider mark"><span class=hero-badge>Your web. Your way.</span></div></section>
  <section class=section><div class=section-head><div><p class=eyebrow>Work with pages</p><h2>Choose a simple next step</h2></div></div><div class=grid><button class=card type=button data-tahai-command="dual.open"><strong>Compare two pages</strong><span>Place the current page beside another page.</span></button><a class=card href="tahai://commands/"><strong>More work tools</strong><span>Find browser actions, layouts, printing, and saving.</span></a><a class=card href="tahai://mission/"><strong>Run a checklist</strong><span>Open Mission Control for recorded steps and evidence.</span></a></div></section>
 <section class="section three">)TAHAI",
            active_mode_card, recent_missions,
@@ -4179,7 +4285,7 @@ std::string PolicyHtml(ModeService* mode_service, PrefService* prefs) {
        R"TAHAI(<article class=panel><h2>Stored capability grants</h2><p class=boundary>Review and revoke exact provider-revision permissions. This surface cannot grant access or run a connector. Revoking permission does not undo earlier work. Review remains available when skins are disabled.</p><button id=capability-refresh class=button type=button>Refresh grant review</button><p id=capability-status role=status aria-live=polite>Loading grant review…</p><ul id=capability-grants class=list></ul></article><script src=/capability-review.js></script>)TAHAI",
        R"TAHAI(<article class=panel><p class=eyebrow>Collection baseline</p><h2>What remains off by default</h2><p class=boundary>Browser history metadata and any local model are disabled by default. Local OI does not collect page bodies, tabs, URLs, downloads, cookies, credentials, forms, raw headers, or account data through any policy setting.</p></article><article class=panel><p class=eyebrow>Operator truth</p><h2>Explicit actions stay explicit</h2><p class=muted>Support probes, digests, artifact entries, documentation pointers, Environment Guard classifications, and manual recheck entries each require an operator action in the browser. Policy does not turn them into background monitoring.</p></article></div></section>
 )TAHAI"});
-  return PageFrame("Policy", content, ActiveTheme(mode_service),
+  return PageFrame(kPolicyTitle, content, ActiveTheme(mode_service),
                    ActiveModeId(mode_service),
                    &mode_service->active_configuration());
 }
@@ -4233,7 +4339,7 @@ std::string SkinStudioHtml(Profile* profile,
                  ? "This draft is managed and read-only."
                  : "Editing stays local. A valid draft will autosave after a short pause.",
        R"TAHAI(</p></article><aside class="panel oi-boundary"><p class=eyebrow>Security boundary</p><h2>Drafts do not run.</h2><p class=boundary>Only a signed package accepted by the managed trust policy can become an operational skin. Even then, reviewed symbolic actions and browser-owned capability checks are required. This editor cannot name arbitrary URLs, scripts, commands, credentials, files, widgets, or connectors.</p></aside></section><script src=/skin-studio.js></script>)TAHAI"});
-  return PageFrame("Skin Studio", content, ActiveTheme(mode_service),
+  return PageFrame(kSkinStudioTitle, content, ActiveTheme(mode_service),
                    ActiveModeId(mode_service),
                    &mode_service->active_configuration());
 }
@@ -4727,6 +4833,42 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
  private:
+  bool HasActiveTahaiGesture() {
+    auto* contents = web_ui()->GetWebContents();
+    if (!contents || contents->GetBrowserContext() != profile_) {
+      return false;
+    }
+    const GURL& url = contents->GetLastCommittedURL();
+    // GetSurfaceDefinition checks a path, not an origin. Never let an ordinary
+    // web page with the same path inherit a browser-owned action.
+    constexpr const char* public_surfaces[] = {
+        kTahaiNewTabURL, kTahaiMissionURL, kTahaiOpsToolsURL,
+        kTahaiProfilesURL, kTahaiSupportURL, kTahaiPolicyURL,
+        kTahaiModesURL, kTahaiLocalOiURL, kTahaiSkinStudioURL};
+    const bool public_surface = std::ranges::any_of(
+        public_surfaces, [&url](const char* surface) { return url == GURL(surface); });
+    const bool trusted_surface = url.SchemeIs(content::kChromeUIScheme) &&
+        url.host() == kTahaiChromeHost && !url.has_port() &&
+        !url.has_username() && !url.has_password() &&
+        GetSurfaceDefinition(url).has_value();
+    if (!public_surface && !trusted_surface) {
+      return false;
+    }
+    auto* frame = contents->GetPrimaryMainFrame();
+    Browser* browser = FindBrowserForWebContents(contents);
+    return frame && frame->HasTransientUserActivation() && browser &&
+           browser->GetProfile() == profile_ &&
+           browser->tab_strip_model()->GetActiveWebContents() == contents;
+  }
+
+  bool HasActiveSurfaceGesture(const char* public_url, const char* trusted_url) {
+    if (!HasActiveTahaiGesture()) {
+      return false;
+    }
+    const GURL& url = web_ui()->GetWebContents()->GetLastCommittedURL();
+    return url == GURL(public_url) || url == GURL(trusted_url);
+  }
+
   void RefreshLocalOiAfterMissionMutation() {
     if (local_oi_service_ && mission_service_) {
       local_oi_service_->SyncMissions(mission_service_->missions());
@@ -4734,7 +4876,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void Execute(const base::ListValue& args) {
-    if (args.size() != 1u || !args.front().is_string()) {
+    if (!HasActiveTahaiGesture() || args.size() != 1u ||
+        !args.front().is_string()) {
       return;
     }
     const std::string& command = args.front().GetString();
@@ -5021,7 +5164,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void LaunchRecipe(const base::ListValue& args) {
-    if (!mission_service_ || args.size() != 1u || !args.front().is_string()) {
+    if (!HasActiveTahaiGesture() || !mission_service_ || args.size() != 1u ||
+        !args.front().is_string()) {
       return;
     }
     const RecipeDefinition* recipe = FindRecipe(args.front().GetString());
@@ -5037,7 +5181,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void CopySupportSummary(const base::ListValue& args) {
-    if (!args.empty()) {
+    if (!HasActiveTahaiGesture() || !args.empty()) {
       return;
     }
     ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
@@ -5129,7 +5273,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void SetTahaiGuardConfiguration(const base::ListValue& args) {
-    if (args.size() != 1u || !args.front().is_dict()) {
+    if (!HasActiveSurfaceGesture(kTahaiSupportURL, kTahaiTrustedSupportURL) ||
+        args.size() != 1u || !args.front().is_dict()) {
       web_ui()->CallJavascriptFunctionUnsafe(
           "tahaiGuardConfigurationStored", base::Value(false),
           base::Value(
@@ -5169,6 +5314,10 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void InstallTahaiGuardCustomRules(const base::ListValue& args) {
+    if (!HasActiveSurfaceGesture(kTahaiSupportURL, kTahaiTrustedSupportURL)) {
+      OnGuardRulesInstalled(guard::GuardProfileService::UpdateResult::kDenied);
+      return;
+    }
     auto* service = guard::GuardProfileServiceFactory::GetForProfile(profile_);
     if (!service || args.size() != 1 || !args.front().is_string() ||
         args.front().GetString().size() > 4 * 1024 * 1024) {
@@ -5220,7 +5369,9 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
 
   void ClearTahaiGuardCustomRules(const base::ListValue& args) {
     auto* service = guard::GuardProfileServiceFactory::GetForProfile(profile_);
-    const bool cleared = args.empty() && service && service->ClearCustomRules();
+    const bool cleared =
+        HasActiveSurfaceGesture(kTahaiSupportURL, kTahaiTrustedSupportURL) &&
+        args.empty() && service && service->ClearCustomRules();
     web_ui()->CallJavascriptFunctionUnsafe(
         "tahaiGuardRulesUpdated", base::Value(cleared),
         base::Value(cleared ? "Custom rules cleared from this profile."
@@ -5843,7 +5994,12 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void OpenIdentityLane(const base::ListValue& args) {
-    if (args.size() != 2u || !args[0].is_string() || !args[1].is_string()) {
+    const auto& url = web_ui()->GetWebContents()->GetLastCommittedURL();
+    if (!HasActiveTahaiGesture() ||
+        (url != GURL(kTahaiProfilesURL) &&
+         url != GURL(kTahaiTrustedProfilesURL)) ||
+        args.size() != 2u || !args[0].is_string() ||
+        args[0].GetString().size() != 32u || !args[1].is_string()) {
       return;
     }
     GURL destination;
@@ -5934,7 +6090,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void OpenTahaiOiMsp(const base::ListValue& args) {
-    if (args.size() != 1u || !args.front().is_string()) {
+    if (!HasActiveTahaiGesture() || args.size() != 1u ||
+        !args.front().is_string()) {
       return;
     }
     const std::optional<TahaiOiReferralContext> context =
@@ -5953,7 +6110,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void CopyLocalOiSafeReport(const base::ListValue& args) {
-    if (!local_oi_service_ || (args.size() != 1u && args.size() != 2u) ||
+    if (!HasActiveTahaiGesture() || !local_oi_service_ ||
+        (args.size() != 1u && args.size() != 2u) ||
         !args.front().is_string() ||
         (args.size() == 2u && !args[1].is_string())) {
       return;
@@ -6166,7 +6324,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void SetTahaiLocalOiControl(const base::ListValue& args) {
-    if (args.size() != 2u || !args[0].is_string() || !args[1].is_bool()) {
+    if (!HasActiveSurfaceGesture(kTahaiLocalOiURL, kTahaiTrustedLocalOiURL) ||
+        args.size() != 2u || !args[0].is_string() || !args[1].is_bool()) {
       return;
     }
     Profile* profile = Profile::FromWebUI(web_ui());
@@ -6188,7 +6347,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void RebuildTahaiLocalOiIndex(const base::ListValue& args) {
-    if (!args.empty() || !local_oi_service_ || !mission_service_) {
+    if (!HasActiveSurfaceGesture(kTahaiLocalOiURL, kTahaiTrustedLocalOiURL) ||
+        !args.empty() || !local_oi_service_ || !mission_service_) {
       return;
     }
     const bool refreshed =
@@ -6198,7 +6358,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void UpdateLocalOiFinding(const base::ListValue& args) {
-    if (!local_oi_service_ || args.size() != 3u || !args[0].is_string() ||
+    if (!HasActiveSurfaceGesture(kTahaiLocalOiURL, kTahaiTrustedLocalOiURL) ||
+        !local_oi_service_ || args.size() != 3u || !args[0].is_string() ||
         !args[1].is_string() || !args[2].is_string()) {
       return;
     }
@@ -6221,7 +6382,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void SetTahaiOiMspPromotion(const base::ListValue& args) {
-    if (args.size() != 1u || !args.front().is_bool()) {
+    if (!HasActiveSurfaceGesture(kTahaiLocalOiURL, kTahaiTrustedLocalOiURL) ||
+        args.size() != 1u || !args.front().is_bool()) {
       return;
     }
     Profile* profile = Profile::FromWebUI(web_ui());
@@ -6233,15 +6395,48 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         content::ReloadType::NORMAL, false);
   }
 
+  bool IsNetworkInspectionDocument(bool require_gesture) {
+    auto* contents = web_ui()->GetWebContents();
+    if (!contents || contents->GetBrowserContext() != profile_) {
+      return false;
+    }
+    const auto& url = contents->GetLastCommittedURL();
+    if (url != GURL(kTahaiSupportURL) &&
+        url != GURL(kTahaiTrustedSupportURL)) {
+      return false;
+    }
+    auto* frame = contents->GetPrimaryMainFrame();
+    if (!frame) {
+      return false;
+    }
+    if (!require_gesture) {
+      return true;
+    }
+    return HasActiveTahaiGesture();
+  }
+
+  bool HasCurrentNetworkInspection(bool require_gesture) {
+    return IsNetworkInspectionDocument(require_gesture) &&
+           network_inspection_document_.AsRenderFrameHostIfValid() ==
+               web_ui()->GetWebContents()->GetPrimaryMainFrame();
+  }
+
   void InspectTahaiNetwork(const base::ListValue& args) {
+    if (!IsNetworkInspectionDocument(true)) {
+      return;
+    }
+    // Reload must invalidate a result, not create another concurrent native
+    // request. The bounded in-flight operation releases this slot on completion.
     if (network_inspection_in_flight_) {
       web_ui()->CallJavascriptFunctionUnsafe("tahaiNetworkInspectionRejected");
       return;
     }
     if ((args.size() != 1u && args.size() != 2u && args.size() != 3u) ||
-        !args.front().is_string() ||
-        (args.size() >= 2u && !args[1].is_string()) ||
-        (args.size() == 3u && !args[2].is_string())) {
+        !args.front().is_string() || args.front().GetString().size() > 253u ||
+        (args.size() >= 2u &&
+         (!args[1].is_string() || args[1].GetString().size() > 36u)) ||
+        (args.size() == 3u &&
+         (!args[2].is_string() || args[2].GetString().size() > 36u))) {
       return;
     }
     Profile* profile = Profile::FromWebUI(web_ui());
@@ -6261,16 +6456,30 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     pending_network_inspection_origin_.reset();
     pending_network_inspection_review_decision_.reset();
     network_inspection_in_flight_ = true;
+    network_inspection_document_ =
+        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const uint64_t generation = ++network_inspection_generation_;
     TahaiNetworkInspector::Inspect(
         profile, args.front().GetString(),
         base::BindOnce(&TahaiCommandHandler::OnTahaiNetworkInspection,
-                       weak_factory_.GetWeakPtr(), mission_id, watch_id));
+                       weak_factory_.GetWeakPtr(), generation, mission_id,
+                       watch_id));
   }
 
-  void OnTahaiNetworkInspection(std::string mission_id,
+  void OnTahaiNetworkInspection(uint64_t generation,
+                                std::string mission_id,
                                 std::string watch_id,
                                 TahaiNetworkInspectionResult result) {
+    // A WebUI handler may outlive a reload. Neither a late response nor an
+    // older request may publish data, persist observations or enable clipboard
+    // export for the replacement document.
+    if (generation != network_inspection_generation_) {
+      return;
+    }
     network_inspection_in_flight_ = false;
+    if (!HasCurrentNetworkInspection(false)) {
+      return;
+    }
     base::DictValue value;
     value.Set("host", result.host);
     base::ListValue addresses;
@@ -6334,7 +6543,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void CopyTahaiNetworkInspectionSummary(const base::ListValue& args) {
-    if (!args.empty() || !last_network_inspection_) {
+    if (!args.empty() || !last_network_inspection_ ||
+        !HasCurrentNetworkInspection(true)) {
       return;
     }
     const std::string summary = BuildTahaiNetworkInspectionSafeSummary(
@@ -6374,7 +6584,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
 
   void ConfirmTahaiNetworkInspectionSummary(const base::ListValue& args) {
     if (!args.empty() || !pending_network_inspection_summary_ ||
-        !pending_network_inspection_origin_) {
+        !pending_network_inspection_origin_ ||
+        !HasCurrentNetworkInspection(true)) {
       return;
     }
     const std::optional<TahaiEnvironmentGuardDecision> decision =
@@ -6727,7 +6938,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void DeleteLocalOiData(const base::ListValue& args) {
-    if (!local_oi_service_ || !args.empty() ||
+    if (!HasActiveSurfaceGesture(kTahaiLocalOiURL, kTahaiTrustedLocalOiURL) ||
+        !local_oi_service_ || !args.empty() ||
         !local_oi_service_->DeleteAllData()) {
       return;
     }
@@ -6813,6 +7025,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   content::WeakDocumentPtr evidence_pack_document_;
   base::TimeTicks evidence_pack_deadline_;
   bool network_inspection_in_flight_ = false;
+  uint64_t network_inspection_generation_ = 0;
+  content::WeakDocumentPtr network_inspection_document_;
   std::optional<TahaiNetworkInspectionResult> last_network_inspection_;
   bool last_network_inspection_recorded_ = false;
   std::optional<std::string> pending_network_inspection_summary_;
@@ -6848,7 +7062,7 @@ void TahaiPlaceholderSource::StartDataRequest(
   if (url.path() == "/brand.png") {
     std::string_view logo =
         ui::ResourceBundle::GetSharedInstance().GetRawDataResource(
-            IDR_PRODUCT_LOGO_256);
+            IDR_TAHAI_ROYAL_MARK_512);
     std::move(callback).Run(
         base::MakeRefCounted<base::RefCountedString>(std::string(logo)));
     return;
@@ -6859,7 +7073,8 @@ void TahaiPlaceholderSource::StartDataRequest(
         base::StrCat({kSharedCss, kModeCss, kModeActionCss, kModeSignatureCss,
                       kLocalOiCss, kLocalOiSearchCss, kLocalOiGraphExplorerCss,
                       kLocalOiControlCss, kLocalOiCapabilityCss,
-                      kSkinStudioWorkflowOutlineCss, kSkinStudioConditionTreeCss});
+                      kSkinStudioWorkflowOutlineCss, kSkinStudioConditionTreeCss,
+                      kRoyalDefaultCss, kRoyalBrandCss});
   } else if (url.path() == "/actions.js") {
     html = kActionsJs;
   } else if (url.path() == "/command-center.js") {
@@ -7011,6 +7226,18 @@ std::string TahaiPlaceholderSource::GetMimeType(const GURL& url) {
 
 std::string TahaiPlaceholderSource::GetContentSecurityPolicy(
     network::mojom::CSPDirectiveName directive) {
+  // All packaged surface resources are local. Diagnostics use a separately
+  // authorized browser-process HEAD request; the privileged renderer has no
+  // reason to open a network connection or replace its resource base URL.
+  if (directive == network::mojom::CSPDirectiveName::DefaultSrc) {
+    return "default-src 'none';";
+  }
+  if (directive == network::mojom::CSPDirectiveName::ConnectSrc) {
+    return "connect-src 'none';";
+  }
+  if (directive == network::mojom::CSPDirectiveName::BaseURI) {
+    return "base-uri 'none';";
+  }
   if (directive == network::mojom::CSPDirectiveName::ScriptSrc) {
     return "script-src 'self';";
   }

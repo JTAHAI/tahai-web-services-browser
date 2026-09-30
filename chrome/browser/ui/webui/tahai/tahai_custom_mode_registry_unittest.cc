@@ -185,7 +185,7 @@ TEST(TahaiCustomModeRegistryTest, RejectsUnexpectedOrExecutableFields) {
 TEST(TahaiCustomModeRegistryTest, RejectsMalformedOrControlCharacterTitles) {
   base::DictValue malformed = ValidRegistry();
   malformed.FindList("modes")->front().GetDict().Set(
-      "title", std::string("broken\xc3", 7));
+      "title", std::string("broken\x01" "title"));
   std::vector<TahaiCustomModeDefinition> parsed;
   EXPECT_EQ(TahaiCustomModeValidationResult::kInvalidTitle,
             ValidateTahaiCustomModeDefinitions(malformed, &parsed));

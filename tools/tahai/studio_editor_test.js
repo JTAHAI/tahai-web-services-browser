@@ -15,7 +15,7 @@ function setup(){
   const source=new Element(),status=new Element(),save=new Element();source.value='original';
   const nodes={source,status,save},timers=new Map(),sent=[];let next=0;
   const window={setTimeout(fn){timers.set(++next,fn);return next},clearTimeout(id){timers.delete(id)}};
-  vm.runInNewContext(script,{window,document:{querySelector:s=>nodes[s.replace('#skin-studio-','')]},
+  vm.runInNewContext(script,{window,TextEncoder,document:{addEventListener(){},querySelector:s=>nodes[s.replace('#skin-studio-','')]},
     chrome:{send:(name,args)=>sent.push({name,args:Array.from(args)})}},{timeout:1000});
   const edit=text=>{source.value=text;source.dispatchEvent({type:'input'})};
   const flush=()=>{const pending=[...timers.values()];timers.clear();for(const fn of pending)fn()};

@@ -9,8 +9,10 @@
 namespace tahai {
 namespace {
 
-constexpr std::array<TahaiSkinDescriptor, 9> kBuiltInSkins = {{
+constexpr std::array<TahaiSkinDescriptor, 10> kBuiltInSkins = {{
     {"stock", "TAHAI Stock", "The browser-owned recovery appearance.", true},
+    {"tahai-royal", "TAHAI Royal",
+     "Website-matched indigo and lavender browser colors.", false},
     {"tahai-neon", "TAHAI Neon", "Violet and cyan browser colors.", false},
     {"tahai-sentinel", "TAHAI Sentinel", "Blue and amber browser colors.",
      false},
@@ -48,6 +50,7 @@ std::optional<TahaiSkinAppearance> GetTahaiBuiltInSkinAppearance(
     const char* accent;
   };
   static constexpr Palette palettes[] = {
+      {"tahai-royal", "#6e4aaf", "#090612", "#c4a5ff"},
       {"tahai-neon", "#581c87", "#170d26", "#67e8f9"},
       {"tahai-sentinel", "#1e3a8a", "#101827", "#fcd34d"},
       {"terminal-green", "#14532d", "#071c12", "#86efac"},
@@ -81,6 +84,22 @@ std::optional<TahaiSkinAppearance> GetTahaiBuiltInSkinAppearance(
       tokens(found->dark, "#ffffff", found->dark, found->accent);
   appearance.high_contrast_tokens =
       tokens("#000000", "#ffffff", "#000000", "#ffff00");
+  if (id == "tahai-royal") {
+    // Give the active tab a discernible surface rather than painting it the
+    // same color as the inactive frame. Trusted omnibox/security UI is not
+    // part of the declarative token vocabulary.
+    appearance.dark_tokens = TahaiSkinTokenSet{{
+        {"shell_background", "#07050e"},
+        {"toolbar_background", "#090612"},
+        {"toolbar_foreground", "#f6f8ff"},
+        {"tab_background", "#171026"},
+        {"tab_foreground", "#f6f8ff"},
+        {"rail_background", "#100a1b"},
+        {"rail_foreground", "#d9e0f2"},
+        {"accent", "#c4a5ff"},
+        {"panel_background", "#100a1b"},
+        {"panel_foreground", "#f6f8ff"}}};
+  }
   if (id == "high-contrast-operator") {
     appearance.light_tokens = appearance.high_contrast_tokens;
     appearance.reduced_motion = true;
