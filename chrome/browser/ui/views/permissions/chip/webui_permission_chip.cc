@@ -4,8 +4,12 @@
 
 #include "chrome/browser/ui/views/permissions/chip/webui_permission_chip.h"
 
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/views/location_bar/webui_location_bar.h"
+#include "ui/base/base_window.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/widget/widget.h"
 
 namespace {
 
@@ -70,7 +74,7 @@ toolbar_ui_api::mojom::PermissionAction GetMojoPermissionAction(
 
 }  // namespace
 
-WebUIPermissionChip::WebUIPermissionChip(WebUILocationBar* location_bar)
+WebUIPermissionChip::WebUIPermissionChip(LocationBar* location_bar)
     : location_bar_(location_bar) {}
 
 WebUIPermissionChip::~WebUIPermissionChip() = default;
@@ -86,6 +90,10 @@ void WebUIPermissionChip::SetVisible(bool visible) {
 
 bool WebUIPermissionChip::GetVisible() const {
   return is_visible_;
+}
+
+std::u16string WebUIPermissionChip::GetTooltipText() const {
+  return tooltip_;
 }
 
 void WebUIPermissionChip::SetChipIcon(const gfx::VectorIcon& icon) {
@@ -236,7 +244,8 @@ bool WebUIPermissionChip::IsMouseHovered() const {
   return is_mouse_hovered_;
 }
 
-void WebUIPermissionChip::SetPressedCallback(base::RepeatingClosure callback) {
+void WebUIPermissionChip::SetPressedCallback(
+    base::RepeatingCallback<void(bool)> callback) {
   pressed_callback_ = std::move(callback);
 }
 
@@ -250,12 +259,26 @@ views::BubbleAnchor WebUIPermissionChip::GetAnchor() {
   if (ui::TrackedElement* element = location_bar_->GetAnchorOrNull()) {
     return views::BubbleAnchor(element);
   }
-  return views::BubbleAnchor(
-      location_bar_->GetLocationBarWidget()->GetContentsView());
+  ui::BaseWindow* window = location_bar_->GetBrowser()->GetWindow();
+  CHECK(window);
+  views::Widget* widget =
+      views::Widget::GetWidgetForNativeWindow(window->GetNativeWindow());
+  CHECK(widget);
+  return views::BubbleAnchor(widget->GetContentsView());
 }
 
 void WebUIPermissionChip::SetBubbleOwner(BubbleOwnerDelegate* owner) {
   bubble_owner_ = owner;
+}
+
+void WebUIPermissionChip::ExecuteForTesting() {
+  if (pressed_callback_) {
+    pressed_callback_.Run(/*is_pointer_interaction=*/false);
+  }
+}
+
+void WebUIPermissionChip::EndAnimationForTesting() {
+  ResetAnimation(AnimationState::kCollapsed);
 }
 
 void WebUIPermissionChip::OnExpandAnimationEnded() {
@@ -295,9 +318,9 @@ void WebUIPermissionChip::OnMousePressed() {
   observers_.Notify(&Observer::OnMousePressed);
 }
 
-void WebUIPermissionChip::OnClicked() {
+void WebUIPermissionChip::OnClicked(bool is_pointer_interaction) {
   if (pressed_callback_) {
-    pressed_callback_.Run();
+    pressed_callback_.Run(is_pointer_interaction);
   }
 }
 
@@ -344,4 +367,24 @@ void WebUIPermissionChip::NotifyVisibilityChanged() {
 
 void WebUIPermissionChip::UpdateState() {
   location_bar_->OnChanged();
+}
+
+std::u16string WebUIPermissionChip::GetTextForTesting() const {
+  return message_;
+}
+
+PermissionChipTheme WebUIPermissionChip::GetThemeForTesting() const {
+  return theme_;
+}
+
+bool WebUIPermissionChip::GetIsRequestForTesting() const {
+  switch (theme_) {
+    case PermissionChipTheme::kNormalVisibility:
+    case PermissionChipTheme::kLowVisibility:
+      return true;
+    case PermissionChipTheme::kBlockedActivityIndicator:
+    case PermissionChipTheme::kOnSystemBlockedActivityIndicator:
+    case PermissionChipTheme::kInUseActivityIndicator:
+      return false;
+  }
 }

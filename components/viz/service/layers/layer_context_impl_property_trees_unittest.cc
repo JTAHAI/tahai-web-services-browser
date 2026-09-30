@@ -1090,6 +1090,18 @@ TEST_F(LayerContextImplUpdateDisplayTreeTransformNodeTest,
   ASSERT_FALSE(result.has_value());
   EXPECT_EQ(result.error(),
             "Invalid parent_id for non-root property tree node");
+
+  // Verify that the parent_id of node 1 was NOT corrupted to -1.
+  cc::TransformNode* node_impl =
+      GetTransformNodeFromActiveTree(cc::kSecondaryRootPropertyNodeId);
+  ASSERT_TRUE(node_impl);
+  EXPECT_EQ(node_impl->parent_id, cc::kRootPropertyNodeId);
+
+  // Subsequent valid full update should succeed.
+  first_update_ = true;  // Force full update
+  auto update2 = CreateDefaultUpdate();
+  auto result2 = layer_context_impl_->DoUpdateDisplayTree(std::move(update2));
+  EXPECT_TRUE(result2.has_value()) << result2.error();
 }
 
 class LayerContextImplUpdateDisplayTreeClipNodeTest
@@ -1314,7 +1326,7 @@ TEST_F(LayerContextImplUpdateDisplayTreeEffectNodeTest,
   node_update->filters.Append(cc::FilterOperation::CreateBlurFilter(2.f));
   node_update->backdrop_filters.Append(
       cc::FilterOperation::CreateGrayscaleFilter(0.8f));
-  node_update->blend_mode = static_cast<uint32_t>(SkBlendMode::kMultiply);
+  node_update->blend_mode = SkBlendMode::kMultiply;
   node_update->render_surface_reason = cc::RenderSurfaceReason::kTest;
 
   // TODO(vmiura): If we have a render_surface_reason, without a valid
@@ -1534,17 +1546,6 @@ TEST_F(LayerContextImplUpdateDisplayTreeEffectNodeTest,
   EXPECT_EQ(result.error(), "Invalid target_id for effect node");
 }
 
-TEST_F(LayerContextImplUpdateDisplayTreeEffectNodeTest, InvalidBlendMode) {
-  auto update = CreateDefaultUpdate();
-  auto node_update = mojom::EffectNode::New();
-  node_update->id = cc::kSecondaryRootPropertyNodeId;
-  node_update->blend_mode = 999;  // Invalid blend mode
-  update->effect_nodes.push_back(std::move(node_update));
-
-  auto result = layer_context_impl_->DoUpdateDisplayTree(std::move(update));
-  ASSERT_FALSE(result.has_value());
-  EXPECT_EQ(result.error(), "Invalid blend_mode for effect node");
-}
 
 TEST_F(LayerContextImplUpdateDisplayTreeEffectNodeTest,
        InvalidParentIdForNonRootEffectNode) {
@@ -1747,6 +1748,29 @@ TEST_F(LayerContextImplUpdateDisplayTreeEffectNodeTest, SurfaceContentsScale) {
       GetEffectNodeFromActiveTree(cc::kSecondaryRootPropertyNodeId);
   ASSERT_TRUE(node_impl);
   EXPECT_EQ(node_impl->surface_contents_scale, surface_contents_scale);
+}
+
+TEST_F(LayerContextImplPropertyTreesTestBase,
+       ExternalPageScaleFactorChangeInvalidatesClipTree) {
+  // Initialize the display tree, then clear the clip update consumed during
+  // initial setup.
+  ASSERT_TRUE(ApplyDefaultUpdate().has_value());
+  cc::PropertyTrees* property_trees =
+      layer_context_impl_->host_impl()->active_tree()->property_trees();
+  property_trees->clip_tree_mutable().set_needs_update(false);
+
+  // Reapplying the same external scale should not invalidate the clip tree.
+  auto update = CreateDefaultUpdate();
+  ASSERT_TRUE(
+      layer_context_impl_->DoUpdateDisplayTree(std::move(update)).has_value());
+  EXPECT_FALSE(property_trees->clip_tree().needs_update());
+
+  // A new external scale changes surface-space clips.
+  update = CreateDefaultUpdate();
+  update->external_page_scale_factor = 2.f;
+  ASSERT_TRUE(
+      layer_context_impl_->DoUpdateDisplayTree(std::move(update)).has_value());
+  EXPECT_TRUE(property_trees->clip_tree().needs_update());
 }
 
 TEST_F(LayerContextImplUpdateDisplayTreeEffectNodeTest, SubtreeCaptureId) {

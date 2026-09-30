@@ -2236,7 +2236,7 @@ TEST(V8ScriptValueSerializerTest, RoundTripFencedFrameConfig) {
   ScopedFencedFramesForTest fenced_frames(true);
   V8TestingScope scope;
   FencedFrameConfig* config = FencedFrameConfig::Create(
-      KURL("https://example.com"), "some shared storage context",
+      KURL("https://example.com"),
       KURL("urn:uuid:37665e6f-f3fd-4393-8429-719d02843a54"), gfx::Size(64, 48),
       gfx::Size(32, 16), FencedFrameConfig::AttributeVisibility::kOpaque, true);
   v8::Local<v8::Value> wrapper =
@@ -2248,8 +2248,6 @@ TEST(V8ScriptValueSerializerTest, RoundTripFencedFrameConfig) {
   ASSERT_NE(new_config, nullptr);
   EXPECT_NE(config, new_config);
   EXPECT_EQ(config->url_, new_config->url_);
-  EXPECT_EQ(config->shared_storage_context_,
-            new_config->shared_storage_context_);
   EXPECT_EQ(config->urn_uuid_, new_config->urn_uuid_);
   EXPECT_EQ(config->container_size_, new_config->container_size_);
   EXPECT_EQ(config->content_size_, new_config->content_size_);
@@ -2275,8 +2273,6 @@ TEST(V8ScriptValueSerializerTest, RoundTripFencedFrameConfigNullValues) {
       V8FencedFrameConfig::ToWrappable(scope.GetIsolate(), result);
   ASSERT_NE(new_config, nullptr);
   EXPECT_NE(config, new_config);
-  EXPECT_EQ(config->shared_storage_context_,
-            new_config->shared_storage_context_);
   EXPECT_EQ(config->urn_uuid_, new_config->urn_uuid_);
   EXPECT_FALSE(new_config->urn_uuid_.has_value());
   EXPECT_EQ(config->container_size_, new_config->container_size_);
@@ -2321,6 +2317,184 @@ TEST(V8ScriptValueSerializerTest, CoexistWithGin) {
   // We just want to make sure it does not crash.
   EXPECT_TRUE(try_catch.HasCaught());
   EXPECT_FALSE(serialized_script_value);
+}
+
+TEST(V8ScriptValueSerializerTest, RoundTripImmutableArrayBufferShared) {
+  ScopedSharedArrayBufferForTest enable_sab(true);
+  v8::V8::SetFlagsFromString("--js-immutable-arraybuffer");
+  test::TaskEnvironment task_environment;
+  V8TestingScope scope;
+
+  v8::Local<v8::Value> result =
+      Eval("new Uint8Array([1, 2, 3, 4]).buffer.transferToImmutable()", scope);
+  ASSERT_TRUE(result->IsArrayBuffer());
+  v8::Local<v8::ArrayBuffer> input_ab = result.As<v8::ArrayBuffer>();
+  EXPECT_TRUE(input_ab->IsImmutable());
+
+  V8ScriptValueSerializer::Options serialize_options;
+  serialize_options.for_storage = SerializedScriptValue::kNotForStorage;
+  V8ScriptValueSerializer serializer(scope.GetScriptState(), serialize_options);
+  scoped_refptr<SerializedScriptValue> serialized_script_value =
+      serializer.Serialize(input_ab, PassThroughException(scope.GetIsolate()));
+  ASSERT_TRUE(serialized_script_value);
+  EXPECT_TRUE(serialized_script_value->IsLockedToAgentCluster());
+  EXPECT_EQ(
+      serialized_script_value->SharedImmutableArrayBuffersContents().size(),
+      1u);
+
+  V8ScriptValueDeserializer deserializer(scope.GetScriptState(),
+                                         serialized_script_value);
+  v8::Local<v8::Value> deserialized = deserializer.Deserialize();
+  ASSERT_TRUE(deserialized->IsArrayBuffer());
+  v8::Local<v8::ArrayBuffer> output_ab = deserialized.As<v8::ArrayBuffer>();
+  EXPECT_TRUE(output_ab->IsImmutable());
+  EXPECT_EQ(input_ab->GetBackingStore()->Data(),
+            output_ab->GetBackingStore()->Data());
+}
+
+TEST(V8ScriptValueSerializerTest, RoundTripImmutableArrayBufferSlowMode) {
+  ScopedSharedArrayBufferForTest enable_sab(true);
+  v8::V8::SetFlagsFromString("--js-immutable-arraybuffer");
+  test::TaskEnvironment task_environment;
+  V8TestingScope scope;
+
+  v8::Local<v8::Value> result =
+      Eval("new Uint8Array([1, 2, 3, 4]).buffer.transferToImmutable()", scope);
+  ASSERT_TRUE(result->IsArrayBuffer());
+  v8::Local<v8::ArrayBuffer> input_ab = result.As<v8::ArrayBuffer>();
+  EXPECT_TRUE(input_ab->IsImmutable());
+
+  V8ScriptValueSerializer::Options serialize_options;
+  serialize_options.for_storage = SerializedScriptValue::kNotForStorage;
+  V8ScriptValueSerializer serializer(scope.GetScriptState(), serialize_options);
+  scoped_refptr<SerializedScriptValue> serialized_script_value =
+      serializer.Serialize(input_ab, PassThroughException(scope.GetIsolate()));
+  ASSERT_TRUE(serialized_script_value);
+  EXPECT_TRUE(serialized_script_value->IsLockedToAgentCluster());
+  EXPECT_EQ(
+      serialized_script_value->SharedImmutableArrayBuffersContents().size(),
+      1u);
+
+  V8ScriptValueDeserializer::Options deserialize_options;
+  deserialize_options.slow_mode = true;
+  V8ScriptValueDeserializer deserializer(
+      scope.GetScriptState(), serialized_script_value, deserialize_options);
+  v8::Local<v8::Value> deserialized = deserializer.Deserialize();
+  ASSERT_TRUE(deserialized->IsArrayBuffer());
+  v8::Local<v8::ArrayBuffer> output_ab = deserialized.As<v8::ArrayBuffer>();
+  EXPECT_TRUE(output_ab->IsImmutable());
+  EXPECT_EQ(input_ab->GetBackingStore()->Data(),
+            output_ab->GetBackingStore()->Data());
+}
+
+TEST(V8ScriptValueSerializerTest,
+     RoundTripImmutableArrayBufferWithoutSABPermission) {
+  ScopedSharedArrayBufferForTest disable_sab(false);
+  v8::V8::SetFlagsFromString("--js-immutable-arraybuffer");
+  test::TaskEnvironment task_environment;
+  V8TestingScope scope;
+
+  v8::Local<v8::Value> result =
+      Eval("new Uint8Array([1, 2, 3, 4]).buffer.transferToImmutable()", scope);
+  ASSERT_TRUE(result->IsArrayBuffer());
+  v8::Local<v8::ArrayBuffer> input_ab = result.As<v8::ArrayBuffer>();
+  EXPECT_TRUE(input_ab->IsImmutable());
+
+  V8ScriptValueSerializer::Options serialize_options;
+  serialize_options.for_storage = SerializedScriptValue::kNotForStorage;
+  V8ScriptValueSerializer serializer(scope.GetScriptState(), serialize_options);
+  scoped_refptr<SerializedScriptValue> serialized_script_value =
+      serializer.Serialize(input_ab, PassThroughException(scope.GetIsolate()));
+  ASSERT_TRUE(serialized_script_value);
+  // Without SAB permission, backing store is not shared and SSV is not locked.
+  EXPECT_FALSE(serialized_script_value->IsLockedToAgentCluster());
+  EXPECT_TRUE(
+      serialized_script_value->SharedImmutableArrayBuffersContents().empty());
+
+  V8ScriptValueDeserializer deserializer(scope.GetScriptState(),
+                                         serialized_script_value);
+  v8::Local<v8::Value> deserialized = deserializer.Deserialize();
+  ASSERT_TRUE(deserialized->IsArrayBuffer());
+  v8::Local<v8::ArrayBuffer> output_ab = deserialized.As<v8::ArrayBuffer>();
+  EXPECT_TRUE(output_ab->IsImmutable());
+  EXPECT_NE(input_ab->GetBackingStore()->Data(),
+            output_ab->GetBackingStore()->Data());
+  // SAFETY: The ArrayBuffer was constructed with 4 elements above.
+  auto input_span = UNSAFE_BUFFERS(base::span(
+      static_cast<const uint8_t*>(input_ab->GetBackingStore()->Data()), 4u));
+  // SAFETY: The ArrayBuffer was constructed with 4 elements above.
+  auto output_span = UNSAFE_BUFFERS(base::span(
+      static_cast<const uint8_t*>(output_ab->GetBackingStore()->Data()), 4u));
+  EXPECT_EQ(input_span, output_span);
+}
+
+TEST(V8ScriptValueSerializerTest, RoundTripImmutableArrayBufferForStorage) {
+  ScopedSharedArrayBufferForTest enable_sab(true);
+  v8::V8::SetFlagsFromString("--js-immutable-arraybuffer");
+  test::TaskEnvironment task_environment;
+  V8TestingScope scope;
+
+  v8::Local<v8::Value> result =
+      Eval("new Uint8Array([1, 2, 3, 4]).buffer.transferToImmutable()", scope);
+  ASSERT_TRUE(result->IsArrayBuffer());
+  v8::Local<v8::ArrayBuffer> input_ab = result.As<v8::ArrayBuffer>();
+  EXPECT_TRUE(input_ab->IsImmutable());
+
+  V8ScriptValueSerializer::Options serialize_options;
+  serialize_options.for_storage = SerializedScriptValue::kForStorage;
+  V8ScriptValueSerializer serializer(scope.GetScriptState(), serialize_options);
+  scoped_refptr<SerializedScriptValue> serialized_script_value =
+      serializer.Serialize(input_ab, PassThroughException(scope.GetIsolate()));
+  ASSERT_TRUE(serialized_script_value);
+  EXPECT_FALSE(serialized_script_value->IsLockedToAgentCluster());
+  EXPECT_TRUE(
+      serialized_script_value->SharedImmutableArrayBuffersContents().empty());
+
+  V8ScriptValueDeserializer deserializer(scope.GetScriptState(),
+                                         serialized_script_value);
+  v8::Local<v8::Value> deserialized = deserializer.Deserialize();
+  ASSERT_TRUE(deserialized->IsArrayBuffer());
+  v8::Local<v8::ArrayBuffer> output_ab = deserialized.As<v8::ArrayBuffer>();
+  EXPECT_TRUE(output_ab->IsImmutable());
+  EXPECT_NE(input_ab->GetBackingStore()->Data(),
+            output_ab->GetBackingStore()->Data());
+  // SAFETY: The ArrayBuffer was constructed with 4 elements above.
+  auto input_span = UNSAFE_BUFFERS(base::span(
+      static_cast<const uint8_t*>(input_ab->GetBackingStore()->Data()), 4u));
+  // SAFETY: The ArrayBuffer was constructed with 4 elements above.
+  auto output_span = UNSAFE_BUFFERS(base::span(
+      static_cast<const uint8_t*>(output_ab->GetBackingStore()->Data()), 4u));
+  EXPECT_EQ(input_span, output_span);
+}
+
+TEST(V8ScriptValueSerializerTest, RoundTripImmutableArrayBufferUnpacked) {
+  ScopedSharedArrayBufferForTest enable_sab(true);
+  v8::V8::SetFlagsFromString("--js-immutable-arraybuffer");
+  test::TaskEnvironment task_environment;
+  V8TestingScope scope;
+
+  v8::Local<v8::Value> result =
+      Eval("new Uint8Array([1, 2, 3, 4]).buffer.transferToImmutable()", scope);
+  ASSERT_TRUE(result->IsArrayBuffer());
+  v8::Local<v8::ArrayBuffer> input_ab = result.As<v8::ArrayBuffer>();
+  EXPECT_TRUE(input_ab->IsImmutable());
+
+  V8ScriptValueSerializer::Options serialize_options;
+  serialize_options.for_storage = SerializedScriptValue::kNotForStorage;
+  V8ScriptValueSerializer serializer(scope.GetScriptState(), serialize_options);
+  scoped_refptr<SerializedScriptValue> serialized_script_value =
+      serializer.Serialize(input_ab, PassThroughException(scope.GetIsolate()));
+  ASSERT_TRUE(serialized_script_value);
+
+  UnpackedSerializedScriptValue* unpacked =
+      SerializedScriptValue::Unpack(serialized_script_value);
+  V8ScriptValueDeserializer deserializer(scope.GetScriptState(), unpacked);
+  v8::Local<v8::Value> deserialized = deserializer.Deserialize();
+  ASSERT_TRUE(deserialized->IsArrayBuffer());
+  v8::Local<v8::ArrayBuffer> output_ab = deserialized.As<v8::ArrayBuffer>();
+  EXPECT_TRUE(output_ab->IsImmutable());
+  EXPECT_EQ(input_ab->GetBackingStore()->Data(),
+            output_ab->GetBackingStore()->Data());
 }
 
 }  // namespace blink

@@ -17,6 +17,7 @@
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/notreached.h"
 #include "base/strings/strcat.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
@@ -438,21 +439,32 @@ class InteractiveViewsTestMixin : public T, public InteractiveViewsTestApi {
 // static
 template <class T>
 T* InteractiveViewsTestApi::AsView(ui::TrackedElement* el) {
-  auto* const views_el = el->AsA<TrackedElementViews>();
-  CHECK(views_el);
-  T* const view = AsViewClass<T>(views_el->view());
-  CHECK(view);
-  return view;
+  return const_cast<T*>(InteractiveViewsTestApi::AsView<T>(
+      const_cast<const ui::TrackedElement*>(el)));
 }
 
 // static
 template <class T>
 const T* InteractiveViewsTestApi::AsView(const ui::TrackedElement* el) {
-  const auto* const views_el = el->AsA<TrackedElementViews>();
-  CHECK(views_el);
-  const T* const view = AsViewClass<T>(views_el->view());
-  CHECK(view);
-  return view;
+  if (const auto* const views_el = el->AsA<TrackedElementViews>()) {
+    const T* const view = AsViewClass<T>(views_el->view());
+    CHECK(view);
+    return view;
+  }
+  for (const auto* v : ElementTrackerViews::GetInstance()->GetAllMatchingViews(
+           el->identifier(), el->context(), /*require_visible=*/true)) {
+    if (const T* const view = AsViewClass<T>(v)) {
+      return view;
+    }
+  }
+  for (const auto* v :
+       ElementTrackerViews::GetInstance()->GetAllMatchingViewsInAnyContext(
+           el->identifier(), /*require_visible=*/true)) {
+    if (const T* const view = AsViewClass<T>(v)) {
+      return view;
+    }
+  }
+  NOTREACHED();
 }
 
 // static
@@ -571,8 +583,7 @@ ui::InteractionSequence::StepBuilder InteractiveViewsTestApi::IfViewMatches(
                 return std::move(condition).Run(view);
               },
               ui::test::internal::MaybeBind(std::forward<F>(function))),
-          testing::Matcher<ui::test::internal::MatcherTypeFor<R>>(
-              std::forward<M>(matcher)),
+          ui::test::internal::MakeMatcher<R>(std::forward<M>(matcher)),
           std::move(then_steps), std::move(else_steps))
           .SetDescription("IfViewMatches()"));
 }
@@ -669,8 +680,8 @@ ui::InteractionSequence::StepBuilder InteractiveViewsTestApi::CheckView(
   using MatcherType = ui::test::internal::MatcherTypeFor<R>;
   builder.SetStartCallback(base::BindOnce(
       [](base::OnceCallback<R(V*)> function,
-         testing::Matcher<MatcherType> matcher,
-         ui::InteractionSequence* seq, ui::TrackedElement* el) {
+         testing::Matcher<MatcherType> matcher, ui::InteractionSequence* seq,
+         ui::TrackedElement* el) {
         if (!ui::test::internal::MatchAndExplain(
                 "CheckView()", matcher,
                 MatcherType(std::move(function).Run(AsView<V>(el))))) {
@@ -678,7 +689,7 @@ ui::InteractionSequence::StepBuilder InteractiveViewsTestApi::CheckView(
         }
       },
       ui::test::internal::MaybeBind(std::forward<F>(function)),
-      testing::Matcher<MatcherType>(std::forward<M>(matcher))));
+      ui::test::internal::MakeMatcher<R>(std::forward<M>(matcher))));
   return builder;
 }
 
@@ -702,7 +713,7 @@ ui::InteractionSequence::StepBuilder InteractiveViewsTestApi::CheckViewProperty(
           seq->FailForTesting();
         }
       },
-      property, testing::Matcher<MatcherType>(std::forward<M>(matcher))));
+      property, ui::test::internal::MakeMatcher<R>(std::forward<M>(matcher))));
   return builder;
 }
 
@@ -751,7 +762,7 @@ InteractiveViewsTestApi::WaitForViewPropertyCallback(
         }
       },
       base::Unretained(this), kSubscription, property, add_listener, event_type,
-      testing::Matcher<MatcherType>(std::forward<M>(matcher)));
+      ui::test::internal::MakeMatcher<R>(std::forward<M>(matcher)));
 
   auto steps = Steps(
       AfterShow(view, std::move(observe_property)).SetMustRemainVisible(true),

@@ -87,7 +87,7 @@ class ComposeboxHandler : public composebox::mojom::PageHandler,
   void NotifyComposeboxQuerySubmittedWithContext() override;
   void CanShowNextboxAnimation(
       CanShowNextboxAnimationCallback callback) override;
-  void RecordNextboxAnimationImpression() override;
+  void RecordNextboxAnimationImpression(bool shown) override;
 
   // searchbox::mojom::PageHandler:
   void ExecuteAction(uint8_t line,
@@ -124,10 +124,13 @@ class ComposeboxHandler : public composebox::mojom::PageHandler,
   virtual void ClearSessionHandle();
 
  protected:
-  void OpenUrl(GURL url, const WindowOpenDisposition disposition) override;
+  void ProcessContextAndOpenUrl(
+      GURL url,
+      const WindowOpenDisposition disposition) override;
 
-  FRIEND_TEST_ALL_PREFIXES(ComposeboxHandlerTest,
-                           OpenUrl_ResetsContextControllerObserver);
+  FRIEND_TEST_ALL_PREFIXES(
+      ComposeboxHandlerTest,
+      ProcessContextAndOpenUrl_ResetsContextControllerObserver);
   FRIEND_TEST_ALL_PREFIXES(ComposeboxHandlerTest, SetSmartTabSharingEnabled);
   FRIEND_TEST_ALL_PREFIXES(ComposeboxHandlerTest,
                            SetSmartTabSharingEnabled_FeatureDisabled);

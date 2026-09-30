@@ -15,6 +15,7 @@
 #include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/strings/pattern.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -48,7 +49,6 @@
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "third_party/omnibox_proto/aim_eligibility_client_request.pb.h"
 #include "third_party/omnibox_proto/aim_eligibility_response.pb.h"
-#include "third_party/re2/src/re2/re2.h"
 #include "url/gurl.h"
 
 namespace {
@@ -526,11 +526,20 @@ bool AimEligibilityService::IsFuseboxEligible() const {
   return IsEligibleByServer(GetMostRecentResponse().is_fusebox_eligible());
 }
 
+bool AimEligibilityService::IsCsbEligible() const {
+  if (!GetMostRecentResponse().has_is_contextual_searchbox_eligible()) {
+    return IsFuseboxEligible();
+  }
+  return IsEligibleByServer(
+      GetMostRecentResponse().is_contextual_searchbox_eligible());
+}
+
 bool AimEligibilityService::IsAimUrl(
     const GURL& url,
-    std::optional<std::string> host_override) const {
-  OMNIBOX_LOG("aim_url_check") << "IsAimUrl: Checking " << url
-                               << " override: " << host_override.value_or("");
+    std::optional<contextual_tasks::HostOverride> host_override) const {
+  OMNIBOX_LOG("aim_url_check")
+      << "IsAimUrl: Checking " << url
+      << " override: " << (host_override ? host_override->ToString() : "");
   bool is_aim_url =
       IsAimHost(url, host_override) && IsAimPath(url) && HasAimUrlParams(url);
   OMNIBOX_LOG("aim_url_check") << "IsAimUrl: " << (is_aim_url ? "yes" : "no");
@@ -539,18 +548,19 @@ bool AimEligibilityService::IsAimUrl(
 
 bool AimEligibilityService::IsAimHost(
     const GURL& url,
-    std::optional<std::string> host_override) const {
+    std::optional<contextual_tasks::HostOverride> host_override) const {
   OMNIBOX_LOG("aim_url_check") << "IsAimHost: Checking host...";
-  if (host_override && host_override.value() == url.host()) {
+  if (host_override && host_override->Matches(url)) {
     OMNIBOX_LOG("aim_url_check") << "Found overridden host!";
     return true;
   }
   OMNIBOX_LOG("aim_url_check")
       << "IsAimHost: Available hosts: "
       << GetMostRecentResponse().interception_allowed_hosts().size();
+  std::string lower_url_host = base::ToLowerASCII(url.host());
   for (const auto& host_pattern :
        GetMostRecentResponse().interception_allowed_hosts()) {
-    if (re2::RE2::FullMatch(url.host(), host_pattern)) {
+    if (base::MatchPattern(lower_url_host, base::ToLowerASCII(host_pattern))) {
       OMNIBOX_LOG("aim_url_check") << "IsAimHost: Matched : " << host_pattern;
       return true;
     }
@@ -768,6 +778,8 @@ std::string AimEligibilityService::RequestSourceToString(RequestSource source) {
       return "RefreshTokenError";
     case RequestSource::kOAuthFallbackCookieChange:
       return "OAuthFallbackCookieChange";
+    case RequestSource::kLocaleChange:
+      return "LocaleChange";
   }
 }
 
@@ -1137,8 +1149,7 @@ void AimEligibilityService::StartServerEligibilityRequest(
     request->method = "POST";
   }
 
-  if (request_source == RequestSource::kAimUrlNavigation &&
-      base::FeatureList::IsEnabled(
+  if (base::FeatureList::IsEnabled(
           omnibox::kAimServerEligibilitySendCoBrowseUserAgentSuffixEnabled) &&
       !configuration_.user_agent_with_cobrowse_suffix.empty()) {
     request->headers.SetHeader("User-Agent",
@@ -1150,6 +1161,14 @@ void AimEligibilityService::StartServerEligibilityRequest(
       !configuration_.full_version_list.empty()) {
     request->headers.SetHeader("Sec-CH-UA-Full-Version-List",
                                configuration_.full_version_list);
+  }
+
+  if (base::FeatureList::IsEnabled(
+          omnibox::kAimServerEligibilitySendSearchCapabilitiesHeaderEnabled) &&
+      !configuration_.search_capabilities_version.empty()) {
+    request->headers.SetHeader(
+        contextual_tasks::kContextualTasksSearchCapabilitiesHeaderName,
+        configuration_.search_capabilities_version);
   }
 
   GaiaId pending_request_account = GetActiveAccount();

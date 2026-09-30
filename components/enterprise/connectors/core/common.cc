@@ -87,6 +87,7 @@ ContentAnalysisAcknowledgement::FinalAction RuleActionToAckAction(
     TriggeredRule::Action action) {
   switch (action) {
     case TriggeredRule::ACTION_UNSPECIFIED:
+    case TriggeredRule::JUSTIFICATION_REQUIRED:
       return ContentAnalysisAcknowledgement::ACTION_UNSPECIFIED;
     case TriggeredRule::REPORT_ONLY:
       return ContentAnalysisAcknowledgement::REPORT_ONLY;
@@ -128,7 +129,7 @@ const char* AnalysisConnectorPref(AnalysisConnector connector) {
       return kOnFileTransferPref;
 #endif
     case AnalysisConnector::DATA_COPIED:
-      return kOnTextCopiedPref;
+      return kOnDataCopiedPref;
     case AnalysisConnector::ANALYSIS_CONNECTOR_UNSPECIFIED:
       NOTREACHED() << "Using unspecified analysis connector";
   }
@@ -151,7 +152,7 @@ const char* AnalysisConnectorScopePref(AnalysisConnector connector) {
       return kOnFileTransferScopePref;
 #endif
     case AnalysisConnector::DATA_COPIED:
-      return kOnTextCopiedScopePref;
+      return kOnDataCopiedScopePref;
     case AnalysisConnector::ANALYSIS_CONNECTOR_UNSPECIFIED:
       NOTREACHED() << "Using unspecified analysis connector";
   }
@@ -187,7 +188,8 @@ TriggeredRule::Action GetHighestPrecedenceAction(
   // may introduce bugs for new actions later.
   //
   // The current precedence is BLOCK > FORCE_SAVE_TO_CLOUD >
-  // KEEP_IN_MANAGED_CHROME > WARN > REPORT_ONLY > UNSPECIFIED
+  // KEEP_IN_MANAGED_CHROME > JUSTIFICATION_REQUIRED > WARN > REPORT_ONLY >
+  // UNSPECIFIED
   if (action_1 == TriggeredRule::BLOCK || action_2 == TriggeredRule::BLOCK) {
     return TriggeredRule::BLOCK;
   }
@@ -198,6 +200,10 @@ TriggeredRule::Action GetHighestPrecedenceAction(
   if (action_1 == TriggeredRule::KEEP_IN_MANAGED_CHROME ||
       action_2 == TriggeredRule::KEEP_IN_MANAGED_CHROME) {
     return TriggeredRule::KEEP_IN_MANAGED_CHROME;
+  }
+  if (action_1 == TriggeredRule::JUSTIFICATION_REQUIRED ||
+      action_2 == TriggeredRule::JUSTIFICATION_REQUIRED) {
+    return TriggeredRule::JUSTIFICATION_REQUIRED;
   }
   if (action_1 == TriggeredRule::WARN || action_2 == TriggeredRule::WARN) {
     return TriggeredRule::WARN;

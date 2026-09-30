@@ -38,12 +38,12 @@
 #include "components/autofill/core/browser/autofill_trigger_source.h"
 #include "components/autofill/core/browser/data_manager/addresses/address_data_manager.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager.h"
-#include "components/autofill/core/browser/data_model/addresses/autofill_normalization_utils.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_normalization_util.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile_comparator.h"
 #include "components/autofill/core/browser/data_model/transliterator.h"
 #include "components/autofill/core/browser/data_quality/autofill_data_util.h"
-#include "components/autofill/core/browser/field_type_utils.h"
+#include "components/autofill/core/browser/field_type_util.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/filling/addresses/field_filling_address_util.h"
 #include "components/autofill/core/browser/filling/field_filling_skip_reason.h"
@@ -146,28 +146,6 @@ struct ProfileWithText {
   raw_ptr<const AutofillProfile> profile;
   std::u16string text;
 };
-
-Suggestion CreateUndoOrClearFormSuggestion() {
-#if BUILDFLAG(IS_IOS)
-  std::u16string value =
-      l10n_util::GetStringUTF16(IDS_AUTOFILL_CLEAR_FORM_MENU_ITEM);
-  // TODO(crbug.com/40266549): iOS still uses Clear Form logic, replace with
-  // Undo.
-  Suggestion suggestion(value, SuggestionType::kUndoOrClear);
-  suggestion.icon = Suggestion::Icon::kClear;
-#else
-  std::u16string value = l10n_util::GetStringUTF16(IDS_AUTOFILL_UNDO_MENU_ITEM);
-  if constexpr (BUILDFLAG(IS_ANDROID)) {
-    value = base::i18n::ToUpper(value);
-  }
-  Suggestion suggestion(value, SuggestionType::kUndoOrClear);
-  suggestion.icon = Suggestion::Icon::kUndo;
-#endif
-  // TODO(crbug.com/40266549): update "Clear Form" a11y announcement to "Undo"
-  suggestion.acceptance_a11y_announcement =
-      l10n_util::GetStringUTF16(IDS_AUTOFILL_A11Y_ANNOUNCE_CLEARED_FORM);
-  return suggestion;
-}
 
 bool ShouldUseNationalFormatPhoneNumber(FieldType trigger_field_type) {
   return GroupTypeOfFieldType(trigger_field_type) == FieldTypeGroup::kPhone &&
@@ -316,12 +294,13 @@ std::optional<Suggestion> GetSuggestionForTestAddresses(
                         SuggestionType::kDevtoolsTestAddresses);
   suggestion.main_text.is_primary = Suggestion::Text::IsPrimary(false);
   suggestion.icon = Suggestion::Icon::kCode;
-  suggestion.acceptability = Suggestion::Acceptability::kUnacceptable;
+  suggestion.acceptability =
+      Suggestion::Acceptability::kSelectableButUnacceptable;
   suggestion.children.emplace_back(
       l10n_util::GetStringUTF16(IDS_AUTOFILL_TEST_ADDRESS_BY_COUNTRY),
       SuggestionType::kDevtoolsTestAddressByCountry);
   suggestion.children.back().acceptability =
-      Suggestion::Acceptability::kUnacceptableWithDeactivatedStyle;
+      Suggestion::Acceptability::kUnselectableAndUnacceptable;
   suggestion.children.emplace_back(SuggestionType::kSeparator);
   for (const AutofillProfile& test_address : test_addresses) {
     CHECK(test_address.is_devtools_testing_profile());
@@ -454,13 +433,13 @@ void RemoveDisusedSuggestions(std::vector<ProfileWithText>& profiles) {
 }
 
 // Returns non address suggestions which are displayed below address
-// suggestions in the Autofill popup. `is_autofilled` is used to conditionally
-// add suggestion for clearing all autofilled fields.
-std::vector<Suggestion> GetAddressFooterSuggestions(bool is_autofilled) {
+// suggestions in the Autofill popup. If `should_add_undo` is `true`, add a
+// suggestion for undoing the last Autofill operation.
+std::vector<Suggestion> GetAddressFooterSuggestions(bool should_add_undo) {
   std::vector<Suggestion> footer_suggestions;
   footer_suggestions.emplace_back(SuggestionType::kSeparator);
-  if (is_autofilled) {
-    footer_suggestions.push_back(CreateUndoOrClearFormSuggestion());
+  if (should_add_undo) {
+    footer_suggestions.push_back(CreateUndoSuggestion());
   }
   footer_suggestions.push_back(CreateManageAddressesSuggestion());
   return footer_suggestions;
@@ -599,7 +578,8 @@ std::vector<Suggestion> CreateSuggestionsFromProfiles(
     suggestion.payload = std::move(payloads[i]);
     suggestion.acceptance_a11y_announcement =
         l10n_util::GetStringUTF16(IDS_AUTOFILL_A11Y_ANNOUNCE_FILLED_FORM);
-    suggestion.acceptability = Suggestion::Acceptability::kAcceptable;
+    suggestion.acceptability =
+        Suggestion::Acceptability::kSelectableAndAcceptable;
     if (suggestion.type == SuggestionType::kAddressFieldByFieldFilling) {
       suggestion.field_by_field_filling_type_used =
           std::optional(trigger_field_type);
@@ -794,7 +774,7 @@ std::vector<Suggestion> GenerateAddressOnTypingSuggestions(
   }
   // TODO(crbug.com/381994105): Consider adding undo.
   base::Extend(suggestions,
-               GetAddressFooterSuggestions(/*is_autofilled=*/false));
+               GetAddressFooterSuggestions(/*should_add_undo=*/false));
   return suggestions;
 }
 
@@ -838,11 +818,8 @@ std::vector<Suggestion> GenerateAddressSuggestions(
   if (suggestions.empty()) {
     return {};
   }
-  base::Extend(suggestions,
-               // TODO(crbug.com/393114125): Change to use
-               // `AutofillField::field_modifiers_`.
-               GetAddressFooterSuggestions(
-                   trigger_field.is_autofilled_according_to_renderer()));
+  base::Extend(suggestions, GetAddressFooterSuggestions(ShouldOfferUndoOnField(
+                                *trigger_autofill_field)));
   return suggestions;
 }
 

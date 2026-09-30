@@ -8,6 +8,7 @@ import androidx.annotation.Nullable;
 
 import org.mockito.Mockito;
 
+import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.components.payments.BrowserPaymentRequest;
 import org.chromium.components.payments.JourneyLogger;
 import org.chromium.components.payments.MethodStrings;
@@ -54,7 +55,9 @@ public class PaymentRequestServiceBuilder implements Delegate {
     private String mFrameOrigin;
     private boolean mIsOriginAllowedToUseWebPaymentApis = true;
     private boolean mIsPaymentDetailsValid = true;
-    private boolean mIsSecurePaymentConfirmationRequestValid = true;
+    private @SecurePaymentConfirmationRequestValidationError int
+            mSecurePaymentConfirmationValidationError =
+                    SecurePaymentConfirmationRequestValidationError.OK;
     private PaymentRequestSpec mSpec;
     private final SecurePaymentConfirmationRequest mSecurePaymentConfirmationRequest;
 
@@ -171,10 +174,10 @@ public class PaymentRequestServiceBuilder implements Delegate {
     @Override
     public @SecurePaymentConfirmationRequestValidationError int
             validateSecurePaymentConfirmationRequest(
-                    SecurePaymentConfirmationRequest request, Origin initiatorOrigin) {
-        return mIsSecurePaymentConfirmationRequestValid
-                ? SecurePaymentConfirmationRequestValidationError.OK
-                : SecurePaymentConfirmationRequestValidationError.CREDENTIAL_IDS_REQUIRED;
+                    SecurePaymentConfirmationRequest request,
+                    Origin initiatorOrigin,
+                    String applicationLocale) {
+        return mSecurePaymentConfirmationValidationError;
     }
 
     @Override
@@ -282,6 +285,10 @@ public class PaymentRequestServiceBuilder implements Delegate {
         return this;
     }
 
+    public RenderFrameHost getRenderFrameHost() {
+        return mRenderFrameHost;
+    }
+
     public PaymentRequestServiceBuilder setInvalidSslCertificateErrorMessage(
             String invalidSslCertificateErrorMessage) {
         mInvalidSslCertificateErrorMessage = invalidSslCertificateErrorMessage;
@@ -298,8 +305,9 @@ public class PaymentRequestServiceBuilder implements Delegate {
         return this;
     }
 
-    public PaymentRequestServiceBuilder setSecurePaymentConfirmationRequestValid(boolean isValid) {
-        mIsSecurePaymentConfirmationRequestValid = isValid;
+    public PaymentRequestServiceBuilder setSecurePaymentConfirmationValidationError(
+            @SecurePaymentConfirmationRequestValidationError int error) {
+        mSecurePaymentConfirmationValidationError = error;
         return this;
     }
 
@@ -320,7 +328,7 @@ public class PaymentRequestServiceBuilder implements Delegate {
                         mClient,
                         mOnClosedListener,
                         /* delegate= */ this,
-                        () -> null);
+                        SupplierUtils.ofNull());
         boolean success = service.init(mMethodData, mDetails, mOptions);
         return success ? service : null;
     }

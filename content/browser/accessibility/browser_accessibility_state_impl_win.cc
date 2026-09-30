@@ -25,6 +25,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/sequence_bound.h"
 #include "base/win/registry.h"
 #include "content/browser/accessibility/browser_accessibility_state_impl.h"
 #include "content/browser/web_contents/web_contents_impl.h"
@@ -81,27 +82,11 @@ bool ShouldRecordUiaClientProcessHistogramsForModeChange(ui::AXMode old_mode,
       ((new_mode & ~old_mode) & kTrackedUiaClientProcessModes).is_mode_off());
 }
 
-void QueryAndRecordUiaClientProcessHistogramsForModeChange(
-    ui::AXMode old_mode,
-    ui::AXMode new_mode) {
-  if (!ShouldRecordUiaClientProcessHistogramsForModeChange(old_mode,
-                                                           new_mode)) {
-    return;
-  }
-
-  std::optional<ui::UiaClientInfoSource> client_info_source =
-      ui::UiaClientInfoSource::Create();
-  if (!client_info_source) {
-    return;
-  }
-
-  internal::RecordUiaClientProcessHistogramsForModeChange(
-      old_mode, new_mode, client_info_source->GetConnectedClientProcessNames());
-}
-
 void RecordUiaClientConnection(
     const std::string& process_name,
     ui::UiaClientInfoSource::ConnectionState connection_state) {
+  // UIA can invoke this on any MTA thread. The callback captures no state, and
+  // UMA recording is thread-safe.
   // The UiaClientInfoSource that registers this callback is created lazily,
   // only once kNativeAPIs or kWebContents is enabled, to avoid loading
   // UIAutomationCore.dll at startup. Disconnects before then aren't recorded.
@@ -110,6 +95,27 @@ void RecordUiaClientConnection(
     internal::RecordUiaClientDisconnectedHistogram(process_name);
   }
 }
+
+class UiaClientInfoSourceMonitor {
+ public:
+  UiaClientInfoSourceMonitor()
+      : client_info_source_(ui::UiaClientInfoSource::Create(
+            base::BindRepeating(&RecordUiaClientConnection))) {}
+
+  void RecordProcessHistogramsForModeChange(ui::AXMode old_mode,
+                                            ui::AXMode new_mode) {
+    if (!client_info_source_) {
+      return;
+    }
+
+    internal::RecordUiaClientProcessHistogramsForModeChange(
+        old_mode, new_mode,
+        client_info_source_->GetConnectedClientProcessNames());
+  }
+
+ private:
+  std::optional<ui::UiaClientInfoSource> client_info_source_;
+};
 
 }  // namespace
 
@@ -443,7 +449,8 @@ class BrowserAccessibilityStateImplWin : public BrowserAccessibilityStateImpl {
  private:
   void OnDiscoveredAssistiveTech(
       const std::vector<AssistiveTechInfo>& discovered_ats);
-  void MaybeCreateUiaClientInfoSource(ui::AXMode new_mode);
+  // Starts or stops monitoring for client disconnections.
+  void SynchronizeUiaClientInfoSourceMonitor(ui::AXMode new_mode);
 
   base::CallbackListSubscription hwnd_subscription_;
 
@@ -455,7 +462,8 @@ class BrowserAccessibilityStateImplWin : public BrowserAccessibilityStateImpl {
   // Will be updated via DiscoverAssistiveTech().
   bool awaiting_known_assistive_tech_computation_ = false;
 
-  std::optional<ui::UiaClientInfoSource> uia_client_info_source_;
+  base::SequenceBound<UiaClientInfoSourceMonitor>
+      uia_client_info_source_monitor_;
 };
 
 BrowserAccessibilityStateImplWin::BrowserAccessibilityStateImplWin() {
@@ -465,10 +473,14 @@ BrowserAccessibilityStateImplWin::BrowserAccessibilityStateImplWin() {
   }
 }
 
-void BrowserAccessibilityStateImplWin::MaybeCreateUiaClientInfoSource(
+void BrowserAccessibilityStateImplWin::SynchronizeUiaClientInfoSourceMonitor(
     ui::AXMode new_mode) {
-  if (uia_client_info_source_ ||
-      (new_mode & kTrackedUiaClientProcessModes).is_mode_off()) {
+  if ((new_mode & kTrackedUiaClientProcessModes).is_mode_off()) {
+    uia_client_info_source_monitor_.Reset();
+    return;
+  }
+
+  if (uia_client_info_source_monitor_) {
     return;
   }
 
@@ -476,18 +488,25 @@ void BrowserAccessibilityStateImplWin::MaybeCreateUiaClientInfoSource(
     return;
   }
 
-  uia_client_info_source_ = ui::UiaClientInfoSource::Create(
-      base::BindRepeating(&RecordUiaClientConnection));
+  // Mode changes can originate in a synchronous accessibility callback. Keep
+  // COM activation off the UI thread so it cannot block the callback.
+  uia_client_info_source_monitor_.emplace(
+      base::ThreadPool::CreateSequencedTaskRunner(
+          {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
+           base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN}));
 }
 
 void BrowserAccessibilityStateImplWin::RecordPlatformClientHistograms(
     ui::AXMode old_mode,
     ui::AXMode new_mode) {
-  MaybeCreateUiaClientInfoSource(new_mode);
-  base::ThreadPool::PostTask(
-      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
-      base::BindOnce(&QueryAndRecordUiaClientProcessHistogramsForModeChange,
-                     old_mode, new_mode));
+  SynchronizeUiaClientInfoSourceMonitor(new_mode);
+  if (uia_client_info_source_monitor_ &&
+      ShouldRecordUiaClientProcessHistogramsForModeChange(old_mode, new_mode)) {
+    uia_client_info_source_monitor_
+        .AsyncCall(
+            &UiaClientInfoSourceMonitor::RecordProcessHistogramsForModeChange)
+        .WithArgs(old_mode, new_mode);
+  }
 }
 
 void BrowserAccessibilityStateImplWin::RefreshAssistiveTech() {

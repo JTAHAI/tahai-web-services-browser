@@ -619,6 +619,31 @@ TEST_F(TabTest, LayeredThrobber) {
   EXPECT_FALSE(icon->GetShowingLoadingAnimation());
 }
 
+TEST_F(TabTest, EmptyBoundsDeferPaintToLayer) {
+  TabIcon icon;
+  icon.SetCanPaintToLayer(true);
+  ASSERT_TRUE(icon.GetContentsBounds().IsEmpty());
+
+  tabs::TabData data;
+  data.network_state = tabs::TabNetworkState::kWaiting;
+  icon.SetData(data);
+  EXPECT_FALSE(icon.layer());
+
+  icon.SetBounds(0, 0, gfx::kFaviconSize, gfx::kFaviconSize);
+  ASSERT_FALSE(icon.GetContentsBounds().IsEmpty());
+  EXPECT_TRUE(icon.layer());
+
+  icon.SetBounds(0, 0, 0, 0);
+  EXPECT_TRUE(icon.layer());
+
+  data.network_state = tabs::TabNetworkState::kNone;
+  icon.SetData(data);
+  EXPECT_FALSE(icon.layer());
+
+  icon.SetBounds(0, 0, gfx::kFaviconSize, gfx::kFaviconSize);
+  EXPECT_FALSE(icon.layer());
+}
+
 TEST_F(TabTest, TitleHiddenWhenSmall) {
   FakeTabSlotController tab_slot_controller;
   Tab tab(tabs::TabHandle(1), &tab_slot_controller);
@@ -1313,3 +1338,37 @@ TEST_F(TabTest, SingleElementCentering) {
     EXPECT_TRUE(GetTabTitle(tab)->GetVisible());
   }
 }
+#if BUILDFLAG(IS_MAC)
+class TestContextMenuController : public views::ContextMenuController {
+ public:
+  TestContextMenuController() = default;
+  ~TestContextMenuController() override = default;
+
+  void ShowContextMenuForViewImpl(
+      views::View* source,
+      const gfx::Point& point,
+      ui::mojom::MenuSourceType source_type) override {
+    opened_ = true;
+  }
+
+  bool opened() const { return opened_; }
+
+ private:
+  bool opened_ = false;
+};
+
+TEST_F(TabTest, ContextMenuFromControlReturnMac) {
+  auto controller = std::make_unique<FakeTabSlotController>();
+  std::unique_ptr<views::Widget> widget =
+      CreateTestWidget(views::Widget::InitParams::CLIENT_OWNS_WIDGET);
+  Tab* tab = widget->SetContentsView(
+      std::make_unique<Tab>(tabs::TabHandle(1), controller.get()));
+
+  TestContextMenuController menu_controller;
+  tab->set_context_menu_controller(&menu_controller);
+
+  EXPECT_TRUE(tab->OnKeyPressed(ui::KeyEvent(
+      ui::EventType::kKeyPressed, ui::VKEY_RETURN, ui::EF_CONTROL_DOWN)));
+  EXPECT_TRUE(menu_controller.opened());
+}
+#endif

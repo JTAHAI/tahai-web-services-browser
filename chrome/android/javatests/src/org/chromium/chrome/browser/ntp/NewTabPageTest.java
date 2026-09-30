@@ -62,7 +62,6 @@ import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.Matchers;
 import org.chromium.base.test.util.Restriction;
-import org.chromium.base.test.util.UrlUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.composeplate.ComposeplateUtils;
@@ -84,8 +83,8 @@ import org.chromium.chrome.browser.suggestions.SiteSuggestion;
 import org.chromium.chrome.browser.suggestions.tile.Tile;
 import org.chromium.chrome.browser.suggestions.tile.TileGroup;
 import org.chromium.chrome.browser.suggestions.tile.TilesLinearLayout;
-import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.util.BrowserUiUtils.ModuleTypeOnStartAndNtp;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
@@ -138,9 +137,9 @@ import java.util.concurrent.TimeUnit;
 @EnableFeatures(
         ChromeFeatureList.HOME_BUTTON_REMOVAL
                 + ":set_default_to_false_on_homepage_on_desktop/false")
+// TODO(b/555414915): Update Android tests with WebUI NTP enabled on AL.
+@DisableFeatures(ChromeFeatureList.USE_WEB_UI_NTP_ANDROID)
 public class NewTabPageTest {
-    private static final int ARTICLE_SECTION_HEADER_POSITION = 1;
-
     private static final int RENDER_TEST_REVISION = 9;
 
     private static final String HISTOGRAM_NTP_MODULE_CLICK = "NewTabPage.Module.Click";
@@ -171,12 +170,7 @@ public class NewTabPageTest {
     @Mock ComposeboxQueryControllerBridge.Natives mComposeboxBridgeJni;
 
     private static final String TEST_PAGE = "/chrome/test/data/android/navigate/simple.html";
-    private static final String TEST_FEED =
-            UrlUtils.getIsolatedTestFilePath("/chrome/test/data/android/feed/hello_world.gcl.bin");
     private static final String TEST_URL = "https://www.example.com/";
-
-    private static final String EMAIL = "email@gmail.com";
-    private static final String NAME = "Email Emailson";
 
     private Tab mTab;
     private TemplateUrlService mTemplateUrlService;
@@ -237,7 +231,7 @@ public class NewTabPageTest {
         onView(withId(R.id.search_box)).perform(click());
         View view = mNtp.getView().findViewById(R.id.search_box);
         ChromeRenderTestRule.sanitize(view);
-        mRenderTestRule.render(view, "focus_fake_box_v4");
+        mRenderTestRule.render(view, "focus_fake_box_v5");
         scrimManager.disableAnimationForTesting(false);
     }
 
@@ -255,7 +249,7 @@ public class NewTabPageTest {
         onView(withId(R.id.search_box)).perform(click());
         View view = mNtp.getView().findViewById(R.id.search_box);
         ChromeRenderTestRule.sanitize(view);
-        mRenderTestRule.render(view, "focus_fake_box_with_plus_button_v2");
+        mRenderTestRule.render(view, "focus_fake_box_with_plus_button_v3");
         scrimManager.disableAnimationForTesting(false);
     }
 
@@ -477,7 +471,7 @@ public class NewTabPageTest {
             ThreadUtils.runOnUiThreadBlocking(
                     () -> {
                         mTab.addObserver(
-                                new EmptyTabObserver() {
+                                new TabObserver() {
                                     @Override
                                     public void onPageLoadFinished(Tab tab, GURL url) {
                                         loadedCallback.notifyCalled();
@@ -507,8 +501,7 @@ public class NewTabPageTest {
     @Test
     @SmallTest
     @Feature({"NewTabPage", "FeedNewTabPage"})
-    @EnableFeatures({ChromeFeatureList.LOGO_VIEW_REFACTOR})
-    public void testSetSearchProviderInfo_logoViewRefactorFlagEnabled() throws Throwable {
+    public void testSetSearchProviderInfo() throws Throwable {
         ThreadUtils.runOnUiThreadBlocking(
                 new Runnable() {
                     @Override
@@ -538,44 +531,6 @@ public class NewTabPageTest {
                                 .getLogoCoordinatorForTesting()
                                 .onTemplateURLServiceChangedForTesting();
                         Assert.assertEquals(View.VISIBLE, logoContainerView.getVisibility());
-                    }
-                });
-    }
-
-    /** Tests setting whether the search provider has a logo when LogoViewRefactor is disabled. */
-    @Test
-    @SmallTest
-    @Feature({"NewTabPage", "FeedNewTabPage"})
-    @DisableFeatures({ChromeFeatureList.LOGO_VIEW_REFACTOR})
-    public void testSetSearchProviderInfo_logoViewRefactorFlagDisabled() throws Throwable {
-        ThreadUtils.runOnUiThreadBlocking(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        NewTabPageCoordinator ntpCoordinator = mNtp.getNewTabPageCoordinator();
-                        View logoView = mNtp.getLayout().findViewById(R.id.search_provider_logo);
-                        Assert.assertEquals(View.VISIBLE, logoView.getVisibility());
-
-                        ntpCoordinator.setSearchProviderInfo(
-                                /* hasLogo= */ false, /* isGoogle= */ true);
-                        // Mock to notify the template URL service observer.
-                        when(mTemplateUrlService.doesDefaultSearchEngineHaveLogo())
-                                .thenReturn(false);
-                        when(mTemplateUrlService.isDefaultSearchEngineGoogle()).thenReturn(true);
-                        ntpCoordinator
-                                .getLogoCoordinatorForTesting()
-                                .onTemplateURLServiceChangedForTesting();
-                        Assert.assertEquals(View.GONE, logoView.getVisibility());
-
-                        ntpCoordinator.setSearchProviderInfo(
-                                /* hasLogo= */ true, /* isGoogle= */ true);
-                        // Mock to notify the template URL service observer.
-                        when(mTemplateUrlService.doesDefaultSearchEngineHaveLogo())
-                                .thenReturn(true);
-                        ntpCoordinator
-                                .getLogoCoordinatorForTesting()
-                                .onTemplateURLServiceChangedForTesting();
-                        Assert.assertEquals(View.VISIBLE, logoView.getVisibility());
                     }
                 });
     }
@@ -1066,6 +1021,23 @@ public class NewTabPageTest {
                 });
 
         int expectedMvtTopMargin = res.getDimensionPixelSize(R.dimen.ntp_section_top_margin);
+        int expectedMvtTopPadding = res.getDimensionPixelSize(R.dimen.mvt_container_top_padding);
+        int expectedMvtBottomPadding =
+                res.getDimensionPixelSize(R.dimen.mvt_container_bottom_padding);
+
+        @NewTabPageUtils.PaddingStyle int paddingStyle = NewTabPageUtils.getPaddingStyleForAurora();
+        if (paddingStyle != NewTabPageUtils.PaddingStyle.DEFAULT) {
+            int topMargin =
+                    (paddingStyle == NewTabPageUtils.PaddingStyle.SMALL)
+                            ? R.dimen.mvt_container_top_margin_medium
+                            : R.dimen.mvt_container_top_margin_large;
+            expectedMvtTopMargin = res.getDimensionPixelSize(topMargin);
+            expectedMvtTopPadding =
+                    res.getDimensionPixelSize(R.dimen.mvt_container_top_padding_small);
+            expectedMvtBottomPadding =
+                    res.getDimensionPixelSize(R.dimen.mvt_container_bottom_padding_small);
+        }
+
         int expectedMvtBottomMargin = res.getDimensionPixelSize(R.dimen.ntp_section_bottom_margin);
         Assert.assertEquals(
                 "The top margin of the most visited tiles container is wrong.",
@@ -1077,9 +1049,6 @@ public class NewTabPageTest {
                 expectedMvtBottomMargin,
                 ((MarginLayoutParams) mvTilesContainer.getLayoutParams()).bottomMargin);
 
-        int expectedMvtTopPadding = res.getDimensionPixelSize(R.dimen.mvt_container_top_padding);
-        int expectedMvtBottomPadding =
-                res.getDimensionPixelSize(R.dimen.mvt_container_bottom_padding);
         Assert.assertEquals(
                 "The top padding of the most visited tiles container is wrong.",
                 expectedMvtTopPadding,

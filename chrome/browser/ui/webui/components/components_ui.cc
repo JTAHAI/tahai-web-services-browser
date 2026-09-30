@@ -12,7 +12,9 @@
 #include <utility>
 #include <vector>
 
+#include "base/command_line.h"
 #include "base/functional/bind.h"
+#include "base/memory/ref_counted_memory.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
@@ -24,6 +26,7 @@
 #include "chrome/grit/components_resources_map.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/theme_resources.h"
+#include "components/component_updater/component_updater_switches.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "services/network/public/mojom/content_security_policy.mojom.h"
@@ -54,6 +57,7 @@ void CreateAndAddComponentsUIHTMLSource(Profile* profile) {
       {"noComponents", IDS_COMPONENTS_NO_COMPONENTS},
       {"statusLabel", IDS_COMPONENTS_STATUS_LABEL},
       {"checkingLabel", IDS_COMPONENTS_CHECKING_LABEL},
+      {"uninstall", IDS_COMPONENTS_UNINSTALL},
   };
   source->AddLocalizedStrings(kStrings);
 
@@ -66,6 +70,9 @@ void CreateAndAddComponentsUIHTMLSource(Profile* profile) {
       profile->IsOffTheRecord()
 #endif
   );
+  source->AddBoolean("showUninstallButton",
+                     base::CommandLine::ForCurrentProcess()->HasSwitch(
+                         switches::kEnableComponentUninstall));
   source->UseStringsJs();
   source->AddResourcePaths(kComponentsResources);
   source->SetDefaultResource(IDR_COMPONENTS_COMPONENTS_HTML);
@@ -90,7 +97,7 @@ ComponentsUI::ComponentsUI(content::WebUI* web_ui) : WebUIController(web_ui) {
 ComponentsUI::~ComponentsUI() = default;
 
 // static
-base::RefCountedMemory* ComponentsUI::GetFaviconResourceBytes(
+scoped_refptr<base::RefCountedMemory> ComponentsUI::GetFaviconResourceBytes(
     ui::ResourceScaleFactor scale_factor) {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytesForScale(
       IDR_PLUGINS_FAVICON, scale_factor);

@@ -107,6 +107,7 @@ using password_manager::PasswordManagerInterface;
 using password_manager::WebAuthnCredentialsDelegate;
 using password_manager::metrics_util::LogPasswordDropdownShown;
 using password_manager::metrics_util::PasswordDropdownState;
+using FieldType = autofill::FormActivityParams::FieldType;
 
 namespace {
 
@@ -509,44 +510,26 @@ autofill::LocalFrameToken GetLocalFrameToken(web::WebFrame* frame) {
   }
   FormData form_data = form_structure->ToFormData();
 
-  if (base::FeatureList::IsEnabled(
-          autofill::features::kAutofillAcrossIframesIos)) {
-    // Process the predictions for each renderer form that composes the browser
-    // form when Autofill across frames is enabled.
+  // Split the browser form into renderer forms.
+  // The cast is safe: every AutofillClient on iOS is an AutofillClientIOS.
+  const autofill::AutofillDriverRouter& router =
+      static_cast<autofill::AutofillClientIOS&>(manager.client())
+          .GetAutofillDriverFactory()
+          .router();
+  std::vector<FormData> renderer_forms = router.GetRendererForms(form_data);
 
-    // Split the browser form into renderer forms.
-    // The cast is safe: every AutofillClient on iOS is an AutofillClientIOS.
-    const autofill::AutofillDriverRouter& router =
-        static_cast<autofill::AutofillClientIOS&>(manager.client())
-            .GetAutofillDriverFactory()
-            .router();
-    std::vector<FormData> renderer_forms = router.GetRendererForms(form_data);
-
-    // Process predictions for each renderer form.
-    web::WebFramesManager* webFramesManager = [self webFramesManager];
-    for (const FormData& renderer_form : renderer_forms) {
-      web::WebFrame* child_frame = webFramesManager->GetFrameWithId(
-          renderer_form.host_frame().ToString());
-      if (!child_frame) {
-        continue;
-      }
-      [self propagatePredictionsToPasswordManagerFrom:manager
-                                          forFormData:renderer_form
-                                         globalFormId:formId
-                                              inFrame:*child_frame
-                                           fromSource:source];
-    }
-  } else {
-    auto& autofill_driver =
-        static_cast<autofill::AutofillDriverIOS&>(manager.driver());
-    web::WebFrame* frame = autofill_driver.web_frame();
-    if (!frame) {
-      return;
+  // Process predictions for each renderer form.
+  web::WebFramesManager* webFramesManager = [self webFramesManager];
+  for (const FormData& renderer_form : renderer_forms) {
+    web::WebFrame* child_frame =
+        webFramesManager->GetFrameWithId(renderer_form.host_frame().ToString());
+    if (!child_frame) {
+      continue;
     }
     [self propagatePredictionsToPasswordManagerFrom:manager
-                                        forFormData:form_data
+                                        forFormData:renderer_form
                                        globalFormId:formId
-                                            inFrame:*frame
+                                            inFrame:*child_frame
                                          fromSource:source];
   }
 }
@@ -597,8 +580,8 @@ autofill::LocalFrameToken GetLocalFrameToken(web::WebFrame* frame) {
                        }];
 
   if (self.isPasswordGenerated &&
-      ([formQuery.type isEqualToString:@"input"] ||
-       [formQuery.type isEqualToString:@"keyup"]) &&
+      (formQuery.type == ActivityType::kInput ||
+       formQuery.type == ActivityType::kKeyUp) &&
       self.passwordGeneratedIdentifier ==
           FieldGlobalId{GetLocalFrameToken(frame), formQuery.fieldRendererID}) {
     // On other platforms, when the user clicks on generation field, we show
@@ -628,8 +611,8 @@ autofill::LocalFrameToken GetLocalFrameToken(web::WebFrame* frame) {
     _lastTypedfieldIdentifier = formQuery.fieldRendererID;
     _lastTypedValue = formQuery.typedValue;
 
-    if ([formQuery.type isEqualToString:@"input"] ||
-        [formQuery.type isEqualToString:@"keyup"]) {
+    if (formQuery.type == ActivityType::kInput ||
+        formQuery.type == ActivityType::kKeyUp) {
       [self.formHelper updateFieldDataOnUserInput:formQuery.fieldRendererID
                                           inFrame:frame
                                        inputValue:formQuery.typedValue];
@@ -976,13 +959,13 @@ autofill::LocalFrameToken GetLocalFrameToken(web::WebFrame* frame) {
 
 - (BOOL)canGeneratePasswordForForm:(FormRendererId)formIdentifier
                    fieldIdentifier:(FieldRendererId)fieldIdentifier
-                         fieldType:(NSString*)fieldType
+                         fieldType:(FieldType)fieldType
                            inFrame:(web::WebFrame*)frame {
   if (![_driverHelper PasswordGenerationHelper:frame]->IsGenerationEnabled(
           /*log_debug_data*/ true)) {
     return NO;
   }
-  if (![fieldType isEqualToString:kObfuscatedFieldType]) {
+  if (fieldType != FieldType::kObfuscated) {
     return NO;
   }
   const PasswordFormGenerationData* generationData =
@@ -1378,12 +1361,13 @@ autofill::LocalFrameToken GetLocalFrameToken(web::WebFrame* frame) {
     return;
   }
 
-  if (params.type == "input" || params.type == "change") {
+  if (params.type == ActivityType::kInput ||
+      params.type == ActivityType::kChange) {
     _lastSubmittedPasswordManagerDriver =
         IOSPasswordManagerDriverFactory::GetRetainableDriver(_webState, frame);
   }
 
-  if (params.type == "focus") {
+  if (params.type == ActivityType::kFocus) {
     _lastFocusedFormIdentifier = params.form_renderer_id;
     _lastFocusedFieldIdentifier = params.field_renderer_id;
     _lastFocusedFrame = frame;
@@ -1391,7 +1375,7 @@ autofill::LocalFrameToken GetLocalFrameToken(web::WebFrame* frame) {
 
   // If there's a change in password forms on a page, they should be parsed
   // again.
-  if (params.type == "form_changed") {
+  if (params.type == ActivityType::kFormChanged) {
     [self findPasswordFormsAndSendToPasswordStoreForFormChange:true
                                                        inFrame:frame];
   }

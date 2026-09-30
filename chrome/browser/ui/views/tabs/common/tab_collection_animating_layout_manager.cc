@@ -14,6 +14,7 @@
 #include "ui/compositor/layer.h"
 #include "ui/gfx/animation/animation.h"
 #include "ui/gfx/animation/tween.h"
+#include "ui/views/controls/scroll_view.h"
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/view_utils.h"
@@ -21,6 +22,8 @@
 
 DEFINE_UI_CLASS_PROPERTY_TYPE(
     TabCollectionAnimatingLayoutManager::SourceLayoutInfo*)
+
+DEFINE_UI_CLASS_PROPERTY_KEY(bool, kHasAnimatingLayoutManagerKey, false)
 
 namespace {
 
@@ -58,6 +61,11 @@ bool TabCollectionAnimatingLayoutManager::Delegate::ShouldSnapToTarget(
 bool TabCollectionAnimatingLayoutManager::Delegate::
     ShouldAnimateOpacityForAddAndRemove(const views::View& child_view) const {
   return false;
+}
+
+std::optional<views::SizeBound> TabCollectionAnimatingLayoutManager::Delegate::
+    GetAvailableMainAxisSpaceOverride() const {
+  return std::nullopt;
 }
 
 void TabCollectionAnimatingLayoutManager::Delegate::OnAnimationEnded() {}
@@ -105,16 +113,21 @@ bool TabCollectionAnimatingLayoutManager::OnViewRemoved(views::View* host,
 
 gfx::Size TabCollectionAnimatingLayoutManager::GetPreferredSize(
     const views::View* host) const {
-  // While animating have preferred size reflect the actual computed height of
-  // the current layout. Do so to ensure animations are not clipped when
-  // animating-out a view at the bottom of the scroll view - and to ensure
-  // adjacent children in parent views sit flush with this view while animating
-  // if they do not employ their own animating layout manager.
+  // While animating have preferred size reflect the actual computed content
+  // size of the current layout along the animation axis. Do so to ensure
+  // animations are not clipped when animating-out a view at the edge of the
+  // scroll view - and to ensure adjacent children in parent views sit flush
+  // with this view while animating if they do not employ their own animating
+  // layout manager.
   gfx::Size target_preferred_size =
       target_layout_manager_->GetPreferredSize(host);
   if (animate_host_size_ && animation_.is_animating() &&
       !delegate_->IsDragging()) {
-    target_preferred_size.set_height(current_layout_content_height_);
+    if (IsVerticalOrWrappingVertically()) {
+      target_preferred_size.set_height(current_layout_content_size_);
+    } else {
+      target_preferred_size.set_width(current_layout_content_size_);
+    }
   }
   return target_preferred_size;
 }
@@ -122,18 +135,27 @@ gfx::Size TabCollectionAnimatingLayoutManager::GetPreferredSize(
 gfx::Size TabCollectionAnimatingLayoutManager::GetPreferredSize(
     const views::View* host,
     const views::SizeBounds& available_size) const {
-  // While animating have preferred size reflect the actual computed height of
-  // the current layout. Do so to ensure animations are not clipped when
-  // animating-out a view at the bottom of the scroll view - and to ensure
-  // adjacent children in parent views sit flush with this view while animating
-  // if they do not employ their own animating layout manager.
+  // While animating have preferred size reflect the actual computed content
+  // size of the current layout along the animation axis. Do so to ensure
+  // animations are not clipped when animating-out a view at the edge of the
+  // scroll view - and to ensure adjacent children in parent views sit flush
+  // with this view while animating if they do not employ their own animating
+  // layout manager.
   gfx::Size target_preferred_size =
       target_layout_manager_->GetPreferredSize(host, available_size);
   if (animate_host_size_ && animation_.is_animating() &&
       !delegate_->IsDragging()) {
-    target_preferred_size.set_height(current_layout_content_height_);
+    if (IsVerticalOrWrappingVertically()) {
+      target_preferred_size.set_height(current_layout_content_size_);
+    } else {
+      target_preferred_size.set_width(current_layout_content_size_);
+    }
   }
   return target_preferred_size;
+}
+
+gfx::Size TabCollectionAnimatingLayoutManager::GetTargetPreferredSize() const {
+  return target_layout_manager_->GetPreferredSize(host_view());
 }
 
 gfx::Size TabCollectionAnimatingLayoutManager::GetMinimumSize(
@@ -227,6 +249,7 @@ void TabCollectionAnimatingLayoutManager::LayoutImpl() {
 
 void TabCollectionAnimatingLayoutManager::OnInstalled(views::View* host) {
   LayoutManagerBase::OnInstalled(host);
+  host->SetProperty(kHasAnimatingLayoutManagerKey, true);
   RecalculateTarget();
 }
 
@@ -253,6 +276,11 @@ void TabCollectionAnimatingLayoutManager::SetStartingLayout(
   start_view_layout_map_ = ChildViewLayoutMap(std::move(start_bounds_pairs));
 
   starting_layout_ = starting_layout;
+
+  if (animation_axis_ == AnimationAxis::kHorizontal) {
+    adding_views_start_x_ = std::nullopt;
+    closing_views_target_x_ = std::nullopt;
+  }
 }
 
 void TabCollectionAnimatingLayoutManager::SetTargetLayout(
@@ -267,6 +295,11 @@ void TabCollectionAnimatingLayoutManager::SetTargetLayout(
   target_view_layout_map_ = ChildViewLayoutMap(std::move(target_bounds_pairs));
 
   target_layout_ = target_layout;
+
+  if (animation_axis_ == AnimationAxis::kHorizontal) {
+    adding_views_start_x_ = std::nullopt;
+    closing_views_target_x_ = std::nullopt;
+  }
 }
 
 void TabCollectionAnimatingLayoutManager::UpdateCurrentLayout() {
@@ -282,20 +315,55 @@ bool TabCollectionAnimatingLayoutManager::RecalculateTarget() {
     return false;
   }
 
-  // Calculate the target layout with unbounded height and the width given to
-  // the host by its parent view.
-  views::ProposedLayout new_target = target_layout_manager_->GetProposedLayout(
-      views::SizeBounds(host_view()->width(), {}), PassKey());
+  // Calculate the target layout with unbounded height for vertical or
+  // horizontal-wrapping-vertically axes, or bounded by available parent width
+  // for horizontal axis, to support dynamic tab shrinking and scrolling.
+  views::SizeBounds size_bounds;
+  if (IsVerticalOrWrappingVertically()) {
+    size_bounds = views::SizeBounds(std::max(host_view()->width(), 0), {});
+  } else {
+    // For horizontal layouts, top-level containers calculate target layouts
+    // using the total space available to the tab strip (to allow tabs to expand
+    // to their preferred width rather than being constrained to the host's
+    // mid-animation width). Containers that do not provide an explicit
+    // available space override fall back to their host view width.
+    views::SizeBound available_width;
+    if (const auto space_override =
+            delegate_->GetAvailableMainAxisSpaceOverride();
+        space_override.has_value() && space_override->is_bounded()) {
+      available_width = *space_override;
+    } else if (views::ScrollView* scroll_view =
+                   views::ScrollView::GetScrollViewForContents(host_view())) {
+      // If inside a ScrollView, fall back to the visible viewport width to
+      // prevent calculating target layouts against the total scrolled content
+      // width.
+      const int viewport_width = scroll_view->GetVisibleRect().width();
+      if (viewport_width > 0) {
+        available_width = views::SizeBound(viewport_width);
+      } else if (scroll_view->width() > 0) {
+        available_width = views::SizeBound(scroll_view->width());
+      }
+    } else if (host_view()->width() > 0) {
+      available_width = views::SizeBound(host_view()->width());
+    }
+    size_bounds =
+        views::SizeBounds(available_width, std::max(host_view()->height(), 0));
+  }
+  views::ProposedLayout new_target =
+      target_layout_manager_->GetProposedLayout(size_bounds, PassKey());
 
   // If the layout hasn't changed, we are done.
   if (new_target == target_layout_) {
     return false;
   }
 
-  // Animating horizontal bounds is not supported and layout should immediately
-  // snap to target for horizontal bounds changes.
-  if (!current_layout_.host_size.IsEmpty() &&
-      (current_layout_.host_size.width() != new_target.host_size.width())) {
+  // Animating bounds along the cross-axis is not supported and layout should
+  // immediately snap to target for cross-axis bounds changes.
+  const bool cross_axis_changed =
+      IsVerticalOrWrappingVertically()
+          ? current_layout_.host_size.width() != new_target.host_size.width()
+          : current_layout_.host_size.height() != new_target.host_size.height();
+  if (!current_layout_.host_size.IsEmpty() && cross_axis_changed) {
     current_layout_ = new_target;
     SetStartingLayout(new_target);
     SetTargetLayout(new_target);
@@ -397,12 +465,28 @@ views::ProposedLayout TabCollectionAnimatingLayoutManager::InterpolateLayout(
   // animation.
   result.host_size = target_layout_.host_size;
 
-  // Update the previously computed total content height. Initialize it to the
-  // interpolated host size height to prevent the layout from shrinking
-  // momentarily when tabs are swapping positions (e.g., reordering tabs).
-  current_layout_content_height_ =
-      gfx::Tween::IntValueBetween(value, starting_layout_.host_size.height(),
-                                  target_layout_.host_size.height());
+  // Update the previously computed total content size. Initialize it to the
+  // interpolated host size along the animation axis to prevent the layout from
+  // shrinking momentarily when tabs are swapping positions (e.g., reordering
+  // tabs).
+  if (IsVerticalOrWrappingVertically()) {
+    current_layout_content_size_ =
+        gfx::Tween::IntValueBetween(value, starting_layout_.host_size.height(),
+                                    target_layout_.host_size.height());
+  } else {
+    current_layout_content_size_ =
+        gfx::Tween::IntValueBetween(value, starting_layout_.host_size.width(),
+                                    target_layout_.host_size.width());
+  }
+
+  auto get_animation_axis_end = [this](const gfx::Rect& bounds) {
+    return IsVerticalOrWrappingVertically() ? bounds.bottom() : bounds.right();
+  };
+
+  if (animation_axis_ == AnimationAxis::kHorizontal) {
+    CalculateAddingViewsStartX();
+    CalculateClosingViewsTargetX();
+  }
 
   for (views::View* child_view : host_view()->children()) {
     auto target_it = target_view_layout_map_.find(child_view);
@@ -448,6 +532,12 @@ views::ProposedLayout TabCollectionAnimatingLayoutManager::InterpolateLayout(
           } else {
             initial_bounds.set_width(0);
           }
+          if (animation_axis_ == AnimationAxis::kHorizontal) {
+            if (auto it = adding_views_start_x_->find(child_view);
+                it != adding_views_start_x_->end()) {
+              initial_bounds.set_x(it->second);
+            }
+          }
           interpolated_child.bounds = gfx::Tween::RectValueBetween(
               value, initial_bounds, target_it->second.bounds);
           if (child_view->layer()) {
@@ -460,8 +550,9 @@ views::ProposedLayout TabCollectionAnimatingLayoutManager::InterpolateLayout(
         // animated transition).
       }
       if (!interpolated_child.bounds.IsEmpty()) {
-        current_layout_content_height_ = std::max(
-            current_layout_content_height_, interpolated_child.bounds.bottom());
+        current_layout_content_size_ =
+            std::max(current_layout_content_size_,
+                     get_animation_axis_end(interpolated_child.bounds));
       }
       result.child_layouts.push_back(interpolated_child);
       continue;
@@ -487,6 +578,12 @@ views::ProposedLayout TabCollectionAnimatingLayoutManager::InterpolateLayout(
       } else {
         target_bounds.set_width(0);
       }
+      if (animation_axis_ == AnimationAxis::kHorizontal) {
+        if (auto it = closing_views_target_x_->find(child_view);
+            it != closing_views_target_x_->end()) {
+          target_bounds.set_x(it->second);
+        }
+      }
       interpolated_child.bounds = gfx::Tween::RectValueBetween(
           value, start_it->second.bounds, target_bounds);
       if (child_view->layer()) {
@@ -494,8 +591,9 @@ views::ProposedLayout TabCollectionAnimatingLayoutManager::InterpolateLayout(
       }
 
       if (!interpolated_child.bounds.IsEmpty()) {
-        current_layout_content_height_ = std::max(
-            current_layout_content_height_, interpolated_child.bounds.bottom());
+        current_layout_content_size_ =
+            std::max(current_layout_content_size_,
+                     get_animation_axis_end(interpolated_child.bounds));
       }
       result.child_layouts.push_back(interpolated_child);
       continue;
@@ -556,14 +654,105 @@ views::ProposedLayout TabCollectionAnimatingLayoutManager::InterpolateLayout(
           gfx::Tween::RectValueBetween(value, start_bounds, target_bounds);
 
       if (!interpolated_child.bounds.IsEmpty()) {
-        current_layout_content_height_ = std::max(
-            current_layout_content_height_, interpolated_child.bounds.bottom());
+        current_layout_content_size_ =
+            std::max(current_layout_content_size_,
+                     get_animation_axis_end(interpolated_child.bounds));
       }
       result.child_layouts.push_back(interpolated_child);
     }
   }
 
   return result;
+}
+
+void TabCollectionAnimatingLayoutManager::CalculateAddingViewsStartX() const {
+  if (adding_views_start_x_.has_value()) {
+    return;
+  }
+  adding_views_start_x_ = ChildViewXMap();
+  // For each contiguous range of adding views, set the target x of those
+  // adding views based on the bounds of the surrounding non-adding views, if
+  // they exist.
+  std::optional<int> prev_start_bounds_right = std::nullopt;
+  std::vector<std::pair<views::View*, int>> adding_views_x;
+  auto assign_adding_views_start_x = [this, &adding_views_x](int start_x) {
+    for (auto [adding_view, _] : adding_views_x) {
+      adding_views_start_x_->insert_or_assign(adding_view, start_x);
+    }
+    adding_views_x.clear();
+  };
+  for (auto target_layout : target_layout_.child_layouts) {
+    views::View* curr_view = target_layout.child_view;
+    if (start_view_layout_map_.contains(curr_view)) {
+      const int curr_start_bounds_x =
+          start_view_layout_map_.at(curr_view).bounds.x();
+      // When there is a next view in the start layout, use the start x of the
+      // next view. If there is also a previous view, use the midpoint
+      // between the x of the next view and the right of the previous view.
+      assign_adding_views_start_x(
+          prev_start_bounds_right.has_value()
+              ? (prev_start_bounds_right.value() + curr_start_bounds_x) / 2
+              : curr_start_bounds_x);
+
+      prev_start_bounds_right =
+          start_view_layout_map_.at(curr_view).bounds.right();
+    } else {
+      adding_views_x.emplace_back(curr_view, target_layout.bounds.x());
+    }
+  }
+  if (!adding_views_x.empty()) {
+    // When there is no next view in the start layout, use the x of the
+    // first adding view. If there is a previous view, use the previous
+    // view's right.
+    const auto [_, first_adding_view_x] = adding_views_x[0];
+    assign_adding_views_start_x(
+        prev_start_bounds_right.value_or(first_adding_view_x));
+  }
+}
+
+void TabCollectionAnimatingLayoutManager::CalculateClosingViewsTargetX() const {
+  if (closing_views_target_x_.has_value()) {
+    return;
+  }
+  closing_views_target_x_ = ChildViewXMap();
+  // For each contiguous range of closing views, set the target x of those
+  // closing views based on the bounds of the surrounding non-closing views, if
+  // they exist.
+  std::optional<int> prev_target_bounds_right = std::nullopt;
+  std::vector<std::pair<views::View*, int>> closing_views_x;
+  auto assign_closing_views_target_x = [this, &closing_views_x](int target_x) {
+    for (auto [closing_view, _] : closing_views_x) {
+      closing_views_target_x_->insert_or_assign(closing_view, target_x);
+    }
+    closing_views_x.clear();
+  };
+  for (auto start_layout : starting_layout_.child_layouts) {
+    views::View* curr_view = start_layout.child_view;
+    if (target_view_layout_map_.contains(curr_view)) {
+      const int curr_target_bounds_x =
+          target_view_layout_map_.at(curr_view).bounds.x();
+      // When there is a next view in the target layout, target the x of the
+      // next view. If there is also a previous view, target the midpoint
+      // between the x of the next view and the right of the previous view.
+      assign_closing_views_target_x(
+          prev_target_bounds_right.has_value()
+              ? (prev_target_bounds_right.value() + curr_target_bounds_x) / 2
+              : curr_target_bounds_x);
+
+      prev_target_bounds_right =
+          target_view_layout_map_.at(curr_view).bounds.right();
+    } else {
+      closing_views_x.emplace_back(curr_view, start_layout.bounds.x());
+    }
+  }
+  if (!closing_views_x.empty()) {
+    // When there is no next view in the target layout, target the x of the
+    // first closing view. If there is a previous view, target the previous
+    // view's right.
+    const auto [_, first_closing_view_x] = closing_views_x[0];
+    assign_closing_views_target_x(
+        prev_target_bounds_right.value_or(first_closing_view_x));
+  }
 }
 
 void TabCollectionAnimatingLayoutManager::
@@ -627,4 +816,10 @@ void TabCollectionAnimatingLayoutManager::ClearViewAnimationMetadataForView(
   }
   view->ClearProperty(kPreviousCollectionBounds);
   view->ClearProperty(kSourceLayoutInfo);
+}
+
+bool TabCollectionAnimatingLayoutManager::IsVerticalOrWrappingVertically()
+    const {
+  return animation_axis_ == AnimationAxis::kVertical ||
+         animation_axis_ == AnimationAxis::kHorizontalWrappingVertically;
 }

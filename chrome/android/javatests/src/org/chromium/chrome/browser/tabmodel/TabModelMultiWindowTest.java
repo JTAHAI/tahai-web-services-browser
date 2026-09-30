@@ -35,7 +35,6 @@ import org.chromium.base.Token;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.ImportantFormFactors;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
@@ -50,7 +49,6 @@ import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTaskTrackerFac
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
-import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.ui.base.DeviceFormFactor;
@@ -79,12 +77,11 @@ public class TabModelMultiWindowTest {
     @Mock
     private MediaCaptureDevicesDispatcherAndroid.Natives mMediaCaptureDevicesDispatcherAndroidJni;
 
-    private WebPageStation mPage;
     private TabModelJniBridge mTabModelJni;
 
     @Before
     public void setUp() {
-        mPage = mActivityTestRule.startOnBlankPage();
+        mActivityTestRule.startOnBlankPage();
         mTabModelJni =
                 (TabModelJniBridge)
                         mActivityTestRule.getActivity().getTabModelSelector().getModel(false);
@@ -119,7 +116,6 @@ public class TabModelMultiWindowTest {
     }
 
     @Test
-    @DisableIf.Device(DeviceFormFactor.DESKTOP) // https://crbug.com/481443908
     @LargeTest
     public void testMoveTabGroupToWindow() {
         ChromeTabbedActivity activity1 = mActivityTestRule.getActivity();
@@ -153,7 +149,6 @@ public class TabModelMultiWindowTest {
     }
 
     @Test
-    @DisableIf.Device(DeviceFormFactor.DESKTOP) // https://crbug.com/481443908
     @LargeTest
     public void testMoveTabGroupToWindowFailure() {
         // Create a tab group.

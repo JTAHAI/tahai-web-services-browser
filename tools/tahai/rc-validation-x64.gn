@@ -1,0 +1,13 @@
+# TAHAI RC validation profile, preserved from the recovered release checkout.
+# This does not opt into Chromium's separate is_official_build/PGO pipeline.
+# Copy to a NEW dedicated out directory; never overwrite a running build.
+is_debug = false
+is_component_build = false
+target_cpu = "x64"
+symbol_level = 1
+blink_symbol_level = 0
+v8_symbol_level = 0
+is_chrome_branded = false
+is_tahai_branded = true
+use_remoteexec = false
+use_siso = false

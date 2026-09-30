@@ -9,10 +9,12 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
+#include "base/check_deref.h"
 #include "base/task/thread_pool.h"
 #include "chromeos/ash/components/boca/boca_app_client.h"
 #include "chromeos/ash/components/boca/proto/session.pb.h"
 #include "chromeos/ash/components/boca/session_api/constants.h"
+#include "chromeos/ash/components/boca/session_api/session_client_impl.h"
 #include "chromeos/ash/components/boca/spotlight/register_screen_request.h"
 #include "chromeos/ash/components/boca/spotlight/update_view_screen_state_request.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
@@ -21,43 +23,25 @@
 
 namespace ash::boca {
 
-SpotlightService::SpotlightService() : sender_(CreateRequestSender()) {}
+SpotlightService::SpotlightService(BocaSessionManager* boca_session_manager)
+    : SpotlightService(
+          boca_session_manager,
+          boca_session_manager->session_client_impl()->CreateRequestSender(
+              signin::OAuthConsumerId::kChromeOsBocaSchoolToolsAuth,
+              kTrafficAnnotation)) {}
+
 SpotlightService::SpotlightService(
+    BocaSessionManager* boca_session_manager,
     std::unique_ptr<google_apis::RequestSender> sender)
-    : sender_(std::move(sender)) {}
+    : boca_session_manager_(CHECK_DEREF(boca_session_manager)),
+      sender_(std::move(sender)) {}
 
 SpotlightService::~SpotlightService() = default;
-
-std::unique_ptr<google_apis::RequestSender>
-SpotlightService::CreateRequestSender() {
-  auto url_loader_factory = BocaAppClient::Get()->GetURLLoaderFactory();
-  auto* identity_manager = BocaAppClient::Get()->GetIdentityManager();
-
-  if (!identity_manager) {
-    return nullptr;
-  }
-  auto auth_service = std::make_unique<google_apis::AuthService>(
-      identity_manager,
-      identity_manager->GetPrimaryAccountId(signin::ConsentLevel::kSignin),
-      url_loader_factory,
-      signin::OAuthConsumerId::kChromeOsBocaSchoolToolsAuth);
-
-  return std::make_unique<google_apis::RequestSender>(
-      std::move(auth_service), url_loader_factory,
-      base::ThreadPool::CreateSequencedTaskRunner(
-          {base::MayBlock(),
-           /* `USER_VISIBLE` is because the requested/returned data is visible
-               to the user on Web UI surfaces. */
-           base::TaskPriority::USER_VISIBLE,
-           base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN}),
-      /*custom_user_agent=*/"", kTrafficAnnotation);
-}
 
 void SpotlightService::ViewScreen(std::string student_gaia_id,
                                   std::string url_base,
                                   ViewScreenRequestCallback callback) {
-  auto* const current_session =
-      BocaAppClient::Get()->GetSessionManager()->GetCurrentSession();
+  auto* const current_session = boca_session_manager_->GetCurrentSession();
   if (!current_session) {
     std::move(callback).Run(
         base::unexpected(google_apis::ApiErrorCode::CANCELLED));
@@ -75,9 +59,7 @@ void SpotlightService::ViewScreen(std::string student_gaia_id,
   // screen from first device in student device,
   std::optional<std::string> device_robot_email =
       ash::features::IsBocaSpotlightRobotRequesterEnabled()
-          ? std::optional(BocaAppClient::Get()
-                              ->GetSessionManager()
-                              ->GetDeviceRobotEmail())
+          ? std::optional(boca_session_manager_->GetDeviceRobotEmail())
           : std::nullopt;
   ViewScreenParam view_screen_param{
       current_session->teacher().gaia_id(), BocaAppClient::Get()->GetDeviceId(),
@@ -92,8 +74,7 @@ void SpotlightService::ViewScreen(std::string student_gaia_id,
 void SpotlightService::RegisterScreen(const std::string& connection_code,
                                       std::string url_base,
                                       RegisterScreenRequestCallback callback) {
-  auto* const current_session =
-      BocaAppClient::Get()->GetSessionManager()->GetCurrentSession();
+  auto* const current_session = boca_session_manager_->GetCurrentSession();
   if (!current_session) {
     std::move(callback).Run(
         base::unexpected(google_apis::ApiErrorCode::CANCELLED));
@@ -102,11 +83,7 @@ void SpotlightService::RegisterScreen(const std::string& connection_code,
 
   RegisterScreenParam register_screen_param(
       connection_code,
-      BocaAppClient::Get()
-          ->GetSessionManager()
-          ->account_id()
-          .GetGaiaId()
-          .ToString(),
+      boca_session_manager_->account_id().GetGaiaId().ToString(),
       BocaAppClient::Get()->GetDeviceId());
   auto register_screen_request = std::make_unique<RegisterScreenRequest>(
       sender_.get(), current_session->session_id(),
@@ -120,8 +97,7 @@ void SpotlightService::UpdateViewScreenState(
     ::boca::ViewScreenConfig::ViewScreenState view_screen_state,
     std::string url_base,
     UpdateViewScreenStateRequestCallback callback) {
-  auto* const current_session =
-      BocaAppClient::Get()->GetSessionManager()->GetCurrentSession();
+  auto* const current_session = boca_session_manager_->GetCurrentSession();
   if (!current_session) {
     std::move(callback).Run(
         base::unexpected(google_apis::ApiErrorCode::CANCELLED));

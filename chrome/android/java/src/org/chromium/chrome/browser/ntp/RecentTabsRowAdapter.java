@@ -6,6 +6,8 @@ package org.chromium.chrome.browser.ntp;
 
 import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.R.plurals.recent_tabs_group_closure_without_title_with_color_accessibility;
+import static org.chromium.chrome.R.string.recent_tabs_group_closure_with_title_with_color_accessibility;
 
 import android.app.Activity;
 import android.content.res.Resources;
@@ -40,17 +42,15 @@ import org.chromium.chrome.browser.ui.favicon.FaviconHelper.DefaultFaviconHelper
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper.FaviconImageCallback;
 import org.chromium.chrome.browser.ui.favicon.FaviconUtils;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
-import org.chromium.components.browser_ui.widget.HoverHighlightViewListener;
 import org.chromium.components.browser_ui.widget.RoundedIconGenerator;
-import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.tab_groups.TabGroupColorId;
 import org.chromium.components.tab_groups.TabGroupColorPickerUtils;
 import org.chromium.components.url_formatter.UrlFormatter;
-import org.chromium.content_public.common.ContentUrlConstants;
 import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.mojom.WindowOpenDisposition;
+import org.chromium.ui.widget.HoverHighlightViewListener;
 import org.chromium.url.GURL;
 
 import java.lang.annotation.Retention;
@@ -252,6 +252,16 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
          */
         boolean onChildClick(int childPosition) {
             return false;
+        }
+
+        /**
+         * Returns whether the child item is selectable.
+         *
+         * @param childPosition The position of the child in the group.
+         * @return Whether the child item is selectable.
+         */
+        boolean isChildSelectable(int childPosition) {
+            return true;
         }
 
         /**
@@ -471,6 +481,11 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
         boolean isCollapsed() {
             return mRecentTabsManager.isPromoCollapsed();
         }
+
+        @Override
+        boolean isChildSelectable(int childPosition) {
+            return false;
+        }
     }
 
     /** A group containing the signin promo. */
@@ -529,6 +544,10 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
      * page.
      */
     private class RecentlyClosedTabsGroup extends Group {
+        private static final int GROUP_CLOSURE_NO_TITLE_RES =
+                recent_tabs_group_closure_without_title_with_color_accessibility;
+        private static final int GROUP_CLOSURE_WITH_TITLE_RES =
+                recent_tabs_group_closure_with_title_with_color_accessibility;
         private @Nullable RecentlyClosedEntry mLongPressedRow;
 
         @Override
@@ -582,18 +601,10 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
             if (TextUtils.isEmpty(groupTitle)) {
                 contentDescription =
                         res.getQuantityString(
-                                R.plurals
-                                        .recent_tabs_group_closure_without_title_with_color_accessibility,
-                                tabCount,
-                                tabCount,
-                                colorDesc);
+                                GROUP_CLOSURE_NO_TITLE_RES, tabCount, tabCount, colorDesc);
             } else {
                 contentDescription =
-                        res.getString(
-                                R.string
-                                        .recent_tabs_group_closure_with_title_with_color_accessibility,
-                                groupTitle,
-                                colorDesc);
+                        res.getString(GROUP_CLOSURE_WITH_TITLE_RES, groupTitle, colorDesc);
             }
             viewHolder.textView.setContentDescription(contentDescription);
         }
@@ -894,10 +905,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
      */
     private @Nullable String formatUrlForDisplay(GURL gurl) {
         String urlSpec = gurl.getSpec();
-        String scheme = gurl.getScheme();
-        if (ContentUrlConstants.ABOUT_SCHEME.equals(scheme)
-                || UrlConstants.CHROME_SCHEME.equals(scheme)
-                || UrlConstants.CHROME_NATIVE_SCHEME.equals(scheme)) {
+        if (UrlUtilities.isInternalScheme(gurl)) {
             return UrlFormatter.formatUrlForDisplayOmitHTTPScheme(urlSpec);
         }
         // This should perhaps use UrlFormatter as well, but it has used domain for a long time.
@@ -1050,7 +1058,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
 
     @Override
     public boolean isChildSelectable(int groupPosition, int childPosition) {
-        return true;
+        return getGroup(groupPosition).isChildSelectable(childPosition);
     }
 
     // BaseExpandableListAdapter misc. implementation
@@ -1073,7 +1081,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
         if (!DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity)) {
             mGroups.add(group);
         } else {
-            if (mGroups.size() == 0) {
+            if (mGroups.isEmpty()) {
                 mGroups.add(mInvisibleSeparatorGroup);
             }
             mGroups.add(group);

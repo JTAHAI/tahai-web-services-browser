@@ -74,6 +74,10 @@
 #include "chrome/browser/performance_manager/extension_watcher.h"
 #endif
 
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE) && !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/performance_manager/execution_context_priority/extension_service_worker_priority_voter.h"
+#endif
+
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/browser/performance_manager/policies/discard_page_with_crashed_subframe_policy.h"
@@ -181,10 +185,10 @@ void ChromeBrowserMainExtraPartsPerformanceManager::CreatePoliciesAndDecorators(
   graph->PassToGraph(std::move(discard_eligibility_policy));
 
 #if BUILDFLAG(IS_WIN)
-  // TerminationTargetPolicy is incompatible with --single-process mode.
-  if (base::FeatureList::IsEnabled(
-          performance_manager::features::kTerminationTargetPolicy) &&
-      !base::CommandLine::ForCurrentProcess()->HasSwitch(
+  // TerminationTargetPolicy provides a renderer process handle to terminate on
+  // PartitionAlloc commit failure. It is incompatible with --single-process
+  // mode.
+  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kSingleProcess)) {
     graph->PassToGraph(
         std::make_unique<performance_manager::TerminationTargetPolicy>());
@@ -216,14 +220,6 @@ void ChromeBrowserMainExtraPartsPerformanceManager::CreatePoliciesAndDecorators(
   }
 #endif  // URGENT_DISCARDING_FROM_PERFORMANCE_MANAGER()
 
-  graph->PassToGraph(std::make_unique<
-                     performance_manager::policies::BackgroundTabLoadingPolicy>(
-      base::BindRepeating([]() {
-        content::GetUIThreadTaskRunner({})->PostTask(
-            FROM_HERE,
-            base::BindOnce(&SessionRestore::OnTabLoaderFinishedLoadingTabs));
-      })));
-
   // The freezing policy isn't enabled on Android yet as it doesn't play well
   // with the freezing logic already in place in renderers. This logic should be
   // moved to PerformanceManager, this is tracked in https://crbug.com/40160563.
@@ -240,6 +236,28 @@ void ChromeBrowserMainExtraPartsPerformanceManager::CreatePoliciesAndDecorators(
   graph->PassToGraph(
       std::make_unique<performance_manager::policies::MemorySaverModePolicy>());
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+#if !BUILDFLAG(IS_ANDROID)
+  base::RepeatingClosure all_restored_tabs_loaded_callback =
+      base::BindRepeating([]() {
+        content::GetUIThreadTaskRunner({})->PostTask(
+            FROM_HERE,
+            base::BindOnce(&SessionRestore::OnTabLoaderFinishedLoadingTabs));
+      });
+  const bool enable_background_tab_loading = true;
+#else
+  // Android doesn't use the same session restore logic, no callback.
+  base::RepeatingClosure all_restored_tabs_loaded_callback = base::DoNothing();
+  const bool enable_background_tab_loading = base::FeatureList::IsEnabled(
+      chrome::android::kDesktopAndroidBackgroundTabLoading);
+#endif
+
+  if (enable_background_tab_loading) {
+    graph->PassToGraph(
+        std::make_unique<
+            performance_manager::policies::BackgroundTabLoadingPolicy>(
+            std::move(all_restored_tabs_loaded_callback)));
+  }
 
   if (base::FeatureList::IsEnabled(performance_manager::features::
                                        kEnableBestEffortTaskInhibitingPolicy)) {
@@ -285,6 +303,17 @@ void ChromeBrowserMainExtraPartsPerformanceManager::CreatePoliciesAndDecorators(
     voting_system
         ->AddPriorityVoter<performance_manager::execution_context_priority::
                                SidePanelLoadingVoter>();
+
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+    // Keeps the renderer of a navigation-blocking extension service worker out
+    // of EcoQoS. See crbug.com/484218883.
+    if (base::FeatureList::IsEnabled(
+            features::kExtensionServiceWorkerPriorityVoter)) {
+      voting_system
+          ->AddPriorityVoter<performance_manager::execution_context_priority::
+                                 ExtensionServiceWorkerPriorityVoter>();
+    }
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   }
 #endif  // !BUILDFLAG(IS_ANDROID)
 
@@ -323,16 +352,12 @@ void ChromeBrowserMainExtraPartsPerformanceManager::PostCreateThreads() {
 
   g_browser_process->profile_manager()->AddObserver(this);
 
-#if BUILDFLAG(IS_ANDROID)
-  if (base::FeatureList::IsEnabled(chrome::android::kProtectedTabsAndroid)) {
-    // performance_manager::policies::DiscardEligibilityPolicy requires
-    // performance_manager::user_tuning::ProfileDiscardOptOutListHelper.
-    profile_discard_opt_out_list_helper_ = std::make_unique<
-        performance_manager::user_tuning::ProfileDiscardOptOutListHelper>();
-  }
-#else
+  // performance_manager::policies::DiscardEligibilityPolicy requires
+  // performance_manager::user_tuning::ProfileDiscardOptOutListHelper.
   profile_discard_opt_out_list_helper_ = std::make_unique<
       performance_manager::user_tuning::ProfileDiscardOptOutListHelper>();
+
+#if !BUILDFLAG(IS_ANDROID)
 
   // Only create the per-origin force foreground priority list helper if the
   // policy to force foreground priority for all tabs is disabled. If that

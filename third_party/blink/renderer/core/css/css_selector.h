@@ -24,6 +24,7 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_CSS_SELECTOR_H_
 
 #include <array>
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -43,11 +44,10 @@
 
 namespace blink {
 
-class ActiveNavigationCondition;
 class CSSParserContext;
 class CSSSelectorList;
 class Document;
-class RouteLocation;
+class NavigationLocation;
 class StyleRule;
 
 // This class represents a simple selector for a StyleRule.
@@ -293,7 +293,7 @@ class CORE_EXPORT CSSSelector {
     kPseudoLink,
     kPseudoMarker,
     kPseudoModal,
-    kPseudoNavSource,
+    kPseudoNavigationSource,
     kPseudoNoButton,
     kPseudoNot,
     kPseudoNthChild,  // Includes :nth-child(An+B of <selector>)
@@ -337,9 +337,9 @@ class CORE_EXPORT CSSSelector {
     kPseudoToolFormActive,
     kPseudoToolSubmitActive,
     kPseudoUnknown,
-    // Something that was unparsable, but contained either a nesting
-    // selector (&), or a :scope pseudo-class, and must therefore be kept
-    // for serialization purposes.
+    // Unparsable due to an invalid selector (e.g. :unknown), or contained
+    // either a nesting selector (&) or a :scope pseudo-class. This must be
+    // kept for serialization purposes.
     kPseudoUnparsed,
     kPseudoUserInvalid,
     kPseudoUserValid,
@@ -424,10 +424,8 @@ class CORE_EXPORT CSSSelector {
     kPseudoOverscrollBackdrop,
     kPseudoOverscrollOpen,
 
-    // :link-to(<route-location>)
+    // :link-to(<navigation-location>)
     kPseudoLinkTo,
-    // :active-navigation(<active-navigation-condition>)
-    kPseudoActiveNavigation,
 
     // https://drafts.csswg.org/selectors/#video-state
     kPseudoPlaying,
@@ -439,6 +437,9 @@ class CORE_EXPORT CSSSelector {
     // https://drafts.csswg.org/selectors/#sound-state
     kPseudoMuted,
     kPseudoVolumeLocked,
+
+    // ::skeleton for preview rendering
+    kPseudoSkeleton,
   };
 
   enum class AttributeMatchType : int {
@@ -454,10 +455,14 @@ class CORE_EXPORT CSSSelector {
     return static_cast<PseudoType>(bits_.get_concurrently<PseudoTypeField>());
   }
 
-  void UpdatePseudoType(const AtomicString&,
+  void UpdatePseudoType(AtomicString,
                         const CSSParserContext&,
                         bool has_arguments,
                         CSSParserMode);
+  bool IsUnparsedInvalid() const {
+    return GetPseudoType() == kPseudoUnparsed &&
+           GetNestingType() == CSSNestingType::kNone;
+  }
   void SetUnparsedPlaceholder(CSSNestingType, const AtomicString&);
   // If this simple selector contains a parent selector (&), returns kNesting.
   // Otherwise, if this simple selector contains a :scope pseudo-class,
@@ -538,19 +543,19 @@ class CORE_EXPORT CSSSelector {
     return HasRareData() ? data_.rare_data_->argument_list_.get() : nullptr;
   }
   const CSSSelectorList* SelectorList() const {
-    return HasRareData() ? data_.rare_data_->selector_list_.Get() : nullptr;
+    if (HasRareData()) {
+      return data_.rare_data_->selector_list_.Get();
+    }
+    if (HasInlineSelectorList()) {
+      return data_.selector_list_.Get();
+    }
+    return nullptr;
   }
-  const RouteLocation* GetRouteLocation() const {
+  const NavigationLocation* GetNavigationLocation() const {
     if (!HasRareData()) {
       return nullptr;
     }
-    return data_.rare_data_->route_location_.Get();
-  }
-  const ActiveNavigationCondition* GetActiveNavigationCondition() const {
-    if (!HasRareData()) {
-      return nullptr;
-    }
-    return data_.rare_data_->active_navigation_condition_.Get();
+    return data_.rare_data_->navigation_location_.Get();
   }
   unsigned NthAValue() const {
     CHECK_EQ(GetPseudoType(), kPseudoNthChild);
@@ -589,12 +594,11 @@ class CORE_EXPORT CSSSelector {
 #endif  // DCHECK_IS_ON()
 
   bool IsASCIILower(const AtomicString& value);
-  void SetValue(const AtomicString&, bool match_lower_case);
+  void SetValue(AtomicString, bool match_lower_case = false);
   void SetArgument(const AtomicString&);
   void SetArgumentList(std::unique_ptr<Vector<AtomicString>>);
   void SetSelectorList(CSSSelectorList*);
-  void SetRouteLocation(RouteLocation*);
-  void SetActiveNavigationCondition(ActiveNavigationCondition*);
+  void SetNavigationLocation(NavigationLocation*);
   void SetIdentList(std::unique_ptr<Vector<AtomicString>>);
   void SetContainsPseudoInsideHasPseudoClass();
   void SetContainsComplexLogicalCombinationsInsideHasPseudoClass();
@@ -602,6 +606,36 @@ class CORE_EXPORT CSSSelector {
 
   void SetNth(int a, int b, CSSSelectorList* sub_selector);
   bool MatchNth(unsigned count) const;
+
+  // Returns whether a 1-based sibling index satisfies :nth-child(An + B) for
+  // the given A and B. Shared between the full selector matching and the fast
+  // path for :nth-child() and :first-child.
+  ALWAYS_INLINE static bool MatchNth(int nth_a, int nth_b, unsigned count) {
+    // These very large values for An + B or the index can't ever match, so
+    // give up immediately if we see them.
+    constexpr int kMaxValue = std::numeric_limits<int>::max() / 2;
+    constexpr int kMinValue = std::numeric_limits<int>::min() / 2;
+    if (count > static_cast<unsigned>(kMaxValue) || nth_a > kMaxValue ||
+        nth_a < kMinValue || nth_b > kMaxValue || nth_b < kMinValue)
+        [[unlikely]] {
+      return false;
+    }
+
+    int current_count = static_cast<int>(count);
+    if (nth_a == 0) {
+      return current_count == nth_b;
+    }
+    if (nth_a > 0) {
+      if (current_count < nth_b) {
+        return false;
+      }
+      return (current_count - nth_b) % nth_a == 0;
+    }
+    if (current_count > nth_b) {
+      return false;
+    }
+    return (nth_b - current_count) % (-nth_a) == 0;
+  }
 
   static bool IsAdjacentRelation(RelationType relation) {
     return relation == kDirectAdjacent || relation == kIndirectAdjacent;
@@ -684,6 +718,24 @@ class CORE_EXPORT CSSSelector {
   bool HasRareDataForOilpan() const {
     return bits_.get_concurrently<HasRareDataField>();
   }
+  bool HasInlineSelectorList() const {
+    return bits_.get<HasInlineSelectorListField>();
+  }
+  bool HasInlineSelectorListForOilpan() const {
+    return bits_.get_concurrently<HasInlineSelectorListField>();
+  }
+  // Whether a pseudo-class of the given type can store its selector list
+  // inline (see data_.selector_list_): its serialization must be fully
+  // determined by the pseudo type. (A :has() that also needs one of the
+  // RareData::bits_.has_ flags gets a RareData when the flag is set.)
+  static bool CanStoreSelectorListInline(PseudoType pseudo_type) {
+    return pseudo_type == kPseudoIs || pseudo_type == kPseudoWhere ||
+           pseudo_type == kPseudoNot || pseudo_type == kPseudoHas;
+  }
+  // The (lowercase) name of a pseudo-class for which
+  // CanStoreSelectorListInline() is true.
+  static const AtomicString& NameForInlineSelectorListPseudo(
+      PseudoType pseudo_type);
 
   bool IsForPage() const { return bits_.get<IsForPageField>(); }
   void SetForPage() { bits_.set<IsForPageField>(true); }
@@ -782,8 +834,13 @@ class CORE_EXPORT CSSSelector {
   //
   // Selectors with this flag set trigger "scope activation" during
   // selector matching, see SelectorChecker::MatchForScopeActivation.
-  using IsScopeContainingField = AttributeMatchField::DefineNextValue<bool, 1>;
-  // 3 free bits here.
+  using IsScopeContainingField =
+      LegacyCaseInsensitiveMatchField::DefineNextValue<bool, 1>;
+  // Set if data_.selector_list_ is the active member of the union; see the
+  // comment there.
+  using HasInlineSelectorListField =
+      IsScopeContainingField::DefineNextValue<bool, 1>;
+  // 5 free bits here.
   BitField bits_;
   // 32 padding bits here (on 64-bit platforms).
 
@@ -853,9 +910,7 @@ class CORE_EXPORT CSSSelector {
     std::unique_ptr<Vector<AtomicString>> argument_list_;  // Used for :lang
     Member<CSSSelectorList>
         selector_list_;  // Used :is, :not, :-webkit-any, etc.
-    Member<RouteLocation> route_location_;  // Used for :link-to().
-    Member<ActiveNavigationCondition>
-        active_navigation_condition_;  // Used for :active-navigation().
+    Member<NavigationLocation> navigation_location_;  // Used for :link-to().
     std::unique_ptr<Vector<AtomicString>>
         ident_list_;  // Used for ::part(), :active-view-transition-type().
 
@@ -874,6 +929,8 @@ class CORE_EXPORT CSSSelector {
   //     /* data_.parent_rule_ is valid */
   //  } else if (HasRareData()) {
   //     /* data_.rare_data_ is valid */
+  //  } else if (HasInlineSelectorList()) {
+  //     /* data_.selector_list_ is valid */
   //  } else {
   //     /* data_.value_ is valid */
   //  }
@@ -916,6 +973,15 @@ class CORE_EXPORT CSSSelector {
 
     Member<RareData> rare_data_;
     Member<const StyleRule> parent_rule_;  // For & (parent in nest).
+
+    // For :is(), :where(), :not() and :has() (see
+    // CanStoreSelectorListInline()), which are extremely common in modern
+    // CSS and whose only extra data is usually their selector list: storing
+    // it directly avoids allocating a (much larger) RareData per such
+    // pseudo-class. The value (the pseudo-class name) is implied by the
+    // pseudo type; see NameForInlineSelectorListPseudo(). Falls back to
+    // RareData if anything else is ever set on the selector.
+    Member<CSSSelectorList> selector_list_;
   } data_;
 };
 
@@ -943,22 +1009,24 @@ inline bool CSSSelector::IsASCIILower(const AtomicString& value) {
   return value.ContainsNoAsciiUpper();
 }
 
-inline void CSSSelector::SetValue(const AtomicString& value,
-                                  bool match_lower_case = false) {
+inline void CSSSelector::SetValue(AtomicString value, bool match_lower_case) {
   DCHECK_NE(Match(), static_cast<unsigned>(kTag));
   DCHECK_NE(Match(), static_cast<unsigned>(kUniversalTag));
   DCHECK(!IsPseudoParent());
+  if (HasInlineSelectorList()) {
+    CreateRareData();  // Need somewhere to put both list and value.
+  }
   if (match_lower_case && !HasRareData() && !IsASCIILower(value)) {
     CreateRareData();
   }
 
   if (!HasRareData()) {
-    data_.value_ = value;
+    data_.value_ = std::move(value);
     return;
   }
   data_.rare_data_->matching_value_ =
       match_lower_case ? value.ToAsciiLower() : value;
-  data_.rare_data_->serializing_value_ = value;
+  data_.rare_data_->serializing_value_ = std::move(value);
 }
 
 inline CSSSelector::CSSSelector()
@@ -1035,6 +1103,9 @@ inline CSSSelector::CSSSelector(const CSSSelector& o)
   } else if (o.HasRareData()) {
     new (&data_.rare_data_)
         Member<RareData>(o.data_.rare_data_);  // Oilpan-managed.
+  } else if (o.HasInlineSelectorList()) {
+    new (&data_.selector_list_)
+        Member<CSSSelectorList>(o.data_.selector_list_);  // Oilpan-managed.
   } else {
     new (&data_.value_) AtomicString(o.data_.value_);
   }
@@ -1055,7 +1126,7 @@ inline CSSSelector::~CSSSelector() {
     data_.tag_q_name_or_attribute_.~QualifiedName();
   } else if (Match() == kPseudoClass && GetPseudoType() == kPseudoParent)
     ;  // Nothing to do.
-  else if (HasRareData())
+  else if (HasRareData() || HasInlineSelectorList())
     ;  // Nothing to do.
   else {
     data_.value_.~AtomicString();
@@ -1087,6 +1158,9 @@ inline const AtomicString& CSSSelector::Value() const {
   if (HasRareData()) {
     return data_.rare_data_->matching_value_;
   }
+  if (HasInlineSelectorList()) {
+    return NameForInlineSelectorListPseudo(GetPseudoType());
+  }
   return data_.value_;
 }
 
@@ -1095,6 +1169,9 @@ inline const AtomicString& CSSSelector::SerializingValue() const {
   DCHECK_NE(Match(), static_cast<unsigned>(kUniversalTag));
   if (HasRareData()) {
     return data_.rare_data_->serializing_value_;
+  }
+  if (HasInlineSelectorList()) {
+    return NameForInlineSelectorListPseudo(GetPseudoType());
   }
   return data_.value_;
 }

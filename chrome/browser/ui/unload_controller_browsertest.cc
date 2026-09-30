@@ -12,7 +12,13 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h"
+#include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
+#include "chrome/browser/ui/views/test/vertical_tabs_browser_test_mixin.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/web_applications/test/prevent_close_test_base.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
@@ -26,8 +32,10 @@
 #include "components/webapps/common/web_app_id.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 #include "ui/base/window_open_disposition.h"
+#include "ui/views/view_utils.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -60,9 +68,27 @@ constexpr bool kShouldPreventClose = false;
 
 }  // namespace
 
-using UnloadControllerPreventCloseTest = PreventCloseTestBase;
+class UnloadControllerPreventCloseTest
+    : public VerticalTabsBrowserTestMixin<PreventCloseTestBase>,
+      public testing::WithParamInterface<TabStripOrientation> {
+ public:
+  UnloadControllerPreventCloseTest() = default;
+  ~UnloadControllerPreventCloseTest() override = default;
 
-IN_PROC_BROWSER_TEST_F(UnloadControllerPreventCloseTest,
+  TabStripOrientation orientation() const { return GetParam(); }
+  bool is_horizontal() const {
+    return orientation() == TabStripOrientation::kHorizontal;
+  }
+
+  void SetUpOnMainThread() override {
+    VerticalTabsBrowserTestMixin<PreventCloseTestBase>::SetUpOnMainThread();
+    if (is_horizontal()) {
+      ExitVerticalTabsMode();
+    }
+  }
+};
+
+IN_PROC_BROWSER_TEST_P(UnloadControllerPreventCloseTest,
                        PreventCloseEnforcedByPolicy) {
   const absl::Cleanup policy_cleanup = [this] {
     SetPolicies(/*web_app_settings=*/"[]", /*web_app_install_force_list=*/"[]");
@@ -73,7 +99,7 @@ IN_PROC_BROWSER_TEST_F(UnloadControllerPreventCloseTest,
                                    kPreventCloseEnabledForCalculator,
                                    kCalculatorForceInstalled);
 
-  Browser* const browser =
+  BrowserWindowInterface* const browser =
       LaunchPWA(ash::kCalculatorAppId, /*launch_in_window=*/true);
   ASSERT_TRUE(browser);
 
@@ -92,7 +118,7 @@ IN_PROC_BROWSER_TEST_F(UnloadControllerPreventCloseTest,
 #define MAYBE_PreventCloseEnforcedByPolicyTabbedAppShallBeClosable \
   PreventCloseEnforcedByPolicyTabbedAppShallBeClosable
 #endif
-IN_PROC_BROWSER_TEST_F(
+IN_PROC_BROWSER_TEST_P(
     UnloadControllerPreventCloseTest,
     MAYBE_PreventCloseEnforcedByPolicyTabbedAppShallBeClosable) {
   const absl::Cleanup policy_cleanup = [this] {
@@ -104,7 +130,7 @@ IN_PROC_BROWSER_TEST_F(
                                    kPreventCloseEnabledForCalculator,
                                    kCalculatorForceInstalled);
 
-  Browser* const browser =
+  BrowserWindowInterface* const browser =
       LaunchPWA(ash::kCalculatorAppId, /*launch_in_window=*/false);
   ASSERT_TRUE(browser);
 
@@ -112,6 +138,20 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_EQ(BrowserWindowInterface::ClosingStatus::kPermitted,
             unload_controller->GetBrowserClosingStatus());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    UnloadControllerPreventCloseTest,
+    testing::Values(TabStripOrientation::kVertical,
+                    TabStripOrientation::kHorizontal),
+    [](const testing::TestParamInfo<TabStripOrientation>& info) {
+      switch (info.param) {
+        case TabStripOrientation::kVertical:
+          return "Vertical";
+        case TabStripOrientation::kHorizontal:
+          return "Horizontal";
+      }
+    });
 
 #if BUILDFLAG(IS_CHROMEOS)
 
@@ -130,14 +170,14 @@ IN_PROC_BROWSER_TEST_F(UnloadControllerWithOnTaskTest,
                        PreventCloseWhenLockedForOnTask) {
   // Install and launch app.
   webapps::AppId app_id = InstallMockApp();
-  Browser* const app_browser =
+  BrowserWindowInterface* const app_browser =
       web_app::LaunchWebAppBrowser(browser()->GetProfile(), app_id);
   ash::boca::OnTaskLockedController::From(app_browser)
       ->set_locked_for_on_task(true);
 
   // Verify tab cannot be closed.
   content::WebContents* const active_web_contents =
-      app_browser->tab_strip_model()->GetWebContentsAt(0);
+      app_browser->GetTabStripModel()->GetWebContentsAt(0);
   UnloadController* unload_controller = UnloadController::From(app_browser);
   EXPECT_FALSE(unload_controller->CanCloseContents(active_web_contents));
 }
@@ -146,14 +186,14 @@ IN_PROC_BROWSER_TEST_F(UnloadControllerWithOnTaskTest,
                        AllowCloseWhenNotLockedForOnTask) {
   // Install and launch app.
   webapps::AppId app_id = InstallMockApp();
-  Browser* const app_browser =
+  BrowserWindowInterface* const app_browser =
       web_app::LaunchWebAppBrowser(browser()->GetProfile(), app_id);
   ash::boca::OnTaskLockedController::From(app_browser)
       ->set_locked_for_on_task(false);
 
   // Verify tab can be closed.
   content::WebContents* const active_web_contents =
-      app_browser->tab_strip_model()->GetWebContentsAt(0);
+      app_browser->GetTabStripModel()->GetWebContentsAt(0);
   UnloadController* unload_controller = UnloadController::From(app_browser);
   EXPECT_TRUE(unload_controller->CanCloseContents(active_web_contents));
 }

@@ -82,7 +82,7 @@
 #include "chrome/browser/win/conflicts/enumerate_shell_extensions.h"
 #include "chrome/browser/win/conflicts/module_database.h"
 #include "chrome/browser/win/conflicts/module_event_sink_impl.h"
-#include "chrome/browser/win/isolated_browser_support.h"
+#include "chrome/browser/win/isolated_browser/isolated_browser_support.h"
 #include "chrome/browser/win/remove_app_compat_entries.h"
 #include "chrome/browser/win/util_win_service.h"
 #include "chrome/common/channel_info.h"
@@ -121,7 +121,6 @@
 #include "sandbox/policy/switches.h"
 #include "sandbox/win/src/sandbox.h"
 #include "sandbox/win/src/sandbox_factory.h"
-#include "services/device/public/cpp/device_features.h"
 #include "services/device/public/cpp/geolocation/geolocation_system_permission_manager.h"
 #include "services/device/public/cpp/geolocation/system_geolocation_source_win.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -627,8 +626,7 @@ void ChromeBrowserMainPartsWin::PreProfileInit() {
   // `ModuleDatabase` is an endpoint for IPC from child processes.
   SetupModuleDatabase(&module_watcher_);
 
-  if (base::FeatureList::IsEnabled(features::kWinSystemLocationPermission) &&
-      !device::GeolocationSystemPermissionManager::GetInstance()) {
+  if (!device::GeolocationSystemPermissionManager::GetInstance()) {
     device::GeolocationSystemPermissionManager::SetInstance(
         device::SystemGeolocationSourceWin::
             CreateGeolocationSystemPermissionManager());

@@ -9,12 +9,13 @@
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
@@ -28,12 +29,12 @@
 #include "chrome/browser/ui/toasts/toast_view.h"
 #include "chrome/browser/ui/views/frame/app_menu_button.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/page_action/test_support/page_action_test_accessor.h"
 #include "chrome/browser/ui/views/test/split_view_interactive_test_mixin.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
 #include "components/omnibox/common/omnibox_features.h"
-#include "components/plus_addresses/core/common/features.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "net/dns/mock_host_resolver.h"
@@ -47,6 +48,7 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/button/button.h"
+#include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/interaction/interactive_views_test.h"
 #include "ui/views/view.h"
@@ -63,6 +65,8 @@ DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kSecondTab);
 using ToastViewObserver =
     views::test::PollingViewObserver<bool, toasts::ToastView>;
 DEFINE_LOCAL_STATE_IDENTIFIER_VALUE(ToastViewObserver, kToastViewObserver);
+DEFINE_LOCAL_STATE_IDENTIFIER_VALUE(ui::test::PollingStateObserver<bool>,
+                                    kBookmarkStarFocused);
 
 class OmniboxInputWaiter : public OmniboxTabHelper::Observer {
  public:
@@ -133,8 +137,7 @@ class ToastControllerInteractiveTest
       override {
     return {{toast_features::kLinkCopiedToast, {}},
             {toast_features::kImageCopiedToast, {}},
-            {toast_features::kReadingListToast, {}},
-            {plus_addresses::features::kPlusAddressesEnabled, {}}};
+            {toast_features::kReadingListToast, {}}};
   }
 
   GURL GetURL(std::string_view hostname = "example.com",
@@ -143,7 +146,7 @@ class ToastControllerInteractiveTest
   }
 
   ToastController* GetToastController() {
-    return browser()->browser_window_features()->toast_controller();
+    return browser()->GetFeatures().toast_controller();
   }
 
   auto ShowToast(ToastParams params) {
@@ -186,6 +189,17 @@ class ToastControllerInteractiveTest
         StopObservingState(kToastViewObserver));
     AddDescriptionPrefix(result, "WaitForToastView()");
     return result;
+  }
+
+  auto WaitForBookmarkStar() {
+    return Steps(PollState(kBookmarkStarFocused,
+                           [this]() {
+                             page_actions::PageActionTestAccessor accessor(
+                                 browser(), kActionBookmarkThisTab);
+                             return accessor.HasFocus();
+                           }),
+                 WaitForState(kBookmarkStarFocused, true),
+                 StopObservingState(kBookmarkStarFocused));
   }
 
   template <typename T, typename U>
@@ -302,8 +316,8 @@ IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest, FocusTraversal) {
       CheckView(kToolbarAppMenuButtonElementId,
                 [](AppMenuButton* button) { return button->HasFocus(); }),
 #else
-      CheckView(kBookmarkStarViewElementId,
-                [](views::View* star_view) { return star_view->HasFocus(); }),
+
+      WaitForBookmarkStar(),
 #endif
       CheckView(kBrowserViewElementId, [](BrowserView* browser_view) {
         return browser_view->GetActiveContentsWebView()->HasFocus();
@@ -327,9 +341,7 @@ IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
           CheckView(kToolbarAppMenuButtonElementId,
                     [](AppMenuButton* button) { return button->HasFocus(); }),
 #else
-          CheckView(
-              kBookmarkStarViewElementId,
-              [](views::View* star_view) { return star_view->HasFocus(); }),
+          WaitForBookmarkStar(),
 #endif
           Steps(
               CheckResult(
@@ -429,7 +441,8 @@ IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
 // closes the toast.
 IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
                        MenuButtonClickOpensMenu) {
-  ToastParams params(ToastId::kPlusAddressOverride);
+  ToastParams params(ToastId::kEmailVerified);
+  params.body_string_replacement_params = {u"dummy"};
   int counter = 0;
   params.menu_model = std::make_unique<TestMenuModel>(
       base::BindLambdaForTesting([&counter]() { ++counter; }));
@@ -447,7 +460,8 @@ IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
 // closes via Escape key.
 IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
                        ToastDoesNotCloseWhileMenuIsOpen_Escape) {
-  ToastParams params(ToastId::kPlusAddressOverride);
+  ToastParams params(ToastId::kEmailVerified);
+  params.body_string_replacement_params = {u"dummy"};
   params.menu_model = std::make_unique<TestMenuModel>(base::DoNothing());
   RunTestSequence(ShowToast(std::move(params)),
                   WaitForShow(toasts::ToastView::kToastViewId),
@@ -480,7 +494,8 @@ IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
                     "are reported";
   }
 #endif
-  ToastParams params(ToastId::kPlusAddressOverride);
+  ToastParams params(ToastId::kEmailVerified);
+  params.body_string_replacement_params = {u"dummy"};
   params.menu_model = std::make_unique<TestMenuModel>(base::DoNothing());
   RunTestSequence(ShowToast(std::move(params)),
                   WaitForShow(toasts::ToastView::kToastViewId),
@@ -497,11 +512,11 @@ IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
 IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
                        ToastReactToOmniboxFocus) {
   LocationBar* const location_bar =
-      BrowserWindow::FromBrowser(browser())->GetLocationBar();
+      BrowserView::GetBrowserViewForBrowser(browser())->GetLocationBar();
   ASSERT_TRUE(location_bar);
   OmniboxView* const omnibox_view = location_bar->GetOmniboxView();
   ASSERT_TRUE(omnibox_view);
-  BrowserWindow::FromBrowser(browser())->SetFocusToLocationBar(true);
+  BrowserView::GetBrowserViewForBrowser(browser())->SetFocusToLocationBar(true);
   ASSERT_FALSE(location_bar->GetOmniboxController()->IsPopupOpen());
 
   // Even though the omnibox is focused, the toast should still show because
@@ -520,9 +535,12 @@ IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
 
   // Focus the omnibox again should cause the toast to no longer be visible
   // because we are focusing after the toast is already shown.
-  BrowserWindow::FromBrowser(browser())->SetFocusToLocationBar(true);
+  BrowserView::GetBrowserViewForBrowser(browser())->SetFocusToLocationBar(true);
   EXPECT_TRUE(toast_controller->IsShowingToast());
-  EXPECT_FALSE(toast_controller->GetToastWidgetForTesting()->IsVisible());
+  // ... that may happen asynchronously, however.
+  EXPECT_TRUE(base::test::RunUntil([&]() {
+    return toast_controller->GetToastWidgetForTesting()->IsVisible() == false;
+  }));
 }
 
 IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
@@ -538,7 +556,7 @@ IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
 
   // Trigger the omnibox popup to show.
   LocationBar* const location_bar =
-      BrowserWindow::FromBrowser(browser())->GetLocationBar();
+      BrowserView::GetBrowserViewForBrowser(browser())->GetLocationBar();
   ASSERT_TRUE(location_bar);
   OmniboxView* const omnibox_view = location_bar->GetOmniboxView();
   ASSERT_TRUE(omnibox_view);
@@ -562,7 +580,7 @@ IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
 
 IN_PROC_BROWSER_TEST_F(ToastControllerInteractiveTest,
                        HidesWhenTypingInOmnibox) {
-  BrowserWindow::FromBrowser(browser())->SetFocusToLocationBar(true);
+  BrowserView::GetBrowserViewForBrowser(browser())->SetFocusToLocationBar(true);
 
   // Even though the omnibox is focused, the toast should still show because
   // the omnibox doesn't have a popup and the user isn't interacting with the

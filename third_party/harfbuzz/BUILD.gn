@@ -58,9 +58,9 @@ if (use_system_harfbuzz) {
     bindgen_deps = [ ":hb_rs_generator" ]
     deps = [
       "//third_party/rust/font_types/v0_12:lib",
-      "//third_party/rust/harfrust/v0_12:lib",
-      "//third_party/rust/read_fonts/v0_41:lib",
-      "//third_party/rust/skrifa/v0_44:lib",
+      "//third_party/rust/harfrust/v0_13:lib",
+      "//third_party/rust/read_fonts/v0_43:lib",
+      "//third_party/rust/skrifa/v0_46:lib",
       "//third_party/rust/smallvec/v1:lib",
     ]
   }
@@ -372,6 +372,9 @@ if (use_system_harfbuzz) {
       "src/src/hb-coretext.h",
       "src/src/hb-coretext.hh",
       "src/src/hb-decycler.hh",
+      "src/src/hb-depend-data.hh",
+      "src/src/hb-depend.cc",
+      "src/src/hb-depend.hh",
       "src/src/hb-directwrite-font.cc",
       "src/src/hb-directwrite-shape.cc",
       "src/src/hb-directwrite.cc",
@@ -411,6 +414,8 @@ if (use_system_harfbuzz) {
       "src/src/hb-gpu.h",
       "src/src/hb-graphite2.cc",
       "src/src/hb-graphite2.h",
+      "src/src/hb-ot-fetch.cc",
+      "src/src/hb-ot-fetch.h",
       "src/src/hb-outline.cc",
       "src/src/hb-outline.hh",
       "src/src/hb-paint-bounded.cc",
@@ -430,6 +435,7 @@ if (use_system_harfbuzz) {
       "src/src/hb-style.cc",
       "src/src/hb-style.h",
       "src/src/hb-subset-cff2-to-cff1.hh",
+      "src/src/hb-subset-depend.h",
       "src/src/hb-uniscribe.cc",
       "src/src/hb-uniscribe.h",
       "src/src/hb-vector-buf.hh",
@@ -557,7 +563,7 @@ if (use_system_harfbuzz) {
     deps = [
       ":harfbuzz_rust",
       "//third_party/icu:icuuc",
-      "//third_party/rust/harfrust/v0_12:lib",
+      "//third_party/rust/harfrust/v0_13:lib",
     ]
 
     if (use_glib) {

@@ -107,6 +107,7 @@ class TestVideoCaptureClient final : public VideoCaptureDevice::Client {
  private:
   // VideoCaptureDevice::Client implementation.
   void OnCaptureConfigurationChanged() override {}
+  void InvalidateBuffers() final {}
 
   void OnStarted() final {
     EXPECT_FALSE(started_);
@@ -148,8 +149,7 @@ class TestVideoCaptureClient final : public VideoCaptureDevice::Client {
       wait_frame_run_loop_->Quit();
   }
 
-  void OnIncomingCapturedData(const uint8_t* data,
-                              int length,
+  void OnIncomingCapturedData(base::span<const uint8_t> data,
                               const VideoCaptureFormat& frame_format,
                               const gfx::ColorSpace& color_space,
                               int clockwise_rotation,
@@ -180,15 +180,6 @@ class TestVideoCaptureClient final : public VideoCaptureDevice::Client {
       std::optional<base::TimeTicks> capture_begin_time,
       const gfx::Rect& visible_rect,
       const gfx::Size& natural_size,
-      const std::optional<VideoFrameMetadata>& metadata) override {
-    NOTREACHED();
-  }
-  void OnIncomingCapturedBuffer(
-      Buffer buffer,
-      const VideoCaptureFormat& format,
-      base::TimeTicks reference_time,
-      base::TimeDelta timestamp,
-      std::optional<base::TimeTicks> capture_begin_time,
       const std::optional<VideoFrameMetadata>& metadata) override {
     NOTREACHED();
   }

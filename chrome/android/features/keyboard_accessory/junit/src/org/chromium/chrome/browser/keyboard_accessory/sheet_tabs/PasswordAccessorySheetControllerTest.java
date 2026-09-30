@@ -37,6 +37,7 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
+import org.chromium.base.CallbackUtils;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.ObservableSuppliers;
@@ -51,7 +52,7 @@ import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.OptionToggle;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.UserInfo;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
+import org.chromium.ui.accessibility.AccessibilityStateTestHelper;
 import org.chromium.ui.modelutil.ListObservable;
 
 import java.util.concurrent.atomic.AtomicReference;
@@ -82,7 +83,7 @@ public class PasswordAccessorySheetControllerTest {
 
     @After
     public void tearDown() {
-        ChromeAccessibilityUtil.get().setAccessibilityEnabledForTesting(false);
+        AccessibilityStateTestHelper.setAccessibilityEnabledForTesting(false);
     }
 
     @Test
@@ -104,7 +105,7 @@ public class PasswordAccessorySheetControllerTest {
 
     @Test
     public void testRequestDefaultFocus() {
-        ChromeAccessibilityUtil.get().setAccessibilityEnabledForTesting(true);
+        AccessibilityStateTestHelper.setAccessibilityEnabledForTesting(true);
 
         when(mMockView.getParent()).thenReturn(mMockView);
         KeyboardAccessoryData.Tab tab = mCoordinator.getTab();
@@ -163,7 +164,8 @@ public class PasswordAccessorySheetControllerTest {
 
         // Providing a User Info doesn't add a separator, even with footers present:
         testData.getUserInfoList().add(new UserInfo("example.com", true));
-        testData.getFooterCommands().add(new FooterCommand("Manage passwords", result -> {}));
+        testData.getFooterCommands()
+                .add(new FooterCommand("Manage passwords", CallbackUtils.emptyCallback()));
         testProvider.set(testData);
 
         assertThat(mSheetDataPieces.size(), is(2));
@@ -183,7 +185,8 @@ public class PasswordAccessorySheetControllerTest {
         mCoordinator.registerDataProvider(testProvider);
 
         // Providing only FooterCommands and no User Info shows the title as empty state:
-        testData.getFooterCommands().add(new FooterCommand("Manage passwords", result -> {}));
+        testData.getFooterCommands()
+                .add(new FooterCommand("Manage passwords", CallbackUtils.emptyCallback()));
         testProvider.set(testData);
 
         assertThat(mSheetDataPieces.size(), is(3));
@@ -336,7 +339,7 @@ public class PasswordAccessorySheetControllerTest {
                         "Save passwords for this site",
                         toggleEnabled,
                         AccessoryAction.TOGGLE_SAVE_PASSWORDS,
-                        (Boolean enabled) -> {}));
+                        CallbackUtils.emptyCallback()));
         mCoordinator.registerDataProvider(testProvider);
         testProvider.set(testData);
     }

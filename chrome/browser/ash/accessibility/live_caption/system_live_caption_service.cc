@@ -7,6 +7,7 @@
 #include "ash/accessibility/caption_bubble_context_ash.h"
 #include "ash/webui/settings/public/constants/routes.mojom.h"
 #include "base/check_deref.h"
+#include "base/i18n/legacy_language_tag_helpers.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
 #include "chrome/browser/accessibility/live_caption/live_caption_controller_factory.h"
@@ -88,8 +89,8 @@ void SystemLiveCaptionService::OnSpeechResult(
       prefs->GetString(prefs::kLiveTranslateTargetLanguageCode);
   if (media::IsLiveTranslateEnabled() &&
       prefs->GetBoolean(prefs::kLiveTranslateEnabled) &&
-      l10n_util::GetLanguage(target_language) !=
-          l10n_util::GetLanguage(source_language_)) {
+      base::i18n::GetLanguageSubtagUsingLanguageTag(target_language) !=
+          base::i18n::GetLanguageSubtagUsingLanguageTag(source_language_)) {
     auto cache_result = translation_cache_.FindCachedTranslationOrRemaining(
         result->transcription, source_language_, target_language);
     std::string cached_translation = cache_result.second;
@@ -199,11 +200,6 @@ void SystemLiveCaptionService::SpeechRecognitionAvailabilityChanged(
     if (!client_) {
       // Need to wait for the recognizer to be ready before starting.
       CreateClient();
-      // Inject a fake audio system in tests.
-      if (!create_audio_system_for_testing_.is_null()) {
-        client_->set_audio_system_for_testing(  // IN-TEST
-            create_audio_system_for_testing_.Run());
-      }
     }
     // At startup, when asr becomes available, we need to know whether we are in
     // speech or not right now, and pretend that speech started at that
@@ -317,6 +313,12 @@ void SystemLiveCaptionService::CreateClient() {
           /*enable_formatting=*/true, GetPrimaryLanguageCode(),
           /*is_server_based=*/false, GetRecognizerClientType(),
           /*skip_continuously_empty_audio=*/true));
+
+  // Inject a fake audio system in tests.
+  if (!create_audio_system_for_testing_.is_null()) {
+    client_->set_audio_system_for_testing(  // IN-TEST
+        create_audio_system_for_testing_.Run());
+  }
 }
 
 void SystemLiveCaptionService::OnTranslationCallback(

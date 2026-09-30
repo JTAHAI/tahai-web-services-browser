@@ -80,7 +80,6 @@ class ManualFillingCoordinator implements ManualFillingComponent {
                         edgeToEdgeControllerSupplier,
                         insetObserver,
                         barStub,
-                        mMediator::isLargeFormFactor,
                         this::dismiss);
         BrowserControlsManager browserControlsManager =
                 BrowserControlsManagerSupplier.getValueOrNullFrom(windowAndroid);
@@ -190,8 +189,11 @@ class ManualFillingCoordinator implements ManualFillingComponent {
     }
 
     @Override
-    public void show(boolean waitForKeyboard, boolean isCredentialFieldOrHasAutofillSuggestions) {
-        mMediator.show(waitForKeyboard, isCredentialFieldOrHasAutofillSuggestions);
+    public void show(
+            boolean waitForKeyboard,
+            boolean shouldShowOnLargeFormFactor,
+            boolean isContentEditable) {
+        mMediator.show(waitForKeyboard, shouldShowOnLargeFormFactor, isContentEditable);
     }
 
     @Override
@@ -274,7 +276,9 @@ class ManualFillingCoordinator implements ManualFillingComponent {
     @Override
     public void forceShowForTesting() {
         mMediator.show(
-                /* waitForKeyboard= */ true, /* isCredentialFieldOrHasAutofillSuggestions= */ true);
+                /* waitForKeyboard= */ true,
+                /* shouldShowOnLargeFormFactor= */ true,
+                /* isContentEditable= */ false);
     }
 
     @Override

@@ -191,16 +191,17 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
                 @Override
                 public void onLayoutChange(
                         View view, int i, int i1, int i2, int i3, int i4, int i5, int i6, int i7) {
-                    if (mPinnedTabsCoordinator != null) {
-                        updatePinnedTabsStripOnScroll(
-                                /* shouldShowSearchBox= */ true, /* forced= */ true);
-                    }
                     mTabListCoordinator.getContainerView().removeOnLayoutChangeListener(this);
+                    view.post(
+                            () -> {
+                                if (mPinnedTabsCoordinator != null) {
+                                    updatePinnedTabsStripOnScroll(
+                                            /* shouldShowSearchBox= */ true, /* forced= */ true);
+                                }
+                            });
                 }
             };
 
-    private final TabGridItemLongPressOrchestrator.OnLongPressTabItemEventListener
-            mLongPressItemEventListener = this::onLongPressOnTabCard;
     private final Activity mActivity;
     private final ProfileProvider mProfileProvider;
     private final Callback<Boolean> mOnVisibilityChanged = this::onVisibilityChanged;
@@ -243,7 +244,6 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
             ObservableSuppliers.createNonNull(0.0f);
     private final @Nullable ImageView mPaneHairline;
     private final @Nullable PinnedTabStripCoordinator mPinnedTabsCoordinator;
-    private final @Nullable DirectionalScrollListener mSearchBoxVisibilityScrollListener;
     private @Nullable TabGridContextMenuCoordinator mContextMenuCoordinator;
     private @Nullable TabGroupListBottomSheetCoordinator mTabGroupListBottomSheetCoordinator;
 
@@ -316,7 +316,7 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
             Callback<@Nullable View> setOverlayViewCallback,
             @Nullable TabSwitcherDragHandler tabSwitcherDragHandler,
             SettableNonNullObservableSupplier<Boolean> hubSearchBoxVisibilitySupplier) {
-        try (TraceEvent e = TraceEvent.scoped("TabSwitcherPaneCoordinator.constructor")) {
+        try (TraceEvent _ = TraceEvent.scoped("TabSwitcherPaneCoordinator.constructor")) {
             mProfileProvider = profileProvider;
             mIsVisibleSupplier = isVisibleSupplier;
             mIsAnimatingSupplier = isAnimatingSupplier;
@@ -342,9 +342,7 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
                             .with(MODE, mode)
                             .with(FETCH_VIEW_BY_INDEX_CALLBACK, (f) -> mFetchViewByIndex = f)
                             .with(GET_VISIBLE_RANGE_CALLBACK, (f) -> mGetVisibleIndex = f)
-                            .with(
-                                    IS_SCROLLING_SUPPLIER_CALLBACK,
-                                    (f) -> mIsScrollingSupplier.set(f))
+                            .with(IS_SCROLLING_SUPPLIER_CALLBACK, mIsScrollingSupplier::set)
                             .with(
                                     PAGE_KEY_LISTENER,
                                     event ->
@@ -463,7 +461,9 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
                             TabListEditorCoordinator.UNLIMITED_SELECTION,
                             false);
             mTabListCoordinator = tabListCoordinator;
-            tabListCoordinator.setOnLongPressTabItemEventListener(mLongPressItemEventListener);
+            TabGridItemLongPressOrchestrator.OnLongPressTabItemEventListener
+                    longPressItemEventListener = this::onLongPressOnTabCard;
+            tabListCoordinator.setOnLongPressTabItemEventListener(longPressItemEventListener);
 
             TabListRecyclerView recyclerView = tabListCoordinator.getContainerView();
             // Create a `FrameLayout` to hold both the pinned tab strip and the regular tab
@@ -521,7 +521,7 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
             recyclerView.setBackgroundColor(Color.TRANSPARENT);
             recyclerView.addOnScrollListener(mTabListOnScrollListener);
 
-            mSearchBoxVisibilityScrollListener =
+            @Nullable DirectionalScrollListener searchBoxVisibilityScrollListener =
                     new DirectionalScrollListener(
                             () -> {
                                 // Swipe down -> Moving towards top of list.
@@ -550,7 +550,7 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
                             }
                         }
                     };
-            recyclerView.addOnScrollListener(mSearchBoxVisibilityScrollListener);
+            recyclerView.addOnScrollListener(searchBoxVisibilityScrollListener);
             recyclerView.addOnScrollListener(scrollStateChangedListener);
 
             // TODO(agrieve): mTabModelSupplier can be changed to be NonNull assuming
@@ -772,7 +772,7 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
 
     /** Post native initialization. */
     public void initWithNative() {
-        try (TraceEvent e = TraceEvent.scoped("TabSwitcherPaneCoordinator.initWithNative")) {
+        try (TraceEvent _ = TraceEvent.scoped("TabSwitcherPaneCoordinator.initWithNative")) {
             Profile originalProfile = mProfileProvider.getOriginalProfile();
             mTabListCoordinator.initWithNative(originalProfile);
             mMultiThumbnailCardProvider.initWithNative(originalProfile);
@@ -878,11 +878,6 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
     /** Set the tab switcher's RecyclerViewPosition. */
     public void setTabSwitcherRecyclerViewPosition(RecyclerViewPosition position) {
         mTabListCoordinator.setRecyclerViewPosition(position);
-    }
-
-    /** Returns the {@link Rect} of the recyclerview in global coordinates. */
-    public Rect getRecyclerViewRect() {
-        return mTabListCoordinator.getRecyclerViewLocation();
     }
 
     /**
@@ -1077,7 +1072,7 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
                     mTabListCoordinator,
                     mParentView,
                     /* priceWelcomeMessageReviewActionProvider= */ mMediator,
-                    (tabId) -> mMediator.onTabSelecting(tabId, false));
+                    mMediator::onTabSelecting);
             mMessageManager.addObserver(mMessageUpdateObserver);
             if (priceWelcomeMessageController != null) {
                 priceWelcomeMessageController.addObserver(mPriceMessageUpdateObserver);
@@ -1147,10 +1142,6 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
         return mPinnedTabsCoordinator;
     }
 
-    public @Nullable DirectionalScrollListener getDirectionalScrollListenerForTesting() {
-        return mSearchBoxVisibilityScrollListener;
-    }
-
     /* package */ @Nullable TabGridDialogCoordinator getTabGridDialogCoordinatorForTesting() {
         return mTabGridDialogCoordinator;
     }
@@ -1218,7 +1209,8 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
                         tabModel,
                         mBottomSheetController,
                         /* supportsShowNewGroup= */ true,
-                        /* destroyOnHide= */ false);
+                        /* destroyOnHide= */ false,
+                        /* windowAndroid= */ null);
 
         ShowTabListEditor showTabListEditor =
                 tabId -> {
@@ -1248,9 +1240,15 @@ public class TabSwitcherPaneCoordinator implements BackPressHandler {
     }
 
     private void addOnLayoutChangedAfterInitialScrollListener() {
-        mTabListCoordinator
-                .getContainerView()
-                .addOnLayoutChangeListener(mOnLayoutChangedAfterInitialScrollListener);
+        TabListRecyclerView containerView = mTabListCoordinator.getContainerView();
+        containerView.addOnLayoutChangeListener(mOnLayoutChangedAfterInitialScrollListener);
+        containerView.post(
+                () -> {
+                    if (mPinnedTabsCoordinator != null) {
+                        updatePinnedTabsStripOnScroll(
+                                /* shouldShowSearchBox= */ true, /* forced= */ true);
+                    }
+                });
     }
 
     private void updatePinnedTabsStripOnScroll(boolean shouldShowSearchBox, boolean forced) {

@@ -7,12 +7,18 @@ package org.chromium.chrome.browser.ui.enterprise_signals_disclaimer;
 import android.content.Context;
 
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.signin.services.BadgeConfig;
 import org.chromium.chrome.browser.signin.services.DisplayableProfileData;
 import org.chromium.chrome.browser.signin.services.ProfileDataCache;
+import org.chromium.chrome.browser.signin.services.SigninManager;
 import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.identitymanager.IdentityManager;
+import org.chromium.components.signin.metrics.SignoutReason;
 import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.ui.text.ChromeClickableSpan;
+import org.chromium.ui.text.SpanApplier;
+import org.chromium.ui.text.SpanApplier.SpanInfo;
 
 import java.util.Objects;
 
@@ -27,11 +33,26 @@ import java.util.Objects;
  */
 @NullMarked
 class EnterpriseSignalsDisclaimerMediator implements ProfileDataCache.Observer {
+    // TODO(b/537182192): Replace with a p-link.
+    static final String LEARN_MORE_LINK = "https://support.google.com/chrome/a/answer/16191236";
+
     private final PropertyModel mModel;
     private final ProfileDataCache mProfileDataCache;
     private final AccountInfo mPrimaryAccount;
+    private final EnterpriseSignalsDisclaimerCoordinator.Delegate mDelegate;
+    private final SigninManager mSigninManager;
+    private @Nullable Runnable mHideDialogCallback;
+    private boolean mIsDecisionHandled;
 
-    EnterpriseSignalsDisclaimerMediator(Context context, IdentityManager identityManager) {
+    EnterpriseSignalsDisclaimerMediator(
+            Context context,
+            IdentityManager identityManager,
+            EnterpriseSignalsDisclaimerCoordinator.Delegate delegate,
+            SigninManager signinManager,
+            Runnable hideDialogCallback) {
+        mDelegate = delegate;
+        mSigninManager = signinManager;
+        mHideDialogCallback = hideDialogCallback;
         mPrimaryAccount = Objects.requireNonNull(identityManager.getPrimaryAccountInfo());
 
         // Puts the badge in the bottom right corner of the profile picture.
@@ -49,7 +70,6 @@ class EnterpriseSignalsDisclaimerMediator implements ProfileDataCache.Observer {
                         R.dimen.enterprise_signals_disclaimer_profile_picture_size);
         mProfileDataCache.setBadge(badgeConfig);
 
-        // TODO(b/512836948): Replace with localized strings once the content is finalized.
         mModel =
                 new PropertyModel.Builder(EnterpriseSignalsDisclaimerProperties.ALL_KEYS)
                         .with(
@@ -57,36 +77,44 @@ class EnterpriseSignalsDisclaimerMediator implements ProfileDataCache.Observer {
                                 mProfileDataCache.getById(mPrimaryAccount.getId()).getImage())
                         .with(
                                 EnterpriseSignalsDisclaimerProperties.TITLE,
-                                "Your work secured on Chrome")
+                                context.getString(R.string.enterprise_signals_disclaimer_title))
                         .with(
                                 EnterpriseSignalsDisclaimerProperties.DESCRIPTION,
-                                "To secure your work on Chrome, your organization will be able to"
-                                    + " view or manage certain information when you're signed-in to"
-                                    + " Chrome")
+                                getDescriptionWithLink(context))
                         .with(
                                 EnterpriseSignalsDisclaimerProperties.PROFILE_INFORMATION_TITLE,
-                                "Profile information")
+                                context.getString(
+                                        R.string
+                                                .enterprise_signals_disclaimer_profile_information_title))
                         .with(
                                 EnterpriseSignalsDisclaimerProperties.PROFILE_INFORMATION_DETAILS,
-                                "Your organization may need to see and manage browsing data in your"
-                                    + " work profile, such as your browsing history and passwords")
+                                context.getString(
+                                        R.string
+                                                .enterprise_signals_disclaimer_profile_information_details))
                         .with(
                                 EnterpriseSignalsDisclaimerProperties.DEVICE_INFORMATION_TITLE,
-                                "Device information")
+                                context.getString(
+                                        R.string
+                                                .enterprise_signals_disclaimer_device_information_title))
                         .with(
                                 EnterpriseSignalsDisclaimerProperties.DEVICE_INFORMATION_DETAILS,
-                                "To make sure this device can be used safely, your organization may"
-                                    + " need to see information about its operating system,"
-                                    + " browser, settings, and what software is installed on the"
-                                    + " device")
-                        .with(EnterpriseSignalsDisclaimerProperties.ACCEPT_BUTTON_TEXT, "Got it")
-                        .with(EnterpriseSignalsDisclaimerProperties.CANCEL_BUTTON_TEXT, "Sign out")
+                                context.getString(
+                                        R.string
+                                                .enterprise_signals_disclaimer_device_information_details))
+                        .with(
+                                EnterpriseSignalsDisclaimerProperties.ACCEPT_BUTTON_TEXT,
+                                context.getString(
+                                        R.string.enterprise_signals_disclaimer_accept_button_text))
+                        .with(
+                                EnterpriseSignalsDisclaimerProperties.CANCEL_BUTTON_TEXT,
+                                context.getString(
+                                        R.string.enterprise_signals_disclaimer_cancel_button_text))
                         .with(
                                 EnterpriseSignalsDisclaimerProperties.ON_ACCEPT_CLICKED,
-                                v -> onAccept())
+                                v -> onAcceptButtonClicked())
                         .with(
                                 EnterpriseSignalsDisclaimerProperties.ON_CANCEL_CLICKED,
-                                v -> onCancel())
+                                v -> onCancelButtonClicked())
                         .build();
 
         mProfileDataCache.addObserver(this);
@@ -102,13 +130,39 @@ class EnterpriseSignalsDisclaimerMediator implements ProfileDataCache.Observer {
     }
 
     /** Dismisses the dialog and marks the device signals collection consent as granted. */
-    void onAccept() {}
+    private void onAcceptButtonClicked() {
+        if (mIsDecisionHandled) return;
+        mIsDecisionHandled = true;
+        // TODO(b/527872237): Mark the disclaimer as acknowledged.
+        if (mHideDialogCallback != null) {
+            mHideDialogCallback.run();
+            mHideDialogCallback = null;
+        }
+    }
 
-    /**
-     * Signs the user out. This is also triggered when the dialog is dismissed by a back press,
-     * sliding down or tapping outside of the dialog area.
-     */
-    void onCancel() {}
+    /** Called when the user explicitly clicks the Cancel button in the UI. */
+    private void onCancelButtonClicked() {
+        if (mIsDecisionHandled) return;
+        signOutUser();
+        if (mHideDialogCallback != null) {
+            mHideDialogCallback.run();
+            mHideDialogCallback = null;
+        }
+    }
+
+    /** Performs sign-out when the user declined/dismissed the disclaimer. */
+    void signOutUser() {
+        if (mIsDecisionHandled) return;
+        mIsDecisionHandled = true;
+
+        mSigninManager.runAfterOperationInProgress(
+                () -> {
+                    if (mSigninManager.isSignOutAllowed()) {
+                        mSigninManager.signOut(
+                                SignoutReason.USER_DECLINED_ENTERPRISE_SIGNALS_DISCLAIMER);
+                    }
+                });
+    }
 
     /** Implements {@link ProfileDataCache.Observer}. */
     @Override
@@ -121,5 +175,13 @@ class EnterpriseSignalsDisclaimerMediator implements ProfileDataCache.Observer {
 
     void destroy() {
         mProfileDataCache.removeObserver(this);
+    }
+
+    private CharSequence getDescriptionWithLink(Context context) {
+        final ChromeClickableSpan learnMoreSpan =
+                new ChromeClickableSpan(context, v -> mDelegate.showInfoPage(LEARN_MORE_LINK));
+        return SpanApplier.applySpans(
+                context.getString(R.string.enterprise_signals_disclaimer_description),
+                new SpanInfo("<LINK>", "</LINK>", learnMoreSpan));
     }
 }

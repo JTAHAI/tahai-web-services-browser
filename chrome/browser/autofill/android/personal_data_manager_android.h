@@ -220,6 +220,10 @@ class PersonalDataManagerAndroid : public PersonalDataManagerObserver {
   // Returns whether the Autofill feature for profiles is managed.
   bool IsAutofillProfileManaged(JNIEnv* env);
 
+  // Returns whether the specified Autofill data category is disabled by the
+  // AutofillSettings enterprise policy.
+  bool IsAutofillTypeDisabledByEnterprisePolicy(JNIEnv* env, int category);
+
   // Returns whether the Autofill feature for credit cards is managed.
   bool IsAutofillCreditCardManaged(JNIEnv* env);
 
@@ -254,6 +258,15 @@ class PersonalDataManagerAndroid : public PersonalDataManagerObserver {
 
   // Returns whether the user has seen the Amount Extraction AI terms.
   bool IsAutofillAmountExtractionAiTermsSeenPrefEnabled(JNIEnv* env);
+
+  // Returns all email addresses that have email verification enabled.
+  std::vector<std::string> GetEmailVerificationAddresses(JNIEnv* env);
+
+  // Returns the verification issuer for a given `email` address.
+  std::string GetEmailVerificationIssuer(JNIEnv* env, const std::string& email);
+
+  // Removes the given `email` address from the user's email verification state.
+  void RemoveEmailVerificationAddress(JNIEnv* env, const std::string& email);
 
  private:
   ~PersonalDataManagerAndroid() override;

@@ -56,7 +56,9 @@ class AndroidNotificationHandler : public ReceivingUiHandler,
   virtual void ShowNotification(const SendTabToSelfEntry& entry);
   virtual void HideNotification(const std::string& guid);
   virtual void ShowMessageBanner(std::string_view device_name,
-                                 content::WebContents* web_contents);
+                                 int opened_tab_count,
+                                 content::WebContents* web_contents,
+                                 const GURL& opened_tab_url);
 
  private:
   // SendTabToSelfModelObserver implementation.
@@ -85,18 +87,18 @@ class AndroidNotificationHandler : public ReceivingUiHandler,
   // available.
   void CheckAndOpenPendingEntries();
 
+  // Opens all the given entries in the context of `target_web_contents` as new
+  // background tabs and marks the entries as opened.
   void OpenEntriesInBackground(
       base::span<const SendTabToSelfEntry* const> entries,
       content::WebContents& target_web_contents,
       AutoOpenOutcome outcome);
 
-  // Opens the given entry as a new background tab in the context of
-  // `target_web_contents` and marks the entry as opened.
-  // TODO(crbug.com/488072250): De-duplicate this function with the Desktop
-  // alternate in chrome/browser/ui/send_tab_to_self/send_tab_to_self_util.h.
-  void OpenEntryInBackgroundTab(const SendTabToSelfEntry& entry,
-                                content::WebContents& target_web_contents,
-                                int tabstrip_index);
+  // Opens the given entry in the context of `target_web_contents` as a new
+  // background tab and marks the entry as opened.
+  void OpenEntryInBackground(const SendTabToSelfEntry& entry,
+                             content::WebContents& target_web_contents,
+                             int tabstrip_index);
 
   const raw_ptr<SendTabToSelfModel> send_tab_to_self_model_;
 

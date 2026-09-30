@@ -3,12 +3,15 @@
 // found in the LICENSE file.
 
 #include "build/build_config.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_test.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller_state_test.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
@@ -52,7 +55,15 @@ class FullscreenControllerStateInteractiveTest
   }
 
   // FullscreenControllerStateTest:
-  Browser* GetBrowser() override { return InProcessBrowserTest::browser(); }
+  FullscreenController* GetFullscreenController() override {
+    return browser()
+        ->GetFeatures()
+        .exclusive_access_manager()
+        ->fullscreen_controller();
+  }
+  content::WebContents* GetActiveWebContents() override {
+    return browser()->GetTabStripModel()->GetActiveWebContents();
+  }
 };
 
 // Soak tests ------------------------------------------------------------------

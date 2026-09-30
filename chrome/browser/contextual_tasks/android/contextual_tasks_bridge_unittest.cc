@@ -11,6 +11,7 @@
 #include "base/test/bind.h"
 #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
 #include "chrome/browser/contextual_tasks/active_task_context_provider.h"
+#include "chrome/browser/contextual_tasks/contextual_tasks_eligibility_manager.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_service_factory.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service_factory.h"
@@ -121,10 +122,7 @@ TEST_F(ContextualTasksBridgeTest, InitPopulatesUserData) {
   EXPECT_EQ(nullptr, ActiveTaskContextProvider::Get(unowned_user_data_host_));
 
   // Instantiate the bridge.
-  JNIEnv* env = base::android::AttachCurrentThread();
-  ContextualTasksBridge bridge(env,
-                               base::android::ScopedJavaLocalRef<jobject>(),
-                               &mock_browser, profile_.get());
+  ContextualTasksBridge bridge(nullptr, &mock_browser, profile_.get());
 
   // After bridge construction, the features should be present in the host.
   EXPECT_NE(nullptr,
@@ -135,63 +133,6 @@ TEST_F(ContextualTasksBridgeTest, InitPopulatesUserData) {
 
   // Verify Get() works.
   EXPECT_EQ(&bridge, ContextualTasksBridge::From(&mock_browser));
-}
-
-TEST_F(ContextualTasksBridgeTest, GetTaskIdForTab_Null) {
-  EXPECT_TRUE(ContextualTasksBridge::GetTaskIdForTab(nullptr).empty());
-}
-
-TEST_F(ContextualTasksBridgeTest, GetTaskIdForTab_NotAssociated) {
-  std::unique_ptr<content::WebContents> web_contents =
-      content::WebContentsTester::CreateTestWebContents(profile_.get(),
-                                                        nullptr);
-  sessions::SessionTabHelper::CreateForWebContents(web_contents.get(),
-                                                   base::NullCallback());
-
-  ON_CALL(*mock_service(), GetContextualTaskForTab(testing::_))
-      .WillByDefault(testing::Return(std::nullopt));
-
-  EXPECT_TRUE(
-      ContextualTasksBridge::GetTaskIdForTab(web_contents.get()).empty());
-}
-
-TEST_F(ContextualTasksBridgeTest, GetTaskIdForTab_Associated) {
-  std::unique_ptr<content::WebContents> web_contents =
-      content::WebContentsTester::CreateTestWebContents(profile_.get(),
-                                                        nullptr);
-  sessions::SessionTabHelper::CreateForWebContents(web_contents.get(),
-                                                   base::NullCallback());
-
-  base::Uuid task_id = base::Uuid::GenerateRandomV4();
-  ContextualTask task(task_id);
-  task.SetTitle("Test Task");
-
-  EXPECT_CALL(*mock_service(), GetContextualTaskForTab(testing::_))
-      .WillOnce(testing::Return(task));
-
-  EXPECT_EQ(ContextualTasksBridge::GetTaskIdForTab(web_contents.get()),
-            task_id.AsLowercaseString());
-}
-
-TEST_F(ContextualTasksBridgeTest, GetTaskIdForTab_WebUIUrl) {
-  std::unique_ptr<content::WebContents> web_contents =
-      content::WebContentsTester::CreateTestWebContents(profile_.get(),
-                                                        nullptr);
-  sessions::SessionTabHelper::CreateForWebContents(web_contents.get(),
-                                                   base::NullCallback());
-
-  // Simulate not having an active task for standard tabs.
-  ON_CALL(*mock_service(), GetContextualTaskForTab(testing::_))
-      .WillByDefault(testing::Return(std::nullopt));
-
-  // Set WebUI URL with taskId.
-  const GURL gurl(
-      "chrome://contextual-tasks/"
-      "?chrome_task_id=65e07d6b-0df8-43e2-b083-50fb5b1e744e");
-  content::WebContentsTester::For(web_contents.get())->NavigateAndCommit(gurl);
-
-  EXPECT_EQ(ContextualTasksBridge::GetTaskIdForTab(web_contents.get()),
-            "65e07d6b-0df8-43e2-b083-50fb5b1e744e");
 }
 
 TEST_F(ContextualTasksBridgeTest, GetTaskTitleForTab_Null) {

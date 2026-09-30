@@ -27,8 +27,7 @@ ReadAnythingOmniboxController::ReadAnythingOmniboxController(
       tab_(tab) {
   // This class should only be instantiated if the omnibox entrypoint is
   // enabled.
-  CHECK(features::IsReadAnythingOmniboxChipEnabled() &&
-        base::FeatureList::IsEnabled(features::kPageActionsMigration));
+  CHECK(features::IsReadAnythingOmniboxChipEnabled());
 
   read_anything::ReadAnythingEntryPointController::
       RegisterForSuggestReadingMode(
@@ -46,11 +45,9 @@ ReadAnythingOmniboxController::ReadAnythingOmniboxController(
       base::BindRepeating(&ReadAnythingOmniboxController::OnTabBackgrounded,
                           weak_factory_.GetWeakPtr())));
 
-  if (features::IsImmersiveReadAnythingEnabled()) {
-    auto* read_anything_controller = ReadAnythingController::From(tab_);
-    CHECK(read_anything_controller);
-    read_anything_controller->AddObserver(this);
-  }
+  auto* read_anything_controller = ReadAnythingController::From(tab_);
+  CHECK(read_anything_controller);
+  read_anything_controller->AddObserver(this);
 }
 
 ReadAnythingOmniboxController::~ReadAnythingOmniboxController() = default;
@@ -86,7 +83,6 @@ void ReadAnythingOmniboxController::Activate(
     }
 
     if (features::IsReadAnythingOmniboxChipEnabled() &&
-        base::FeatureList::IsEnabled(features::kPageActionsMigration) &&
         open_trigger !=
             ReadAnythingOpenTrigger::kReadAnythingTogglePresentationButton &&
         GetCurrentPageActionState().showing) {
@@ -102,21 +98,10 @@ void ReadAnythingOmniboxController::Activate(
     if (open_trigger == ReadAnythingOpenTrigger::kOmniboxChip) {
       was_triggered_ = true;
     }
-  } else if (!features::IsImmersiveReadAnythingEnabled() &&
-             tab_->IsActivated()) {
-    // Show the entrypoint again once RM is closed. In immersive mode, do this
-    // in OnReadingModePresenterChanged instead since the presentation state
-    // does not change right away.
-    read_anything::ReadAnythingEntryPointController::UpdatePageActionVisibility(
-        /*should_show_page_action=*/true, tab_);
   }
 }
 
 void ReadAnythingOmniboxController::OnReadingModePresenterChanged() {
-  if (!features::IsImmersiveReadAnythingEnabled()) {
-    return;
-  }
-
   auto* read_anything_controller = ReadAnythingController::From(tab_);
   CHECK(read_anything_controller);
   // If Reading mode was just closed by the user, show the omnibox entrypoint.
@@ -132,16 +117,13 @@ void ReadAnythingOmniboxController::OnReadingModePresenterChanged() {
 void ReadAnythingOmniboxController::OnDestroyed() {
   LogUkm();
   StopTimers();
-  if (features::IsImmersiveReadAnythingEnabled()) {
-    auto* read_anything_controller = ReadAnythingController::From(tab_);
-    CHECK(read_anything_controller);
-    read_anything_controller->RemoveObserver(this);
-  }
+  auto* read_anything_controller = ReadAnythingController::From(tab_);
+  CHECK(read_anything_controller);
+  read_anything_controller->RemoveObserver(this);
 }
 
 void ReadAnythingOmniboxController::OnWillClose(
     ReadAnythingCloseReason reason) {
-  CHECK(features::IsImmersiveReadAnythingEnabled());
   last_close_reason_ = reason;
 }
 

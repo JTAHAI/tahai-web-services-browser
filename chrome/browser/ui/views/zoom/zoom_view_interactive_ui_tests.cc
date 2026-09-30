@@ -5,16 +5,16 @@
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/location_bar/zoom_bubble_coordinator.h"
 #include "chrome/browser/ui/views/location_bar/zoom_bubble_view.h"
-#include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
@@ -35,9 +35,7 @@ namespace {
 
 class ZoomViewInteractiveUiTest : public InteractiveBrowserTest {
  public:
-  ZoomViewInteractiveUiTest() {
-    scoped_feature_list_.InitAndEnableFeature(features::kPageActionsMigration);
-  }
+  ZoomViewInteractiveUiTest() = default;
 
   ZoomViewInteractiveUiTest(const ZoomViewInteractiveUiTest&) = delete;
   ZoomViewInteractiveUiTest& operator=(const ZoomViewInteractiveUiTest&) =
@@ -48,7 +46,7 @@ class ZoomViewInteractiveUiTest : public InteractiveBrowserTest {
  protected:
   int GetZoomPercent() {
     content::WebContents* web_contents =
-        browser()->tab_strip_model()->GetActiveWebContents();
+        browser()->GetTabStripModel()->GetActiveWebContents();
 
     return ZoomController::FromWebContents(web_contents)->GetZoomPercent();
   }
@@ -134,14 +132,17 @@ IN_PROC_BROWSER_TEST_F(ZoomViewInteractiveUiTest, ZoomStateUpdates) {
 
 IN_PROC_BROWSER_TEST_F(ZoomViewInteractiveUiTest,
                        ShowAndHideZoomBubbleByClickWithMouse) {
-  RunTestSequence(WaitForZoomBubbleHide(), DoZoomIn(),
-                  WaitForShow(kActionItemZoomElementId),
-                  MoveMouseTo(kActionItemZoomElementId), ClickMouse(),
-                  WaitForZoomBubbleShow(),
-                  MoveMouseTo(kActionItemZoomElementId), ClickMouse(),
-                  WaitForZoomBubbleHide(),
-                  MoveMouseTo(kActionItemZoomElementId), ClickMouse(),
-                  WaitForZoomBubbleShow());
+  RunTestSequence(
+      WaitForZoomBubbleHide(), DoZoomIn(),
+      WaitForShow(kActionItemZoomElementId),
+      MoveMouseTo(kActionItemZoomElementId), ClickMouse(),
+      WaitForZoomBubbleShow(), MoveMouseTo(kActionItemZoomElementId),
+      ClickMouse(), WaitForZoomBubbleHide(),
+      CheckResult(
+          [&]() { return ZoomBubbleCoordinator::From(browser())->IsShowing(); },
+          false),
+      MoveMouseTo(kActionItemZoomElementId), ClickMouse(),
+      WaitForZoomBubbleShow());
 }
 
 IN_PROC_BROWSER_TEST_F(ZoomViewInteractiveUiTest,

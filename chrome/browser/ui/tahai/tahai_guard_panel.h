@@ -16,7 +16,7 @@
 #include "ui/base/interaction/element_identifier.h"
 #include "url/origin.h"
 
-class Browser;
+class BrowserWindowInterface;
 
 namespace tahai::guard {
 
@@ -30,7 +30,7 @@ DECLARE_ELEMENT_IDENTIFIER_VALUE(kGuardSiteExceptionElementId);
 class GuardPanelController final : public TabStripModelObserver,
                                    public content::WebContentsObserver {
  public:
-  explicit GuardPanelController(Browser* browser,
+  explicit GuardPanelController(BrowserWindowInterface* browser,
                                 base::RepeatingClosure invalidated = {});
   ~GuardPanelController() override;
   bool IsCurrent() const;
@@ -60,7 +60,7 @@ class GuardPanelController final : public TabStripModelObserver,
   GuardProfileService* Service() const;
   std::optional<TahaiGuardConfiguration> Configuration() const;
 
-  base::WeakPtr<Browser> browser_;
+  base::WeakPtr<BrowserWindowInterface> browser_;
   content::WeakDocumentPtr document_;
   url::Origin origin_;
   bool invalid_ = false;
@@ -68,8 +68,8 @@ class GuardPanelController final : public TabStripModelObserver,
   raw_ptr<TabStripModel> tab_strip_model_ = nullptr;
 };
 
-bool CanShowGuardPanel(Browser* browser);
-void ShowGuardPanel(Browser* browser);
+bool CanShowGuardPanel(BrowserWindowInterface* browser);
+void ShowGuardPanel(BrowserWindowInterface* browser);
 
 }  // namespace tahai::guard
 

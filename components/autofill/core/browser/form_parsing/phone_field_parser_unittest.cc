@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "base/containers/to_vector.h"
@@ -17,7 +18,7 @@
 #include "components/autofill/core/browser/autofill_field.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/form_parsing/autofill_scanner.h"
-#include "components/autofill/core/browser/form_parsing/parsing_test_utils.h"
+#include "components/autofill/core/browser/form_parsing/parsing_test_util.h"
 #include "components/autofill/core/browser/form_parsing/regex_patterns.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/form_field_data.h"
@@ -96,7 +97,7 @@ void PhoneFieldParserTest::CheckField(const FieldGlobalId id,
                                       FieldType expected_type) const {
   auto it = field_candidates_map_.find(id);
   ASSERT_TRUE(it != field_candidates_map_.end());
-  EXPECT_EQ(expected_type, it->second.BestHeuristicType());
+  EXPECT_EQ(expected_type, it->second.BestHeuristicCandidate().type);
 }
 
 FieldGlobalId PhoneFieldParserTest::AppendField(

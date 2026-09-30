@@ -210,7 +210,7 @@ IN_PROC_BROWSER_TEST_F(ArcOpenUrlDelegateImplWebAppBrowserTest,
   }
 }
 
-void TestOpenSettingFromArc(Browser* browser,
+void TestOpenSettingFromArc(BrowserWindowInterface* browser,
                             ChromePage page,
                             const GURL& expected_url,
                             bool expected_setting_window) {
@@ -388,7 +388,14 @@ void TestAllAboutPages() {
   TestOpenChromePage(ChromePage::ABOUTBLANK, GURL(url::kAboutBlankURL));
 }
 
-IN_PROC_BROWSER_TEST_F(ArcOpenUrlDelegateImplBrowserTest, TestOpenChromePage) {
+// TODO(crbug.com/542966272): Flaky on debug builds.
+#if !defined(NDEBUG)
+#define MAYBE_TestOpenChromePage DISABLED_TestOpenChromePage
+#else
+#define MAYBE_TestOpenChromePage TestOpenChromePage
+#endif
+IN_PROC_BROWSER_TEST_F(ArcOpenUrlDelegateImplBrowserTest,
+                       MAYBE_TestOpenChromePage) {
   // Install the Settings App.
   ash::SystemWebAppManager::GetForTest(browser()->GetProfile())
       ->InstallSystemAppsForTesting();

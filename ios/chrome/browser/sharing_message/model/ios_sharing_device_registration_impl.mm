@@ -207,10 +207,6 @@ IOSSharingDeviceRegistrationImpl::GetEnabledFeatures() const {
 }
 
 
-bool IOSSharingDeviceRegistrationImpl::IsSharedClipboardSupported() const {
-  return false;
-}
-
 bool IOSSharingDeviceRegistrationImpl::IsSmsFetcherSupported() const {
   return false;
 }
@@ -232,6 +228,10 @@ bool IOSSharingDeviceRegistrationImpl::
 
 bool IOSSharingDeviceRegistrationImpl::IsGlicExperimentalTriggeringSupported()
     const {
+  return false;
+}
+
+bool IOSSharingDeviceRegistrationImpl::IsBrowserActuatorSupported() const {
   return false;
 }
 

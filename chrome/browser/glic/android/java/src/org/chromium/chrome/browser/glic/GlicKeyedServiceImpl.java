@@ -12,6 +12,7 @@ import org.jni_zero.NativeMethods;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.ObserverList;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
@@ -67,6 +68,31 @@ public class GlicKeyedServiceImpl implements GlicKeyedService {
 
         return GlicKeyedServiceImplJni.get()
                 .invokeWithAutoSubmit(mNativePtr, tab, text, invocationSource);
+    }
+
+    @Override
+    public void invokeWithPrompt(Tab tab, String text, @GlicInvocationSource int invocationSource) {
+        if (mNativePtr == 0) return;
+
+        GlicKeyedServiceImplJni.get().invokeWithPrompt(mNativePtr, tab, text, invocationSource);
+    }
+
+    @Override
+    public void invoke(Tab tab, @GlicInvocationSource int invocationSource) {
+        if (mNativePtr == 0) return;
+
+        GlicKeyedServiceImplJni.get().invoke(mNativePtr, tab, invocationSource);
+    }
+
+    @Override
+    public void invokeWithConversation(
+            @Nullable Tab tab,
+            String glicConversationId,
+            @GlicInvocationSource int invocationSource) {
+        if (mNativePtr == 0) return;
+
+        GlicKeyedServiceImplJni.get()
+                .invokeWithConversation(mNativePtr, tab, glicConversationId, invocationSource);
     }
 
     @Override
@@ -181,6 +207,23 @@ public class GlicKeyedServiceImpl implements GlicKeyedService {
                 long nativeGlicKeyedServiceAndroid,
                 @JniType("TabAndroid*") Tab tab,
                 @JniType("std::string") String text,
+                @GlicInvocationSource int source);
+
+        void invokeWithPrompt(
+                long nativeGlicKeyedServiceAndroid,
+                @JniType("TabAndroid*") Tab tab,
+                @JniType("std::string") String text,
+                @GlicInvocationSource int source);
+
+        void invoke(
+                long nativeGlicKeyedServiceAndroid,
+                @JniType("TabAndroid*") Tab tab,
+                @GlicInvocationSource int source);
+
+        void invokeWithConversation(
+                long nativeGlicKeyedServiceAndroid,
+                @JniType("TabAndroid*") @Nullable Tab tab,
+                @JniType("std::string") String glicConversationId,
                 @GlicInvocationSource int source);
 
         boolean isPanelShowingForBrowser(long nativeGlicKeyedServiceAndroid, long browserWindowPtr);

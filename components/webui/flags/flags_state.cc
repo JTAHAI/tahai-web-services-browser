@@ -62,7 +62,6 @@ const char kOriginListValueSeparator[] = ",";
 // LINT.IfChange(kRenamedFlags)
 constexpr auto kRenamedFlags =
     base::MakeFixedFlatMap<std::string_view, std::string_view>({
-        {"classifier-api-for-tiny-model", "classifier-api"},
         {"prompt-api-for-gemini-nano", "prompt-api"},
         {"prompt-api-for-gemini-nano-multimodal-input",
          "prompt-api-multimodal-input"},
@@ -594,6 +593,10 @@ std::vector<std::string> FlagsState::RegisterAllFeatureVariationParameters(
     base::FeatureList* feature_list) {
   std::set<std::string> enabled_entries;
   GetSanitizedEnabledFlagsForCurrentPlatform(flags_storage, &enabled_entries);
+  // Nothing to register when no flags are enabled; skip the feature-entry scan.
+  if (enabled_entries.empty()) {
+    return {};
+  }
   return RegisterEnabledFeatureVariationParameters(
       feature_entries_, enabled_entries, internal::kTrialGroupAboutFlags,
       feature_list);

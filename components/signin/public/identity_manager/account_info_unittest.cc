@@ -96,8 +96,10 @@ TEST_F(AccountInfoTest, UpdateWithNoModification) {
           .SetIsChildAccount(signin::Tribool::kTrue)
           .SetIsUnderAdvancedProtection(true)
           .SetLocale("en")
+#if BUILDFLAG(ENABLE_DICE_SUPPORT)
           .SetLastAuthenticationAccessPoint(
               signin_metrics::AccessPoint::kSettings)
+#endif
           .Build();
 
   AccountInfo other =
@@ -138,8 +140,10 @@ TEST_F(AccountInfoTest, UpdateWithSuccessfulUpdate) {
           .SetGivenName("test_name")
           .SetLocale("fr")
           .SetIsChildAccount(signin::Tribool::kTrue)
+#if BUILDFLAG(ENABLE_DICE_SUPPORT)
           .SetLastAuthenticationAccessPoint(
               signin_metrics::AccessPoint::kSettings)
+#endif
           .Build();
   AccountCapabilitiesTestMutator mutator(&other);
   mutator.set_can_show_history_sync_opt_ins_without_minor_mode_restrictions(
@@ -262,8 +266,10 @@ TEST_F(AccountInfoTest, GettersPopulatedAccountInfo) {
           .SetAvatarUrl("picture_url")
           .SetLastDownloadedAvatarUrlWithSize("picture_url_with_size")
           .SetAvatarImage(gfx::test::CreateImage(/*size*/ 24))
+#if BUILDFLAG(ENABLE_DICE_SUPPORT)
           .SetLastAuthenticationAccessPoint(
               signin_metrics::AccessPoint::kSettings)
+#endif
           .UpdateAccountCapabilitiesWith(capabilities)
           .SetIsChildAccount(signin::Tribool::kFalse)
           .SetLocale("fr")
@@ -283,6 +289,15 @@ TEST_F(AccountInfoTest, GettersPopulatedAccountInfo) {
   EXPECT_TRUE(info.GetAccountCapabilities().AreAnyCapabilitiesKnown());
   EXPECT_EQ(info.IsChildAccount(), signin::Tribool::kFalse);
   EXPECT_EQ(info.GetLocale(), "fr");
+}
+
+TEST_F(AccountInfoTest, SetAvatarImage) {
+  AccountInfo info = AccountInfo::Builder(GaiaId("test_id"), "test@example.com")
+                         .SetAvatarImage(gfx::test::CreateImage(/*size=*/24))
+                         .Build();
+  EXPECT_NE(info.GetAvatarImage(), std::nullopt);
+  EXPECT_EQ(info.GetAvatarImage()->Width(), 24);
+  EXPECT_EQ(info.GetAvatarImage()->Height(), 24);
 }
 
 TEST_F(AccountInfoTest, DeprecatedSentinelValues) {
@@ -306,12 +321,46 @@ TEST_F(AccountInfoTest, EmptyTheSameAsDeprecatedSentinelValues) {
 }
 
 TEST_F(AccountInfoTest, CreateWithPossiblyEmptyGaiaId) {
+  // TODO(crbug.com/502237328): Remove this test after launching
+  // kGaiaAccountIdEnforcement.
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndDisableFeature(
+      switches::kGaiaAccountIdEnforcement);
+
   AccountInfo info = AccountInfo::Builder::CreateWithPossiblyEmptyGaiaId(
                          GaiaId(), "test@example.org")
                          .Build();
 
   EXPECT_TRUE(info.GetGaiaId().empty());
   EXPECT_EQ(info.GetEmail(), "test@example.org");
+}
+
+TEST_F(AccountInfoTest, CreateWithPossiblyEmptyGaiaIdAndEmail) {
+  // TODO(crbug.com/40283608): Remove this test after seeding incomplete
+  // accounts is stopped.
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndDisableFeature(
+      switches::kGaiaAccountIdEnforcement);
+
+  AccountInfo info_empty_gaia =
+      AccountInfo::Builder::CreateWithPossiblyEmptyGaiaIdAndEmail(
+          GaiaId(), "test@example.org")
+          .Build();
+  EXPECT_TRUE(info_empty_gaia.GetGaiaId().empty());
+  EXPECT_EQ(info_empty_gaia.GetEmail(), "test@example.org");
+
+  AccountInfo info_empty_email =
+      AccountInfo::Builder::CreateWithPossiblyEmptyGaiaIdAndEmail(
+          GaiaId("test_gaia_id"), "")
+          .Build();
+  EXPECT_EQ(info_empty_email.GetGaiaId(), GaiaId("test_gaia_id"));
+  EXPECT_TRUE(info_empty_email.GetEmail().empty());
+
+  AccountInfo info_empty_both =
+      AccountInfo::Builder::CreateWithPossiblyEmptyGaiaIdAndEmail(GaiaId(), "")
+          .Build();
+  EXPECT_TRUE(info_empty_both.GetGaiaId().empty());
+  EXPECT_TRUE(info_empty_both.GetEmail().empty());
 }
 
 #if BUILDFLAG(IS_ANDROID)

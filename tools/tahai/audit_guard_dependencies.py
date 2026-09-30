@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
+import re
 import tarfile
 import tomllib
 
@@ -136,12 +137,63 @@ def describe(package):
     }
 
 
+def verify_recorded_sources(inventory_path, cache=None):
+    """Check the real checkout, optionally also the pinned original archives.
+
+    This mode needs no historical checksum-bearing Cargo.lock. Checksums are
+    taken from the reviewed inventory; active versions must also exist in the
+    current Chromium lock. It never regenerates or relaxes expected hashes.
+    """
+    inventory = json.loads(read_bounded(inventory_path).decode("utf-8"))
+    entries = inventory["packages"]
+    if (inventory.get("schema_version") != 1 or len(entries) != len(IMPORTED)
+            or {p["name"] for p in entries} != IMPORTED):
+        raise ValueError("Recorded imported package set differs from the reviewed set")
+    lock = tomllib.loads(read_bounded(
+        VENDOR.parent / "Cargo.lock").decode("utf-8"))
+    locked = {(p["name"], p["version"]) for p in lock["package"]}
+    files = 0
+    for entry in entries:
+        name, version = entry["name"], entry["version"]
+        checksum = entry["crates_io_archive_sha256"]
+        if (not re.fullmatch(r"\d+\.\d+\.\d+", version)
+                or not re.fullmatch(r"[0-9a-f]{64}", checksum)):
+            raise ValueError(f"Invalid recorded package identity/checksum: {name}")
+        if (name, version) not in locked:
+            raise ValueError(f"Recorded package missing from current lock: {name} {version}")
+        if name == "adblock" and (version != PIN or checksum != PIN_SHA256
+                                  or entry["upstream_revision"] != PIN_REVISION):
+            raise ValueError("The reviewed adblock-rust pin changed")
+        package = {"name": name, "version": version, "checksum": checksum}
+        for field, actual in describe(package).items():
+            if entry.get(field) != actual:
+                raise ValueError(f"Recorded source inventory mismatch: {name} {field}")
+        if cache is not None:
+            count = verify_import_archive(package, cache)
+            if count != entry["archive_files_verified"]:
+                raise ValueError(f"Recorded archive file count mismatch: {name}")
+            files += count
+    return {"source_inventory_verified": True, "packages": len(entries),
+            "original_archives_verified": cache is not None,
+            "archive_files": files, "native_build_or_runtime_validation": False}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--lock", type=Path, required=True)
-    parser.add_argument("--cache", type=Path, required=True)
+    parser.add_argument("--lock", type=Path)
+    parser.add_argument("--cache", type=Path)
     parser.add_argument("--verify-inventory", type=Path)
+    parser.add_argument("--source-inventory", type=Path,
+                        help="Verify current sources against the reviewed inventory; "
+                             "optionally verify original archives with --cache")
     args = parser.parse_args()
+    if args.source_inventory:
+        if args.lock or args.verify_inventory:
+            parser.error("--source-inventory cannot be combined with --lock/--verify-inventory")
+        print(json.dumps(verify_recorded_sources(args.source_inventory, args.cache)))
+        return
+    if not args.lock or not args.cache:
+        parser.error("--lock and --cache are required unless using --source-inventory")
     lock = tomllib.loads(read_bounded(args.lock).decode("utf-8"))
     packages = [p for p in lock["package"] if p["name"] in IMPORTED]
     # thiserror 2 was already in Chromium. The import introduces only epoch 1.

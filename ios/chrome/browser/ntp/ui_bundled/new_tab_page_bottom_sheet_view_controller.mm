@@ -8,7 +8,13 @@
 
 #import "ios/chrome/browser/content_suggestions/magic_stack/public/magic_stack_constants.h"
 #import "ios/chrome/browser/content_suggestions/ui/content_suggestions_collection_utils.h"
+#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_constants.h"
+#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
+#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_image_background_trait.h"
+#import "ios/chrome/browser/ntp/ui_bundled/ntp_card_background_view.h"
 #import "ios/chrome/browser/ntp/ui_bundled/scroll_delegate_proxy.h"
+#import "ios/chrome/browser/toolbar/ui/toolbar_constants.h"
+#import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 
 namespace {
@@ -34,88 +40,187 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
 @end
 
 @implementation NewTabPageBottomSheetViewController {
+  UIVisualEffectView* _blurBackgroundView;
   UIView* _dragHandle;
+  UIView* _headerContainerView;
   UIView* _magicStackContainerView;
+  UIView* _mostVisitedContainerView;
+  UIView* _mostVisitedView;
   UIView* _contentContainerView;
-  NSLayoutConstraint* _contentContainerTopConstraint;
+  NTPCardBackgroundView* _feedCardBackgroundView;
   BottomSheetSnappingState _sheetState;
 
   CGSize _lastSize;
   CGFloat _initialConstant;
+  CGFloat _lastFeedPanTranslationY;
 
   UIPanGestureRecognizer* _sheetPanGesture;
   __weak UIScrollView* _feedScrollView;
+
+  // Proxy to intercept feed scroll events for VoiceOver auto-expand.
   ScrollDelegateProxy* _scrollProxy;
+
+  // The original delegate of the feed scroll view.
+  __weak id<UIScrollViewDelegate> _originalFeedDelegate;
+
+  BOOL _isBottomOmnibox;
+  NSArray<NSLayoutConstraint*>* _headerContainerConstraints;
+  NSArray<NSLayoutConstraint*>* _feedCardBackgroundConstraints;
+  NSLayoutConstraint* _magicStackTopConstraint;
 }
 
-- (void)loadView {
-  UIBlurEffect* blurEffect =
-      [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemMaterial];
-  self.view = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
+#pragma mark - Public
+
+- (CGFloat)headerHeight {
+  CGFloat height = kMagicStackHeight + kMagicStackToFeedSpacing;
+  if (IsMVTInBottomSheetEnabled() && _mostVisitedContainerView) {
+    CGFloat mvtHeight = CGRectGetHeight(_mostVisitedContainerView.bounds);
+    if (mvtHeight <= 0 && _mostVisitedView) {
+      mvtHeight = [_mostVisitedView
+                      systemLayoutSizeFittingSize:UILayoutFittingCompressedSize]
+                      .height;
+    }
+    if (mvtHeight > 0) {
+      height += mvtHeight +
+                content_suggestions::ReducedModuleSpacing(self.traitCollection);
+    }
+  }
+  return height;
+}
+
+- (void)setOmniboxInBottomPosition:(BOOL)isBottomOmnibox {
+  _isBottomOmnibox = isBottomOmnibox;
+  [self updateFeedInsets];
+}
+
+- (void)updateFeedInsets {
+  if (!_feedScrollView) {
+    return;
+  }
+  CGFloat topInset = [self headerHeight];
+  CGFloat bottomInset = 0.0;
+  if (_isBottomOmnibox && _sheetState == BottomSheetSnappingStateExpanded) {
+    bottomInset = kToolbarHeight + self.view.safeAreaInsets.bottom;
+  }
+  UIEdgeInsets insets = UIEdgeInsetsMake(topInset, 0, bottomInset, 0);
+  if (!UIEdgeInsetsEqualToEdgeInsets(_feedScrollView.contentInset, insets)) {
+    _feedScrollView.contentInset = insets;
+    _feedScrollView.verticalScrollIndicatorInsets = insets;
+  }
 }
 
 - (void)viewDidLoad {
   [super viewDidLoad];
+
+  [[NSNotificationCenter defaultCenter]
+      addObserver:self
+         selector:@selector(voiceOverStatusDidChange)
+             name:UIAccessibilityVoiceOverStatusDidChangeNotification
+           object:nil];
 
   _sheetState = BottomSheetSnappingStateResting;
 
   self.view.layer.cornerRadius = 24.0;
   self.view.layer.masksToBounds = YES;
 
-  UIVisualEffectView* visualEffectView = (UIVisualEffectView*)self.view;
+  _blurBackgroundView = [[UIVisualEffectView alloc]
+      initWithEffect:[UIBlurEffect
+                         effectWithStyle:UIBlurEffectStyleSystemMaterial]];
+  _blurBackgroundView.translatesAutoresizingMaskIntoConstraints = NO;
+  _blurBackgroundView.userInteractionEnabled = NO;
+  [self.view insertSubview:_blurBackgroundView atIndex:0];
+  AddSameConstraints(self.view, _blurBackgroundView);
 
   // Add drag handle to bottom sheet.
   _dragHandle = [[UIView alloc] init];
   _dragHandle.translatesAutoresizingMaskIntoConstraints = NO;
-  _dragHandle.backgroundColor = [UIColor colorWithWhite:0.5 alpha:0.3];
+  _dragHandle.backgroundColor = [UIColor colorNamed:kTextTertiaryColor];
   _dragHandle.layer.cornerRadius = 2.5;
-  [visualEffectView.contentView addSubview:_dragHandle];
+  [self.view addSubview:_dragHandle];
 
   [NSLayoutConstraint activateConstraints:@[
-    [_dragHandle.centerXAnchor
-        constraintEqualToAnchor:visualEffectView.contentView.centerXAnchor],
-    [_dragHandle.topAnchor
-        constraintEqualToAnchor:visualEffectView.contentView.topAnchor
-                       constant:8],
+    [_dragHandle.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+    [_dragHandle.topAnchor constraintEqualToAnchor:self.view.topAnchor
+                                          constant:8],
     [_dragHandle.widthAnchor constraintEqualToConstant:36],
     [_dragHandle.heightAnchor constraintEqualToConstant:5],
   ]];
 
-  // Add magic stack container view.
-  _magicStackContainerView = [[UIView alloc] init];
-  _magicStackContainerView.translatesAutoresizingMaskIntoConstraints = NO;
-  [visualEffectView.contentView addSubview:_magicStackContainerView];
-
-  [NSLayoutConstraint activateConstraints:@[
-    [_magicStackContainerView.leadingAnchor
-        constraintEqualToAnchor:visualEffectView.contentView.leadingAnchor],
-    [_magicStackContainerView.trailingAnchor
-        constraintEqualToAnchor:visualEffectView.contentView.trailingAnchor],
-    [_magicStackContainerView.topAnchor
-        constraintEqualToAnchor:_dragHandle.bottomAnchor
-                       constant:kContentContainerTopMargin],
-    [_magicStackContainerView.heightAnchor
-        constraintEqualToConstant:kMagicStackHeight],
-  ]];
-
-  // Add content container view.
+  // Add content container view that fills the bottom sheet below the drag
+  // handle.
   _contentContainerView = [[UIView alloc] init];
   _contentContainerView.translatesAutoresizingMaskIntoConstraints = NO;
-  [visualEffectView.contentView addSubview:_contentContainerView];
-
-  _contentContainerTopConstraint = [_contentContainerView.topAnchor
-      constraintEqualToAnchor:_dragHandle.bottomAnchor
-                     constant:kContentContainerTopMargin];
-  _contentContainerTopConstraint.active = YES;
+  [self.view addSubview:_contentContainerView];
 
   [NSLayoutConstraint activateConstraints:@[
     [_contentContainerView.leadingAnchor
-        constraintEqualToAnchor:visualEffectView.contentView.leadingAnchor],
+        constraintEqualToAnchor:self.view.leadingAnchor],
     [_contentContainerView.trailingAnchor
-        constraintEqualToAnchor:visualEffectView.contentView.trailingAnchor],
+        constraintEqualToAnchor:self.view.trailingAnchor],
+    [_contentContainerView.topAnchor
+        constraintEqualToAnchor:_dragHandle.bottomAnchor
+                       constant:kContentContainerTopMargin],
     [_contentContainerView.bottomAnchor
-        constraintEqualToAnchor:visualEffectView.contentView.bottomAnchor],
+        constraintEqualToAnchor:self.view.bottomAnchor],
   ]];
+
+  // Add header container view that encapsulates MVT and Magic Stack.
+  _headerContainerView = [[UIView alloc] init];
+  _headerContainerView.translatesAutoresizingMaskIntoConstraints = NO;
+
+  // Add most visited tiles container view if feature is enabled.
+  if (IsMVTInBottomSheetEnabled()) {
+    _mostVisitedContainerView = [[UIView alloc] init];
+    _mostVisitedContainerView.translatesAutoresizingMaskIntoConstraints = NO;
+    [_headerContainerView addSubview:_mostVisitedContainerView];
+
+    [NSLayoutConstraint activateConstraints:@[
+      [_mostVisitedContainerView.leadingAnchor
+          constraintEqualToAnchor:_headerContainerView.leadingAnchor],
+      [_mostVisitedContainerView.trailingAnchor
+          constraintEqualToAnchor:_headerContainerView.trailingAnchor],
+      [_mostVisitedContainerView.topAnchor
+          constraintEqualToAnchor:_headerContainerView.topAnchor],
+    ]];
+  }
+
+  // Add magic stack container view.
+  _magicStackContainerView = [[UIView alloc] init];
+  _magicStackContainerView.translatesAutoresizingMaskIntoConstraints = NO;
+  [_headerContainerView addSubview:_magicStackContainerView];
+
+  if (IsMVTInBottomSheetEnabled()) {
+    _magicStackTopConstraint = [_magicStackContainerView.topAnchor
+        constraintEqualToAnchor:_mostVisitedContainerView.bottomAnchor
+                       constant:content_suggestions::ReducedModuleSpacing(
+                                    self.traitCollection)];
+  } else {
+    _magicStackTopConstraint = [_magicStackContainerView.topAnchor
+        constraintEqualToAnchor:_headerContainerView.topAnchor
+                       constant:0.0];
+  }
+  _magicStackTopConstraint.active = YES;
+
+  [NSLayoutConstraint activateConstraints:@[
+    [_magicStackContainerView.leadingAnchor
+        constraintEqualToAnchor:_headerContainerView.leadingAnchor],
+    [_magicStackContainerView.trailingAnchor
+        constraintEqualToAnchor:_headerContainerView.trailingAnchor],
+    [_magicStackContainerView.heightAnchor
+        constraintEqualToConstant:kMagicStackHeight],
+    [_headerContainerView.bottomAnchor
+        constraintEqualToAnchor:_magicStackContainerView.bottomAnchor],
+  ]];
+
+  // Add feed card background view.
+  _feedCardBackgroundView = [[NTPCardBackgroundView alloc] init];
+  _feedCardBackgroundView.userInteractionEnabled = NO;
+  _feedCardBackgroundView.translatesAutoresizingMaskIntoConstraints = NO;
+  _feedCardBackgroundView.layer.cornerRadius = kHomeModuleContainerCornerRadius;
+  _feedCardBackgroundView.layer.maskedCorners =
+      kCALayerMaxXMinYCorner | kCALayerMinXMinYCorner;
+  _feedCardBackgroundView.clipsToBounds = YES;
+  _feedCardBackgroundView.layer.zPosition = -CGFLOAT_MAX;
 
   // Add pan gesture recognizer.
   _sheetPanGesture =
@@ -124,16 +229,140 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
   _sheetPanGesture.delegate = self;
   [self.view addGestureRecognizer:_sheetPanGesture];
 
-  [self updateContentContainerInsetForOffset:
-            [self targetOffsetForState:_sheetState]];
+  if (_feedViewController) {
+    [self embedFeedViewController];
+  } else {
+    [self updateHeaderContainerHierarchy];
+  }
+
+  if (_mostVisitedView) {
+    [self embedMostVisitedView:_mostVisitedView];
+  }
 
   if (_magicStackViewController) {
     [self embedMagicStackViewController];
   }
 
-  if (_feedViewController) {
-    [self embedFeedViewController];
+  __weak __typeof(self) weakSelf = self;
+  [self registerForTraitChanges:@[
+    UITraitHorizontalSizeClass.class,
+    UITraitVerticalSizeClass.class,
+    UITraitPreferredContentSizeCategory.class,
+    NewTabPageImageBackgroundTrait.class,
+  ]
+                    withHandler:^(id<UITraitEnvironment> traitEnvironment,
+                                  UITraitCollection* previousCollection) {
+                      [weakSelf handleTraitChanges];
+                    }];
+  [self applyBackgroundTheme];
+
+  [self updateContentContainerInsetForOffset:
+            [self targetOffsetForState:_sheetState]];
+}
+
+- (void)handleTraitChanges {
+  if (IsMVTInBottomSheetEnabled() && _magicStackTopConstraint) {
+    _magicStackTopConstraint.constant =
+        content_suggestions::ReducedModuleSpacing(self.traitCollection);
   }
+  [self applyBackgroundTheme];
+  [self updateFeedInsets];
+  [self updateBottomSheetPositionAnimated:NO];
+}
+
+- (void)applyBackgroundTheme {
+  BOOL hasBlurredBackground =
+      [self.traitCollection boolForNewTabPageImageBackgroundTrait];
+  if (hasBlurredBackground) {
+    self.view.backgroundColor = UIColor.clearColor;
+    _blurBackgroundView.hidden = NO;
+  } else {
+    self.view.backgroundColor = [UIColor colorNamed:kSurfaceContainerLowColor];
+    _blurBackgroundView.hidden = YES;
+  }
+}
+
+- (void)updateHeaderContainerHierarchy {
+  if (!self.isViewLoaded || !_headerContainerView || !_contentContainerView) {
+    return;
+  }
+
+  // Pre-Detach Magic Stack child view controller before reparenting
+  // its container view.
+  [self detachMagicStackViewController];
+
+  // Pure view move and constraint updates.
+  [NSLayoutConstraint deactivateConstraints:_headerContainerConstraints];
+  [NSLayoutConstraint deactivateConstraints:_feedCardBackgroundConstraints];
+  if (_feedScrollView &&
+      [_feedScrollView isDescendantOfView:_contentContainerView]) {
+    if (_headerContainerView.superview != _feedScrollView) {
+      [_headerContainerView removeFromSuperview];
+      [_feedScrollView addSubview:_headerContainerView];
+    }
+    _headerContainerConstraints = @[
+      [_headerContainerView.leadingAnchor
+          constraintEqualToAnchor:_contentContainerView.leadingAnchor],
+      [_headerContainerView.trailingAnchor
+          constraintEqualToAnchor:_contentContainerView.trailingAnchor],
+      [_headerContainerView.bottomAnchor
+          constraintEqualToAnchor:_feedScrollView.topAnchor
+                         constant:-kMagicStackToFeedSpacing],
+    ];
+
+    if (_feedCardBackgroundView.superview != _feedScrollView) {
+      [_feedCardBackgroundView removeFromSuperview];
+      [_feedScrollView insertSubview:_feedCardBackgroundView atIndex:0];
+    }
+    [_feedScrollView sendSubviewToBack:_feedCardBackgroundView];
+    _feedCardBackgroundConstraints = @[
+      [_feedCardBackgroundView.topAnchor
+          constraintEqualToAnchor:_feedScrollView.topAnchor],
+      [_feedCardBackgroundView.leadingAnchor
+          constraintEqualToAnchor:_contentContainerView.leadingAnchor],
+      [_feedCardBackgroundView.trailingAnchor
+          constraintEqualToAnchor:_contentContainerView.trailingAnchor],
+      [_feedCardBackgroundView.heightAnchor
+          constraintGreaterThanOrEqualToAnchor:_contentContainerView
+                                                   .heightAnchor],
+    ];
+  } else {
+    if (_headerContainerView.superview != _contentContainerView) {
+      [_headerContainerView removeFromSuperview];
+      [_contentContainerView addSubview:_headerContainerView];
+    }
+    _headerContainerConstraints = @[
+      [_headerContainerView.leadingAnchor
+          constraintEqualToAnchor:_contentContainerView.leadingAnchor],
+      [_headerContainerView.trailingAnchor
+          constraintEqualToAnchor:_contentContainerView.trailingAnchor],
+      [_headerContainerView.topAnchor
+          constraintEqualToAnchor:_contentContainerView.topAnchor],
+    ];
+
+    if (_feedCardBackgroundView.superview != _contentContainerView) {
+      [_feedCardBackgroundView removeFromSuperview];
+      [_contentContainerView insertSubview:_feedCardBackgroundView atIndex:0];
+    }
+    _feedCardBackgroundConstraints = @[
+      [_feedCardBackgroundView.topAnchor
+          constraintEqualToAnchor:_headerContainerView.bottomAnchor
+                         constant:kMagicStackToFeedSpacing],
+      [_feedCardBackgroundView.leadingAnchor
+          constraintEqualToAnchor:_contentContainerView.leadingAnchor],
+      [_feedCardBackgroundView.trailingAnchor
+          constraintEqualToAnchor:_contentContainerView.trailingAnchor],
+      [_feedCardBackgroundView.bottomAnchor
+          constraintEqualToAnchor:_contentContainerView.bottomAnchor],
+    ];
+  }
+  [NSLayoutConstraint activateConstraints:_headerContainerConstraints];
+  [NSLayoutConstraint activateConstraints:_feedCardBackgroundConstraints];
+  [self updateFeedInsets];
+
+  // Post-Attach Magic Stack to target parent (feed VC if inside
+  // feed scroll view, self otherwise).
+  [self embedMagicStackViewController];
 }
 
 - (void)didMoveToParentViewController:(UIViewController*)parent {
@@ -145,6 +374,11 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
 
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
+  [self updateFeedInsets];
+  if (_feedScrollView && _feedCardBackgroundView &&
+      _feedCardBackgroundView.superview == _feedScrollView) {
+    [_feedScrollView sendSubviewToBack:_feedCardBackgroundView];
+  }
   if (self.view.superview &&
       !CGSizeEqualToSize(_lastSize, self.view.superview.bounds.size)) {
     _lastSize = self.view.superview.bounds.size;
@@ -153,16 +387,32 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
 }
 
 - (void)invalidate {
-  if (_feedScrollView && _scrollProxy) {
-    _feedScrollView.delegate = _scrollProxy.originalTarget;
-  }
-  _scrollProxy = nil;
+  [self detachMagicStackViewController];
+  [self detachFeedViewController];
+  _magicStackViewController = nil;
+  _feedViewController = nil;
   self.delegate = nil;
-  self.feedViewController = nil;
-  self.magicStackViewController = nil;
+  _mostVisitedView = nil;
+  _headerContainerView = nil;
+  _feedCardBackgroundView = nil;
+  _headerContainerConstraints = nil;
+  _feedCardBackgroundConstraints = nil;
+  _magicStackTopConstraint = nil;
 }
 
-#pragma mark - Action Targets
+- (BOOL)accessibilityPerformEscape {
+  if (_sheetState == BottomSheetSnappingStateExpanded) {
+    _sheetState = BottomSheetSnappingStateResting;
+    [self updateBottomSheetPositionAnimated:YES];
+    if ([self.delegate
+            respondsToSelector:@selector(
+                                   bottomSheetViewControllerDidEscape:)]) {
+      [self.delegate bottomSheetViewControllerDidEscape:self];
+    }
+    return YES;
+  }
+  return NO;
+}
 
 #pragma mark - Feed Integration
 
@@ -179,28 +429,59 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
   return nil;
 }
 
-- (void)updateFeedScrollViewReference {
-  if (_feedScrollView && _scrollProxy) {
-    _feedScrollView.delegate = _scrollProxy.originalTarget;
+- (void)resetFeedScrollView {
+  if (!_feedScrollView) {
+    return;
   }
-  _scrollProxy = nil;
+  _feedScrollView.contentInset = UIEdgeInsetsZero;
+  _feedScrollView.verticalScrollIndicatorInsets = UIEdgeInsetsZero;
+  [_feedScrollView.panGestureRecognizer removeTarget:self
+                                              action:@selector(handleFeedPan:)];
+  if (_scrollProxy) {
+    _feedScrollView.delegate = _originalFeedDelegate;
+    _scrollProxy = nil;
+  }
+  _originalFeedDelegate = nil;
+  _feedScrollView = nil;
+}
 
+- (void)updateFeedScrollViewReference {
+  UIScrollView* newFeedScrollView = nil;
   if (_feedViewController) {
-    _feedScrollView = [self findScrollViewInView:_feedViewController.view];
-    if (_feedScrollView) {
-      _feedScrollView.scrollEnabled =
-          (_sheetState == BottomSheetSnappingStateExpanded);
-      id originalDelegate = _feedScrollView.delegate;
-      if (originalDelegate != self &&
-          ![originalDelegate isKindOfClass:[ScrollDelegateProxy class]]) {
-        _scrollProxy = [[ScrollDelegateProxy alloc]
-            initWithInterceptingTarget:self
-                        originalTarget:originalDelegate];
-        _feedScrollView.delegate = _scrollProxy;
-      }
+    newFeedScrollView = [self findScrollViewInView:_feedViewController.view];
+  }
+
+  if (_feedScrollView == newFeedScrollView) {
+    return;
+  }
+
+  [self resetFeedScrollView];
+
+  _feedScrollView = newFeedScrollView;
+
+  if (_feedScrollView) {
+    _originalFeedDelegate = _feedScrollView.delegate;
+    if ([self isVoiceOverRunning]) {
+      _scrollProxy = [[ScrollDelegateProxy alloc]
+          initWithInterceptingTarget:self
+                      originalTarget:_originalFeedDelegate];
+      _feedScrollView.delegate = _scrollProxy;
     }
-  } else {
-    _feedScrollView = nil;
+
+    _feedScrollView.scrollEnabled =
+        (_sheetState == BottomSheetSnappingStateExpanded) ||
+        [self isVoiceOverRunning];
+    [_feedScrollView.panGestureRecognizer addTarget:self
+                                             action:@selector(handleFeedPan:)];
+  }
+}
+
+- (void)detachFeedViewController {
+  [self resetFeedScrollView];
+  if (_feedViewController) {
+    [_feedViewController willMoveToParentViewController:nil];
+    [_feedViewController.view removeFromSuperview];
+    [_feedViewController removeFromParentViewController];
   }
 }
 
@@ -208,23 +489,23 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
   if (_feedViewController == feedViewController) {
     return;
   }
-  if (_feedViewController) {
-    [_feedViewController willMoveToParentViewController:nil];
-    [_feedViewController.view removeFromSuperview];
-    [_feedViewController removeFromParentViewController];
-  }
+  [self detachFeedViewController];
   _feedViewController = feedViewController;
-  [self updateFeedScrollViewReference];
-  if (self.isViewLoaded && _feedViewController) {
-    [self embedFeedViewController];
+  if (self.isViewLoaded) {
+    if (_feedViewController) {
+      [self embedFeedViewController];
+    } else {
+      [self updateHeaderContainerHierarchy];
+    }
   }
 }
 
 - (void)embedFeedViewController {
-  if (!_feedViewController || !_contentContainerView) {
+  if (!_feedViewController || !_contentContainerView || !self.isViewLoaded) {
     return;
   }
-  if (_feedViewController.parentViewController == self) {
+  if (_feedViewController.parentViewController == self &&
+      [_feedViewController.view isDescendantOfView:_contentContainerView]) {
     return;
   }
   if (_feedViewController.parentViewController) {
@@ -236,10 +517,23 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
   _feedViewController.view.translatesAutoresizingMaskIntoConstraints = NO;
   [_contentContainerView addSubview:_feedViewController.view];
   AddSameConstraints(_feedViewController.view, _contentContainerView);
+  if (_feedCardBackgroundView) {
+    [_contentContainerView sendSubviewToBack:_feedCardBackgroundView];
+  }
   [_feedViewController didMoveToParentViewController:self];
 
   _feedViewController.view.hidden = NO;
   [self updateFeedScrollViewReference];
+  [self updateHeaderContainerHierarchy];
+}
+
+- (void)detachMagicStackViewController {
+  if (!_magicStackViewController) {
+    return;
+  }
+  [_magicStackViewController willMoveToParentViewController:nil];
+  [_magicStackViewController.view removeFromSuperview];
+  [_magicStackViewController removeFromParentViewController];
 }
 
 - (void)setMagicStackViewController:
@@ -247,11 +541,7 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
   if (_magicStackViewController == magicStackViewController) {
     return;
   }
-  if (_magicStackViewController) {
-    [_magicStackViewController willMoveToParentViewController:nil];
-    [_magicStackViewController.view removeFromSuperview];
-    [_magicStackViewController removeFromParentViewController];
-  }
+  [self detachMagicStackViewController];
   _magicStackViewController = magicStackViewController;
   if (self.isViewLoaded && _magicStackViewController) {
     [self embedMagicStackViewController];
@@ -259,10 +549,18 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
 }
 
 - (void)embedMagicStackViewController {
-  if (!_magicStackViewController || !_magicStackContainerView) {
+  if (!_magicStackViewController || !_magicStackContainerView ||
+      !self.isViewLoaded) {
     return;
   }
-  if (_magicStackViewController.parentViewController == self) {
+  UIViewController* targetParent =
+      (_feedScrollView &&
+       [_feedScrollView isDescendantOfView:_contentContainerView] &&
+       _feedViewController)
+          ? _feedViewController
+          : self;
+  if (_magicStackViewController.parentViewController == targetParent &&
+      _magicStackViewController.view.superview == _magicStackContainerView) {
     return;
   }
   if (_magicStackViewController.parentViewController) {
@@ -270,11 +568,35 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
     [_magicStackViewController.view removeFromSuperview];
     [_magicStackViewController removeFromParentViewController];
   }
-  [self addChildViewController:_magicStackViewController];
+  [targetParent addChildViewController:_magicStackViewController];
   _magicStackViewController.view.translatesAutoresizingMaskIntoConstraints = NO;
   [_magicStackContainerView addSubview:_magicStackViewController.view];
   AddSameConstraints(_magicStackViewController.view, _magicStackContainerView);
-  [_magicStackViewController didMoveToParentViewController:self];
+  [_magicStackViewController didMoveToParentViewController:targetParent];
+}
+
+- (void)embedMostVisitedView:(UIView*)mostVisitedView {
+  if (_mostVisitedView != mostVisitedView) {
+    if (_mostVisitedView) {
+      [_mostVisitedView removeFromSuperview];
+    }
+    _mostVisitedView = mostVisitedView;
+  }
+  if (self.isViewLoaded && _mostVisitedView && _mostVisitedContainerView) {
+    if (_mostVisitedView.superview == _mostVisitedContainerView) {
+      return;
+    }
+    _mostVisitedView.translatesAutoresizingMaskIntoConstraints = NO;
+    [_mostVisitedContainerView addSubview:_mostVisitedView];
+    AddSameConstraints(_mostVisitedView, _mostVisitedContainerView);
+    [self.view setNeedsLayout];
+    [self.view layoutIfNeeded];
+    [self updateFeedInsets];
+    CGFloat offset = _bottomSheetTopConstraint
+                         ? _bottomSheetTopConstraint.constant
+                         : [self restingOffset];
+    [self updateContentContainerInsetForOffset:offset];
+  }
 }
 
 #pragma mark - Snapping Offsets
@@ -288,8 +610,7 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
 }
 
 - (CGFloat)expandedOffset {
-  UIView* superview = self.view.superview;
-  return superview ? 20.0 + superview.safeAreaInsets.top : 0;
+  return [self.delegate expandedOffsetForBottomSheetViewController:self];
 }
 
 - (CGFloat)targetOffsetForState:(BottomSheetSnappingState)state {
@@ -333,11 +654,16 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
 
   if (_feedScrollView) {
     _feedScrollView.scrollEnabled =
-        (_sheetState == BottomSheetSnappingStateExpanded);
+        (_sheetState == BottomSheetSnappingStateExpanded) ||
+        UIAccessibilityIsVoiceOverRunning();
+    _feedScrollView.bounces = (_sheetState == BottomSheetSnappingStateExpanded);
+    [self updateFeedInsets];
   }
 
   if (_sheetState != BottomSheetSnappingStateExpanded && _feedScrollView) {
-    [_feedScrollView setContentOffset:CGPointZero animated:animated];
+    CGFloat topInset = _feedScrollView.contentInset.top;
+    [_feedScrollView setContentOffset:CGPointMake(0, -topInset)
+                             animated:animated];
   }
 
   if (!animated) {
@@ -417,24 +743,10 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
 }
 
 - (void)updateContentContainerInsetForOffset:(CGFloat)topOffset {
-  CGFloat expanded = [self expandedOffset];
-  CGFloat resting = [self restingOffset];
-  if (resting <= expanded) {
-    _contentContainerTopConstraint.constant = kContentContainerTopMargin;
-    _magicStackContainerView.alpha = 1.0;
-    return;
+  _magicStackContainerView.alpha = 1.0;
+  if (_mostVisitedContainerView) {
+    _mostVisitedContainerView.alpha = 1.0;
   }
-  CGFloat progress = (topOffset - expanded) / (resting - expanded);
-  progress = MIN(1.0, MAX(0.0, progress));
-
-  _magicStackContainerView.alpha = progress;
-
-  CGFloat expandedTopPadding =
-      content_suggestions::FakeOmniboxHeight() + kContentContainerTopMargin;
-  CGFloat restingTopPadding = kMagicStackHeight + kMagicStackToFeedSpacing;
-
-  _contentContainerTopConstraint.constant =
-      progress * restingTopPadding + (1.0 - progress) * expandedTopPadding;
 }
 
 - (void)handlePan:(UIPanGestureRecognizer*)gesture {
@@ -450,7 +762,8 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
   }
 
   if (_sheetState == BottomSheetSnappingStateExpanded && _feedScrollView) {
-    if (_feedScrollView.contentOffset.y > 0) {
+    CGFloat topInset = _feedScrollView.contentInset.top;
+    if (_feedScrollView.contentOffset.y > -topInset) {
       _initialConstant = [self expandedOffset];
       [gesture setTranslation:CGPointZero inView:superview];
       return;
@@ -473,8 +786,10 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
   }
 
   if (targetConstant > minOffset && _feedScrollView &&
-      _feedScrollView.contentOffset.y > 0) {
-    [_feedScrollView setContentOffset:CGPointZero animated:NO];
+      _feedScrollView.contentOffset.y > -_feedScrollView.contentInset.top) {
+    [_feedScrollView
+        setContentOffset:CGPointMake(0, -_feedScrollView.contentInset.top)
+                animated:NO];
   }
 
   _bottomSheetTopConstraint.constant = targetConstant;
@@ -493,49 +808,120 @@ constexpr CGFloat kMinimumDragVelocityToChangeState = 250.0;
 - (BOOL)gestureRecognizer:(UIGestureRecognizer*)gestureRecognizer
        shouldReceiveTouch:(UITouch*)touch {
   if (gestureRecognizer == _sheetPanGesture) {
-    CGPoint point = [touch locationInView:_magicStackContainerView];
-    if ([_magicStackContainerView pointInside:point withEvent:nil] &&
-        _magicStackContainerView.alpha > 0.0) {
-      return NO;
+    if (_feedScrollView && _sheetState == BottomSheetSnappingStateExpanded) {
+      CGPoint feedPoint = [touch locationInView:_feedScrollView];
+      if ([_feedScrollView pointInside:feedPoint withEvent:nil]) {
+        return NO;
+      }
     }
   }
   return YES;
 }
 
-- (BOOL)gestureRecognizer:(UIGestureRecognizer*)gestureRecognizer
-    shouldRecognizeSimultaneouslyWithGestureRecognizer:
-        (UIGestureRecognizer*)otherGestureRecognizer {
-  if (gestureRecognizer == _sheetPanGesture &&
-      otherGestureRecognizer == _feedScrollView.panGestureRecognizer) {
-    return _sheetState == BottomSheetSnappingStateExpanded;
-  }
-  return NO;
-}
-
-- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer*)gestureRecognizer {
-  return YES;
-}
-
-- (void)scrollViewDidScroll:(UIScrollView*)scrollView {
-  if (_sheetState != BottomSheetSnappingStateExpanded) {
+- (void)handleFeedPan:(UIPanGestureRecognizer*)gesture {
+  if (_sheetState != BottomSheetSnappingStateExpanded || !_feedScrollView) {
     return;
   }
 
-  CGFloat currentConstant = _bottomSheetTopConstraint.constant;
-  CGFloat expanded = [self expandedOffset];
+  UIView* superview = self.view.superview;
+  if (!superview) {
+    return;
+  }
 
-  if (currentConstant > expanded) {
-    scrollView.contentOffset = CGPointZero;
+  CGPoint translation = [gesture translationInView:superview];
+  CGPoint velocity = [gesture velocityInView:superview];
+
+  if (gesture.state == UIGestureRecognizerStateBegan) {
+    _lastFeedPanTranslationY = translation.y;
+  }
+
+  CGFloat deltaY = translation.y - _lastFeedPanTranslationY;
+  _lastFeedPanTranslationY = translation.y;
+
+  CGFloat expandedOffset = [self expandedOffset];
+  CGFloat topInset = _feedScrollView.contentInset.top;
+
+  // If the sheet is docked at the top (expandedOffset) and either the feed is
+  // scrolled down (contentOffset.y > -topInset) or the user is scrolling
+  // further into feed content (deltaY <= 0), allow UIScrollView to handle
+  // scrolling natively without modifying sheet position.
+  if (_bottomSheetTopConstraint.constant <= expandedOffset) {
+    if (_feedScrollView.contentOffset.y > -topInset || deltaY <= 0) {
+      _feedScrollView.bounces = YES;
+      return;
+    }
+  }
+
+  // Feed is at the top (contentOffset.y <= -topInset) and user is pulling down
+  // (deltaY > 0), or the sheet is already pulled down
+  // (_bottomSheetTopConstraint.constant > expandedOffset).
+  _feedScrollView.contentOffset = CGPointMake(0, -topInset);
+  _feedScrollView.bounces = NO;
+
+  CGFloat maxOffset = [self collapsedOffset];
+  CGFloat targetConstant = _bottomSheetTopConstraint.constant + deltaY;
+  if (targetConstant < expandedOffset) {
+    targetConstant = expandedOffset;
+  } else if (targetConstant > maxOffset) {
+    targetConstant = maxOffset;
+  }
+
+  _bottomSheetTopConstraint.constant = targetConstant;
+  [self updateContentContainerInsetForOffset:targetConstant];
+  [self.delegate bottomSheetViewController:self
+                        didUpdateTopOffset:targetConstant];
+
+  if (gesture.state == UIGestureRecognizerStateEnded) {
+    if (_bottomSheetTopConstraint.constant > expandedOffset) {
+      [self snapSheetWithVelocity:velocity
+                  currentConstant:_bottomSheetTopConstraint.constant];
+    } else {
+      _feedScrollView.bounces = YES;
+    }
+  } else if (gesture.state == UIGestureRecognizerStateCancelled) {
+    [self updateBottomSheetPositionAnimated:YES];
   }
 }
 
-- (void)scrollViewWillEndDragging:(UIScrollView*)scrollView
-                     withVelocity:(CGPoint)velocity
-              targetContentOffset:(inout CGPoint*)targetContentOffset {
-  CGFloat currentConstant = _bottomSheetTopConstraint.constant;
-  if (_sheetState == BottomSheetSnappingStateExpanded &&
-      currentConstant > [self expandedOffset]) {
-    *targetContentOffset = CGPointZero;
+- (void)voiceOverStatusDidChange {
+  if (_feedScrollView) {
+    _feedScrollView.scrollEnabled =
+        (_sheetState == BottomSheetSnappingStateExpanded) ||
+        [self isVoiceOverRunning];
+
+    if ([self isVoiceOverRunning]) {
+      if (!_scrollProxy) {
+        _scrollProxy = [[ScrollDelegateProxy alloc]
+            initWithInterceptingTarget:self
+                        originalTarget:_originalFeedDelegate];
+        _feedScrollView.delegate = _scrollProxy;
+      }
+    } else {
+      if (_scrollProxy) {
+        _feedScrollView.delegate = _originalFeedDelegate;
+        _scrollProxy = nil;
+      }
+    }
+  }
+}
+
+- (BOOL)isVoiceOverRunning {
+  return UIAccessibilityIsVoiceOverRunning();
+}
+
+#pragma mark - UIScrollViewDelegate
+
+- (void)scrollViewDidScroll:(UIScrollView*)scrollView {
+  if ([self isVoiceOverRunning]) {
+    if (_sheetState != BottomSheetSnappingStateExpanded &&
+        scrollView.contentOffset.y > 0) {
+      _sheetState = BottomSheetSnappingStateExpanded;
+      [self updateBottomSheetPositionAnimated:YES];
+    } else if (_sheetState == BottomSheetSnappingStateExpanded &&
+               scrollView.contentOffset.y < 0) {
+      _sheetState = BottomSheetSnappingStateResting;
+      [self updateBottomSheetPositionAnimated:YES];
+    }
   }
 }
 

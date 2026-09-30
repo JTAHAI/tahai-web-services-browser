@@ -161,6 +161,7 @@
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
+#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_utf8_adaptor.h"
 #include "third_party/skia/include/core/SkColorType.h"
@@ -702,12 +703,10 @@ static String ExtractWebGLContextCreationError(
   StringBuilder builder;
   builder.Append("Could not create a WebGL context");
   FormatWebGLStatusString(
-      "VENDOR",
-      info.vendor_id ? String::Format("0x%04x", info.vendor_id) : "0xffff",
+      "VENDOR", info.vendor_id ? Format("0x{:04x}", info.vendor_id) : "0xffff",
       builder);
   FormatWebGLStatusString(
-      "DEVICE",
-      info.device_id ? String::Format("0x%04x", info.device_id) : "0xffff",
+      "DEVICE", info.device_id ? Format("0x{:04x}", info.device_id) : "0xffff",
       builder);
   FormatWebGLStatusString("GL_VENDOR", info.vendor_info, builder);
   FormatWebGLStatusString("GL_RENDERER", info.renderer_info, builder);
@@ -716,9 +715,9 @@ static String ExtractWebGLContextCreationError(
   FormatWebGLStatusString("Optimus", info.optimus ? "yes" : "no", builder);
   FormatWebGLStatusString("AMD switchable", info.amd_switchable ? "yes" : "no",
                           builder);
-  FormatWebGLStatusString(
-      "Reset notification strategy",
-      String::Format("0x%04x", info.reset_notification_strategy), builder);
+  FormatWebGLStatusString("Reset notification strategy",
+                          Format("0x{:04x}", info.reset_notification_strategy),
+                          builder);
   FormatWebGLStatusString("ErrorMessage", info.error_message, builder);
   builder.Append('.');
   return builder.ReleaseString();
@@ -6715,15 +6714,18 @@ void WebGLRenderingContextBase::TexImageHelperMediaVideoFrame(
   // Orient the destination rect based on the frame's transform.
   const auto& visible_rect = media_video_frame->visible_rect();
   auto dest_rect = gfx::Rect(visible_rect.size());
-  if (transform.rotation == media::VIDEO_ROTATION_90 ||
-      transform.rotation == media::VIDEO_ROTATION_270) {
+  if (transform.IsOrthogonal()) {
     dest_rect.Transpose();
   }
 
-  const bool reinterpret_video_as_srgb = !params.unpack_colorspace_conversion;
+  const auto color_space_interpretation =
+      !params.unpack_colorspace_conversion
+          ? VideoColorSpaceInterpretation::kReinterpretAsSRGB
+          : VideoColorSpaceInterpretation::kPreserve;
 
   auto info = CreateSnapshotProviderInfoForVideoFrame(
-      *media_video_frame, dest_rect.size(), reinterpret_video_as_srgb);
+      *media_video_frame, dest_rect.size(), color_space_interpretation,
+      VideoOrientationBehavior::kHardFlip);
 
   CanvasNon2DResourceProvider* provider = nullptr;
   if (can_upload_via_gpu) {
@@ -6741,17 +6743,16 @@ void WebGLRenderingContextBase::TexImageHelperMediaVideoFrame(
   }
 
   // Since TexImageStaticBitmapImage() and TexImageGPU() don't know how to
-  // handle tagged orientation, we set |prefer_tagged_orientation| to false.
-  const bool kPreferTaggedOrientation = false;
+  // handle tagged orientation, we use VideoOrientationBehavior::kHardFlip.
   scoped_refptr<StaticBitmapImage> image;
   if (!provider) {
     image = CreateUnacceleratedImageFromVideoFrame(
         std::move(media_video_frame), info, video_renderer,
-        kPreferTaggedOrientation, reinterpret_video_as_srgb);
+        VideoOrientationBehavior::kHardFlip, color_space_interpretation);
   } else {
     image = CreateAcceleratedImageFromVideoFrame(
         std::move(media_video_frame), provider, video_renderer,
-        kPreferTaggedOrientation, reinterpret_video_as_srgb);
+        VideoOrientationBehavior::kHardFlip, color_space_interpretation);
   }
 
   if (!image) {
@@ -6996,13 +6997,77 @@ void WebGLRenderingContextBase::texElementImage2D(
     }
   }
 
-  TexElementImage2DInternal(target, internalformat, sx, sy, swidth, sheight,
-                            width, height, element, exception_state);
+  TexElementImage2DInternal(target, internalformat, /*level*/ 0, /*xoffset*/ 0,
+                            /*yoffset*/ 0, sx, sy, swidth, sheight, width,
+                            height, element, exception_state);
+}
+
+void WebGLRenderingContextBase::texElementSubImage2D(
+    GLenum target,
+    GLint level,
+    GLint xoffset,
+    GLint yoffset,
+    const V8UnionElementOrElementImage* element,
+    const WebGLCopyElementImageConfig* config,
+    ExceptionState& exception_state) {
+  std::optional<GLfloat> sx;
+  std::optional<GLfloat> sy;
+  std::optional<GLfloat> swidth;
+  std::optional<GLfloat> sheight;
+  std::optional<GLsizei> width;
+  std::optional<GLsizei> height;
+
+  size_t explicit_param_count = 0;
+  if (config) {
+    if (config->hasSx()) {
+      sx = config->sx();
+      explicit_param_count++;
+    }
+    if (config->hasSy()) {
+      sy = config->sy();
+      explicit_param_count++;
+    }
+    if (config->hasSwidth()) {
+      swidth = config->swidth();
+      explicit_param_count++;
+    }
+    if (config->hasSheight()) {
+      sheight = config->sheight();
+      explicit_param_count++;
+    }
+    if (explicit_param_count % 4 != 0) {
+      exception_state.ThrowDOMException(
+          DOMExceptionCode::kOperationError,
+          "Must specify all or none of (sx,sy,swidth,sheight).");
+      return;
+    }
+    if (config->hasWidth()) {
+      width = config->width();
+      explicit_param_count++;
+    }
+    if (config->hasHeight()) {
+      height = config->height();
+      explicit_param_count++;
+    }
+    if (explicit_param_count % 2 != 0) {
+      exception_state.ThrowDOMException(
+          DOMExceptionCode::kOperationError,
+          "Must specify neither or both of (width,height).");
+      return;
+    }
+  }
+
+  TexElementImage2DInternal(target, /*internalformat*/ std::nullopt, level,
+                            xoffset, yoffset, sx, sy, swidth, sheight, width,
+                            height, element, exception_state);
 }
 
 void WebGLRenderingContextBase::TexElementImage2DInternal(
     GLenum target,
-    GLenum internalformat,
+    std::optional<GLenum> internalformat,
+    GLint level,
+    GLint xoffset,
+    GLint yoffset,
     std::optional<GLfloat> sx,
     std::optional<GLfloat> sy,
     std::optional<GLfloat> swidth,
@@ -7014,8 +7079,11 @@ void WebGLRenderingContextBase::TexElementImage2DInternal(
   CHECK(RuntimeEnabledFeatures::CanvasDrawElementEnabled(
       Host()->GetTopExecutionContext()));
 
-  if (internalformat != GL_RGBA8 && internalformat != GL_SRGB8_ALPHA8 &&
-      internalformat != GL_RGBA16F && internalformat != GL_RGBA32F) {
+  bool new_api = !internalformat.has_value();
+
+  if (!new_api && *internalformat != GL_RGBA8 &&
+      *internalformat != GL_SRGB8_ALPHA8 && *internalformat != GL_RGBA16F &&
+      *internalformat != GL_RGBA32F) {
     exception_state.ThrowTypeError(
         "Invalid internalformat. Must be one of RGBA8, SRGB8_ALPHA8, RGBA16F, "
         "or RGBA32F.");
@@ -7026,36 +7094,55 @@ void WebGLRenderingContextBase::TexElementImage2DInternal(
     return;
   }
 
-  if (!ValidateTexture2DBinding("texElementImage2D", target, true)) {
+  if (!ValidateTexture2DBinding("texElementSubImage2D", target, true)) {
+    return;
+  }
+
+  if (new_api && !ValidateSize("texElementSubImage2D", xoffset, yoffset, 0)) {
     return;
   }
 
   scoped_refptr<StaticBitmapImage> image =
       GetElementImage(element, sx, sy, swidth, sheight, width, height,
-                      gpu::SHARED_IMAGE_USAGE_GLES2_READ, "texElementImage2D()",
-                      exception_state);
+                      gpu::SHARED_IMAGE_USAGE_GLES2_READ,
+                      "texElementSubImage2D()", exception_state);
   if (!image) {
     return;
   }
 
+  TexImageParams params;
   GLenum type = GL_UNSIGNED_BYTE;
-  if (internalformat == GL_RGBA16F) {
-    type = GL_HALF_FLOAT;
-  } else if (internalformat == GL_RGBA32F) {
-    type = GL_FLOAT;
+  if (new_api) {
+    params = {.source_type = kSourceImageBitmap,
+              .function_id = kTexSubImage2D,
+              .target = target,
+              .level = 0,
+              .xoffset = xoffset,
+              .yoffset = yoffset,
+              .width = image->Size().width(),
+              .height = image->Size().height(),
+              .format = GL_RGBA,
+              .type = type};
+  } else {
+    if (*internalformat == GL_RGBA16F) {
+      type = GL_HALF_FLOAT;
+    } else if (*internalformat == GL_RGBA32F) {
+      type = GL_FLOAT;
+    }
+
+    params = {
+        .source_type = kSourceImageBitmap,
+        .function_id = kTexImage2D,
+        .target = target,
+        .level = 0,
+        .internalformat = static_cast<GLint>(*internalformat),
+        .width = image->Size().width(),
+        .height = image->Size().height(),
+        .format = GL_RGBA,
+        .type = type,
+    };
   }
 
-  TexImageParams params = {
-      .source_type = kSourceImageBitmap,
-      .function_id = kTexImage2D,
-      .target = target,
-      .level = 0,
-      .internalformat = static_cast<GLint>(internalformat),
-      .width = image->Size().width(),
-      .height = image->Size().height(),
-      .format = GL_RGBA,
-      .type = type,
-  };
   GetCurrentUnpackState(params);
   if (!ValidateTexImageBinding(params)) {
     exception_state.ThrowTypeError("ValidateTexImageBinding failure");
@@ -9151,7 +9238,7 @@ String GetErrorString(GLenum error) {
     case GC3D_CONTEXT_LOST_WEBGL:
       return "CONTEXT_LOST_WEBGL";
     default:
-      return String::Format("WebGL ERROR(0x%04X)", error);
+      return Format("WebGL ERROR(0x{:04X})", error);
   }
 }
 

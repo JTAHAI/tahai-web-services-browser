@@ -31,7 +31,8 @@
 #include "third_party/blink/public/common/page/content_to_visible_time_request.h"
 #include "ui/compositor/compositor.h"
 #include "ui/compositor/compositor_observer.h"
-#include "ui/compositor/layer.h"
+#include "ui/compositor/layer_surface.h"
+#include "ui/compositor/layer_with_external_texture.h"
 #include "ui/events/event.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 
@@ -46,8 +47,7 @@ class CONTENT_EXPORT DelegatedFrameHostClient {
  public:
   virtual ~DelegatedFrameHostClient() {}
 
-  // TODO(b:522627357): Update layer type returned by this method.
-  virtual ui::Layer* DelegatedFrameHostGetLayer() const = 0;
+  virtual ui::LayerSurface* GetDelegatedFrameHostLayer() const = 0;
   virtual bool DelegatedFrameHostIsVisible() const = 0;
   // Returns the color that the resize gutters should be drawn with.
   virtual SkColor DelegatedFrameHostGetGutterColor() const = 0;
@@ -195,6 +195,7 @@ class CONTENT_EXPORT DelegatedFrameHost
   void ActivatedOrEvictedFromBackForwardCache();
 
   void WindowTitleChanged(const std::string& title);
+  void OptOutFrameEviction();
 
   // If our SurfaceLayer doesn't have a fallback, use the fallback info of
   // |other|.
@@ -204,7 +205,7 @@ class CONTENT_EXPORT DelegatedFrameHost
     return weak_factory_.GetWeakPtr();
   }
 
-  const ui::Layer* stale_content_layer() const {
+  const ui::LayerWithExternalTexture* stale_content_layer() const {
     return stale_content_layer_.get();
   }
 
@@ -225,6 +226,8 @@ class CONTENT_EXPORT DelegatedFrameHost
   viz::SurfaceId GetBFCacheFallbackSurfaceIdForTesting() const;
 
   void SetIsFrameSinkIdOwner(bool is_owner);
+
+  void SetEvictOnHide(bool evict_on_hide);
 
  private:
   friend class DelegatedFrameHostClient;
@@ -308,7 +311,7 @@ class CONTENT_EXPORT DelegatedFrameHost
   // Layer responsible for displaying the stale content for the DFHC when the
   // actual web content frame has been evicted. This will be reset when a new
   // compositor frame is submitted.
-  std::unique_ptr<ui::LayerSolidColor> stale_content_layer_;
+  std::unique_ptr<ui::LayerWithExternalTexture> stale_content_layer_;
 
   blink::ContentToVisibleTimeReporter tab_switch_time_recorder_;
 

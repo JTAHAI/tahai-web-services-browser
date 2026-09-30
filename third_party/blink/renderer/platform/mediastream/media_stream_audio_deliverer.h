@@ -15,6 +15,7 @@
 #include "media/base/audio_bus.h"
 #include "media/base/audio_parameters.h"
 #include "third_party/blink/public/platform/modules/webrtc/webrtc_logging.h"
+#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
@@ -60,9 +61,9 @@ class MediaStreamAudioDeliverer {
     DCHECK(!std::ranges::contains(consumers_, consumer));
     DCHECK(!std::ranges::contains(pending_consumers_, consumer));
     pending_consumers_.push_back(consumer);
-    SendLogMessage(
-        String::Format("%s => (number of consumer: active=%u, pending=%u)",
-                       __func__, consumers_.size(), pending_consumers_.size()));
+    SendLogMessage(Format("{} => (number of consumer: active={}, pending={})",
+                          __func__, consumers_.size(),
+                          pending_consumers_.size()));
   }
 
   // Stop delivering audio to |consumer|. Returns true if |consumer| was the
@@ -82,9 +83,9 @@ class MediaStreamAudioDeliverer {
       if (it != pending_consumers_.end())
         pending_consumers_.erase(it);
     }
-    SendLogMessage(
-        String::Format("%s => (number of consumers: active=%u, pending=%u)",
-                       __func__, consumers_.size(), pending_consumers_.size()));
+    SendLogMessage(Format("{} => (number of consumers: active={}, pending={})",
+                          __func__, consumers_.size(),
+                          pending_consumers_.size()));
     return had_consumers && consumers_.empty() && pending_consumers_.empty();
   }
 
@@ -108,8 +109,8 @@ class MediaStreamAudioDeliverer {
       base::AutoLock auto_params_lock(params_lock_);
       if (params_.Equals(params))
         return;
-      SendLogMessage(String::Format("%s({params=[%s]})", __func__,
-                                    params.AsHumanReadableString().c_str()));
+      SendLogMessage(StrCat({__func__, "({params=[",
+                             params.AsHumanReadableString().c_str(), "]})"}));
       params_ = params;
     }
     pending_consumers_.append_range(consumers_);
@@ -136,8 +137,8 @@ class MediaStreamAudioDeliverer {
         consumer->OnSetFormat(params);
       consumers_.append_range(pending_consumers_);
       pending_consumers_.clear();
-      SendLogMessage(String::Format("%s => (number of active consumers=%u)",
-                                    __func__, consumers_.size()));
+      SendLogMessage(Format("{} => (number of active consumers={})", __func__,
+                            consumers_.size()));
     }
 
     // Deliver the audio data to each consumer.
@@ -159,9 +160,8 @@ class MediaStreamAudioDeliverer {
 
  private:
   void SendLogMessage(const String& message) {
-    WebRtcLogMessage(String::Format("MSAD::%s [this=0x%" PRIXPTR "]",
-                                    message.Utf8().c_str(),
-                                    reinterpret_cast<uintptr_t>(this))
+    WebRtcLogMessage(Format("MSAD::{} [this=0x{:X}]", message,
+                            reinterpret_cast<uintptr_t>(this))
                          .Utf8());
   }
 

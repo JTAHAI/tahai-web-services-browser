@@ -26,6 +26,7 @@ import org.chromium.chrome.browser.omnibox.status.StatusCoordinator;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteCoordinator;
 import org.chromium.chrome.browser.toolbar.ToolbarVariationUtils;
 import org.chromium.components.embedder_support.util.UrlUtilities;
+import org.chromium.components.metrics.OmniboxEventProtosIntDef.PageClassification;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid;
 
@@ -340,6 +341,7 @@ class LocationBarPhone extends LocationBarLayout {
      * <p>If the URL does not fit, it is start-aligned, horizontal scrolling is enabled to allow
      * navigating the full text, and its layout width is capped.
      *
+     * @param centeringApplied Whether the location bar layout is centered on screen.
      * @param fitsInCenteringSpace True if the URL fits within the maximum allowed centering width.
      * @param finalUrlWidth The target width to set on the UrlBar's layout parameters.
      * @param urlBarLayoutParams The ConstraintLayout LayoutParams for the UrlBar.
@@ -445,6 +447,7 @@ class LocationBarPhone extends LocationBarLayout {
         }
 
         // Do not center in Android Hub or Custom Tabs.
+        @PageClassification
         int pageClassification = mLocationBarDataProvider.getPageClassification(false);
         if (!OmniboxViewUtil.isRegularTabContext(pageClassification)) {
             return false;

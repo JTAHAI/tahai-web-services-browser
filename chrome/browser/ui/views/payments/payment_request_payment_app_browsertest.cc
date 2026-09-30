@@ -8,14 +8,14 @@
 #include "build/build_config.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/payments/payment_request_browsertest_base.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view_ids.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/payments/payment_app_install_util.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/payments/content/service_worker_payment_app_finder.h"
 #include "components/payments/content/service_worker_payment_app_finder_test_api.h"
@@ -56,11 +56,13 @@ class PaymentRequestPaymentAppTest : public PaymentRequestBrowserTestBase {
       : alicepay_(net::EmbeddedTestServer::TYPE_HTTPS),
         bobpay_(net::EmbeddedTestServer::TYPE_HTTPS),
         frankpay_(net::EmbeddedTestServer::TYPE_HTTPS),
-        kylepay_(net::EmbeddedTestServer::TYPE_HTTPS) {}
+        kylepay_(net::EmbeddedTestServer::TYPE_HTTPS) {
+    SetBypassUserInteractionForTesting();
+  }
 
   permissions::PermissionRequestManager* GetPermissionRequestManager() {
     return permissions::PermissionRequestManager::FromWebContents(
-        browser()->tab_strip_model()->GetActiveWebContents());
+        browser()->GetTabStripModel()->GetActiveWebContents());
   }
 
   // Starts the test severs.
@@ -470,6 +472,7 @@ class PaymentRequestPaymentAppTestWithPaymentHandlersAndUiSkip
   PaymentRequestPaymentAppTestWithPaymentHandlersAndUiSkip() {
     feature_list_.InitWithFeatures(
         {
+            payments::features::kPaymentRequestMandatoryPaymentAppUi,
             payments::features::kWebPaymentsSingleAppUiSkip,
             ::features::kServiceWorkerPaymentApps,
         },
@@ -496,7 +499,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestPaymentAppTestWithPaymentHandlersAndUiSkip,
     ResetEventWaiterForSequence(
         {DialogEvent::PROCESSING_SPINNER_SHOWN,
          DialogEvent::PROCESSING_SPINNER_HIDDEN, DialogEvent::DIALOG_OPENED,
-         DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
+         DialogEvent::LOADING_VIEW_SHOWN, DialogEvent::DIALOG_CLOSED});
     ASSERT_TRUE(content::ExecJs(GetActiveWebContents(), "buy()"));
     ASSERT_TRUE(WaitForObservedEvent());
 
@@ -544,7 +547,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestPaymentAppTestWithPaymentHandlersAndUiSkip,
     // Click on pay.
     EXPECT_TRUE(IsPayButtonEnabled());
     ResetEventWaiterForSequence(
-        {DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
+        {DialogEvent::LOADING_VIEW_SHOWN, DialogEvent::DIALOG_CLOSED});
     ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
 
     // Depending on which installation completes first the preselected app can
@@ -577,7 +580,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestPaymentAppTestWithPaymentHandlersAndUiSkip,
     ResetEventWaiterForSequence(
         {DialogEvent::PROCESSING_SPINNER_SHOWN,
          DialogEvent::PROCESSING_SPINNER_HIDDEN, DialogEvent::DIALOG_OPENED,
-         DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
+         DialogEvent::LOADING_VIEW_SHOWN, DialogEvent::DIALOG_CLOSED});
     ASSERT_TRUE(content::ExecJs(
         GetActiveWebContents(),
         "testPaymentMethods([{supportedMethods: 'https://bobpay.test'}, "
@@ -614,7 +617,7 @@ IN_PROC_BROWSER_TEST_F(PaymentRequestPaymentAppTestWithPaymentHandlersAndUiSkip,
     EXPECT_TRUE(IsPayButtonEnabled());
 
     ResetEventWaiterForSequence(
-        {DialogEvent::PROCESSING_SPINNER_SHOWN, DialogEvent::DIALOG_CLOSED});
+        {DialogEvent::LOADING_VIEW_SHOWN, DialogEvent::DIALOG_CLOSED});
     ClickOnDialogViewAndWait(DialogViewID::PAY_BUTTON, dialog_view());
 
     ExpectBodyContains({"bobpay.test"});

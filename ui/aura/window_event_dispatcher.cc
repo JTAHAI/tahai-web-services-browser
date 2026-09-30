@@ -430,6 +430,9 @@ void WindowEventDispatcher::UpdateCapture(Window* old_capture,
   if (mouse_moved_handler_ && !window()->Contains(mouse_moved_handler_))
     mouse_moved_handler_ = nullptr;
 
+  // Block the deletion of the root window, its host thus this dispatcher.
+  Window::ScopedDeleteBlocker root_window_blocker(window());
+
   std::unique_ptr<Window::ScopedDeleteBlocker> new_capture_blocker;
   if (new_capture) {
     new_capture_blocker =
@@ -1131,6 +1134,7 @@ WindowEventDispatcher::CreateScropedMetricsMonitorForEvent(
               : cc::ScrollUpdateEventMetrics::ScrollUpdateType::kStarted,
           gesture->details().scroll_y(), gesture->time_stamp(),
           base::IdType64<class ui::LatencyInfo>(event.latency()->trace_id()),
+          scroll_tracker_.scroll_begin_generated_timestamp(),
           scroll_tracker_.scroll_begin_arrival_timestamp());
       scroll_tracker_.OnScrollUpdate();
     } else if (gesture->IsScrollGestureEvent()) {
@@ -1138,6 +1142,7 @@ WindowEventDispatcher::CreateScropedMetricsMonitorForEvent(
           gesture->type(), input_type,
           /*is_inertial=*/false, gesture->time_stamp(),
           base::IdType64<class ui::LatencyInfo>(event.latency()->trace_id()),
+          scroll_tracker_.scroll_begin_generated_timestamp(),
           scroll_tracker_.scroll_begin_arrival_timestamp());
       if (gesture->type() == ui::EventType::kGestureScrollBegin) {
         scroll_tracker_.OnScrollBegin(metrics.get());

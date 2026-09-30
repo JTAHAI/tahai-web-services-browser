@@ -7,7 +7,6 @@
 #include "base/functional/bind.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -33,7 +32,7 @@ PinnedTabService::~PinnedTabService() = default;
 
 void PinnedTabService::OnClosingAllBrowsersChanged(bool closing) {
   // Saving of tabs happens when the user exits the application or closes the
-  // last browser window. After saving, |need_to_write_pinned_tabs_| is set to
+  // last browser window. After saving, `need_to_write_pinned_tabs_` is set to
   // false to make sure subsequent window closures don't overwrite the pinned
   // tab state. Saving is re-enabled when a browser window or tab is opened
   // again. Note, cancelling a shutdown (via onbeforeunload) will not re-enable

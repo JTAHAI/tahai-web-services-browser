@@ -181,7 +181,7 @@ suite('OverflowMenuTest', () => {
       });
       overflowMenu = document.createElement('contextual-tasks-overflow-menu');
       overflowMenu.isHandshakeComplete = true;
-      overflowMenu.isCobrowseEligible = true;
+      overflowMenu.isAimEligible = true;
       document.body.appendChild(overflowMenu);
       await microtasksFinished();
     });
@@ -201,8 +201,9 @@ suite('OverflowMenuTest', () => {
       assertTrue(!!pinButton);
     });
 
-    test('hides pin button when not cobrowse eligible', async () => {
-      overflowMenu.isCobrowseEligible = false;
+
+    test('hides pin button when not on AI page', async () => {
+      overflowMenu.isAiPage = false;
       await microtasksFinished();
 
       const pinButton =
@@ -210,8 +211,8 @@ suite('OverflowMenuTest', () => {
       assertFalse(!!pinButton);
     });
 
-    test('hides pin button when not on AI page', async () => {
-      overflowMenu.isAiPage = false;
+    test('hides pin button when pin button is not enabled', async () => {
+      overflowMenu.isPinButtonEnabled = false;
       await microtasksFinished();
 
       const pinButton =

@@ -11,10 +11,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.Activity;
+import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.robolectric.Robolectric;
@@ -22,6 +25,7 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.xr.scenecore.XrModuleProviderImpl;
+import org.chromium.chrome.browser.xr.scenecore.XrPixelDensityImpl;
 import org.chromium.components.thinwebview.CompositorView;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.xr.scenecore.XrInteractableComponent;
@@ -62,6 +66,8 @@ public class ImmersiveVideoPlayerCoordinatorTest {
         when(mHolder.getResizableComponent()).thenReturn(mResizableComponent);
         when(mHolder.getMovableComponent()).thenReturn(mMovableComponent);
         when(mSessionManager.getMainPanelEntity()).thenReturn(mMainPanelEntity);
+        when(mSessionManager.getPixelDensity())
+                .thenReturn(XrPixelDensityImpl.createForTesting(1000f, 1000f));
 
         mCoordinator =
                 new TestImmersiveVideoPlayerCoordinator(
@@ -98,6 +104,44 @@ public class ImmersiveVideoPlayerCoordinatorTest {
         mCoordinator.setInteractable(false);
 
         verify(mInteractableComponent).setInteractable(false);
+    }
+
+    @Test
+    public void testShow_SetsAccessibilityPropertiesAndDelegate() {
+        mCoordinator.show();
+
+        verify(mSurfaceEntityView).setFocusable(true);
+        verify(mSurfaceEntityView).setFocusableInTouchMode(true);
+        verify(mSurfaceEntityView)
+                .setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        verify(mSurfaceEntityView)
+                .setContentDescription(
+                        mActivity.getString(
+                                org.chromium.chrome.R.string.accessibility_video_player));
+        verify(mSurfaceEntityView).setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        verify(mSurfaceEntityView).setAccessibilityDelegate(any());
+        verify(mSurfaceEntityView).requestFocus();
+    }
+
+    @Test
+    public void testAccessibilityClick_NotifiesDelegate() {
+        mCoordinator.show();
+
+        ArgumentCaptor<View.AccessibilityDelegate> delegateCaptor =
+                ArgumentCaptor.forClass(View.AccessibilityDelegate.class);
+        verify(mSurfaceEntityView).setAccessibilityDelegate(delegateCaptor.capture());
+        View.AccessibilityDelegate accessibilityDelegate = delegateCaptor.getValue();
+        assertNotNull(accessibilityDelegate);
+
+        AccessibilityNodeInfo nodeInfo = AccessibilityNodeInfo.obtain();
+        accessibilityDelegate.onInitializeAccessibilityNodeInfo(mSurfaceEntityView, nodeInfo);
+        assertEquals(true, nodeInfo.isClickable());
+
+        accessibilityDelegate.performAccessibilityAction(
+                mSurfaceEntityView, AccessibilityNodeInfo.ACTION_CLICK, null);
+        verify(mDelegate).onPlayerPanelClicked();
+
+        nodeInfo.recycle();
     }
 
     private static class TestImmersiveVideoPlayerCoordinator

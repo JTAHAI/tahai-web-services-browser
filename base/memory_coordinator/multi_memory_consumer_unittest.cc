@@ -25,9 +25,21 @@ class MockMultiMemoryConsumer : public MultiMemoryConsumer {
   MOCK_METHOD(void, OnReleaseMemory, (std::string_view name), (override));
   MOCK_METHOD(void,
               OnUpdateMemoryLimit,
-              (std::string_view name, int limit),
+              (std::string_view name, MemoryLimit memory_limit),
               (override));
 };
+
+constexpr MemoryConsumerTraits kTestTraits(
+    MemoryConsumerTraits::EstimatedMemoryUsage::kSmall,
+    MemoryConsumerTraits::ReleaseMemoryCost::kFreesPagesWithoutTraversal,
+    MemoryConsumerTraits::InformationRetention::kLossless,
+    MemoryConsumerTraits::ExecutionType::kSynchronous);
+
+constexpr MemoryConsumerTraits kActiveTraits(
+    MemoryConsumerTraits::EstimatedMemoryUsage::kSmall,
+    MemoryConsumerTraits::ReleaseMemoryCost::kFreesPagesWithoutTraversal,
+    MemoryConsumerTraits::InformationRetention::kLossless,
+    MemoryConsumerTraits::ExecutionType::kAsynchronous);
 
 }  // namespace
 
@@ -36,19 +48,29 @@ TEST(MultiMemoryConsumerTest, MultiMemoryConsumerRegistration) {
 
   MockMultiMemoryConsumer consumer;
   MultiMemoryConsumerRegistration registration(
-      {{"intervention_a"}, {"intervention_b"}}, &consumer);
+      {{"intervention_a", kTestTraits}, {"intervention_b", kTestTraits}},
+      &consumer);
 
   // Verify initial limits.
-  EXPECT_EQ(registration.GetMemoryLimit("intervention_a"), 100);
-  EXPECT_EQ(registration.GetMemoryLimit("intervention_b"), 100);
+  EXPECT_EQ(registration.GetMemoryLimit("intervention_a"),
+            MemoryLimit::Default());
+  EXPECT_EQ(registration.GetMemoryLimit("intervention_b"),
+            MemoryLimit::Default());
 
   // Update limit. Both interventions are registered, so both should be updated.
-  EXPECT_CALL(consumer, OnUpdateMemoryLimit("intervention_a", 50));
-  EXPECT_CALL(consumer, OnUpdateMemoryLimit("intervention_b", 50));
-  test_registry.NotifyUpdateMemoryLimit(50);
+  EXPECT_CALL(consumer,
+              OnUpdateMemoryLimit("intervention_a",
+                                  MemoryLimit::ModeratePressureThreshold()));
+  EXPECT_CALL(consumer,
+              OnUpdateMemoryLimit("intervention_b",
+                                  MemoryLimit::ModeratePressureThreshold()));
+  test_registry.NotifyUpdateMemoryLimit(
+      MemoryLimit::ModeratePressureThreshold());
 
-  EXPECT_EQ(registration.GetMemoryLimit("intervention_a"), 50);
-  EXPECT_EQ(registration.GetMemoryLimit("intervention_b"), 50);
+  EXPECT_EQ(registration.GetMemoryLimit("intervention_a"),
+            MemoryLimit::ModeratePressureThreshold());
+  EXPECT_EQ(registration.GetMemoryLimit("intervention_b"),
+            MemoryLimit::ModeratePressureThreshold());
 
   // Release memory.
   EXPECT_CALL(consumer, OnReleaseMemory("intervention_a"));
@@ -63,29 +85,39 @@ TEST(MultiMemoryConsumerTest, AsyncMultiMemoryConsumerRegistration) {
 
   MockMultiMemoryConsumer consumer;
   AsyncMultiMemoryConsumerRegistration registration(
-      {{"intervention_a"}, {"intervention_b"}}, &consumer);
+      {{"intervention_a", kActiveTraits}, {"intervention_b", kActiveTraits}},
+      &consumer);
 
   // Wait for Init task to run on main thread.
   ASSERT_TRUE(
       base::test::RunUntil([&]() { return test_registry.size() == 2u; }));
 
   // Verify initial limits.
-  EXPECT_EQ(registration.GetMemoryLimit("intervention_a"), 100);
-  EXPECT_EQ(registration.GetMemoryLimit("intervention_b"), 100);
+  EXPECT_EQ(registration.GetMemoryLimit("intervention_a"),
+            MemoryLimit::Default());
+  EXPECT_EQ(registration.GetMemoryLimit("intervention_b"),
+            MemoryLimit::Default());
 
   // Update limit. Both interventions should be updated.
   int called_count = 0;
-  EXPECT_CALL(consumer, OnUpdateMemoryLimit("intervention_a", 50))
+  EXPECT_CALL(consumer,
+              OnUpdateMemoryLimit("intervention_a",
+                                  MemoryLimit::ModeratePressureThreshold()))
       .WillOnce([&]() { called_count++; });
-  EXPECT_CALL(consumer, OnUpdateMemoryLimit("intervention_b", 50))
+  EXPECT_CALL(consumer,
+              OnUpdateMemoryLimit("intervention_b",
+                                  MemoryLimit::ModeratePressureThreshold()))
       .WillOnce([&]() { called_count++; });
-  test_registry.NotifyUpdateMemoryLimit(50);
+  test_registry.NotifyUpdateMemoryLimit(
+      MemoryLimit::ModeratePressureThreshold());
 
   // In async case, the notification is posted back to our thread.
   ASSERT_TRUE(base::test::RunUntil([&]() { return called_count == 2; }));
 
-  EXPECT_EQ(registration.GetMemoryLimit("intervention_a"), 50);
-  EXPECT_EQ(registration.GetMemoryLimit("intervention_b"), 50);
+  EXPECT_EQ(registration.GetMemoryLimit("intervention_a"),
+            MemoryLimit::ModeratePressureThreshold());
+  EXPECT_EQ(registration.GetMemoryLimit("intervention_b"),
+            MemoryLimit::ModeratePressureThreshold());
 
   // Release memory.
   int released_count = 0;
@@ -104,7 +136,8 @@ TEST(MultiMemoryConsumerTest, DuplicateInterventionsCheck) {
   MockMultiMemoryConsumer consumer;
   EXPECT_CHECK_DEATH({
     MultiMemoryConsumerRegistration registration(
-        {{"intervention_a"}, {"intervention_a"}}, &consumer);
+        {{"intervention_a", kTestTraits}, {"intervention_a", kTestTraits}},
+        &consumer);
   });
 }
 
@@ -120,9 +153,10 @@ class SyncNotifyingMemoryConsumerRegistry : public MemoryConsumerRegistry {
 
   void OnMemoryConsumerAdded(uint32_t consumer_id,
                              std::string_view consumer_name,
-                             std::optional<MemoryConsumerTraits> traits,
+                             MemoryConsumerTraits traits,
                              MemoryConsumer* consumer) override {
-    NotifyUpdateMemoryLimitNoNotification(consumer, 50);
+    NotifyUpdateMemoryLimitNoNotification(
+        consumer, MemoryLimit::ModeratePressureThreshold());
   }
 
   void OnMemoryConsumerRemoved(uint32_t consumer_id,
@@ -137,10 +171,12 @@ TEST(MultiMemoryConsumerTest, NoNotificationDuringConstruction) {
   EXPECT_CALL(consumer, OnUpdateMemoryLimit(_, _)).Times(0);
   EXPECT_CALL(consumer, OnReleaseMemory(_)).Times(0);
 
-  MultiMemoryConsumerRegistration registration({{"intervention_a"}}, &consumer);
+  MultiMemoryConsumerRegistration registration(
+      {{"intervention_a", kTestTraits}}, &consumer);
 
   // But the limit should still be correctly stored and queryable.
-  EXPECT_EQ(registration.GetMemoryLimit("intervention_a"), 50);
+  EXPECT_EQ(registration.GetMemoryLimit("intervention_a"),
+            MemoryLimit::ModeratePressureThreshold());
 }
 
 }  // namespace base

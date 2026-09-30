@@ -15,7 +15,6 @@ import android.graphics.drawable.Drawable;
 import android.view.View;
 
 import androidx.annotation.VisibleForTesting;
-import androidx.viewpager.widget.ViewPager;
 
 import org.chromium.base.Callback;
 import org.chromium.base.TraceEvent;
@@ -90,14 +89,6 @@ public class KeyboardAccessoryCoordinator implements KeyboardAccessoryVisualStat
      */
     public interface TabSwitchingDelegate {
         /**
-         * The {@link KeyboardAccessoryData.Tab} passed into this function will be completely
-         * removed from the tab layout.
-         *
-         * @param tab The tab to be removed.
-         */
-        void removeTab(KeyboardAccessoryData.Tab tab);
-
-        /**
          * Clears all currently known tabs and adds the given tabs as replacement.
          *
          * @param tabs An array of {@link KeyboardAccessoryData.Tab}s.
@@ -130,6 +121,23 @@ public class KeyboardAccessoryCoordinator implements KeyboardAccessoryVisualStat
         boolean hasTabs();
     }
 
+    /** Interface for callbacks related to the At Memory feature. */
+    public interface AtMemoryDelegate {
+        /**
+         * Set the At Memory enablement.
+         *
+         * @param enabled True if At Memory should be enabled, false otherwise.
+         */
+        void setAtMemoryEnabled(boolean enabled);
+
+        /**
+         * Set the At Memory callback.
+         *
+         * @param callback The callback to be invoked when the At Memory button is clicked.
+         */
+        void setAtMemoryCallback(Runnable callback);
+    }
+
     /**
      * Initializes the component as soon as the native library is loaded by e.g. starting to listen
      * to keyboard visibility events.
@@ -143,8 +151,6 @@ public class KeyboardAccessoryCoordinator implements KeyboardAccessoryVisualStat
      * @param edgeToEdgeControllerSupplier A {@link Supplier<EdgeToEdgeController>}.
      * @param insetObserver An {@link InsetObserver}.
      * @param barStub A {@link AsyncViewStub} for the accessory bar layout.
-     * @param isLargeFormFactorSupplier A {@link Supplier} that checks whether the device is in
-     *     Large Form Factor mode.
      * @param dismissRunnable A {@link Runnable} used to dismiss the Keyboard Accessory bar.
      */
     public KeyboardAccessoryCoordinator(
@@ -155,7 +161,6 @@ public class KeyboardAccessoryCoordinator implements KeyboardAccessoryVisualStat
             MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
             InsetObserver insetObserver,
             AsyncViewStub barStub,
-            Supplier<Boolean> isLargeFormFactorSupplier,
             Runnable dismissRunnable) {
         this(
                 barStub.getContext(),
@@ -167,7 +172,6 @@ public class KeyboardAccessoryCoordinator implements KeyboardAccessoryVisualStat
                 edgeToEdgeControllerSupplier,
                 insetObserver,
                 AsyncViewProvider.of(barStub, R.id.keyboard_accessory),
-                isLargeFormFactorSupplier,
                 dismissRunnable);
     }
 
@@ -180,8 +184,6 @@ public class KeyboardAccessoryCoordinator implements KeyboardAccessoryVisualStat
      * @param viewProvider A provider for the accessory.
      * @param edgeToEdgeControllerSupplier A {@link Supplier<EdgeToEdgeController>}.
      * @param insetObserver An {@link InsetObserver}.
-     * @param isLargeFormFactorSupplier A {@link Supplier} that checks whether the device is in
-     *     Large Form Factor mode.
      * @param dismissRunnable A {@link Runnable} used to dismiss the Keyboard Accessory bar.
      */
     @VisibleForTesting
@@ -195,7 +197,6 @@ public class KeyboardAccessoryCoordinator implements KeyboardAccessoryVisualStat
             MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
             InsetObserver insetObserver,
             ViewProvider<KeyboardAccessoryView> viewProvider,
-            Supplier<Boolean> isLargeFormFactorSupplier,
             Runnable dismissRunnable) {
         mButtonGroup = buttonGroup;
         mModel = KeyboardAccessoryProperties.defaultModelBuilder().build();
@@ -212,7 +213,6 @@ public class KeyboardAccessoryCoordinator implements KeyboardAccessoryVisualStat
                         mButtonGroup.getTabSwitchingDelegate(),
                         mButtonGroup.getSheetOpenerCallbacks(),
                         () -> SemanticColorUtils.getDefaultBgColor(context),
-                        isLargeFormFactorSupplier,
                         dismissRunnable);
         viewProvider.whenLoaded(
                 view -> {
@@ -321,7 +321,11 @@ public class KeyboardAccessoryCoordinator implements KeyboardAccessoryVisualStat
     }
 
     public void setAtMemoryCallback(Runnable callback) {
-        mButtonGroup.setAtMemoryCallback(callback);
+        mButtonGroup.getAtMemoryDelegate().setAtMemoryCallback(callback);
+    }
+
+    public void setAtMemoryEnabled(boolean enabled) {
+        mButtonGroup.getAtMemoryDelegate().setAtMemoryEnabled(enabled);
     }
 
     public void setActiveTab(@AccessoryTabType int tabType) {
@@ -438,10 +442,6 @@ public class KeyboardAccessoryCoordinator implements KeyboardAccessoryVisualStat
      */
     public boolean hasActiveTab() {
         return mMediator.hasActiveTab();
-    }
-
-    public ViewPager.OnPageChangeListener getOnPageChangeListener() {
-        return mButtonGroup.getStablePageChangeListener();
     }
 
     public KeyboardAccessoryMediator getMediatorForTesting() {

@@ -8,8 +8,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -23,8 +24,9 @@
 #include "ui/base/dragdrop/os_exchange_data.h"
 #include "url/url_constants.h"
 
-MultiContentsViewDelegateImpl::MultiContentsViewDelegateImpl(Browser& browser)
-    : browser_(browser), tab_strip_model_(*browser.tab_strip_model()) {}
+MultiContentsViewDelegateImpl::MultiContentsViewDelegateImpl(
+    BrowserWindowInterface& browser)
+    : browser_(browser), tab_strip_model_(*browser.GetTabStripModel()) {}
 
 void MultiContentsViewDelegateImpl::WebContentsFocused(
     content::WebContents* web_contents) {
@@ -80,7 +82,7 @@ void MultiContentsViewDelegateImpl::ResizeWebContents(double start_ratio,
 
     const split_tabs::SplitTabVisualData* visual_data =
         tab_strip_model_->GetSplitData(split_id)->visual_data();
-    session_service->SetSplitTabData(browser_->session_id(), split_id,
+    session_service->SetSplitTabData(browser_->GetSessionID(), split_id,
                                      visual_data);
   }
 }
@@ -101,7 +103,7 @@ void MultiContentsViewDelegateImpl::ResizeTahaiGrid(double row_ratio,
     if (auto* service =
             SessionServiceFactory::GetForProfile(browser_->GetProfile())) {
       service->SetSplitTabData(
-          browser_->session_id(), split_id,
+          browser_->GetSessionID(), split_id,
           tab_strip_model_->GetSplitData(split_id)->visual_data());
     }
   }

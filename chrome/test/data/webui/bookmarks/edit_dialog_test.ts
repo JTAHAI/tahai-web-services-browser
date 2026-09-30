@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import type {BookmarksEditDialogElement} from 'chrome://bookmarks/bookmarks.js';
-import {BookmarksApiProxyImpl, MAX_BOOKMARK_INPUT_LENGTH, normalizeNode, setDebouncerForTesting} from 'chrome://bookmarks/bookmarks.js';
+import {BookmarksApiProxyImpl, MAX_BOOKMARK_INPUT_LENGTH, normalizeMojoNode, setDebouncerForTesting} from 'chrome://bookmarks/bookmarks.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
@@ -21,7 +21,7 @@ suite('<bookmarks-edit-dialog>', function() {
   });
 
   test('editing an item shows the url field', async () => {
-    const item = normalizeNode(createItem('0'));
+    const item = normalizeMojoNode(createItem('0'), '1');
     dialog.showEditDialog(item);
     await microtasksFinished();
 
@@ -29,7 +29,7 @@ suite('<bookmarks-edit-dialog>', function() {
   });
 
   test('editing a folder hides the url field', async () => {
-    const folder = normalizeNode(createFolder('0', []));
+    const folder = normalizeMojoNode(createFolder('0', []), '1');
     dialog.showEditDialog(folder);
     await microtasksFinished();
 
@@ -44,8 +44,8 @@ suite('<bookmarks-edit-dialog>', function() {
 
   test('editing passes the correct details to the update', async function() {
     // Editing an item without changing anything.
-    const item = normalizeNode(
-        createItem('1', {url: 'http://website.com', title: 'website'}));
+    const item = normalizeMojoNode(
+        createItem('1', {url: 'http://website.com', title: 'website'}), '1');
     dialog.showEditDialog(item);
     await microtasksFinished();
 
@@ -57,7 +57,8 @@ suite('<bookmarks-edit-dialog>', function() {
     bookmarksApi.resetResolver('update');
 
     // Editing a folder, changing the title.
-    const folder = normalizeNode(createFolder('2', [], {title: 'Cool Sites'}));
+    const folder =
+        normalizeMojoNode(createFolder('2', [], {title: 'Cool Sites'}), '1');
     dialog.showEditDialog(folder);
     await microtasksFinished();
     dialog.$.name.value = 'Awesome websites';
@@ -175,9 +176,12 @@ suite('<bookmarks-edit-dialog>', function() {
     await microtasksFinished();
 
     const longTitle = 'a'.repeat(MAX_BOOKMARK_INPUT_LENGTH + 100);
-    // Directly set the private property to avoid performance issues with
-    // rendering extremely long strings in cr-input during tests.
-    dialog['titleValue_'] = longTitle;
+    dialog.$.name.value = longTitle;
+    dialog.$.name.dispatchEvent(new CustomEvent('value-changed', {
+      bubbles: true,
+      composed: true,
+      detail: {value: longTitle},
+    }));
     await microtasksFinished();
 
     dialog.$.url.value = 'http://example.com';
@@ -197,7 +201,7 @@ suite('<bookmarks-edit-dialog>', function() {
   });
 
   test('doesn\'t save when URL is invalid', async () => {
-    const item = normalizeNode(createItem('0'));
+    const item = normalizeMojoNode(createItem('0'), '1');
     dialog.showEditDialog(item);
     await microtasksFinished();
 

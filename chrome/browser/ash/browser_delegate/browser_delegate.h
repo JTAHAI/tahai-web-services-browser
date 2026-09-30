@@ -5,9 +5,13 @@
 #ifndef CHROME_BROWSER_ASH_BROWSER_DELEGATE_BROWSER_DELEGATE_H_
 #define CHROME_BROWSER_ASH_BROWSER_DELEGATE_BROWSER_DELEGATE_H_
 
+#include <vector>
+
 #include "chrome/browser/ash/browser_delegate/browser_type.h"
 #include "components/account_id/account_id.h"
 #include "components/sessions/core/session_id.h"
+#include "components/tab_groups/tab_group_info.h"
+#include "components/tabs/public/tab_collection.h"
 #include "components/webapps/browser/launch_queue/launch_params.h"
 #include "components/webapps/common/web_app_id.h"
 #include "ui/gfx/geometry/rect.h"
@@ -22,10 +26,6 @@ class Window;
 namespace content {
 class WebContents;
 }  // namespace content
-
-namespace tab_groups {
-struct TabGroupInfo;
-}  // namespace tab_groups
 
 namespace ui {
 class BaseWindow;
@@ -82,6 +82,9 @@ class BrowserDelegate {
   // be nullptr even if index is in bounds, just like GetActiveWebContents().
   virtual content::WebContents* GetWebContentsAt(size_t index) const = 0;
 
+  // Returns a range wrapper to iterate over all tabs in the browser.
+  virtual tabs::TabIteratorRange GetTabIterator() const = 0;
+
   // Returns the inspected web contents if this is a kDevTools type browser.
   // Returns nullptr otherwise.
   // Can also be nullptr while the browser is initialized/shutdown.
@@ -97,6 +100,10 @@ class BrowserDelegate {
 
   // Returns the non-empty browser application id, if applicable.
   virtual std::optional<webapps::AppId> GetAppId() const = 0;
+
+  // Returns the user-defined window title if one is set. If a title is
+  // returned, the string is never empty.
+  virtual std::optional<std::string> GetUserDefinedWindowTitle() const = 0;
 
   // Returns whether the browser is a web app window/pop-up.
   virtual bool IsWebApp() const = 0;
@@ -123,6 +130,12 @@ class BrowserDelegate {
   // Returns whether the browser window is visible.
   virtual bool IsVisible() const = 0;
 
+  // Returns whether the browser window is fullscreen.
+  virtual bool IsFullscreen() const = 0;
+
+  // Sets whether the browser window is fullscreen.
+  virtual void SetFullscreen(bool fullscreen) = 0;
+
   // Shows the browser window, or activates it if it's already visible.
   virtual void Show() = 0;
 
@@ -138,6 +151,10 @@ class BrowserDelegate {
 
   // Closes the browser as soon as possible.
   virtual void Close() = 0;
+
+  // Sets whether the browser should skip warning the user (e.g. beforeunload or
+  // download warnings) when closing.
+  virtual void SetSkipWarningUserOnClose(bool skip) = 0;
 
   // Loads the given URL in a new tab.
   // If the `url` is empty the new tab-page is loaded.
@@ -170,6 +187,9 @@ class BrowserDelegate {
   // Creates the specified tab group.
   virtual void CreateTabGroup(const tab_groups::TabGroupInfo& tab_group) = 0;
 
+  // Returns info for all tab groups in this browser.
+  virtual std::vector<tab_groups::TabGroupInfo> GetTabGroupInfos() const = 0;
+
   // Pins the given tab.
   virtual void PinTab(size_t tab_index) = 0;
 
@@ -183,27 +203,47 @@ class BrowserDelegate {
   // Resets the location bar so that its permanent text is shown.
   virtual void ResetLocationBar() = 0;
 
-  // Enters locked fullscreen mode.
-  // Pins the window, updates browser commands, and optionally focuses the
-  // toolbar.
-  virtual void EnterLockedFullscreen(bool focus_toolbar) = 0;
+  enum class OnTaskState {
+    // Normal browser state; not managed by or locked for OnTask.
+    kUnlocked,
+    // Prepared for OnTask (managed window with DevTools disabled), but not
+    // physically locked/pinned yet.
+    kPrepared,
+    // Locked for OnTask (pinned window in locked fullscreen with toolbar and
+    // tab strip enabled).
+    kLocked,
+    // Locked for OnTask but paused (pinned window with tab switching and
+    // immersive mode disabled).
+    kPaused,
+  };
 
-  // Leaves locked fullscreen mode.
-  // Unpins the window and updates browser commands.
-  virtual void LeaveLockedFullscreen() = 0;
+  // Sets the OnTask state for this browser window.
+  virtual void SetOnTaskState(OnTaskState state) = 0;
 
-  // Sets whether command shortcuts related to DevTools are enabled.
-  virtual void SetDevToolsCommandsEnabled(bool enabled) = 0;
-
-  // Sets whether command shortcuts related to tab switching are enabled.
-  virtual void SetTabSwitchCommandsEnabled(bool enabled) = 0;
+  // Returns true if the browser is in the specified `state`.
+  virtual bool IsOnTaskState(OnTaskState state) const = 0;
 
   // Activates the web contents at the specified tab strip index.
   virtual void ActivateWebContentsAt(size_t index) = 0;
 
-  //// The following functions are added purely for convenience. ////
+  // Sets whether the background of the web contents area is visible.
+  virtual void SetContentsBackgroundVisible(bool visible) = 0;
+
+  // Enters locked fullscreen mode.
+  // Pins the window and updates browser commands.
+  // TODO(crbug.com/438540029): Remove once LockedStateController migration is
+  // complete.
+  virtual void EnterLockedFullscreen() = 0;
+
+  // Leaves locked fullscreen mode.
+  // Unpins the window and updates browser commands.
+  // TODO(crbug.com/438540029): Remove once LockedStateController migration is
+  // complete.
+  virtual void LeaveLockedFullscreen() = 0;
 
   // Returns whether the browser window is in locked fullscreen mode.
+  // TODO(crbug.com/438540029): Remove once LockedStateController migration is
+  // complete.
   virtual bool IsLockedFullscreen() const = 0;
 
  protected:

@@ -10,12 +10,13 @@
 #include "base/functional/bind.h"
 #include "base/json/json_writer.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/task/single_thread_task_runner.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/tahai_skins/skin_profile_service.h"
 #include "chrome/browser/tahai_skins/skin_profile_service_factory.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/contents_container_view.h"
 #include "chrome/browser/ui/views/frame/contents_web_view.h"
@@ -37,7 +38,7 @@ bool IsOperationalRailModule(std::string_view module_id) {
 
 }  // namespace
 
-WindowModeController::WindowModeController(Browser* browser)
+WindowModeController::WindowModeController(BrowserWindowInterface* browser)
     : browser_(browser),
       mode_service_(ModeServiceFactory::GetForProfile(browser->GetProfile())) {
   CHECK(browser_);
@@ -215,7 +216,11 @@ void WindowModeController::ClearCustomModeBinding() {
 }
 
 void WindowModeController::OnWindowSkinBindingsChanged() {
+  const auto weak_this = weak_factory_.GetWeakPtr();
   NotifyModeChanged();
+  if (!weak_this) {
+    return;
+  }
   if (auto* view = BrowserView::GetBrowserViewForBrowser(browser_)) {
     if (view->GetWidget()) {
       view->GetWidget()->ThemeChanged();
@@ -247,7 +252,8 @@ std::optional<std::string> WindowModeController::SerializePresentation() const {
 
 bool WindowModeController::RestorePresentation(
     const WindowPresentation& presentation) {
-  if (!browser_->is_type_normal() || !browser_->GetProfile()->IsRegularProfile() ||
+  if (!(browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
+      !browser_->GetProfile()->IsRegularProfile() ||
       browser_->GetProfile()->IsOffTheRecord() ||
       !ValidateWindowPresentation(presentation)) {
     return false;
@@ -279,7 +285,16 @@ bool WindowModeController::RestorePresentation(
   restoring_window_skin_ = presentation.skin.has_value() && skin_service_;
   const uint64_t generation = window_restore_generation_;
   RefreshRestoredModeTitles();
+  const auto weak_this = weak_factory_.GetWeakPtr();
   OnWindowSkinBindingsChanged();
+  if (!weak_this) {
+    return false;
+  }
+  // An observer may have applied a newer appearance while handling the update.
+  // Do not start the superseded skin restore or report it as the current mode.
+  if (window_restore_generation_ != generation) {
+    return false;
+  }
   if (!restoring_window_skin_) {
     return true;
   }
@@ -354,7 +369,8 @@ std::string_view WindowModeController::RailStateForCommandId(int command_id) {
 }
 
 // static
-WindowModeController* WindowModeController::GetForBrowser(Browser* browser) {
+WindowModeController* WindowModeController::GetForBrowser(
+    BrowserWindowInterface* browser) {
   if (!browser) {
     return nullptr;
   }
@@ -502,7 +518,8 @@ bool WindowModeController::SetSurfaceDesign(std::optional<SurfaceDesign> design)
 
 std::optional<base::UnguessableToken> WindowModeController::BeginSurfacePreview(
     SurfaceDesign design) {
-  if (!ValidateSurfaceDesign(design) || !browser_->is_type_normal() ||
+  if (!ValidateSurfaceDesign(design) ||
+      !(browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
       !browser_->GetProfile()->IsRegularProfile() ||
       browser_->GetProfile()->IsOffTheRecord()) {
     return std::nullopt;
@@ -608,10 +625,11 @@ bool WindowModeController::MakeActiveModeProfileDefault() {
   active_custom_mode_id_.clear();
   active_custom_mode_title_.clear();
   operational_rail_modules_.clear();
+  const auto weak_this = weak_factory_.GetWeakPtr();
   const bool changed = mode_service_->SetActiveMode(active_mode_id_);
   // SetActiveMode() legitimately has no observer notification if this was
   // already the profile default. The visible custom label still changed.
-  if (changed && had_custom_presentation) {
+  if (weak_this && changed && had_custom_presentation) {
     OnWindowSkinBindingsChanged();
   }
   return changed;
@@ -649,7 +667,11 @@ bool WindowModeController::ResetActiveConfiguration() {
   if (!local_configuration_) {
     return mode_service_->ResetConfigurationForMode(active_mode_id_);
   }
-  if (!mode_service_->ResetNativeCustomModeConfiguration(active_custom_mode_id_)) {
+  const auto weak_this = weak_factory_.GetWeakPtr();
+  const std::string custom_id = active_custom_mode_id_;
+  if (!mode_service_->ResetNativeCustomModeConfiguration(custom_id) ||
+      !weak_this || !local_configuration_ ||
+      active_custom_mode_id_ != custom_id) {
     return false;
   }
   const auto custom = std::ranges::find(mode_service_->custom_modes(),
@@ -773,24 +795,52 @@ void WindowModeController::OnTahaiModeConfigurationChanged() {
 }
 
 void WindowModeController::NotifyModeChanged(bool preserve_surface_resize) {
+  // An observer may apply a replacement mode. Chromium's ObserverList forbids
+  // recursive iteration; deliver the latest presentation on a later UI task.
+  if (notifying_mode_change_) {
+    if (!mode_notification_pending_) {
+      mode_notification_pending_ = true;
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE,
+          base::BindOnce(
+              [](base::WeakPtr<WindowModeController> controller) {
+                if (controller && controller->mode_notification_pending_) {
+                  controller->NotifyModeChanged();
+                }
+              },
+              weak_factory_.GetWeakPtr()));
+    }
+    return;
+  }
+  mode_notification_pending_ = false;
+  notifying_mode_change_ = true;
+  const auto weak_this = weak_factory_.GetWeakPtr();
   if (auto* view = BrowserView::GetBrowserViewForBrowser(browser_)) {
     if (auto* contents = view->multi_contents_view()) {
       contents->SetTahaiSurfaceDesign(surface_design_, preserve_surface_resize);
     }
   }
-  if (browser_->is_type_normal() && browser_->GetProfile()->IsRegularProfile() &&
+  if (!weak_this) {
+    return;
+  }
+  if ((browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) &&
+      browser_->GetProfile()->IsRegularProfile() &&
       !browser_->GetProfile()->IsOffTheRecord()) {
     if (auto* session = SessionServiceFactory::GetForProfileIfExisting(
             browser_->GetProfile())) {
       if (auto json = SerializePresentation()) {
-        session->AddWindowExtraData(browser_->session_id(),
+        session->AddWindowExtraData(browser_->GetSessionID(),
                                     kWindowPresentationSessionKey, *json);
       }
     }
   }
   for (Observer& observer : observers_) {
     observer.OnTahaiWindowModeChanged();
+    if (!weak_this) {
+      return;
+    }
   }
+  notifying_mode_change_ = false;
 }
 
 }  // namespace tahai

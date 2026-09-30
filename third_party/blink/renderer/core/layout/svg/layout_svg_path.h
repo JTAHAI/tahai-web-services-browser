@@ -48,8 +48,9 @@ class LayoutSVGPath final : public LayoutSVGShape {
  private:
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
+                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
-  void WillBeDestroyed() override;
+  void WillBeDestroyed(const ComputedStyle*) override;
 
   bool CalculateGeometryDependsOnViewport() const;
   gfx::RectF UpdateShapeFromElement() override;

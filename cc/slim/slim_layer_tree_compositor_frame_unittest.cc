@@ -10,6 +10,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/test/bind.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
 #include "base/unguessable_token.h"
 #include "cc/base/region.h"
@@ -25,6 +26,7 @@
 #include "cc/slim/test_layer_tree_impl.h"
 #include "cc/slim/texture_layer.h"
 #include "cc/slim/ui_resource_layer.h"
+#include "components/viz/common/features.h"
 #include "components/viz/common/frame_sinks/begin_frame_args.h"
 #include "components/viz/common/frame_sinks/copy_output_request.h"
 #include "components/viz/common/quads/compositor_frame.h"
@@ -46,6 +48,7 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
+#include "ui/gfx/geometry/rrect_f.h"
 #include "ui/gfx/geometry/size_f.h"
 #include "ui/gfx/geometry/test/geometry_util.h"
 #include "ui/gfx/geometry/transform.h"
@@ -907,8 +910,9 @@ TEST_F(SlimLayerTreeCompositorFrameTest, SurfaceLayerAppendQuads) {
     viz::CompositorFrameMetadata& metadata = frame.metadata;
     EXPECT_EQ(metadata.referenced_surfaces,
               std::vector<viz::SurfaceRange>{viz::SurfaceRange(start, end)});
-    EXPECT_EQ(metadata.activation_dependencies,
-              std::vector<viz::SurfaceId>{end});
+    EXPECT_EQ(
+        metadata.activation_dependencies,
+        std::vector<viz::SurfaceIdAndDeadline>{viz::SurfaceIdAndDeadline(end)});
     EXPECT_FALSE(metadata.deadline.deadline_in_frames());
     EXPECT_TRUE(metadata.deadline.use_default_lower_bound_deadline());
   }
@@ -935,11 +939,42 @@ TEST_F(SlimLayerTreeCompositorFrameTest, SurfaceLayerAppendQuads) {
     viz::CompositorFrameMetadata& metadata = frame.metadata;
     EXPECT_EQ(metadata.referenced_surfaces,
               std::vector<viz::SurfaceRange>{viz::SurfaceRange(start, end)});
-    EXPECT_EQ(metadata.activation_dependencies,
-              std::vector<viz::SurfaceId>{end});
+    EXPECT_EQ(
+        metadata.activation_dependencies,
+        std::vector<viz::SurfaceIdAndDeadline>{viz::SurfaceIdAndDeadline(end)});
     EXPECT_EQ(metadata.deadline.deadline_in_frames(), 2u);
     EXPECT_FALSE(metadata.deadline.use_default_lower_bound_deadline());
   }
+}
+
+TEST_F(SlimLayerTreeCompositorFrameTest,
+       SurfaceLayerAppendQuadsWithPerDependencyDeadlines) {
+  base::test::ScopedFeatureList scoped_feature_list(
+      features::kPerDependencyDeadlines);
+
+  auto surface_layer = SurfaceLayer::Create();
+  surface_layer->SetBounds(viewport_.size());
+  surface_layer->SetIsDrawable(true);
+  surface_layer->SetContentsOpaque(true);
+  layer_tree_->SetRoot(surface_layer);
+
+  base::UnguessableToken token = base::UnguessableToken::Create();
+  viz::SurfaceId start(viz::FrameSinkId(1u, 2u),
+                       viz::LocalSurfaceId(3u, 4u, token));
+  viz::SurfaceId end(viz::FrameSinkId(1u, 2u),
+                     viz::LocalSurfaceId(5u, 7u, token));
+  cc::DeadlinePolicy deadline_policy =
+      cc::DeadlinePolicy::UseSpecifiedDeadline(2u);
+  surface_layer->SetOldestAcceptableFallback(start);
+  surface_layer->SetSurfaceId(end, deadline_policy);
+
+  viz::CompositorFrame frame = ProduceFrame();
+  viz::CompositorFrameMetadata& metadata = frame.metadata;
+  EXPECT_EQ(metadata.referenced_surfaces,
+            std::vector<viz::SurfaceRange>{viz::SurfaceRange(start, end)});
+  EXPECT_EQ(metadata.activation_dependencies,
+            std::vector<viz::SurfaceIdAndDeadline>{
+                viz::SurfaceIdAndDeadline(end, 2u)});
 }
 
 TEST_F(SlimLayerTreeCompositorFrameTest, TextureLayerAppendQuads) {
@@ -1070,7 +1105,7 @@ TEST_F(SlimLayerTreeCompositorFrameTest, SimpleHitTestRegionList) {
     ASSERT_EQ(hit_test_region_list->regions.size(), 1u);
     auto& hit_test_region = hit_test_region_list->regions.front();
     EXPECT_EQ(hit_test_region.frame_sink_id, viz::FrameSinkId(1u, 2u));
-    EXPECT_EQ(hit_test_region.rect, viewport_);
+    EXPECT_EQ(hit_test_region.rect, gfx::RRectF(viewport_));
     EXPECT_EQ(hit_test_region.transform, gfx::Transform());
   }
 
@@ -1100,12 +1135,12 @@ TEST_F(SlimLayerTreeCompositorFrameTest, SimpleHitTestRegionList) {
     ASSERT_EQ(hit_test_region_list->regions.size(), 2u);
     auto& root_region = hit_test_region_list->regions.back();
     EXPECT_EQ(root_region.frame_sink_id, viz::FrameSinkId(1u, 2u));
-    EXPECT_EQ(root_region.rect, viewport_);
+    EXPECT_EQ(root_region.rect, gfx::RRectF(viewport_));
     EXPECT_EQ(root_region.transform, gfx::Transform());
 
     auto& child_region = hit_test_region_list->regions.front();
     EXPECT_EQ(child_region.frame_sink_id, viz::FrameSinkId(2u, 3u));
-    EXPECT_EQ(child_region.rect, gfx::Rect(10, 10));
+    EXPECT_EQ(child_region.rect, gfx::RRectF(gfx::RectF(10, 10)));
 
     gfx::Transform expected_transform =
         gfx::Transform::MakeTranslation(5.0f, 5.0f);
@@ -1153,7 +1188,7 @@ TEST_F(SlimLayerTreeCompositorFrameTest, HitTestRegionInNonRootPass) {
     ASSERT_EQ(hit_test_region_list->regions.size(), 1u);
     auto& hit_test_region = hit_test_region_list->regions.front();
     EXPECT_EQ(hit_test_region.frame_sink_id, viz::FrameSinkId(1u, 2u));
-    EXPECT_EQ(hit_test_region.rect, gfx::Rect(100, 100));
+    EXPECT_EQ(hit_test_region.rect, gfx::RRectF(gfx::RectF(100, 100)));
     EXPECT_EQ(hit_test_region.transform,
               gfx::Transform::MakeScale(2.0f) *
                   gfx::Transform::MakeTranslation(-10.0f, -10.0f));

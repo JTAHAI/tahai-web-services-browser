@@ -9,15 +9,11 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Batch;
 
 /** Tests for the methods of {@link FakePasswordSettingsAccessorFactoryImpl}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
-@Batch(Batch.PER_CLASS)
 public class FakePasswordSettingsAccessorFactoryImplTest {
     FakePasswordSettingsAccessorFactoryImpl mFakePasswordSettingsAccessorFactoryImpl;
 

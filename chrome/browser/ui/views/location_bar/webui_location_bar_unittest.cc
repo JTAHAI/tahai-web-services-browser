@@ -50,8 +50,6 @@ class TestLocationBarViewDelegate : public LocationBarView::Delegate {
 class WebUILocationBarTest : public testing::Test {
  protected:
   void SetUp() override {
-    ON_CALL(mock_browser_, GetBrowserForMigrationOnly())
-        .WillByDefault(testing::Return(nullptr));
     ON_CALL(mock_browser_, GetProfile())
         .WillByDefault(testing::Return(&profile_));
     ON_CALL(mock_browser_, GetUnownedUserDataHost())
@@ -79,8 +77,9 @@ class WebUILocationBarTest : public testing::Test {
     return fetcher_->GetNavigationControlsState();
   }
 
-  bool GetSuppressLhsChipClicked() const {
-    return location_bar_->suppress_lhs_chip_clicked_;
+  bool WillNextBubbleShowBeSuppressed() const {
+    return location_bar_->page_info_reopen_suppressor_
+        .is_suppress_next_show_for_testing();
   }
 
   void SimulatePageInfoBubbleClosed() {
@@ -212,34 +211,42 @@ TEST_F(WebUILocationBarTest, HasSecurityStateChanged) {
 
 TEST_F(WebUILocationBarTest, MouseClickSuppression) {
   // By default, suppression is false.
-  EXPECT_FALSE(GetSuppressLhsChipClicked());
+  EXPECT_FALSE(WillNextBubbleShowBeSuppressed());
 
   // A mouse press on the chip should NOT suppress if the bubble wasn't just
   // closed.
   location_bar_->OnLhsChipMousePressed(
-      toolbar_ui_api::mojom::LhsChipIdentifier::kLocationIcon);
-  EXPECT_FALSE(GetSuppressLhsChipClicked());
+      toolbar_ui_api::mojom::LhsChipIdentifier::kLocationIcon,
+      /*is_middle_click=*/false);
+  EXPECT_FALSE(WillNextBubbleShowBeSuppressed());
 
   // Simulate the bubble being closed right now.
   SimulatePageInfoBubbleClosed();
 
   // A mouse press immediately after closing should trigger suppression.
   location_bar_->OnLhsChipMousePressed(
-      toolbar_ui_api::mojom::LhsChipIdentifier::kLocationIcon);
-  EXPECT_TRUE(GetSuppressLhsChipClicked());
+      toolbar_ui_api::mojom::LhsChipIdentifier::kLocationIcon,
+      /*is_middle_click=*/false);
+  EXPECT_TRUE(WillNextBubbleShowBeSuppressed());
 
-  // A non-mouse click (e.g., keyboard Enter) should NOT consume the suppression
-  // flag.
+  // A non-mouse click (e.g., keyboard Enter) will bypass suppression and
+  // consume the flag.
   location_bar_->OnLhsChipClicked(
       toolbar_ui_api::mojom::LhsChipIdentifier::kLocationIcon,
       /*is_mouse_interaction=*/false);
-  EXPECT_TRUE(GetSuppressLhsChipClicked());
+  EXPECT_FALSE(WillNextBubbleShowBeSuppressed());
+
+  // Re-arm suppression immediately.
+  location_bar_->OnLhsChipMousePressed(
+      toolbar_ui_api::mojom::LhsChipIdentifier::kLocationIcon,
+      /*is_middle_click=*/false);
+  EXPECT_TRUE(WillNextBubbleShowBeSuppressed());
 
   // A true mouse click SHOULD consume the suppression flag and return early.
   location_bar_->OnLhsChipClicked(
       toolbar_ui_api::mojom::LhsChipIdentifier::kLocationIcon,
       /*is_mouse_interaction=*/true);
-  EXPECT_FALSE(GetSuppressLhsChipClicked());
+  EXPECT_FALSE(WillNextBubbleShowBeSuppressed());
 }
 
 TEST_F(WebUILocationBarTest, OnLhsChipDrag) {
@@ -269,9 +276,9 @@ TEST_F(WebUILocationBarTest, PermissionChipMouseEvents) {
   bool indicator_chip_clicked = false;
 
   permission_dashboard()->request_chip()->SetPressedCallback(
-      base::BindLambdaForTesting([&]() { request_chip_clicked = true; }));
+      base::BindLambdaForTesting([&](bool) { request_chip_clicked = true; }));
   permission_dashboard()->indicator_chip()->SetPressedCallback(
-      base::BindLambdaForTesting([&]() { indicator_chip_clicked = true; }));
+      base::BindLambdaForTesting([&](bool) { indicator_chip_clicked = true; }));
 
   testing::StrictMock<MockPermissionChipObserver> request_observer;
   testing::StrictMock<MockPermissionChipObserver> indicator_observer;
@@ -281,12 +288,14 @@ TEST_F(WebUILocationBarTest, PermissionChipMouseEvents) {
   // Test Mouse Pressed events are forwarded.
   EXPECT_CALL(request_observer, OnMousePressed());
   location_bar_->OnLhsChipMousePressed(
-      toolbar_ui_api::mojom::LhsChipIdentifier::kPermissionRequest);
+      toolbar_ui_api::mojom::LhsChipIdentifier::kPermissionRequest,
+      /*is_middle_click=*/false);
   testing::Mock::VerifyAndClearExpectations(&request_observer);
 
   EXPECT_CALL(indicator_observer, OnMousePressed());
   location_bar_->OnLhsChipMousePressed(
-      toolbar_ui_api::mojom::LhsChipIdentifier::kPermissionIndicator);
+      toolbar_ui_api::mojom::LhsChipIdentifier::kPermissionIndicator,
+      /*is_middle_click=*/false);
   testing::Mock::VerifyAndClearExpectations(&indicator_observer);
 
   // Test Click events are forwarded.

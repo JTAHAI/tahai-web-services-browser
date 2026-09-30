@@ -22,13 +22,14 @@
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/profiles/profile_colors_util.h"
 #include "chrome/browser/ui/signin/signin_view_controller.h"
 #include "chrome/browser/ui/webui/signin/signin_ui_error.h"
 #include "chrome/browser/ui/webui/signin/signin_utils_desktop.h"
+#include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
 #include "chrome/common/channel_info.h"
 #include "components/policy/core/browser/signin/profile_separation_policies.h"
 #include "components/policy/core/browser/signin/user_cloud_signin_restriction_policy_fetcher.h"
@@ -238,8 +239,8 @@ void ManagedProfileCreationController::ShowManagementDisclaimer() {
       ProfileBrowserCollection::GetForProfile(source_profile_)
           ->GetLastActiveBrowser();
   bool has_browser_with_tab =
-      browser && browser->GetBrowserForMigrationOnly()->SupportsWindowFeature(
-                     Browser::WindowFeature::kFeatureTabStrip);
+      browser && WindowFeatureController::From(browser)->SupportsWindowFeature(
+                     WindowFeatureController::WindowFeature::kFeatureTabStrip);
 
   if (user_choice_for_testing_.has_value()) {
     CHECK_IS_TEST();
@@ -253,6 +254,18 @@ void ManagedProfileCreationController::ShowManagementDisclaimer() {
 
   if (!has_browser_with_tab) {
     // Posting the task here so that all code paths are asynchronous.
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce(
+            std::move(callback_),
+            base::unexpected(
+                ManagedProfileCreationFailureReason::kNoActiveBrowser),
+            profile_creation_required_by_policy_));
+    return;
+  }
+
+  if (browser && !browser->GetActiveTabInterface()) {
+    // The tabs have not been initialized yet.
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(

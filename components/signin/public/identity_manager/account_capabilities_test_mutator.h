@@ -34,6 +34,7 @@ class AccountCapabilitiesTestMutator {
 #if !BUILDFLAG(IS_ANDROID)
   void set_can_make_chrome_search_engine_choice_screen_choice(bool value);
 #endif
+  void set_can_override_account_info(bool value);
 #if !BUILDFLAG(IS_IOS)
   void set_can_run_chrome_privacy_sandbox_trials(bool value);
 #endif
@@ -75,6 +76,7 @@ class AccountCapabilitiesTestMutator {
       bool value);
   void set_is_subject_to_enterprise_features(bool value);
   void set_is_subject_to_parental_controls(bool value);
+  void set_is_subject_to_universal_opt_out(bool value);
 #if BUILDFLAG(IS_IOS)
   void set_must_fetch_apple_age_range_in_chrome(bool value);
 #endif

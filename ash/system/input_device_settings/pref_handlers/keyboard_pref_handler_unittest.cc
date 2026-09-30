@@ -23,7 +23,6 @@
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/user_manager/known_user.h"
-#include "ui/base/ui_base_features.h"
 #include "ui/events/ash/keyboard_capability.h"
 #include "ui/events/ash/mojom/extended_fkeys_modifier.mojom.h"
 #include "ui/events/ash/mojom/modifier_key.mojom.h"
@@ -134,8 +133,7 @@ class KeyboardPrefHandlerTest : public AshTestBase {
   // testing::Test:
   void SetUp() override {
     scoped_feature_list_.InitWithFeatures(
-        /*enabled_features=*/{features::kAltClickAndSixPackCustomization,
-                              ::features::kSupportF11AndF12KeyShortcuts},
+        /*enabled_features=*/{features::kAltClickAndSixPackCustomization},
         /*disabled_features=*/{});
 
     AshTestBase::SetUp();
@@ -1249,34 +1247,7 @@ TEST_F(KeyboardPrefHandlerTest, SettingsUpdateMetricTest) {
   }
 }
 
-TEST_F(KeyboardPrefHandlerTest,
-       InitializeSplitModifierKeyboardPreFeatureEnable) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndDisableFeature(features::kModifierSplit);
-
-  ui::DeviceDataManagerTestApi().SetKeyboardDevices(
-      {kSampleSplitModifierKeyboard});
-
-  mojom::Keyboard keyboard;
-  keyboard.id = kSampleSplitModifierKeyboard.id;
-  keyboard.is_external = false;
-  keyboard.modifier_keys = {ui::mojom::ModifierKey::kAssistant};
-  pref_handler_->InitializeKeyboardSettings(nullptr, /*keyboard_policies=*/{},
-                                            &keyboard);
-  const auto& settings = keyboard.settings;
-  EXPECT_EQ(1u, settings->modifier_remappings.size());
-  ASSERT_TRUE(settings->modifier_remappings.contains(
-      ui::mojom::ModifierKey::kAssistant));
-  EXPECT_EQ(
-      ui::mojom::ModifierKey::kCapsLock,
-      settings->modifier_remappings.at(ui::mojom::ModifierKey::kAssistant));
-}
-
-TEST_F(KeyboardPrefHandlerTest,
-       InitializeSplitModifierKeyboardPostFeatureEnable) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(features::kModifierSplit);
-
+TEST_F(KeyboardPrefHandlerTest, InitializeSplitModifierKeyboard) {
   ui::DeviceDataManagerTestApi().SetKeyboardDevices(
       {kSampleSplitModifierKeyboard});
 
@@ -1366,8 +1337,6 @@ TEST_P(KeyboardSettingsPrefConversionTest,
 }
 
 TEST_F(KeyboardPrefHandlerTest, ExtendedFkeysReceiveDefaultSettings) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(::features::kSupportF11AndF12KeyShortcuts);
   mojom::Keyboard keyboard;
   keyboard.is_external = false;
   mojom::KeyboardSettingsPtr settings =
@@ -1377,8 +1346,6 @@ TEST_F(KeyboardPrefHandlerTest, ExtendedFkeysReceiveDefaultSettings) {
 }
 
 TEST_F(KeyboardPrefHandlerTest, ExtendedFkeysOnlyAddedForChromeOSKeyboards) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(::features::kSupportF11AndF12KeyShortcuts);
   mojom::Keyboard keyboard;
   keyboard.meta_key = ui::mojom::MetaKey::kCommand;
   mojom::KeyboardSettingsPtr settings =

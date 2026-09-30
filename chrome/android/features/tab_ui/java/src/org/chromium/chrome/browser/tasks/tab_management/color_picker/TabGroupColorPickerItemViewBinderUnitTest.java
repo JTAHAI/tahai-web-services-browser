@@ -28,7 +28,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features;
@@ -42,7 +41,6 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
 /** Tests for TabGroupColorPickerItemViewBinder. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 // TODO(crbug.com/419289558): Re-enable color surface feature flags
 @Features.DisableFeatures({
     ChromeFeatureList.ANDROID_SURFACE_COLOR_UPDATE,
@@ -70,9 +68,7 @@ public class TabGroupColorPickerItemViewBinderUnitTest {
                         TabGroupColorId.BLUE,
                         TabGroupColorPickerType.TAB_GROUP,
                         false,
-                        () -> {
-                            mModel.set(IS_SELECTED, !mModel.get(IS_SELECTED));
-                        },
+                        () -> mModel.set(IS_SELECTED, !mModel.get(IS_SELECTED)),
                         false,
                         /* itemIndex= */ 0);
 
@@ -91,11 +87,18 @@ public class TabGroupColorPickerItemViewBinderUnitTest {
         assertThat(colorButton, instanceOf(MaterialButton.class));
         MaterialButton button = (MaterialButton) colorButton;
 
+        int blueColor =
+                TabGroupColorPickerUtils.getTabGroupColorPickerItemColor(
+                        mActivity, TabGroupColorId.BLUE, false);
+        ColorStateList expectedList =
+                TabGroupColorPickerUtils.buildTabGroupColorPickerBackgroundTintList(
+                        mActivity, blueColor, false);
+        ColorStateList actualList = button.getBackgroundTintList();
+        Assert.assertNotNull(actualList);
+        assertEquals(expectedList.getDefaultColor(), actualList.getDefaultColor());
         assertEquals(
-                ColorStateList.valueOf(
-                        TabGroupColorPickerUtils.getTabGroupColorPickerItemColor(
-                                mActivity, TabGroupColorId.BLUE, false)),
-                button.getBackgroundTintList());
+                expectedList.getColorForState(new int[] {android.R.attr.state_hovered}, 0),
+                actualList.getColorForState(new int[] {android.R.attr.state_hovered}, 0));
     }
 
     @Test

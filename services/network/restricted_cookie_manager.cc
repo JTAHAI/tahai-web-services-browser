@@ -151,6 +151,20 @@ void HistogramScriptCookieExpiration(const net::CanonicalCookie& cookie) {
   }
 }
 
+bool IsCookieDomainValid(const GURL& url,
+                         const net::CanonicalCookie* cookie,
+                         const net::CookieInclusionStatus& status) {
+  // Don't allow setting cookies on other domains. See crbug.com/996786.
+  if (cookie && !cookie->IsDomainMatch(url.GetHost())) {
+    return false;
+  }
+  if (status.HasExclusionReason(net::CookieInclusionStatus::ExclusionReason::
+                                    EXCLUDE_DOMAIN_MISMATCH)) {
+    return false;
+  }
+  return true;
+}
+
 }  // namespace
 
 RestrictedCookieManager::UmaMetricsUpdater::UmaMetricsUpdater() = default;
@@ -380,6 +394,7 @@ RestrictedCookieManager::RestrictedCookieManager(
     const net::IsolationInfo& isolation_info,
     const net::CookieSettingOverrides& cookie_setting_overrides,
     const net::CookieSettingOverrides& devtools_cookie_setting_overrides,
+    bool prefer_bound_cookie_context,
     mojo::PendingRemote<mojom::CookieAccessObserver> cookie_observer,
     net::FirstPartySetMetadata first_party_set_metadata,
     UmaMetricsUpdater* metrics_updater)
@@ -390,6 +405,7 @@ RestrictedCookieManager::RestrictedCookieManager(
       devtools_cookie_setting_overrides_(devtools_cookie_setting_overrides),
       origin_(origin),
       isolation_info_(isolation_info),
+      prefer_bound_cookie_context_(prefer_bound_cookie_context),
       cookie_observer_(std::move(cookie_observer)),
       first_party_set_metadata_(std::move(first_party_set_metadata)),
       cookie_partition_key_(net::CookiePartitionKey::FromNetworkIsolationKey(
@@ -492,8 +508,8 @@ bool RestrictedCookieManager::IsPartitionedCookiesEnabled() const {
 
 void RestrictedCookieManager::GetAllForUrl(
     const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const net::SiteForCookies& renderer_site_for_cookies,
+    const url::Origin& renderer_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     mojom::CookieManagerGetOptionsPtr options,
     bool is_ad_tagged,
@@ -502,10 +518,16 @@ void RestrictedCookieManager::GetAllForUrl(
     GetAllForUrlCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+  if (!ValidateAccessToCookiesAt(url, renderer_site_for_cookies,
+                                 renderer_top_frame_origin)) {
     std::move(callback).Run({});
     return;
   }
+
+  const net::SiteForCookies& site_for_cookies =
+      EffectiveSiteForCookies(renderer_site_for_cookies);
+  const url::Origin& top_frame_origin =
+      EffectiveTopFrameOrigin(renderer_top_frame_origin);
 
   // TODO(morlovich): Try to validate site_for_cookies as well.
 
@@ -683,16 +705,23 @@ void RestrictedCookieManager::UpdateSharedMemoryVersionInvalidationTimer(
 void RestrictedCookieManager::SetCanonicalCookie(
     mojom::RestrictedCanonicalCookieParamsPtr cookie_params,
     const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const net::SiteForCookies& renderer_site_for_cookies,
+    const url::Origin& renderer_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     bool is_ad_tagged,
     bool apply_devtools_overrides,
     SetCanonicalCookieCallback callback) {
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+  if (!ValidateAccessToCookiesAt(url, renderer_site_for_cookies,
+                                 renderer_top_frame_origin)) {
     std::move(callback).Run(false);
     return;
   }
+
+  const net::SiteForCookies& site_for_cookies =
+      EffectiveSiteForCookies(renderer_site_for_cookies);
+  const url::Origin& top_frame_origin =
+      EffectiveTopFrameOrigin(renderer_top_frame_origin);
+
   std::optional<net::CookiePartitionKey> cookie_partition_key =
       cookie_params->partitioned ==
                   mojom::RestrictedCookiePartition::PARTITIONED ||
@@ -707,7 +736,9 @@ void RestrictedCookieManager::SetCanonicalCookie(
           cookie_params->last_access, cookie_params->secure,
           cookie_params->http_only, cookie_params->same_site,
           cookie_params->priority, cookie_partition_key, &status);
-  if (!ValidateCookieDomain(url, cookie.get(), status)) {
+  if (!IsCookieDomainValid(url, cookie.get(), status)) {
+    receiver_.ReportBadMessage(
+        "Setting cookies on other domains is disallowed.");
     std::move(callback).Run(false);
     return;
   }
@@ -733,7 +764,7 @@ void RestrictedCookieManager::SetCanonicalCookie(
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK(ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin,
                                   /*record_metrics=*/false));
-  CHECK(ValidateCookieDomain(url, &cookie, status));
+  CHECK(IsCookieDomainValid(url, &cookie, status));
   CHECK(status.IsInclude());
   CHECK((!cookie.IsPartitioned() &&
          !net::CookiePartitionKey::HasNonce(cookie_partition_key_)) ||
@@ -878,12 +909,13 @@ void RestrictedCookieManager::SetCanonicalCookieResult(
 
 void RestrictedCookieManager::AddChangeListener(
     const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const net::SiteForCookies& renderer_site_for_cookies,
+    const url::Origin& renderer_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     mojo::PendingRemote<mojom::CookieChangeListener> mojo_listener,
     AddChangeListenerCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
   // Speculative fix for crbug.com/488084020; no point in looking for
   // cookies in such a context anyway.
   if (url.is_empty()) {
@@ -891,10 +923,16 @@ void RestrictedCookieManager::AddChangeListener(
     return;
   }
 
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+  if (!ValidateAccessToCookiesAt(url, renderer_site_for_cookies,
+                                 renderer_top_frame_origin)) {
     std::move(callback).Run();
     return;
   }
+
+  const net::SiteForCookies& site_for_cookies =
+      EffectiveSiteForCookies(renderer_site_for_cookies);
+  const url::Origin& top_frame_origin =
+      EffectiveTopFrameOrigin(renderer_top_frame_origin);
 
   net::CookieOptions net_options = MakeOptionsForGet(
       role_, url, site_for_cookies, top_frame_origin, cookie_settings());
@@ -918,17 +956,25 @@ void RestrictedCookieManager::AddChangeListener(
 
 void RestrictedCookieManager::SetCookieFromString(
     const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const net::SiteForCookies& renderer_site_for_cookies,
+    const url::Origin& renderer_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     bool is_ad_tagged,
     bool apply_devtools_overrides,
     const std::string& cookie) {
   TRACE_EVENT("net", "RestrictedCookieManager::SetCookieFromString");
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+
+  if (!ValidateAccessToCookiesAt(url, renderer_site_for_cookies,
+                                 renderer_top_frame_origin)) {
     return;
   }
+
+  const net::SiteForCookies& site_for_cookies =
+      EffectiveSiteForCookies(renderer_site_for_cookies);
+  const url::Origin& top_frame_origin =
+      EffectiveTopFrameOrigin(renderer_top_frame_origin);
+
   base::ElapsedTimer timer;
 
   // The cookie is about to be set. Proactively increment the version so it's
@@ -942,10 +988,6 @@ void RestrictedCookieManager::SetCookieFromString(
       net::CanonicalCookie::Create(
           url, cookie, base::Time::Now(), /*server_time=*/std::nullopt,
           cookie_partition_key_, net::CookieSourceType::kScript, &status);
-  // Don't validate the cookie's domain via `ValidateCookieDomain` here. We
-  // don't require the caller to validate `cookie`'s domain before invoking
-  // `SetCookieFromString` since that would involve parsing `cookie`; so we must
-  // not BadMessage the caller if the cookie domain mismatches.
 
   if (!parsed_cookie) {
     if (cookie_observer_) {
@@ -967,6 +1009,20 @@ void RestrictedCookieManager::SetCookieFromString(
     }
     return;
   }
+
+  if (!IsCookieDomainValid(url, parsed_cookie.get(), status)) {
+    // We don't require the caller to validate `cookie`'s domain before invoking
+    // `SetCookieFromString` since that would involve parsing `cookie`; so we
+    // must not BadMessage the caller if the cookie domain mismatches.
+    //
+    // A mismatch could occur here because GURL does not lowercase the host when
+    // the URL uses a custom scheme, but `CanonicalCookie::Create` *does* ensure
+    // the cookie's domain is lowercased; and CanonicalCookie's domain-matching
+    // logic is case-sensitive. So it is possible for CanonicalCookie to create
+    // a cookie that is not a domain-match for the GURL it was created with,
+    // when the GURL uses a custom scheme and non-lowercase host.
+    return;
+  }
   if (base::ShouldRecordSubsampledMetric(net::kHistogramSampleProbability)) {
     HistogramScriptCookieExpiration(*parsed_cookie);
   }
@@ -986,8 +1042,8 @@ void RestrictedCookieManager::SetCookieFromString(
 
 void RestrictedCookieManager::GetCookiesString(
     const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const net::SiteForCookies& renderer_site_for_cookies,
+    const url::Origin& renderer_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     bool get_version_shared_memory,
     bool is_ad_tagged,
@@ -996,7 +1052,9 @@ void RestrictedCookieManager::GetCookiesString(
     GetCookiesStringCallback callback) {
   TRACE_EVENT("net", "RestrictedCookieManager::GetCookiesString");
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+
+  if (!ValidateAccessToCookiesAt(url, renderer_site_for_cookies,
+                                 renderer_top_frame_origin)) {
     std::move(callback).Run(mojo::shared_memory_version::kInvalidVersion, {},
                             "");
     return;
@@ -1028,7 +1086,7 @@ void RestrictedCookieManager::GetCookiesString(
   auto match_options = mojom::CookieManagerGetOptions::New();
   match_options->name = "";
   match_options->match_type = mojom::CookieMatchType::STARTS_WITH;
-  GetAllForUrl(url, site_for_cookies, top_frame_origin,
+  GetAllForUrl(url, renderer_site_for_cookies, renderer_top_frame_origin,
                storage_access_api_status, std::move(match_options),
                is_ad_tagged, apply_devtools_overrides,
                force_disable_third_party_cookies,
@@ -1046,18 +1104,20 @@ void RestrictedCookieManager::GetCookiesString(
 
 void RestrictedCookieManager::CookiesEnabledFor(
     const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const net::SiteForCookies& renderer_site_for_cookies,
+    const url::Origin& renderer_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     bool apply_devtools_overrides,
     CookiesEnabledForCallback callback) {
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+  if (!ValidateAccessToCookiesAt(url, renderer_site_for_cookies,
+                                 renderer_top_frame_origin)) {
     std::move(callback).Run(false);
     return;
   }
 
   std::move(callback).Run(cookie_settings_->IsFullCookieAccessAllowed(
-      url, site_for_cookies, top_frame_origin,
+      url, EffectiveSiteForCookies(renderer_site_for_cookies),
+      EffectiveTopFrameOrigin(renderer_top_frame_origin),
       GetCookieSettingOverrides(
           storage_access_api_status,
           /*is_ad_tagged=*/false,
@@ -1090,32 +1150,37 @@ bool RestrictedCookieManager::ValidateAccessToCookiesAt(
     return false;
   }
 
-  bool site_for_cookies_ok =
-      BoundSiteForCookies().IsEquivalent(site_for_cookies);
-  // TODO(crbug.com/402207912): Switch back to a DCEHCK once this condition
-  // always holds again.
-  if (!site_for_cookies_ok) {
-    LOG(ERROR) << "site_for_cookies from renderer='"
-               << site_for_cookies.ToDebugString() << "' from browser='"
-               << BoundSiteForCookies().ToDebugString() << "';";
-  }
+  // With `prefer_bound_cookie_context_` the bound context is used for the
+  // access decision regardless of the renderer-provided values, so a
+  // divergence between the two is expected and carries no signal.
+  if (!prefer_bound_cookie_context_) {
+    bool site_for_cookies_ok =
+        BoundSiteForCookies().IsEquivalent(site_for_cookies);
+    // TODO(crbug.com/402207912): Switch back to a DCEHCK once this condition
+    // always holds again.
+    if (!site_for_cookies_ok) {
+      LOG(ERROR) << "site_for_cookies from renderer='"
+                 << site_for_cookies.ToDebugString() << "' from browser='"
+                 << BoundSiteForCookies().ToDebugString() << "';";
+    }
 
-  bool top_frame_origin_ok = (top_frame_origin == BoundTopFrameOrigin());
-  // TODO(crbug.com/402207912): Switch back to a DCEHCK once this condition
-  // always holds again.
-  if (!top_frame_origin_ok) {
-    LOG(ERROR) << "top_frame_origin from renderer='" << top_frame_origin
-               << "' from browser='" << BoundTopFrameOrigin() << "';";
-  }
+    bool top_frame_origin_ok = (top_frame_origin == BoundTopFrameOrigin());
+    // TODO(crbug.com/402207912): Switch back to a DCEHCK once this condition
+    // always holds again.
+    if (!top_frame_origin_ok) {
+      LOG(ERROR) << "top_frame_origin from renderer='" << top_frame_origin
+                 << "' from browser='" << BoundTopFrameOrigin() << "';";
+    }
 
-  if (record_metrics &&
-      base::ShouldRecordSubsampledMetric(net::kHistogramSampleProbability)) {
-    base::UmaHistogramBoolean(
-        "Net.RestrictedCookieManager.SiteForCookiesOK.Subsampled",
-        site_for_cookies_ok);
-    base::UmaHistogramBoolean(
-        "Net.RestrictedCookieManager.TopFrameOriginOK.Subsampled",
-        top_frame_origin_ok);
+    if (record_metrics &&
+        base::ShouldRecordSubsampledMetric(net::kHistogramSampleProbability)) {
+      base::UmaHistogramBoolean(
+          "Net.RestrictedCookieManager.SiteForCookiesOK.Subsampled",
+          site_for_cookies_ok);
+      base::UmaHistogramBoolean(
+          "Net.RestrictedCookieManager.TopFrameOriginOK.Subsampled",
+          top_frame_origin_ok);
+    }
   }
 
   if (origin_.IsSameOriginWith(url))
@@ -1123,21 +1188,6 @@ bool RestrictedCookieManager::ValidateAccessToCookiesAt(
 
   receiver_.ReportBadMessage("Incorrect url origin");
   return false;
-}
-
-bool RestrictedCookieManager::ValidateCookieDomain(
-    const GURL& url,
-    const net::CanonicalCookie* cookie,
-    const net::CookieInclusionStatus& status) {
-  // Don't allow setting cookies on other domains. See crbug.com/996786.
-  if ((cookie && !cookie->IsDomainMatch(url.GetHost())) ||
-      status.HasExclusionReason(net::CookieInclusionStatus::ExclusionReason::
-                                    EXCLUDE_DOMAIN_MISMATCH)) {
-    receiver_.ReportBadMessage(
-        "Setting cookies on other domains is disallowed.");
-    return false;
-  }
-  return true;
 }
 
 net::CookieSettingOverrides RestrictedCookieManager::GetCookieSettingOverrides(

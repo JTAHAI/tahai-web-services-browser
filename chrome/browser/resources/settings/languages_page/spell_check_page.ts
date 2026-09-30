@@ -28,7 +28,8 @@ import '../settings_page/settings_section.js';
 import '../settings_shared.css.js';
 import '../settings_vars.css.js';
 
-import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
+import {PrefService} from '/shared/settings/prefs2/pref_service.js';
+import {PrefServiceObserverMixin} from '/shared/settings/prefs2/pref_service_observer_mixin.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {focusWithoutInk} from 'chrome://resources/js/focus_without_ink.js';
@@ -47,8 +48,8 @@ import {LanguageSettingsActionType, LanguageSettingsMetricsProxyImpl} from './la
 import type {LanguageHelper, LanguagesModel, LanguageState, SpellCheckLanguageState} from './languages_types.js';
 import {getTemplate} from './spell_check_page.html.js';
 
-const SettingsSpellCheckPageElementBase =
-    SettingsViewMixin(I18nMixin(PrefsMixin(BaseMixin(PolymerElement))));
+const SettingsSpellCheckPageElementBase = SettingsViewMixin(
+    I18nMixin(PrefServiceObserverMixin(BaseMixin(PolymerElement))));
 
 export class SettingsSpellCheckPageElement extends
     SettingsSpellCheckPageElementBase {
@@ -75,12 +76,17 @@ export class SettingsSpellCheckPageElement extends
           return [];
         },
       },
-      // </if>
 
       hideSpellCheckLanguages_: {
         type: Boolean,
-        value: false,
+        computed: 'computeHideSpellCheckLanguages_(spellCheckLanguages_.*)',
       },
+      // </if>
+
+      enableSpellcheckingPref_: Object,
+      useSpellingServicePref_: Object,
+      forcedDictionariesPref_: Object,
+      blockedDictionariesPref_: Object,
     };
   }
 
@@ -89,23 +95,38 @@ export class SettingsSpellCheckPageElement extends
     return [
       'updateSpellcheckLanguages_(languages.enabled.*, ' +
           'languages.spellCheckOnLanguages.*)',
-      'updateSpellcheckEnabled_(prefs.browser.enable_spellchecking.*)',
+      'updateSpellcheckEnabled_(enableSpellcheckingPref_)',
     ];
   }
   // </if>
 
   declare languages?: LanguagesModel;
+  declare protected enableSpellcheckingPref_:
+      chrome.settingsPrivate.PrefObject<boolean>|undefined;
+  declare protected useSpellingServicePref_:
+      chrome.settingsPrivate.PrefObject<boolean>|undefined;
+  declare protected forcedDictionariesPref_:
+      chrome.settingsPrivate.PrefObject<string[]>|undefined;
+  declare protected blockedDictionariesPref_:
+      chrome.settingsPrivate.PrefObject<string[]>|undefined;
   // <if expr="not is_macosx">
   declare private spellCheckLanguages_:
       Array<LanguageState|SpellCheckLanguageState>;
-  // </if>
   declare private hideSpellCheckLanguages_: boolean;
+  // </if>
   private languageHelper_: LanguageHelper;
   private languageSettingsMetricsProxy_: LanguageSettingsMetricsProxy =
       LanguageSettingsMetricsProxyImpl.getInstance();
 
   override connectedCallback() {
     super.connectedCallback();
+
+    this.mirrorPrefs({
+      'browser.enable_spellchecking': 'enableSpellcheckingPref_',
+      'spellcheck.use_spelling_service': 'useSpellingServicePref_',
+      'spellcheck.forced_dictionaries': 'forcedDictionariesPref_',
+      'spellcheck.blocked_dictionaries': 'blockedDictionariesPref_',
+    });
 
     this.languageHelper_ = getLanguageHelperInstance();
   }
@@ -118,8 +139,9 @@ export class SettingsSpellCheckPageElement extends
   }
 
   private onSelectedSpellingServiceChange_() {
+    assert(this.useSpellingServicePref_);
     this.languageSettingsMetricsProxy_.recordSettingsMetric(
-        this.getPref<boolean>('spellcheck.use_spelling_service').value ?
+        this.useSpellingServicePref_.value ?
             LanguageSettingsActionType.SELECT_ENHANCED_SPELL_CHECK :
             LanguageSettingsActionType.SELECT_BASIC_SPELL_CHECK);
   }
@@ -144,8 +166,8 @@ export class SettingsSpellCheckPageElement extends
    */
   private getIndicatorPrefForManagedSpellcheckLanguage_(isEnabled: boolean):
       chrome.settingsPrivate.PrefObject {
-    return isEnabled ? this.get('spellcheck.forced_dictionaries', this.prefs) :
-                       this.get('spellcheck.blocked_dictionaries', this.prefs);
+    return isEnabled ? this.forcedDictionariesPref_! :
+                       this.blockedDictionariesPref_!;
   }
 
   /**
@@ -167,6 +189,19 @@ export class SettingsSpellCheckPageElement extends
       }
     });
     return supportedSpellcheckLanguages;
+  }
+
+  /**
+   * Hide list of spell check languages if there is only 1 language and we don't
+   * need to display any errors or management indicators for that language.
+   */
+  private computeHideSpellCheckLanguages_(): boolean {
+    if (this.spellCheckLanguages_ && this.spellCheckLanguages_.length === 1) {
+      const singleLanguage = this.spellCheckLanguages_[0];
+      return !singleLanguage.isManaged &&
+          singleLanguage.downloadDictionaryFailureCount === 0;
+    }
+    return false;
   }
 
   private updateSpellcheckLanguages_() {
@@ -194,25 +229,13 @@ export class SettingsSpellCheckPageElement extends
     if (this.spellCheckLanguages_.length === 0) {
       // If there are no supported spell check languages, automatically turn
       // off spell check to indicate no spell check will happen.
-      this.setPrefValue('browser.enable_spellchecking', false);
-    }
-
-    if (this.spellCheckLanguages_.length === 1) {
-      const singleLanguage = this.spellCheckLanguages_[0];
-
-      // Hide list of spell check languages if there is only 1 language
-      // and we don't need to display any errors for that language
-
-      // TODO(crbug.com/40147587): Make hideSpellCheckLanugages_ a computed property
-      this.hideSpellCheckLanguages_ = !singleLanguage.isManaged &&
-          singleLanguage.downloadDictionaryFailureCount === 0;
-    } else {
-      this.hideSpellCheckLanguages_ = false;
+      PrefService.getInstance().setPrefValue<boolean>(
+          'browser.enable_spellchecking', false);
     }
   }
 
   private updateSpellcheckEnabled_() {
-    if (this.prefs === undefined) {
+    if (this.enableSpellcheckingPref_ === undefined) {
       return;
     }
 
@@ -227,7 +250,7 @@ export class SettingsSpellCheckPageElement extends
       // connectedCallback sometimes.
       getLanguageHelperInstance().toggleSpellCheck(
           this.spellCheckLanguages_[0].language.code,
-          !!this.getPref('browser.enable_spellchecking').value);
+          this.enableSpellcheckingPref_.value);
     }
   }
 

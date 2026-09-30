@@ -34,12 +34,12 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Shadows;
-import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowPackageManager;
 import org.robolectric.util.ReflectionHelpers;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.SysUtils;
+import org.chromium.base.TriState;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -69,7 +69,6 @@ import java.util.Map;
 
 /** Unit tests for {@link DesktopSiteUtils}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class DesktopSiteUtilsUnitTest {
 
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -749,7 +748,7 @@ public class DesktopSiteUtilsUnitTest {
             Assert.assertTrue("Desktop site should be overridden.", shouldOverride);
         } finally {
             ReflectionHelpers.setStaticField(Build.class, "MANUFACTURER", originalManufacturer);
-            DesktopSiteUtils.sDesktopUAAllowedOnExternalDisplayForOem = null;
+            DesktopSiteUtils.sDesktopUAAllowedOnExternalDisplayForOem = TriState.NOT_SET;
         }
     }
 
@@ -772,7 +771,7 @@ public class DesktopSiteUtilsUnitTest {
             Assert.assertFalse("Desktop site should not be overridden.", shouldOverride);
         } finally {
             ReflectionHelpers.setStaticField(Build.class, "MANUFACTURER", originalManufacturer);
-            DesktopSiteUtils.sDesktopUAAllowedOnExternalDisplayForOem = null;
+            DesktopSiteUtils.sDesktopUAAllowedOnExternalDisplayForOem = TriState.NOT_SET;
         }
     }
 
@@ -798,7 +797,7 @@ public class DesktopSiteUtilsUnitTest {
             Assert.assertFalse("Desktop site should not be overridden.", shouldOverride);
         } finally {
             ReflectionHelpers.setStaticField(Build.class, "MANUFACTURER", originalManufacturer);
-            DesktopSiteUtils.sDesktopUAAllowedOnExternalDisplayForOem = null;
+            DesktopSiteUtils.sDesktopUAAllowedOnExternalDisplayForOem = TriState.NOT_SET;
         }
     }
 
@@ -814,7 +813,7 @@ public class DesktopSiteUtilsUnitTest {
             Assert.assertTrue("Desktop site should be overridden.", shouldOverride);
         } finally {
             ReflectionHelpers.setStaticField(Build.class, "MANUFACTURER", originalManufacturer);
-            DesktopSiteUtils.sDesktopUAAllowedOnExternalDisplayForOem = null;
+            DesktopSiteUtils.sDesktopUAAllowedOnExternalDisplayForOem = TriState.NOT_SET;
         }
     }
 }

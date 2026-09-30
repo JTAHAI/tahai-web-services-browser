@@ -9,32 +9,24 @@ import android.graphics.drawable.Drawable;
 import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.logo.LogoBridge.Logo;
+import org.chromium.chrome.browser.logo.LogoUtils.DoodleSize;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableFloatPropertyKey;
+import org.chromium.ui.modelutil.PropertyModel.WritableIntDefPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableIntPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 
 /** The properties required to build the logo on start surface or ntp. */
 @NullMarked
 interface LogoProperties {
-    // TODO(crbug.com/492453183): Move interface ClickHandler to LogoView when cleanup the feature
-    // flag LogoViewRefactor.
-    /** Handles tasks for the {@link LogoView} shown on an NTP. */
-    interface ClickHandler {
-        /**
-         * Called when the user clicks on the logo.
-         *
-         * @param isAnimatedLogoShowing Whether the animated GIF logo is playing.
-         */
-        void onLogoClicked(boolean isAnimatedLogoShowing);
-    }
 
     // TODO(crbug.com/40881870): It doesn't really make sense for those
     //  WritableObjectPropertyKey<Boolean> with skipEquality equals to true property keys;
     //  if we're not going to read the value out of this in the ViewBinder.
     WritableFloatPropertyKey ALPHA = new WritableFloatPropertyKey();
     WritableIntPropertyKey LOGO_TOP_MARGIN = new WritableIntPropertyKey();
+    WritableIntPropertyKey LOGO_TOP_PADDING = new WritableIntPropertyKey();
     WritableIntPropertyKey LOGO_BOTTOM_MARGIN = new WritableIntPropertyKey();
     WritableIntPropertyKey LOGO_HEIGHT = new WritableIntPropertyKey();
     WritableObjectPropertyKey<Boolean> SET_END_FADE_ANIMATION =
@@ -43,7 +35,8 @@ interface LogoProperties {
     //  enum if possible.
     WritableBooleanPropertyKey VISIBILITY = new WritableBooleanPropertyKey();
     WritableBooleanPropertyKey ANIMATION_ENABLED = new WritableBooleanPropertyKey();
-    WritableObjectPropertyKey<ClickHandler> LOGO_CLICK_HANDLER = new WritableObjectPropertyKey<>();
+    WritableObjectPropertyKey<LogoView.ClickHandler> LOGO_CLICK_HANDLER =
+            new WritableObjectPropertyKey<>();
     WritableObjectPropertyKey<Boolean> SHOW_SEARCH_PROVIDER_INITIAL_VIEW =
             new WritableObjectPropertyKey<>(/* skipEquality= */ true);
     // TODO(crbug.com/40881870): Generate the LOGO, DEFAULT_GOOGLE_LOGO and ANIMATED_LOGO properties
@@ -59,7 +52,8 @@ interface LogoProperties {
     WritableObjectPropertyKey<Object> ANIMATED_LOGO = new WritableObjectPropertyKey<>();
     WritableObjectPropertyKey<Callback<Logo>> LOGO_AVAILABLE_CALLBACK =
             new WritableObjectPropertyKey<>();
-    WritableIntPropertyKey DOODLE_SIZE = new WritableIntPropertyKey();
+    WritableIntDefPropertyKey<DoodleSize> DOODLE_SIZE =
+            new WritableIntDefPropertyKey<>(DoodleSize.REGULAR);
     WritableObjectPropertyKey<Boolean> SHOW_DEFAULT_GOOGLE_LOGO =
             new WritableObjectPropertyKey<>(/* skipEquality= */ true);
     WritableBooleanPropertyKey IS_NIGHT_MODE = new WritableBooleanPropertyKey();
@@ -68,6 +62,7 @@ interface LogoProperties {
             new PropertyKey[] {
                 ALPHA,
                 LOGO_TOP_MARGIN,
+                LOGO_TOP_PADDING,
                 LOGO_BOTTOM_MARGIN,
                 LOGO_HEIGHT,
                 SET_END_FADE_ANIMATION,

@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ui/cocoa/tab_group_menu_bridge.h"
 
+#include <vector>
+
 #include "base/apple/foundation_util.h"
 #include "base/metrics/user_metrics.h"
 #include "base/strings/sys_string_conversions.h"
@@ -12,9 +14,6 @@
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_command_controller.h"
-#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
@@ -254,8 +253,8 @@ void TabGroupMenuBridge::OnMenuItem(NSMenuItem* item) {
 
   tab_groups::TabGroupMenuAction action = it->second;
   tab_groups::SavedTabGroupUtils::PerformTabGroupMenuAction(
-      action, tab_groups::TabGroupMenuContext::MAC_SYSTEM_MENU,
-      browser->GetBrowserForMigrationOnly(), tab_group_service_);
+      action, tab_groups::TabGroupMenuContext::MAC_SYSTEM_MENU, browser,
+      tab_group_service_);
 }
 
 NSMenuItem* TabGroupMenuBridge::CreateStaticSubmenuItem(

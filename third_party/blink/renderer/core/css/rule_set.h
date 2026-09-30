@@ -23,6 +23,8 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_RULE_SET_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_RULE_SET_H_
 
+#include <optional>
+
 #include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/gtest_prod_util.h"
@@ -476,6 +478,9 @@ class CORE_EXPORT RuleSet final : public GarbageCollected<RuleSet> {
   base::span<const RuleData> ActiveViewTransitionRules() const {
     return active_view_transition_rules_;
   }
+  base::span<const RuleData> UnboundedPseudoClassRules() const {
+    return unbounded_pseudo_class_rules_;
+  }
 
   const HeapVector<CascadeLayered<StyleRulePage>>& PageRules() const {
     return page_rules_;
@@ -567,12 +572,11 @@ class CORE_EXPORT RuleSet final : public GarbageCollected<RuleSet> {
 
   bool DidMediaQueryResultsChange(const MediaQueryEvaluator& evaluator) const;
 
-  bool DependingOnMixins() const {
-    return based_on_mixin_generation_ != std::numeric_limits<uint64_t>::max();
-  }
-  bool DependingOnOutdatedMixins(uint64_t current_mixin_generation) const {
-    return based_on_mixin_generation_ != std::numeric_limits<uint64_t>::max() &&
-           based_on_mixin_generation_ != current_mixin_generation;
+  bool DependingOnMixins() const { return depends_on_mixins_; }
+  bool DependingOnOutdatedMixins(
+      std::optional<uint64_t> current_mixin_map_identifier) const {
+    return depends_on_mixins_ &&
+           based_on_mixin_map_identifier_ != current_mixin_map_identifier;
   }
 
   bool DidRoutesChange(const Document*) const;
@@ -768,6 +772,7 @@ class CORE_EXPORT RuleSet final : public GarbageCollected<RuleSet> {
   // Separate bucket for :active-view-transition rules, to support a default
   // view-transition-name in user-agent style.
   HeapVector<RuleData> active_view_transition_rules_;
+  HeapVector<RuleData> unbounded_pseudo_class_rules_;
   HeapVector<RuleData> root_element_rules_;
   RuleFeatureSet features_;
   HeapVector<CascadeLayered<StyleRulePage>> page_rules_;
@@ -828,11 +833,11 @@ class CORE_EXPORT RuleSet final : public GarbageCollected<RuleSet> {
   // (without the overhead of a Vector in each RuleData).
   Vector<uint16_t> bloom_hash_backing_;
 
-  // When creating the RuleSet, which generation of mixins (see
-  // StyleSheetContents) we used. The special initial value means that we did
-  // not see any @apply rules and thus do not need invalidation when mixins
-  // change.
-  uint64_t based_on_mixin_generation_ = std::numeric_limits<uint64_t>::max();
+  bool depends_on_mixins_ = false;
+  // The MixinMap::map_identifier of the mixin map this RuleSet was flattened
+  // against. Only meaningful when depends_on_mixins_ is true. Can be
+  // unset even if depends_on_mixins_ is true if the mixin map is empty.
+  std::optional<uint64_t> based_on_mixin_map_identifier_;
 
 #if DCHECK_IS_ON()
   HeapVector<RuleData> all_rules_;

@@ -27,6 +27,10 @@ enum class ActionType {
   kScrollTo,
   kSelect,
   kAttemptLogin,
+  kAttemptFormFilling,
+  kCreateTab,
+  kCloseTab,
+  kActivateTab,
 };
 
 // Based on the field names in
@@ -61,6 +65,18 @@ ActionType GetActionType(const std::string& key) {
   }
   if (key == "attempt_login") {
     return ActionType::kAttemptLogin;
+  }
+  if (key == "attempt_form_filling") {
+    return ActionType::kAttemptFormFilling;
+  }
+  if (key == "create_tab") {
+    return ActionType::kCreateTab;
+  }
+  if (key == "close_tab") {
+    return ActionType::kCloseTab;
+  }
+  if (key == "activate_tab") {
+    return ActionType::kActivateTab;
   }
   return ActionType::kUnknown;
 }
@@ -272,6 +288,81 @@ bool MapAttemptLoginAction(const base::DictValue& dict,
   return attempt_login->ByteSizeLong() > 0;
 }
 
+bool MapAttemptFormFillingAction(const base::DictValue& dict,
+                                 optimization_guide::proto::Action* action) {
+  auto* attempt_form_filling = action->mutable_attempt_form_filling();
+  if (std::optional<int> tab_id = dict.FindInt("tab_id")) {
+    attempt_form_filling->set_tab_id(*tab_id);
+  }
+  if (const base::ListValue* form_filling_requests =
+          dict.FindList("form_filling_requests")) {
+    for (const base::Value& request_val : *form_filling_requests) {
+      if (!request_val.is_dict()) {
+        continue;
+      }
+      const base::DictValue& request_dict = request_val.GetDict();
+      auto* form_filling_request =
+          attempt_form_filling->add_form_filling_requests();
+      if (std::optional<int> requested_data =
+              request_dict.FindInt("requested_data")) {
+        if (optimization_guide::proto::FormFillingRequest_RequestedData_IsValid(
+                *requested_data)) {
+          form_filling_request->set_requested_data(
+              static_cast<
+                  optimization_guide::proto::FormFillingRequest_RequestedData>(
+                  *requested_data));
+        }
+      }
+      if (const std::string* section_label =
+              request_dict.FindString("section_label")) {
+        form_filling_request->set_section_label(*section_label);
+      }
+      if (const base::ListValue* trigger_fields =
+              request_dict.FindList("trigger_fields")) {
+        for (const base::Value& target_val : *trigger_fields) {
+          if (!target_val.is_dict()) {
+            continue;
+          }
+          MapActionTarget(target_val.GetDict(),
+                          form_filling_request->add_trigger_fields());
+        }
+      }
+    }
+  }
+  return attempt_form_filling->ByteSizeLong() > 0;
+}
+
+bool MapCreateTabAction(const base::DictValue& dict,
+                        optimization_guide::proto::Action* action) {
+  auto* create_tab = action->mutable_create_tab();
+  if (std::optional<int> window_id = dict.FindInt("window_id")) {
+    create_tab->set_window_id(*window_id);
+  }
+  if (std::optional<bool> foreground = dict.FindBool("foreground")) {
+    create_tab->set_foreground(*foreground);
+  }
+  return create_tab->ByteSizeLong() > 0;
+}
+
+bool MapCloseTabAction(const base::DictValue& dict,
+                       optimization_guide::proto::Action* action) {
+  auto* close_tab = action->mutable_close_tab();
+  if (std::optional<int> tab_id = dict.FindInt("tab_id")) {
+    close_tab->set_tab_id(*tab_id);
+  }
+  return close_tab->ByteSizeLong() > 0;
+}
+
+bool MapActivateTabAction(const base::DictValue& dict,
+                          optimization_guide::proto::Action* action) {
+  optimization_guide::proto::ActivateTabAction* activate_tab =
+      action->mutable_activate_tab();
+  if (std::optional<int> tab_id = dict.FindInt("tab_id")) {
+    activate_tab->set_tab_id(*tab_id);
+  }
+  return activate_tab->ByteSizeLong() > 0;
+}
+
 }  // namespace
 
 bool ParseActionFromDict(const base::DictValue& dict,
@@ -310,6 +401,14 @@ bool ParseActionFromDict(const base::DictValue& dict,
       return MapSelectAction(value.GetDict(), action);
     case ActionType::kAttemptLogin:
       return MapAttemptLoginAction(value.GetDict(), action);
+    case ActionType::kAttemptFormFilling:
+      return MapAttemptFormFillingAction(value.GetDict(), action);
+    case ActionType::kCreateTab:
+      return MapCreateTabAction(value.GetDict(), action);
+    case ActionType::kCloseTab:
+      return MapCloseTabAction(value.GetDict(), action);
+    case ActionType::kActivateTab:
+      return MapActivateTabAction(value.GetDict(), action);
     case ActionType::kUnknown:
       return false;
   }

@@ -346,9 +346,6 @@ bool BMPImageReader::ReadInfoHeader() {
     const uint32_t cs_type = ReadUint32(56);
     switch (cs_type) {
       case kLcsCalibratedRGB: {  // Endpoints and gamma specified directly
-        skcms_ICCProfile profile;
-        skcms_Init(&profile);
-
         // Convert chromaticity values from 2.30 fixed point to floating point.
         const auto fxpt2dot30_to_float = [](uint32_t fxpt2dot30) {
           return fxpt2dot30 * 9.31322574615478515625e-10f;
@@ -362,16 +359,10 @@ bool BMPImageReader::ReadInfoHeader() {
         // BMPs do not explicitly encode a white point.  Using the sRGB
         // illuminant (D65) seems reasonable given that Windows' system color
         // space is sRGB.
-        constexpr float kD65x = 0.31271;
-        constexpr float kD65y = 0.32902;
-        skcms_Matrix3x3 to_xyzd50;
-        if (!skcms_PrimariesToXYZD50(rx, ry, gx, gy, bx, by, kD65x, kD65y,
-                                     &to_xyzd50)) {
-          // Some real-world images have bogus values, e.g. all zeros.  Ignore
-          // the color space data in such cases, rather than failing.
-          break;
-        }
-        skcms_SetXYZD50(&profile, &to_xyzd50);
+        constexpr float kD65x = 0.31271f;
+        constexpr float kD65y = 0.32902f;
+        const SkColorSpacePrimaries primaries = {rx, ry, gx,    gy,
+                                                 bx, by, kD65x, kD65y};
 
         // Convert gamma values from 16.16 fixed point to transfer functions.
         const auto fxpt16dot16_to_fn = [](uint32_t fxpt16dot16) {
@@ -384,23 +375,20 @@ bool BMPImageReader::ReadInfoHeader() {
           fn.g = SkFixedToFloat(fxpt16dot16);
           return fn;
         };
-        profile.has_trc = true;
-        profile.trc[0].table_entries = 0;
-        profile.trc[0].parametric = fxpt16dot16_to_fn(ReadUint32(96));
-        profile.trc[1].table_entries = 0;
-        profile.trc[1].parametric = fxpt16dot16_to_fn(ReadUint32(100));
-        profile.trc[2].table_entries = 0;
-        profile.trc[2].parametric = fxpt16dot16_to_fn(ReadUint32(104));
 
-        parent_->SetEmbeddedColorProfile(
-            std::make_unique<ColorProfile>(profile));
+        if (auto profile = skia::ColorProfile::Make(
+                primaries, fxpt16dot16_to_fn(ReadUint32(96)),
+                fxpt16dot16_to_fn(ReadUint32(100)),
+                fxpt16dot16_to_fn(ReadUint32(104)))) {
+          parent_->SetEmbeddedColorProfile(std::move(profile));
+        }
         break;
       }
 
       case kLcssRGB:               // sRGB
       case kLcsWindowsColorSpace:  // "The Windows default color space" (sRGB)
         parent_->SetEmbeddedColorProfile(
-            std::make_unique<ColorProfile>(*skcms_sRGB_profile()));
+            skia::ColorProfile::Make(SkColorSpace::MakeSRGB()));
         break;
 
       case kProfileEmbedded:  // Embedded ICC profile
@@ -531,7 +519,7 @@ bool BMPImageReader::ProcessEmbeddedColorProfile() {
       base::HeapArray<uint8_t>::WithSize(info_header_.profile_size);
   base::span<const uint8_t> buffer = fast_reader_.GetConsecutiveData(
       info_header_.profile_data, info_header_.profile_size, owned_buffer);
-  auto profile = ColorProfile::Create(buffer);
+  auto profile = skia::ColorProfile::Make(buffer);
   if (!profile) {
     return parent_->SetFailed();
   }
@@ -1060,27 +1048,19 @@ void BMPImageReader::ColorCorrectCurrentRow() {
     return;
   }
   // Postprocess the image data according to the profile.
-  const ColorProfileTransform* const transform = parent_->ColorTransform();
-  if (!transform) {
+  if (!parent_->NeedsDecodeTimeColorTransform()) {
     return;
   }
+
   int decoder_width = parent_->Size().width();
-  // Enforce 0 ≤ current row < bitmap height.
+  // Enforce 0 ≤ current row < bitmap height.
   CHECK_GE(coord_.y(), 0);
   CHECK_LT(coord_.y(), buffer_->Bitmap().height());
   // Enforce decoder width == bitmap width exactly. (The bitmap rowbytes might
   // add a bit of padding, but we are only converting one row at a time.)
   CHECK_EQ(decoder_width, buffer_->Bitmap().width());
-  ImageFrame::PixelData* const row = buffer_->GetAddr(0, coord_.y());
-  const skcms_PixelFormat fmt = XformColorFormat();
-  const skcms_AlphaFormat alpha =
-      (buffer_->HasAlpha() && buffer_->PremultiplyAlpha())
-          ? skcms_AlphaFormat_PremulAsEncoded
-          : skcms_AlphaFormat_Unpremul;
-  const bool success =
-      skcms_Transform(row, fmt, alpha, transform->SrcProfile(), row, fmt, alpha,
-                      transform->DstProfile(), decoder_width);
-  DCHECK(success);
+  parent_->DoDecodeTimeColorTransformIfNeeded(
+      *buffer_, SkIRect::MakeXYWH(0, coord_.y(), decoder_width, 1));
   buffer_->SetPixelsChanged(true);
 }
 

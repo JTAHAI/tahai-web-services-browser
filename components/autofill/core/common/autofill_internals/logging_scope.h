@@ -44,7 +44,11 @@ class LogBuffer;
   /* Autofill with AI. */                                              \
   T(AutofillAi)                                                        \
   /* Autofill Actor. */                                                \
-  T(AutofillActor)
+  T(AutofillActor)                                                     \
+  /* One Time Token. */                                                \
+  T(OneTimeTokens)                                                     \
+  /* AtMemory. */                                                      \
+  T(AtMemory)
 
 // Define a bunch of logging scopes: kContext, kParsing, ...
 #define AUTOFILL_TEMPLATE(NAME) k##NAME,

@@ -14,6 +14,8 @@
 #include "base/test/bind.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/public/common/permissions_policy/document_policy.h"
+#include "third_party/blink/public/mojom/security_context/insecure_request_policy.mojom-blink.h"
 #include "third_party/blink/public/mojom/v8_cache_options.mojom-blink.h"
 #include "third_party/blink/public/mojom/worker/dedicated_worker_host.mojom-blink.h"
 #include "third_party/blink/public/platform/task_type.h"
@@ -32,9 +34,13 @@
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/inspector/thread_debugger_common_impl.h"
+#include "third_party/blink/renderer/core/loader/empty_clients.h"
+#include "third_party/blink/renderer/core/loader/worker_fetch_context.h"
+#include "third_party/blink/renderer/core/loader/worker_resource_timing_notifier_impl.h"
 #include "third_party/blink/renderer/core/messaging/blink_transferable_message.h"
 #include "third_party/blink/renderer/core/messaging/message_channel.h"
 #include "third_party/blink/renderer/core/messaging/message_port.h"
+#include "third_party/blink/renderer/core/offscreencanvas/offscreen_canvas.h"
 #include "third_party/blink/renderer/core/script/script.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
 #include "third_party/blink/renderer/core/testing/wait_for_event.h"
@@ -52,6 +58,9 @@
 #include "third_party/blink/renderer/core/workers/worker_thread_test_helper.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/visitor.h"
+#include "third_party/blink/renderer/platform/loader/fetch/fetch_client_settings_object_snapshot.h"
+#include "third_party/blink/renderer/platform/loader/fetch/resource_request.h"
+#include "third_party/blink/renderer/platform/loader/testing/test_resource_fetcher_properties.h"
 #include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
@@ -284,18 +293,44 @@ class DedicatedWorkerMessagingProxyForTest
 
   ~DedicatedWorkerMessagingProxyForTest() override = default;
 
-  void StartWorker(
-      std::unique_ptr<GlobalScopeCreationParams> params = nullptr) {
+  // Overrides the URL used to initialize the worker global scope. Use a local
+  // scheme (e.g. blob:) to exercise the policy-container inheritance branch in
+  // DedicatedWorkerGlobalScope::Initialize().
+  void SetScriptURLForTesting(const KURL& script_url) {
+    script_url_ = script_url;
+  }
+
+  // Builds the default GlobalScopeCreationParams used by StartWorker(), based
+  // on the current `script_url_`.
+  std::unique_ptr<GlobalScopeCreationParams>
+  CreateGlobalScopeCreationParamsForTest() {
     scoped_refptr<const SecurityOrigin> security_origin =
         SecurityOrigin::Create(script_url_);
+    return GlobalScopeCreationParams::CreateForWorkerForTesting(
+        security_origin.get(), script_url_,
+        GetExecutionContext()->GetExecutionContextToken(),
+        std::make_unique<WorkerSettings>(
+            To<LocalDOMWindow>(GetExecutionContext())
+                ->GetFrame()
+                ->GetSettings()));
+  }
+
+  // Starts a worker at `script_url` (which may be a local scheme such as blob:)
+  // whose creation params carry `creator_policy` as the creator's document
+  // policy, so the local-scheme inheritance path can be exercised.
+  void StartWorkerWithCreatorDocumentPolicy(
+      const KURL& script_url,
+      DocumentPolicy::ParsedDocumentPolicy creator_policy) {
+    SetScriptURLForTesting(script_url);
+    auto params = CreateGlobalScopeCreationParamsForTest();
+    params->creator_document_policy.policy = std::move(creator_policy);
+    StartWorker(std::move(params));
+  }
+
+  void StartWorker(
+      std::unique_ptr<GlobalScopeCreationParams> params = nullptr) {
     if (!params) {
-      params = GlobalScopeCreationParams::CreateForWorkerForTesting(
-          security_origin.get(), script_url_,
-          GetExecutionContext()->GetExecutionContextToken(),
-          std::make_unique<WorkerSettings>(
-              To<LocalDOMWindow>(GetExecutionContext())
-                  ->GetFrame()
-                  ->GetSettings()));
+      params = CreateGlobalScopeCreationParamsForTest();
     }
     InitializeWorkerThread(
         std::move(params),
@@ -310,7 +345,6 @@ class DedicatedWorkerMessagingProxyForTest
         CrossThreadBindOnce(
             &DedicatedWorkerThreadForTest::InitializeGlobalScope,
             CrossThreadUnretained(GetDedicatedWorkerThread()), script_url_));
-
   }
 
   void EvaluateClassicScript(const String& source) {
@@ -531,6 +565,49 @@ TEST_F(DedicatedWorkerTest, UseCounter) {
                             CrossThreadBindOnce(loop.QuitClosure())));
     loop.Run();
   }
+}
+
+TEST_F(DedicatedWorkerTest, OffscreenCanvasTransferToWorkerUseCounter) {
+  Page::InsertOrdinaryPageForTesting(&GetPage());
+  StartWorker();
+
+  EXPECT_FALSE(
+      GetDocument().IsUseCounted(WebFeature::kOffscreenCanvasTransferToWorker));
+
+  // Creating an OffscreenCanvas without placeholder on the main thread (window)
+  // does not count.
+  MakeGarbageCollected<OffscreenCanvas>(
+      GetDocument().domWindow(), gfx::Size(10, 10), 0, 0, kInvalidDOMNodeId);
+  EXPECT_FALSE(
+      GetDocument().IsUseCounted(WebFeature::kOffscreenCanvasTransferToWorker));
+
+  // Creating an OffscreenCanvas with placeholder on the main thread does not
+  // count.
+  MakeGarbageCollected<OffscreenCanvas>(GetDocument().domWindow(),
+                                        gfx::Size(10, 10), 1, 1, DOMNodeId{1});
+  EXPECT_FALSE(
+      GetDocument().IsUseCounted(WebFeature::kOffscreenCanvasTransferToWorker));
+
+  // Creating an OffscreenCanvas without placeholder on a worker thread does not
+  // count.
+  RunOnWorkerThread(
+      CrossThreadBindOnce([](ExecutionContext* execution_context) {
+        MakeGarbageCollected<OffscreenCanvas>(
+            execution_context, gfx::Size(10, 10), 0, 0, kInvalidDOMNodeId);
+      }));
+  EXPECT_FALSE(
+      GetDocument().IsUseCounted(WebFeature::kOffscreenCanvasTransferToWorker));
+
+  // Creating an OffscreenCanvas with placeholder on a worker thread (which
+  // occurs when an offscreen canvas is transferred to a worker) counts.
+  RunOnWorkerThread(
+      CrossThreadBindOnce([](ExecutionContext* execution_context) {
+        MakeGarbageCollected<OffscreenCanvas>(
+            execution_context, gfx::Size(10, 10), 1, 1, DOMNodeId{1});
+      }));
+
+  EXPECT_TRUE(
+      GetDocument().IsUseCounted(WebFeature::kOffscreenCanvasTransferToWorker));
 }
 
 TEST_F(DedicatedWorkerTest, TaskRunner) {
@@ -951,6 +1028,87 @@ TEST_F(DedicatedWorkerTest, PostCustomEventNoMessage) {
   EXPECT_EQ(event->ports(), nullptr);
 }
 
+TEST_F(DedicatedWorkerTest, SubresourceWithEmbeddedCredentials) {
+  StartWorker();
+  WaitUntilWorkerIsRunning();
+
+  base::RunLoop run_loop;
+  PostCrossThreadTask(
+      *GetWorkerThread()->GetTaskRunner(TaskType::kInternalTest), FROM_HERE,
+      CrossThreadBindOnce(
+          [](DedicatedWorkerThreadForTest* worker_thread,
+             CrossThreadOnceClosure quit_closure) {
+            auto* global_scope =
+                To<WorkerGlobalScope>(worker_thread->GlobalScope());
+
+            // Set up a WorkerFetchContext whose worker URL carries embedded
+            // credentials.
+            const KURL worker_url("http://user:pass@a.test/worker.js");
+            scoped_refptr<const SecurityOrigin> origin =
+                SecurityOrigin::Create(worker_url);
+            auto* settings_object =
+                MakeGarbageCollected<FetchClientSettingsObjectSnapshot>(
+                    worker_url, worker_url, origin,
+                    mojom::blink::PolicyContainerPolicies::New(), String(),
+                    HttpsState::kNone, AllowedByNosniff::MimeTypeCheck::kStrict,
+                    mojom::blink::InsecureRequestPolicy::
+                        kLeaveInsecureRequestsAlone,
+                    FetchClientSettingsObject::InsecureNavigationsSet());
+            auto& properties =
+                MakeGarbageCollected<TestResourceFetcherProperties>(
+                    *settings_object)
+                    ->MakeDetachable();
+            auto* fetch_context = MakeGarbageCollected<WorkerFetchContext>(
+                properties, *global_scope,
+                base::MakeRefCounted<EmptyWebWorkerFetchContext>(),
+                /*subresource_filter=*/nullptr,
+                *global_scope->GetContentSecurityPolicy(),
+                *MakeGarbageCollected<NullWorkerResourceTimingNotifier>());
+
+            ResourceRequest script_request;
+            script_request.SetRequestContext(
+                mojom::blink::RequestContextType::SCRIPT);
+
+            // A same-origin URL with credentials matching the worker's URL
+            // should be allowed.
+            EXPECT_FALSE(
+                fetch_context->ShouldBlockFetchAsCredentialedSubresource(
+                    script_request, KURL("http://user:pass@a.test/script.js")));
+
+            // A same-origin URL with non-matching embedded credentials must be
+            // blocked.
+            EXPECT_TRUE(
+                fetch_context->ShouldBlockFetchAsCredentialedSubresource(
+                    script_request,
+                    KURL("http://wrong:pass@a.test/script.js")));
+
+            // A cross-origin URL must be blocked even when its credentials
+            // match the worker's URL.
+            EXPECT_TRUE(
+                fetch_context->ShouldBlockFetchAsCredentialedSubresource(
+                    script_request, KURL("http://user:pass@b.test/script.js")));
+
+            // A subresource request without embedded credentials should be
+            // allowed.
+            EXPECT_FALSE(
+                fetch_context->ShouldBlockFetchAsCredentialedSubresource(
+                    script_request, KURL("http://b.test/script.js")));
+
+            // An XMLHTTPRequest with embedded credentials should be allowed.
+            ResourceRequest xhr_request;
+            xhr_request.SetRequestContext(
+                mojom::blink::RequestContextType::XML_HTTP_REQUEST);
+            EXPECT_FALSE(
+                fetch_context->ShouldBlockFetchAsCredentialedSubresource(
+                    xhr_request, KURL("http://user:pass@b.test/script.js")));
+
+            std::move(quit_closure).Run();
+          },
+          CrossThreadUnretained(GetWorkerThread()),
+          CrossThreadOnceClosure(run_loop.QuitClosure())));
+  run_loop.Run();
+}
+
 class DedicatedWorkerDocumentPolicyTest
     : public DedicatedWorkerTest,
       public testing::WithParamInterface<bool> {
@@ -995,6 +1153,67 @@ TEST_P(DedicatedWorkerDocumentPolicyTest, DocumentPolicyInDedicatedWorker) {
 
   run_loop.Run();
   EXPECT_EQ(has_document_policy, IsFeatureEnabled());
+}
+
+// Test that a local-scheme (blob:) dedicated worker inherits the creator's
+// Document Policy, mirroring how Content-Security-Policy is inherited for such
+// workers. Network-scheme workers instead apply the policy parsed from the
+// response headers (exercised by DocumentPolicyInDedicatedWorker, which uses
+// the network URL http://fake.url/).
+TEST_F(DedicatedWorkerTest, DocumentPolicyInheritedForLocalSchemeWorker) {
+  ScopedDocumentPolicyInDedicatedWorkerForTest scoped_feature(true);
+
+  // The creator declares a non-default `force-load-at-top` policy (default:
+  // false). This feature is used because it is a purely declarative boolean
+  // policy: it exercises the inheritance plumbing this CL adds without pulling
+  // in feature-specific machinery (e.g. `js-profiling` would spin up a
+  // ProfilerGroup on the worker isolate), keeping the test focused on the
+  // policy-container inheritance branch.
+  DocumentPolicy::ParsedDocumentPolicy creator_policy;
+  creator_policy.feature_state[mojom::DocumentPolicyFeature::kForceLoadAtTop] =
+      PolicyValue::CreateBool(true);
+
+  // Start a blob: (local scheme) worker so the inheritance branch runs.
+  WorkerMessagingProxy()->StartWorkerWithCreatorDocumentPolicy(
+      KURL("blob:http://fake.url/de305d54-75b4-431b-adb2-eb6b9e546014"),
+      creator_policy);
+  WaitUntilWorkerIsRunning();
+
+  base::RunLoop run_loop;
+  bool force_load_at_top_enabled = false;
+
+  PostCrossThreadTask(
+      *GetWorkerThread()->GetTaskRunner(TaskType::kInternalTest), FROM_HERE,
+      CrossThreadBindOnce(
+          [](base::RepeatingClosure quit_closure, bool* out_enabled,
+             DedicatedWorkerThreadForTest* worker_thread) {
+            DedicatedWorkerGlobalScope* global_scope =
+                To<DedicatedWorkerGlobalScope>(worker_thread->GlobalScope());
+            EXPECT_NE(global_scope, nullptr);
+            if (!global_scope) {
+              quit_closure.Run();
+              return;
+            }
+            const DocumentPolicy* document_policy =
+                global_scope->GetSecurityContext().GetDocumentPolicy();
+            EXPECT_NE(document_policy, nullptr);
+            if (!document_policy) {
+              quit_closure.Run();
+              return;
+            }
+            *out_enabled = document_policy->IsFeatureEnabled(
+                mojom::DocumentPolicyFeature::kForceLoadAtTop);
+            quit_closure.Run();
+          },
+          run_loop.QuitClosure(),
+          CrossThreadUnretained(&force_load_at_top_enabled),
+          CrossThreadUnretained(GetWorkerThread())));
+
+  run_loop.Run();
+
+  // The worker inherited the creator's `force-load-at-top` policy rather than
+  // falling back to the feature's default (false).
+  EXPECT_TRUE(force_load_at_top_enabled);
 }
 
 }  // namespace blink

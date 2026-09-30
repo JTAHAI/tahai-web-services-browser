@@ -19,6 +19,7 @@
 #include "base/trace_event/trace_event.h"
 #include "base/values.h"
 #include "components/sync/base/data_type.h"
+#include "components/sync/base/features.h"
 #include "components/sync/base/sync_invalidation.h"
 #include "components/sync/engine/cancelation_signal.h"
 #include "components/sync/engine/configure_reason.h"
@@ -188,7 +189,8 @@ void SyncManagerImpl::Init(InitArgs* args) {
   cycle_context_ = args->engine_components_factory->BuildContext(
       connection_manager_.get(), args->extensions_activity, listeners,
       &debug_info_event_listener_, data_type_registry_.get(), args->cache_guid,
-      args->birthday, args->bag_of_chips, args->poll_interval);
+      args->birthday, args->bag_of_chips, args->poll_interval,
+      args->account_email, args->sync_access_token_fetcher);
   scheduler_ = args->engine_components_factory->BuildScheduler(
       name_, cycle_context_.get(), args->cancelation_signal,
       args->enable_local_sync_backend);
@@ -270,9 +272,8 @@ void SyncManagerImpl::StartConfiguration() {
 
 void SyncManagerImpl::UpdateCredentials(const SyncCredentials& credentials) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(!base::FeatureList::IsEnabled(kSyncUsePropagatedAccessToken));
   DCHECK(initialized_);
-
-  cycle_context_->set_account_name(credentials.email);
 
   observing_network_connectivity_changes_ = true;
   if (!connection_manager_->SetAccessTokenInfo(credentials.access_token_info)) {
@@ -286,7 +287,14 @@ void SyncManagerImpl::UpdateCredentials(const SyncCredentials& credentials) {
 
 void SyncManagerImpl::InvalidateCredentials() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(!base::FeatureList::IsEnabled(kSyncUsePropagatedAccessToken));
   connection_manager_->SetAccessTokenInfo(signin::AccessTokenInfo());
+}
+
+void SyncManagerImpl::OnCredentialsChanged() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(base::FeatureList::IsEnabled(kSyncUsePropagatedAccessToken));
+  scheduler_->OnCredentialsUpdated();
 }
 
 void SyncManagerImpl::AddObserver(SyncManager::Observer* observer) {
@@ -336,7 +344,14 @@ void SyncManagerImpl::ShutdownOnSyncThread() {
 void SyncManagerImpl::OnConnectionChanged(
     net::NetworkChangeNotifier::ConnectionType type) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!observing_network_connectivity_changes_) {
+  // In the legacy model (without token propagation), observing network
+  // connectivity changes is paused after an auth error to prevent running a
+  // sync cycle with stale/missing cached credentials down to the network layer.
+  // With kSyncUsePropagatedAccessToken enabled, the scheduler fetches an
+  // access token on demand and waits for it asynchronously before running the
+  // cycle, so network changes can be safely forwarded to trigger retry.
+  if (!observing_network_connectivity_changes_ &&
+      !base::FeatureList::IsEnabled(kSyncUsePropagatedAccessToken)) {
     DVLOG(1) << "Network change dropped.";
     return;
   }

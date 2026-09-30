@@ -419,8 +419,7 @@ void It2MeHost::ConnectOnNetworkThread(
 #endif  // BUILDFLAG(IS_CHROMEOS) || !defined(NDEBUG)
 
   auto peer_session_factory = std::make_unique<PeerSessionImplFactory>(
-      desktop_environment_factory_.get(), std::move(get_ice_config_fetcher_cb),
-      host_context_->audio_task_runner());
+      desktop_environment_factory_.get(), std::move(get_ice_config_fetcher_cb));
 
   // Create the host.
   host_ = std::make_unique<ChromotingHost>(
@@ -654,6 +653,7 @@ void It2MeHost::UpdateLocalSessionPolicies(
   // policies.
   local_session_policies->allow_file_transfer = false;
   local_session_policies->allow_uri_forwarding = false;
+  local_session_policies->allow_terminal_mode = false;
 
   local_session_policies->allow_remote_input = true;
 

@@ -6,7 +6,7 @@
 
 #import "components/autofill/core/browser/field_types.h"
 #import "components/autofill/core/browser/foundations/test_browser_autofill_manager.h"
-#import "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#import "components/autofill/core/browser/test_utils/autofill_test_util.h"
 #import "components/autofill/core/common/form_data.h"
 #import "components/autofill/ios/browser/autofill_agent.h"
 #import "components/autofill/ios/browser/autofill_driver_ios_factory.h"
@@ -132,6 +132,7 @@ TEST_F(AutofillDataExtractionUtilsTest, ConvertAutofillFieldRedactionReason) {
 TEST_F(AutofillDataExtractionUtilsTest, ShouldRedactContent) {
   AutofillExtractionContext context;
   context.extract_autofill_credit_card_redactions = true;
+  context.extract_autofill_otp_redactions = true;
 
   // Test that redaction is correctly applied when enabled.
   // Where no redaction is needed.
@@ -140,6 +141,10 @@ TEST_F(AutofillDataExtractionUtilsTest, ShouldRedactContent) {
       context));
   EXPECT_FALSE(ShouldRedactContent(
       optimization_guide::proto::REDACTION_DECISION_UNREDACTED_EMPTY_PASSWORD,
+      context));
+  EXPECT_FALSE(ShouldRedactContent(
+      optimization_guide::proto::
+          REDACTION_DECISION_UNREDACTED_EMPTY_CUSTOM_PASSWORD,
       context));
   EXPECT_FALSE(
       ShouldRedactContent(optimization_guide::proto::
@@ -151,6 +156,13 @@ TEST_F(AutofillDataExtractionUtilsTest, ShouldRedactContent) {
   // Where redaction is needed.
   EXPECT_TRUE(ShouldRedactContent(
       optimization_guide::proto::REDACTION_DECISION_REDACTED_HAS_BEEN_PASSWORD,
+      context));
+  EXPECT_TRUE(
+      ShouldRedactContent(optimization_guide::proto::
+                              REDACTION_DECISION_REDACTED_CUSTOM_PASSWORD_CSS,
+                          context));
+  EXPECT_TRUE(ShouldRedactContent(
+      optimization_guide::proto::REDACTION_DECISION_REDACTED_CUSTOM_PASSWORD_JS,
       context));
   EXPECT_TRUE(ShouldRedactContent(
       optimization_guide::proto::
@@ -165,6 +177,9 @@ TEST_F(AutofillDataExtractionUtilsTest, ShouldRedactContent) {
       optimization_guide::proto::
           REDACTION_DECISION_REDACTED_IS_SENSITIVE_PAYMENT_FIELD,
       context));
+  context.extract_autofill_otp_redactions = false;
+  EXPECT_FALSE(ShouldRedactContent(
+      optimization_guide::proto::REDACTION_DECISION_REDACTED_IS_OTP, context));
 }
 
 // Tests GetAutofillFieldData returns nullopt when context is missing web_state
@@ -238,7 +253,8 @@ TEST_F(AutofillDataExtractionUtilsTest, GetAutofillFieldData_Valid) {
   base::flat_map<std::string, uint32_t> section_numbers;
   AutofillExtractionContext context(
       web_state.GetWeakPtr(), frame_token,
-      /*extract_autofill_credit_card_redactions=*/false, &section_numbers);
+      /*extract_autofill_credit_card_redactions=*/false,
+      /*extract_autofill_otp_redactions=*/false, &section_numbers);
 
   std::optional<AutofillFieldMetadata> metadata =
       GetAutofillFieldData(10, context);

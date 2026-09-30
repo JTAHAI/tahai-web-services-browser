@@ -15,9 +15,10 @@
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
-#include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -25,6 +26,7 @@
 #include "content/public/browser/navigation_throttle.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/apple/url_conversions.h"
+#include "ui/base/base_window.h"
 #include "url/url_canon.h"
 
 namespace {
@@ -143,7 +145,7 @@ void AuthSessionRequest::StartNewAuthSession(
   }
 
   // Create a Browser with an empty tab.
-  Browser* browser = nil;
+  BrowserWindowInterface* browser = nil;
   if (!error_string) {
     browser = CreateBrowser(request, profile);
     if (!browser) {
@@ -171,7 +173,7 @@ void AuthSessionRequest::StartNewAuthSession(
   // Then create the auth session that owns that browser and will intercept
   // navigation requests.
   content::WebContents* contents =
-      browser->tab_strip_model()->GetActiveWebContents();
+      browser->GetTabStripModel()->GetActiveWebContents();
   AuthSessionRequest::CreateForWebContents(contents, browser, request,
                                            matching_scheme);
 
@@ -237,7 +239,7 @@ void AuthSessionRequest::CreateAndAddNavigationThrottle(
 
 AuthSessionRequest::AuthSessionRequest(
     content::WebContents* web_contents,
-    Browser* browser,
+    BrowserWindowInterface* browser,
     ASWebAuthenticationSessionRequest* request,
     const std::string& matching_scheme)
     : content::WebContentsObserver(web_contents),
@@ -250,7 +252,7 @@ AuthSessionRequest::AuthSessionRequest(
 }
 
 // static
-Browser* AuthSessionRequest::CreateBrowser(
+BrowserWindowInterface* AuthSessionRequest::CreateBrowser(
     ASWebAuthenticationSessionRequest* request,
     Profile* profile) {
   if (!profile) {
@@ -279,8 +281,8 @@ Browser* AuthSessionRequest::CreateBrowser(
 
   // Check if browser creation is possible before attempting to create it.
   // This prevents crashes when the profile is in an unsuitable state.
-  if (Browser::GetCreationStatusForProfile(profile) !=
-      Browser::CreationStatus::kOk) {
+  if (GetBrowserWindowCreationStatusForProfile(*profile) !=
+      BrowserWindowInterface::CreationStatus::kOk) {
     return nullptr;
   }
 
@@ -306,9 +308,10 @@ Browser* AuthSessionRequest::CreateBrowser(
   // this code; if it were restored it would not have the AuthSessionRequest and
   // would not behave correctly.
 
-  Browser::CreateParams params(Browser::TYPE_POPUP, profile, true);
+  BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_POPUP, profile,
+                                   /*from_user_gesture=*/true);
   params.omit_from_session_restore = true;
-  Browser* browser = Browser::Create(params);
+  BrowserWindowInterface* browser = CreateBrowserWindow(std::move(params));
   chrome::AddTabAt(browser, GURL("about:blank"), -1, true);
   browser->GetWindow()->Show();
 
@@ -328,7 +331,7 @@ void AuthSessionRequest::DestroyWebContents() {
   // has no tabs left. Close the tab this way (as opposed to, say,
   // TabStripModel::CloseWebContentsAt) so that the web page will no longer be
   // able to show any dialogs, particularly a `beforeunload` one.
-  browser_->tab_strip_model()->DetachAndDeleteWebContentsAt(0);
+  browser_->GetTabStripModel()->DetachAndDeleteWebContentsAt(0);
   // The destruction of the WebContents triggers a call to
   // WebContentsDestroyed() below.
 }

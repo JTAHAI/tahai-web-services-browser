@@ -8,7 +8,7 @@
 #import "base/check.h"
 #import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
-#import "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_utils.h"
+#import "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_util.h"
 #import "components/autofill/core/common/autofill_features.h"
 #import "components/autofill/core/common/autofill_prefs.h"
 #import "components/prefs/ios/pref_observer_bridge.h"
@@ -74,7 +74,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
     // Register to observe any changes on Pref-backed values displayed by the
     // screen.
     _prefObserverBridge->ObserveChangesForPreference(
-        autofill::prefs::kAutofillAiOptInStatus, &_prefChangeRegistrar);
+        autofill::GetAutofillAiOptInPreferenceKeyName(), &_prefChangeRegistrar);
   }
   return self;
 }
@@ -232,7 +232,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
     return;
   }
 
-  if (preferenceName == autofill::prefs::kAutofillAiOptInStatus) {
+  if (preferenceName == autofill::GetAutofillAiOptInPreferenceKeyName()) {
     [self setSwitchItemOn:[self isEnhancedAutofillEnabled]
                  itemType:ItemTypeEnhancedAutofillSwitch];
   }

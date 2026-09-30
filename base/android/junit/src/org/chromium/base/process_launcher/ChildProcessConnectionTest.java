@@ -38,7 +38,6 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.stubbing.Answer;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.ApkInfo;
 import org.chromium.base.ChildBindingState;
@@ -51,7 +50,6 @@ import java.util.ArrayList;
 
 /** Unit tests for ChildProcessConnection. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class ChildProcessConnectionTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -127,7 +125,6 @@ public class ChildProcessConnectionTest {
             return mImportanceInGroup;
         }
     }
-    ;
 
     private final ChildServiceConnectionFactory mServiceConnectionFactory =
             new ChildServiceConnectionFactory() {
@@ -169,8 +166,7 @@ public class ChildProcessConnectionTest {
 
         mIChildProcessService = mock(IChildProcessService.class);
         ApplicationInfo appInfo = ApkInfo.getInstance().getBrowserApplicationInfo();
-        String[] appInfoStrings = ChildProcessService.convertToStrings(appInfo);
-        when(mIChildProcessService.getAppInfoStrings()).thenReturn(appInfoStrings);
+        when(mIChildProcessService.getSourceDir()).thenReturn(appInfo.sourceDir);
         // Capture the parameters passed to the IChildProcessService.setupConnection() call.
         doAnswer(
                         new Answer<Void>() {

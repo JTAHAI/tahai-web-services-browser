@@ -11,11 +11,14 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/sharing/sharing_message_bridge_factory.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
+#include "chrome/browser/sync/test/integration/device_info_helper.h"
 #include "chrome/browser/sync/test/integration/single_client_status_change_checker.h"
 #include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "components/sharing_message/features.h"
 #include "components/sharing_message/sharing_message_bridge.h"
+#include "components/signin/public/identity_manager/identity_test_utils.h"
 #include "components/sync/base/features.h"
 #include "components/sync/service/sync_token_status.h"
 #include "content/public/test/browser_test.h"
@@ -168,6 +171,16 @@ class SingleClientSharingMessageSyncTest
   }
   ~SingleClientSharingMessageSyncTest() override = default;
 
+  [[nodiscard]] bool SetupSync() {
+    if (!SyncTest::SetupSync()) {
+      return false;
+    }
+
+    // Wait for committing DeviceInfo with sharing_fields, it may happen
+    // asynchronously due to FCM token registration.
+    return device_info_helper::WaitForFullDeviceInfoCommitted(GetCacheGuid(0));
+  }
+
   bool WaitForSharingMessage(
       std::vector<SharingMessageSpecifics> expected_specifics) {
     return SharingMessageEqualityChecker(GetSyncService(0), GetFakeServer(),
@@ -284,6 +297,11 @@ IN_PROC_BROWSER_TEST_P(
 
   ASSERT_TRUE(SetupSync());
   GetFakeServer()->SetHttpError(net::HTTP_UNAUTHORIZED);
+  // Disable internal access token fetch retries in IdentityManager so that the
+  // transient error immediately propagates to Sync and triggers its retry
+  // logic.
+  signin::DisableAccessTokenFetchRetries(
+      IdentityManagerFactory::GetForProfile(GetProfile(0)));
   SetOAuth2TokenResponse(gaia::FakeOAuth2TokenResponse::OAuth2Error(
       OAuth2Response::kInternalFailure));
 

@@ -15,6 +15,7 @@ namespace profile_metrics {
 // numeric values should never be reused.
 // A Java counterpart will be generated for this enum.
 // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.profile_metrics
+// LINT.IfChange(BrowserProfileType)
 enum class BrowserProfileType {
   kRegular = 0,
   kIncognito = 1,
@@ -22,8 +23,10 @@ enum class BrowserProfileType {
   kSystem = 3,
   kOtherOffTheRecordProfile = 4,
   // Deprecated(10/23): kDeprecatedEphemeralGuest = 5,
-  kMaxValue = kOtherOffTheRecordProfile,
+  kEnterpriseIsolated = 6,
+  kMaxValue = kEnterpriseIsolated,
 };
+// LINT.ThenChange(//tools/metrics/histograms/enums.xml:BrowserProfileType)
 
 // Returns the BrowserProfileType value associated with |browser_context|.
 // Note that the browser profile type should be set for all BrowserContext (or

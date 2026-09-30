@@ -11,14 +11,13 @@
 #include "components/webapps/common/web_app_id.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom-forward.h"
 
-class Browser;
 class BrowserWindowInterface;
 class Profile;
 
 namespace content {
 class Page;
 class WebContents;
-}
+}  // namespace content
 
 namespace webapps {
 enum class WebappInstallSource;
@@ -30,7 +29,7 @@ namespace web_app {
 enum class WebAppInstallFlow;
 
 // Returns whether a WebApp installation is allowed for the current page.
-bool CanCreateWebApp(Browser* browser);
+bool CanCreateWebApp(BrowserWindowInterface* browser);
 
 // Returns whether the current profile is allowed to pop out a web app into a
 // separate window. Does not check whether any particular page can pop out.
@@ -41,30 +40,21 @@ using WebAppInstalledCallback =
                             webapps::InstallResultCode code)>;
 
 // Initiates user install of a WebApp for the current page.
-void CreateWebAppFromCurrentWebContents(Browser* browser,
+void CreateWebAppFromCurrentWebContents(BrowserWindowInterface* browser,
                                         WebAppInstallFlow flow);
 
 // Starts install of a WebApp for a given |web_contents|, initiated from
-// a promotional banner or omnibox install icon.
-// Returns false if WebApps are disabled for the profile behind |web_contents|.
-// |iph_state| indicates whether or not in-product-help prompted this call.
+// a promotional banner or omnibox install icon. Returns false without starting
+// an install on any early-return path (no WebAppProvider, an install already in
+// progress, an install command already running, or no AppBannerManager). If
+// this function returns false, |installed_callback| runs synchronously before
+// returning. |iph_state| indicates whether or not in-product-help prompted this
+// call.
 bool CreateWebAppFromManifest(
     content::WebContents* web_contents,
     webapps::WebappInstallSource install_source,
     WebAppInstalledCallback installed_callback,
     PwaInProductHelpState iph_state = PwaInProductHelpState::kNotShown);
-
-// Starts the background install of a WebApp at `install_url`, initiated from a
-// `navigator.install` call from within `initiating_web_contents`. This must be
-// called from a context where `WebAppProvider` exists and is supported.
-// Used for the Web Install API.
-void CreateWebAppForBackgroundInstall(
-    content::WebContents* initiating_web_contents,
-    std::unique_ptr<webapps::MlInstallOperationTracker> tracker,
-    const GURL& install_url,
-    const std::optional<GURL>& manifest_id,
-    const GURL& last_committed_url,
-    WebAppInstalledCallback installed_callback);
 
 // Starts the background install of a WebApp using a pre-parsed manifest,
 // initiated from a `navigator.install({manifest_url})` call from within

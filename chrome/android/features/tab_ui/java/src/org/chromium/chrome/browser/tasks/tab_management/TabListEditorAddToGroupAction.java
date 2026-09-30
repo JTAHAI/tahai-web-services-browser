@@ -18,7 +18,6 @@ import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabGroupMergeNotificationType;
@@ -186,6 +185,7 @@ public class TabListEditorAddToGroupAction extends TabListEditorAction {
 
     private void showBottomSheet(
             List<Tab> tabs, TabModel tabModel, Profile profile, BottomSheetController controller) {
+        assert !tabs.isEmpty();
         TabGroupCreationCallback groupCreationCallback =
                 tabGroupId -> mTabGroupCreationDialogManager.showDialog(tabGroupId, tabModel);
 
@@ -197,8 +197,9 @@ public class TabListEditorAddToGroupAction extends TabListEditorAction {
                         /* tabMovedCallback= */ null,
                         tabModel,
                         controller,
-                        true,
-                        true);
+                        /* supportsShowNewGroup= */ true,
+                        /* destroyOnHide= */ true,
+                        tabs.get(0).getWindowAndroid());
         mTabGroupListBottomSheetCoordinator.showBottomSheet(tabs);
     }
 
@@ -223,7 +224,7 @@ public class TabListEditorAddToGroupAction extends TabListEditorAction {
 
     private boolean hasTabGroups() {
         Collection<TabModelSelector> selectors =
-                ChromeFeatureList.sCrossWindowTabGroupOperations.isEnabled()
+                TabGroupUiUtils.isCrossWindowTabGroupOperationsEnabled()
                         ? TabWindowManagerSingleton.getInstance().getAllTabModelSelectors()
                         : null;
         return TabGroupUtils.hasTabGroups(getTabModel(), selectors);

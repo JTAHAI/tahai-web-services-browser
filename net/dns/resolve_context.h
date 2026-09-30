@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
@@ -19,6 +20,7 @@
 #include "base/time/default_tick_clock.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "net/base/ech_mode.h"
 #include "net/base/net_export.h"
 #include "net/base/network_handle.h"
 #include "net/dns/dns_attempt.h"
@@ -212,6 +214,11 @@ class NET_EXPORT_PRIVATE ResolveContext : public base::CheckedObserver {
     url_request_context_ = url_request_context;
   }
 
+  // Returns the EchMode configured for `host` in the URLRequestContext's
+  // SSLConfigService, or EchMode::kOpportunistic if no SSLConfigService is
+  // configured.
+  EchMode GetEchMode(std::string_view host) const;
+
   HostCache* host_cache() { return host_cache_.get(); }
   HostResolverCache* host_resolver_cache() {
     return host_resolver_cache_.get();
@@ -252,6 +259,10 @@ class NET_EXPORT_PRIVATE ResolveContext : public base::CheckedObserver {
   }
 
   base::WeakPtr<ResolveContext> GetWeakPtr() {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
+
+  base::WeakPtr<const ResolveContext> GetWeakPtr() const {
     return weak_ptr_factory_.GetWeakPtr();
   }
 
@@ -373,7 +384,7 @@ class NET_EXPORT_PRIVATE ResolveContext : public base::CheckedObserver {
 
   base::OneShotTimer doh_autoupgrade_success_metric_timer_;
 
-  base::WeakPtrFactory<ResolveContext> weak_ptr_factory_{this};
+  mutable base::WeakPtrFactory<ResolveContext> weak_ptr_factory_{this};
 };
 
 }  // namespace net

@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.tasks.tab_management.color_picker;
 
-import android.content.Context;
 import android.view.View;
 import android.widget.RadioGroup;
 
@@ -45,17 +44,15 @@ public class TabGroupColorPickerCoordinator implements TabGroupColorPicker {
     /**
      * Coordinator for the color picker interface.
      *
-     * @param context The current context.
      * @param colors The list of color ids corresponding to the color items in this color picker.
      * @param colorPickerView The view used for the color picker container.
      * @param colorPickerType The {@link TabGroupColorPickerType} associated with this color picker.
      * @param isIncognito Whether the current tab model is in incognito mode.
-     * @param layoutType The {@TabGroupColorPickerLayoutType} that the component will be arranged
-     *     as.
+     * @param layoutType The {@link TabGroupColorPickerLayoutType} that the component will be
+     *     arranged as.
      * @param onColorItemClicked The runnable for performing an action on each color click event.
      */
     public TabGroupColorPickerCoordinator(
-            Context context,
             List<Integer> colors,
             View colorPickerView,
             @TabGroupColorPickerType int colorPickerType,

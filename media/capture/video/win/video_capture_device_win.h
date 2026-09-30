@@ -20,6 +20,7 @@
 #include <string>
 
 #include "base/containers/queue.h"
+#include "base/containers/span.h"
 #include "base/memory/raw_ptr.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
@@ -96,6 +97,7 @@ class VideoCaptureDeviceWin : public VideoCaptureDevice,
       const VideoCaptureParams& params,
       std::unique_ptr<VideoCaptureDevice::Client> client) override;
   void StopAndDeAllocate() override;
+  void InvalidateBuffers() override;
   void TakePhoto(TakePhotoCallback callback) override;
   void GetPhotoState(GetPhotoStateCallback callback) override;
   void SetPhotoOptions(mojom::PhotoSettingsPtr settings,
@@ -115,8 +117,7 @@ class VideoCaptureDeviceWin : public VideoCaptureDevice,
       IVideoProcAmp** video_control);
 
   // Implements SinkFilterObserver.
-  void FrameReceived(const uint8_t* buffer,
-                     int length,
+  void FrameReceived(base::span<const uint8_t> buffer,
                      const VideoCaptureFormat& format,
                      base::TimeDelta timestamp,
                      bool flip_y) override;

@@ -6,7 +6,7 @@
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_METRICS_PREDICTION_QUALITY_METRICS_H_
 
 #include "components/autofill/core/browser/autofill_field.h"
-#include "components/autofill/core/browser/form_parsing/autofill_parsing_utils.h"
+#include "components/autofill/core/browser/form_parsing/autofill_parsing_util.h"
 #include "components/autofill/core/browser/form_structure.h"
 #include "components/autofill/core/common/dense_set.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
@@ -223,6 +223,14 @@ void LogFieldPredictionOverlapMetrics(const AutofillField& field);
 // Records the html, server, heuristic, overall and possible type of a field.
 // Also records the prediction source for the overall type of the field.
 void LogFieldTypeAtSubmissionMetrics(const AutofillField& field);
+
+// Logs metric conditionally to evaluate
+// `AutofillBetterLocalHeuristicPlaceholderSupport` feature.
+// TODO(crbug.com/430258039): Clean up along with the corresponding histograms
+// after feature is launched.
+void LogHeuristicPredictionQualityForLowQualityLabels(
+    const AutofillField& field,
+    bool was_prediction_correct);
 
 }  // namespace autofill::autofill_metrics
 

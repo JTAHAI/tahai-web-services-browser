@@ -29,8 +29,8 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.notifications.NotificationIntentInterceptor;
-import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.util.AndroidTaskUtils;
 import org.chromium.content_public.browser.MediaSession;
 import org.chromium.content_public.browser.WebContents;
@@ -163,6 +163,9 @@ public class FullscreenVideoPictureInPictureController {
     /** Was pip dismissed while the screen was off? */
     private boolean mDismissPending;
 
+    /** Should media be suspended if the activity stops, i.e. was the pip window closed? */
+    private boolean mShouldSuspendMediaOnStop;
+
     public FullscreenVideoPictureInPictureController(
             Activity activity,
             ActivityTabProvider activityTabProvider,
@@ -282,7 +285,6 @@ public class FullscreenVideoPictureInPictureController {
             if (!mActivity.enterPictureInPictureMode(builder.build())) return;
         } catch (IllegalStateException | IllegalArgumentException e) {
             Log.e(TAG, "Error entering PiP with bounds %s", bounds, e);
-            return;
         }
     }
 
@@ -379,6 +381,8 @@ public class FullscreenVideoPictureInPictureController {
         // mode, these might be registered already.
         addObserversIfNeeded();
 
+        mShouldSuspendMediaOnStop = true;
+
         RecordHistogram.recordEnumeratedHistogram(
                 ENTERED_HISTOGRAM, PipEntered.ENTERED, PipEntered.COUNT);
     }
@@ -398,7 +402,23 @@ public class FullscreenVideoPictureInPictureController {
         }
     }
 
+    // Stopping while pip is open means the window was closed, since restoring it resumes instead.
+    // Closing used to suspend media as a side-effect of hiding the page, but that no longer happens
+    // on large form factors (see IsBackgroundMediaSuspendEnabled), so suspend it here.
+    public void onStop() {
+        if (mShouldSuspendMediaOnStop) {
+            mShouldSuspendMediaOnStop = false;
+
+            final MediaSession mediaSession = getMediaSession();
+            if (mediaSession != null && mIsPlaying) {
+                mediaSession.suspend(SuspendType.SYSTEM);
+            }
+        }
+    }
+
     public void onResume() {
+        // Pip was restored rather than closed, so media should keep playing.
+        mShouldSuspendMediaOnStop = false;
         // Unconditionally dismiss pip, because the activity has been resumed.  This can happen if
         // we get out of sync; we rely on exiting fullscreen to exit pip, and sometimes that just
         // doesn't happen.  This exits pip if the user starts chrome again while in pip.
@@ -645,7 +665,7 @@ public class FullscreenVideoPictureInPictureController {
      * A class to dismiss the Activity when the tab closes /re-parents (attaches to a different
      * activity) / crashes / leaves fullscreen.
      */
-    private class DismissActivityOnTabEventObserver extends EmptyTabObserver {
+    private class DismissActivityOnTabEventObserver implements TabObserver {
         private final Activity mActivity;
         private final Tab mTab;
         private @Nullable WebContents mWebContents;

@@ -19,7 +19,7 @@
 #include "third_party/blink/public/common/input/web_mouse_event.h"
 #include "url/gurl.h"
 
-class Browser;
+class BrowserWindowInterface;
 class Profile;
 
 namespace content {
@@ -112,14 +112,14 @@ class WebAppNavigationBrowserTest : public WebAppBrowserTestBase {
   webapps::AppId InstallTestWebApp(const std::string& app_host,
                                    const std::string& app_scope);
 
-  Browser* OpenTestWebApp();
+  BrowserWindowInterface* OpenTestWebApp();
 
   // Navigates the active tab in |browser| to the launching page.
-  void NavigateToLaunchingPage(Browser* browser);
+  void NavigateToLaunchingPage(BrowserWindowInterface* browser);
 
   // Checks that no new windows are opened after clicking on a link to the given
   // `target_url` in the current active web contents of the `browser`.
-  bool ExpectLinkClickNotCapturedIntoAppBrowser(Browser* browser,
+  bool ExpectLinkClickNotCapturedIntoAppBrowser(BrowserWindowInterface* browser,
                                                 const GURL& target_url,
                                                 const std::string& rel = "");
 

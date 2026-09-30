@@ -4,10 +4,12 @@
 
 #include "content/common/memory_coordinator/predicate_memory_coordinator_policy.h"
 
+#include <string_view>
 #include <utility>
 
 #include "base/feature_list.h"
 #include "base/memory_coordinator/memory_coordinator_features.h"
+#include "base/memory_coordinator/memory_limit.h"
 #include "content/common/memory_coordinator/memory_coordinator_policy.h"
 #include "content/common/memory_coordinator/memory_coordinator_policy_manager.h"
 
@@ -23,13 +25,14 @@ PredicateMemoryCoordinatorPolicy::~PredicateMemoryCoordinatorPolicy() = default;
 void PredicateMemoryCoordinatorPolicy::OnConsumerGroupAdded(
     uint32_t consumer_id,
     std::string_view consumer_name,
-    std::optional<base::MemoryConsumerTraits> traits,
+    base::MemoryConsumerTraits traits,
     ProcessType process_type,
     ChildProcessId child_process_id) {
-  if (predicate_.Run(consumer_id, traits, process_type, child_process_id)) {
+  if (predicate_.Run(consumer_id, consumer_name, traits, process_type,
+                     child_process_id)) {
     // Only update if the limit is not the default or if memory release is
     // requested.
-    if (percentage_ != base::MemoryConsumer::kDefaultMemoryLimit ||
+    if (percentage_ != base::MemoryLimit::Default().percent() ||
         release_memory_) {
       manager().UpdateConsumers(
           this,
@@ -48,9 +51,9 @@ void PredicateMemoryCoordinatorPolicy::SetLimit(int percentage,
   if (percentage == percentage_ && release_memory == release_memory_) {
     // If this is a repeated request to release memory, and we are actually
     // under pressure (limit < 100%), trigger a repeated release for stateless
-    // consumers and consumers without defined traits.
+    // consumers.
     if (release_memory &&
-        percentage < base::MemoryConsumer::kDefaultMemoryLimit) {
+        percentage < base::MemoryLimit::NoPressureThreshold().percent()) {
       TriggerRepeatedRelease();
     }
     return;
@@ -61,10 +64,10 @@ void PredicateMemoryCoordinatorPolicy::SetLimit(int percentage,
 
   manager().UpdateConsumers(
       this,
-      [this](uint32_t consumer_id,
-             std::optional<base::MemoryConsumerTraits> traits,
-             ProcessType process_type, ChildProcessId child_process_id) {
-        return predicate_.Run(consumer_id, traits, process_type,
+      [this](uint32_t consumer_id, std::string_view consumer_name,
+             base::MemoryConsumerTraits traits, ProcessType process_type,
+             ChildProcessId child_process_id) {
+        return predicate_.Run(consumer_id, consumer_name, traits, process_type,
                               child_process_id);
       },
       percentage_, release_memory_);
@@ -73,12 +76,12 @@ void PredicateMemoryCoordinatorPolicy::SetLimit(int percentage,
 void PredicateMemoryCoordinatorPolicy::TriggerRepeatedRelease() {
   manager().UpdateConsumers(
       this,
-      [this](uint32_t consumer_id,
-             std::optional<base::MemoryConsumerTraits> traits,
-             ProcessType process_type, ChildProcessId child_process_id) {
+      [this](uint32_t consumer_id, std::string_view consumer_name,
+             base::MemoryConsumerTraits traits, ProcessType process_type,
+             ChildProcessId child_process_id) {
         // Don't repeat the signal for consumers that don't match the policy's
         // predicate.
-        if (!predicate_.Run(consumer_id, traits, process_type,
+        if (!predicate_.Run(consumer_id, consumer_name, traits, process_type,
                             child_process_id)) {
           return false;
         }
@@ -89,8 +92,7 @@ void PredicateMemoryCoordinatorPolicy::TriggerRepeatedRelease() {
         // stateless mode regardless of their declared traits, so they still
         // require repeated signals.
         if (base::FeatureList::IsEnabled(base::kStatefulMemoryPressure) &&
-            traits.has_value() &&
-            traits->is_stateful ==
+            traits.is_stateful ==
                 base::MemoryConsumerTraits::IsStateful::kYes) {
           return false;
         }

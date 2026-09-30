@@ -13,6 +13,7 @@ import androidx.annotation.ColorInt;
 import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.signin.services.AccountPreviewDataService;
 import org.chromium.chrome.browser.signin.services.SigninFlowTimestampsLogger.FlowVariant;
 import org.chromium.chrome.browser.signin.services.SigninManager;
 import org.chromium.chrome.browser.ui.signin.account_picker.AccountPickerBottomSheetCoordinator;
@@ -28,6 +29,7 @@ import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
 import org.chromium.google_apis.gaia.CoreAccountId;
 import org.chromium.ui.base.WindowAndroid;
+import org.chromium.ui.modaldialog.ModalDialogManager;
 
 /** Responsible of showing the sign-in bottom sheet. */
 @NullMarked
@@ -106,9 +108,11 @@ public class SigninBottomSheetCoordinator implements AccountPickerDelegate {
     public void show(
             WindowAndroid windowAndroid,
             Activity activity,
+            ModalDialogManager modalDialogManager,
             BottomSheetController bottomSheetController,
             DeviceLockActivityLauncher deviceLockActivityLauncher,
             SigninManager signinManager,
+            @Nullable AccountPreviewDataService accountPreviewDataService,
             AccountPickerBottomSheetStrings bottomSheetStrings,
             @AccountPickerLaunchMode int accountPickerLaunchMode,
             boolean isSeamlessSigninFlow,
@@ -123,6 +127,8 @@ public class SigninBottomSheetCoordinator implements AccountPickerDelegate {
                             activity,
                             signinManager.getIdentityManager(),
                             signinManager,
+                            accountPreviewDataService,
+                            modalDialogManager,
                             bottomSheetController,
                             this,
                             bottomSheetStrings,
@@ -137,6 +143,8 @@ public class SigninBottomSheetCoordinator implements AccountPickerDelegate {
                             windowAndroid,
                             signinManager.getIdentityManager(),
                             signinManager,
+                            accountPreviewDataService,
+                            modalDialogManager,
                             bottomSheetController,
                             this,
                             bottomSheetStrings,
@@ -207,5 +215,9 @@ public class SigninBottomSheetCoordinator implements AccountPickerDelegate {
             mSigninUiCoordinator.dismiss();
             mSigninUiCoordinator = null;
         }
+    }
+
+    public @Nullable SigninBottomSheetUiCoordinator getSigninUiCoordinatorForTesting() {
+        return mSigninUiCoordinator;
     }
 }

@@ -27,6 +27,13 @@ luci.bucket(
             groups = "project-chromium-admins",
         ),
     ],
+    bindings = [
+        # Allow everyone to view Turbo CI workflows
+        luci.binding(
+            roles = "role/turboci.nodeReaderExternal",
+            groups = "all",
+        ),
+    ],
 )
 
 luci.bucket(
@@ -64,6 +71,9 @@ defaults.builderless.set(None)
 defaults.cpu.set(cpu.X86_64)
 defaults.executable.set("recipe:chromium")
 defaults.execution_timeout.set(3 * time.hour)
+defaults.experiments.set({
+    "luci.buildbucket.run_in_turboci": 100,
+})
 defaults.os.set(os.LINUX_DEFAULT)
 defaults.properties.set({
     "$build/chromium_swarming": {
@@ -279,7 +289,8 @@ ci_builder(
             "mac_15_x64",
         ],
     ),
-    os = os.MAC_DEFAULT,
+    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
+    os = os.MAC_15,
 )
 
 ci_builder(

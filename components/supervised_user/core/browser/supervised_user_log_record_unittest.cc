@@ -129,7 +129,7 @@ class SupervisedUserLogRecordTest : public ::testing::Test {
         is_opted_in_to_parental_supervision);
     GetIdentityTestEnv()->UpdateAccountInfoForAccount(account_info);
 
-    EnableParentalControls(*supervised_user_test_environment_.pref_service());
+    supervised_user_test_environment_.EnableSupervisedAccount();
     // Set the Family Link `Permissions` switch to default value. In prod it's
     // done by the `SupervisedUserPrefStore`, but that requires fully
     // operational Profile.
@@ -321,61 +321,34 @@ TEST_F(SupervisedUserLogRecordTest, RegularUserWithDisabledSupervision) {
 
 #if BUILDFLAG(IS_ANDROID)
 TEST_F(SupervisedUserLogRecordTest, RegularUserWithSearchFilterEnabled) {
-  // TODO(crbug.com/519491295): check ::EmitHistograms effects.
-  // With kSupervisedUserEmitLogRecordSeparately enabled; the log record is no
-  // longer emitted in the context of family link user, but instead recorded
-  // separately.
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndDisableFeature(
-      supervised_user::kSupervisedUserEmitLogRecordSeparately);
-
   CreateRegularUser();
   EnableSearchContentFilters();
 
   std::optional<SupervisedUserLogRecord::Segment> supervision_status =
       CreateSupervisedUserLogRecord()->GetSupervisionStatusForPrimaryAccount();
-  EXPECT_THAT(
-      supervision_status,
-      Optional(SupervisedUserLogRecord::Segment::kSupervisionEnabledLocally));
+  EXPECT_THAT(supervision_status,
+              Optional(SupervisedUserLogRecord::Segment::kUnsupervised));
 }
 
 TEST_F(SupervisedUserLogRecordTest, RegularUserWithContentFiltersEnabled) {
-  // TODO(crbug.com/519491295): check ::EmitHistograms effects.
-  // With kSupervisedUserEmitLogRecordSeparately enabled; the log record is no
-  // longer emitted in the context of family link user, but instead recorded
-  // separately.
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndDisableFeature(
-      supervised_user::kSupervisedUserEmitLogRecordSeparately);
-
   CreateRegularUser();
   EnableBrowserContentFilters();
 
   std::optional<SupervisedUserLogRecord::Segment> supervision_status =
       CreateSupervisedUserLogRecord()->GetSupervisionStatusForPrimaryAccount();
-  EXPECT_THAT(
-      supervision_status,
-      Optional(SupervisedUserLogRecord::Segment::kSupervisionEnabledLocally));
+  EXPECT_THAT(supervision_status,
+              Optional(SupervisedUserLogRecord::Segment::kUnsupervised));
 }
 
 TEST_F(SupervisedUserLogRecordTest, RegularUserWithAllLocalFiltersEnabled) {
-  // TODO(crbug.com/519491295): check ::EmitHistograms effects.
-  // With kSupervisedUserEmitLogRecordSeparately enabled; the log record is no
-  // longer emitted in the context of family link user, but instead recorded
-  // separately.
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndDisableFeature(
-      supervised_user::kSupervisedUserEmitLogRecordSeparately);
-
   CreateRegularUser();
   EnableSearchContentFilters();
   EnableBrowserContentFilters();
 
   std::optional<SupervisedUserLogRecord::Segment> supervision_status =
       CreateSupervisedUserLogRecord()->GetSupervisionStatusForPrimaryAccount();
-  EXPECT_THAT(
-      supervision_status,
-      Optional(SupervisedUserLogRecord::Segment::kSupervisionEnabledLocally));
+  EXPECT_THAT(supervision_status,
+              Optional(SupervisedUserLogRecord::Segment::kUnsupervised));
 }
 #endif  // BUILDFLAG(IS_ANDROID)
 }  // namespace

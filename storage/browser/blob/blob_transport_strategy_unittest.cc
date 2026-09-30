@@ -443,10 +443,12 @@ TEST_F(BlobTransportStrategyTest, Files_ValidBytesOneElement) {
   size_t expected_file_count =
       1 + data.size() / kTestBlobStorageMaxFileSizeBytes;
   FileInfoVector files(expected_file_count);
+  std::vector<base::FilePath> paths(expected_file_count);
   for (size_t i = 0; i < expected_file_count; ++i) {
     base::ScopedAllowBlockingForTesting allow_blocking;
     base::FilePath path;
     ASSERT_TRUE(base::CreateTemporaryFileInDir(data_dir_.GetPath(), &path));
+    paths[i] = path;
     files[i].file =
         base::File(path, base::File::FLAG_OPEN | base::File::FLAG_WRITE);
     files[i].file_deletion_runner =
@@ -454,14 +456,20 @@ TEST_F(BlobTransportStrategyTest, Files_ValidBytesOneElement) {
     files[i].file_reference = ShareableFileReference::GetOrCreate(
         path, ShareableFileReference::DELETE_ON_FINAL_RELEASE,
         bytes_provider_runner_.get());
-    size_t offset = i * kTestBlobStorageMaxFileSizeBytes;
-    size_t length = std::min<uint64_t>(kTestBlobStorageMaxFileSizeBytes,
-                                       data.size() - offset);
-    expected.AppendFile(path, 0, length, mock_time_);
   }
 
   strategy->BeginTransport(std::move(files));
   loop.Run();
+
+  for (size_t i = 0; i < expected_file_count; ++i) {
+    base::ScopedAllowBlockingForTesting allow_blocking;
+    size_t offset = i * kTestBlobStorageMaxFileSizeBytes;
+    size_t length = std::min<uint64_t>(kTestBlobStorageMaxFileSizeBytes,
+                                       data.size() - offset);
+    base::File::Info info;
+    ASSERT_TRUE(base::GetFileInfo(paths[i], &info));
+    expected.AppendFile(paths[i], 0, length, info.last_modified);
+  }
 
   EXPECT_EQ(BlobStatus::DONE, status);
   EXPECT_EQ(expected, builder);
@@ -516,10 +524,12 @@ TEST_F(BlobTransportStrategyTest, Files_ValidBytesMultipleElements) {
   size_t expected_file_count =
       1 + 4 * data.size() / kTestBlobStorageMaxFileSizeBytes;
   FileInfoVector files(expected_file_count);
+  std::vector<base::FilePath> paths(expected_file_count);
   for (size_t i = 0; i < expected_file_count; ++i) {
     base::ScopedAllowBlockingForTesting allow_blocking;
     base::FilePath path;
     ASSERT_TRUE(base::CreateTemporaryFileInDir(data_dir_.GetPath(), &path));
+    paths[i] = path;
     files[i].file =
         base::File(path, base::File::FLAG_OPEN | base::File::FLAG_WRITE);
     files[i].path = path;
@@ -530,16 +540,25 @@ TEST_F(BlobTransportStrategyTest, Files_ValidBytesMultipleElements) {
         bytes_provider_runner_.get());
   }
 
+  strategy->BeginTransport(std::move(files));
+  loop.Run();
+
   size_t file_offset = 0;
   size_t file_index = 0;
   size_t expected_request_count = 0;
+  auto snapshot = builder.CreateSnapshot();
+  const auto& items = snapshot->items();
+  size_t item_index = 0;
   for (size_t i = 0; i < 4; ++i) {
     size_t remaining_size = data.size();
     while (remaining_size > 0) {
       size_t block_size = std::min<uint64_t>(
           kTestBlobStorageMaxFileSizeBytes - file_offset, remaining_size);
-      expected.AppendFile(files[file_index].path, file_offset, block_size,
-                          mock_time_);
+      ASSERT_LT(item_index, items.size());
+      EXPECT_FALSE(items[item_index]->expected_modification_time().is_null());
+      expected.AppendFile(paths[file_index], file_offset, block_size,
+                          items[item_index]->expected_modification_time());
+      item_index++;
       expected_request_count++;
       remaining_size -= block_size;
       file_offset += block_size;
@@ -549,9 +568,6 @@ TEST_F(BlobTransportStrategyTest, Files_ValidBytesMultipleElements) {
       }
     }
   }
-
-  strategy->BeginTransport(std::move(files));
-  loop.Run();
 
   EXPECT_EQ(BlobStatus::DONE, status);
   EXPECT_EQ(expected, builder);

@@ -196,7 +196,8 @@
 #include "ui/base/ui_base_features.h"
 #include "ui/gfx/geometry/skia_conversions.h"
 
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || \
+    BUILDFLAG(IS_WIN)
 #include "ui/native_theme/native_theme.h"
 #endif
 
@@ -461,7 +462,8 @@ void MaybePreloadSystemFonts(Page* page) {
       FROM_HERE, BindOnce([]() { FontCache::MaybePreloadSystemFonts(); }));
 }
 
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || \
+    BUILDFLAG(IS_WIN)
 void UpdateUseOverlayScrollbar(bool use_overlay_scrollbar) {
   ui::NativeTheme::GetInstanceForWeb()->set_use_overlay_scrollbar(
       use_overlay_scrollbar);
@@ -612,6 +614,7 @@ WebViewImpl::WebViewImpl(
       *chrome_client_, opener ? opener->GetPage() : nullptr,
       agent_group_scheduler.GetAgentGroupScheduler(),
       browsing_context_group_token, color_provider_colors);
+  page_->SetRendererPreferences(renderer_preferences_);
   CoreInitializer::GetInstance().ProvideModulesToPage(
       *page_, session_storage_namespace_id_);
 
@@ -2941,7 +2944,7 @@ void ValidatePausedStateConsistency() {
       }
       const bool microtasks_are_paused =
           window->GetAgent()->event_loop()->AreMicrotasksPaused();
-      CHECK(!microtasks_are_paused, base::NotFatalUntil::M153) << window->Url();
+      CHECK(!microtasks_are_paused, base::NotFatalUntil::M156) << window->Url();
     }
   }
 }
@@ -2975,6 +2978,7 @@ void WebViewImpl::EnableAutoResizeMode(const gfx::Size& min_size,
 
 void WebViewImpl::DisableAutoResizeMode() {
   should_auto_resize_ = false;
+  size_before_suppressed_autosize_.reset();
   ConfigureAutoResizeMode();
 }
 
@@ -3421,6 +3425,17 @@ float WebViewImpl::DefaultMaximumPageScaleFactor() const {
 }
 
 float WebViewImpl::MinimumPageScaleFactor() const {
+#if BUILDFLAG(IS_ANDROID)
+  // We have to force this on Android because WebViewImpl::ApplyWebPreferences()
+  // sets SetIgnoreViewportTagScaleLimits(prefs.force_enable_zoom) on Android,
+  // which sometimes overrides the minimum scale that we set in
+  // WebViewImpl::ConfigureAutoResizeMode().
+  if (base::FeatureList::IsEnabled(
+          features::kAutoResizeMinimumPageScaleFactor) &&
+      should_auto_resize_) {
+    return 1.0f;
+  }
+#endif
   return GetPageScaleConstraintsSet().FinalConstraints().minimum_scale;
 }
 
@@ -3490,12 +3505,18 @@ void WebViewImpl::ConfigureAutoResizeMode() {
     return;
   }
 
+  PageScaleConstraints constraints =
+      GetPageScaleConstraintsSet().UserAgentConstraints();
   if (should_auto_resize_) {
     MainFrameImpl()->GetFrame()->View()->EnableAutoSizeMode(min_auto_size_,
                                                             max_auto_size_);
+    constraints.minimum_scale = 1.0f;
   } else {
     MainFrameImpl()->GetFrame()->View()->DisableAutoSizeMode();
+    constraints.minimum_scale = -1.0f;
   }
+  GetPageScaleConstraintsSet().SetNeedsReset(true);
+  GetPage()->SetUserAgentPageScaleConstraints(constraints);
 }
 
 void WebViewImpl::SetCompositorDeviceScaleFactorOverride(
@@ -3767,6 +3788,10 @@ void WebViewImpl::UpdateRendererPreferences(
   std::string old_accept_languages = renderer_preferences_.accept_languages;
   renderer_preferences_ = preferences;
 
+  if (GetPage()) {
+    GetPage()->SetRendererPreferences(preferences);
+  }
+
   for (auto& watcher : renderer_preference_watchers_) {
     watcher->NotifyUpdate(renderer_preferences_);
   }
@@ -3823,7 +3848,8 @@ void WebViewImpl::UpdateRendererPreferences(
   SetExplicitlyAllowedPorts(
       renderer_preferences_.explicitly_allowed_network_ports);
 
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || \
+    BUILDFLAG(IS_WIN)
   if (!ScrollbarTheme::MockScrollbarsEnabled()) {
     // DevTools emulation can update Blink's overlay scrollbar setting,
     // while OS theme updates can update NativeTheme before renderer preferences
@@ -3993,15 +4019,41 @@ void WebViewImpl::ResizeAfterLayout() {
   if (should_auto_resize_) {
     LocalFrameView* view = MainFrameImpl()->GetFrame()->View();
     gfx::Size frame_size = view->Size();
+    const bool should_suppress_notifications =
+        view->IsBeingAutoSized() &&
+        RuntimeEnabledFeatures::AutoSizeUsesScrollWidthForOverflowEnabled();
+    if (should_suppress_notifications && !size_before_suppressed_autosize_) {
+      size_before_suppressed_autosize_ = size_;
+    }
+    const bool had_suppressed_autosize_measurements =
+        size_before_suppressed_autosize_.has_value();
+    const gfx::Size previously_reported_size =
+        size_before_suppressed_autosize_.value_or(size_);
+    bool visual_viewport_size_changed = false;
     if (frame_size != size_) {
       size_ = frame_size;
 
-      GetPage()->GetVisualViewport().SetSize(size_);
+      GetPage()->GetVisualViewport().SetSize(size_,
+                                             should_suppress_notifications);
+      visual_viewport_size_changed = true;
       GetPageScaleConstraintsSet().DidChangeInitialContainingBlockSize(size_);
+    }
 
+    if (!should_suppress_notifications) {
+      size_before_suppressed_autosize_.reset();
+    }
+    if (!should_suppress_notifications &&
+        frame_size != previously_reported_size) {
       web_view_client_->DidAutoResize(size_);
       web_widget_->DidAutoResize(size_);
       SendResizeEventForMainFrame();
+      if (!visual_viewport_size_changed) {
+        view->GetFrame().GetDocument()->EnqueueVisualViewportResizeEvent();
+      }
+      if (had_suppressed_autosize_measurements &&
+          !view->GetFrame().GetDocument()->Printing()) {
+        probe::DidResizeMainFrame(&view->GetFrame());
+      }
     }
   }
 
@@ -4423,7 +4475,7 @@ void WebViewImpl::CreateRemoteMainFrame(
 }
 
 scheduler::WebAgentGroupScheduler& WebViewImpl::GetWebAgentGroupScheduler() {
-  return web_agent_group_scheduler_;
+  return *web_agent_group_scheduler_;
 }
 
 void WebViewImpl::UpdatePageBrowsingContextGroup(

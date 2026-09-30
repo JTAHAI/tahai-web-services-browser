@@ -6,7 +6,9 @@ package org.chromium.chrome.browser.pdf;
 
 import android.view.View;
 
+import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.ui.listmenu.ListMenuDelegate;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableFloatPropertyKey;
@@ -40,8 +42,8 @@ class PdfToolbarProperties {
     static final WritableBooleanPropertyKey ZOOM_INCREASE_BUTTON_ENABLED =
             new WritableBooleanPropertyKey();
 
-    /** Whether to show the fit to page height icon. */
-    static final WritableBooleanPropertyKey SHOW_FIT_TO_HEIGHT_ICON =
+    /** Whether to show the fit to page icon. */
+    static final WritableBooleanPropertyKey SHOW_FIT_TO_PAGE_ICON =
             new WritableBooleanPropertyKey();
 
     /** The callback for toolbar actions. */
@@ -49,8 +51,8 @@ class PdfToolbarProperties {
             new WritableObjectPropertyKey<>();
 
     /** The callback for page number submission. */
-    static final WritableObjectPropertyKey<org.chromium.base.Callback<Integer>>
-            PAGE_NUMBER_EDIT_LISTENER = new WritableObjectPropertyKey<>();
+    static final WritableObjectPropertyKey<Callback<Integer>> PAGE_NUMBER_EDIT_LISTENER =
+            new WritableObjectPropertyKey<>();
 
     /** Whether the download button is visible. */
     static final WritableBooleanPropertyKey DOWNLOAD_BUTTON_VISIBLE =
@@ -58,8 +60,6 @@ class PdfToolbarProperties {
 
     /** Whether edit mode is active. */
     static final WritableBooleanPropertyKey EDIT_MODE_ACTIVE = new WritableBooleanPropertyKey();
-
-
 
     /** Whether the fit to page button is visible. */
     static final WritableBooleanPropertyKey FIT_TO_PAGE_BUTTON_VISIBLE =
@@ -76,6 +76,10 @@ class PdfToolbarProperties {
     /** Whether the done button is visible. */
     static final WritableBooleanPropertyKey DONE_BUTTON_VISIBLE = new WritableBooleanPropertyKey();
 
+    /** The delegate for the menu button. */
+    static final WritableObjectPropertyKey<ListMenuDelegate> MENU_BUTTON_DELEGATE =
+            new WritableObjectPropertyKey<>();
+
     static final PropertyKey[] ALL_KEYS = {
         CURRENT_PAGE_NUMBER,
         TITLE,
@@ -87,11 +91,12 @@ class PdfToolbarProperties {
         ZOOM_DECREASE_BUTTON_ENABLED,
         ZOOM_INCREASE_BUTTON_ENABLED,
         PAGE_NUMBER_EDIT_LISTENER,
-        SHOW_FIT_TO_HEIGHT_ICON,
+        SHOW_FIT_TO_PAGE_ICON,
         DOWNLOAD_BUTTON_VISIBLE,
         FIT_TO_PAGE_BUTTON_VISIBLE,
         DONE_BUTTON_VISIBLE,
         ZOOM_CONTROLS_VISIBLE,
-        PAGE_NAV_AND_EDIT_VISIBLE
+        PAGE_NAV_AND_EDIT_VISIBLE,
+        MENU_BUTTON_DELEGATE
     };
 }

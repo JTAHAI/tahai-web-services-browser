@@ -5,13 +5,16 @@
 #ifndef IOS_CHROME_BROWSER_SHARED_PUBLIC_COMMANDS_POPUP_MENU_COMMANDS_H_
 #define IOS_CHROME_BROWSER_SHARED_PUBLIC_COMMANDS_POPUP_MENU_COMMANDS_H_
 
-#import <Foundation/Foundation.h>
+#import "base/ios/block_types.h"
 
 // Commands for the popup menu.
 @protocol PopupMenuCommands
 
 // Called to present the Level Up Password Checkup walkthrough IPH step.
 - (void)showLevelUpPasswordCheckupWalkthroughIPH;
+
+// Called to present the Level Up Payment Methods walkthrough IPH step.
+- (void)showLevelUpPaymentMethodsWalkthroughIPH;
 
 // Called to present the Level Up Quick Delete walkthrough IPH step.
 - (void)showLevelUpQuickDeleteWalkthroughIPH;
@@ -20,6 +23,9 @@
 - (void)showToolsMenuPopup;
 // Dismisses the currently presented popup.
 - (void)dismissPopupMenuAnimated:(BOOL)animated;
+// Dismisses the currently presented popup with optional completion block.
+- (void)dismissPopupMenuAnimated:(BOOL)animated
+                      completion:(ProceduralBlock)completion;
 // Adjusts the popup's size when the containing view's size changes.
 - (void)adjustPopupSize;
 // Updates the blue dot state for tools menu button on toolbar.

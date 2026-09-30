@@ -5,20 +5,36 @@
 package org.chromium.chrome.browser.tasks.tab_management;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.tasks.tab_management.TabSwitcherMessageManager.isOnlyArchivedMsg;
 
+import android.content.Context;
+import android.os.Bundle;
+import android.util.Pair;
 import android.util.SparseIntArray;
+import android.view.View;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction;
+
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 
 import org.chromium.base.Token;
+import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.tab.MediaState;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.TabGroupUtils;
 import org.chromium.chrome.browser.tabmodel.TabList;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
+import org.chromium.chrome.browser.tasks.tab_management.TabListModel.CardProperties.ModelType;
+import org.chromium.chrome.tab_ui.R;
 import org.chromium.components.tab_group_sync.EitherId.EitherGroupId;
 import org.chromium.components.tab_group_sync.LocalTabGroupId;
 import org.chromium.components.tab_groups.TabGroupColorId;
+import org.chromium.ui.accessibility.AccessibilityState;
 import org.chromium.ui.modelutil.PropertyModel;
 
 import java.util.HashMap;
@@ -34,12 +50,39 @@ class NestedLayoutDelegate extends TabListLayoutDelegate {
         super(mediator, modelList);
     }
 
+    @Override
+    boolean requiresThumbnailUpdateOnDeselect() {
+        return false;
+    }
+
+    @Override
+    boolean requiresThumbnailUpdateOnSelect() {
+        return false;
+    }
+
+    @Override
+    boolean supportsTabGroups() {
+        return true;
+    }
+
+    @Override
+    boolean isChildTabRepresentedByGroupCard(Tab tab) {
+        return false;
+    }
+
+    @Override
+    @MediaState
+    int getMediaIndicatorState(Tab representativeTab, PropertyModel model) {
+        if (TabProperties.isTabGroupHeader(model)) return MediaState.NONE;
+        return representativeTab.getMediaState();
+    }
+
     /**
      * Spatial indexing helper for nested layouts. Maps a backend Tab's absolute index to its
      * corresponding UI list position.
      */
     @Override
-    public int getInsertionIndexOfTab(Tab tab) {
+    int getInsertionIndexOfTab(Tab tab) {
         if (tab == null) return TabList.INVALID_TAB_INDEX;
 
         TabModel tabModel = mMediator.getCurrentTabModelChecked();
@@ -103,9 +146,103 @@ class NestedLayoutDelegate extends TabListLayoutDelegate {
         return adjustIndexForTabMovement(mModelList.size(), targetTabCurrentIndex);
     }
 
+    /**
+     * Returns the index in {@link #mModelList} of the group header with {@code tabGroupId} and the
+     * first {@link Tab} of the group. Will be null if the header is not present, the group has no
+     * tabs, or the tab is not part of a tab group.
+     */
+    @Override
+    @Nullable Pair<Integer, Tab> getIndexAndTabForTabGroupId(@Nullable Token tabGroupId) {
+        if (tabGroupId == null) return null;
+
+        int headerIndex = mModelList.indexFromTabGroupId(tabGroupId);
+        if (headerIndex == TabModel.INVALID_TAB_INDEX) return null;
+
+        List<Tab> tabs = mMediator.getCurrentTabModelChecked().getTabsInGroup(tabGroupId);
+        if (tabs == null || tabs.isEmpty()) return null;
+
+        return Pair.create(headerIndex, tabs.get(0));
+    }
+
+    @Override
+    int onTabAdded(Tab tab) {
+        int existingIndex = mModelList.indexFromTabId(tab.getId());
+        if (existingIndex != TabModel.INVALID_TAB_INDEX) return existingIndex;
+
+        int newIndex = getInsertionIndexOfTab(tab);
+
+        // Tabs should be inserted only after the archived message card.
+        if (newIndex == 0 && isOnlyArchivedMsg(mModelList)) newIndex++;
+
+        Token groupId = tab.getTabGroupId();
+        if (groupId != null && mMediator.isTabInTabGroup(tab)) {
+            if (ensureGroupHeaderExists(tab, groupId, newIndex)) {
+                newIndex++;
+            }
+            mMediator.updateTabGroupTitle(groupId);
+
+            if (newIndex == TabList.INVALID_TAB_INDEX
+                    || mMediator.getCurrentTabModelChecked().getTabGroupCollapsed(groupId)) {
+                return newIndex;
+            }
+        }
+
+        if (newIndex == TabList.INVALID_TAB_INDEX) return newIndex;
+
+        TabModel tabModel = mMediator.getCurrentTabModelChecked();
+        mMediator.addTabInfoToModelForTab(
+                tab, newIndex, TabModelUtils.getCurrentTabId(tabModel) == tab.getId());
+        return newIndex;
+    }
+
+    @Override
+    void didAddTab(Tab tab, @TabLaunchType int type) {
+        super.didAddTab(tab, type);
+
+        if (type == TabLaunchType.FROM_RESTORE) {
+            int tabUiIndex = mModelList.indexFromTabId(tab.getId());
+            if (tabUiIndex != TabModel.INVALID_TAB_INDEX) {
+                mMediator.updateTab(
+                        tabUiIndex, tab, /* isUpdatingId= */ false, /* quickMode= */ false);
+            }
+            if (tab.getTabGroupId() != null) {
+                mMediator.updateTabGroupTitle(tab.getTabGroupId());
+            }
+        }
+    }
+
+    @Override
+    void onTabClose(Tab tab) {
+        TabModel tabModel = mMediator.getCurrentTabModelChecked();
+        Token tabGroupId = tab.getTabGroupId();
+        if (tabGroupId != null && tabModel.tabGroupExists(tabGroupId)) {
+            mMediator.updateTabGroupHeaderId(tabGroupId);
+            mMediator.updateTabGroupTitle(tabGroupId);
+        }
+
+        super.onTabClose(tab);
+    }
+
+    @Override
+    void prepareTabCloseAnimation(@Nullable View view, int closingTabIndex) {
+        // The last tab is clipped from top during animation.
+        if (view != null && view.getParent() instanceof View rootItemView) {
+            boolean isLastTab = closingTabIndex == mModelList.size() - 1;
+            rootItemView.setTag(R.id.tab_clip_from_top, isLastTab);
+        }
+    }
+
+    // TabGroupObserver implementation.
+
     @Override
     public void didChangeTabGroupColor(Token tabGroupId, @TabGroupColorId int newColor) {
-        super.didChangeTabGroupColor(tabGroupId, newColor);
+        int headerIndex = mModelList.indexFromTabGroupId(tabGroupId);
+        if (headerIndex != TabModel.INVALID_TAB_INDEX) {
+            PropertyModel headerModel = mModelList.get(headerIndex).model;
+            EitherGroupId eitherGroupId =
+                    EitherGroupId.createLocalId(new LocalTabGroupId(tabGroupId));
+            mMediator.updateTabGroupColorViewProvider(eitherGroupId, headerModel, newColor);
+        }
         // Sync the color down to the child models so decorations (like the group spine) can
         // read it.
         updateColorForChildTabsInNestedLayout(tabGroupId, newColor);
@@ -148,7 +285,7 @@ class NestedLayoutDelegate extends TabListLayoutDelegate {
 
     @Override
     public void didMoveTabGroup(Tab movedTab, int tabModelOldIndex, int tabModelNewIndex) {
-        // Move the grouo header along with all the child tabs.
+        // Move the group header along with all the child tabs.
         Token tabGroupId = movedTab.getTabGroupId();
         assert tabGroupId != null;
 
@@ -191,8 +328,7 @@ class NestedLayoutDelegate extends TabListLayoutDelegate {
         int destUiIndex = mModelList.indexFromTabId(destinationTab.getId());
         if (destUiIndex == TabModel.INVALID_TAB_INDEX) return;
 
-        if (mMediator.ensureGroupHeaderExistsInNestedLayout(
-                destinationTab, tabGroupId, destUiIndex)) {
+        if (ensureGroupHeaderExists(destinationTab, tabGroupId, destUiIndex)) {
             // After adding the group header, the destination tab's model shifts by one position.
             PropertyModel childModel = mModelList.get(destUiIndex + 1).model;
             setupGroupPropertiesForChildTab(destinationTab, childModel);
@@ -216,7 +352,7 @@ class NestedLayoutDelegate extends TabListLayoutDelegate {
     }
 
     @Override
-    public void setupGroupPropertiesForChildTab(Tab tab, PropertyModel model) {
+    void setupGroupPropertiesForChildTab(Tab tab, PropertyModel model) {
         Token tabGroupId = tab.getTabGroupId();
         if (tabGroupId != null) {
             model.set(TabProperties.TAB_GROUP_ID, tabGroupId);
@@ -226,6 +362,28 @@ class NestedLayoutDelegate extends TabListLayoutDelegate {
         } else {
             mMediator.clearTabGroupProperties(model);
         }
+    }
+
+    /**
+     * Checks whether a group header card for the given {@code tabGroupId} exists in {@link
+     * #mModelList}. If missing, creates and inserts a header card at {@code targetUiIndex}.
+     *
+     * @param tab A {@link Tab} in the group used to initialize the header model.
+     * @param tabGroupId The group ID token.
+     * @param targetUiIndex The UI index where the header should be inserted if missing.
+     * @return {@code true} if a header was created and inserted, {@code false} otherwise.
+     */
+    boolean ensureGroupHeaderExists(Tab tab, Token tabGroupId, int targetUiIndex) {
+        if (tabGroupId == null || targetUiIndex == TabModel.INVALID_TAB_INDEX) {
+            return false;
+        }
+
+        if (mModelList.indexFromTabGroupId(tabGroupId) == TabModel.INVALID_TAB_INDEX) {
+            mMediator.addTabInfoToModelForGroup(tab, tabGroupId, targetUiIndex);
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -263,7 +421,7 @@ class NestedLayoutDelegate extends TabListLayoutDelegate {
 
             if (newTabGroupId != null) {
                 int newTabUiIndex = mModelList.indexFromTabId(tab.getId());
-                mMediator.ensureGroupHeaderExistsInNestedLayout(tab, newTabGroupId, newTabUiIndex);
+                ensureGroupHeaderExists(tab, newTabGroupId, newTabUiIndex);
             }
         }
 
@@ -344,5 +502,101 @@ class NestedLayoutDelegate extends TabListLayoutDelegate {
                 break;
             }
         }
+    }
+
+    @Override
+    @ModelType
+    int getGroupCardType() {
+        return ModelType.TAB_GROUP;
+    }
+
+    @Override
+    boolean isGroupCollapsed(Token tabGroupId) {
+        TabModel tabModel = mMediator.getCurrentTabModelChecked();
+        return tabModel.getTabGroupCollapsed(tabGroupId);
+    }
+
+    @Override
+    void populateAccessibilityNodeInfo(
+            View host, AccessibilityNodeInfo info, @Nullable PropertyModel model) {
+        if (model == null) return;
+        // Set expand/collapse actions and state for tab group headers.
+        if (TabProperties.isTabGroupHeader(model)) {
+            boolean isCollapsed = TabProperties.isTabGroupCollapsed(model);
+            info.addAction(
+                    isCollapsed
+                            ? AccessibilityAction.ACTION_EXPAND
+                            : AccessibilityAction.ACTION_COLLAPSE);
+            AccessibilityNodeInfoCompat.wrap(info)
+                    .setExpandedState(
+                            isCollapsed
+                                    ? AccessibilityNodeInfoCompat.EXPANDED_STATE_COLLAPSED
+                                    : AccessibilityNodeInfoCompat.EXPANDED_STATE_FULL);
+        }
+
+        if (!TabProperties.isTabOrTabGroup(model)) {
+            return;
+        }
+
+        int position = mModelList.indexFromModel(model);
+        if (position == TabModel.INVALID_TAB_INDEX || !mModelList.isValidIndex(position)) {
+            return;
+        }
+
+        boolean canMoveUp = canReorderToPosition(position, position - 1);
+        boolean canMoveDown = canReorderToPosition(position, position + 1);
+
+        Context context = host.getContext();
+        boolean isTabGroup = TabProperties.isTabGroupHeader(model);
+        int upStringRes =
+                isTabGroup ? R.string.move_tab_group_up : R.string.accessibility_tab_movement_up;
+        int downStringRes =
+                isTabGroup
+                        ? R.string.move_tab_group_down
+                        : R.string.accessibility_tab_movement_down;
+        if (canMoveUp) {
+            info.addAction(
+                    new AccessibilityAction(R.id.move_tab_up, context.getString(upStringRes)));
+        }
+        if (canMoveDown) {
+            info.addAction(
+                    new AccessibilityAction(R.id.move_tab_down, context.getString(downStringRes)));
+        }
+    }
+
+    @Override
+    boolean performAccessibilityAction(
+            View host, int action, @Nullable Bundle args, @Nullable PropertyModel model) {
+        if (action == AccessibilityAction.ACTION_EXPAND.getId()
+                || action == AccessibilityAction.ACTION_COLLAPSE.getId()) {
+            host.performClick();
+            AccessibilityEvent event =
+                    AccessibilityEvent.obtain(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
+            event.setContentChangeTypes(AccessibilityEvent.CONTENT_CHANGE_TYPE_EXPANDED);
+            AccessibilityState.sendAccessibilityEvent(event);
+            return true;
+        }
+        if (action == R.id.move_tab_up || action == R.id.move_tab_down) {
+            return performReorderAction(action, model);
+        }
+        return false;
+    }
+
+    private boolean performReorderAction(int action, @Nullable PropertyModel model) {
+        if (model == null || !TabProperties.isTabOrTabGroup(model)) return false;
+        int currentPosition = mModelList.indexFromModel(model);
+        if (!mModelList.isValidIndex(currentPosition)) {
+            return false;
+        }
+
+        // Delegate reordering directly to NestedTabReorderUtils to update the TabModel and UI.
+        boolean toPrevious = action == R.id.move_tab_up;
+        TabModel tabModel = mMediator.getCurrentTabModelChecked();
+        if (NestedTabReorderUtils.reorderItemInDirection(
+                tabModel, mModelList, currentPosition, toPrevious)) {
+            RecordUserAction.record("TabGrid.AccessibilityDelegate.Reordered");
+            return true;
+        }
+        return false;
     }
 }

@@ -83,7 +83,7 @@ IN_PROC_BROWSER_TEST_F(BrowserWindowMacTest,
   [window addChildWindow:child_window ordered:NSWindowAbove];
 
   NSMenuItem* show_bookmark_bar_menu_item =
-      [[[[NSApp mainMenu] itemWithTag:kMacViewMenuId] submenu]
+      [[[[NSApp mainMenu] itemWithTag:IDC_VIEW_MENU] submenu]
           itemWithTag:IDC_SHOW_BOOKMARK_BAR];
 
   // Make sure both windows validate the bookmark bar menu item.
@@ -91,7 +91,7 @@ IN_PROC_BROWSER_TEST_F(BrowserWindowMacTest,
   EXPECT_TRUE(
       [child_window validateUserInterfaceItem:show_bookmark_bar_menu_item]);
 
-  browser()->command_controller()->UpdateCommandEnabled(
+  chrome::BrowserCommandController::From(browser())->UpdateCommandEnabled(
       show_bookmark_bar_menu_item.tag, false);
 
   // Make sure both windows find the bookmark bar menu item invalid. The child
@@ -166,10 +166,10 @@ IN_PROC_BROWSER_TEST_F(BrowserWindowMacTest, DisableCommandsWhenSheetAttached) {
       [[[[NSApp mainMenu] itemWithTag:AppMenuModel::kBookmarksMenuPlaceholder]
           submenu] itemWithTag:IDC_BOOKMARK_ALL_TABS];
   ASSERT_TRUE(bookmark_all_tabs_item);
-  NSMenuItem* print_item = [[[[NSApp mainMenu] itemWithTag:kMacFileMenuId]
+  NSMenuItem* print_item = [[[[NSApp mainMenu] itemWithTag:IDC_FILE_MENU]
       submenu] itemWithTag:IDC_PRINT];
   ASSERT_TRUE(print_item);
-  NSMenuItem* save_item = [[[[NSApp mainMenu] itemWithTag:kMacFileMenuId]
+  NSMenuItem* save_item = [[[[NSApp mainMenu] itemWithTag:IDC_FILE_MENU]
       submenu] itemWithTag:IDC_SAVE_PAGE];
   ASSERT_TRUE(save_item);
 

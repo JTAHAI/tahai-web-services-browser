@@ -6,6 +6,7 @@
 
 #include "ui/compositor/layer.h"
 #include "ui/compositor_extra/shadow.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/gfx/shadow_util.h"
 #include "ui/views/test/views_test_base.h"
 #include "ui/views/view.h"
@@ -88,7 +89,7 @@ TEST_F(ViewShadowTest, ShadowKeepsLayerType) {
   view.SetBoundsRect(gfx::Rect(10, 20, 30, 40));
   ViewShadow shadow(&view, 1);
   EXPECT_TRUE(view.layer());
-  EXPECT_EQ(ui::LAYER_SOLID_COLOR, view.layer()->type());
+  EXPECT_TRUE(view.layer()->AsSolidColor());
 }
 
 // Tests the shadow layer will not shift when the view's layer is reparented to
@@ -112,6 +113,15 @@ TEST_F(ViewShadowTest, NoShiftWhenReparentViewLayer) {
   root2.AddChildViewRaw(view);
   // Check if the shadow layer shifted.
   EXPECT_EQ(pos, shadow.shadow()->layer()->bounds().origin());
+}
+
+TEST_F(ViewShadowTest, SetRoundedCorners) {
+  View view;
+  ViewShadow shadow(&view, 1);
+
+  const gfx::RoundedCornersF radii(10, 20, 30, 40);
+  shadow.SetRoundedCorners(radii);
+  EXPECT_EQ(radii, shadow.shadow()->rounded_corners_for_testing());
 }
 
 }  // namespace views

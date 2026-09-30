@@ -3,6 +3,8 @@
 // found in the LICENSE file.
 package org.chromium.chrome.browser.ntp_customization.theme;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -16,7 +18,6 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -27,7 +28,6 @@ import org.chromium.url.JUnitTestGURLs;
 
 /** Unit tests for {@link NtpSyncedThemeBridge}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class NtpSyncedThemeBridgeUnitTest {
     public static final long NATIVE_NTP_SYNCED_THEME_BRIDGE = 1L;
     public static final GURL BACKGROUND_URL = JUnitTestGURLs.URL_1;
@@ -73,5 +73,17 @@ public class NtpSyncedThemeBridgeUnitTest {
     public void testFetchNextThemeCollectionImage() {
         mNtpSyncedThemeBridge.fetchNextThemeCollectionImage();
         verify(mNatives).fetchNextThemeCollectionImage(NATIVE_NTP_SYNCED_THEME_BRIDGE);
+    }
+
+    @Test
+    public void testIsProcessingSyncUpdate() {
+        when(mNatives.isProcessingSyncUpdate(NATIVE_NTP_SYNCED_THEME_BRIDGE)).thenReturn(true);
+        assertTrue(mNtpSyncedThemeBridge.isProcessingSyncUpdate());
+
+        when(mNatives.isProcessingSyncUpdate(NATIVE_NTP_SYNCED_THEME_BRIDGE)).thenReturn(false);
+        assertFalse(mNtpSyncedThemeBridge.isProcessingSyncUpdate());
+
+        mNtpSyncedThemeBridge.destroy();
+        assertFalse(mNtpSyncedThemeBridge.isProcessingSyncUpdate());
     }
 }

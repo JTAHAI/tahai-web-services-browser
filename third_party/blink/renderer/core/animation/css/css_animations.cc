@@ -1600,9 +1600,6 @@ TimelineTrigger* CSSAnimations::ComputeTimelineTrigger(
   AnimationTimeline* new_timeline =
       ComputeTimeline(element, data->GetTimelineTriggerSource(animation_index),
                       update, existing_timeline);
-  if (!new_timeline) {
-    new_timeline = &element->GetDocument().Timeline();
-  }
 
   const std::optional<TimelineOffset>& new_activation_start_offset =
       CSSAnimationData::GetRepeated(
@@ -1770,23 +1767,19 @@ void CSSAnimations::CalculateCompositorAnimationUpdate(
     return false;
   };
 
-  Animation::NativePaintWorkletReasons properties_for_force_update = 0;
-
+  Animation::NativePaintWorkletReasons npw_reasons = 0;
   for (auto& entry : element_animations->Animations()) {
     Animation& animation = *entry.key;
     if (snapshot(animation.effect())) {
       update.UpdateCompositorKeyframes(&animation);
     }
-    if (force_update) {
-      properties_for_force_update |= animation.GetNativePaintWorkletReasons();
-    }
+    npw_reasons |= animation.GetNativePaintWorkletReasons();
   }
 
-  if (properties_for_force_update !=
-      Animation::NativePaintWorkletProperties::kNoPaintWorklet) {
+  if (npw_reasons != Animation::NativePaintWorkletProperties::kNoPaintWorklet) {
     CHECK(NativePaintImageGenerator::NativePaintWorkletAnimationsEnabled());
     element_animations->RecalcCompositedStatusForKeyframeChange(
-        animating_element, properties_for_force_update);
+        animating_element, style, npw_reasons, force_update);
   }
 
   for (auto& entry : element_animations->GetWorkletAnimations()) {
@@ -2353,8 +2346,9 @@ void CSSAnimations::MaybeApplyPendingUpdate(Element* element) {
 
     css_animation.SetTriggerAttachments(entry.trigger_attachments);
     if (entry.trigger_attachments) {
-      element->GetDocument().GetDocumentAnimations().AddTriggeredAnimation(
-          &css_animation);
+      element->GetDocument()
+          .GetDocumentAnimations()
+          .AddCSSAnimationNeedingTriggerAttachment(&css_animation);
     }
     css_animation.SetTriggerActionPlayState(
         entry.play_state_list[entry.index % entry.play_state_list.size()]);
@@ -2395,8 +2389,9 @@ void CSSAnimations::MaybeApplyPendingUpdate(Element* element) {
       // trigger. This allows the animation to show up in getAnimations.
       animation->pause();
       animation->SetPausedForTrigger(true);
-      element->GetDocument().GetDocumentAnimations().AddTriggeredAnimation(
-          animation);
+      element->GetDocument()
+          .GetDocumentAnimations()
+          .AddCSSAnimationNeedingTriggerAttachment(animation);
     } else {
       animation->play();
     }
@@ -3392,8 +3387,9 @@ bool IsCustomPropertyHandle(const PropertyHandle& property) {
 }
 
 bool IsFontAffectingPropertyHandle(const PropertyHandle& property) {
-  if (property.IsCSSCustomProperty() || !property.IsCSSProperty())
+  if (property.IsCSSCustomProperty()) {
     return false;
+  }
   return property.GetCSSProperty().AffectsFont();
 }
 

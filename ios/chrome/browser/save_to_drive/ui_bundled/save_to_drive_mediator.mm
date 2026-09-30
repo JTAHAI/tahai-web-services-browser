@@ -13,6 +13,7 @@
 #import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/signin/public/identity_manager/objc/identity_manager_observer_bridge.h"
 #import "google_apis/gaia/gaia_id.h"
+#import "ios/chrome/browser/account_picker/ui_bundled/account_picker_consumer.h"
 #import "ios/chrome/browser/account_picker/ui_bundled/account_picker_coordinator.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_utils.h"
 #import "ios/chrome/browser/download/model/download_manager_tab_helper.h"
@@ -24,7 +25,6 @@
 #import "ios/chrome/browser/save_to_drive/ui_bundled/file_destination.h"
 #import "ios/chrome/browser/save_to_drive/ui_bundled/file_destination_picker_consumer.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
-#import "ios/chrome/browser/shared/public/commands/account_picker_commands.h"
 #import "ios/chrome/browser/shared/public/commands/google_one_commands.h"
 #import "ios/chrome/browser/shared/public/commands/manage_storage_alert_commands.h"
 #import "ios/chrome/browser/shared/public/commands/save_to_drive_commands.h"
@@ -38,7 +38,6 @@
 #import "ios/web/public/download/download_task_observer_bridge.h"
 #import "ios/web/public/web_state_observer_bridge.h"
 #import "net/base/url_util.h"
-// TODO(crbug.com/40286505): Depend on account_picker_consumer.h directly.
 
 @interface SaveToDriveMediator () <AuthenticationServiceObserving,
                                    CRWDownloadTaskObserver,
@@ -68,7 +67,6 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
   std::unique_ptr<web::WebStateObserverBridge> _webStateObserverBridge;
   __weak id<SaveToDriveCommands> _saveToDriveHandler;
   __weak id<ManageStorageAlertCommands> _manageStorageAlertHandler;
-  __weak id<AccountPickerCommands> _accountPickerHandler;
   raw_ptr<drive::DriveService> _driveService;
   raw_ptr<PrefService> _prefService;
   raw_ptr<ChromeAccountManagerService> _accountManagerService;
@@ -90,7 +88,6 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
            saveToDriveHandler:(id<SaveToDriveCommands>)saveToDriveHandler
     manageStorageAlertHandler:
         (id<ManageStorageAlertCommands>)manageStorageAlertHandler
-         accountPickerHandler:(id<AccountPickerCommands>)accountPickerHandler
                   prefService:(PrefService*)prefService
         authenticationService:(AuthenticationService*)authenticationService
         accountManagerService:
@@ -109,7 +106,6 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
     _webState->AddObserver(_webStateObserverBridge.get());
     _saveToDriveHandler = saveToDriveHandler;
     _manageStorageAlertHandler = manageStorageAlertHandler;
-    _accountPickerHandler = accountPickerHandler;
     _prefService = prefService;
     _driveService = driveService;
     _accountManagerService = accountManagerService;
@@ -157,7 +153,6 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
   _manageStorageAlertHandler = nil;
   _authenticationService = nil;
   _authServiceObserverBridge = nullptr;
-  _accountPickerHandler = nil;
 }
 
 - (void)saveWithSelectedIdentity:(id<SystemIdentity>)identity {
@@ -167,22 +162,20 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
         kSaveToDriveUIOutcome,
         !_downloadTask ? SaveToDriveOutcome::kFailureDownloadDestroyed
                        : SaveToDriveOutcome::kFailureWebStateDestroyed);
-    [_saveToDriveHandler hideSaveToDrive];
+    [_saveToDriveHandler hideSaveToDriveAnimated:NO];
     return;
   }
   switch (_fileDestination) {
     case FileDestination::kFiles: {
       // Clear the account pref.
       _prefService->ClearPref(prefs::kIosSaveToDriveDefaultGaiaId);
-      // If the selected file destination is Files, start the download
-      // immediately and hide the account picker.
-      [_accountPickerHandler hideAccountPickerAnimated:YES];
       DownloadManagerTabHelper* downloadManagerTabHelper =
           DownloadManagerTabHelper::FromWebState(_webState);
       downloadManagerTabHelper->StartDownload(_downloadTask);
       base::UmaHistogramEnumeration(kSaveToDriveUIOutcome,
                                     SaveToDriveOutcome::kSuccessSelectedFiles);
       [self recordCommonHistogramsWithSuffix:".SuccessSelectedFiles"];
+      [_saveToDriveHandler hideSaveToDriveAnimated:YES];
       break;
     }
     case FileDestination::kDrive: {
@@ -218,7 +211,7 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
   [self recordCommonHistogramsWithSuffix:selectedFiles
                                              ? ".FailureCanceledFiles"
                                              : ".FailureCanceledDrive"];
-  [_accountPickerHandler hideAccountPickerAnimated:YES];
+  [_saveToDriveHandler hideSaveToDriveAnimated:YES];
 }
 
 - (BOOL)selectedFileDestinationRequiresSignin {
@@ -252,7 +245,7 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
   _downloadTask = nullptr;
   base::UmaHistogramEnumeration(kSaveToDriveUIOutcome,
                                 SaveToDriveOutcome::kFailureDownloadDestroyed);
-  [_saveToDriveHandler hideSaveToDrive];
+  [_saveToDriveHandler hideSaveToDriveAnimated:NO];
 }
 
 #pragma mark - CRWWebStateObserver
@@ -260,7 +253,7 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
 - (void)webStateWasHidden:(web::WebState*)webState {
   base::UmaHistogramEnumeration(kSaveToDriveUIOutcome,
                                 SaveToDriveOutcome::kFailureWebStateHidden);
-  [_saveToDriveHandler hideSaveToDrive];
+  [_saveToDriveHandler hideSaveToDriveAnimated:NO];
 }
 
 - (void)webStateDestroyed:(web::WebState*)webState {
@@ -270,7 +263,7 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
   _webState = nullptr;
   base::UmaHistogramEnumeration(kSaveToDriveUIOutcome,
                                 SaveToDriveOutcome::kFailureWebStateDestroyed);
-  [_saveToDriveHandler hideSaveToDrive];
+  [_saveToDriveHandler hideSaveToDriveAnimated:NO];
 }
 
 #pragma mark - FileDestinationPickerActionDelegate
@@ -368,7 +361,7 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
   base::UmaHistogramEnumeration(kSaveToDriveUIOutcome,
                                 SaveToDriveOutcome::kSuccessSelectedDrive);
   [self recordCommonHistogramsWithSuffix:".SuccessSelectedDrive"];
-  [_accountPickerHandler hideAccountPickerAnimated:YES];
+  [_saveToDriveHandler hideSaveToDriveAnimated:YES];
 }
 
 - (void)recordCommonHistogramsWithSuffix:(const char*)histogramSuffix {
@@ -391,7 +384,7 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
     (const signin::PrimaryAccountChangeEvent&)event {
   if (event.GetEventTypeFor(signin::ConsentLevel::kSignin) ==
       signin::PrimaryAccountChangeEvent::Type::kCleared) {
-    [_saveToDriveHandler hideSaveToDrive];
+    [_saveToDriveHandler hideSaveToDriveAnimated:NO];
   }
 }
 
@@ -400,7 +393,7 @@ void StorageQuotaCompletionHelper(__weak SaveToDriveMediator* mediator,
 - (void)onServiceStatusChanged {
   if (!_authenticationService->SigninEnabled()) {
     // Signin is now disabled, so drive can’t be accessed anymore.
-    [_saveToDriveHandler hideSaveToDrive];
+    [_saveToDriveHandler hideSaveToDriveAnimated:NO];
   }
 }
 @end

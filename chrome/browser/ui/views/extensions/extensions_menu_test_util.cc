@@ -8,7 +8,7 @@
 
 #include "base/containers/flat_set.h"
 #include "base/memory/raw_ptr.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/extensions/extension_action_view_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_action_view_model.h"
 #include "chrome/browser/ui/views/controls/hover_button.h"
@@ -39,7 +39,7 @@
 #include "ui/ozone/public/ozone_platform.h"
 #endif
 
-ExtensionsMenuTestUtil::ExtensionsMenuTestUtil(Browser* browser)
+ExtensionsMenuTestUtil::ExtensionsMenuTestUtil(BrowserWindowInterface* browser)
     : scoped_allow_extensions_menu_instances_(
           ExtensionsMenuView::AllowInstancesForTesting()),
       browser_(browser) {
@@ -160,8 +160,9 @@ void ExtensionsMenuTestUtil::OpenExtensionsMenu() {
                 extensions_toolbar_);
   } else {
     bubble_dialog = std::make_unique<ExtensionsMenuView>(
-        extensions_toolbar_->GetExtensionsButton(), browser_,
-        extensions_toolbar_->GetToolbarViewModel(), extensions_toolbar_);
+        views::BubbleAnchor(extensions_toolbar_->GetExtensionsButton()),
+        browser_, extensions_toolbar_->GetToolbarViewModel(),
+        extensions_toolbar_);
     menu_view_ = views::AsViewClass<ExtensionsMenuView>(
         bubble_dialog->GetContentsView());
 
@@ -216,6 +217,6 @@ HoverButton* ExtensionsMenuTestUtil::GetActionButton(
 
 // static
 std::unique_ptr<ExtensionActionTestHelper> ExtensionActionTestHelper::Create(
-    Browser* browser) {
+    BrowserWindowInterface* browser) {
   return std::make_unique<ExtensionsMenuTestUtil>(browser);
 }

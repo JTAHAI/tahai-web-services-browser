@@ -4,6 +4,8 @@
 
 #include "content/browser/media/capture/native_screen_capture_picker_mac.h"
 
+#import <CoreMedia/CoreMedia.h>
+#import <CoreVideo/CoreVideo.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 
 #include <map>
@@ -24,6 +26,7 @@
 #include "media/capture/video/video_capture_device.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/skia/include/core/SkBitmap.h"
 
 using Source = webrtc::DesktopCapturer::Source;
 
@@ -127,13 +130,145 @@ API_AVAILABLE(macos(14.0))
 
 @interface FakeSCContentFilter : NSObject
 @property(strong) NSArray* includedWindows;
+@property(assign, readonly) CGRect contentRect;
 @end
 
 @implementation FakeSCContentFilter
 @synthesize includedWindows = _includedWindows;
+- (CGRect)contentRect {
+  return CGRectMake(0, 0, 100, 100);
+}
 @end
 
+API_AVAILABLE(macos(14.0))
+static CMSampleBufferRef g_fake_sample_buffer = nil;
+API_AVAILABLE(macos(14.0))
+static NSError* g_fake_stream_error = nil;
+
+API_AVAILABLE(macos(14.0))
+@interface FakeSCStreamForPicker : NSObject
+@property(weak) id<SCStreamDelegate> delegate;
+@property(weak) id<SCStreamOutput> output;
+@property(strong) dispatch_queue_t sampleQueue;
+- (instancetype)initWithFilter:(SCContentFilter*)filter
+                 configuration:(SCStreamConfiguration*)config
+                      delegate:(id<SCStreamDelegate>)delegate;
+- (BOOL)addStreamOutput:(id<SCStreamOutput>)output
+                   type:(SCStreamOutputType)type
+     sampleHandlerQueue:(dispatch_queue_t)sampleHandlerQueue
+                  error:(NSError**)error;
+- (void)startCaptureWithCompletionHandler:
+    (void (^)(NSError* _Nullable error))completionHandler;
+- (void)stopCaptureWithCompletionHandler:
+    (void (^)(NSError* _Nullable error))completionHandler;
+@end
+
+@implementation FakeSCStreamForPicker
+@synthesize delegate = _delegate;
+@synthesize output = _output;
+@synthesize sampleQueue = _sampleQueue;
+
+- (instancetype)initWithFilter:(SCContentFilter*)filter
+                 configuration:(SCStreamConfiguration*)config
+                      delegate:(id<SCStreamDelegate>)delegate {
+  if ((self = [super init])) {
+    _delegate = delegate;
+  }
+  return self;
+}
+
+- (BOOL)addStreamOutput:(id<SCStreamOutput>)output
+                   type:(SCStreamOutputType)type
+     sampleHandlerQueue:(dispatch_queue_t)sampleHandlerQueue
+                  error:(NSError**)error {
+  _output = output;
+  _sampleQueue = sampleHandlerQueue;
+  return YES;
+}
+
+- (void)startCaptureWithCompletionHandler:
+    (void (^)(NSError* _Nullable error))completionHandler {
+  if (g_fake_stream_error) {
+    completionHandler(g_fake_stream_error);
+    return;
+  }
+  completionHandler(nil);
+  if (g_fake_sample_buffer && _output) {
+    [_output stream:(SCStream*)self
+        didOutputSampleBuffer:g_fake_sample_buffer
+                       ofType:SCStreamOutputTypeScreen];
+  }
+}
+
+- (void)stopCaptureWithCompletionHandler:
+    (void (^)(NSError* _Nullable error))completionHandler {
+  if (completionHandler) {
+    completionHandler(nil);
+  }
+}
+@end
+
+API_AVAILABLE(macos(14.0))
+@interface SCStream (NativeScreenCapturePickerMacTest)
+- (instancetype)initFakePickerWithFilter:(SCContentFilter*)filter
+                           configuration:(SCStreamConfiguration*)config
+                                delegate:(id<SCStreamDelegate>)delegate;
+@end
+
+@implementation SCStream (NativeScreenCapturePickerMacTest)
+- (instancetype)initFakePickerWithFilter:(SCContentFilter*)filter
+                           configuration:(SCStreamConfiguration*)config
+                                delegate:(id<SCStreamDelegate>)delegate {
+  if (@available(macOS 14.0, *)) {
+    return (SCStream*)[[FakeSCStreamForPicker alloc] initWithFilter:filter
+                                                      configuration:config
+                                                           delegate:delegate];
+  }
+  return nil;
+}
+@end
+
+static CVPixelBufferRef CreateTestPixelBuffer(int width, int height) {
+  CVPixelBufferRef pixel_buffer = nullptr;
+  CVReturn status =
+      CVPixelBufferCreate(kCFAllocatorDefault, width, height,
+                          kCVPixelFormatType_32BGRA, nullptr, &pixel_buffer);
+  if (status != kCVReturnSuccess || !pixel_buffer) {
+    return nullptr;
+  }
+  return pixel_buffer;
+}
+
+static CMSampleBufferRef CreateTestSampleBuffer(CVPixelBufferRef pixel_buffer) {
+  CMSampleBufferRef sample_buffer = nullptr;
+  CMSampleTimingInfo timing_info = {.duration = kCMTimeInvalid,
+                                    .presentationTimeStamp = CMTimeMake(0, 1),
+                                    .decodeTimeStamp = kCMTimeInvalid};
+  CMVideoFormatDescriptionRef format_desc = nullptr;
+  OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
+      kCFAllocatorDefault, pixel_buffer, &format_desc);
+  if (status != noErr || !format_desc) {
+    return nullptr;
+  }
+  status = CMSampleBufferCreateForImageBuffer(
+      kCFAllocatorDefault, pixel_buffer, true, nullptr, nullptr, format_desc,
+      &timing_info, &sample_buffer);
+  CFRelease(format_desc);
+  if (status != noErr) {
+    return nullptr;
+  }
+  return sample_buffer;
+}
+
 namespace content {
+
+namespace {
+
+constexpr int kTestFrameWidth = 100;
+constexpr int kTestFrameHeight = 100;
+constexpr base::TimeDelta kScreenshotFadeOutDelay = base::Milliseconds(250);
+
+}  // namespace
 
 class NativeScreenCapturePickerMacTest : public testing::Test {
  public:
@@ -153,6 +288,11 @@ class NativeScreenCapturePickerMacTest : public testing::Test {
               @selector(runningApplicationWithProcessIdentifier:));
       NativeScreenCapturePickerMac::SetGetWindowOwnerPidForTesting(
           base::BindRepeating(&GetWindowOwnerPidFake));
+      g_fake_sample_buffer = nil;
+      g_fake_stream_error = nil;
+      stream_swizzler_ = std::make_unique<base::apple::ScopedObjCClassSwizzler>(
+          [SCStream class], @selector(initWithFilter:configuration:delegate:),
+          @selector(initFakePickerWithFilter:configuration:delegate:));
       picker_ = CreateNativeScreenCapturePickerMac();
     } else {
       GTEST_SKIP() << "Skipping tests on macOS < 14.0";
@@ -163,10 +303,16 @@ class NativeScreenCapturePickerMacTest : public testing::Test {
     picker_.reset();
     picker_swizzler_.reset();
     ns_running_app_swizzler_.reset();
+    stream_swizzler_.reset();
     if (@available(macOS 14.0, *)) {
       g_fake_picker = nil;
       NativeScreenCapturePickerMac::SetGetWindowOwnerPidForTesting(
           base::NullCallback());
+      if (g_fake_sample_buffer) {
+        CFRelease(g_fake_sample_buffer);
+        g_fake_sample_buffer = nil;
+      }
+      g_fake_stream_error = nil;
     }
   }
 
@@ -242,6 +388,7 @@ class NativeScreenCapturePickerMacTest : public testing::Test {
   std::unique_ptr<base::apple::ScopedObjCClassSwizzler> picker_swizzler_;
   std::unique_ptr<base::apple::ScopedObjCClassSwizzler>
       ns_running_app_swizzler_;
+  std::unique_ptr<base::apple::ScopedObjCClassSwizzler> stream_swizzler_;
 };
 
 TEST_F(NativeScreenCapturePickerMacTest, OpenCallsSystemPickerForScreen) {
@@ -421,6 +568,80 @@ TEST_F(NativeScreenCapturePickerMacTest, SequentialOpenCalls) {
     OpenPickerAndSelect(DesktopMediaID::TYPE_WINDOW, kWindow2);
     ASSERT_NO_FATAL_FAILURE(VerifyApplicationAudioCaptureId(1, kBundle1));
     ASSERT_NO_FATAL_FAILURE(VerifyApplicationAudioCaptureId(2, kBundle2));
+  }
+}
+
+TEST_F(NativeScreenCapturePickerMacTest, CaptureScreenshotSuccess) {
+  if (@available(macOS 14.0, *)) {
+    // 1. Create a fake session.
+    const CGWindowID kWindowId = 101;
+    DesktopMediaID::Id session_id =
+        OpenPickerAndSelect(DesktopMediaID::TYPE_WINDOW, kWindowId);
+
+    // 2. Set up fake CMSampleBuffer.
+    CVPixelBufferRef pixel_buffer =
+        CreateTestPixelBuffer(kTestFrameWidth, kTestFrameHeight);
+    ASSERT_TRUE(pixel_buffer != nullptr);
+    g_fake_sample_buffer = CreateTestSampleBuffer(pixel_buffer);
+    CVPixelBufferRelease(pixel_buffer);
+    ASSERT_TRUE(g_fake_sample_buffer != nil);
+
+    // 3. Trigger CaptureScreenshot.
+    base::test::TestFuture<const SkBitmap&> future;
+    NativeScreenCapturePickerMac::GetInstance()->CaptureScreenshot(
+        session_id, future.GetCallback());
+
+    // 4. Fast forward delayed capture trigger.
+    task_environment_.FastForwardBy(kScreenshotFadeOutDelay);
+
+    // 5. Verify screenshot was captured and has correct size.
+    const SkBitmap& bitmap = future.Get();
+    EXPECT_FALSE(bitmap.drawsNothing());
+    EXPECT_EQ(bitmap.width(), kTestFrameWidth);
+    EXPECT_EQ(bitmap.height(), kTestFrameHeight);
+  }
+}
+
+TEST_F(NativeScreenCapturePickerMacTest, CaptureScreenshotError) {
+  if (@available(macOS 14.0, *)) {
+    // 1. Create a fake session.
+    const CGWindowID kWindowId = 101;
+    DesktopMediaID::Id session_id =
+        OpenPickerAndSelect(DesktopMediaID::TYPE_WINDOW, kWindowId);
+
+    // 2. Set up error.
+    if (g_fake_sample_buffer) {
+      CFRelease(g_fake_sample_buffer);
+      g_fake_sample_buffer = nil;
+    }
+    g_fake_stream_error = [NSError errorWithDomain:@"TestDomain"
+                                              code:-1
+                                          userInfo:nil];
+
+    // 3. Trigger CaptureScreenshot.
+    base::test::TestFuture<const SkBitmap&> future;
+    NativeScreenCapturePickerMac::GetInstance()->CaptureScreenshot(
+        session_id, future.GetCallback());
+
+    // 4. Fast forward delayed capture trigger.
+    task_environment_.FastForwardBy(kScreenshotFadeOutDelay);
+
+    // 5. Verify it returns an empty bitmap.
+    const SkBitmap& bitmap = future.Get();
+    EXPECT_TRUE(bitmap.drawsNothing());
+  }
+}
+
+TEST_F(NativeScreenCapturePickerMacTest, CaptureScreenshotInvalidSession) {
+  if (@available(macOS 14.0, *)) {
+    // Trigger CaptureScreenshot on a non-existent session.
+    base::test::TestFuture<const SkBitmap&> future;
+    NativeScreenCapturePickerMac::GetInstance()->CaptureScreenshot(
+        999, future.GetCallback());
+
+    // Should return immediately with empty bitmap (no task delay).
+    const SkBitmap& bitmap = future.Get();
+    EXPECT_TRUE(bitmap.drawsNothing());
   }
 }
 

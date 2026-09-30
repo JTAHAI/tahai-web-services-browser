@@ -15,6 +15,7 @@
 #include "base/containers/flat_set.h"
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
+#include "base/memory/ref_counted_memory.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
 #include "base/strings/string_number_conversions.h"
@@ -40,7 +41,6 @@
 #include "components/heap_profiling/in_process/child_process_snapshot_controller.h"
 #include "components/heap_profiling/in_process/heap_profiler_controller.h"
 #include "components/heap_profiling/in_process/mojom/snapshot_controller.mojom.h"
-#include "components/services/heap_profiling/public/cpp/profiling_client.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/common/buildflags.h"
 #include "content/public/common/cdm_info.h"
@@ -285,6 +285,13 @@ void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {
 #if BUILDFLAG(IS_ANDROID)
   schemes->local_schemes.push_back(url::kContentScheme);
 #endif
+
+  schemes->standard_schemes.push_back(
+      chrome::kChromeExperimentalSiteTokenProviderScheme);
+  schemes->secure_schemes.push_back(
+      chrome::kChromeExperimentalSiteTokenProviderScheme);
+  schemes->cors_enabled_schemes.push_back(
+      chrome::kChromeExperimentalSiteTokenProviderScheme);
 }
 
 std::u16string ChromeContentClient::GetLocalizedString(int message_id) {
@@ -308,7 +315,7 @@ std::string_view ChromeContentClient::GetDataResource(
       resource_id, scale_factor);
 }
 
-base::RefCountedMemory* ChromeContentClient::GetDataResourceBytes(
+scoped_refptr<base::RefCountedMemory> ChromeContentClient::GetDataResourceBytes(
     int resource_id) {
   return ui::ResourceBundle::GetSharedInstance().LoadDataResourceBytes(
       resource_id);
@@ -349,21 +356,7 @@ media::MediaDrmBridgeClient* ChromeContentClient::GetMediaDrmBridgeClient() {
 void ChromeContentClient::ExposeInterfacesToBrowser(
     scoped_refptr<base::SequencedTaskRunner> io_task_runner,
     mojo::BinderMap* binders) {
-  // Sets up the client side of the multi-process heap profiler service.
-  // TODO(crbug.com/40915258): Hook up chrome://memory-internals to the
-  // in-process heap profiler, and delete this service.
-  binders
-      ->Add<heap_profiling::mojom::ProfilingClient>(
-
-          [](mojo::PendingReceiver<heap_profiling::mojom::ProfilingClient>
-                 receiver) {
-            static base::NoDestructor<heap_profiling::ProfilingClient>
-                profiling_client;
-            profiling_client->BindToInterface(std::move(receiver));
-          },
-          io_task_runner);
-
-  // Sets up the simplified in-process heap profiler, if it's enabled.
+  // Sets up the in-process heap profiler, if it's enabled.
   const auto* heap_profiler_controller =
       heap_profiling::HeapProfilerController::GetInstance();
   if (heap_profiler_controller && heap_profiler_controller->IsEnabled()) {

@@ -8,7 +8,6 @@
 #include <memory>
 #include <utility>
 
-#include "base/containers/flat_set.h"
 #include "base/functional/bind.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -48,6 +47,7 @@
 #include "third_party/blink/public/strings/grit/blink_strings.h"
 #include "ui/gfx/favicon_size.h"
 #include "ui/gfx/geometry/size.h"
+#include "url/origin.h"
 #include "url/url_constants.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -1772,8 +1772,18 @@ RenderFrameHost* MediaSessionImpl::ComputeFrameForRouting(bool ensure_service) {
   size_t min_depth = std::numeric_limits<size_t>::max();
   std::map<RenderFrameHost*, size_t> map_rfh_to_depth;
 
+  std::set<url::Origin> highest_player_origins;
+  size_t min_player_depth = std::numeric_limits<size_t>::max();
+
   for (RenderFrameHost* frame : frames) {
     size_t depth = ComputeFrameDepth(frame, &map_rfh_to_depth);
+    if (depth < min_player_depth) {
+      highest_player_origins.clear();
+      min_player_depth = depth;
+    }
+    if (depth == min_player_depth) {
+      highest_player_origins.insert(frame->GetLastCommittedOrigin());
+    }
     if (depth >= min_depth) {
       continue;
     }
@@ -1785,7 +1795,8 @@ RenderFrameHost* MediaSessionImpl::ComputeFrameForRouting(bool ensure_service) {
   }
 
   // If we cannot find a suitable frame, take the top-most frame with an active
-  // MediaSessionService.
+  // MediaSessionService (and same-origin with the highest-level active player
+  // if one exists).
   if (!best_frame) {
     // `FrameTree::Nodes()` iterates in breadth-first order, so this is
     // guaranteed to find the topmost (or tied topmost) frame with an active
@@ -1794,6 +1805,10 @@ RenderFrameHost* MediaSessionImpl::ComputeFrameForRouting(bool ensure_service) {
                                    ->GetPrimaryFrameTree()
                                    .Nodes()) {
       RenderFrameHost* rfh = node->current_frame_host();
+      if (!highest_player_origins.empty() &&
+          !highest_player_origins.contains(rfh->GetLastCommittedOrigin())) {
+        continue;
+      }
       if (IsServiceActiveForRenderFrameHost(rfh)) {
         best_frame = rfh;
         break;
@@ -2063,35 +2078,13 @@ void MediaSessionImpl::BuildMetadata(
       source_title =
           content_client->GetLocalizedString(IDS_MEDIA_SESSION_DATA_SOURCE);
     } else {
-      url::Origin origin = url::Origin::Create(url);
-      GURL format_url = origin.GetURL();
-
-      // If the origin is opaque, use its precursor origin if available.
-      // Otherwise, traverse the opener chain to find the closest ancestor with
-      // a valid precursor origin. This ensures we display a recognizable origin
-      // to the user.
-      if (origin.opaque()) {
-        WebContents* current_web_contents = web_contents();
-        base::flat_set<WebContents*> seen_web_contents;
-
-        while (current_web_contents &&
-               !seen_web_contents.contains(current_web_contents)) {
-          seen_web_contents.insert(current_web_contents);
-
-          url::Origin current_origin =
-              url::Origin::Create(current_web_contents->GetLastCommittedURL());
-          const auto& precursor =
-              current_origin.GetTupleOrPrecursorTupleIfOpaque();
-          if (precursor.IsValid()) {
-            format_url = precursor.GetURL();
-            break;
-          }
-
-          RenderFrameHost* opener = current_web_contents->GetOpener();
-          current_web_contents =
-              opener ? WebContents::FromRenderFrameHost(opener) : nullptr;
-        }
-      }
+      // Use the frame's committed origin to determine the source title.
+      // This retrieves the inherited origin for "about:blank" documents
+      // (which is the origin of their creator) and the precursor origin for
+      // sandboxed documents (which have opaque origins).
+      const url::Origin& origin =
+          web_contents()->GetPrimaryMainFrame()->GetLastCommittedOrigin();
+      GURL format_url = origin.GetTupleOrPrecursorTupleIfOpaque().GetURL();
 
       source_title = url_formatter::FormatUrl(
           format_url,

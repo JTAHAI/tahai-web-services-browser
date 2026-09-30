@@ -81,7 +81,8 @@ class AIWritingAssistanceCreateClient
   }
 
   // AIMojoCreateClient:
-  void OnResult(mojo::PendingRemote<AIMojoClient> pending_remote) override {
+  void OnResult(mojo::PendingRemote<AIMojoClient> pending_remote,
+                uint64_t context_window) override {
     // Call `Cleanup` when this function returns.
     RunOnDestruction run_on_destruction(BindOnce(
         &AIWritingAssistanceCreateClient::Cleanup, WrapWeakPersistent(this)));
@@ -112,7 +113,7 @@ class AIWritingAssistanceCreateClient
     if (pending_remote) {
       this->GetResolver()->Resolve(MakeGarbageCollected<V8SessionObjectType>(
           this->GetScriptState(), task_runner_, std::move(pending_remote),
-          options_));
+          options_, context_window));
     } else {
       this->GetResolver()->RejectWithDOMException(
           DOMExceptionCode::kInvalidStateError,
@@ -146,18 +147,6 @@ class AIWritingAssistanceCreateClient
             this->GetResolver(), kExceptionMessageInputTooLarge,
             static_cast<double>(quota_error_info->quota),
             static_cast<double>(quota_error_info->requested));
-        break;
-      }
-      case AIManagerCreateClientError::kUnsupportedLanguage: {
-        this->GetResolver()->RejectWithDOMException(
-            DOMExceptionCode::kNotSupportedError,
-            kExceptionMessageUnsupportedLanguages);
-        break;
-      }
-      case AIManagerCreateClientError::kIncompatiblePreferenceOptions: {
-        this->GetResolver()->RejectWithDOMException(
-            DOMExceptionCode::kNotSupportedError,
-            kExceptionMessageIncompatiblePreferenceOptions);
         break;
       }
     }

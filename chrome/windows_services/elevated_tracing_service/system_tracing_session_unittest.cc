@@ -13,13 +13,14 @@
 #include "base/test/task_environment.h"
 #include "base/win/scoped_com_initializer.h"
 #include "base/win/win_util.h"
+#include "base/win/windows_handle_util.h"
+#include "build/branding_buildflags.h"
 #include "chrome/common/win/eventlog_messages.h"
 #include "chrome/install_static/install_util.h"
 #include "chrome/windows_services/elevated_tracing_service/elevated_tracing_service_delegate.h"
 #include "chrome/windows_services/elevated_tracing_service/session_registry.h"
 #include "chrome/windows_services/service_program/service.h"
 #include "chrome/windows_services/service_program/test_support/scoped_mock_context.h"
-#include "mojo/public/cpp/platform/named_platform_channel.h"
 #include "mojo/public/cpp/system/invitation.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -62,6 +63,26 @@ class SystemTracingSessionTest : public ::testing::Test {
   base::HeapArray<DWORD> cookies_;
 };
 
+#if BUILDFLAG(TAHAI_BRANDING)
+TEST_F(SystemTracingSessionTest, TahaiConfiguredInterfaceMatchesTypeLibrary) {
+  ScopedMockContext mock_context;
+  ASSERT_TRUE(mock_context.Succeeded());
+  EXPECT_TRUE(::IsEqualIID(install_static::GetTracingServiceIid(),
+                           __uuidof(ISystemTraceSessionChromium)));
+  Microsoft::WRL::ComPtr<ISystemTraceSession> trace_session;
+  ASSERT_HRESULT_SUCCEEDED(::CoCreateInstance(
+      install_static::GetTracingServiceClsid(), nullptr, CLSCTX_LOCAL_SERVER,
+      install_static::GetTracingServiceIid(),
+      IID_PPV_ARGS_Helper(&trace_session)));
+  ASSERT_EQ(1u, install_static::GetOldTracingServiceIids().size());
+  Microsoft::WRL::ComPtr<IUnknown> old_interface;
+  EXPECT_EQ(E_NOINTERFACE,
+            trace_session->QueryInterface(
+                install_static::GetOldTracingServiceIids().front(),
+                IID_PPV_ARGS_Helper(&old_interface)));
+}
+#endif
+
 TEST_F(SystemTracingSessionTest, GetLogEventCategory) {
   ASSERT_EQ(service_delegate().GetLogEventCategory(), TRACING_SERVICE_CATEGORY);
 }
@@ -100,7 +121,9 @@ TEST_F(SystemTracingSessionTest, AcceptInvitation) {
   unknown.Reset();
 
   DWORD pid = base::kNullProcessId;
-  ASSERT_EQ(trace_session->AcceptInvitation(nullptr, &pid), E_INVALIDARG);
-  ASSERT_EQ(trace_session->AcceptInvitation(L"", &pid), E_INVALIDARG);
-  ASSERT_EQ(trace_session->AcceptInvitation(L"invalid", nullptr), E_INVALIDARG);
+  ASSERT_EQ(trace_session->AcceptInvitation(0, &pid), E_INVALIDARG);
+  ASSERT_EQ(trace_session->AcceptInvitation(1, nullptr), E_INVALIDARG);
+  ASSERT_EQ(trace_session->AcceptInvitation(
+                base::win::HandleToUint32(::GetCurrentProcess()), &pid),
+            E_INVALIDARG);
 }

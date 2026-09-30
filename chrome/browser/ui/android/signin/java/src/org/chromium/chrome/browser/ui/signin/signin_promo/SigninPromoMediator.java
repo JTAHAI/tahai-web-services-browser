@@ -6,11 +6,14 @@ package org.chromium.chrome.browser.ui.signin.signin_promo;
 
 import androidx.annotation.StringDef;
 
+import org.chromium.base.CallbackUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
+import org.chromium.chrome.browser.signin.services.AccountPreviewDataService;
+import org.chromium.chrome.browser.signin.services.AccountPreviewPreference;
 import org.chromium.chrome.browser.signin.services.DisplayableProfileData;
 import org.chromium.chrome.browser.signin.services.ProfileDataCache;
 import org.chromium.chrome.browser.signin.services.ProfileDataUtils;
@@ -24,6 +27,7 @@ import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.identitymanager.PrimaryAccountChangeEvent;
 import org.chromium.components.signin.metrics.SigninPromoAction;
 import org.chromium.components.sync.SyncService;
+import org.chromium.google_apis.gaia.GaiaId;
 import org.chromium.ui.modelutil.PropertyModel;
 
 import java.lang.annotation.Retention;
@@ -65,6 +69,7 @@ final class SigninPromoMediator
 
     private final IdentityManager mIdentityManager;
     private final SigninManager mSigninManager;
+    private final @Nullable AccountPreviewDataService mAccountPreviewDataService;
     private final @Nullable SyncService mSyncService;
     private final ProfileDataCache mProfileDataCache;
     private final SigninPromoDelegate mPromoDelegate;
@@ -78,12 +83,14 @@ final class SigninPromoMediator
     SigninPromoMediator(
             IdentityManager identityManager,
             SigninManager signinManager,
+            @Nullable AccountPreviewDataService accountPreviewDataService,
             @Nullable SyncService syncService,
             ProfileDataCache profileDataCache,
             SigninPromoDelegate promoDelegate,
             Delegate mediatorDelegate) {
         mIdentityManager = identityManager;
         mSigninManager = signinManager;
+        mAccountPreviewDataService = accountPreviewDataService;
         mSyncService = syncService;
         mProfileDataCache = profileDataCache;
         mPromoDelegate = promoDelegate;
@@ -94,9 +101,9 @@ final class SigninPromoMediator
         mModel =
                 SigninPromoProperties.createModel(
                         /* profileData= */ visibleAccount,
-                        /* onPrimaryButtonClicked= */ () -> {},
-                        /* onSecondaryButtonClicked= */ () -> {},
-                        /* onDismissButtonClicked= */ () -> {},
+                        /* onPrimaryButtonClicked= */ CallbackUtils.emptyRunnable(),
+                        /* onSecondaryButtonClicked= */ CallbackUtils.emptyRunnable(),
+                        /* onDismissButtonClicked= */ CallbackUtils.emptyRunnable(),
                         /* titleString= */ "",
                         /* descriptionString= */ "",
                         /* primaryButtonString= */ "",
@@ -330,7 +337,19 @@ final class SigninPromoMediator
         if (primaryAccount != null) {
             return mProfileDataCache.getById(primaryAccount.getId());
         }
-        return ProfileDataUtils.getFirstIfFulfilledAndNotEmpty(mProfileDataCache.getAccounts());
+        return ProfileDataUtils.getPreferredOrFirstIfFulfilledAndNotEmpty(
+                mProfileDataCache.getAccounts(), getPreferredGaiaId());
+    }
+
+    private @Nullable GaiaId getPreferredGaiaId() {
+        if (mAccountPreviewDataService == null
+                || !SigninFeatureMap.isEnabled(
+                        SigninFeatures.ENABLE_ACCOUNT_PREVIEW_PREFERRED_ACCOUNT)) {
+            return null;
+        }
+        AccountPreviewPreference preference =
+                mAccountPreviewDataService.getPreferredAccountForPromo();
+        return preference != null ? preference.getGaiaId() : null;
     }
 
     private void recordEventHistogram(@Event String actionType) {

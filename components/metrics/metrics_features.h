@@ -17,6 +17,10 @@ BASE_DECLARE_FEATURE(kStructuredMetrics);
 // immediately after writing a system profile to it.
 BASE_DECLARE_FEATURE(kFlushPersistentSystemProfileOnWrite);
 
+// Controls whether to use a double-buffered shared memory minidump user stream
+// for SystemProfileProto instead of CrashpadInfo heap pointers.
+BASE_DECLARE_FEATURE(kSharedMemorySystemProfileMinidump);
+
 // Determines whether to always flush Local State immediately after an UMA/UKM
 // log upload. If this is disabled, Local State is only immediately flushed
 // after an upload if this is a mobile platform and the browser is in the
@@ -77,6 +81,17 @@ BASE_DECLARE_FEATURE(kRestructureMetricsConsentSettings);
 // No-op features for testing runtime mutability.
 BASE_DECLARE_FEATURE(kNoopRuntimeMutableFeatureDefaultEnabled);
 BASE_DECLARE_FEATURE(kNoopRuntimeMutableFeatureVariationsEnabled);
+
+// No-op features for testing all runtime mutable state transitions and
+// saturation.
+BASE_DECLARE_FEATURE(kNoopRuntimeMutable1);
+BASE_DECLARE_FEATURE(kNoopRuntimeMutable2);
+BASE_DECLARE_FEATURE(kNoopRuntimeMutable3);
+BASE_DECLARE_FEATURE(kNoopRuntimeMutable4);
+BASE_DECLARE_FEATURE(kNoopRuntimeMutable5);
+BASE_DECLARE_FEATURE(kNoopRuntimeMutable6);
+BASE_DECLARE_FEATURE(kNoopRuntimeMutable7);
+BASE_DECLARE_FEATURE(kNoopRuntimeMutable8);
 
 // Enables log rotation and uploading in the background on iOS.
 BASE_DECLARE_FEATURE(kIOSBackgroundMetrics);

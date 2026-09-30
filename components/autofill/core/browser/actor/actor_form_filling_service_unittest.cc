@@ -22,14 +22,14 @@
 #include "components/autofill/core/browser/actor/actor_filling_observer.h"
 #include "components/autofill/core/browser/actor/actor_form_filling_service_impl.h"
 #include "components/autofill/core/browser/actor/actor_form_filling_service_impl_test_api.h"
-#include "components/autofill/core/browser/actor/actor_test_utils.h"
+#include "components/autofill/core/browser/actor/actor_test_util.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/foundations/test_autofill_client.h"
 #include "components/autofill/core/browser/integrators/actor/actor_form_filling_types.h"
 #include "components/autofill/core/browser/payments/credit_card_access_manager_test_api.h"
-#include "components/autofill/core/browser/test_utils/autofill_form_test_utils.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
-#include "components/autofill/core/common/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_form_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
+#include "components/autofill/core/common/autofill_test_util.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom-shared.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -780,7 +780,7 @@ TEST_F(ActorFormFillingServiceTest, FillAfterFetchingServerCard) {
   FillSuggestionsFuture fill_future;
   service().FillSuggestions(
       client(), {ActorFormFillingSelection(requests[0].suggestions[0].id)},
-      /*trigger_field_map=*/{}, fill_future.GetCallback());
+      fill_future.GetCallback());
 
   ASSERT_GT(ActorFillingObserver::GetMaximumTimeout(), base::Seconds(1));
   task_environment()->FastForwardBy(ActorFillingObserver::GetMaximumTimeout() -
@@ -831,7 +831,7 @@ TEST_F(ActorFormFillingServiceTest, TimeoutWithFetching) {
   FillSuggestionsFuture fill_future;
   service().FillSuggestions(
       client(), {ActorFormFillingSelection(requests[0].suggestions[0].id)},
-      /*trigger_field_map=*/{}, fill_future.GetCallback());
+      fill_future.GetCallback());
 
   ASSERT_GT(ActorFillingObserver::GetMaximumTimeout(), base::Seconds(2));
   task_environment()->FastForwardBy(base::Seconds(1));
@@ -918,10 +918,10 @@ TEST_F(ActorFormFillingServiceTest, FillOrPreview) {
   // TODO(crbug.com/480936584): Expect actual fields to be previewed/filled
   // instead of passing `_` when the splitting logic is finalized.
   EXPECT_CALL(driver(), ApplyFormAction(_, mojom::ActionPersistence::kPreview,
-                                        _, _, _, _, _, _))
+                                        _, _, _, _, _))
       .Times(1);
   EXPECT_CALL(driver(), ApplyFormAction(_, mojom::ActionPersistence::kFill, _,
-                                        _, _, _, _, _))
+                                        _, _, _, _))
       .Times(1);
 
   ASSERT_EQ(manager().last_trigger_field_id(), FieldGlobalId());
@@ -1051,7 +1051,7 @@ TEST_F(ActorFormFillingServiceTest, FillSuggestions_FilledData) {
   base::test::TestFuture<base::expected<std::string, ActorFormFillingError>>
       fill_future;
   service().FillSuggestions(
-      client(), {ActorFormFillingSelection(requests[0].suggestions[0].id)}, {},
+      client(), {ActorFormFillingSelection(requests[0].suggestions[0].id)},
       fill_future.GetCallback());
 
   AutofillProfile expected_profile = GetProfile1();

@@ -16,6 +16,7 @@
 #include "chrome/browser/ui/webui/favicon_source.h"
 #include "chrome/browser/ui/webui/metrics_reporter/metrics_reporter_service.h"
 #include "chrome/browser/ui/webui/plural_string_handler.h"
+#include "chrome/browser/ui/webui/tab_search/search_handler.h"
 #include "chrome/browser/ui/webui/tab_search/tab_search_page_handler.h"
 #include "chrome/browser/ui/webui/tab_search/tab_search_sync_handler.h"
 #include "chrome/browser/ui/webui/theme_source.h"
@@ -107,8 +108,6 @@ TabSearchUI::TabSearchUI(content::WebUI* web_ui)
   source->AddBoolean("useRipples", views::PlatformStyle::kUseRipples);
   source->AddBoolean("useTabGroupColorRefresh",
                      features::IsTabGroupColorRefreshEnabled());
-  source->AddBoolean("splitViewTabRestoreEnabled",
-                     base::FeatureList::IsEnabled(tabs::kSplitViewTabRestore));
   source->AddBoolean(
       "cjkWordBoundaryEnabled",
       base::FeatureList::IsEnabled(tabs::kTabSearchCjkWordBoundary));
@@ -154,6 +153,11 @@ void TabSearchUI::BindInterface(
   page_factory_receiver_.Bind(std::move(receiver));
 }
 
+void TabSearchUI::BindInterface(
+    mojo::PendingReceiver<tab_search::mojom::SearchHandler> receiver) {
+  search_handler_ = std::make_unique<SearchHandler>(std::move(receiver));
+}
+
 void TabSearchUI::BeforeBubbleWidgetShowed() {
   if (page_handler_) {
     // Notify the page handler that tab search bubble widget is shown.
@@ -169,7 +173,7 @@ void TabSearchUI::CreatePageHandler(
 
   // CreatePageHandler() can be called multiple times if reusing the same
   // WebUIController. For eg refreshing the page will create new PageHandler but
-  // reuse TabSearchUI. Check to make sure |page_handler_timer_| is valid before
+  // reuse TabSearchUI. Check to make sure `page_handler_timer_` is valid before
   // logging metrics.
   if (page_handler_timer_.has_value()) {
     TRACE_EVENT_END("browser", perfetto::Track::FromPointer(this));

@@ -27,10 +27,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browser_controls.BottomControlsLayer;
@@ -42,7 +42,6 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
 
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class ChromeActivitySnackbarHelperUnitTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -178,7 +177,7 @@ public class ChromeActivitySnackbarHelperUnitTest {
                         mActivity,
                         mEdgeToEdgeControllerSupplier,
                         mBottomSheetController,
-                        () -> null);
+                        SupplierUtils.ofNull());
 
         reset(mEdgeToEdgeController1);
         when(mEdgeToEdgeController1.getBottomInsetPx()).thenReturn(100);

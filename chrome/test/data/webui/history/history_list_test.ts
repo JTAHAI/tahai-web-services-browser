@@ -57,13 +57,11 @@ suite('HistoryListTest', function() {
   });
 
   /**
-   * @param queryResults The query results to initialize
-   *     the page with.
+   * @param queryResults The query results to initialize the page with.
    * @param query The query to use in the QueryInfo.
-   * @return Promise that resolves when initialization is complete
-   *     and the lazy loaded module has been loaded.
+   * @return Promise that resolves when initialization is complete.
    */
-  function finishSetup(
+  async function finishSetup(
       queryResults: HistoryEntry[], finished: boolean = true,
       query?: string): Promise<void> {
     testProxy.handler.setResultFor('queryHistory', Promise.resolve({
@@ -77,13 +75,11 @@ suite('HistoryListTest', function() {
     const queryManager = app.shadowRoot.querySelector('history-query-manager');
     assertTrue(!!queryManager);
     queryManager.queryState = {...queryManager.queryState, incremental: true};
-    return Promise
-        .all([
-          testProxy.handler.whenCalled('queryHistory'),
-          microtasksFinished(),
-          eventToPromise('viewport-filled', element.$.infiniteList),
-        ])
-        .then(() => {});
+    await Promise.all([
+      testProxy.handler.whenCalled('queryHistory'),
+      eventToPromise('viewport-filled', element.$.infiniteList),
+    ]);
+    await microtasksFinished();
   }
 
   function getHistoryData(): HistoryEntry[] {
@@ -501,6 +497,94 @@ suite('HistoryListTest', function() {
         Array.from(items).slice(0, 3).map(i => i.selected));
   });
 
+  test('ReviewGeminiActivityViaMenuButton', async function() {
+    loadTimeData.overrideValues({
+      myActivityGeminiAppsUrl: 'https://myactivity.google.com/product/gemini',
+      isCriticalActionsEnabled: true,
+    });
+    const historyEntry =
+        createHistoryEntry('2025-08-26 10:00', 'http://www.google.com');
+    historyEntry.isActorVisit = true;
+    await finishSetup([historyEntry]);
+
+    const item = element.shadowRoot.querySelector('history-item');
+    assertTrue(!!item);
+    item.$.menuButton.click();
+    await microtasksFinished();
+
+    element.$.sharedMenu.get();
+    const reviewButton = element.shadowRoot.querySelector<HTMLElement>(
+        '#menuReviewGeminiActivityButton');
+    assertTrue(!!reviewButton);
+    assertFalse(reviewButton.hidden);
+
+    const hr = element.shadowRoot.querySelector<HTMLElement>('#sharedMenu .hr');
+    assertTrue(!!hr);
+    assertFalse(hr.hidden);
+
+    reviewButton.click();
+    await microtasksFinished();
+
+    const url = await testProxy.whenCalled('navigateToUrl');
+    assertEquals('https://myactivity.google.com/product/gemini', url);
+  });
+
+  test(
+      'ReviewGeminiActivityHiddenWhenCriticalActionsDisabled',
+      async function() {
+        loadTimeData.overrideValues({
+          myActivityGeminiAppsUrl:
+              'https://myactivity.google.com/product/gemini',
+          isCriticalActionsEnabled: false,
+        });
+        const historyEntry =
+            createHistoryEntry('2025-08-26 10:00', 'http://www.google.com');
+        historyEntry.isActorVisit = true;
+        await finishSetup([historyEntry]);
+
+        const item = element.shadowRoot.querySelector('history-item');
+        assertTrue(!!item);
+        item.$.menuButton.click();
+        await microtasksFinished();
+
+        element.$.sharedMenu.get();
+        const reviewButton = element.shadowRoot.querySelector<HTMLElement>(
+            '#menuReviewGeminiActivityButton');
+        assertTrue(!!reviewButton);
+        assertTrue(reviewButton.hidden);
+
+        const hr =
+            element.shadowRoot.querySelector<HTMLElement>('#sharedMenu .hr');
+        assertTrue(!!hr);
+        assertTrue(hr.hidden);
+      });
+
+  test('ReviewGeminiActivityHiddenForNonActorVisit', async function() {
+    loadTimeData.overrideValues({
+      myActivityGeminiAppsUrl: 'https://myactivity.google.com/product/gemini',
+      isCriticalActionsEnabled: true,
+    });
+    const historyEntry =
+        createHistoryEntry('2025-08-26 10:00', 'http://www.google.com');
+    historyEntry.isActorVisit = false;
+    await finishSetup([historyEntry]);
+
+    const item = element.shadowRoot.querySelector('history-item');
+    assertTrue(!!item);
+    item.$.menuButton.click();
+    await microtasksFinished();
+
+    element.$.sharedMenu.get();
+    const reviewButton = element.shadowRoot.querySelector<HTMLElement>(
+        '#menuReviewGeminiActivityButton');
+    assertTrue(!!reviewButton);
+    assertTrue(reviewButton.hidden);
+
+    const hr = element.shadowRoot.querySelector<HTMLElement>('#sharedMenu .hr');
+    assertTrue(!!hr);
+    assertTrue(hr.hidden);
+  });
+
   test('DeleteDisabledWhilePending', async function() {
     let items: NodeListOf<HistoryItemElement>;
     await finishSetup(TEST_HISTORY_RESULTS);
@@ -826,7 +910,6 @@ suite('HistoryListTest', function() {
         ],
       },
     }));
-
 
     // Simulate resizing the window. More results should be loaded.
     document.body.style.maxHeight = '800px';

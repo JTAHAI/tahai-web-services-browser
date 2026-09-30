@@ -7,7 +7,6 @@
 
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/html/html_media_capture_element_base.h"
-
 namespace blink {
 
 class CORE_EXPORT HTMLUserMediaElement : public HTMLMediaCaptureElementBase {
@@ -17,6 +16,7 @@ class CORE_EXPORT HTMLUserMediaElement : public HTMLMediaCaptureElementBase {
   static bool isTypeSupported(const AtomicString& type);
 
   explicit HTMLUserMediaElement(Document& document);
+  void Trace(Visitor*) const override;
 
   ElementType GetElementType() const final {
     return ElementType::kHTMLUserMediaElement;
@@ -25,6 +25,8 @@ class CORE_EXPORT HTMLUserMediaElement : public HTMLMediaCaptureElementBase {
 
   DOMException* error() const;
 
+  DEFINE_ATTRIBUTE_EVENT_LISTENER(stream, kStream)
+
   void AttributeChanged(const AttributeModificationParams& params) override;
   void OnPermissionStatusChange(mojom::blink::PermissionName permission_name,
                                 mojom::blink::PermissionStatus status) override;
@@ -32,8 +34,6 @@ class CORE_EXPORT HTMLUserMediaElement : public HTMLMediaCaptureElementBase {
       mojom::blink::EmbeddedPermissionControlResult result) override;
   void DefaultEventHandler(Event& event) override;
   void OnActivationFailed(const String& error_message) override;
-
-  void ApplyDefaultConstraints() override;
 
   Vector<mojom::blink::PermissionDescriptorPtr> ParseType(
       const AtomicString& type);

@@ -28,10 +28,11 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/renderer_host/chrome_navigation_ui_data.h"
 #include "chrome/browser/tab_contents/tab_util.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_init_state.h"
+#include "chrome/browser/ui/browser_ui_controller/browser_ui_controller.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/incognito_allowed_url.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
@@ -48,6 +49,7 @@
 #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
+#include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
 #include "chrome/common/chrome_features.h"
@@ -85,6 +87,8 @@
 #include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "components/account_id/account_id.h"
+#include "content/public/browser/global_routing_id.h"
+#include "services/network/public/mojom/web_sandbox_flags.mojom.h"
 #endif
 
 #if defined(USE_AURA)
@@ -118,31 +122,32 @@ bool WindowCanOpenTabs(const NavigateParams& params) {
   // If the browser is created from a template, we do not need to check if the
   // url is in the app scope since we know it was saved directly from the app.
   if (BrowserInitState::From(params.browser)->creation_source() !=
-          Browser::CreationSource::kDeskTemplate &&
+          BrowserWindowCreateParams::CreationSource::kDeskTemplate &&
       web_app::AppBrowserController::From(params.browser) &&
       !web_app::AppBrowserController::From(params.browser)
            ->IsUrlInAppScope(params.url)) {
     return false;
   }
 
-  return params.browser->GetBrowserForMigrationOnly()->CanSupportWindowFeature(
-             Browser::WindowFeature::kFeatureTabStrip) ||
-         params.browser->GetBrowserForMigrationOnly()
-             ->tab_strip_model()
-             ->empty();
+  return WindowFeatureController::From(params.browser)
+             ->CanSupportWindowFeature(
+                 WindowFeatureController::WindowFeature::kFeatureTabStrip) ||
+         params.browser->tab_strip_model()->empty();
 }
 
 // Finds an existing Browser compatible with |profile|, making a new one if no
 // such Browser is located.
-Browser* GetOrCreateBrowser(Profile* profile, bool user_gesture) {
+BrowserWindowInterface* GetOrCreateBrowser(Profile* profile,
+                                           bool user_gesture) {
   BrowserWindowInterface* browser =
       ProfileBrowserCollection::GetForProfile(profile)->FindTabbedBrowser();
 
-  if (!browser && Browser::GetCreationStatusForProfile(profile) ==
-                      Browser::CreationStatus::kOk) {
-    browser = Browser::Create(Browser::CreateParams(profile, user_gesture));
+  if (!browser && GetBrowserWindowCreationStatusForProfile(*profile) ==
+                      BrowserWindowInterface::CreationStatus::kOk) {
+    browser =
+        CreateBrowserWindow(BrowserWindowCreateParams(profile, user_gesture));
   }
-  return browser ? browser->GetBrowserForMigrationOnly() : nullptr;
+  return browser;
 }
 
 bool IncognitoModeForced(const Profile* profile) {
@@ -156,8 +161,9 @@ bool IncognitoModeForced(const Profile* profile) {
 // initiating profile has a CaptivePortal OTRProfileID. In Guest sessions, where
 // the primary OTR profile is reused, this checks the CaptivePortalTabHelper on
 // the source WebContents.
-bool ShouldForceCaptivePortalSigninIntoCurrentTab(const NavigateParams& params,
-                                                  Browser* source_browser) {
+bool ShouldForceCaptivePortalSigninIntoCurrentTab(
+    const NavigateParams& params,
+    BrowserWindowInterface* source_browser) {
   if (params.initiating_profile->IsOffTheRecord() &&
       params.initiating_profile->GetOTRProfileID().IsCaptivePortal()) {
     return true;
@@ -168,7 +174,8 @@ bool ShouldForceCaptivePortalSigninIntoCurrentTab(const NavigateParams& params,
   // source WebContents.
   content::WebContents* source_contents = params.source_contents;
   if (!source_contents && source_browser) {
-    source_contents = source_browser->tab_strip_model()->GetActiveWebContents();
+    source_contents =
+        source_browser->GetTabStripModel()->GetActiveWebContents();
   }
   if (source_contents) {
     auto* helper = captive_portal::CaptivePortalTabHelper::FromWebContents(
@@ -205,16 +212,13 @@ bool AdjustNavigateParamsForURL(NavigateParams* params) {
     params->window_action = NavigateParams::WindowAction::kShowWindow;
   }
 
-  Browser* browser_for_migration =
-      params->browser ? params->browser->GetBrowserForMigrationOnly() : nullptr;
-
   // Clicking a link to the home tab in a tabbed web app should always open the
   // link in the home tab.
-  if (web_app::IsHomeTabUrl(browser_for_migration, params->url)) {
-    browser_for_migration->tab_strip_model()->ActivateTabAt(0);
+  if (web_app::IsHomeTabUrl(params->browser, params->url)) {
+    params->browser->GetTabStripModel()->ActivateTabAt(0);
     // If the navigation URL is the same as the current home tab URL, skip the
     // navigation.
-    if (browser_for_migration->tab_strip_model()
+    if (params->browser->GetTabStripModel()
             ->GetActiveWebContents()
             ->GetLastCommittedURL() == params->url) {
       return false;
@@ -225,10 +229,11 @@ bool AdjustNavigateParamsForURL(NavigateParams* params) {
   return true;
 }
 
-Browser::ValueSpecified GetOriginSpecified(const NavigateParams& params) {
+BrowserWindowCreateParams::ValueSpecified GetOriginSpecified(
+    const NavigateParams& params) {
   return params.window_features.has_x && params.window_features.has_y
-             ? Browser::ValueSpecified::kSpecified
-             : Browser::ValueSpecified::kUnspecified;
+             ? BrowserWindowCreateParams::ValueSpecified::kSpecified
+             : BrowserWindowCreateParams::ValueSpecified::kUnspecified;
 }
 
 // Returns a Browser and tab index. The browser can host the navigation or
@@ -295,14 +300,16 @@ std::tuple<BrowserWindowInterface*, int> GetBrowserAndTabForDisposition(
       std::string app_name;
       if (!params.app_id.empty()) {
         app_name = web_app::GenerateApplicationNameFromAppId(params.app_id);
-      } else if (params.browser && !params.browser->GetBrowserForMigrationOnly()
-                                        ->app_name()
-                                        .empty()) {
-        app_name = params.browser->GetBrowserForMigrationOnly()->app_name();
+      } else if (params.browser && !BrowserInitState::From(params.browser)
+                                        ->create_params()
+                                        .app_name.empty()) {
+        app_name =
+            BrowserInitState::From(params.browser)->create_params().app_name;
       }
 
-      auto browser_params = Browser::CreateParams::CreateForPictureInPicture(
-          app_name, params.trusted_source, profile, params.user_gesture);
+      auto browser_params =
+          BrowserWindowCreateParams::CreateForPictureInPicture(
+              app_name, params.trusted_source, profile, params.user_gesture);
       DCHECK(params.contents_to_insert);
       auto pip_options =
           params.contents_to_insert->GetPictureInPictureOptions();
@@ -327,7 +334,7 @@ std::tuple<BrowserWindowInterface*, int> GetBrowserAndTabForDisposition(
                                                              display);
 
       browser_params.omit_from_session_restore = true;
-      return {Browser::Create(browser_params), -1};
+      return {CreateBrowserWindow(std::move(browser_params)), -1};
     }
     case WindowOpenDisposition::NEW_POPUP: {
       // Make a new popup window.
@@ -335,39 +342,40 @@ std::tuple<BrowserWindowInterface*, int> GetBrowserAndTabForDisposition(
       std::string app_name;
       if (!params.app_id.empty()) {
         app_name = web_app::GenerateApplicationNameFromAppId(params.app_id);
-      } else if (params.browser && !params.browser->GetBrowserForMigrationOnly()
-                                        ->app_name()
-                                        .empty()) {
-        app_name = params.browser->GetBrowserForMigrationOnly()->app_name();
+      } else if (params.browser && !BrowserInitState::From(params.browser)
+                                        ->create_params()
+                                        .app_name.empty()) {
+        app_name =
+            BrowserInitState::From(params.browser)->create_params().app_name;
       }
-      if (Browser::GetCreationStatusForProfile(profile) !=
-          Browser::CreationStatus::kOk) {
+      if (GetBrowserWindowCreationStatusForProfile(*profile) !=
+          BrowserWindowInterface::CreationStatus::kOk) {
         return {nullptr, -1};
       }
       if (app_name.empty()) {
-        Browser::CreateParams browser_params(Browser::TYPE_POPUP, profile,
-                                             params.user_gesture);
-        browser_params.trusted_source = params.trusted_source;
+        BrowserWindowCreateParams browser_params(
+            BrowserWindowInterface::TYPE_POPUP, profile, params.user_gesture);
+        browser_params.is_trusted_source = params.trusted_source;
         browser_params.initial_bounds = params.window_features.bounds;
         browser_params.initial_origin_specified = GetOriginSpecified(params);
         browser_params.can_maximize = !additional_params.tab_modal_popup;
         browser_params.can_fullscreen = !additional_params.tab_modal_popup;
-        return {Browser::Create(browser_params), -1};
+        return {CreateBrowserWindow(std::move(browser_params)), -1};
       }
-      Browser::CreateParams browser_params =
-          Browser::CreateParams::CreateForAppPopup(
+      BrowserWindowCreateParams browser_params =
+          BrowserWindowCreateParams::CreateForAppPopup(
               app_name, params.trusted_source, params.window_features.bounds,
               profile, params.user_gesture);
       browser_params.initial_origin_specified = GetOriginSpecified(params);
-      return {Browser::Create(browser_params), -1};
+      return {CreateBrowserWindow(std::move(browser_params)), -1};
     }
     case WindowOpenDisposition::NEW_WINDOW: {
       // Make a new normal browser window.
-      Browser* browser = nullptr;
-      if (Browser::GetCreationStatusForProfile(profile) ==
-          Browser::CreationStatus::kOk) {
-        browser = Browser::Create(
-            Browser::CreateParams(profile, params.user_gesture));
+      BrowserWindowInterface* browser = nullptr;
+      if (GetBrowserWindowCreationStatusForProfile(*profile) ==
+          BrowserWindowInterface::CreationStatus::kOk) {
+        browser = CreateBrowserWindow(
+            BrowserWindowCreateParams(profile, params.user_gesture));
       }
       return {browser, -1};
     }
@@ -390,9 +398,7 @@ std::tuple<BrowserWindowInterface*, int> GetBrowserAndTabForDisposition(
 // conditions.
 void NormalizeDisposition(NavigateParams* params) {
   // Calculate the WindowOpenDisposition if necessary.
-  if (params->browser->GetBrowserForMigrationOnly()
-          ->tab_strip_model()
-          ->empty() &&
+  if (params->browser->GetTabStripModel()->empty() &&
       (params->disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB ||
        params->disposition == WindowOpenDisposition::CURRENT_TAB ||
        params->disposition == WindowOpenDisposition::SINGLETON_TAB)) {
@@ -570,8 +576,7 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
   TRACE_EVENT1("navigation", "chrome::Navigate", "disposition",
                params->disposition);
   CHECK(params);
-  Browser* source_browser =
-      params->browser ? params->browser->GetBrowserForMigrationOnly() : nullptr;
+  BrowserWindowInterface* source_browser = params->browser;
   if (source_browser) {
     params->initiating_profile = source_browser->GetProfile();
   }
@@ -584,7 +589,25 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
       !IncognitoModeForced(params->initiating_profile)) {
     // Navigation outside of the current tab or the initial popup window from a
     // captive portal signin window should be prevented.
-    params->disposition = WindowOpenDisposition::CURRENT_TAB;
+    content::RenderFrameHost* initiator_rfh = nullptr;
+    if (params->initiator_frame_token.has_value()) {
+      initiator_rfh = content::RenderFrameHost::FromFrameToken(
+          content::GlobalRenderFrameHostToken(params->initiator_process_id,
+                                              *params->initiator_frame_token));
+    }
+    // If the navigation is initiated by a subframe that is sandboxed against
+    // top-level navigation (e.g., an iframe with allow-popups but without
+    // allow-top-navigation), rewriting the disposition to CURRENT_TAB would
+    // allow the sandboxed frame to navigate the top-level captive portal
+    // window, bypassing the sandbox restriction. In that case, fall back to
+    // NEW_POPUP so that the sandbox restriction is respected while still
+    // allowing popups.
+    if (initiator_rfh && initiator_rfh->IsSandboxed(
+                             network::mojom::WebSandboxFlags::kTopNavigation)) {
+      params->disposition = WindowOpenDisposition::NEW_POPUP;
+    } else {
+      params->disposition = WindowOpenDisposition::CURRENT_TAB;
+    }
   }
 #endif
 
@@ -667,9 +690,8 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
   // has a chance to replace |params->browser| with another one, but after the
   // above check that relies on the original source_contents value.
   if (!params->source_contents && params->browser) {
-    params->source_contents = params->browser->GetBrowserForMigrationOnly()
-                                  ->tab_strip_model()
-                                  ->GetActiveWebContents();
+    params->source_contents =
+        params->browser->GetTabStripModel()->GetActiveWebContents();
   }
 
   WebContents* contents_to_navigate_or_insert =
@@ -689,8 +711,9 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
   if (params->disposition == WindowOpenDisposition::NEW_PICTURE_IN_PICTURE) {
     // Picture in picture windows may not be opened by other picture in
     // picture windows, or without an opener.
-    if (!params->browser || params->browser->GetBrowserForMigrationOnly()
-                                ->is_type_picture_in_picture()) {
+    if (!params->browser ||
+        params->browser->GetType() ==
+            BrowserWindowInterface::Type::TYPE_PICTURE_IN_PICTURE) {
       params->browser = nullptr;
       return nullptr;
     }
@@ -733,10 +756,7 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
   } else {
     std::tuple<BrowserWindowInterface*, int> browser_and_index =
         GetBrowserAndTabForDisposition(*params, additional_params);
-    params->browser =
-        std::get<0>(browser_and_index) == nullptr
-            ? nullptr
-            : std::get<0>(browser_and_index)->GetBrowserForMigrationOnly();
+    params->browser = std::get<0>(browser_and_index);
     singleton_index = std::get<1>(browser_and_index);
   }
 
@@ -748,7 +768,8 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
   // focusing a regular browser window and opening a tab in the background
   // of that window. Change the disposition to NEW_FOREGROUND_TAB so that
   // the new tab is focused.
-  if (source_browser && source_browser->is_type_app() &&
+  if (source_browser &&
+      source_browser->GetType() == BrowserWindowInterface::Type::TYPE_APP &&
       params->disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB &&
       !(web_app::AppBrowserController::From(source_browser) &&
         web_app::AppBrowserController::From(source_browser)->has_tab_strip())) {
@@ -757,9 +778,7 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
 
   if (singleton_index != -1) {
     contents_to_navigate_or_insert =
-        params->browser->GetBrowserForMigrationOnly()
-            ->tab_strip_model()
-            ->GetWebContentsAt(singleton_index);
+        params->browser->GetTabStripModel()->GetWebContentsAt(singleton_index);
   } else if (params->disposition == WindowOpenDisposition::SWITCH_TO_TAB) {
     // The user is trying to open a tab that no longer exists. If we open a new
     // tab, it could leave orphaned NTPs around, but always overwriting the
@@ -820,9 +839,7 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
   // If a new window has been created, it needs to be shown.
   if (params->window_action == NavigateParams::WindowAction::kNoAction &&
       source_browser != params->browser &&
-      params->browser->GetBrowserForMigrationOnly()
-          ->tab_strip_model()
-          ->empty()) {
+      params->browser->GetTabStripModel()->empty()) {
     params->window_action = NavigateParams::WindowAction::kShowWindow;
   }
 
@@ -843,9 +860,9 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
 
   std::unique_ptr<tabs::TabModel> tab_to_insert;
   if (params->contents_to_insert) {
-    tab_to_insert = std::make_unique<tabs::TabModel>(
-        std::move(params->contents_to_insert),
-        params->browser->GetBrowserForMigrationOnly()->tab_strip_model());
+    tab_to_insert =
+        std::make_unique<tabs::TabModel>(std::move(params->contents_to_insert),
+                                         params->browser->GetTabStripModel());
     if (params->source_contents &&
         ((params->tabstrip_add_types & AddTabTypes::ADD_INHERIT_OPENER) ||
          params->user_gesture)) {
@@ -862,7 +879,7 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
     if (params->disposition != WindowOpenDisposition::CURRENT_TAB) {
       tab_to_insert = std::make_unique<tabs::TabModel>(
           CreateTargetContents(*params, params->url),
-          params->browser->GetBrowserForMigrationOnly()->tab_strip_model());
+          params->browser->GetTabStripModel());
       if (params->source_contents &&
           ((params->tabstrip_add_types & AddTabTypes::ADD_INHERIT_OPENER) ||
            params->user_gesture)) {
@@ -925,14 +942,13 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
 
   if (params->source_contents == contents_to_navigate_or_insert) {
     // The navigation occurred in the source tab.
-    params->browser->GetBrowserForMigrationOnly()->UpdateUIForNavigationInTab(
-        contents_to_navigate_or_insert, params->transition,
-        params->window_action, user_initiated);
+    BrowserUiController::From(params->browser)
+        ->UpdateUIForNavigationInTab(contents_to_navigate_or_insert,
+                                     params->transition, params->window_action,
+                                     user_initiated);
   } else if (singleton_index == -1) {
     if (source_browser != params->browser) {
-      params->tabstrip_index = params->browser->GetBrowserForMigrationOnly()
-                                   ->tab_strip_model()
-                                   ->count();
+      params->tabstrip_index = params->browser->GetTabStripModel()->count();
     }
 
     // If some non-default value is set for the index, we should tell the
@@ -950,19 +966,28 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
     }
 
     DCHECK(tab_to_insert);
+    std::optional<tab_groups::TabGroupId> group = params->group;
+    if (!(params->tabstrip_add_types & AddTabTypes::ADD_PINNED)) {
+      if (!group.has_value()) {
+        group = params->browser->GetTabStripModel()->GetFocusedGroup();
+      }
+    }
     // The navigation should insert a new tab into the target Browser.
-    params->browser->GetBrowserForMigrationOnly()->tab_strip_model()->AddTab(
+    params->browser->GetTabStripModel()->AddTab(
         std::move(tab_to_insert), params->tabstrip_index, params->transition,
-        params->tabstrip_add_types, params->group);
+        params->tabstrip_add_types, group);
 
     // For NEW_SPLIT_VIEW, pair the new tab with the active tab. The
-    // "already split" case is handled in Browser::OpenURLFromTab().
+    // "already split" case is handled in
+    // BrowserWebContentsDelegate::OpenURLFromTab().
     if (params->disposition == WindowOpenDisposition::NEW_SPLIT_VIEW &&
         contents_to_navigate_or_insert) {
       TabStripModel* const tab_strip_model =
-          params->browser->GetBrowserForMigrationOnly()->tab_strip_model();
-      const int new_tab_index = tab_strip_model->GetIndexOfWebContents(
-          contents_to_navigate_or_insert);
+          params->browser->GetTabStripModel();
+      tabs::TabInterface* const new_tab =
+          tabs::TabInterface::MaybeGetFromContents(
+              contents_to_navigate_or_insert);
+      const int new_tab_index = tab_strip_model->GetIndexOfTab(new_tab);
       tabs::TabInterface* const source_tab =
           params->source_contents ? tabs::TabInterface::MaybeGetFromContents(
                                         params->source_contents)
@@ -972,12 +997,15 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
         tab_strip_model->AddToNewSplit(
             {new_tab_index}, split_tabs::SplitTabVisualData(),
             split_tabs::SplitTabCreatedSource::kLinkClick);
-        // Re-query the index after adding to split, as `AddToNewSplit()` may
-        // have moved the tab to a different position.
-        const int inserted_tab_index = tab_strip_model->GetIndexOfWebContents(
-            contents_to_navigate_or_insert);
-        CHECK_NE(inserted_tab_index, TabStripModel::kNoTab);
-        tab_strip_model->ActivateTabAt(inserted_tab_index);
+        // AddToNewSplit() makes the split contiguous and gives the new tab the
+        // active tab's pinned state and group, moving the new tab next to the
+        // active tab if it is not already there. In particular, when the
+        // active tab is pinned, the new (unpinned) tab was inserted after the
+        // pinned tabs, so after the move `new_tab_index` refers to whichever
+        // tab was shifted into its old slot, e.g. the pinned tab to the right
+        // of the split. Activate by tab rather than by index so that tab can
+        // never be focused instead of the new split tab.
+        tab_strip_model->ActivateTab(new_tab);
       }
     }
   }
@@ -1026,10 +1054,8 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
           }
         }
       }
-      params->browser->GetBrowserForMigrationOnly()
-          ->tab_strip_model()
-          ->ActivateTabAt(singleton_index,
-                          TabStripUserGestureDetails(gesture_type));
+      params->browser->GetTabStripModel()->ActivateTabAt(
+          singleton_index, TabStripUserGestureDetails(gesture_type));
       // Close tab after switch so index remains correct.
       if (should_close_this_tab) {
         params->source_contents->Close();

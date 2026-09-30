@@ -259,8 +259,8 @@ TEST_F(RenderProcessHostUnitTest, ReuseCommittedSite) {
       TestRenderFrameHost::CreateStubAssociatedInterfaceProviderReceiver(),
       blink::mojom::TreeScopeType::kDocument, std::string(), unique_name, false,
       blink::LocalFrameToken(), base::UnguessableToken::Create(),
-      blink::DocumentToken(), blink::FramePolicy(),
-      blink::mojom::FrameOwnerProperties(),
+      blink::DocumentToken(), base::UnguessableToken::Create(),
+      blink::FramePolicy(), blink::mojom::FrameOwnerProperties(),
       blink::FrameOwnerElementType::kIframe, ukm::kInvalidSourceId);
   TestRenderFrameHost* subframe =
       static_cast<TestRenderFrameHost*>(contents()
@@ -1052,6 +1052,26 @@ TEST_F(RenderProcessHostUnitTest, ProcessAssignmentDefault) {
   EXPECT_EQ(SiteInstanceProcessAssignment::UNKNOWN,
             site_instance->GetLastProcessAssignmentOutcome());
   EXPECT_FALSE(site_instance->HasProcess());
+}
+
+TEST_F(RenderProcessHostUnitTest,
+       ProcessAssignmentReuseExistingProcessIfPossible) {
+  const GURL kUrl1("https://foo.com");
+  const GURL kUrl2("https://foo.com");
+
+  scoped_refptr<SiteInstanceImpl> site_instance1 = CreateForUrl(kUrl1);
+  RenderProcessHost* host1 = site_instance1->GetOrCreateProcessForTesting();
+
+  scoped_refptr<SiteInstanceImpl> site_instance2 = CreateForUrl(kUrl2);
+  EXPECT_EQ(SiteInstanceProcessAssignment::UNKNOWN,
+            site_instance2->GetLastProcessAssignmentOutcome());
+  EXPECT_FALSE(site_instance2->HasProcess());
+
+  site_instance2->ReuseExistingProcessIfPossible(host1);
+  EXPECT_TRUE(site_instance2->HasProcess());
+  EXPECT_EQ(host1, site_instance2->GetProcess());
+  EXPECT_EQ(SiteInstanceProcessAssignment::REUSED_EXISTING_PROCESS,
+            site_instance2->GetLastProcessAssignmentOutcome());
 }
 
 // Tests the GetPendingReuseRefCount() function.

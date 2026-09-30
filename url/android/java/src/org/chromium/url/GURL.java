@@ -116,7 +116,7 @@ public class GURL {
     public static void ensureNativeInitializedForGURL() {
         if (LibraryLoader.getInstance().isInitialized()) return;
         long time = SystemClock.elapsedRealtime();
-        LibraryLoader.getInstance().ensureMainDexInitialized();
+        LibraryLoader.getInstance().ensureInitialized();
         // Record metrics only for the UI thread where the delay in loading the library is relevant.
         if (ThreadUtils.runningOnUiThread()) {
             // "MainDex" in name of histogram is a dated reference to when we used to have 2
@@ -335,8 +335,8 @@ public class GURL {
 
     /**
      * Deserialize a GURL serialized with {@link GURL#serialize()}. This will re-parse in case of
-     * version mismatch, which may trigger undesired native loading. {@see
-     * deserializeLatestVersionOnly} if you want to fail in case of version mismatch.
+     * version mismatch, which may trigger undesired native loading. See {@link
+     * #deserializeLatestVersionOnly} if you want to fail in case of version mismatch.
      *
      * <p>This function should *never* be used on a String coming from an untrusted source.
      *

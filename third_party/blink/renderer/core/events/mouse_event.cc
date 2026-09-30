@@ -45,7 +45,6 @@
 #include "third_party/blink/renderer/platform/bindings/dom_wrapper_world.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
 
 namespace blink {
@@ -331,14 +330,6 @@ bool MouseEvent::IsMouseEvent() const {
   return true;
 }
 
-void MouseEvent::SetRelatedTarget(EventTarget* related_target) {
-  if ((IsWheelEvent() || IsDragEvent()) &&
-      !RuntimeEnabledFeatures::DontLeakShadowTreesInDragEventsEnabled()) {
-    return;
-  }
-  related_target_ = related_target;
-}
-
 int16_t MouseEvent::button() const {
   const AtomicString& event_name = type();
   if (button_ == -1 || event_name == event_type_names::kMousemove ||
@@ -525,7 +516,7 @@ void MouseEvent::ComputeRelativePosition() {
     layer = layer->EnclosingSelfPaintingLayer();
 
     PhysicalOffset physical_offset =
-        layer->GetLayoutObject().LocalToAbsolutePoint(PhysicalOffset(), 0);
+        layer->GetLayoutObject().LocalToAbsolutePoint(PhysicalOffset());
     layer_location_ -= gfx::Vector2dF(physical_offset);
 
     layer_location_.Scale(inverse_zoom_factor);

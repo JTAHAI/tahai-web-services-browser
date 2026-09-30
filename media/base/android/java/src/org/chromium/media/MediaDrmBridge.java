@@ -66,7 +66,6 @@ import java.util.UUID;
 @NullMarked
 public class MediaDrmBridge {
     private static final String TAG = "MediaDrmBridge";
-    private static final String SECURITY_LEVEL = "securityLevel";
     private static final String CURRENT_HDCP_LEVEL = "hdcpLevel";
     private static final String SERVER_CERTIFICATE = "serviceCertificate";
     private static final String ORIGIN = "origin";
@@ -107,7 +106,9 @@ public class MediaDrmBridge {
     private final Object mNativeMediaDrmBridgeLock = new Object();
 
     private final UUID mKeySystemUuid;
-    private final boolean mRequiresMediaCrypto;
+    private final int mSecurityLevel;
+
+    private boolean mRequiresMediaCrypto;
 
     // A session only for the purpose of creating a MediaCrypto object. Created
     // after construction, or after the provisioning process is successfully
@@ -275,11 +276,13 @@ public class MediaDrmBridge {
 
     private MediaDrmBridge(
             UUID keySystemUuid,
+            int securityLevel,
             boolean requiresMediaCrypto,
             long nativeMediaDrmBridge,
             long nativeMediaDrmStorageBridge)
             throws android.media.UnsupportedSchemeException {
         mKeySystemUuid = keySystemUuid;
+        mSecurityLevel = securityLevel;
         mMediaDrm = new MediaDrm(keySystemUuid);
         mRequiresMediaCrypto = requiresMediaCrypto;
 
@@ -337,13 +340,7 @@ public class MediaDrmBridge {
 
             // Cannot provision. Defer MediaCrypto creation and try again later.
             Log.d(TAG, "defer CreateMediaCrypto() calls");
-            sMediaCryptoDeferrer.defer(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            createMediaCrypto();
-                        }
-                    });
+            sMediaCryptoDeferrer.defer(() -> createMediaCrypto());
 
             return true;
         }
@@ -390,7 +387,10 @@ public class MediaDrmBridge {
     private byte @Nullable [] openSession() throws android.media.NotProvisionedException {
         assert mMediaDrm != null;
         try {
-            byte[] sessionId = mMediaDrm.openSession();
+            byte[] sessionId =
+                    (mSecurityLevel == MediaDrm.SECURITY_LEVEL_UNKNOWN)
+                            ? mMediaDrm.openSession()
+                            : mMediaDrm.openSession(mSecurityLevel);
             // Make a clone here in case the underlying byte[] is modified.
             return sessionId.clone();
         } catch (java.lang.RuntimeException e) { // TODO(xhwang): Drop this?
@@ -410,31 +410,54 @@ public class MediaDrmBridge {
     }
 
     /**
-     * Check whether the crypto scheme is supported for the given container. If |containerMimeType|
-     * is an empty string, we just return whether the crypto scheme is supported.
+     * Check whether the crypto scheme is supported.
      *
-     * @return true if the container and the crypto scheme is supported, or false otherwise.
+     * @return true if the crypto scheme is supported, or false otherwise.
      */
     @CalledByNative
-    private static boolean isCryptoSchemeSupported(byte[] keySystemUuid, String containerMimeType) {
+    private static boolean isCryptoSchemeSupported(byte[] keySystemUuid) {
         UUID cryptoScheme = getUuidFromBytes(keySystemUuid);
-        if (cryptoScheme == null) {
-            return false;
-        }
+        return cryptoScheme != null
+                && isCryptoSchemeSupported(cryptoScheme, "", MediaDrm.SECURITY_LEVEL_UNKNOWN);
+    }
 
+    private static boolean isCryptoSchemeSupported(
+            UUID cryptoScheme, String containerMimeType, int securityLevel) {
         // MediaDrm.isCryptoSchemeSupported reads from disk
         try (StrictModeContext ignored = StrictModeContext.allowDiskReads()) {
             if (containerMimeType.isEmpty()) {
                 return MediaDrm.isCryptoSchemeSupported(cryptoScheme);
             }
-
+            if (securityLevel != MediaDrm.SECURITY_LEVEL_UNKNOWN) {
+                return MediaDrm.isCryptoSchemeSupported(
+                        cryptoScheme, containerMimeType, securityLevel);
+            }
             return MediaDrm.isCryptoSchemeSupported(cryptoScheme, containerMimeType);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | UnsupportedOperationException e) {
             // A few devices have broken DRM HAL configs and throw an exception here regardless of
             // the arguments; just assume this means the scheme is not supported.
+            // In addition, MediaDrm.isCryptoSchemeSupported throws UnsupportedOperationException if
+            // the DRM HAL cannot handle the requested security level.
             Log.e(TAG, "Exception in isCryptoSchemeSupported", e);
             return false;
         }
+    }
+
+    @CalledByNative
+    private static String[] getSupportedContainers(byte[] keySystemUuid, int securityLevel) {
+        UUID cryptoScheme = getUuidFromBytes(keySystemUuid);
+        if (cryptoScheme == null) {
+            return new String[0];
+        }
+
+        List<String> containers = new ArrayList<>();
+        if (isCryptoSchemeSupported(cryptoScheme, "video/webm", securityLevel)) {
+            containers.add("video/webm");
+        }
+        if (isCryptoSchemeSupported(cryptoScheme, "video/mp4", securityLevel)) {
+            containers.add("video/mp4");
+        }
+        return containers.toArray(new String[0]);
     }
 
     /**
@@ -442,7 +465,7 @@ public class MediaDrmBridge {
      *
      * @param keySystemBytes Key system UUID.
      * @param securityOrigin Security origin. Empty value means no need for origin isolated storage.
-     * @param securityLevel Security level. If empty, the default one should be used.
+     * @param securityLevel Security level.
      * @param nativeMediaDrmBridge Native C++ object of this class.
      * @param nativeMediaDrmStorageBridge Native C++ object of persistent storage.
      */
@@ -450,14 +473,14 @@ public class MediaDrmBridge {
     private static @Nullable MediaDrmBridge create(
             byte[] keySystemBytes,
             String securityOrigin,
-            String securityLevel,
+            int securityLevel,
             String message,
             boolean requiresMediaCrypto,
             long nativeMediaDrmBridge,
             long nativeMediaDrmStorageBridge) {
         Log.i(
                 TAG,
-                "Create MediaDrmBridge with level %s and origin %s for %s",
+                "Create MediaDrmBridge with level %d and origin %s for %s",
                 securityLevel,
                 securityOrigin,
                 message);
@@ -475,7 +498,8 @@ public class MediaDrmBridge {
 
             mediaDrmBridge =
                     new MediaDrmBridge(
-                            keySystemUuid,
+                            assumeNonNull(keySystemUuid),
+                            securityLevel,
                             requiresMediaCrypto,
                             nativeMediaDrmBridge,
                             nativeMediaDrmStorageBridge);
@@ -499,13 +523,6 @@ public class MediaDrmBridge {
             return null;
         }
 
-        if (!securityLevel.isEmpty() && !mediaDrmBridge.setSecurityLevel(securityLevel)) {
-            MediaDrmBridgeJni.get()
-                    .onCreateError(nativeMediaDrmBridge, MediaDrmCreateError.FAILED_SECURITY_LEVEL);
-            mediaDrmBridge.release();
-            return null;
-        }
-
         if (!securityOrigin.isEmpty() && !mediaDrmBridge.setOrigin(securityOrigin)) {
             MediaDrmBridgeJni.get()
                     .onCreateError(
@@ -524,6 +541,23 @@ public class MediaDrmBridge {
         }
 
         return mediaDrmBridge;
+    }
+
+    @CalledByNative
+    private boolean initializeWithOriginAndCrypto(String originId) {
+        mRequiresMediaCrypto = true;
+
+        if (!originId.isEmpty() && !setOrigin(originId)) {
+            onCreateError(MediaDrmCreateError.FAILED_SECURITY_ORIGIN);
+            release();
+            return false;
+        }
+
+        if (!createMediaCrypto()) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -558,50 +592,6 @@ public class MediaDrmBridge {
         }
 
         Log.e(TAG, "Security origin %s not supported!", origin);
-        return false;
-    }
-
-    /**
-     * Set the security level that the MediaDrm object uses.
-     * This function should be called right after we construct MediaDrmBridge
-     * and before we make any other calls.
-     *
-     * @param securityLevel Security level to be set.
-     * @return whether the security level was successfully set.
-     */
-    private boolean setSecurityLevel(String securityLevel) {
-        if (!isWidevine()) {
-            Log.d(TAG, "Security level is not supported.");
-            return true;
-        }
-
-        assert mMediaDrm != null;
-        assert !securityLevel.isEmpty();
-
-        String currentSecurityLevel = getSecurityLevel();
-        if (currentSecurityLevel.equals("")) {
-            // Failure logged by getSecurityLevel().
-            return false;
-        }
-
-        Log.d(TAG, "Security level: current %s, new %s", currentSecurityLevel, securityLevel);
-        if (securityLevel.equals(currentSecurityLevel)) {
-            // No need to set the same security level again. This is not just
-            // a shortcut! Setting the same security level actually causes an
-            // exception in MediaDrm!
-            return true;
-        }
-
-        try {
-            mMediaDrm.setPropertyString(SECURITY_LEVEL, securityLevel);
-            return true;
-        } catch (java.lang.IllegalArgumentException e) {
-            Log.e(TAG, "Failed to set security level %s", securityLevel, e);
-        } catch (java.lang.IllegalStateException e) {
-            Log.e(TAG, "Failed to set security level %s", securityLevel, e);
-        }
-
-        Log.e(TAG, "Security level %s not supported!", securityLevel);
         return false;
     }
 
@@ -1091,16 +1081,13 @@ public class MediaDrmBridge {
 
         mSessionManager.load(
                 emeId,
-                new Callback<@Nullable SessionId>() {
-                    @Override
-                    public void onResult(@Nullable SessionId sessionId) {
-                        if (sessionId == null) {
-                            onPersistentLicenseNoExist(promiseId);
-                            return;
-                        }
-
-                        loadSessionWithLoadedStorage(sessionId, promiseId);
+                sessionId -> {
+                    if (sessionId == null) {
+                        onPersistentLicenseNoExist(promiseId);
+                        return;
                     }
+
+                    loadSessionWithLoadedStorage(sessionId, promiseId);
                 });
     }
 
@@ -1190,15 +1177,12 @@ public class MediaDrmBridge {
         closeSessionNoException(sessionId);
         mSessionManager.clearPersistentSessionInfo(
                 sessionId,
-                new Callback<Boolean>() {
-                    @Override
-                    public void onResult(Boolean success) {
-                        if (!success) {
-                            Log.w(TAG, "Failed to clear persistent storage for non-exist license");
-                        }
-
-                        onPersistentLicenseNoExist(promiseId);
+                success -> {
+                    if (!success) {
+                        Log.w(TAG, "Failed to clear persistent storage for non-exist license");
                     }
+
+                    onPersistentLicenseNoExist(promiseId);
                 });
     }
 
@@ -1247,19 +1231,16 @@ public class MediaDrmBridge {
         mSessionManager.setKeyType(
                 sessionId,
                 MediaDrm.KEY_TYPE_RELEASE,
-                new Callback<Boolean>() {
-                    @Override
-                    public void onResult(Boolean success) {
-                        if (!success) {
-                            onPromiseRejected(
-                                    promiseId,
-                                    MediaDrmSystemCode.SET_KEY_TYPE_RELEASE_FAILED,
-                                    "Fail to update persistent storage");
-                            return;
-                        }
-
-                        doRemoveSession(sessionId, sessionInfo.mimeType(), promiseId);
+                success -> {
+                    if (!success) {
+                        onPromiseRejected(
+                                promiseId,
+                                MediaDrmSystemCode.SET_KEY_TYPE_RELEASE_FAILED,
+                                "Fail to update persistent storage");
+                        return;
                     }
+
+                    doRemoveSession(sessionId, sessionInfo.mimeType(), promiseId);
                 });
     }
 
@@ -1295,18 +1276,6 @@ public class MediaDrmBridge {
 
         // May return empty string on failure.
         return getPropertyString(CURRENT_HDCP_LEVEL);
-    }
-
-    /**
-     * Return the security level of this MediaDrm object. In case of failure this returns the empty
-     * string, which is treated by the native side as "DEFAULT".
-     * TODO(jrummell): Revisit this in the future if the security level gets used for more things.
-     */
-    @CalledByNative
-    private String getSecurityLevel() {
-
-        /// May return empty string on failure.
-        return getPropertyString(SECURITY_LEVEL);
     }
 
     /** Return the version property. In case of failure this returns an empty string. */
@@ -1526,19 +1495,16 @@ public class MediaDrmBridge {
         // When |mOriginSet|, notify the storage onProvisioned, and continue
         // creating MediaCrypto after that.
         mStorage.onProvisioned(
-                new Callback<Boolean>() {
-                    @Override
-                    public void onResult(Boolean initSuccess) {
-                        assert mMediaCryptoSession == null;
+                initSuccess -> {
+                    assert mMediaCryptoSession == null;
 
-                        if (!initSuccess) {
-                            Log.e(TAG, "Failed to initialize storage for origin");
-                            release();
-                            return;
-                        }
-
-                        createMediaCrypto();
+                    if (!initSuccess) {
+                        Log.e(TAG, "Failed to initialize storage for origin");
+                        release();
+                        return;
                     }
+
+                    createMediaCrypto();
                 });
     }
 
@@ -1764,26 +1730,23 @@ public class MediaDrmBridge {
 
             deferEventHandleIfNeeded(
                     sessionId,
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            if (sessionId == null) {
-                                Log.w(
-                                        TAG,
-                                        "SessionLost: Unknown session %s",
-                                        SessionId.toHexString(drmSessionId));
-                                return;
-                            }
-
-                            Log.d(TAG, "SessionLost: %s", sessionId);
-                            if (mMediaDrm != null) {
-                                closeSessionNoException(sessionId);
-                            }
-                            mSessionManager.remove(sessionId);
-                            // TODO(crbug.com/40181810): Consider passing a reason for sessionClosed
-                            // that more closely represents a lost state.
-                            onSessionClosed(sessionId, MediaDrmCdmSessionClosedReason.CLOSE);
+                    () -> {
+                        if (sessionId == null) {
+                            Log.w(
+                                    TAG,
+                                    "SessionLost: Unknown session %s",
+                                    SessionId.toHexString(drmSessionId));
+                            return;
                         }
+
+                        Log.d(TAG, "SessionLost: %s", sessionId);
+                        if (mMediaDrm != null) {
+                            closeSessionNoException(sessionId);
+                        }
+                        mSessionManager.remove(sessionId);
+                        // TODO(crbug.com/40181810): Consider passing a reason for sessionClosed
+                        // that more closely represents a lost state.
+                        onSessionClosed(sessionId, MediaDrmCdmSessionClosedReason.CLOSE);
                     });
         }
     }
@@ -1808,33 +1771,29 @@ public class MediaDrmBridge {
 
             deferEventHandleIfNeeded(
                     sessionId,
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            if (sessionId == null) {
-                                Log.w(
-                                        TAG,
-                                        "KeyStatusChange: Unknown session %s",
-                                        SessionId.toHexString(drmSessionId));
-                                return;
-                            }
-
-                            SessionInfo sessionInfo = mSessionManager.get(sessionId);
-                            if (sessionInfo == null) {
-                                Log.w(TAG, "KeyStatusChange: No info for session %s", sessionId);
-                                return;
-                            }
-
-                            boolean isKeyRelease =
-                                    sessionInfo.keyType() == MediaDrm.KEY_TYPE_RELEASE;
-
-                            Log.i(TAG, "KeysStatusChange(%s): %b", sessionId, hasNewUsableKey);
-                            onSessionKeysChange(
-                                    sessionId,
-                                    getKeysInfo(keyInformation).toArray(),
-                                    hasNewUsableKey,
-                                    isKeyRelease);
+                    () -> {
+                        if (sessionId == null) {
+                            Log.w(
+                                    TAG,
+                                    "KeyStatusChange: Unknown session %s",
+                                    SessionId.toHexString(drmSessionId));
+                            return;
                         }
+
+                        SessionInfo sessionInfo = mSessionManager.get(sessionId);
+                        if (sessionInfo == null) {
+                            Log.w(TAG, "KeyStatusChange: No info for session %s", sessionId);
+                            return;
+                        }
+
+                        boolean isKeyRelease = sessionInfo.keyType() == MediaDrm.KEY_TYPE_RELEASE;
+
+                        Log.i(TAG, "KeysStatusChange(%s): %b", sessionId, hasNewUsableKey);
+                        onSessionKeysChange(
+                                sessionId,
+                                getKeysInfo(keyInformation).toArray(),
+                                hasNewUsableKey,
+                                isKeyRelease);
                     });
         }
     }
@@ -1848,25 +1807,22 @@ public class MediaDrmBridge {
 
             deferEventHandleIfNeeded(
                     sessionId,
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            if (sessionId == null) {
-                                Log.w(
-                                        TAG,
-                                        "ExpirationUpdate: Unknown session %s",
-                                        SessionId.toHexString(drmSessionId));
-                                return;
-                            }
-
-                            Log.i(
+                    () -> {
+                        if (sessionId == null) {
+                            Log.w(
                                     TAG,
-                                    "ExpirationUpdate(%s): %tF %tT",
-                                    sessionId,
-                                    expirationTime,
-                                    expirationTime);
-                            onSessionExpirationUpdate(sessionId, expirationTime);
+                                    "ExpirationUpdate: Unknown session %s",
+                                    SessionId.toHexString(drmSessionId));
+                            return;
                         }
+
+                        Log.i(
+                                TAG,
+                                "ExpirationUpdate(%s): %tF %tT",
+                                sessionId,
+                                expirationTime,
+                                expirationTime);
+                        onSessionExpirationUpdate(sessionId, expirationTime);
                     });
         }
     }

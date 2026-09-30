@@ -159,15 +159,7 @@ NSString* accessibilityLabel(PictureInPictureFeature feature) {
   _playerView.accessibilityLabel = accessibilityLabel(_feature);
   _playerView.translatesAutoresizingMaskIntoConstraints = NO;
   [self.contentView addSubview:_playerView];
-  [NSLayoutConstraint activateConstraints:@[
-    [_playerView.leadingAnchor
-        constraintEqualToAnchor:self.contentView.leadingAnchor],
-    [_playerView.trailingAnchor
-        constraintEqualToAnchor:self.contentView.trailingAnchor],
-    [_playerView.topAnchor constraintEqualToAnchor:self.contentView.topAnchor],
-    [_playerView.bottomAnchor
-        constraintEqualToAnchor:self.contentView.bottomAnchor],
-  ]];
+  AddSameConstraints(_playerView, self.contentView);
 
   AVPlayerItem* playerItem = [AVPlayerItem playerItemWithURL:_videoURL];
   _player = [AVQueuePlayer queuePlayerWithItems:@[ playerItem ]];
@@ -338,6 +330,13 @@ NSString* accessibilityLabel(PictureInPictureFeature feature) {
   }
 
   if (_pipController.isPictureInPictureActive) {
+    // Record session duration before dismissing, as tearing down the view
+    // controller synchronously prevents AVKit's async didStop delegate
+    // callback from executing.
+    if (!_pipStartTime.is_null()) {
+      [self recordSessionDuration:base::TimeTicks::Now() - _pipStartTime];
+      _pipStartTime = base::TimeTicks();
+    }
     [self recordAppRestoration:PictureInPictureAppRestoration::kManual];
     _playerView.alpha = 0.0f;
     [_pipController stopPictureInPicture];
@@ -494,7 +493,12 @@ NSString* accessibilityLabel(PictureInPictureFeature feature) {
 
 - (void)pictureInPictureControllerDidStopPictureInPicture:
     (AVPictureInPictureController*)pictureInPictureController {
-  [self recordSessionDuration:base::TimeTicks::Now() - _pipStartTime];
+  // Guard against recording multiple times if the session duration was already
+  // recorded during manual app restoration.
+  if (!_pipStartTime.is_null()) {
+    [self recordSessionDuration:base::TimeTicks::Now() - _pipStartTime];
+    _pipStartTime = base::TimeTicks();
+  }
   // If this method was called without an app restore, record a close
   // interaction.
   if (!_appWasRestored) {

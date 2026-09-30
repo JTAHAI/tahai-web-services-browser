@@ -127,7 +127,8 @@ void TextFragmentFinder::FindMatchInRange(String search_text,
           .SetCaseInsensitive(true)
           .SetRequireWordBoundedStart(word_start_bounded)
           .SetRequireWordBoundedEnd(word_end_bounded)
-          .SetAllowOverlapMatches(true),
+          .SetAllowOverlapMatches(true)
+          .SetMatchAcrossIgnoredNodes(true),
       BindOnce(&TextFragmentFinder::OnFindMatchInRangeComplete,
                WrapWeakPersistent(this), search_text,
                WrapWeakPersistent(search_range)));
@@ -411,7 +412,7 @@ void TextFragmentFinder::FindMatchFromPosition(
 
 void TextFragmentFinder::OnMatchComplete() {
   if (!potential_match_ && !first_match_) {
-    client_.NoMatchFound();
+    client_->NoMatchFound();
   } else if (potential_match_ && !first_match_) {
     // Continue searching to see if we have an ambiguous selector.
     // TODO(crbug.com/919204): This is temporary and only for measuring
@@ -420,7 +421,7 @@ void TextFragmentFinder::OnMatchComplete() {
     FindMatchFromPosition(first_match_->EndPosition());
   } else {
     EphemeralRangeInFlatTree potential_match = first_match_->ToEphemeralRange();
-    client_.DidFindMatch(*first_match_, !potential_match_);
+    client_->DidFindMatch(*first_match_, !potential_match_);
   }
 }
 

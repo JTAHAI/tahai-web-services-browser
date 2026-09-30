@@ -65,10 +65,6 @@ public final class ChromePreferenceKeys {
     public static final String AI_ASSISTANT_WEB_SUMMARIZATION_AVAILABILITY =
             "Chrome.AiAssistant.WebSummarizationAvailability";
 
-    public static final String APPEARANCE_SETTINGS_CLICKED = "Chrome.Appearance.SettingsClicked";
-    public static final String APPEARANCE_SETTINGS_VIEW_COUNT =
-            "Chrome.Appearance.SettingsViewCount";
-
     /** The language code to override application language with. */
     public static final String APPLICATION_OVERRIDE_LANGUAGE =
             "Chrome.Language.ApplicationOverrideLanguage";
@@ -121,16 +117,17 @@ public final class ChromePreferenceKeys {
     public static final String AUXILIARY_SEARCH_CONSUMER_SCHEMA_FOUND =
             "Chrome.AuxiliarySearch.ConsumerSchemaFound";
 
-    /** The total times that the opt in card was shown to the user. */
-    public static final String AUXILIARY_SEARCH_MODULE_IMPRESSION =
-            "Chrome.AuxiliarySearchModule.Impression";
-
-    /** Whether users have responded to the opt in card. */
-    public static final String AUXILIARY_SEARCH_MODULE_USER_RESPONDED =
-            "Chrome.AuxiliarySearchModule.UserResponded";
-
     public static final String AUTOFILL_THIRD_PARTY_MODE_STATE =
             "Chrome.AutofillThirdPartyMode.State";
+
+    /**
+     * Key for the last used profile token in BackgroundTabPool.
+     *
+     * <p>// TODO(crbug.com/491791326): Support multi-profile key partitioning for background tab
+     * pools.
+     */
+    public static final String BACKGROUND_TAB_POOL_LAST_PROFILE_TOKEN =
+            "Chrome.BackgroundTabPool.LastProfileToken";
 
     public static final String BACKUP_FIRST_BACKUP_DONE = "first_backup_done";
 
@@ -203,11 +200,15 @@ public final class ChromePreferenceKeys {
     public static final String CONTEXT_MENU_SHOP_IMAGE_WITH_GOOGLE_LENS_CLICKED =
             "Chrome.ContextMenu.ShopImageWithGoogleLensClicked";
 
+    @Deprecated
     public static final String CROSS_DEVICE_IMPORTED_BOTTOM_OMNIBOX =
             "Chrome.CrossDeviceImport.FinishedBottomOmnibox";
 
     public static final String CROSS_DEVICE_IMPORTED_ALL_SETTINGS =
             "Chrome.CrossDeviceImport.FinishedAllSettings";
+
+    public static final String CROSS_DEVICE_IMPORTED_NON_NTP_SETTINGS =
+            "Chrome.CrossDeviceImport.FinishedNonNtpSettings";
 
     public static final String NTP_CUSTOMIZATION_BACKGROUND_ENABLED =
             "Chrome.Policy.NtpCustomBackgroundEnabled";
@@ -911,6 +912,8 @@ public final class ChromePreferenceKeys {
             "Chrome.Widget.IsGoogleLensAvailable";
     public static final String SEARCH_WIDGET_IS_INCOGNITO_AVAILABLE =
             "Chrome.Widget.IsIncognitoAvailable";
+    public static final String SEARCH_WIDGET_IS_AI_MODE_AVAILABLE =
+            "Chrome.Widget.IsAiModeAvailable";
 
     // Segmentation platform related prefs.
     public static final String SEGMENTATION_FEED_ACTIVE_USER = "Chrome.Segmentation.FeedActiveUser";
@@ -1120,6 +1123,13 @@ public final class ChromePreferenceKeys {
     public static final String VERTICAL_TABS_ENABLED_TIMESTAMP =
             "Chrome.VerticalTabs.EnabledTimestamp";
 
+    /**
+     * Stores the impression count for displaying the "New" badge on the "Show tabs vertically" menu
+     * item.
+     */
+    public static final String VERTICAL_TABS_LAYOUT_TOGGLE_VIEW_COUNT =
+            "Chrome.VerticalTabs.LayoutToggleViewCount";
+
     /** Key for deferred recording of list of uninstalled WebAPK packages. */
     public static final String WEBAPK_UNINSTALLED_PACKAGES = "webapk_uninstalled_packages";
 
@@ -1183,19 +1193,16 @@ public final class ChromePreferenceKeys {
                 AI_ASSISTANT_ANALYZE_ATTACHMENT_AVAILABILITY,
                 AI_ASSISTANT_AVAILABILITY_CHECK_TIMESTAMP_MS,
                 AI_ASSISTANT_WEB_SUMMARIZATION_AVAILABILITY,
-                APPEARANCE_SETTINGS_CLICKED,
-                APPEARANCE_SETTINGS_VIEW_COUNT,
                 AUTOFILL_ASSISTANT_FIRST_TIME_LITE_SCRIPT_USER,
                 AUTOFILL_ASSISTANT_PROACTIVE_HELP_ENABLED,
                 AUTOFILL_THIRD_PARTY_MODE_STATE,
                 AUXILIARY_SEARCH_CONSUMER_SCHEMA_FOUND,
-                AUXILIARY_SEARCH_MODULE_USER_RESPONDED,
-                AUXILIARY_SEARCH_MODULE_IMPRESSION,
                 AUXILIARY_SEARCH_IS_SCHEMA_SET,
                 AUXILIARY_SEARCH_SCHEMA_VERSION,
                 APP_LAUNCH_LAST_KNOWN_ACTIVE_TAB_STATE,
                 APP_LAUNCH_SEARCH_ENGINE_HAD_LOGO,
                 APPLICATION_OVERRIDE_LANGUAGE,
+                BACKGROUND_TAB_POOL_LAST_PROFILE_TOKEN,
                 BLUETOOTH_NOTIFICATION_IDS,
                 BOOKMARKS_SORT_ORDER,
                 BOOKMARKS_VISUALS_PREF,
@@ -1211,6 +1218,7 @@ public final class ChromePreferenceKeys {
                 CONTEXT_MENU_SEARCH_TAB_WITH_GOOGLE_LENS_CLICKED,
                 CONTEXT_MENU_SHOP_IMAGE_WITH_GOOGLE_LENS_CLICKED,
                 CROSS_DEVICE_IMPORTED_BOTTOM_OMNIBOX,
+                CROSS_DEVICE_IMPORTED_NON_NTP_SETTINGS,
                 CROSS_DEVICE_IMPORTED_ALL_SETTINGS,
                 NTP_CUSTOMIZATION_BACKGROUND_ENABLED,
                 NTP_CUSTOMIZATION_BACKGROUND_TYPE,
@@ -1335,6 +1343,7 @@ public final class ChromePreferenceKeys {
                 SEARCH_ENGINE_CHOICE_OS_CHOICE_APPLIED_TIMESTAMP,
                 SEARCH_ENGINE_CHOICE_PENDING_OS_CHOICE_DIALOG_SHOWN_ATTEMPTS,
                 SEARCH_WIDGET_ACCOUNT_EMAIL,
+                SEARCH_WIDGET_IS_AI_MODE_AVAILABLE,
                 SEARCH_WIDGET_IS_GOOGLE_LENS_AVAILABLE,
                 SEARCH_WIDGET_IS_INCOGNITO_AVAILABLE,
                 SEARCH_WIDGET_IS_VOICE_SEARCH_AVAILABLE,
@@ -1386,6 +1395,7 @@ public final class ChromePreferenceKeys {
                 VERTICAL_TABS_COLLAPSED,
                 VERTICAL_TABS_ENABLED,
                 VERTICAL_TABS_ENABLED_TIMESTAMP,
+                VERTICAL_TABS_LAYOUT_TOGGLE_VIEW_COUNT,
                 WEB_SIGNIN_ACCOUNT_PICKER_ACTIVE_DISMISSAL_COUNT,
                 WINDOW_CONTROLS_OVERLAY_ENABLED_PACKAGES);
     }

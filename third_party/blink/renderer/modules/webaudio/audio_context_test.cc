@@ -11,12 +11,13 @@
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
-#include "third_party/blink/public/common/features.h"
+#include "media/audio/audio_features.h"
 #include "media/base/audio_timestamp_helper.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "mojo/public/cpp/bindings/remote_set.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/mojom/frame/lifecycle.mojom-blink.h"
 #include "third_party/blink/public/mojom/media/capture_handle_config.mojom-blink.h"
 #include "third_party/blink/public/mojom/permissions/permission.mojom-blink.h"
@@ -27,8 +28,10 @@
 #include "third_party/blink/public/platform/web_runtime_features.h"
 #include "third_party/blink/public/web/web_heap.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_tester.h"
+#include "third_party/blink/renderer/bindings/core/v8/serialization/serialized_script_value.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_worklet_options.h"
+#include "third_party/blink/renderer/bindings/core/v8/worker_or_worklet_script_controller.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_audio_sink_options.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_union_audiocontextlatencycategory_double.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_union_audiocontextrendersizecategory_unsignedlong.h"
@@ -37,20 +40,30 @@
 #include "third_party/blink/renderer/core/frame/frame_test_helpers.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
+#include "third_party/blink/renderer/core/messaging/message_channel.h"
+#include "third_party/blink/renderer/core/messaging/message_port.h"
+#include "third_party/blink/renderer/core/script/classic_script.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
 #include "third_party/blink/renderer/core/workers/worker_thread.h"
 #include "third_party/blink/renderer/modules/mediastream/sub_capture_target.h"
 #include "third_party/blink/renderer/modules/peerconnection/peer_connection_dependency_factory.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_playback_stats.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_worklet.h"
+#include "third_party/blink/renderer/modules/webaudio/audio_worklet_global_scope.h"
+#include "third_party/blink/renderer/modules/webaudio/audio_worklet_handler.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_worklet_messaging_proxy.h"
+#include "third_party/blink/renderer/modules/webaudio/audio_worklet_node.h"
+#include "third_party/blink/renderer/modules/webaudio/cross_thread_audio_worklet_processor_info.h"
 #include "third_party/blink/renderer/modules/webaudio/delay_node.h"
 #include "third_party/blink/renderer/modules/webaudio/media_stream_audio_destination_node.h"
+#include "third_party/blink/renderer/modules/webaudio/offline_audio_context.h"
+#include "third_party/blink/renderer/modules/webaudio/realtime_audio_destination_handler.h"
 #include "third_party/blink/renderer/modules/webaudio/realtime_audio_destination_node.h"
+#include "third_party/blink/renderer/modules/webaudio/testing/fake_audio_thread.h"
 #include "third_party/blink/renderer/modules/webrtc/webrtc_audio_device_impl.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
+#include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/scheduler/public/event_loop.h"
-#include "third_party/blink/renderer/modules/webaudio/testing/fake_audio_thread.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread.h"
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/scoped_mocked_url.h"
@@ -415,8 +428,8 @@ class AudioContextTest : public PageTestBase {
   void ExpectContextRunning(AudioContext* audio_context) {
     EXPECT_EQ(audio_context->ContextState(),
               V8AudioContextState::Enum::kRunning);
-    EXPECT_TRUE(audio_context->GetRealtimeAudioDestinationNode()
-                    ->GetOwnHandler()
+    EXPECT_TRUE(audio_context->destinationNode()
+                    ->GetAudioDestinationHandler()
                     .get_platform_destination_is_playing_for_testing());
   }
 
@@ -432,16 +445,16 @@ class AudioContextTest : public PageTestBase {
   void ExpectContextSuspended(AudioContext* audio_context) {
     EXPECT_EQ(audio_context->ContextState(),
               V8AudioContextState::Enum::kSuspended);
-    EXPECT_FALSE(audio_context->GetRealtimeAudioDestinationNode()
-                     ->GetOwnHandler()
+    EXPECT_FALSE(audio_context->destinationNode()
+                     ->GetAudioDestinationHandler()
                      .get_platform_destination_is_playing_for_testing());
   }
 
   void ExpectContextInterrupted(AudioContext* audio_context) {
     EXPECT_EQ(audio_context->ContextState(),
               V8AudioContextState::Enum::kInterrupted);
-    EXPECT_FALSE(audio_context->GetRealtimeAudioDestinationNode()
-                     ->GetOwnHandler()
+    EXPECT_FALSE(audio_context->destinationNode()
+                     ->GetAudioDestinationHandler()
                      .get_platform_destination_is_playing_for_testing());
   }
 
@@ -1493,6 +1506,159 @@ TEST_F(AudioContextTest, AudioWorkletTerminatedOnClose) {
   proxy->GetBackingWorkerThread()->WaitForShutdownForTesting();
 }
 
+// Test that releasing the last reference to an AudioWorkletHandler during
+// CreateProcessor teardown safely executes on the main thread instead of
+// running ~AudioHandler on the AudioWorklet thread (which triggers
+// DCHECK(IsMainThread())).
+TEST_F(AudioContextTest, AudioWorkletCreateProcessorTeardownOnMainThread) {
+  AudioContextOptions* options = AudioContextOptions::Create();
+  AudioContext* audio_context = AudioContext::Create(
+      GetFrame().DomWindow(), options, ASSERT_NO_EXCEPTION);
+
+  ScriptState* script_state = ToScriptStateForMainWorld(&GetFrame());
+  ScriptState::Scope scope(script_state);
+
+  auto* audio_worklet = audio_context->audioWorklet();
+  audio_worklet->proxies_.push_back(audio_worklet->CreateGlobalScope());
+
+  auto* proxy = audio_worklet->GetMessagingProxy();
+  ASSERT_TRUE(proxy);
+
+  WorkerThread* worker_thread = proxy->GetBackingWorkerThread();
+  ASSERT_TRUE(worker_thread);
+
+  // Register dummy-processor in the AudioWorkletGlobalScope.
+  base::WaitableEvent registration_event;
+  PostCrossThreadTask(
+      *worker_thread->GetTaskRunner(TaskType::kMiscPlatformAPI), FROM_HERE,
+      CrossThreadBindOnce(
+          [](WorkerThread* thread, base::WaitableEvent* event) {
+            auto* global_scope =
+                To<AudioWorkletGlobalScope>(thread->GlobalScope());
+            ScriptState* script_state =
+                global_scope->ScriptController()->GetScriptState();
+            ScriptState::Scope scope(script_state);
+            String source_code =
+                "class DummyProcessor extends AudioWorkletProcessor {"
+                "  process() { return true; }"
+                "};"
+                "registerProcessor('dummy-processor', DummyProcessor);";
+            ClassicScript::CreateUnspecifiedScript(source_code)
+                ->RunScriptOnScriptState(script_state);
+            event->Signal();
+          },
+          CrossThreadUnretained(worker_thread),
+          CrossThreadUnretained(&registration_event)));
+  registration_event.Wait();
+
+  AudioWorkletNodeOptions* node_options = AudioWorkletNodeOptions::Create();
+  auto* node = MakeGarbageCollected<AudioWorkletNode>(
+      *audio_context, "dummy-processor", node_options,
+      Vector<CrossThreadAudioParamInfo>(), nullptr);
+  scoped_refptr<AudioWorkletHandler> handler =
+      WrapRefCounted(&static_cast<AudioWorkletHandler&>(node->Handler()));
+
+  auto* channel = MakeGarbageCollected<MessageChannel>(
+      audio_context->GetExecutionContext());
+  MessagePortChannel processor_port_channel = channel->port2()->Disentangle();
+
+  handler->MarkProcessorInactiveOnMainThread();
+
+  WeakPersistent<AudioWorkletNode> weak_node = node;
+
+  // Block the worker thread until the main thread has dropped all references.
+  base::WaitableEvent worker_block_event;
+  PostCrossThreadTask(
+      *worker_thread->GetTaskRunner(TaskType::kMiscPlatformAPI), FROM_HERE,
+      CrossThreadBindOnce([](base::WaitableEvent* event) { event->Wait(); },
+                          CrossThreadUnretained(&worker_block_event)));
+
+  // Dispatch CreateProcessor and drop all main thread references.
+  proxy->CreateProcessor(handler, std::move(processor_port_channel),
+                         SerializedScriptValue::NullValue());
+  EXPECT_EQ(proxy->pending_create_processor_handlers_.size(), 1u);
+  handler = nullptr;
+  node = nullptr;
+  WebHeap::CollectAllGarbageForTesting();
+  EXPECT_EQ(weak_node.Get(), nullptr);
+  audio_context->GetDeferredTaskHandler().ClearHandlersToBeDeleted();
+
+  // Unblock worker thread so CreateProcessor runs.
+  worker_block_event.Signal();
+
+  // Flush the worker thread task queue and run main thread tasks.
+  base::WaitableEvent wait_event;
+  PostCrossThreadTask(
+      *worker_thread->GetTaskRunner(TaskType::kMiscPlatformAPI), FROM_HERE,
+      CrossThreadBindOnce(&base::WaitableEvent::Signal,
+                          CrossThreadUnretained(&wait_event)));
+  wait_event.Wait();
+  test::RunPendingTasks();
+  EXPECT_TRUE(proxy->pending_create_processor_handlers_.empty());
+
+  DummyExceptionStateForTesting exception_state;
+  audio_context->closeContext(script_state, exception_state);
+  worker_thread->WaitForShutdownForTesting();
+}
+
+// Test that an active AudioWorklet shared MessagePort keeps neither its
+// associated AudioWorklet nor the BaseAudioContext alive, and that the port is
+// collected after its peer disconnects without an explicit close() call.
+TEST_F(AudioContextTest, AudioWorkletSharedPortGCWithoutExplicitClose) {
+  ScopedAudioWorkletSharedPortForTest scoped_feature(true);
+  WeakPersistent<OfflineAudioContext> weak_context;
+  WeakPersistent<AudioWorklet> weak_worklet;
+  WeakPersistent<MessagePort> weak_port;
+
+  {
+    auto* context = OfflineAudioContext::Create(
+        GetFrame().DomWindow(), /*number_of_channels=*/1,
+        /*number_of_frames=*/128, /*sample_rate=*/44100.0f,
+        ASSERT_NO_EXCEPTION);
+    ASSERT_TRUE(context);
+
+    auto* worklet = context->audioWorklet();
+    ASSERT_TRUE(worklet);
+
+    MessagePort* port = worklet->port();
+    ASSERT_TRUE(port);
+
+    EXPECT_FALSE(port->Started());
+    EXPECT_FALSE(port->HasPendingActivity());
+
+    port->start();
+    EXPECT_TRUE(port->Started());
+    EXPECT_TRUE(port->HasPendingActivity());
+
+    weak_context = context;
+    weak_worklet = worklet;
+    weak_port = port;
+
+    EXPECT_NE(weak_context.Get(), nullptr);
+    EXPECT_NE(weak_worklet.Get(), nullptr);
+    EXPECT_NE(weak_port.Get(), nullptr);
+  }
+
+  WebHeap::CollectAllGarbageForTesting();
+
+  EXPECT_EQ(weak_context.Get(), nullptr);
+  EXPECT_EQ(weak_worklet.Get(), nullptr);
+
+  // ActiveScriptWrappableManager keeps the port alive while its
+  // ExecutionContext is live and the port has pending activity.
+  Persistent<MessagePort> port = weak_port.Get();
+  ASSERT_TRUE(port);
+  EXPECT_TRUE(port->HasPendingActivity());
+
+  // Process the asynchronous connection error, which closes the port.
+  test::RunPendingTasks();
+  EXPECT_FALSE(port->HasPendingActivity());
+
+  port.Clear();
+  WebHeap::CollectAllGarbageForTesting();
+  EXPECT_EQ(weak_port.Get(), nullptr);
+}
+
 TEST_F(AudioContextTest, ChannelCountRunning) {
   // Changing the channel count on a running AudioContext should result in a
   // running context and running platform destination.
@@ -1519,11 +1685,11 @@ TEST_F(AudioContextTest, ChannelCountRunning) {
 
   // Changing the channel count should should result in the same running and
   // playing state.
-  context->destination()->setChannelCount(
-      context->destination()->maxChannelCount(), ASSERT_NO_EXCEPTION);
+  context->destinationNode()->setChannelCount(
+      context->destinationNode()->maxChannelCount(), ASSERT_NO_EXCEPTION);
   EXPECT_EQ(context->ContextState(), V8AudioContextState::Enum::kRunning);
-  EXPECT_TRUE(context->GetRealtimeAudioDestinationNode()
-                  ->GetOwnHandler()
+  EXPECT_TRUE(context->destinationNode()
+                  ->GetAudioDestinationHandler()
                   .get_platform_destination_is_playing_for_testing());
 }
 
@@ -1559,8 +1725,8 @@ TEST_F(AudioContextTest, ChannelCountSuspended) {
 
   // Changing the channel count on a suspended context should not change the
   // suspended or playing states.
-  context->destination()->setChannelCount(
-      context->destination()->maxChannelCount(), ASSERT_NO_EXCEPTION);
+  context->destinationNode()->setChannelCount(
+      context->destinationNode()->maxChannelCount(), ASSERT_NO_EXCEPTION);
   ExpectContextSuspended(context);
 
   // Resuming the context should make everything start playing again.
@@ -1570,8 +1736,8 @@ TEST_F(AudioContextTest, ChannelCountSuspended) {
   renderer->Render(128, base::Milliseconds(0), {});
   platform()->RunUntilIdle();
   EXPECT_EQ(context->ContextState(), V8AudioContextState::Enum::kRunning);
-  EXPECT_TRUE(context->GetRealtimeAudioDestinationNode()
-                  ->GetOwnHandler()
+  EXPECT_TRUE(context->destinationNode()
+                  ->GetAudioDestinationHandler()
                   .get_platform_destination_is_playing_for_testing());
 }
 
@@ -1602,8 +1768,8 @@ TEST_F(AudioContextTest, SetSinkIdRunning) {
       ASSERT_NO_EXCEPTION);
   FlushMediaDevicesDispatcherHost();
   EXPECT_EQ(context->ContextState(), V8AudioContextState::Enum::kRunning);
-  EXPECT_TRUE(context->GetRealtimeAudioDestinationNode()
-                  ->GetOwnHandler()
+  EXPECT_TRUE(context->destinationNode()
+                  ->GetAudioDestinationHandler()
                   .get_platform_destination_is_playing_for_testing());
 }
 
@@ -1650,8 +1816,8 @@ TEST_F(AudioContextTest, SetSinkIdSuspended) {
       ASSERT_NO_EXCEPTION);
   FlushMediaDevicesDispatcherHost();
   EXPECT_EQ(context->ContextState(), V8AudioContextState::Enum::kSuspended);
-  EXPECT_FALSE(context->GetRealtimeAudioDestinationNode()
-                   ->GetOwnHandler()
+  EXPECT_FALSE(context->destinationNode()
+                   ->GetAudioDestinationHandler()
                    .get_platform_destination_is_playing_for_testing());
 
   // Resuming the context should make everything start playing again.
@@ -1662,8 +1828,8 @@ TEST_F(AudioContextTest, SetSinkIdSuspended) {
   renderer->Render(128, base::Milliseconds(0), {});
   platform()->RunUntilIdle();
   EXPECT_EQ(context->ContextState(), V8AudioContextState::Enum::kRunning);
-  EXPECT_TRUE(context->GetRealtimeAudioDestinationNode()
-                  ->GetOwnHandler()
+  EXPECT_TRUE(context->destinationNode()
+                  ->GetAudioDestinationHandler()
                   .get_platform_destination_is_playing_for_testing());
 }
 
@@ -1969,8 +2135,6 @@ TEST_F(AudioContextTest, SuspendingRunningContextWhileInterrupted) {
 }
 
 TEST_F(AudioContextTest, RenderSizeHint) {
-  blink::WebRuntimeFeatures::EnableFeatureFromString(
-      "WebAudioConfigurableRenderQuantum", true);
   V8TestingScope scope;
 
   AudioContextOptions* options = AudioContextOptions::Create();
@@ -2028,9 +2192,26 @@ TEST_F(AudioContextTest, RenderSizeHint) {
   context = AudioContext::Create(GetFrame().DomWindow(), options,
                                  ASSERT_NO_EXCEPTION);
   EXPECT_EQ(context->renderQuantumSize(), 256u);
+}
 
-  blink::WebRuntimeFeatures::EnableFeatureFromString(
-      "WebAudioConfigurableRenderQuantum", false);
+TEST_F(AudioContextTest, RenderSizeHintWithResampler) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(
+      ::features::kWebAudioRemoveAudioDestinationResampler);
+  V8TestingScope scope;
+
+  for (unsigned quantum : {1u, 16u, 32u, 48u, 64u}) {
+    AudioContextOptions* options = AudioContextOptions::Create();
+    // Pick an unusual context sample rate to force resampling regardless of
+    // platform-default hardware sample rate.
+    options->setSampleRate(40000.0);
+    options->setRenderSizeHint(
+        MakeGarbageCollected<
+            V8UnionAudioContextRenderSizeCategoryOrUnsignedLong>(quantum));
+    AudioContext* context = AudioContext::Create(GetFrame().DomWindow(),
+                                                 options, ASSERT_NO_EXCEPTION);
+    EXPECT_EQ(context->renderQuantumSize(), quantum);
+  }
 }
 
 // The state of AudioContext is "suspended" immediately after construction
@@ -2044,8 +2225,8 @@ TEST_F(AudioContextTest, InitialStateSuspended) {
   // State is "suspended" after construction but playback starts immediately;
   EXPECT_EQ(audio_context->ContextState(),
             V8AudioContextState::Enum::kSuspended);
-  EXPECT_TRUE(audio_context->GetRealtimeAudioDestinationNode()
-                  ->GetOwnHandler()
+  EXPECT_TRUE(audio_context->destinationNode()
+                  ->GetAudioDestinationHandler()
                   .get_platform_destination_is_playing_for_testing());
 
   // The state transition to "running" happens asynchronously.
@@ -2065,8 +2246,8 @@ TEST_F(AudioContextTest, SuspendCancelsInitialTransition) {
   // State is "suspended" after construction but playback starts immediately.
   EXPECT_EQ(audio_context->ContextState(),
             V8AudioContextState::Enum::kSuspended);
-  EXPECT_TRUE(audio_context->GetRealtimeAudioDestinationNode()
-                  ->GetOwnHandler()
+  EXPECT_TRUE(audio_context->destinationNode()
+                  ->GetAudioDestinationHandler()
                   .get_platform_destination_is_playing_for_testing());
 
   // Now suspend before the async transition to "running" completes.
@@ -2076,8 +2257,8 @@ TEST_F(AudioContextTest, SuspendCancelsInitialTransition) {
   ExpectContextBecomesSuspendedAsync(audio_context);
 
   // Platform destination should have stopped.
-  EXPECT_FALSE(audio_context->GetRealtimeAudioDestinationNode()
-                   ->GetOwnHandler()
+  EXPECT_FALSE(audio_context->destinationNode()
+                   ->GetAudioDestinationHandler()
                    .get_platform_destination_is_playing_for_testing());
 }
 
@@ -2102,8 +2283,8 @@ TEST_F(AudioContextTest, SuspendCancelsResumeTransition) {
   audio_context->resumeContext(script_state, ASSERT_NO_EXCEPTION);
 
   // Playback starts immediately.
-  EXPECT_TRUE(audio_context->GetRealtimeAudioDestinationNode()
-                  ->GetOwnHandler()
+  EXPECT_TRUE(audio_context->destinationNode()
+                  ->GetAudioDestinationHandler()
                   .get_platform_destination_is_playing_for_testing());
 
   // The state transition is scheduled to happen asynchronously.
@@ -2117,8 +2298,8 @@ TEST_F(AudioContextTest, SuspendCancelsResumeTransition) {
   ExpectContextBecomesSuspendedAsync(audio_context);
 
   // Platform destination should have stopped.
-  EXPECT_FALSE(audio_context->GetRealtimeAudioDestinationNode()
-                   ->GetOwnHandler()
+  EXPECT_FALSE(audio_context->destinationNode()
+                   ->GetAudioDestinationHandler()
                    .get_platform_destination_is_playing_for_testing());
 }
 
@@ -2274,8 +2455,8 @@ TEST_F(AudioContextTest, AsyncStateUseCountersReadWhileInitialTransition) {
         WebFeature::kAudioContextAsyncTransitionToSuspendedStateRead));
     ClearAudioContextAsyncStateUseCounters();
 
-    EXPECT_TRUE(audio_context->GetRealtimeAudioDestinationNode()
-                    ->GetOwnHandler()
+    EXPECT_TRUE(audio_context->destinationNode()
+                    ->GetAudioDestinationHandler()
                     .get_platform_destination_is_playing_for_testing());
 
     // Wait until the state becomes "running".
@@ -2334,8 +2515,8 @@ TEST_F(AudioContextTest, AsyncStateUseCountersReadWhileSuspendTransition) {
                 feature_enabled ? V8AudioContextState::Enum::kSuspended
                                 : V8AudioContextState::Enum::kRunning);
 
-      EXPECT_TRUE(audio_context->GetRealtimeAudioDestinationNode()
-                      ->GetOwnHandler()
+      EXPECT_TRUE(audio_context->destinationNode()
+                      ->GetAudioDestinationHandler()
                       .get_platform_destination_is_playing_for_testing());
 
       ClearAudioContextAsyncStateUseCounters();
@@ -2431,8 +2612,8 @@ TEST_F(AudioContextTest, AsyncStateUseCountersReadWhileSuspendTransition) {
           WebFeature::kAudioContextAsyncTransitionToSuspendedStateRead));
       ClearAudioContextAsyncStateUseCounters();
 
-      EXPECT_FALSE(audio_context->GetRealtimeAudioDestinationNode()
-                       ->GetOwnHandler()
+      EXPECT_FALSE(audio_context->destinationNode()
+                       ->GetAudioDestinationHandler()
                        .get_platform_destination_is_playing_for_testing());
     }
   }
@@ -2663,6 +2844,114 @@ TEST_F(AudioContextTest, AsyncStateUseCountersResumeAfterSuspend) {
           ClearAudioContextAsyncStateUseCounters();
         }
       }
+    }
+  }
+}
+
+// Verifies the suspend() promise settles correctly.
+TEST_F(AudioContextTest, TestPromiseWhenSuspend) {
+  enum SuspendTiming {
+    kSuspendBeforeInitialTransition,
+    kSuspendAfterInitialTransition
+  };
+  for (bool feature_enabled : {true, false}) {
+    for (SuspendTiming suspend_timing :
+         {kSuspendBeforeInitialTransition, kSuspendAfterInitialTransition}) {
+      for (bool close_before_suspended : {true, false}) {
+        SCOPED_TRACE(testing::Message()
+                     << "feature_enabled: " << feature_enabled
+                     << ", suspend_timing: " << suspend_timing
+                     << ", close_before_suspended: " << close_before_suspended);
+        ScopedAudioContextAsyncStateTransitionsForTest scoped_feature(
+            feature_enabled);
+
+        ScriptState* script_state = ToScriptStateForMainWorld(&GetFrame());
+        ScriptState::Scope scope(script_state);
+        AudioContextOptions* options = AudioContextOptions::Create();
+
+        AudioContext* audio_context = AudioContext::Create(
+            GetFrame().DomWindow(), options, ASSERT_NO_EXCEPTION);
+
+        if (suspend_timing == kSuspendAfterInitialTransition) {
+          // Wait until "running".
+          ExpectContextBecomesRunningAsync(audio_context);
+        }
+
+        auto suspend_promise =
+            audio_context->suspendContext(script_state, ASSERT_NO_EXCEPTION);
+        ScriptPromiseTester suspend_tester(script_state, suspend_promise);
+
+        if (close_before_suspended) {
+          auto close_promise =
+              audio_context->closeContext(script_state, ASSERT_NO_EXCEPTION);
+          ScriptPromiseTester close_tester(script_state, close_promise);
+
+          close_tester.WaitUntilSettled();
+          EXPECT_TRUE(close_tester.IsFulfilled());
+
+          suspend_tester.WaitUntilSettled();
+          EXPECT_TRUE(feature_enabled ? suspend_tester.IsRejected()
+                                      : suspend_tester.IsFulfilled());
+        } else {
+          // Wait until "suspended".
+          ExpectContextBecomesSuspendedAsync(audio_context);
+
+          suspend_tester.WaitUntilSettled();
+          EXPECT_TRUE(suspend_tester.IsFulfilled());
+        }
+      }
+    }
+  }
+}
+
+// Verifies that RejectPendingResolvers() rejects the pending promise
+// resolvers stored in BaseAudioContext.
+TEST_F(AudioContextTest, RejectPendingResolvers) {
+  enum SuspendTiming {
+    kSuspendBeforeInitialTransition,
+    kSuspendAfterInitialTransition
+  };
+  for (bool feature_enabled : {true, false}) {
+    for (SuspendTiming suspend_timing :
+         {kSuspendBeforeInitialTransition, kSuspendAfterInitialTransition}) {
+      SCOPED_TRACE(testing::Message()
+                   << "feature_enabled: " << feature_enabled
+                   << ", suspend_timing: " << suspend_timing);
+      ScopedAudioContextAsyncStateTransitionsForTest scoped_feature(
+          feature_enabled);
+
+      ScriptState* script_state = ToScriptStateForMainWorld(&GetFrame());
+      ScriptState::Scope scope(script_state);
+      AudioContextOptions* options = AudioContextOptions::Create();
+
+      AudioContext* audio_context = AudioContext::Create(
+          GetFrame().DomWindow(), options, ASSERT_NO_EXCEPTION);
+
+      if (suspend_timing == kSuspendAfterInitialTransition) {
+        // Wait until "running".
+        ExpectContextBecomesRunningAsync(audio_context);
+      }
+
+      ScriptPromiseTester suspend_tester(
+          script_state,
+          audio_context->suspendContext(script_state, ASSERT_NO_EXCEPTION));
+
+      // With the feature flag set, suspend() enqueues a pending resolver
+      // into pending_promise_resolvers_. Otherwise the promise is resolved
+      // synchronously and nothing is enqueued.
+      EXPECT_EQ(audio_context->PendingPromiseResolverCountForTesting(),
+                feature_enabled ? 1u : 0u);
+
+      audio_context->RejectPendingResolvers();
+
+      EXPECT_EQ(audio_context->PendingPromiseResolverCountForTesting(), 0u);
+
+      // With the feature flag set, RejectPendingResolvers() rejects the
+      // enqueued pending promise resolvers. Otherwise the promise was
+      // already resolved by suspend().
+      suspend_tester.WaitUntilSettled();
+      EXPECT_TRUE(feature_enabled ? suspend_tester.IsRejected()
+                                  : suspend_tester.IsFulfilled());
     }
   }
 }

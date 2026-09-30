@@ -7,9 +7,8 @@
 #include <memory>
 #include <optional>
 
-#include "base/test/metrics/histogram_tester.h"
+#include "base/strings/to_string.h"
 #include "base/test/test_future.h"
-#include "chrome/browser/actor/tools/attempt_otp_filling_metrics.h"
 #include "chrome/browser/autofill/actor/one_time_tokens/actor_login_context.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/affiliations/core/browser/domain_matching/domain_relation_checker.h"
@@ -43,6 +42,14 @@ class ActorLoginFlowVerifierTest : public testing::Test {
     return web_contents_->GetPrimaryMainFrame();
   }
 
+  base::OnceCallback<std::optional<autofill::ActorLoginContext>()>
+  MakeConsumeContextCallback(
+      std::optional<autofill::ActorLoginContext> context) {
+    return base::BindOnce(
+        [](std::optional<autofill::ActorLoginContext> ctx) { return ctx; },
+        std::move(context));
+  }
+
  protected:
   variations::test::ScopedVariationsIdsProvider scoped_variations_ids_provider_{
       variations::VariationsIdsProvider::Mode::kUseSignedInState};
@@ -52,99 +59,116 @@ class ActorLoginFlowVerifierTest : public testing::Test {
   raw_ptr<content::WebContents> web_contents_ = nullptr;
   affiliations::FakeAffiliationService fake_affiliation_service_;
   std::unique_ptr<ActorLoginFlowVerifier> verifier_;
-  base::HistogramTester histogram_tester_;
 };
 
-TEST_F(ActorLoginFlowVerifierTest, NullContext_ReturnsFalse) {
-  base::test::TestFuture<bool> future;
-  verifier_->VerifyIsActorLoginFlow(main_rfh()->GetFrameTreeNodeId(),
-                                    main_rfh()->GetLastCommittedOrigin(),
-                                    std::nullopt, future.GetCallback());
+TEST_F(ActorLoginFlowVerifierTest, NullContext_ReturnsNoActorLoginContext) {
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(), main_rfh()->GetLastCommittedOrigin(),
+      main_rfh()->GetLastCommittedOrigin(), std::nullopt,
+      /*should_use_strong_matching=*/false,
+      MakeConsumeContextCallback(std::nullopt), future.GetCallback());
 
-  EXPECT_FALSE(future.Get());
-  histogram_tester_.ExpectBucketCount(kActorOtpVerifyIsActorLoginFlowHistogram,
-                                      VerifyIsActorLoginFlowEvent::kStart, 1);
-  histogram_tester_.ExpectBucketCount(
-      kActorOtpVerifyIsActorLoginFlowHistogram,
-      VerifyIsActorLoginFlowEvent::kNoActorLoginContext, 1);
+  EXPECT_EQ(future.Get(), ActorLoginFlowVerifier::Result::kNoActorLoginContext);
+  EXPECT_FALSE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
 }
 
-TEST_F(ActorLoginFlowVerifierTest, FrameNotInContext_ReturnsFalse) {
+TEST_F(ActorLoginFlowVerifierTest,
+       NullContextAfterCheck_ReturnsNoActorLoginContext) {
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(), main_rfh()->GetLastCommittedOrigin(),
+      main_rfh()->GetLastCommittedOrigin(),
+      main_rfh()->GetLastCommittedOrigin(),
+      /*should_use_strong_matching=*/false,
+      MakeConsumeContextCallback(std::nullopt), future.GetCallback());
+
+  EXPECT_EQ(future.Get(), ActorLoginFlowVerifier::Result::kNoActorLoginContext);
+  EXPECT_FALSE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
+}
+
+TEST_F(ActorLoginFlowVerifierTest,
+       FrameNotInContext_ReturnsFrameNotInLoginContext) {
   autofill::ActorLoginContext context(main_rfh()->GetLastCommittedOrigin(),
                                       /*should_use_strong_matching=*/false,
                                       /*navigations_per_frame=*/{});
+  url::Origin context_origin = context.origin;
+  bool should_use_strong_matching = context.should_use_strong_matching;
 
-  base::test::TestFuture<bool> future;
-  verifier_->VerifyIsActorLoginFlow(main_rfh()->GetFrameTreeNodeId(),
-                                    main_rfh()->GetLastCommittedOrigin(),
-                                    std::move(context), future.GetCallback());
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(), main_rfh()->GetLastCommittedOrigin(),
+      main_rfh()->GetLastCommittedOrigin(), context_origin,
+      should_use_strong_matching,
+      MakeConsumeContextCallback(std::move(context)), future.GetCallback());
 
-  EXPECT_FALSE(future.Get());
-  histogram_tester_.ExpectBucketCount(kActorOtpVerifyIsActorLoginFlowHistogram,
-                                      VerifyIsActorLoginFlowEvent::kStart, 1);
-  histogram_tester_.ExpectBucketCount(
-      kActorOtpVerifyIsActorLoginFlowHistogram,
-      VerifyIsActorLoginFlowEvent::kFrameNotInLoginContext, 1);
+  EXPECT_EQ(future.Get(),
+            ActorLoginFlowVerifier::Result::kFrameNotInLoginContext);
+  EXPECT_FALSE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
 }
 
-TEST_F(ActorLoginFlowVerifierTest, TooManyNavigations_ReturnsFalse) {
+TEST_F(ActorLoginFlowVerifierTest,
+       TooManyNavigations_ReturnsAllFramesHaveTooManyNavigations) {
   autofill::ActorLoginContext context(
       main_rfh()->GetLastCommittedOrigin(),
       /*should_use_strong_matching=*/false,
       /*navigations_per_frame=*/{{main_rfh()->GetFrameTreeNodeId(), 2}});
+  url::Origin context_origin = context.origin;
+  bool should_use_strong_matching = context.should_use_strong_matching;
 
-  base::test::TestFuture<bool> future;
-  verifier_->VerifyIsActorLoginFlow(main_rfh()->GetFrameTreeNodeId(),
-                                    main_rfh()->GetLastCommittedOrigin(),
-                                    std::move(context), future.GetCallback());
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(), main_rfh()->GetLastCommittedOrigin(),
+      main_rfh()->GetLastCommittedOrigin(), context_origin,
+      should_use_strong_matching,
+      MakeConsumeContextCallback(std::move(context)), future.GetCallback());
 
-  EXPECT_FALSE(future.Get());
-  histogram_tester_.ExpectBucketCount(kActorOtpVerifyIsActorLoginFlowHistogram,
-                                      VerifyIsActorLoginFlowEvent::kStart, 1);
-  histogram_tester_.ExpectBucketCount(
-      kActorOtpVerifyIsActorLoginFlowHistogram,
-      VerifyIsActorLoginFlowEvent::kAllFramesHaveTooManyNavigations, 1);
+  EXPECT_EQ(future.Get(),
+            ActorLoginFlowVerifier::Result::kAllFramesHaveTooManyNavigations);
+  EXPECT_FALSE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
 }
 
-TEST_F(ActorLoginFlowVerifierTest, SameOrigin_ReturnsTrue) {
+TEST_F(ActorLoginFlowVerifierTest, SameOrigin_ReturnsExactMatchAllowed) {
   autofill::ActorLoginContext context(
       main_rfh()->GetLastCommittedOrigin(),
       /*should_use_strong_matching=*/false,
       /*navigations_per_frame=*/{{main_rfh()->GetFrameTreeNodeId(), 1}});
+  url::Origin context_origin = context.origin;
+  bool should_use_strong_matching = context.should_use_strong_matching;
 
-  base::test::TestFuture<bool> future;
-  verifier_->VerifyIsActorLoginFlow(main_rfh()->GetFrameTreeNodeId(),
-                                    main_rfh()->GetLastCommittedOrigin(),
-                                    std::move(context), future.GetCallback());
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(), main_rfh()->GetLastCommittedOrigin(),
+      main_rfh()->GetLastCommittedOrigin(), context_origin,
+      should_use_strong_matching,
+      MakeConsumeContextCallback(std::move(context)), future.GetCallback());
 
-  EXPECT_TRUE(future.Get());
-  histogram_tester_.ExpectBucketCount(kActorOtpVerifyIsActorLoginFlowHistogram,
-                                      VerifyIsActorLoginFlowEvent::kStart, 1);
-  histogram_tester_.ExpectBucketCount(
-      kActorOtpVerifyIsActorLoginFlowHistogram,
-      VerifyIsActorLoginFlowEvent::kExactMatchAllowed, 1);
+  EXPECT_EQ(future.Get(), ActorLoginFlowVerifier::Result::kExactMatchAllowed);
+  EXPECT_TRUE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
+}
+
+TEST_F(ActorLoginFlowVerifierTest, OtpFrameOriginMismatch_ReturnsNoMatch) {
+  autofill::ActorLoginContext context(
+      main_rfh()->GetLastCommittedOrigin(),
+      /*should_use_strong_matching=*/false,
+      /*navigations_per_frame=*/{{main_rfh()->GetFrameTreeNodeId(), 1}});
+  url::Origin context_origin = context.origin;
+  bool should_use_strong_matching = context.should_use_strong_matching;
+
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(),
+      url::Origin::Create(GURL("https://other-domain.com")),
+      main_rfh()->GetLastCommittedOrigin(), context_origin,
+      should_use_strong_matching,
+      MakeConsumeContextCallback(std::move(context)), future.GetCallback());
+
+  EXPECT_EQ(future.Get(), ActorLoginFlowVerifier::Result::kNoMatch);
+  EXPECT_FALSE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
 }
 
 TEST_F(ActorLoginFlowVerifierTest,
-       DifferentOriginWithoutAffiliation_ReturnsFalse) {
-  autofill::ActorLoginContext context(
-      url::Origin::Create(GURL("https://other-domain.com")),
-      /*should_use_strong_matching=*/false,
-      /*navigations_per_frame=*/{{main_rfh()->GetFrameTreeNodeId(), 1}});
-
-  base::test::TestFuture<bool> future;
-  verifier_->VerifyIsActorLoginFlow(main_rfh()->GetFrameTreeNodeId(),
-                                    main_rfh()->GetLastCommittedOrigin(),
-                                    std::move(context), future.GetCallback());
-
-  EXPECT_FALSE(future.Get());
-  histogram_tester_.ExpectBucketCount(kActorOtpVerifyIsActorLoginFlowHistogram,
-                                      VerifyIsActorLoginFlowEvent::kStart, 1);
-  histogram_tester_.ExpectBucketCount(kActorOtpVerifyIsActorLoginFlowHistogram,
-                                      VerifyIsActorLoginFlowEvent::kNoMatch, 1);
-}
-
-TEST_F(ActorLoginFlowVerifierTest, AffiliatedOrigin_ReturnsTrue) {
+       AffiliatedOrigin_ReturnsAffiliatedMatchAllowed) {
   affiliations::AffiliatedFacets group = {
       affiliations::Facet(
           affiliations::FacetURI::FromCanonicalSpec("https://example.com")),
@@ -155,64 +179,65 @@ TEST_F(ActorLoginFlowVerifierTest, AffiliatedOrigin_ReturnsTrue) {
       url::Origin::Create(GURL("https://affiliated.com")),
       /*should_use_strong_matching=*/true,
       /*navigations_per_frame=*/{{main_rfh()->GetFrameTreeNodeId(), 1}});
+  url::Origin context_origin = context.origin;
+  bool should_use_strong_matching = context.should_use_strong_matching;
 
-  base::test::TestFuture<bool> future;
-  verifier_->VerifyIsActorLoginFlow(main_rfh()->GetFrameTreeNodeId(),
-                                    main_rfh()->GetLastCommittedOrigin(),
-                                    std::move(context), future.GetCallback());
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(), main_rfh()->GetLastCommittedOrigin(),
+      main_rfh()->GetLastCommittedOrigin(), context_origin,
+      should_use_strong_matching,
+      MakeConsumeContextCallback(std::move(context)), future.GetCallback());
 
-  EXPECT_TRUE(future.Get());
-  histogram_tester_.ExpectBucketCount(kActorOtpVerifyIsActorLoginFlowHistogram,
-                                      VerifyIsActorLoginFlowEvent::kStart, 1);
-  histogram_tester_.ExpectBucketCount(
-      kActorOtpVerifyIsActorLoginFlowHistogram,
-      VerifyIsActorLoginFlowEvent::kAffiliatedMatchAllowed, 1);
+  EXPECT_EQ(future.Get(),
+            ActorLoginFlowVerifier::Result::kAffiliatedMatchAllowed);
+  EXPECT_TRUE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
 }
 
-TEST_F(ActorLoginFlowVerifierTest, PslMatch_WeakMatchingAllowed_ReturnsTrue) {
-  content::NavigationSimulator::NavigateAndCommitFromBrowser(
-      web_contents_, GURL("https://a.example.com"));
+TEST_F(ActorLoginFlowVerifierTest,
+       PslMatch_WeakMatchingAllowed_ReturnsPslMatchAllowed) {
   autofill::ActorLoginContext context(
       url::Origin::Create(GURL("https://b.example.com")),
       /*should_use_strong_matching=*/false,
       /*navigations_per_frame=*/{{main_rfh()->GetFrameTreeNodeId(), 1}});
+  url::Origin context_origin = context.origin;
+  bool should_use_strong_matching = context.should_use_strong_matching;
 
-  base::test::TestFuture<bool> future;
-  verifier_->VerifyIsActorLoginFlow(main_rfh()->GetFrameTreeNodeId(),
-                                    main_rfh()->GetLastCommittedOrigin(),
-                                    std::move(context), future.GetCallback());
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(),
+      url::Origin::Create(GURL("https://a.example.com")),
+      url::Origin::Create(GURL("https://b.example.com")), context_origin,
+      should_use_strong_matching,
+      MakeConsumeContextCallback(std::move(context)), future.GetCallback());
 
-  EXPECT_TRUE(future.Get());
-  histogram_tester_.ExpectBucketCount(kActorOtpVerifyIsActorLoginFlowHistogram,
-                                      VerifyIsActorLoginFlowEvent::kStart, 1);
-  histogram_tester_.ExpectBucketCount(
-      kActorOtpVerifyIsActorLoginFlowHistogram,
-      VerifyIsActorLoginFlowEvent::kPslMatchAllowed, 1);
+  EXPECT_EQ(future.Get(), ActorLoginFlowVerifier::Result::kPslMatchAllowed);
+  EXPECT_TRUE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
 }
 
 TEST_F(ActorLoginFlowVerifierTest,
-       PslMatch_StrongMatchingRequired_ReturnsFalse) {
-  content::NavigationSimulator::NavigateAndCommitFromBrowser(
-      web_contents_, GURL("https://a.example.com"));
+       PslMatch_StrongMatchingRequired_ReturnsPslMatchDisallowed) {
   autofill::ActorLoginContext context(
       url::Origin::Create(GURL("https://b.example.com")),
       /*should_use_strong_matching=*/true,
       /*navigations_per_frame=*/{{main_rfh()->GetFrameTreeNodeId(), 1}});
+  url::Origin context_origin = context.origin;
+  bool should_use_strong_matching = context.should_use_strong_matching;
 
-  base::test::TestFuture<bool> future;
-  verifier_->VerifyIsActorLoginFlow(main_rfh()->GetFrameTreeNodeId(),
-                                    main_rfh()->GetLastCommittedOrigin(),
-                                    std::move(context), future.GetCallback());
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(),
+      url::Origin::Create(GURL("https://a.example.com")),
+      url::Origin::Create(GURL("https://b.example.com")), context_origin,
+      should_use_strong_matching,
+      MakeConsumeContextCallback(std::move(context)), future.GetCallback());
 
-  EXPECT_FALSE(future.Get());
-  histogram_tester_.ExpectBucketCount(kActorOtpVerifyIsActorLoginFlowHistogram,
-                                      VerifyIsActorLoginFlowEvent::kStart, 1);
-  histogram_tester_.ExpectBucketCount(
-      kActorOtpVerifyIsActorLoginFlowHistogram,
-      VerifyIsActorLoginFlowEvent::kPslMatchDisallowed, 1);
+  EXPECT_EQ(future.Get(), ActorLoginFlowVerifier::Result::kPslMatchDisallowed);
+  EXPECT_FALSE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
 }
 
-TEST_F(ActorLoginFlowVerifierTest, GroupedOrigin_ReturnsFalse) {
+TEST_F(ActorLoginFlowVerifierTest,
+       GroupedOrigin_ReturnsGroupedOrOtherMismatch) {
   affiliations::GroupedFacets group;
   // push_back is preferred over emplace_back: https://abseil.io/tips/112
   group.facets.push_back(affiliations::Facet(
@@ -221,21 +246,93 @@ TEST_F(ActorLoginFlowVerifierTest, GroupedOrigin_ReturnsFalse) {
       affiliations::FacetURI::FromCanonicalSpec("https://grouped.com")));
   fake_affiliation_service_.AddGroupedFacets(group);
   autofill::ActorLoginContext context(
+      main_rfh()->GetLastCommittedOrigin(),
+      /*should_use_strong_matching=*/false,
+      /*navigations_per_frame=*/{{main_rfh()->GetFrameTreeNodeId(), 1}});
+  url::Origin context_origin = context.origin;
+  bool should_use_strong_matching = context.should_use_strong_matching;
+
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(),
+      url::Origin::Create(GURL("https://grouped.com")),
+      main_rfh()->GetLastCommittedOrigin(), context_origin,
+      should_use_strong_matching,
+      MakeConsumeContextCallback(std::move(context)), future.GetCallback());
+
+  EXPECT_EQ(future.Get(),
+            ActorLoginFlowVerifier::Result::kGroupedOrOtherMismatch);
+  EXPECT_FALSE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
+}
+
+TEST_F(ActorLoginFlowVerifierTest,
+       MainFramePslMatch_ReturnsMainFrameOriginMismatch) {
+  autofill::ActorLoginContext context(
+      url::Origin::Create(GURL("https://b.example.com")),
+      /*should_use_strong_matching=*/false,
+      /*navigations_per_frame=*/{{main_rfh()->GetFrameTreeNodeId(), 1}});
+  url::Origin context_origin = context.origin;
+  bool should_use_strong_matching = context.should_use_strong_matching;
+
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(),
+      url::Origin::Create(GURL("https://b.example.com")),
+      url::Origin::Create(GURL("https://a.example.com")), context_origin,
+      should_use_strong_matching,
+      MakeConsumeContextCallback(std::move(context)), future.GetCallback());
+
+  EXPECT_EQ(future.Get(),
+            ActorLoginFlowVerifier::Result::kMainFrameOriginMismatch);
+  EXPECT_FALSE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
+}
+
+TEST_F(ActorLoginFlowVerifierTest,
+       MainFrameGroupedOrigin_ReturnsMainFrameOriginMismatch) {
+  affiliations::GroupedFacets group;
+  group.facets.emplace_back(
+      affiliations::FacetURI::FromCanonicalSpec("https://example.com"));
+  group.facets.emplace_back(
+      affiliations::FacetURI::FromCanonicalSpec("https://grouped.com"));
+  fake_affiliation_service_.AddGroupedFacets(group);
+  autofill::ActorLoginContext context(
       url::Origin::Create(GURL("https://grouped.com")),
       /*should_use_strong_matching=*/false,
       /*navigations_per_frame=*/{{main_rfh()->GetFrameTreeNodeId(), 1}});
+  url::Origin context_origin = context.origin;
+  bool should_use_strong_matching = context.should_use_strong_matching;
 
-  base::test::TestFuture<bool> future;
-  verifier_->VerifyIsActorLoginFlow(main_rfh()->GetFrameTreeNodeId(),
-                                    main_rfh()->GetLastCommittedOrigin(),
-                                    std::move(context), future.GetCallback());
+  base::test::TestFuture<ActorLoginFlowVerifier::Result> future;
+  verifier_->VerifyIsActorLoginFlow(
+      main_rfh()->GetFrameTreeNodeId(),
+      url::Origin::Create(GURL("https://grouped.com")),
+      main_rfh()->GetLastCommittedOrigin(), context_origin,
+      should_use_strong_matching,
+      MakeConsumeContextCallback(std::move(context)), future.GetCallback());
 
-  EXPECT_FALSE(future.Get());
-  histogram_tester_.ExpectBucketCount(kActorOtpVerifyIsActorLoginFlowHistogram,
-                                      VerifyIsActorLoginFlowEvent::kStart, 1);
-  histogram_tester_.ExpectBucketCount(
-      kActorOtpVerifyIsActorLoginFlowHistogram,
-      VerifyIsActorLoginFlowEvent::kGroupedOrOtherMismatch, 1);
+  EXPECT_EQ(future.Get(),
+            ActorLoginFlowVerifier::Result::kMainFrameOriginMismatch);
+  EXPECT_FALSE(ActorLoginFlowVerifier::IsSuccess(future.Get()));
+}
+
+TEST(ActorLoginFlowVerifierResultTest, StreamOutput) {
+  using Result = ActorLoginFlowVerifier::Result;
+  EXPECT_EQ(base::ToString(Result::kExactMatchAllowed), "ExactMatchAllowed");
+  EXPECT_EQ(base::ToString(Result::kAffiliatedMatchAllowed),
+            "AffiliatedMatchAllowed");
+  EXPECT_EQ(base::ToString(Result::kPslMatchAllowed), "PslMatchAllowed");
+  EXPECT_EQ(base::ToString(Result::kNoActorLoginContext),
+            "NoActorLoginContext");
+  EXPECT_EQ(base::ToString(Result::kFrameNotInLoginContext),
+            "FrameNotInLoginContext");
+  EXPECT_EQ(base::ToString(Result::kAllFramesHaveTooManyNavigations),
+            "AllFramesHaveTooManyNavigations");
+  EXPECT_EQ(base::ToString(Result::kNoMatch), "NoMatch");
+  EXPECT_EQ(base::ToString(Result::kPslMatchDisallowed), "PslMatchDisallowed");
+  EXPECT_EQ(base::ToString(Result::kGroupedOrOtherMismatch),
+            "GroupedOrOtherMismatch");
+  EXPECT_EQ(base::ToString(Result::kMainFrameOriginMismatch),
+            "MainFrameOriginMismatch");
 }
 
 }  // namespace actor

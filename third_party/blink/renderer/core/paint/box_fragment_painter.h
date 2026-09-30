@@ -107,6 +107,9 @@ class CORE_EXPORT BoxFragmentPainter : public BoxPainterBase {
   PhysicalRect AdjustRectForScrolledContent(GraphicsContext&,
                                             const PhysicalBoxStrut& borders,
                                             const PhysicalRect&) const override;
+  Node* ImageGeneratingNode() const override {
+    return box_fragment_.GeneratingNode();
+  }
 
  private:
   BoxFragmentPainter(const PhysicalBoxFragment&,
@@ -144,8 +147,6 @@ class CORE_EXPORT BoxFragmentPainter : public BoxPainterBase {
       InlineCursor* children,
       const PaintInfo&,
       const PhysicalOffset& paint_offset);
-
-  void PaintColumnRules(const PaintInfo&, const PhysicalOffset& paint_offset);
 
   void PaintInternal(const PaintInfo&);
   void PaintAllPhasesAtomically(const PaintInfo&);

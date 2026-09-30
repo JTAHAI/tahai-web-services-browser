@@ -8,7 +8,6 @@
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/data_sharing/data_sharing_service_factory.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/data_sharing/public/data_sharing_service.h"
@@ -35,7 +34,7 @@ class DataSharingSDKDelegateDesktopBrowserTest : public InProcessBrowserTest {
 };
 
 // TODO(460041655): Remove this once the underlying issue is fixed.
-#if BUILDFLAG(IS_CHROMEOS) && defined(ADDRESS_SANITIZER)
+#if BUILDFLAG(IS_MAC) || (BUILDFLAG(IS_CHROMEOS) && defined(ADDRESS_SANITIZER))
 #define MAYBE_ReadGroupLoadsWebContents DISABLED_ReadGroupLoadsWebContents
 #else
 #define MAYBE_ReadGroupLoadsWebContents ReadGroupLoadsWebContents

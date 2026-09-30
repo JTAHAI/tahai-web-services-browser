@@ -31,6 +31,7 @@ source_set("coordinator") {
     "//ios/chrome/browser/composebox/public",
     "//ios/chrome/browser/composebox/ui",
     "//ios/chrome/browser/composebox/ui/presentation",
+    "//ios/chrome/browser/shared/model/browser",
     "//ios/web/public",
     "//ui/base",
   ]
@@ -113,6 +114,7 @@ source_set("input_plate") {
     "//ios/chrome/browser/https_upgrades/model",
     "//ios/chrome/browser/intents/model:model_donation_helper",
     "//ios/chrome/browser/prerender/model",
+    "//ios/chrome/browser/shared/model/browser",
     "//ios/chrome/browser/shared/model/utils:web_state_deferred_executor",
     "//ios/chrome/browser/signin/model",
     "//ios/chrome/browser/snapshots/model",
@@ -179,7 +181,6 @@ group("shared_deps") {
     "//ios/chrome/browser/shared/coordinator/chrome_coordinator",
     "//ios/chrome/browser/shared/coordinator/layout_guide",
     "//ios/chrome/browser/shared/model/application_context",
-    "//ios/chrome/browser/shared/model/browser",
     "//ios/chrome/browser/shared/model/profile",
     "//ios/chrome/browser/shared/model/url",
     "//ios/chrome/browser/shared/model/url:constants",
@@ -303,6 +304,7 @@ source_set("input_state_manager") {
     "//components/search",
     "//components/search_engines",
     "//components/signin/public/identity_manager",
+    "//components/signin/public/identity_manager/objc",
     "//components/strings",
     "//ios/chrome/browser/composebox/coordinator:constants",
     "//ios/chrome/browser/composebox/coordinator:mode_holder",
@@ -315,14 +317,17 @@ source_set("input_state_manager") {
     "//ios/chrome/browser/composebox/shared/metrics",
     "//ios/chrome/browser/composebox/ui",
     "//ios/chrome/browser/composebox/ui:state",
+    "//ios/chrome/browser/composebox/ui:ui_util",
     "//ios/chrome/browser/search_engines/model",
     "//ios/chrome/browser/shared/model/url",
     "//ios/chrome/browser/shared/model/web_state_list",
     "//ios/chrome/browser/shared/public/features",
     "//ios/chrome/browser/shared/public/features:system_flags",
+    "//ios/chrome/browser/shared/ui/symbols",
     "//ios/chrome/common:string_conversions",
     "//ios/web/public",
     "//services/network/public/cpp",
+    "//third_party/omnibox_proto",
   ]
 }
 
@@ -376,5 +381,6 @@ source_set("unit_tests") {
     "//services/network/public/cpp",
     "//testing/gmock",
     "//testing/gtest",
+    "//ui/base",
   ]
 }

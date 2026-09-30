@@ -182,6 +182,8 @@ class SearchEngineChoiceEligibilityTest
               environment.pref_service(),
               environment.search_engine_choice_service(),
               environment.prepopulate_data_resolver(),
+              environment.regional_capabilities_service(),
+              environment.profile_metrics_service(),
               std::make_unique<SearchTermsData>(),
               keywords_db_holder_->keyword_web_data,
               /* TemplateURLServiceClient= */ nullptr,
@@ -1397,19 +1399,21 @@ INSTANTIATE_TEST_SUITE_P(
                               Spec::DeviceStateChanges{
                                   .set_restored = true,
                               },
-                          .expect_choice_status_before = ChoiceStatus::kValid,
+                          .expect_choice_status_before =
+                              ChoiceStatus::kValidAndImported,
                           .expect_with_services =
                               Spec::ExpectationsWithServices{
                                   .static_condition =
                                       SearchEngineChoiceScreenConditions::
-                                          kAlreadyCompleted,
+                                          kAlreadyCompletedImported,
                                   .dynamic_condition =
                                       SearchEngineChoiceScreenConditions::
-                                          kAlreadyCompleted,
+                                          kAlreadyCompletedImported,
                                   .current_dse_prepopulate_id =
                                       TemplateURLPrepopulateData::google.id,
                               },
-                          .expect_choice_status_after = ChoiceStatus::kValid,
+                          .expect_choice_status_after =
+                              ChoiceStatus::kValidAndImported,
                       },
                   }},
 #endif  // BUILDFLAG(IS_IOS)

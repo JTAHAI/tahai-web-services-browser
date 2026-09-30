@@ -231,6 +231,11 @@ BASE_FEATURE(kSaveRawFilesOnTracing,
              "ArcSaveRawFilesOnTracing",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
+// Controls whether to shut down ARCVM after post-OOBE provisioning on 4GB
+// devices.
+BASE_FEATURE(kShutDownArcPostOobeProvisioning,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
 // When enabled, skip dropping ARCVM page cache after boot.
 BASE_FEATURE(kSkipDropCaches,
              "ArcSkipDropPageCache",
@@ -249,18 +254,6 @@ BASE_FEATURE(kUnthrottleOnActiveAudioV2,
 BASE_FEATURE(kVideoDecoder,
              "ArcVideoDecoder",
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Feature to continuously log PSI memory pressure data to Chrome.
-BASE_FEATURE(kVmMemoryPSIReports,
-             "ArcVmMemoryPSIReports",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Controls how frequently memory pressure data is logged
-BASE_FEATURE_PARAM(int,
-                   kVmMemoryPSIReportsPeriod,
-                   &kVmMemoryPSIReports,
-                   "period",
-                   10);
 
 // Controls whether a custom memory size is used when creating ARCVM. When
 // enabled, ARCVM is sized with the following formula:

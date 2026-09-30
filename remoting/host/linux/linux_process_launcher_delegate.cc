@@ -20,6 +20,7 @@
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
 #include "base/notimplemented.h"
+#include "base/posix/global_descriptors.h"
 #include "base/process/launch.h"
 #include "base/process/process.h"
 #include "base/rand_util.h"
@@ -36,12 +37,23 @@
 #include "mojo/public/cpp/bindings/generic_pending_associated_receiver.h"
 #include "mojo/public/cpp/platform/platform_channel.h"
 #include "mojo/public/cpp/system/invitation.h"
+#include "remoting/base/crash/crash_reporting_crashpad.h"
 #include "remoting/host/base/host_exit_codes.h"
 #include "remoting/host/base/switches.h"
 
 namespace remoting {
 
 namespace {
+
+bool IsTargetDescriptorUsed(const base::FileHandleMappingVector& mapping,
+                            int target_fd) {
+  for (const auto& [src, dest] : mapping) {
+    if (dest == target_fd) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // An interval to wait for process exit. This allows
 // LinuxWorkerProcessLauncherDelegate to stop and destroy ProcessExitWatcher
@@ -53,8 +65,12 @@ class RunAsUserPreExecDelegate : public base::LaunchOptions::PreExecDelegate {
  public:
   RunAsUserPreExecDelegate(bool new_session,
                            std::optional<uid_t> uid,
-                           std::optional<gid_t> gid)
-      : new_session_(new_session), uid_(uid), gid_(gid) {
+                           std::optional<gid_t> gid,
+                           std::vector<gid_t> supplementary_gids)
+      : new_session_(new_session),
+        uid_(uid),
+        gid_(gid),
+        supplementary_gids_(std::move(supplementary_gids)) {
     CHECK(uid_.has_value() == gid_.has_value());
   }
   ~RunAsUserPreExecDelegate() override = default;
@@ -69,7 +85,12 @@ class RunAsUserPreExecDelegate : public base::LaunchOptions::PreExecDelegate {
         RAW_LOG(FATAL, "Failed to create a new session.");
       }
     }
-    if (uid_.has_value() || gid_.has_value()) {
+    if (!supplementary_gids_.empty()) {
+      if (setgroups(supplementary_gids_.size(), supplementary_gids_.data()) !=
+          0) {
+        RAW_LOG(FATAL, "Failed to set supplementary groups");
+      }
+    } else if (uid_.has_value() || gid_.has_value()) {
       if (setgroups(0, nullptr) != 0) {
         RAW_LOG(FATAL, "Failed to clear supplementary groups");
       }
@@ -92,6 +113,7 @@ class RunAsUserPreExecDelegate : public base::LaunchOptions::PreExecDelegate {
   bool new_session_;
   std::optional<uid_t> uid_;
   std::optional<gid_t> gid_;
+  std::vector<gid_t> supplementary_gids_;
 };
 
 }  // namespace
@@ -184,25 +206,44 @@ void LinuxWorkerProcessLauncherDelegate::LaunchProcess(
 
   base::LaunchOptions launch_options;
   if (!options_.working_dir.empty()) {
-    launch_options.current_directory = std::move(options_.working_dir);
+    launch_options.current_directory = options_.working_dir;
   }
   launch_options.clear_environment = true;
-  launch_options.environment = std::move(options_.environment_variables);
+  launch_options.environment = options_.environment_variables;
 
   RunAsUserPreExecDelegate pre_exec_delegate(options_.new_session, options_.uid,
-                                             options_.gid);
+                                             options_.gid,
+                                             options_.supplementary_gids);
   launch_options.pre_exec_delegate = &pre_exec_delegate;
 
   mojo::OutgoingInvitation invitation;
   std::string message_pipe_token = base::NumberToString(base::RandUint64());
   std::unique_ptr<IPC::ChannelProxy> server = IPC::ChannelProxy::Create(
-      invitation.AttachMessagePipe(message_pipe_token).release(),
+      invitation.AttachMessagePipe(message_pipe_token),
       IPC::Channel::MODE_SERVER, this, io_task_runner_,
       base::SingleThreadTaskRunner::GetCurrentDefault());
   base::CommandLine command_line = options_.command_line;
   command_line.AppendSwitchASCII(kMojoPipeToken, message_pipe_token);
   mojo::PlatformChannel channel;
   channel.PrepareToPassRemoteEndpoint(&launch_options, &command_line);
+
+#if BUILDFLAG(IS_LINUX)
+  base::ScopedFD crashpad_socket;
+  pid_t crashpad_pid = -1;
+  if (GetCrashpadHandlerSocket(crashpad_socket, crashpad_pid)) {
+    int target_fd = base::GlobalDescriptors::kBaseDescriptor;
+    while (IsTargetDescriptorUsed(launch_options.fds_to_remap, target_fd)) {
+      ++target_fd;
+    }
+    command_line.AppendSwitchASCII(kCrashpadHandlerSocketFd,
+                                   base::NumberToString(target_fd));
+    if (crashpad_pid > 0) {
+      command_line.AppendSwitchASCII(kCrashpadHandlerPid,
+                                     base::NumberToString(crashpad_pid));
+    }
+    launch_options.fds_to_remap.emplace_back(crashpad_socket.get(), target_fd);
+  }
+#endif  // BUILDFLAG(IS_LINUX)
 
   base::Process process = base::LaunchProcess(command_line, launch_options);
 

@@ -25,7 +25,6 @@
 #include "chrome/browser/ui/views/intent_picker_bubble_view.h"
 #include "chrome/browser/ui/views/location_bar/custom_tab_bar_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
-#include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/avatar_toolbar_button_interface.h"
 #include "chrome/browser/ui/views/toolbar/overflow_button.h"
 #include "chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.h"
@@ -52,11 +51,12 @@
 #include "chromeos/ash/experiences/arc/mojom/intent_helper.mojom-forward.h"  // nogncheck https://crbug.com/784179
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
+class ActorTaskListBubble;
 class AvatarToolbarButton;
 class AvatarToolbarButtonInterface;
 class BatterySaverButton;
 class BrowserAppMenuButton;
-class Browser;
+class BrowserWindowInterface;
 class ExtensionsToolbarButton;
 class ExtensionsToolbarDesktop;
 class HomeButton;
@@ -122,7 +122,7 @@ class ToolbarView : public views::AccessiblePaneView,
 
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kToolbarElementId);
 
-  ToolbarView(Browser* browser, BrowserView* browser_view);
+  ToolbarView(BrowserWindowInterface* browser, BrowserView* browser_view);
   ToolbarView(const ToolbarView&) = delete;
   ToolbarView& operator=(const ToolbarView&) = delete;
   ~ToolbarView() override;
@@ -170,9 +170,13 @@ class ToolbarView : public views::AccessiblePaneView,
   // Shows a bookmark bubble and anchors it appropriately.
   void ShowBookmarkBubble(const GURL& url, bool already_bookmarked);
 
-  // Used to test whether `test_point` should be treated as part of the caption
-  // bar, which means it can be used to drag the window or open the window
-  // context menu. Should only be called when the toolbar is in the caption
+  // Returns true if the view is a descendant of the ToolbarView and should be
+  // treated as caption area for window dragging purposes.
+  // |test_point| is in coordinates of the Window to which this View belongs.
+  // The default implementation returns |false|, which means hit test events
+  // within the toolbar view are interactive and will not drag the window.
+  // In vertical tab strip (VTS) mode, buttons within the toolbar should remain
+  // interactive, but empty space between buttons should be treated as caption
   // area.
   bool IsPositionInWindowCaption(const gfx::Point& test_point) const;
 
@@ -180,7 +184,7 @@ class ToolbarView : public views::AccessiblePaneView,
   void RecordHitTestMetrics(bool is_caption_area);
 
   // Accessors.
-  Browser* browser() const { return browser_; }
+  BrowserWindowInterface* browser() const { return browser_; }
   views::Button* GetChromeLabsButton() const;
   ExtensionsToolbarDesktop* extensions_container() const {
     return extensions_container_;
@@ -213,6 +217,9 @@ class ToolbarView : public views::AccessiblePaneView,
   AppMenuIconController* app_menu_icon_controller() {
     return &app_menu_icon_controller_;
   }
+
+  // The ToolbarController may be nullptr. This happens when there is a
+  // WebUIToolbarWebView that is handling all toolbar controls.
   ToolbarController* toolbar_controller() { return toolbar_controller_.get(); }
   const ToolbarController* toolbar_controller() const {
     return toolbar_controller_.get();
@@ -221,6 +228,11 @@ class ToolbarView : public views::AccessiblePaneView,
   WebUIToolbarWebView* detached_toolbar_webview_for_testing() {
     return detached_toolbar_webview_.get();
   }
+
+  // Forwards an early teardown request to any child WebUIToolbarWebView
+  // instances (both embedded and detached) to destroy their hosted
+  // WebContents before browser-side IPC services disconnect.
+  void DestroyWebUIToolbarWebContents();
 
   glic::ToolbarGlicActorTaskIcon* glic_actor_task_icon() {
     return glic_actor_task_icon_;
@@ -268,6 +280,8 @@ class ToolbarView : public views::AccessiblePaneView,
   void TriggerGlicActorNudge(const std::u16string& nudge_text) override;
   void SetGlicActorNudgePressedState(bool pressed) override;
   void ShowActorTaskListBubble() override;
+  void CloseActorTaskListBubble() override;
+  bool IsActorTaskListBubbleShowing() override;
 
   // Updates glic button parenting after hiding glic actor task icon.
   void FinalizeHideGlicActorTaskIcon();
@@ -304,7 +318,6 @@ class ToolbarView : public views::AccessiblePaneView,
   PinnedToolbarActions* GetPinnedToolbarActions() override;
   gfx::Size GetToolbarButtonSize() const override;
   views::BubbleAnchor GetDefaultExtensionDialogAnchor() override;
-  PageActionIconView* GetPageActionIconView(PageActionIconType type) override;
   page_actions::PageActionViewInterface* GetPageActionViewInterface(
       actions::ActionId action_id) override;
   AppMenuControl* GetAppMenuControl() override;
@@ -433,6 +446,7 @@ class ToolbarView : public views::AccessiblePaneView,
   raw_ptr<glic::ToolbarGlicButton> glic_button_ = nullptr;
   raw_ptr<glic::ToolbarGlicActorTaskIcon> glic_actor_task_icon_ = nullptr;
   raw_ptr<ToolbarDivider> glic_button_divider_ = nullptr;
+  std::unique_ptr<ActorTaskListBubble> actor_task_list_bubble_;
 
   // When locked, the container is unable to change its expanded state.
   // Changes will be staged until after this is unlocked.
@@ -444,7 +458,7 @@ class ToolbarView : public views::AccessiblePaneView,
 
   raw_ptr<ToolbarButton> ai_overlay_dialog_button_ = nullptr;
 
-  const raw_ptr<Browser> browser_;
+  const raw_ptr<BrowserWindowInterface> browser_;
   const raw_ptr<BrowserView> browser_view_;
   base::WeakPtr<glic::GlicSplitButtonController> glic_split_button_controller_;
 

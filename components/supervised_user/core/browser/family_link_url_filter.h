@@ -42,31 +42,6 @@ namespace supervised_user {
 // state which transparently classifies all urls as allowed.
 class FamilyLinkUrlFilter : public UrlFilteringDelegate {
  public:
-  // This enum describes whether the approved list or blocked list is used on
-  // Chrome on Chrome OS, which is set by Family Link App or at
-  // families.google.com/families via "manage sites" setting. This is also
-  // referred to as manual behavior/filter as parent need to add everything one
-  // by one. These values are logged to UMA. Entries should not be renumbered
-  // and numeric values should never be reused. Please keep in sync with
-  // "FamilyLinkManagedSiteList" in src/tools/metrics/histograms/enums.xml.
-  enum class ManagedSiteList {
-    // The web filter has both empty blocked and approved list.
-    kEmpty = 0,
-
-    // The web filter has approved list only.
-    kApprovedListOnly = 1,
-
-    // The web filter has blocked list only.
-    kBlockedListOnly = 2,
-
-    // The web filter has both approved list and blocked list.
-    kBoth = 3,
-
-    // Used for UMA. Update kMaxValue to the last value. Add future entries
-    // above this comment. Sync with enums.xml.
-    kMaxValue = kBoth,
-  };
-
   // This enum describes the kind of conflicts between allow and block list
   // entries that match a given input host and resolve to different filtering
   // results.
@@ -83,17 +58,6 @@ class FamilyLinkUrlFilter : public UrlFilteringDelegate {
     kOtherConflictOnly = 1,
     kTrivialSubdomainConflictAndOtherConflict = 2,
     kMaxValue = kTrivialSubdomainConflictAndOtherConflict,
-  };
-
-  // Encapsulates statistics about this URL filter.
-  struct Statistics {
-    bool operator==(const Statistics& other) const = default;
-    ManagedSiteList GetManagedSiteList() const;
-
-    std::size_t allowed_hosts_count = 0;
-    std::size_t blocked_hosts_count = 0;
-    std::size_t allowed_urls_count = 0;
-    std::size_t blocked_urls_count = 0;
   };
 
   // Provides access to functionality from services on which we don't want
@@ -138,24 +102,10 @@ class FamilyLinkUrlFilter : public UrlFilteringDelegate {
   void UpdateManualHosts();
   void UpdateManualUrls();
 
-  // Returns summary of url filtering settings.
-  Statistics GetFilteringStatistics() const;
-
   // Substitutes the URL filter for testing. For use where TestingFactory cant
   // substitute the checker client.
   void SetURLCheckerClientForTesting(
       std::unique_ptr<safe_search_api::URLCheckerClient> url_checker_client);
-
-  // Returns the URL that should be sent for remote approvals to ensure that
-  // the url in the filtering result will no longer trigger interstitial.
-  // This methods prefers unnormalized url if it is already present in the block
-  // list: this way, the Family Link backend will remove this entry from the
-  // block list and add one to the allow list. Otherwise, a normalized url is
-  // returned.
-  // TODO(crbug.com/475731807): This method is Family-Link specific, and
-  // probably should live in the SupervisedUserSettingsService after it's
-  // renamed to FamilyLinkUserSettingsService.
-  GURL GetEffectiveUrlToUnblock(WebFilteringResult result) const;
 
   // UrlFilteringDelegate:
   WebFilterType GetWebFilterType() const override;
@@ -170,6 +120,7 @@ class FamilyLinkUrlFilter : public UrlFilteringDelegate {
       WebFilteringResult::Callback callback,
       const WebFilterMetricsOptions& options) override;
   std::string_view GetName() const override;
+  Statistics GetFilteringStatistics() const override;
 
  private:
   // Allows proxying deprecated calls to the filter for the time of migration.
@@ -180,10 +131,6 @@ class FamilyLinkUrlFilter : public UrlFilteringDelegate {
   void RunAsyncChecker(const GURL& url, WebFilteringResult::Callback callback);
 
   FilteringBehavior GetManualFilteringBehaviorForURL(const GURL& url) const;
-
-  // Calculates a URL that should unblock the filtering result but without the
-  // normalization it (eg. stripping username, password, query params, ref).
-  GURL GetUnnormalizedEffectiveUrlToUnblock(WebFilteringResult result) const;
 
   void OnFamilyLinkSettingsChanged(const base::DictValue& settings);
 

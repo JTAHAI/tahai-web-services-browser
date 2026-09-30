@@ -36,6 +36,7 @@ import android.widget.TextView;
 import androidx.annotation.IntDef;
 import androidx.annotation.StringRes;
 import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.widget.SearchView;
 import androidx.preference.Preference;
 import androidx.preference.Preference.OnPreferenceChangeListener;
 import androidx.preference.Preference.OnPreferenceClickListener;
@@ -73,7 +74,6 @@ import org.chromium.components.browser_ui.settings.SettingsNavigation;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
 import org.chromium.components.browser_ui.settings.search.BaseSearchIndexProvider;
 import org.chromium.components.browser_ui.site_settings.AddExceptionPreference.SiteAddedCallback;
-import org.chromium.components.browser_ui.site_settings.AutoDarkMetrics.AutoDarkSettingsChangeSource;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.util.TraceEventVectorDrawableCompat;
 import org.chromium.components.browser_ui.widget.BrowserUiListMenuUtils;
@@ -544,6 +544,29 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
         mSearchViewObserver = observer;
     }
 
+    private void onSearchQueryChanged(String query) {
+        boolean queryHasChanged =
+                mSearch == null ? query != null && !query.isEmpty() : !mSearch.equals(query);
+        mSearch = query;
+        if (queryHasChanged) {
+            if (mSearchRunnable != null) {
+                mSearchHandler.removeCallbacks(mSearchRunnable);
+            }
+            mSearchRunnable = () -> getInfoForOrigins();
+            mSearchHandler.postDelayed(mSearchRunnable, 200);
+        }
+    }
+
+    @Override
+    public void initSearchView(SearchView searchView) {
+        SearchUtils.initializeSearchView(
+                searchView,
+                mSearch,
+                getActivity(),
+                mSearchViewObserver,
+                this::onSearchQueryChanged);
+    }
+
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         menu.clear();
@@ -555,20 +578,7 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
                 mSearch,
                 getActivity(),
                 assumeNonNull(mSearchViewObserver),
-                (query) -> {
-                    boolean queryHasChanged =
-                            mSearch == null
-                                    ? query != null && !query.isEmpty()
-                                    : !mSearch.equals(query);
-                    mSearch = query;
-                    if (queryHasChanged) {
-                        if (mSearchRunnable != null) {
-                            mSearchHandler.removeCallbacks(mSearchRunnable);
-                        }
-                        mSearchRunnable = () -> getInfoForOrigins();
-                        mSearchHandler.postDelayed(mSearchRunnable, 200);
-                    }
-                });
+                this::onSearchQueryChanged);
 
         if (getSiteSettingsDelegate().isHelpAndFeedbackEnabled()) {
             MenuItem help =
@@ -679,9 +689,7 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
                 updateNotificationsSecondaryControls();
             } else if (type == SiteSettingsCategory.Type.DEVICE_LOCATION) {
                 updateLocationSecondaryControls();
-            } else if (type == SiteSettingsCategory.Type.AUTO_DARK_WEB_CONTENT) {
-                AutoDarkMetrics.recordAutoDarkSettingsChangeSource(
-                        AutoDarkSettingsChangeSource.SITE_SETTINGS_GLOBAL, toggleValue);
+
             } else if (type == SiteSettingsCategory.Type.REQUEST_DESKTOP_SITE) {
                 recordSiteLayoutChanged(toggleValue);
                 updateDesktopSiteWindowSetting();
@@ -776,12 +784,9 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
 
     private void setThirdPartyCookieSettingsPreference(@CookieControlsMode int mode) {
         assert mCategory.getType() == SiteSettingsCategory.Type.THIRD_PARTY_COOKIES;
-        getSiteSettingsDelegate().dismissPrivacySandboxSnackbar();
 
-        // Display the Privacy Sandbox snackbar whenever third-party cookies are blocked.
         if (mode == CookieControlsMode.BLOCK_THIRD_PARTY) {
             RecordUserAction.record("Settings.PrivacySandbox.Block3PCookies");
-            getSiteSettingsDelegate().maybeDisplayPrivacySandboxSnackbar();
         }
         PrefService prefService = UserPrefs.get(getBrowserContextHandle());
         prefService.setInteger(COOKIE_CONTROLS_MODE, mode);
@@ -1231,6 +1236,8 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
             return R.string.website_settings_file_editing_page_description;
         } else if (mCategory.getType() == SiteSettingsCategory.Type.SERIAL_PORT) {
             return R.string.website_settings_serial_port_page_description;
+        } else if (mCategory.getType() == SiteSettingsCategory.Type.HID_DEVICES) {
+            return R.string.website_settings_hid_devices_page_description;
         } else if (mCategory.getType() == SiteSettingsCategory.Type.LOCAL_NETWORK) {
             return R.string.website_settings_local_network_page_description;
         } else if (mCategory.getType() == SiteSettingsCategory.Type.LOOPBACK_NETWORK) {
@@ -1702,12 +1709,6 @@ public class SingleCategorySettings extends BaseSiteSettingsFragment
                                             browserContextHandle,
                                             contentSettingsType,
                                             ContentSetting.DEFAULT);
-                        }
-                        if (mCategory.getType()
-                                == SiteSettingsCategory.Type.AUTO_DARK_WEB_CONTENT) {
-                            AutoDarkMetrics.recordAutoDarkSettingsChangeSource(
-                                    AutoDarkSettingsChangeSource.SITE_SETTINGS_EXCEPTION_LIST,
-                                    false);
                         }
 
                         getInfoForOrigins();

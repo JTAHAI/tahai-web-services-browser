@@ -11,6 +11,7 @@
 #include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
 #include "components/one_time_tokens/core/browser/one_time_token_backend_notification.h"
+#include "components/one_time_tokens/core/browser/one_time_token_log_sink.h"
 
 namespace one_time_tokens {
 
@@ -29,6 +30,9 @@ class EmailOneTimeTokenFetchCoordinator {
     virtual void OnCanSendNetworkRequest(
         const OneTimeTokenBackendNotification& notification,
         base::TimeTicks trigger_time) = 0;
+
+    // Returns the active log sink.
+    virtual OneTimeTokenLogSink* GetLogSink() const = 0;
   };
 
   explicit EmailOneTimeTokenFetchCoordinator(Delegate& delegate);
@@ -46,6 +50,9 @@ class EmailOneTimeTokenFetchCoordinator {
   // has finished.
   void InformOfNetworkRequestFinished(
       const OneTimeTokenBackendNotification& notification);
+
+  // Returns true if there are active network requests or queued requests.
+  bool HasPendingRequests() const;
 
  private:
   void ProcessQueue();

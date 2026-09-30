@@ -18,11 +18,11 @@
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "chrome/common/chrome_features.h"
+#include "components/browser_actuator/public/features.h"
 #include "components/gcm_driver/instance_id/instance_id_driver.h"
 #include "components/prefs/pref_registry.h"
 #include "components/prefs/pref_service_factory.h"
 #include "components/sharing_message/features.h"
-#include "components/sharing_message/pref_names.h"
 #include "components/sharing_message/sharing_constants.h"
 #include "components/sharing_message/sharing_device_registration_result.h"
 #include "components/sharing_message/sharing_sync_preference.h"
@@ -116,29 +116,15 @@ class SharingDeviceRegistrationImplTest : public testing::Test {
  public:
   SharingDeviceRegistrationImplTest()
       : sync_prefs_(&prefs_, &fake_device_info_sync_service_),
-        sharing_device_registration_(pref_service_.get(),
-                                     &sync_prefs_,
+        sharing_device_registration_(&sync_prefs_,
                                      &mock_instance_id_driver_,
                                      &test_sync_service_) {
     SharingSyncPreference::RegisterProfilePrefs(prefs_.registry());
   }
 
-  static std::unique_ptr<PrefService> CreatePrefServiceAndRegisterPrefs() {
-    scoped_refptr<user_prefs::PrefRegistrySyncable> registry(
-        new user_prefs::PrefRegistrySyncable());
-    registry->RegisterBooleanPref(prefs::kSharedClipboardEnabled, true);
-    PrefServiceFactory factory;
-    factory.set_user_prefs(base::MakeRefCounted<TestingPrefStore>());
-    return factory.Create(registry);
-  }
-
   void SetUp() override {
     ON_CALL(mock_instance_id_driver_, GetInstanceID(testing::_))
         .WillByDefault(testing::Return(&fake_instance_id_));
-  }
-
-  void SetSharedClipboardPolicy(bool val) {
-    pref_service_->SetBoolean(prefs::kSharedClipboardEnabled, val);
   }
 
   void RegisterDeviceSync() {
@@ -174,9 +160,6 @@ class SharingDeviceRegistrationImplTest : public testing::Test {
   std::set<syncer::DeviceInfo::SharingFeature> GetExpectedEnabledFeatures() {
     std::set<syncer::DeviceInfo::SharingFeature> features;
 
-    // Shared clipboard should always be supported.
-    features.insert(syncer::DeviceInfo::SharingFeature::kSharedClipboardV2);
-
     if (sharing_device_registration_.IsRemoteCopySupported()) {
       features.insert(syncer::DeviceInfo::SharingFeature::kRemoteCopy);
     }
@@ -194,6 +177,15 @@ class SharingDeviceRegistrationImplTest : public testing::Test {
             .IsOneTimeTokenBackendNotificationSupported()) {
       features.insert(
           syncer::DeviceInfo::SharingFeature::kOneTimeTokenBackendNotification);
+    }
+
+    if (sharing_device_registration_.IsGlicExperimentalTriggeringSupported()) {
+      features.insert(
+          syncer::DeviceInfo::SharingFeature::kGlicExperimentalTriggering);
+    }
+
+    if (sharing_device_registration_.IsBrowserActuatorSupported()) {
+      features.insert(syncer::DeviceInfo::SharingFeature::kBrowserActuator);
     }
 
     return features;
@@ -215,8 +207,6 @@ class SharingDeviceRegistrationImplTest : public testing::Test {
   syncer::FakeDeviceInfoSyncService fake_device_info_sync_service_;
   FakeInstanceID fake_instance_id_;
 
-  std::unique_ptr<PrefService> pref_service_ =
-      CreatePrefServiceAndRegisterPrefs();
   SharingSyncPreference sync_prefs_;
   syncer::TestSyncService test_sync_service_;
   SharingDeviceRegistrationImpl sharing_device_registration_;
@@ -228,18 +218,6 @@ class SharingDeviceRegistrationImplTest : public testing::Test {
 };
 
 }  // namespace
-
-TEST_F(SharingDeviceRegistrationImplTest, IsSharedClipboardSupported_True) {
-  SetSharedClipboardPolicy(true);
-
-  EXPECT_TRUE(sharing_device_registration_.IsSharedClipboardSupported());
-}
-
-TEST_F(SharingDeviceRegistrationImplTest, IsSharedClipboardSupported_False) {
-  SetSharedClipboardPolicy(false);
-
-  EXPECT_FALSE(sharing_device_registration_.IsSharedClipboardSupported());
-}
 
 TEST_F(SharingDeviceRegistrationImplTest,
        IsOneTimeTokenBackendNotificationSupported_True) {
@@ -275,6 +253,20 @@ TEST_F(SharingDeviceRegistrationImplTest,
 
   EXPECT_FALSE(
       sharing_device_registration_.IsGlicExperimentalTriggeringSupported());
+}
+
+TEST_F(SharingDeviceRegistrationImplTest, IsBrowserActuatorSupported_True) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(browser_actuator::kBrowserActuator);
+
+  EXPECT_TRUE(sharing_device_registration_.IsBrowserActuatorSupported());
+}
+
+TEST_F(SharingDeviceRegistrationImplTest, IsBrowserActuatorSupported_False) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndDisableFeature(browser_actuator::kBrowserActuator);
+
+  EXPECT_FALSE(sharing_device_registration_.IsBrowserActuatorSupported());
 }
 
 TEST_F(SharingDeviceRegistrationImplTest, RegisterDeviceTest_Success) {

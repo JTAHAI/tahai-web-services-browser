@@ -22,11 +22,10 @@
 #include "chrome/browser/enterprise/connectors/test/deep_scanning_test_utils.h"
 #include "chrome/browser/enterprise/connectors/test/fake_content_analysis_delegate.h"
 #include "chrome/browser/enterprise/connectors/test/mock_realtime_reporting_client.h"
-#include "chrome/browser/glic/host/guest_util.h"
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/service/metrics/glic_invoke_metrics.h"
 #include "chrome/browser/glic/service/metrics/metrics_types.h"
-#include "chrome/browser/glic/test_support/new_glic_api_test.h"
+#include "chrome/browser/glic/test_support/glic_api_test.h"
 #include "chrome/browser/policy/dm_token_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
@@ -72,7 +71,8 @@ class GlicDragAndDropPolicyTest : public GlicApiBrowserTest {
   using InProcessBrowserTest::browser;
 
   GlicDragAndDropPolicyTest()
-      : GlicApiBrowserTest("./glic_drag_and_drop_browsertest.js") {
+      : GlicApiBrowserTest(
+            GlicTestJsPath("./glic_drag_and_drop_browsertest.js")) {
     feature_list_.InitWithFeatures({features::kGlicDragAndDropFileUpload,
                                     features::kGlicWebDragAndDropFileUpload},
                                    {});
@@ -148,7 +148,7 @@ class GlicDragAndDropPolicyTest : public GlicApiBrowserTest {
   void PrepareGuestForDrag(Host& glic_host) {
     content::WebContents* guest_contents = nullptr;
     ASSERT_TRUE(base::test::RunUntil([&]() {
-      guest_contents = GetGlicGuestWebContents(glic_host.webui_contents());
+      guest_contents = glic_host.web_client_contents();
       return guest_contents != nullptr;
     }));
     EXPECT_TRUE(content::WaitForLoadStop(guest_contents));
@@ -234,6 +234,26 @@ class GlicDragAndDropPolicyTest : public GlicApiBrowserTest {
     return source_wc;
   }
 
+  [[nodiscard]] bool SimulateMouseDownAndWait(content::WebContents* source_wc,
+                                              const gfx::Point& point) {
+    if (!content::ExecJs(
+            source_wc,
+            "window.__mouseDownReceived = false;"
+            "window.addEventListener('mousedown', () => "
+            "{ window.__mouseDownReceived = true; }, {once: true});")) {
+      return false;
+    }
+
+    content::SimulateMouseEvent(source_wc,
+                                blink::WebInputEvent::Type::kMouseDown,
+                                blink::WebMouseEvent::Button::kLeft, point);
+
+    return base::test::RunUntil([&]() {
+      return content::EvalJs(source_wc, "window.__mouseDownReceived")
+          .ExtractBool();
+    });
+  }
+
   void SimulateMouseDragFromImage(content::WebContents* source_wc) {
     // We use Javascript to find the image center and then click+drag it.
     double img_x = content::EvalJs(source_wc,
@@ -250,9 +270,8 @@ class GlicDragAndDropPolicyTest : public GlicApiBrowserTest {
     gfx::Point drag_start_point(img_x, img_y);
     gfx::Point drag_end_point = drag_start_point + gfx::Vector2d(100, 100);
 
-    content::SimulateMouseEvent(
-        source_wc, blink::WebInputEvent::Type::kMouseDown,
-        blink::WebMouseEvent::Button::kLeft, drag_start_point);
+    ASSERT_TRUE(SimulateMouseDownAndWait(source_wc, drag_start_point));
+
     content::SimulateMouseEvent(source_wc,
                                 blink::WebInputEvent::Type::kMouseMove,
                                 blink::WebMouseEvent::Button::kLeft,
@@ -264,9 +283,6 @@ class GlicDragAndDropPolicyTest : public GlicApiBrowserTest {
     content::SimulateMouseEvent(
         source_wc, blink::WebInputEvent::Type::kMouseMove,
         blink::WebMouseEvent::Button::kLeft, drag_end_point);
-    content::SimulateMouseEvent(source_wc, blink::WebInputEvent::Type::kMouseUp,
-                                blink::WebMouseEvent::Button::kLeft,
-                                drag_end_point);
   }
 
  private:

@@ -13,6 +13,7 @@
 #include "components/password_manager/core/browser/password_manager_test_utils.h"
 #include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/test_password_store.h"
+#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/ui/saved_passwords_presenter.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -31,7 +32,7 @@ PasswordForm CreatePasswordForm() {
   form.url = GURL("http://test.com/");
   form.signon_realm = "http://test.com/";
   form.username_value = u"username";
-  form.password_value = u"password";
+  form.password_value = PasswordString(u"password");
   form.in_store = PasswordForm::Store::kProfileStore;
   return form;
 }
@@ -76,7 +77,7 @@ TEST_F(PasswordUndoHelperTest, UndoSingleForm) {
   // Remove form
   UndoHelper().StartGroupingActions();
   ProfileStore()->RemoveLogin(FROM_HERE, FromPasswordForm(form));
-  UndoHelper().PasswordRemoved(form);
+  UndoHelper().PasswordRemoved(FromPasswordForm(form));
   UndoHelper().EndGroupingActions();
   RunUntilIdle();
 
@@ -102,7 +103,7 @@ TEST_F(PasswordUndoHelperTest, UndoSingleBackupPasswordForm) {
   // Remove backup
   UndoHelper().StartGroupingActions();
   ProfileStore()->UpdateLogin(FromPasswordForm(form_without_backup));
-  UndoHelper().BackupPasswordRemoved(form_without_backup);
+  UndoHelper().BackupPasswordRemoved(FromPasswordForm(form_without_backup));
   UndoHelper().EndGroupingActions();
   RunUntilIdle();
 
@@ -142,9 +143,9 @@ TEST_F(PasswordUndoHelperTest, UndoMultipleForms) {
   ProfileStore()->RemoveLogin(FROM_HERE, FromPasswordForm(form_1));
   ProfileStore()->RemoveLogin(FROM_HERE, FromPasswordForm(form_2));
   ProfileStore()->RemoveLogin(FROM_HERE, FromPasswordForm(form_1_duplicate));
-  UndoHelper().PasswordRemoved(form_1);
-  UndoHelper().PasswordRemoved(form_2);
-  UndoHelper().PasswordRemoved(form_1_duplicate);
+  UndoHelper().PasswordRemoved(FromPasswordForm(form_1));
+  UndoHelper().PasswordRemoved(FromPasswordForm(form_2));
+  UndoHelper().PasswordRemoved(FromPasswordForm(form_1_duplicate));
   UndoHelper().EndGroupingActions();
   RunUntilIdle();
 
@@ -180,8 +181,8 @@ TEST_F(PasswordUndoHelperTest, UndoFormsMultipleStores) {
   UndoHelper().StartGroupingActions();
   ProfileStore()->RemoveLogin(FROM_HERE, FromPasswordForm(profile_form));
   AccountStore()->RemoveLogin(FROM_HERE, FromPasswordForm(account_form));
-  UndoHelper().PasswordRemoved(profile_form);
-  UndoHelper().PasswordRemoved(account_form);
+  UndoHelper().PasswordRemoved(FromPasswordForm(profile_form));
+  UndoHelper().PasswordRemoved(FromPasswordForm(account_form));
   UndoHelper().EndGroupingActions();
   RunUntilIdle();
 

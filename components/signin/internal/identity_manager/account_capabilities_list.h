@@ -60,6 +60,10 @@ ACCOUNT_CAPABILITY(kCanMakeChromeSearchEngineChoiceScreenChoice,
                    "accountcapabilities/ge4tenznmnqxa")
 #endif
 
+ACCOUNT_CAPABILITY(kCanOverrideAccountInfoCapabilityName,
+                   CAN_OVERRIDE_ACCOUNT_INFO_CAPABILITY_NAME,
+                   "accountcapabilities/gmydknbnmnqxa")
+
 #if !BUILDFLAG(IS_IOS)
 ACCOUNT_CAPABILITY(kCanRunChromePrivacySandboxTrialsCapabilityName,
                    CAN_RUN_CHROME_PRIVACY_SANDBOX_TRIALS_CAPABILITY_NAME,
@@ -197,6 +201,12 @@ ACCOUNT_CAPABILITY_F(kFakeCapabilityForTestingName,
                      switches::kEnableFakeCapabilityForTesting)
 #endif
 
+ACCOUNT_CAPABILITY_F(
+    kIsSubjectToUniversalOptOutCapabilityName,
+    IS_SUBJECT_TO_UNIVERSAL_OPT_OUT_CAPABILITY_NAME,
+    "accountcapabilities/gmydemrnmnqxa",
+    switches::kReadIsSubjectToUniversalOptOutCapability)
+
 #if BUILDFLAG(IS_IOS)
 ACCOUNT_CAPABILITY_F(kMustFetchAppleAgeRangeInChromeCapabilityName,
                      MUST_FETCH_APPLE_AGE_RANGE_IN_CHROME_CAPABILITY_NAME,
@@ -214,7 +224,11 @@ ACCOUNT_CAPABILITY_F(kMustSkipAppleAgeRangeInChromeCapabilityName,
 ACCOUNT_CAPABILITY_F(
     kSupportsWalletPrivatePassesInAutofillCapabilityName,
     SUPPORTS_WALLET_PRIVATE_PASSES_IN_AUTOFILL_NAME,
+#if BUILDFLAG(IS_IOS)
+    "accountcapabilities/gmzdsnrnmnqxa",
+#else
     "accountcapabilities/gi3dknrnmnqxa",
+#endif
     switches::kReadSupportsWalletPrivatePassesInAutofillCapability)
 
 // keep-sorted end

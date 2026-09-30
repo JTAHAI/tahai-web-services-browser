@@ -7,6 +7,7 @@
 #include "base/stl_util.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/tabs/common/tab_collection_node.h"
 #include "chrome/browser/ui/views/tabs/common/tab_group_view.h"
 #include "chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h"
@@ -79,6 +80,12 @@ RootTabCollectionNode::RegisterOnChildMovedCallback(
 }
 
 base::CallbackListSubscription
+RootTabCollectionNode::RegisterOnChildWillBeRemovedCallback(
+    RootTabCollectionNode::ChildWillBeRemovedCallback callback) {
+  return on_child_will_be_removed_callback_list_.Add(std::move(callback));
+}
+
+base::CallbackListSubscription
 RootTabCollectionNode::RegisterOnActiveTabChangedCallback(
     RootTabCollectionNode::ActiveTabChangedCallback callback) {
   return on_active_tab_changed_callback_list_.Add(std::move(callback));
@@ -106,6 +113,10 @@ void RootTabCollectionNode::OnChildrenRemoved(
   }
 
   for (auto& handle : handles) {
+    TabCollectionNode* child_node = parent_node->GetNodeForHandle(handle);
+    if (child_node) {
+      on_child_will_be_removed_callback_list_.Notify(child_node);
+    }
     parent_node->RemoveChild(GetPassKey(), handle,
                              /*perform_deinitialization=*/false);
   }
@@ -227,6 +238,14 @@ void RootTabCollectionNode::OnTabGroupChanged(const TabGroupChange& change) {
 
   if (change.type == TabGroupChange::kEditorOpened) {
     group_node->GetController()->ShowGroupEditorBubble(group_node);
+  } else if (change.type == TabGroupChange::kVisualsChanged) {
+    // If the group whose visual data (e.g., color) changed is currently
+    // focused, update the focus mode theme color.
+    if (tab_strip_model_->GetFocusedGroup() == change.group) {
+      if (auto* controller = group_node->GetController()) {
+        controller->UpdateFocusModeTheme(change.group);
+      }
+    }
   }
 }
 
@@ -240,14 +259,8 @@ void RootTabCollectionNode::OnTabGroupFocusChanged(
   tab_strip_controller_->TabGroupFocusChanged(new_focused_group_id,
                                               old_focused_group_id);
 
-  // Child container views calculate their own child visibility dynamically
-  // during layout (via CalculateProposedLayout), so invalidating layout on
-  // child containers ensures their layout calculations re-run with the updated
-  // focus state.
-  for (auto& child : children_) {
-    if (child->view()) {
-      child->view()->InvalidateLayout();
-    }
+  if (view()) {
+    view()->InvalidateLayout();
   }
 }
 

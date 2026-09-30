@@ -7,7 +7,7 @@ import 'chrome://bookmarks-side-panel.top-chrome/power_bookmarks_context_menu.js
 import type {BookmarksTreeNode} from 'chrome://bookmarks-side-panel.top-chrome/bookmarks.mojom-webui.js';
 import {BookmarksApiProxyImpl} from 'chrome://bookmarks-side-panel.top-chrome/bookmarks_api_proxy.js';
 import {MenuItemId} from 'chrome://bookmarks-side-panel.top-chrome/power_bookmarks_context_menu.js';
-import type {MenuItem, PowerBookmarksContextMenuElement} from 'chrome://bookmarks-side-panel.top-chrome/power_bookmarks_context_menu.js';
+import type {PowerBookmarksContextMenuElement} from 'chrome://bookmarks-side-panel.top-chrome/power_bookmarks_context_menu.js';
 import {PowerBookmarksService} from 'chrome://bookmarks-side-panel.top-chrome/power_bookmarks_service.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {assertDeepEquals, assertEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
@@ -100,6 +100,8 @@ suite('SidePanelPowerBookmarksContextMenuTest', () => {
       menuOpenNewWindowWithCount: 'Open all in new window',
       menuOpenIncognito: 'Open in Incognito window',
       menuOpenIncognitoWithCount: 'Open all in Incognito window',
+      menuOpenIsolated: 'Open in Isolated window',
+      menuOpenIsolatedWithCount: 'Open all in Isolated window',
       menuOpenNewTabGroup: 'Open in new tab group',
       menuOpenNewTabGroupWithCount: 'Open all in new tab group',
       menuOpenSplitView: 'Open all in split view',
@@ -111,6 +113,7 @@ suite('SidePanelPowerBookmarksContextMenuTest', () => {
       tooltipDelete: 'Delete',
       tooltipMove: 'Move',
       splitViewEnabled: true,
+      isIsolatedModeEnabled: false,
     });
 
     powerBookmarksContextMenu =
@@ -258,17 +261,17 @@ suite('SidePanelPowerBookmarksContextMenuTest', () => {
 
     await microtasksFinished();
 
-    const menuItems = powerBookmarksContextMenu['getMenuItemsForBookmarks_']();
+    const menuItems = Array.from(
+        powerBookmarksContextMenu.shadowRoot.querySelectorAll<HTMLElement>(
+            '.dropdown-item'));
 
-    const itemIds = menuItems.map((item: MenuItem) => item.id);
+    const itemIds = menuItems.map(item => Number(item.dataset['id']));
     const expectedIds = [
       MenuItemId.OPEN_NEW_TAB,
       MenuItemId.OPEN_NEW_WINDOW,
       MenuItemId.OPEN_NEW_TAB_GROUP,
       MenuItemId.OPEN_INCOGNITO,
-      MenuItemId.DIVIDER,
       MenuItemId.RENAME,
-      MenuItemId.DIVIDER,
       MenuItemId.DELETE,
     ];
 
@@ -416,5 +419,96 @@ suite('SidePanelPowerBookmarksContextMenuTest', () => {
     await microtasksFinished();
 
     assertTrue(!powerBookmarksContextMenu.isOpen());
+  });
+
+  test('ShowsIsolatedMenuItemWhenIsolatedModeEnabledForUrl', async () => {
+    loadTimeData.overrideValues({
+      isIsolatedModeEnabled: true,
+      isIncognitoModeAvailable: true,
+      incognitoMode: false,
+    });
+
+    const selection = [service.findBookmarkWithId('3')!];
+    powerBookmarksContextMenu.showAtPosition(
+        new MouseEvent('click'), selection, false, false, false, 1);
+
+    await microtasksFinished();
+
+    const menuItems =
+        powerBookmarksContextMenu.shadowRoot.querySelectorAll('.dropdown-item');
+    assertEquals(menuItems.length, 8);
+    const incognitoButton = menuItems[3] as HTMLButtonElement;
+    assertTrue(incognitoButton.textContent.includes(
+        loadTimeData.getString('menuOpenIncognito')));
+    assertTrue(incognitoButton.disabled);
+
+    const isolatedButton = menuItems[4] as HTMLButtonElement;
+    assertTrue(isolatedButton.textContent.includes(
+        loadTimeData.getString('menuOpenIsolated')));
+    assertTrue(!isolatedButton.disabled);
+
+    isolatedButton.click();
+    const [ids] = await bookmarksApi.whenCalled(
+        'contextMenuOpenBookmarkInOffTheRecordWindow');
+    assertDeepEquals(['3'], ids);
+  });
+
+  test('ShowsIsolatedMenuItemWhenIsolatedModeEnabledForFolder', async () => {
+    loadTimeData.overrideValues({
+      isIsolatedModeEnabled: true,
+      isIncognitoModeAvailable: true,
+      incognitoMode: false,
+      menuSimplification: false,
+    });
+
+    const selection = [service.findBookmarkWithId('5')!];
+    powerBookmarksContextMenu.showAtPosition(
+        new MouseEvent('click'), selection, false, false, false, 2);
+
+    await microtasksFinished();
+
+    const menuItems =
+        powerBookmarksContextMenu.shadowRoot.querySelectorAll('.dropdown-item');
+    assertEquals(menuItems.length, 8);
+    const incognitoButton = menuItems[2] as HTMLButtonElement;
+    assertTrue(incognitoButton.textContent.includes(
+        loadTimeData.getString('menuOpenIncognitoWithCount')));
+    assertTrue(incognitoButton.disabled);
+
+    const isolatedButton = menuItems[3] as HTMLButtonElement;
+    assertTrue(isolatedButton.textContent.includes(
+        loadTimeData.getString('menuOpenIsolatedWithCount')));
+    assertTrue(!isolatedButton.disabled);
+  });
+
+  test('ShowsSimplifiedIsolatedMenuItemWhenIsolatedModeEnabled', async () => {
+    loadTimeData.overrideValues({
+      isIsolatedModeEnabled: true,
+      isIncognitoModeAvailable: true,
+      incognitoMode: false,
+      menuSimplification: true,
+      bookmarksBarId: '1',
+      otherBookmarksId: 'SIDE_PANEL_OTHER_BOOKMARKS_ID',
+      mobileBookmarksId: '2',
+    });
+
+    const selection = [service.findBookmarkWithId('5')!];
+    powerBookmarksContextMenu.showAtPosition(
+        new MouseEvent('click'), selection, false, false, false, 2);
+
+    await microtasksFinished();
+
+    const menuItems =
+        powerBookmarksContextMenu.shadowRoot.querySelectorAll('.dropdown-item');
+    assertEquals(menuItems.length, 8);
+    const incognitoButton = menuItems[3] as HTMLButtonElement;
+    assertTrue(incognitoButton.textContent.includes(
+        loadTimeData.getString('menuOpenIncognitoWithCount')));
+    assertTrue(incognitoButton.disabled);
+
+    const isolatedButton = menuItems[4] as HTMLButtonElement;
+    assertTrue(isolatedButton.textContent.includes(
+        loadTimeData.getString('menuOpenIsolatedWithCount')));
+    assertTrue(!isolatedButton.disabled);
   });
 });

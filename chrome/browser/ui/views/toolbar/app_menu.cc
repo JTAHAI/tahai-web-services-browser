@@ -39,11 +39,11 @@
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/ui/bookmarks/bookmark_stats.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
@@ -473,13 +473,10 @@ void AddSignedInChipToProfileMenuItem(
                           ? ui::kColorAppMenuProfileRowChipHovered
                           : ui::kColorAppMenuProfileRowChipBackground,
                       profile_chip_corner_radii))
-                  // Add additional horizontal padding. Vertical
-                  // padding depends on menu margins to get alignment
-                  // with other items in the menu.
-                  .SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(
-                      0, views::LayoutProvider::Get()
-                             ->GetInsetsMetric(views::INSETS_LABEL_BUTTON)
-                             .left()))))
+                  .SetBorder(views::CreateEmptyBorder(
+                      ChromeLayoutProvider::Get()
+                          ->GetInsetsMetric(
+                              INSETS_PROFILE_SIGNIN_STATUS_CHIP))))
           .Build();
 
   // MenuItemView has specific layout logic for child views which does not work
@@ -896,7 +893,7 @@ class AppMenu::ZoomView : public AppMenuView, public views::WidgetObserver {
 
  private:
   const content::WebContents* GetActiveWebContents() const {
-    return menu() ? menu()->browser_->tab_strip_model()->GetActiveWebContents()
+    return menu() ? menu()->browser_->GetTabStripModel()->GetActiveWebContents()
                   : nullptr;
   }
   content::WebContents* GetActiveWebContents() {
@@ -934,8 +931,8 @@ class AppMenu::ZoomView : public AppMenuView, public views::WidgetObserver {
     const bool is_fullscreen = menu()->browser_->GetWindow() &&
                                menu()->browser_->GetWindow()->IsFullscreen();
     const bool can_fullscreen = menu()
-                                    ->browser_->browser_window_features()
-                                    ->exclusive_access_manager()
+                                    ->browser_->GetFeatures()
+                                    .exclusive_access_manager()
                                     ->context()
                                     ->CanUserEnterFullscreen();
     fullscreen_button_->UpdateState(is_fullscreen, can_fullscreen);
@@ -1094,7 +1091,7 @@ class AppMenu::RecentTabsMenuModelDelegate : public ui::MenuModelDelegate {
 
 // AppMenu ------------------------------------------------------------------
 
-AppMenu::AppMenu(Browser* browser,
+AppMenu::AppMenu(BrowserWindowInterface* browser,
                  ui::MenuModel* model,
                  int run_types,
                  base::RepeatingClosure on_menu_closed_callback)
@@ -1134,30 +1131,32 @@ AppMenu::~AppMenu() {
   }
 }
 
-void AppMenu::RunMenu(views::MenuButtonController* host) {
+void AppMenu::RunMenu(views::MenuButtonController* host,
+                      ui::mojom::MenuSourceType source_type) {
   base::RecordAction(UserMetricsAction("ShowAppMenu"));
   UMA_HISTOGRAM_ENUMERATION("WrenchMenu.MenuAction", MENU_ACTION_MENU_OPENED,
                             LIMIT_MENU_ACTION);
 
-  menu_runner_->RunMenuAt(
-      host->button()->GetWidget(), host,
-      host->button()->GetAnchorBoundsInScreen(),
-      views::MenuAnchorPosition::kTopRight, ui::mojom::MenuSourceType::kNone,
-      /*native_view_for_gestures=*/gfx::NativeView(), /*corners=*/std::nullopt,
-      "Chrome.AppMenu.MenuHostInitToNextFramePresented");
+  menu_runner_->RunMenuAt(host->button()->GetWidget(), host,
+                          host->button()->GetAnchorBoundsInScreen(),
+                          views::MenuAnchorPosition::kTopRight, source_type,
+                          /*native_view_for_gestures=*/gfx::NativeView(),
+                          /*corners=*/std::nullopt,
+                          "Chrome.AppMenu.MenuHostInitToNextFramePresented");
 }
 
 void AppMenu::RunMenu(views::Widget* parent,
-                      const gfx::Rect& anchor_screen_bounds) {
+                      const gfx::Rect& anchor_screen_bounds,
+                      ui::mojom::MenuSourceType source_type) {
   base::RecordAction(UserMetricsAction("ShowAppMenu"));
   UMA_HISTOGRAM_ENUMERATION("WrenchMenu.MenuAction", MENU_ACTION_MENU_OPENED,
                             LIMIT_MENU_ACTION);
 
-  menu_runner_->RunMenuAt(
-      parent, nullptr, anchor_screen_bounds,
-      views::MenuAnchorPosition::kTopRight, ui::mojom::MenuSourceType::kNone,
-      /*native_view_for_gestures=*/gfx::NativeView(), /*corners=*/std::nullopt,
-      "Chrome.AppMenu.MenuHostInitToNextFramePresented");
+  menu_runner_->RunMenuAt(parent, nullptr, anchor_screen_bounds,
+                          views::MenuAnchorPosition::kTopRight, source_type,
+                          /*native_view_for_gestures=*/gfx::NativeView(),
+                          /*corners=*/std::nullopt,
+                          "Chrome.AppMenu.MenuHostInitToNextFramePresented");
 }
 
 void AppMenu::CloseMenu() {

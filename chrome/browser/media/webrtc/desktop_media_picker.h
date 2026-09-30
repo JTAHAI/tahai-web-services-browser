@@ -55,7 +55,8 @@ class DesktopMediaPicker {
       kGetDisplayMedia,
       kScreenshotDataCollector,
       kArcScreenCapture,
-      kGlic
+      kGlic,
+      kSearchbox
     };
 
     explicit Params(RequestSource request_source);
@@ -139,6 +140,9 @@ class DesktopMediaPicker {
 
     // True if getDisplayMedia requested audioSelection='preferred'.
     bool audio_selection_preferred = false;
+
+    // Optional callback invoked when the picker dialog view is being destroyed.
+    base::RepeatingClosure on_picker_destroying;
   };
 
   // Creates a picker dialog/confirmation box depending on the value of

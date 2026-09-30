@@ -16,7 +16,7 @@
 #import "base/time/time.h"
 #import "base/unguessable_token.h"
 #import "components/autofill/core/common/autofill_features.h"
-#import "components/autofill/core/common/autofill_test_utils.h"
+#import "components/autofill/core/common/autofill_test_util.h"
 #import "components/autofill/core/common/form_data.h"
 #import "components/autofill/core/common/form_field_data.h"
 #import "components/autofill/core/common/unique_ids.h"
@@ -162,7 +162,8 @@ class FormActivityTabHelperTest : public AutofillTestWithWebState {
     FormActivityParams expected_activity_params;
     expected_activity_params.frame_id = WaitForMainFrame()->GetFrameId();
     expected_activity_params.is_main_frame = true;
-    expected_activity_params.type = "form_changed";
+    expected_activity_params.type =
+        FormActivityParams::ActivityType::kFormChanged;
 
     EXPECT_EQ(params, expected_activity_params);
   }
@@ -202,6 +203,9 @@ TEST_F(FormActivityTabHelperTest, TestPasswordSymbolSetOnNewElement) {
   // will set the attribute correctly.
   ExecuteJavaScript(
       @"document.body.innerHTML = '<input type=\"password\" id=\"pw\"/>';");
+  ExecuteJavaScript(
+      @"__gCrWeb.getRegisteredApi('autofill').getFunction('extractForms')("
+      @"false);");
 
   EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^bool {
     return [GetHasBeenPasswordForElement(@"pw") isEqual:@YES];
@@ -225,6 +229,9 @@ TEST_F(FormActivityTabHelperTest, TestPasswordSymbolSetOnTypeChange) {
 
   FormHandlersJavaScriptFeature::GetInstance()->TrackFormMutations(
       main_frame, /*mutation_tracking_delay=*/200);
+  ExecuteJavaScript(
+      @"__gCrWeb.getRegisteredApi('autofill').getFunction('extractForms')("
+      @"false);");
 
   // Loading the page should have set the attribute since the input is a
   // password.
@@ -258,6 +265,9 @@ TEST_F(FormActivityTabHelperTest, TestPasswordSymbolFeatureDisabled) {
 
   FormHandlersJavaScriptFeature::GetInstance()->TrackFormMutations(
       main_frame, /*mutation_tracking_delay=*/200);
+  ExecuteJavaScript(
+      @"__gCrWeb.getRegisteredApi('autofill').getFunction('extractForms')("
+      @"false);");
 
   // The Has Been Password symbol is not set since the feature is disabled
   EXPECT_TRUE(WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^bool {
@@ -343,8 +353,10 @@ TEST_F(FormActivityTabHelperTest,
             observer_->form_activity_info()->sender_frame_id);
   EXPECT_EQ("form-name",
             observer_->form_activity_info()->form_activity.form_name);
-  EXPECT_EQ("text", observer_->form_activity_info()->form_activity.field_type);
-  EXPECT_EQ("focus", observer_->form_activity_info()->form_activity.type);
+  EXPECT_EQ(FormActivityParams::FieldType::kText,
+            observer_->form_activity_info()->form_activity.field_type);
+  EXPECT_EQ(FormActivityParams::ActivityType::kFocus,
+            observer_->form_activity_info()->form_activity.type);
   EXPECT_EQ("", observer_->form_activity_info()->form_activity.value);
   EXPECT_TRUE(observer_->form_activity_info()->form_activity.is_main_frame);
   EXPECT_TRUE(observer_->form_activity_info()->form_activity.has_user_gesture);
@@ -382,7 +394,7 @@ TEST_F(FormActivityTabHelperTest, FocusMainFrame) {
   }));
   TestFormActivityInfo* info = observer_->form_activity_info();
   ASSERT_TRUE(info);
-  EXPECT_EQ("focus", info->form_activity.type);
+  EXPECT_EQ(FormActivityParams::ActivityType::kFocus, info->form_activity.type);
   EXPECT_FALSE(info->form_activity.input_missing);
 }
 
@@ -408,7 +420,7 @@ TEST_F(FormActivityTabHelperTest, FocusSameOriginIFrame) {
   }));
   TestFormActivityInfo* info = observer_->form_activity_info();
   ASSERT_TRUE(info);
-  EXPECT_EQ("focus", info->form_activity.type);
+  EXPECT_EQ(FormActivityParams::ActivityType::kFocus, info->form_activity.type);
   EXPECT_FALSE(info->form_activity.input_missing);
 }
 
@@ -936,6 +948,116 @@ TEST_P(FormMutationTest, OptimizedFormMutations_ThrottledAcrossTicks) {
 
 INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(FormMutationTest);
 
+class FormContentEditableTest : public base::test::WithFeatureOverride,
+                                public FormActivityTabHelperTest {
+ public:
+  FormContentEditableTest()
+      : base::test::WithFeatureOverride(kAutofillSupportContentEditableIos) {}
+};
+
+// Tests focusing a contenteditable element when the feature is enabled vs
+// disabled.
+TEST_P(FormContentEditableTest, FocusContentEditable) {
+  LoadHtml(@"<div contenteditable='true' id='editable'>Hello</div>");
+  ASSERT_FALSE(observer_->form_activity_info());
+  ExecuteJavaScript(@"var el = document.getElementById('editable');"
+                    @"el.focus();"
+                    @"el.dispatchEvent(new Event('focus', {bubbles: true}));");
+  TestFormActivityObserver* block_observer = observer_.get();
+  if (IsParamFeatureEnabled()) {
+    ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{
+      return block_observer->form_activity_info() != nullptr;
+    }));
+    TestFormActivityInfo* info = observer_->form_activity_info();
+    ASSERT_TRUE(info);
+    EXPECT_EQ(FormActivityParams::ActivityType::kFocus,
+              info->form_activity.type);
+    EXPECT_EQ(FormActivityParams::FieldType::kContentEditable,
+              info->form_activity.field_type);
+    EXPECT_EQ("Hello", info->form_activity.value);
+  } else {
+    // Use 50ms to reduce waiting time for expected timeout.
+    EXPECT_FALSE(WaitUntilConditionOrTimeout(base::Milliseconds(50), ^{
+      return block_observer->form_activity_info() != nullptr;
+    }));
+  }
+}
+
+// Tests that focusing a child element inside a contenteditable container
+// correctly delivers a focus form activity event when enabled, and no event
+// when disabled.
+TEST_P(FormContentEditableTest, FocusContentEditableChildElement) {
+  LoadHtml(@"<div contenteditable='true' id='editable'>"
+           @"Hello <b id='child'>world</b></div>");
+  ASSERT_FALSE(observer_->form_activity_info());
+  ExecuteJavaScript(
+      @"var container = document.getElementById('editable');"
+      @"var child = document.getElementById('child');"
+      @"container.focus();"
+      @"child.dispatchEvent(new Event('focus', {bubbles: true}));");
+  TestFormActivityObserver* block_observer = observer_.get();
+  if (IsParamFeatureEnabled()) {
+    ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{
+      return block_observer->form_activity_info() != nullptr;
+    }));
+    TestFormActivityInfo* info = observer_->form_activity_info();
+    ASSERT_TRUE(info);
+    EXPECT_EQ(FormActivityParams::ActivityType::kFocus,
+              info->form_activity.type);
+    EXPECT_EQ(FormActivityParams::FieldType::kContentEditable,
+              info->form_activity.field_type);
+    EXPECT_EQ("world", info->form_activity.value);
+  } else {
+    // Use 50ms to reduce waiting time for expected timeout.
+    EXPECT_FALSE(WaitUntilConditionOrTimeout(base::Milliseconds(50), ^{
+      return block_observer->form_activity_info() != nullptr;
+    }));
+  }
+}
+
+// Tests focusing sibling contenteditable elements when enabled vs disabled.
+TEST_P(FormContentEditableTest, FocusContentEditableSiblingElement) {
+  LoadHtml(@"<div contenteditable='true' id='editable'>Hello</div>"
+           @"<div contenteditable='true' id='sibling'>Other</div>");
+  ASSERT_FALSE(observer_->form_activity_info());
+  ExecuteJavaScript(
+      @"var editable = document.getElementById('editable');"
+      @"editable.focus();"
+      @"editable.dispatchEvent(new Event('focus', {bubbles: true}));");
+  TestFormActivityObserver* block_observer = observer_.get();
+  if (IsParamFeatureEnabled()) {
+    ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{
+      return block_observer->form_activity_info() != nullptr;
+    }));
+    EXPECT_EQ("Hello", observer_->form_activity_info()->form_activity.value);
+
+    // Focus the sibling element.
+    ExecuteJavaScript(
+        @"var sibling = document.getElementById('sibling');"
+        @"sibling.focus();"
+        @"sibling.dispatchEvent(new Event('focus', {bubbles: true}));");
+    ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{
+      return block_observer->form_activity_info() != nullptr &&
+             block_observer->form_activity_info()->form_activity.value ==
+                 "Other";
+    }));
+    TestFormActivityInfo* info = observer_->form_activity_info();
+    ASSERT_TRUE(info);
+    EXPECT_EQ(FormActivityParams::ActivityType::kFocus,
+              info->form_activity.type);
+    EXPECT_EQ(FormActivityParams::FieldType::kContentEditable,
+              info->form_activity.field_type);
+    EXPECT_EQ("Other", info->form_activity.value);
+  } else {
+    // Use 50ms to reduce waiting time for expected timeout.
+    EXPECT_FALSE(WaitUntilConditionOrTimeout(base::Milliseconds(50), ^{
+      return block_observer->form_activity_info() != nullptr;
+    }));
+  }
+}
+
+INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(FormContentEditableTest);
+
 // Test fixture verifying the behavior of FormActivityTabHelper when handling
 // mutations involving form control elements.
 class FormMutationFormControlElements
@@ -1097,10 +1219,6 @@ TEST_F(FormSubmittedHookTest, TestFormSubmittedHook) {
 // Validate that programmatic form submissions are detected and sent to
 // observers of the tab helper.
 TEST_F(FormSubmittedHookTest, TestFormSubmittedHookAcrossIframes) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      autofill::features::kAutofillAcrossIframesIos);
-
   LoadHtml(kTestHTMLFormWithIframes);
 
   WebFrame* main_frame = WaitForMainFrame();

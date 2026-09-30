@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
@@ -58,7 +59,6 @@ class AccountFetcherService;
 class AccountTrackerService;
 class GaiaCookieManagerService;
 class NewTabPageUI;
-class PrivacySandboxSettingsDelegate;
 
 namespace signin {
 
@@ -374,7 +374,7 @@ class IdentityManager : public KeyedService,
       const CoreAccountId& account_id) const;
   // The same as `FindExtendedAccountInfo()` but finds an account by email.
   AccountInfo FindExtendedAccountInfoByEmailAddress(
-      const std::string& email_address) const;
+      std::string_view email_address) const;
   // The same as `FindExtendedAccountInfo()` but finds an account by gaia ID.
   AccountInfo FindExtendedAccountInfoByGaiaId(const GaiaId& gaia_id) const;
 
@@ -419,7 +419,7 @@ class IdentityManager : public KeyedService,
   // Gets all accounts on the device, including the ones from other profiles, in
   // the order provided by the system (usually the order in which the accounts
   // were added).
-  [[nodiscard]] std::vector<AccountInfo> GetAccountsOnDevice();
+  [[nodiscard]] std::vector<AccountInfo> GetAccountsOnDevice() const;
 #endif
 
   // Overrides the value of the given account capability for the account.
@@ -646,13 +646,13 @@ class IdentityManager : public KeyedService,
   friend void SimulateSuccessfulFetchOfAccountInfo(
       IdentityManager* identity_manager,
       const CoreAccountId& account_id,
-      const std::string& email,
+      std::string_view email,
       const GaiaId& gaia,
-      const std::string& hosted_domain,
-      const std::string& full_name,
-      const std::string& given_name,
-      const std::string& locale,
-      const std::string& picture_url);
+      std::string_view hosted_domain,
+      std::string_view full_name,
+      std::string_view given_name,
+      std::string_view locale,
+      std::string_view picture_url);
 
 #if BUILDFLAG(IS_CHROMEOS)
   friend account_manager::AccountManagerFacade* GetAccountManagerFacade(
@@ -717,7 +717,6 @@ class IdentityManager : public KeyedService,
   // TODO(crbug.com/40183609): Delete once the private calls have been
   // removed.
   friend class ::NewTabPageUI;
-  friend class ::PrivacySandboxSettingsDelegate;
 
   // Returns the extended account info for the primary account. This function
   // does not require tokens to be loaded.

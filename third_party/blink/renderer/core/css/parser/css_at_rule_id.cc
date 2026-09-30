@@ -90,14 +90,16 @@ constexpr FlaggedAtRuleEntry kFlaggedAtRuleEntries[] = {
      &RuntimeEnabledFeatures::CSSCustomMediaEnabled},
     {"function", CSSAtRuleID::kCSSAtRuleFunction, WebFeature::kCSSFunctions,
      &RuntimeEnabledFeatures::CSSFunctionsEnabled},
+    {"location", CSSAtRuleID::kCSSAtRuleLocation, WebFeature::kCSSAtRuleRoute,
+     &RuntimeEnabledFeatures::RouteMatchingEnabled},
     {"mixin", CSSAtRuleID::kCSSAtRuleMixin, WebFeature::kCSSMixins,
      &RuntimeEnabledFeatures::CSSMixinsEnabled},
     {"navigation", CSSAtRuleID::kCSSAtRuleNavigation, WebFeature::kCSSAtRuleRoute,
      &RuntimeEnabledFeatures::RouteMatchingEnabled},
+    {"private", CSSAtRuleID::kCSSAtRulePrivate, WebFeature::kCSSAtPrivate,
+     &RuntimeEnabledFeatures::CSSPrivateEnabled},
     {"result", CSSAtRuleID::kCSSAtRuleResult, WebFeature::kCSSMixins,
      &RuntimeEnabledFeatures::CSSMixinsEnabled},
-    {"route", CSSAtRuleID::kCSSAtRuleRoute, WebFeature::kCSSAtRuleRoute,
-     &RuntimeEnabledFeatures::RouteMatchingEnabled},
 };
 // clang-format on
 

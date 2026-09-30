@@ -12,7 +12,6 @@
 #include "chrome/browser/file_system_access/chrome_file_system_access_permission_context.h"
 #include "chrome/browser/file_system_access/file_system_access_permission_context_factory.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -24,7 +23,6 @@
 #include "chrome/browser/ui/views/file_system_access/file_system_access_views_helpers.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
-#include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_view_interface.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/strings/grit/components_strings.h"
@@ -433,7 +431,8 @@ void FileSystemAccessUsageBubbleView::UpdateBubbleVisibilityState(
     return;
   }
   auto* action_item = actions::ActionManager::Get().FindAction(
-      kActionShowFileSystemAccess, browser->GetActions()->root_action_item());
+      kActionShowFileSystemAccess,
+      BrowserActions::From(browser)->root_action_item());
   CHECK(action_item);
   action_item->SetIsShowingBubble(is_bubble_visible);
 }

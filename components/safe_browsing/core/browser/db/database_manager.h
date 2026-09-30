@@ -31,6 +31,10 @@ class AutoPictureInPictureSafeBrowsingCheckerClient;
 class CrowdDenySafeBrowsingRequest;
 class SafeBrowsingRequest;
 
+namespace autofill {
+class OtpFillingSafeBrowsingCheckerClient;
+}
+
 namespace extensions {
 class Blocklist;
 }  // namespace extensions
@@ -114,9 +118,17 @@ class SafeBrowsingDatabaseManager
     virtual void OnCheckAllowlistUrlResult(bool did_match_allowlist) {}
 
     // Returns a WeakPtr to the V5GetHashProtocolManager for this client. This
-    // is passed in by the client because it is a profile-keyed service.
+    // is passed in by the client because V5GetHashProtocolManager is a
+    // profile-keyed service, whereas SafeBrowsingDatabaseManager is
+    // browser-wide.
+    //
+    // Providing a valid protocol manager is required for all clients. The only
+    // (temporary) exceptions are callers of `CheckCsdAllowlistUrl` or
+    // `CheckExtensionIDs`.
+    // TODO(crbug.com/372395685): Remove "exceptions" note once two callers are
+    // refactored to stop using `Client`.
     virtual base::WeakPtr<V5GetHashProtocolManager>
-    GetV5GetHashProtocolManager();
+    GetV5GetHashProtocolManager() = 0;
 
     // Returns a WeakPtr to this.
     base::WeakPtr<Client> GetWeakPtr();
@@ -131,6 +143,7 @@ class SafeBrowsingDatabaseManager
 
     // External clients:
     friend class ::AbusiveNotificationPermissionsManager;
+    friend class autofill::OtpFillingSafeBrowsingCheckerClient;
     friend class ::AutoPictureInPictureSafeBrowsingCheckerClient;
     friend class ::CrowdDenySafeBrowsingRequest;
     friend class extensions::Blocklist;

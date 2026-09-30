@@ -311,7 +311,15 @@ CountryId CountryOverrideToCountryId(
 // post-migration ones. No-op if the migration feature is disabled.
 void ApplyPrepopulatedEnginesMigration(
     std::vector<raw_ptr<const PrepopulatedEngine>>& engines) {
-  if (!base::FeatureList::IsEnabled(switches::kPrepopulatedEnginesMigration)) {
+  bool is_migrated_set_needed =
+      // Main migration feature: if enabled, use the post-migration set.
+      base::FeatureList::IsEnabled(switches::kPrepopulatedEnginesMigration) ||
+      // More subtle version of the migration: use the post-migration set, but
+      // instead of migrating the data of the pre-migration set users, the
+      // feature puts them in some sort of "compatibility" mode.
+      switches::ArePrepopulatedEnginesShadowVariantsEnabled();
+
+  if (!is_migrated_set_needed) {
     return;
   }
 
@@ -400,6 +408,23 @@ RegionalCapabilitiesService::GetRegionalPrepopulatedEngines() {
   ApplyPrepopulatedEnginesMigration(engines);
 
   return engines;
+}
+
+std::vector<raw_ptr<const PrepopulatedEngine>>
+RegionalCapabilitiesService::GetRegionalVariants() {
+  if (!switches::ArePrepopulatedEnginesShadowVariantsEnabled()) {
+    return std::vector<raw_ptr<const PrepopulatedEngine>>();
+  }
+
+  if (GetCountryIdInternal() == CountryId("JP")) {
+    return {&TemplateURLPrepopulateData::yahoo_jp};
+  }
+
+  return std::vector<raw_ptr<const PrepopulatedEngine>>();
+}
+
+bool RegionalCapabilitiesService::IsSearchEngineSplitRegion() {
+  return GetCountryIdInternal() == CountryId("JP");
 }
 
 bool RegionalCapabilitiesService::IsInSearchEngineChoiceScreenRegion() {
@@ -520,6 +545,11 @@ RegionalCapabilitiesService::GetChoiceScreenDesign() {
               IDS_SEARCH_ENGINE_CHOICE_PAGE_SUBTITLE_INFO_LINK_A11Y_LABEL,
           .subtitle_2_string_id =
               IDS_SEARCH_ENGINE_CHOICE_PAGE_SUBTITLE_WITH_DEFINITION2,
+          .learn_more_third_paragraph_string_id =
+              base::FeatureList::IsEnabled(
+                  switches::kSearchEngineChoiceScreenSnackbar)
+                  ? IDS_SEARCH_ENGINE_CHOICE_INFO_DIALOG_BODY_THIRD_PARAGRAPH_INSTRUCTIVE
+                  : IDS_SEARCH_ENGINE_CHOICE_INFO_DIALOG_BODY_THIRD_PARAGRAPH,
       };
 #else
       NOTREACHED();
@@ -532,6 +562,8 @@ RegionalCapabilitiesService::GetChoiceScreenDesign() {
               IDS_SEARCH_ENGINE_CHOICE_PAGE_SUBTITLE_INFO_LINK,
           .subtitle_1_learn_more_a11y_string_id =
               IDS_SEARCH_ENGINE_CHOICE_PAGE_SUBTITLE_INFO_LINK_A11Y_LABEL,
+          .learn_more_third_paragraph_string_id =
+              IDS_SEARCH_ENGINE_CHOICE_INFO_DIALOG_BODY_THIRD_PARAGRAPH,
       };
   }
   NOTREACHED();
@@ -605,7 +637,7 @@ CountryId RegionalCapabilitiesService::GetCountryIdInternal() {
 void RegionalCapabilitiesService::EnsureRegionalScopeCacheInitialized() {
   // The cache initialisation and associated logging should not run if override
   // flags are present.
-  CHECK(!HasSearchEngineCountryListOverride(), base::NotFatalUntil::M149);
+  CHECK(!HasSearchEngineCountryListOverride());
 
   // The regional scope cache is made of these 2 values, their presence has to
   // be consistent.

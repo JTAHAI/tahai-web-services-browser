@@ -21,7 +21,6 @@ import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModel.ReadableObjectPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 
-import java.util.Objects;
 import java.util.function.Supplier;
 
 @NullMarked
@@ -39,9 +38,8 @@ class TabListContainerProperties {
     public static final PropertyModel.WritableObjectPropertyKey<Integer> INITIAL_SCROLL_INDEX =
             new PropertyModel.WritableObjectPropertyKey<>(true);
 
-    /** Same as {@link TabListMode}. */
-    public static final PropertyModel.WritableIntPropertyKey MODE =
-            new PropertyModel.WritableIntPropertyKey();
+    public static final PropertyModel.WritableIntDefPropertyKey<TabListMode> MODE =
+            new PropertyModel.WritableIntDefPropertyKey<>(TabListMode.GRID);
 
     /**
      * A property which is set to focus on the passed tab index for accessibility. Integer, but not
@@ -115,25 +113,6 @@ class TabListContainerProperties {
                 boolean shouldShowSearchBox, boolean forced) {
             this.shouldShowSearchBox = shouldShowSearchBox;
             this.forced = forced;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            // 1. Reference check.
-            if (this == o) return true;
-
-            // 2. Type and field comparison.
-            if (o instanceof SupplementaryContainerAnimationMetadata that) {
-                return this.shouldShowSearchBox == that.shouldShowSearchBox
-                        && this.forced == that.forced;
-            }
-
-            return false;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(shouldShowSearchBox, forced);
         }
     }
 

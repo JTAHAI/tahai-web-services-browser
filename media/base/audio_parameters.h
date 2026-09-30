@@ -201,11 +201,13 @@ class MEDIA_EXPORT AudioParameters {
     // stream.
     FUCHSIA_RENDER_USAGE_SHIFT = 12,
     FUCHSIA_RENDER_USAGE_MASK = 0xF << FUCHSIA_RENDER_USAGE_SHIFT,
+    FUCHSIA_RENDER_USAGE_UNKNOWN = 0 << FUCHSIA_RENDER_USAGE_SHIFT,
     FUCHSIA_RENDER_USAGE_BACKGROUND = 1 << FUCHSIA_RENDER_USAGE_SHIFT,
     FUCHSIA_RENDER_USAGE_MEDIA = 2 << FUCHSIA_RENDER_USAGE_SHIFT,
     FUCHSIA_RENDER_USAGE_INTERRUPTION = 3 << FUCHSIA_RENDER_USAGE_SHIFT,
     FUCHSIA_RENDER_USAGE_SYSTEM_AGENT = 4 << FUCHSIA_RENDER_USAGE_SHIFT,
     FUCHSIA_RENDER_USAGE_COMMUNICATION = 5 << FUCHSIA_RENDER_USAGE_SHIFT,
+    FUCHSIA_RENDER_USAGE_ACCESSIBILITY = 6 << FUCHSIA_RENDER_USAGE_SHIFT,
 
     IGNORE_UI_GAINS = 1 << 16,
 
@@ -344,7 +346,7 @@ class MEDIA_EXPORT AudioParameters {
   }
   int frames_per_buffer() const { return frames_per_buffer_; }
 
-  std::optional<HardwareCapabilities> hardware_capabilities() const {
+  const std::optional<HardwareCapabilities>& hardware_capabilities() const {
     return hardware_capabilities_;
   }
 

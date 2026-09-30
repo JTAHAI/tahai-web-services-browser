@@ -23,6 +23,8 @@ BASE_EXPORT BASE_DECLARE_FEATURE(kFastFilePathIsParent);
 BASE_EXPORT BASE_DECLARE_FEATURE_PARAM(bool,
                                        kUseRustJsonParserInCurrentSequence);
 
+BASE_EXPORT BASE_DECLARE_FEATURE(kHeapProfilerIncludeResidency);
+
 BASE_EXPORT BASE_DECLARE_FEATURE(kLowEndMemoryExperiment);
 
 BASE_EXPORT BASE_DECLARE_FEATURE_PARAM(int, kLowMemoryDeviceThresholdMB);
@@ -56,7 +58,6 @@ BASE_EXPORT BASE_DECLARE_FEATURE(kPartialLowEndModeOnMidRangeDevices);
 BASE_EXPORT BASE_DECLARE_FEATURE(kBackgroundNotPerceptibleBinding);
 BASE_EXPORT BASE_DECLARE_FEATURE(
     kPostPowerMonitorBroadcastReceiverInitToBackground);
-BASE_EXPORT BASE_DECLARE_FEATURE(kPostGetMyMemoryStateToBackground);
 BASE_EXPORT BASE_DECLARE_FEATURE(kRebindingChildServiceConnectionController);
 BASE_EXPORT BASE_DECLARE_FEATURE(kRebindServiceBatchApi);
 BASE_EXPORT BASE_DECLARE_FEATURE(kUseSharedRebindServiceConnection);
@@ -74,6 +75,8 @@ BASE_EXPORT BASE_DECLARE_FEATURE(kLibraryPrefetcherOnlyOrderedText);
 #endif  // BUILDFLAG(IS_ANDROID)
 
 BASE_EXPORT BASE_DECLARE_FEATURE(kUseTerminationStatusMemoryExhaustion);
+
+BASE_EXPORT BASE_DECLARE_FEATURE(kUtfConversionAsciiFastPath);
 
 #if BUILDFLAG(IS_WIN)
 BASE_EXPORT BASE_DECLARE_FEATURE(kUserBlockingAboveNormalPriority);

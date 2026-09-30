@@ -36,6 +36,7 @@
 #include "chromeos/ash/components/kcer/key_permissions.pb.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
+#include "crypto/chaps_support.h"
 #include "crypto/nss_key_util.h"
 #include "crypto/scoped_nss_types.h"
 #include "net/base/net_errors.h"
@@ -857,10 +858,17 @@ void GetKeyInfoOnWorkerThread(crypto::ScopedPK11Slot slot,
   const crypto::ScopedSECKEYPrivateKey& sec_private_key = private_key.value();
 
   constexpr CK_ATTRIBUTE_TYPE kKeyInSoftware = CKA_VENDOR_DEFINED + 5;
-  // All keys in chaps without the attribute are hardware backed.
-  key_info.is_hardware_backed = !PK11_HasAttributeSet(
-      slot.get(), sec_private_key->pkcs11ID, kKeyInSoftware,
-      /*haslock=*/PR_FALSE);
+  if (!crypto::IsSlotProvidedByChaps(slot.get())) {
+    // kKeyInSoftware is a Chaps vendor extension; NSS softoken never sets it,
+    // so "absent => hardware backed" below would invert on a slot Chaps
+    // doesn't provide (e.g. a no-TPM device's software fallback slot).
+    key_info.is_hardware_backed = false;
+  } else {
+    // All keys in chaps without the attribute are hardware backed.
+    key_info.is_hardware_backed = !PK11_HasAttributeSet(
+        slot.get(), sec_private_key->pkcs11ID, kKeyInSoftware,
+        /*haslock=*/PR_FALSE);
+  }
 
   switch (SECKEY_GetPrivateKeyType(sec_private_key.get())) {
     case rsaKey:
@@ -1767,6 +1775,8 @@ CertProvisioningIdAttributeId
 KcerTokenImplNss::GetCertProvisioningIdAttributeId() const {
   if (translate_attributes_for_testing_) [[unlikely]] {
     CHECK_IS_TEST();
+    // IMPORTANT: The attribute id is shared with BrowserEnterpriseClientCertTag
+    // in tests, which means setting one will set the other one to same value.
     return CertProvisioningIdAttributeId(CKA_START_DATE);
   }
   return CertProvisioningIdAttributeId(
@@ -1777,7 +1787,9 @@ BrowserEnterpriseClientCertTagAttributeId
 KcerTokenImplNss::GetBrowserEnterpriseClientCertTagAttributeId() const {
   if (translate_attributes_for_testing_) [[unlikely]] {
     CHECK_IS_TEST();
-    return BrowserEnterpriseClientCertTagAttributeId(CKA_SUBJECT);
+    // IMPORTANT: The attribute id is shared with CertProvisioningIdAttributeId
+    // in tests, which means setting one will set the other one to same value.
+    return BrowserEnterpriseClientCertTagAttributeId(CKA_START_DATE);
   }
   return BrowserEnterpriseClientCertTagAttributeId(
       pkcs11_custom_attributes::kCkaBrowserEnterpriseClientCertKey);

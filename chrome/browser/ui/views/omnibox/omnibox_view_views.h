@@ -129,12 +129,15 @@ class OmniboxViewViews
   // Called when the window's active tab changes.
   void OnTabChanged(content::WebContents* web_contents);
 
-  // Called to clear the saved state for |web_contents|.
+  // Called to clear the saved state for `web_contents`.
   void ResetTabState(content::WebContents* web_contents);
 
-  // Updates the saved state for |web_contents| with the provided |text|.
+  // Updates the saved state for `web_contents` with the provided `text` and
+  // optional cursor position. The cursor position is clamped to the text
+  // bounds.
   static void SetUserTextForTab(content::WebContents* web_contents,
-                                const std::u16string& text);
+                                const std::u16string& text,
+                                size_t cursor_position = std::u16string::npos);
 
   // Installs the placeholder text with the name of the current default search
   // provider. For example, if Google is the default search provider, this shows
@@ -168,6 +171,8 @@ class OmniboxViewViews
   void EnterKeywordModeForDefaultSearchProvider() override;
   bool IsSelectAll() const override;
   gfx::Range GetSelectionBounds() const override;
+  void SetSelectionBounds(gfx::Range selection) override;
+  bool HasSelection() const override;
   void SelectAll(bool reversed) override;
   void RevertAll() override;
   void SetFocus(bool is_user_initiated) override;
@@ -237,12 +242,6 @@ class OmniboxViewViews
                            NavigationToAndFromContextualTasks);
   FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsPlaceholderTest,
                            TitleChangeUpdatesPlaceholder);
-  FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsSendTabToSelfSubmenuEnabledTest,
-                           SendTabToSelfContextMenuSubmenuEnabled);
-  FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsSendTabToSelfSubmenuDisabledTest,
-                           SendTabToSelfContextMenuSubmenuDisabled);
-  FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsSendTabToSelfSubmenuEnabledTest,
-                           SendTabToSelfContextMenuNotOffered);
 
   enum class UnelisionGesture {
     kHomeKeyPressed,
@@ -404,10 +403,6 @@ class OmniboxViewViews
   // Returns the AI Mode page action icon view, if present, or nullptr if the
   // view doesn't exist.
   IconLabelBubbleView* GetAiModePageActionIconView() const;
-
-  // Helper for updating the text in the Omnibox based on current focus state
-  // and whether the user is currently on a "contextual tasks" page.
-  void UpdateTextForContextualTasksPage();
 
   // When true, the location bar view is read only and also is has a slightly
   // different presentation (smaller font size). This is used for popups.

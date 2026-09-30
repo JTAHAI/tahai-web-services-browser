@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 
+#include <string>
 #include <type_traits>
 
 #include "base/files/file_path.h"
@@ -36,14 +37,13 @@ constexpr auto kPublicKeyInfo = std::to_array<uint8_t>({
 TEST(IDUtilTest, GenerateID) {
   {
     // Test span-based API.
-    std::string extension_id = GenerateId(kPublicKeyInfo);
-    EXPECT_EQ("melddjfinppjdikinhbgehiennejpfhp", extension_id);
+    EXPECT_EQ("melddjfinppjdikinhbgehiennejpfhp", GenerateId(kPublicKeyInfo));
   }
 
   {
     // Test string_view-based API.
-    std::string extension_id = GenerateId(base::as_string_view(kPublicKeyInfo));
-    EXPECT_EQ("melddjfinppjdikinhbgehiennejpfhp", extension_id);
+    EXPECT_EQ("melddjfinppjdikinhbgehiennejpfhp",
+              GenerateId(base::as_string_view(kPublicKeyInfo)));
 
     EXPECT_EQ("jpignaibiiemhngfjkcpokkamffknabf", GenerateId("test"));
     EXPECT_EQ("ncocknphbhhlhkikpnnlmbcnbgdempcd", GenerateId("_"));
@@ -68,13 +68,21 @@ TEST(IDUtilTest, GenerateIDFromHex) {
 }
 
 TEST(IDUtilTest, GenerateIDForPath) {
-  base::FilePath path(FILE_PATH_LITERAL("/path/to/file.ext"));
-  std::string generated = GenerateIdForPath(path);
+  const std::string generated =
+      GenerateIdForPath(base::FilePath(FILE_PATH_LITERAL("/path/to/file.ext")));
 #if BUILDFLAG(IS_WIN)
   EXPECT_EQ("jjlkojfgbeklddcpckipekckcmgcbfjn", generated);
 #else
   EXPECT_EQ("lnkgfdknojmdambfcanadbhmfjfljobb", generated);
 #endif
+}
+
+TEST(IDUtilTest, HashedIdInHex) {
+  const std::string kExtensionId = "abcdefghijklmnopabcdefghijklmnop";
+  EXPECT_EQ("ACD66AF886BA7B085B41B4382BC39D1855BC18FE",
+            HashedIdInHex(kExtensionId));
+  EXPECT_EQ("DF43A9994ADFFA1484525827764397252D90EF618363E5D381A158AC38B11A8A",
+            HashedIdInHexSha256(kExtensionId));
 }
 
 }  // namespace crx_file::id_util

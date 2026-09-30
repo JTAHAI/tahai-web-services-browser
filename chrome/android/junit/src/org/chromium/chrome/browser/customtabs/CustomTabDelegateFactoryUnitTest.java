@@ -4,14 +4,21 @@
 
 package org.chromium.chrome.browser.customtabs;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -62,6 +69,7 @@ public class CustomTabDelegateFactoryUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Mock private Activity mActivity;
+    @Mock private PackageManager mPackageManager;
     @Mock private BrowserServicesIntentDataProvider mIntentDataProvider;
     @Mock private Tab mTab;
     @Mock private TabModelSelector mTabModelSelector;
@@ -73,6 +81,7 @@ public class CustomTabDelegateFactoryUnitTest {
     @Before
     public void setUp() {
         // Common mocks for activateContents() execution.
+        when(mActivity.getPackageManager()).thenReturn(mPackageManager);
         when(mTab.isIncognito()).thenReturn(false);
         when(mTab.isIncognitoBranded()).thenReturn(false);
         when(mTab.isInitialized()).thenReturn(true);
@@ -103,8 +112,8 @@ public class CustomTabDelegateFactoryUnitTest {
                         () -> mock(BottomSheetController.class),
                         mock(AuthTabVerifier.class),
                         mock(BrowserControlsManager.class),
-                        SupplierUtils.of(false),
-                        SupplierUtils.of(false),
+                        SupplierUtils.of(/* value= */ false),
+                        SupplierUtils.of(/* value= */ false),
                         mock(ExclusiveAccessManager.class),
                         mock(DesktopWindowStateManager.class));
     }
@@ -154,7 +163,9 @@ public class CustomTabDelegateFactoryUnitTest {
         Assert.assertEquals(
                 WebApkConstants.WEBAPK_OPAQUE_MAIN_ACTIVITY_CLASS_NAME, component.getClassName());
 
-        Assert.assertTrue(intent.getBooleanExtra(WebApkConstants.EXTRA_BRING_TO_FRONT, false));
+        Assert.assertTrue(
+                intent.getBooleanExtra(
+                        WebApkConstants.EXTRA_BRING_TO_FRONT, /* defaultValue= */ false));
         Assert.assertEquals(
                 Intent.FLAG_ACTIVITY_NEW_TASK, intent.getFlags() & Intent.FLAG_ACTIVITY_NEW_TASK);
         Assert.assertEquals(
@@ -165,9 +176,17 @@ public class CustomTabDelegateFactoryUnitTest {
     @Test
     @EnableFeatures(ChromeFeatureList.USE_APP_TASK_FOR_CUSTOM_TAB_ACTIVATION)
     public void testBringActivityToForeground_Twa() {
+        final String twaPackageName = "org.chromium.twa.testpackage";
+        when(mPackageManager.checkPermission(Manifest.permission.REORDER_TASKS, twaPackageName))
+                .thenReturn(PackageManager.PERMISSION_GRANTED);
+        ResolveInfo resolveInfo = new ResolveInfo();
+        resolveInfo.activityInfo = new ActivityInfo();
+        resolveInfo.activityInfo.taskAffinity = twaPackageName;
+        when(mPackageManager.resolveActivity(any(), anyInt())).thenReturn(resolveInfo);
+
         // Mock TWA configurations using doReturn to bypass final method calls.
         doReturn(ActivityType.TRUSTED_WEB_ACTIVITY).when(mIntentDataProvider).getActivityType();
-        doReturn("org.chromium.twa.testpackage").when(mIntentDataProvider).getClientPackageName();
+        doReturn(twaPackageName).when(mIntentDataProvider).getClientPackageName();
         createFactory(ActivityType.TRUSTED_WEB_ACTIVITY);
 
         TabWebContentsDelegateAndroid delegate = mFactory.createWebContentsDelegate(mTab);
@@ -185,7 +204,7 @@ public class CustomTabDelegateFactoryUnitTest {
 
         ComponentName component = intent.getComponent();
         Assert.assertNotNull(component);
-        Assert.assertEquals("org.chromium.twa.testpackage", component.getPackageName());
+        Assert.assertEquals(twaPackageName, component.getPackageName());
         Assert.assertEquals(
                 "com.google.androidbrowserhelper.trusted.FocusActivity", component.getClassName());
 
@@ -194,5 +213,111 @@ public class CustomTabDelegateFactoryUnitTest {
         Assert.assertEquals(
                 Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS,
                 intent.getFlags() & Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.USE_APP_TASK_FOR_CUSTOM_TAB_ACTIVATION)
+    public void testBringActivityToForeground_Twa_MissingReorderPermission_FallsBack() {
+        final String twaPackageName = "org.chromium.twa.testpackage";
+        when(mPackageManager.checkPermission(Manifest.permission.REORDER_TASKS, twaPackageName))
+                .thenReturn(PackageManager.PERMISSION_DENIED);
+
+        doReturn(ActivityType.TRUSTED_WEB_ACTIVITY).when(mIntentDataProvider).getActivityType();
+        doReturn(twaPackageName).when(mIntentDataProvider).getClientPackageName();
+        createFactory(ActivityType.TRUSTED_WEB_ACTIVITY);
+
+        TabWebContentsDelegateAndroid delegate = mFactory.createWebContentsDelegate(mTab);
+        Assert.assertNotNull(delegate);
+
+        delegate.activateContents();
+
+        verify(mActivity, never()).startActivity(any());
+        verify(mActivity).getTaskId();
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.USE_APP_TASK_FOR_CUSTOM_TAB_ACTIVATION)
+    public void testBringActivityToForeground_Twa_FocusActivityNotFound_FallsBack() {
+        final String twaPackageName = "org.chromium.twa.testpackage";
+        when(mPackageManager.checkPermission(Manifest.permission.REORDER_TASKS, twaPackageName))
+                .thenReturn(PackageManager.PERMISSION_GRANTED);
+        when(mPackageManager.resolveActivity(any(), anyInt())).thenReturn(null);
+
+        doReturn(ActivityType.TRUSTED_WEB_ACTIVITY).when(mIntentDataProvider).getActivityType();
+        doReturn(twaPackageName).when(mIntentDataProvider).getClientPackageName();
+        createFactory(ActivityType.TRUSTED_WEB_ACTIVITY);
+
+        TabWebContentsDelegateAndroid delegate = mFactory.createWebContentsDelegate(mTab);
+        Assert.assertNotNull(delegate);
+
+        delegate.activateContents();
+
+        verify(mActivity, never()).startActivity(any());
+        verify(mActivity).getTaskId();
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.USE_APP_TASK_FOR_CUSTOM_TAB_ACTIVATION)
+    public void testBringActivityToForeground_Twa_EmptyTaskAffinity_FallsBack() {
+        final String twaPackageName = "org.chromium.twa.testpackage";
+        when(mPackageManager.checkPermission(Manifest.permission.REORDER_TASKS, twaPackageName))
+                .thenReturn(PackageManager.PERMISSION_GRANTED);
+        ResolveInfo resolveInfo = new ResolveInfo();
+        resolveInfo.activityInfo = new ActivityInfo();
+        resolveInfo.activityInfo.taskAffinity = "";
+        when(mPackageManager.resolveActivity(any(), anyInt())).thenReturn(resolveInfo);
+
+        doReturn(ActivityType.TRUSTED_WEB_ACTIVITY).when(mIntentDataProvider).getActivityType();
+        doReturn(twaPackageName).when(mIntentDataProvider).getClientPackageName();
+        createFactory(ActivityType.TRUSTED_WEB_ACTIVITY);
+
+        TabWebContentsDelegateAndroid delegate = mFactory.createWebContentsDelegate(mTab);
+        Assert.assertNotNull(delegate);
+
+        delegate.activateContents();
+
+        verify(mActivity, never()).startActivity(any());
+        verify(mActivity).getTaskId();
+    }
+
+    @Test
+    public void testEnvironmentQueriesAcrossActivityTypes() {
+        // 1. CUSTOM_TAB
+        createFactory(ActivityType.CUSTOM_TAB);
+        Assert.assertTrue("CUSTOM_TAB should return isCustomTab() = true", mFactory.isCustomTab());
+        Assert.assertFalse("CUSTOM_TAB should return isTabInPwa() = false", mFactory.isTabInPwa());
+        Assert.assertFalse(
+                "CUSTOM_TAB should return isTabInBrowser() = false", mFactory.isTabInBrowser());
+
+        // 2. AUTH_TAB
+        createFactory(ActivityType.AUTH_TAB);
+        Assert.assertTrue("AUTH_TAB should return isCustomTab() = true", mFactory.isCustomTab());
+        Assert.assertFalse("AUTH_TAB should return isTabInPwa() = false", mFactory.isTabInPwa());
+        Assert.assertFalse(
+                "AUTH_TAB should return isTabInBrowser() = false", mFactory.isTabInBrowser());
+
+        // 3. TRUSTED_WEB_ACTIVITY (TWA)
+        createFactory(ActivityType.TRUSTED_WEB_ACTIVITY);
+        Assert.assertTrue(
+                "TRUSTED_WEB_ACTIVITY should return isCustomTab() = true", mFactory.isCustomTab());
+        Assert.assertTrue(
+                "TRUSTED_WEB_ACTIVITY should return isTabInPwa() = true", mFactory.isTabInPwa());
+        Assert.assertFalse(
+                "TRUSTED_WEB_ACTIVITY should return isTabInBrowser() = false",
+                mFactory.isTabInBrowser());
+
+        // 4. WEB_APK
+        createFactory(ActivityType.WEB_APK);
+        Assert.assertFalse("WEB_APK should return isCustomTab() = false", mFactory.isCustomTab());
+        Assert.assertTrue("WEB_APK should return isTabInPwa() = true", mFactory.isTabInPwa());
+        Assert.assertFalse(
+                "WEB_APK should return isTabInBrowser() = false", mFactory.isTabInBrowser());
+
+        // 5. TABBED
+        createFactory(ActivityType.TABBED);
+        Assert.assertFalse("TABBED should return isCustomTab() = false", mFactory.isCustomTab());
+        Assert.assertFalse("TABBED should return isTabInPwa() = false", mFactory.isTabInPwa());
+        Assert.assertFalse(
+                "TABBED should return isTabInBrowser() = false", mFactory.isTabInBrowser());
     }
 }

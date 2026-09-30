@@ -12,15 +12,26 @@
 #include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
+#include "base/thread_annotations.h"
 #include "components/browser_actuator/internal/transport/message_stream_client.h"
 #include "components/browser_actuator/public/common.h"
 #include "components/browser_actuator/public/transport_channel.h"
+#include "components/browser_actuator/public/transport_session_registry.h"
 
 namespace browser_actuator {
 
+class ControlTransportHandlerFactory;
 class StreamConnectionDelegate;
-class TransportHandlerFactoryRegistry;
+class TransportHandlerFactoryRegistryImpl;
 class TransportSessionRegistryImpl;
+class UpstreamMessageClient;
+
+// Connection status of the background transport channel downstream stream.
+enum class DownstreamConnectionState {
+  kDisconnected = 0,
+  kConnecting = 1,
+  kConnected = 2,
+};
 
 // Concrete TransportChannel: the single physical connection shared by every
 // session. It is a router, not a session owner — it owns the downstream
@@ -31,14 +42,15 @@ class TransportSessionRegistryImpl;
 //    session so the *session* can advance its own last-seen position.
 //  * (re)connect: it builds the WatchSessionsRequest body from the sessions
 //    it can see in the registry.
-//  * upstream: it assembles the ActuatorUpstreamMessage for a session's
-//    outgoing send, reading that session's sequence counters.
+//  * upstream: it delegates the actual sending of the ActuatorUpstreamMessage
+//    to the injected UpstreamMessageClient.
 //
 // The channel never holds a last-seen number of its own; that lives on each
 // TransportSessionImpl. Sessions borrow the channel back (WeakPtr) only to
 // hand it their outgoing sends.
 class TransportChannelImpl : public TransportChannel,
-                             public MessageStreamClient::Observer {
+                             public MessageStreamClient::Observer,
+                             public TransportSessionRegistry::Observer {
  public:
   // Builds the fully-decorated downstream stream client (auth wrapper,
   // framer, traffic annotation) around the channel's resume-body delegate.
@@ -49,7 +61,9 @@ class TransportChannelImpl : public TransportChannel,
       base::OnceCallback<std::unique_ptr<MessageStreamClient>(
           std::unique_ptr<StreamConnectionDelegate> resume_delegate)>;
 
-  explicit TransportChannelImpl(StreamClientFactory stream_client_factory);
+  explicit TransportChannelImpl(
+      std::unique_ptr<UpstreamMessageClient> upstream_message_client,
+      StreamClientFactory stream_client_factory = StreamClientFactory());
   ~TransportChannelImpl() override;
 
   TransportChannelImpl(const TransportChannelImpl&) = delete;
@@ -58,20 +72,35 @@ class TransportChannelImpl : public TransportChannel,
   // TransportChannel:
   TransportHandlerFactoryRegistry* GetHandlerFactoryRegistry() override;
   TransportSessionRegistry* GetSessionRegistry() override;
-  void SendUpstreamMessage(std::string_view session_id,
-                           PayloadType payload_type,
-                           std::string_view payload) override;
+  void SendUpstreamMessage(
+      std::string_view session_id,
+      PayloadType payload_type,
+      const google::protobuf::MessageLite& message) override;
 
   // MessageStreamClient::Observer:
   void OnStreamMessage(const std::string& message) override;
+  void OnStreamStatus(const std::string& status) override;
   void OnStreamConnectionStateChange(bool connected) override;
 
-  base::WeakPtr<TransportChannelImpl> GetWeakPtr();
+  // TransportSessionRegistry::Observer:
+  void OnSessionRegistered(TransportSession* session) override;
+
+  DownstreamConnectionState downstream_connection_state() const {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+    return downstream_connection_state_;
+  }
+
+  base::WeakPtr<TransportChannel> GetWeakPtr() {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
 
   // Test-only: the resume body a (re)connect would send right now.
   std::string BuildWatchSessionsRequestBodyForTesting();
 
  private:
+  // Closes the underlying stream connection.
+  void Disconnect();
+
   // Serializes a WatchSessionsRequest describing every session with a known
   // resume position, plus a fresh idempotency id. Handed to the resume
   // delegate as its body provider, so it runs once per connection attempt.
@@ -79,17 +108,27 @@ class TransportChannelImpl : public TransportChannel,
 
   SEQUENCE_CHECKER(sequence_checker_);
 
-  // Declared before `stream_client_` so the client (and the resume delegate
-  // it owns, whose body provider points back here) is destroyed first — the
-  // provider is never invoked after the registry it reads is gone.
+  // The registry holding factories that create the dynamic feature handlers.
+  std::unique_ptr<TransportHandlerFactoryRegistryImpl> handler_registry_;
+
+  // Factory for control command handlers (CloseChannel, CloseSession).
+  std::unique_ptr<ControlTransportHandlerFactory> control_handler_factory_;
+
+  // The registry to access and control the life cycles for sessions.
+  // Declared before `stream_client_` and after `handler_registry_` to
+  // coordinate the correct lifetimes and pointer management.
   std::unique_ptr<TransportSessionRegistryImpl> session_registry_;
 
-  // TODO(crbug.com/532660606): own the handler factory registry and route
-  // ActuatorDownstreamMessage.typed_payloads to handlers by payload_type.
+  // The underlying network message stream client.
+  std::unique_ptr<MessageStreamClient> stream_client_
+      GUARDED_BY_CONTEXT(sequence_checker_);
 
-  // The downstream stream. The channel observes it; the client owns the
-  // delegate chain the channel built.
-  std::unique_ptr<MessageStreamClient> stream_client_;
+  DownstreamConnectionState downstream_connection_state_ GUARDED_BY_CONTEXT(
+      sequence_checker_) = DownstreamConnectionState::kDisconnected;
+
+  // The underlying network client for upstream messages.
+  std::unique_ptr<UpstreamMessageClient> upstream_message_client_
+      GUARDED_BY_CONTEXT(sequence_checker_);
 
   base::WeakPtrFactory<TransportChannelImpl> weak_ptr_factory_{this};
 };

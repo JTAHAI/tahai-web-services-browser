@@ -15,9 +15,11 @@
 #include "base/base64url.h"
 #include "base/check_op.h"
 #include "base/containers/fixed_flat_map.h"
+#include "base/containers/flat_set.h"
 #include "base/feature_list.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
+#include "base/no_destructor.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
@@ -55,9 +57,13 @@
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/autocomplete_result.h"
 #include "components/omnibox/browser/contextual_search_provider.h"
+#include "components/omnibox/browser/fusebox_action.mojom.h"
+#include "components/omnibox/browser/fusebox_action_mojo_utils.h"
 #include "components/omnibox/browser/omnibox_client.h"
 #include "components/omnibox/browser/omnibox_field_trial.h"
+#include "components/omnibox/browser/omnibox_metrics_constants.h"
 #include "components/omnibox/browser/omnibox_popup_selection.h"
+#include "components/omnibox/browser/omnibox_pref_names.h"
 #include "components/omnibox/browser/omnibox_prefs.h"
 #include "components/omnibox/browser/searchbox_utils.h"
 #include "components/omnibox/browser/vector_icons.h"
@@ -74,14 +80,13 @@
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "content/public/common/url_constants.h"
-#include "third_party/omnibox_proto/answer_data.pb.h"
-#include "third_party/omnibox_proto/answer_type.pb.h"
 #include "third_party/omnibox_proto/chrome_searchbox_stats.pb.h"
 #include "third_party/omnibox_proto/groups.pb.h"
 #include "third_party/omnibox_proto/input_type.pb.h"
 #include "third_party/omnibox_proto/rich_answer_template.pb.h"
 #include "third_party/omnibox_proto/rule_set.pb.h"
 #include "third_party/omnibox_proto/searchbox_config.pb.h"
+#include "third_party/omnibox_proto/suggest_template_info.pb.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/ui_base_features.h"
@@ -202,6 +207,8 @@ constexpr char kPedalsIconResourceName[] =
     "//resources/cr_components/searchbox/icons/chrome_product_cr23.svg";
 constexpr char kSearchIconResourceName[] =
     "//resources/cr_components/searchbox/icons/search_cr23.svg";
+constexpr char kSearchOldIconResourceName[] =
+    "//resources/cr_components/searchbox/icons/search_cr23_old.svg";
 constexpr char kSparkIconResourceName[] =
     "//resources/cr_components/searchbox/icons/spark.svg";
 constexpr char kStarActiveIconResourceName[] =
@@ -346,6 +353,11 @@ base::DictValue SearchboxHandler::GetWebUIDataSourceDict(
   dict.Set("forceHideEllipsis", false);
   dict.Set("enableThumbnailSizingTweaks", false);
   dict.Set("enableCsbMotionTweaks", false);
+  dict.Set("keywordSpaceTriggeringEnabled",
+           profile && profile->GetPrefs()
+               ? profile->GetPrefs()->GetBoolean(
+                     omnibox::kKeywordSpaceTriggeringEnabled)
+               : true);
 
   // Returns if ALL composeboxe surfaces' voice coherence is not gated. Includes
   // new metrics, new animation, new submit/stop buttons, no live transcription.
@@ -493,7 +505,9 @@ base::DictValue SearchboxHandler::GetWebUIDataSourceDict(
                                  u"https://myactivity.google.com/"
                                  u"activitycontrols?settings=search&utm_source="
                                  u"aim&utm_campaign=aim_str"));
-  dict.Set("searchboxDefaultIcon", kSearchIconResourceName);
+  dict.Set("searchboxDefaultIcon", features::IsWebUIRoundedIconsEnabled()
+                                       ? kSearchIconResourceName
+                                       : kSearchOldIconResourceName);
 
   dict.Set("searchboxVoiceSearch", options.enable_voice_search);
   dict.Set("searchboxLensSearch", options.enable_lens_search);
@@ -505,6 +519,18 @@ base::DictValue SearchboxHandler::GetWebUIDataSourceDict(
   dict.Set(
       "realboxVirtualFocusNavigation",
       base::FeatureList::IsEnabled(features::kRealboxVirtualFocusNavigation));
+  dict.Set("omniboxPopupVirtualFocusNavigation",
+           base::FeatureList::IsEnabled(
+               features::kOmniboxPopupVirtualFocusNavigation));
+  dict.Set("lensOverlayVirtualFocusNavigation",
+           base::FeatureList::IsEnabled(
+               features::kLensOverlayVirtualFocusNavigation));
+  dict.Set("omniboxEverywhereVirtualFocusNavigation",
+           base::FeatureList::IsEnabled(
+               features::kOmniboxEverywhereVirtualFocusNavigation));
+  dict.Set("webuiBrowserVirtualFocusNavigation",
+           base::FeatureList::IsEnabled(
+               features::kWebuiBrowserVirtualFocusNavigation));
 
   int max_files = omnibox::kDefaultMaxTotalInputs;
   int max_images = max_files;
@@ -553,6 +579,9 @@ base::DictValue SearchboxHandler::GetWebUIDataSourceDict(
 #endif
   dict.Set("contextualMenuUsePecApi",
            base::FeatureList::IsEnabled(omnibox::kAimUsePecApi));
+  dict.Set(
+      "useSearchboxConfigIconIds",
+      base::FeatureList::IsEnabled(omnibox::kAimUseSearchboxConfigIconIds));
   dict.Set("ShowContextMenuHeaders",
            ntp_composebox::kShowContextMenuHeaders.Get());
   dict.Set("composeboxSmartTabSharingVisible",
@@ -576,163 +605,157 @@ std::string SearchboxHandler::AutocompleteIconToResourceName(
   // - `omnibox::kB`
   // - `vector_icons::kA`
 
+  std::string resource_name;
   if (icon.name == (features::IsRoundedIconsEnabled()
                         ? omnibox::kAutorenewIcon.name
                         : omnibox::kAnswerCurrencyChromeRefreshOldIcon.name)) {
-    return kAnswerCurrencyIconResourceName;
+    resource_name = kAnswerCurrencyIconResourceName;
   } else if (icon.name == omnibox::kAnswerDefaultIcon.name) {
-    return kAnswerDefaultIconResourceName;
+    resource_name = kAnswerDefaultIconResourceName;
   } else if (icon.name ==
              (features::IsRoundedIconsEnabled()
                   ? omnibox::kBookIcon.name
                   : omnibox::kAnswerDictionaryChromeRefreshOldIcon.name)) {
-    return kAnswerDictionaryIconResourceName;
+    resource_name = kAnswerDictionaryIconResourceName;
   } else if (icon.name ==
              (features::IsRoundedIconsEnabled()
                   ? omnibox::kSwapVertIcon.name
                   : omnibox::kAnswerFinanceChromeRefreshOldIcon.name)) {
-    return kAnswerFinanceIconResourceName;
+    resource_name = kAnswerFinanceIconResourceName;
   } else if (icon.name ==
              (features::IsRoundedIconsEnabled()
                   ? omnibox::kWbSunnyIcon.name
                   : omnibox::kAnswerSunriseChromeRefreshOldIcon.name)) {
-    return kAnswerSunriseIconResourceName;
+    resource_name = kAnswerSunriseIconResourceName;
   } else if (icon.name ==
              (features::IsRoundedIconsEnabled()
                   ? omnibox::kTranslateIcon.name
                   : omnibox::kAnswerTranslationChromeRefreshOldIcon.name)) {
-    return kAnswerTranslationIconResourceName;
+    resource_name = kAnswerTranslationIconResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kStarIcon.name
                                : omnibox::kBookmarkChromeRefreshOldIcon.name)) {
-    return kBookmarkIconResourceName;
+    resource_name = kBookmarkIconResourceName;
   } else if (icon.name ==
              (features::IsRoundedIconsEnabled()
                   ? omnibox::kEqualIcon.name
                   : omnibox::kCalculatorChromeRefreshOldIcon.name)) {
-    return kCalculatorIconResourceName;
+    resource_name = kCalculatorIconResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kOfflineDinoIcon.name
                                : omnibox::kDinoCr2023OldIcon.name)) {
-    return kDinoIconResourceName;
+    resource_name = kDinoIconResourceName;
   } else if (icon.name == omnibox::kDriveDocsCustomIcon.name) {
-    return kDriveDocsIconResourceName;
+    resource_name = kDriveDocsIconResourceName;
   } else if (icon.name == omnibox::kDriveFolderCustomIcon.name) {
-    return kDriveFolderIconResourceName;
+    resource_name = kDriveFolderIconResourceName;
   } else if (icon.name == omnibox::kDriveFormsCustomIcon.name) {
-    return kDriveFormIconResourceName;
+    resource_name = kDriveFormIconResourceName;
   } else if (icon.name == omnibox::kDriveImageCustomIcon.name) {
-    return kDriveImageIconResourceName;
+    resource_name = kDriveImageIconResourceName;
   } else if (icon.name == omnibox::kDriveLogoCustomIcon.name) {
-    return kDriveLogoIconResourceName;
+    resource_name = kDriveLogoIconResourceName;
   } else if (icon.name == omnibox::kDrivePdfCustomIcon.name) {
-    return kDrivePdfIconResourceName;
+    resource_name = kDrivePdfIconResourceName;
   } else if (icon.name == omnibox::kDriveSheetsCustomIcon.name) {
-    return kDriveSheetsIconResourceName;
+    resource_name = kDriveSheetsIconResourceName;
   } else if (icon.name == omnibox::kDriveSlidesCustomIcon.name) {
-    return kDriveSlidesIconResourceName;
+    resource_name = kDriveSlidesIconResourceName;
   } else if (icon.name == omnibox::kDriveVideoCustomIcon.name) {
-    return kDriveVideoIconResourceName;
+    resource_name = kDriveVideoIconResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kDomainIcon.name
                                : omnibox::kEnterpriseOldIcon.name)) {
-    return kEnterpriseIconResourceName;
+    resource_name = kEnterpriseIconResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kExtensionFilledIcon.name
                                : omnibox::kExtensionAppOldIcon.name)) {
-    return kExtensionAppIconResourceName;
+    resource_name = kExtensionAppIconResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kIncognitoIcon.name
                                : omnibox::kIncognitoCr2023OldIcon.name)) {
-    return kIncognitoIconResourceName;
+    resource_name = kIncognitoIconResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kConversionPathIcon.name
                                : omnibox::kJourneysChromeRefreshOldIcon.name)) {
-    return kJourneysIconResourceName;
+    resource_name = kJourneysIconResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kConversionPathIcon.name
                                : omnibox::kJourneysOldIcon.name)) {
-    return kJourneysIconResourceName;
+    resource_name = kJourneysIconResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kNotesSparkIcon.name
                                : omnibox::kNotesSparkOldIcon.name)) {
-    return kNotesSparkIconResourceName;
+    resource_name = kNotesSparkIconResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kPublicIcon.name
                                : omnibox::kPageChromeRefreshOldIcon.name)) {
-    return kPageIconResourceName;
+    resource_name = kPageIconResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kChromeProductIcon.name
                                : omnibox::kProductChromeRefreshOldIcon.name)) {
-    return kPedalsIconResourceName;
+    resource_name = kPedalsIconResourceName;
   } else if (icon.name == omnibox::kReplyRotated180CustomIcon.name) {
-    return searchbox_internal::kReplyRotated180IconResourceName;
+    resource_name = searchbox_internal::kReplyRotated180IconResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kSearchSparkIcon.name
                                : omnibox::kSearchSparkOldIcon.name)) {
-    return searchbox_internal::kSearchSparkIconResourceName;
+    resource_name = searchbox_internal::kSearchSparkIconResourceName;
   } else if (icon.name == omnibox::kSparkIcon.name) {
-    return kSparkIconResourceName;
+    resource_name = kSparkIconResourceName;
   } else if (icon.name ==
              (features::IsRoundedIconsEnabled()
                   ? omnibox::kStarFilledIcon.name
                   : omnibox::kStarActiveChromeRefreshOldIcon.name)) {
-    return kStarActiveIconResourceName;
+    resource_name = kStarActiveIconResourceName;
   } else if (icon.name ==
              (features::IsRoundedIconsEnabled()
                   ? omnibox::kSubdirectoryArrowRightIcon.name
                   : omnibox::kSubdirectoryArrowRightOldIcon.name)) {
-    return kSubdirectoryArrowRightResourceName;
+    resource_name = kSubdirectoryArrowRightResourceName;
   } else if (icon.name == (features::IsRoundedIconsEnabled()
                                ? omnibox::kTabIcon.name
                                : omnibox::kSwitchCr2023OldIcon.name)) {
-    return kTabIconResourceName;
+    resource_name = kTabIconResourceName;
   } else if (icon.name ==
              (features::IsRoundedIconsEnabled()
                   ? omnibox::kTrendingUpIcon.name
                   : omnibox::kTrendingUpChromeRefreshOldIcon.name)) {
-    return kTrendingUpIconResourceName;
-  } else if (icon.name ==
-             (features::IsRoundedIconsEnabled()
-                  ? vector_icons::kDevicesIcon.name
-                  : vector_icons::kDevicesOldIcon.name)) {
-    return kTabIconResourceName;
+    resource_name = kTrendingUpIconResourceName;
+  } else if (icon.name == (features::IsRoundedIconsEnabled()
+                               ? vector_icons::kDevicesIcon.name
+                               : vector_icons::kDevicesOldIcon.name)) {
+    resource_name = kTabIconResourceName;
   } else if (icon.name ==
              (features::IsRoundedIconsEnabled()
                   ? vector_icons::kHistoryIcon.name
                   : vector_icons::kHistoryChromeRefreshOldIcon.name)) {
-    return kHistoryIconResourceName;
+    resource_name = kHistoryIconResourceName;
   } else if (icon.name ==
              (features::IsRoundedIconsEnabled()
                   ? vector_icons::kSearchIcon.name
                   : vector_icons::kSearchChromeRefreshOldIcon.name)) {
-    return kSearchIconResourceName;
+    resource_name = kSearchIconResourceName;
   }
-
-  // Don't add new icons here. Add them alphabetically by `if` predicate. E.g.
-  // - `omnibox::kA`
-  // - `omnibox::kB`
-  // - `vector_icons::kA`
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   if (icon.name == vector_icons::kGoogleAgentspaceMonochromeLogoIcon.name) {
-    return kGoogleAgentspaceMonochromeLogoIcon;
+    resource_name = kGoogleAgentspaceMonochromeLogoIcon;
   } else if (icon.name ==
              vector_icons::kGoogleAgentspaceMonochromeLogo25Icon.name) {
-    return kGoogleAgentspaceMonochromeLogo25Icon;
+    resource_name = kGoogleAgentspaceMonochromeLogo25Icon;
   } else if (icon.name == vector_icons::kGoogleCalendarIcon.name) {
-    return kGoogleCalendarIconResourceName;
+    resource_name = kGoogleCalendarIconResourceName;
   } else if (icon.name == vector_icons::kGoogleGLogoMonochromeIcon.name) {
-    return kGoogleGIconResourceName;
+    resource_name = kGoogleGIconResourceName;
   } else if (icon.name == vector_icons::kGoogleKeepNoteIcon.name) {
-    return kGoogleKeepNoteIconResourceName;
-  } else if (icon.name == vector_icons::kGoogleLensLogoIcon.name) {
+    resource_name = kGoogleKeepNoteIconResourceName;
+  } else if (icon.name == vector_icons::kGoogleLensLogoIcon.name ||
+             icon.name == vector_icons::kGoogleLensMonochromeLogoIcon.name) {
     // TODO(crbug.com/446957004): Temporarily use the monochrome logo.
-    return kGoogleLensMonochromeLogoIcon;
-  } else if (icon.name == vector_icons::kGoogleLensMonochromeLogoIcon.name) {
-    return kGoogleLensMonochromeLogoIcon;
+    resource_name = kGoogleLensMonochromeLogoIcon;
   } else if (icon.name == vector_icons::kGoogleSitesIcon.name) {
-    return kGoogleSitesIconResourceName;
+    resource_name = kGoogleSitesIconResourceName;
   }
 #endif
 
@@ -740,41 +763,58 @@ std::string SearchboxHandler::AutocompleteIconToResourceName(
   if (icon.name == (features::IsRoundedIconsEnabled()
                         ? omnibox::kIosShareIcon.name
                         : omnibox::kShareMacChromeRefreshOldIcon.name)) {
-    return kMacShareIconResourceName;
+    resource_name = kMacShareIconResourceName;
   }
 #elif BUILDFLAG(IS_WIN)
   if (icon.name == (features::IsRoundedIconsEnabled()
                         ? omnibox::kShareWindowsIcon.name
                         : omnibox::kShareWinChromeRefreshOldIcon.name)) {
-    return kWinShareIconResourceName;
+    resource_name = kWinShareIconResourceName;
   }
 #elif BUILDFLAG(IS_LINUX)
   if (icon.name == (features::IsRoundedIconsEnabled()
                         ? omnibox::kSendIcon.name
                         : omnibox::kShareLinuxChromeRefreshOldIcon.name)) {
-    return kLinuxShareIconResourceName;
+    resource_name = kLinuxShareIconResourceName;
   }
 #else
   if (icon.name == (features::IsRoundedIconsEnabled()
                         ? omnibox::kShareIcon.name
                         : omnibox::kShareChromeRefreshOldIcon.name)) {
-    return kShareIconResourceName;
+    resource_name = kShareIconResourceName;
   }
 #endif
 
-  // Don't add new icons here. Add them alphabetically by `if` predicate. E.g.
-  // - `omnibox::kA`
-  // - `omnibox::kB`
-  // - `vector_icons::kA`
+  if (resource_name.empty()) {
+    DUMP_WILL_BE_NOTREACHED()
+        << "Every autocomplete icon must have an equivalent SVG "
+           "resource for the NTP Realbox. icon.name: '"
+        << icon.name << "'";
+    return "";
+  }
 
-  // TODO(446953331): It's error-prone to keep the above if's up to date. When
-  //   omnibox input and popup views are replaced with webUI, matches and
-  //   actions can store an icon enum instead of `VectorIcon`.
-  DUMP_WILL_BE_NOTREACHED()
-      << "Every autocomplete icon must have an equivalent SVG "
-         "resource for the NTP Realbox. icon.name: '"
-      << icon.name << "'";
-  return "";
+  if (!features::IsWebUIRoundedIconsEnabled()) {
+    static const base::NoDestructor<base::flat_set<std::string_view>>
+        kNoOldVersionIcons({
+            kDriveLogoIconResourceName,
+            kEnterpriseIconResourceName,
+            searchbox_internal::kReplyRotated180IconResourceName,
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+            kGoogleAgentspaceMonochromeLogoIcon,
+            kGoogleAgentspaceMonochromeLogo25Icon,
+            kGoogleCalendarIconResourceName,
+            kGoogleGIconResourceName,
+            kGoogleLensMonochromeLogoIcon,
+            kGoogleSitesIconResourceName,
+#endif
+        });
+
+    if (!kNoOldVersionIcons->contains(resource_name)) {
+      base::ReplaceSubstringsAfterOffset(&resource_name, 0, ".svg", "_old.svg");
+    }
+  }
+
+  return resource_name;
 }
 
 searchbox::mojom::AutocompleteResultPtr
@@ -825,16 +865,52 @@ SearchboxHandler::CreateAutocompleteMatches(
     bookmarks::BookmarkModel* bookmark_model,
     const omnibox::GroupConfigMap& suggestion_groups_map,
     const TemplateURLService* turl_service) const {
+  // Tracks whether the first contextual match has been flagged to force show
+  // its description, ensuring only the first one gets flagged.
+  bool flagged_contextual = false;
   std::vector<searchbox::mojom::AutocompleteMatchPtr> matches;
   for (const auto& match : result) {
     auto mojom_match =
         CreateAutocompleteMatch(match, matches.size(), bookmark_model,
                                 suggestion_groups_map, turl_service);
     if (mojom_match) {
+      if (!flagged_contextual && ShouldShowFirstContextualDescription() &&
+          match.suggestion_group_id ==
+              omnibox::GroupId::GROUP_CONTEXTUAL_SEARCH) {
+        mojom_match.value()->show_contextual_description = true;
+        flagged_contextual = true;
+      }
       matches.push_back(std::move(mojom_match.value()));
     }
   }
   return matches;
+}
+
+// TODO(b/546186345): Consider extending this behavior to other searchboxes if
+// they also need to show the contextual description.
+bool SearchboxHandler::ShouldShowFirstContextualDescription() const {
+  return false;
+}
+
+bool SearchboxHandler::SupportsKeywordMode() const {
+  return false;
+}
+
+void SearchboxHandler::OverrideIconPaths(
+    const AutocompleteMatch& match,
+    searchbox::mojom::AutocompleteMatch* mojom_match) const {
+  // For enterprise search aggregator people suggestions, use branded icon if
+  // branded build.
+  if (match.enterprise_search_aggregator_type ==
+      AutocompleteMatch::EnterpriseSearchAggregatorType::PEOPLE) {
+    mojom_match->is_enterprise_search_aggregator_people_type = true;
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+    mojom_match->icon_path =
+        base::FeatureList::IsEnabled(omnibox::kUseAgentspace25Logo)
+            ? kGoogleAgentspace25IconResourceName
+            : kGoogleAgentspaceIconResourceName;
+#endif
+  }
 }
 
 std::optional<searchbox::mojom::AutocompleteMatchPtr>
@@ -894,18 +970,7 @@ SearchboxHandler::CreateAutocompleteMatch(
           : turl_service->GetTemplateURLForKeyword(match.associated_keyword);
   mojom_match->icon_path = AutocompleteIconToResourceName(
       match.GetVectorIcon(is_bookmarked, associated_keyword_turl));
-  // For enterprise search aggregator people suggestions, use branded icon if
-  // branded build.
-  if (match.enterprise_search_aggregator_type ==
-      AutocompleteMatch::EnterpriseSearchAggregatorType::PEOPLE) {
-    mojom_match->is_enterprise_search_aggregator_people_type = true;
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-    mojom_match->icon_path =
-        base::FeatureList::IsEnabled(omnibox::kUseAgentspace25Logo)
-            ? kGoogleAgentspace25IconResourceName
-            : kGoogleAgentspaceIconResourceName;
-#endif
-  }
+  OverrideIconPaths(match, mojom_match.get());
   mojom_match->icon_url = match.icon_url;
   // For featured enterprise search suggestions, use template url to generate
   // the proper icon url.
@@ -927,42 +992,31 @@ SearchboxHandler::CreateAutocompleteMatch(
   mojom_match->is_search_type = AutocompleteMatch::IsSearchType(match.type);
   mojom_match->swap_contents_and_description =
       match.swap_contents_and_description;
+  mojom_match->show_contextual_description = false;
   mojom_match->type = AutocompleteMatchType::ToString(match.type);
   mojom_match->supports_deletion = match.SupportsDeletion();
-  if (match.answer_template.has_value()) {
-    const omnibox::AnswerData& answer_data = match.answer_template->answers(0);
-    const omnibox::FormattedString& headline = answer_data.headline();
-    std::u16string headline_substr;
-    if (headline.fragments_size() > 0) {
-      const std::string& headline_text = headline.text();
-      // Grab the substring of headline starting after the first fragment text
-      // ends. Not making use of the first fragment because it contains the
-      // same data as `match.contents` but with HTML tags.
-      headline_substr = base::UTF8ToUTF16(headline_text.substr(
-          headline.fragments(0).text().size(),
-          headline_text.size() - headline.fragments(0).text().size()));
-    }
-
-    const auto& subhead_text = base::UTF8ToUTF16(answer_data.subhead().text());
-    // Reusing SuggestionAnswer because `headline` and `subhead` are
-    // equivalent to `first_line` and `second_line`.
-    mojom_match->answer = searchbox::mojom::SuggestionAnswer::New(
-        headline_substr.empty()
-            ? match.contents
-            : base::JoinString({match.contents, headline_substr}, u" "),
-        subhead_text);
-    mojom_match->image_url = answer_data.image().url();
-    mojom_match->is_weather_answer_suggestion =
-        match.answer_type == omnibox::ANSWER_TYPE_WEATHER;
-  }
-  mojom_match->is_rich_suggestion =
+  mojom_match->is_two_row_suggestion =
       !mojom_match->image_url.empty() ||
       match.type == AutocompleteMatchType::CALCULATOR ||
-      match.answer_type != omnibox::ANSWER_TYPE_UNSPECIFIED ||
       match.enterprise_search_aggregator_type ==
           AutocompleteMatch::EnterpriseSearchAggregatorType::PEOPLE;
+  if (match.suggest_template) {
+    if (match.suggest_template->secondary_text_placement() ==
+        omnibox::SuggestTemplateInfo::BELOW_PRIMARY_TEXT) {
+      mojom_match->is_two_row_suggestion = true;
+    } else if (match.suggest_template->secondary_text_placement() ==
+               omnibox::SuggestTemplateInfo::IN_FRONT_OF_PRIMARY_TEXT) {
+      mojom_match->is_two_row_suggestion = false;
+    }
+  }
   if (!match.from_keyword) {
     for (const auto& action : match.actions) {
+// TODO(b/544764632): Implement Pedals for Android.
+#if BUILDFLAG(IS_ANDROID)
+      if (action->ActionId() == OmniboxActionId::PEDAL) {
+        continue;
+      }
+#endif
       std::string icon_path;
       if (action->GetIconImage().IsEmpty()) {
         icon_path = AutocompleteIconToResourceName(action->GetVectorIcon());
@@ -997,6 +1051,52 @@ SearchboxHandler::CreateAutocompleteMatch(
       match.suggestion_group_id == omnibox::GROUP_MIA_RECOMMENDATIONS;
 
   mojom_match->is_contextual_suggestion = match.IsContextualSearchSuggestion();
+
+  if (match.suggest_template && match.suggest_template->has_fusebox_action()) {
+    mojom_match->fusebox_action = fusebox_action::SyncFuseboxActionProtoToMojo(
+        match.suggest_template->fusebox_action());
+  }
+
+  if (match.suggest_template && match.suggest_template->has_style()) {
+    mojom_match->suggest_style = static_cast<searchbox::mojom::SuggestStyle>(
+        match.suggest_template->style());
+  }
+
+  if (SupportsKeywordMode()) {
+    KeywordState keyword_state;
+    std::u16string keyword;
+    std::u16string keyword_placeholder;
+    match.GetKeywordUiState(turl_service,
+                            client() && client()->IsHistoryEmbeddingsEnabled(),
+                            &keyword_state, &keyword, &keyword_placeholder);
+
+    searchbox::mojom::KeywordType keyword_type;
+    bool has_keyword = false;
+    if (keyword_state == KeywordState::kKeyword) {
+      keyword_type = searchbox::mojom::KeywordType::kInKeyword;
+      has_keyword = true;
+    } else if (match.HasInstantKeyword(turl_service)) {
+      keyword_type = searchbox::mojom::KeywordType::kInstant;
+      has_keyword = true;
+    } else if (keyword_state == KeywordState::kHint ||
+               !match.associated_keyword.empty()) {
+      keyword_type = searchbox::mojom::KeywordType::kChip;
+      has_keyword = true;
+    }
+
+    // Populate `keyword_model`.
+    if (has_keyword) {
+      auto keyword_model = searchbox::mojom::MatchKeywordModel::New();
+      keyword_model->type = keyword_type;
+      keyword_model->keyword = base::UTF16ToUTF8(keyword);
+      keyword_model->placeholder = base::UTF16ToUTF8(keyword_placeholder);
+      const auto names = searchbox::GetKeywordLabelNames(keyword, turl_service);
+      keyword_model->chip_hint = base::UTF16ToUTF8(names.full_name);
+      keyword_model->chip_a11y =
+          l10n_util::GetStringFUTF8(IDS_ACC_KEYWORD_MODE, names.short_name);
+      mojom_match->keyword_model = std::move(keyword_model);
+    }
+  }
 
   return mojom_match;
 }
@@ -1058,6 +1158,16 @@ SearchboxHandler::SearchboxHandler(
     PermissionPromptObserver::CreateForWebContents(web_contents_);
     PermissionPromptObserver::FromWebContents(web_contents_)->AddObserver(this);
   }
+
+  if (profile_ && profile_->GetPrefs()) {
+    pref_change_registrar_.Init(profile_->GetPrefs());
+    pref_change_registrar_.Add(
+        omnibox::kKeywordSpaceTriggeringEnabled,
+        base::BindRepeating(
+            &SearchboxHandler::OnKeywordSpaceTriggeringPrefChanged,
+            base::Unretained(this)));
+    OnKeywordSpaceTriggeringPrefChanged();
+  }
 }
 
 SearchboxHandler::~SearchboxHandler() {
@@ -1067,6 +1177,13 @@ SearchboxHandler::~SearchboxHandler() {
             PermissionPromptObserver::FromWebContents(web_contents_)) {
       observer->RemoveObserver(this);
     }
+  }
+}
+
+void SearchboxHandler::OnKeywordSpaceTriggeringPrefChanged() {
+  if (page_) {
+    page_->SetKeywordSpaceTriggeringEnabled(profile_->GetPrefs()->GetBoolean(
+        omnibox::kKeywordSpaceTriggeringEnabled));
   }
 }
 
@@ -1081,6 +1198,10 @@ void SearchboxHandler::OnContextualInputStatusChanged(
     contextual_search::ContextUploadStatus status,
     std::optional<contextual_search::ContextUploadErrorType> error_type) {
   page_->OnContextualInputStatusChanged(token, status, error_type);
+}
+
+void SearchboxHandler::OnScreenshotMenuClosed() {
+  page_->OnScreenshotMenuClosed();
 }
 
 void SearchboxHandler::OnFocusChanged(bool focused) {
@@ -1099,6 +1220,7 @@ void SearchboxHandler::OnFocusChanged(bool focused) {
 
 void SearchboxHandler::QueryAutocomplete(
     int32_t query_id,
+    std::optional<int32_t> tab_id,
     const std::u16string& input,
     bool prevent_inline_autocomplete,
     uint32_t cursor_position,
@@ -1106,17 +1228,33 @@ void SearchboxHandler::QueryAutocomplete(
     bool is_on_focus,
     const std::string& keyword,
     searchbox::mojom::InputMethod input_method) {
+  DCHECK(!tab_id.has_value())
+      << "QueryAutocomplete with tab_id is only supported for the full WebUI "
+         "Omnibox.";
+
   current_query_id_ = query_id;
 
   std::u16string input_with_keyword = input;
   bool is_keyword_selected = false;
+  const TemplateURL* template_url = nullptr;
   if (!keyword.empty()) {
     TemplateURLService* service =
         client() ? client()->GetTemplateURLService() : nullptr;
     if (service) {
-      std::u16string keyword16 = base::UTF8ToUTF16(keyword);
-      const TemplateURL* template_url =
-          service->GetTemplateURLForKeyword(keyword16);
+      std::u16string keyword16;
+      // TODO(b:504669216): There may actually exist a `TemplateURL` with
+      //   shortcut '?'. Using '?' as a sentinel value to represent the default
+      //   search engine will incorrectly trigger the default search engine even
+      //   when the user wanted the '?' search engine.
+      if (keyword == "?") {
+        template_url = service->GetDefaultSearchProvider();
+        if (template_url) {
+          keyword16 = template_url->keyword();
+        }
+      } else {
+        keyword16 = base::UTF8ToUTF16(keyword);
+        template_url = service->GetTemplateURLForKeyword(keyword16);
+      }
       if (template_url) {
         is_keyword_selected = true;
         input_with_keyword = keyword16 + u" " + input;
@@ -1137,9 +1275,27 @@ void SearchboxHandler::QueryAutocomplete(
 
   if (!base::FeatureList::IsEnabled(
           omnibox::kWebUISearchboxWithoutModelController)) {
-    // This will SetInputInProgress and consequently mark the input timer so
-    // that Omnibox.TypingDuration will be logged correctly.
-    edit_model()->SetUserText(input);
+    if (!is_on_focus) {
+      // For non-ZPS input, this will SetInputInProgress and consequently mark
+      // the input timer so that Omnibox.TypingDuration will be logged
+      // correctly.
+      edit_model()->SetUserText(input);
+    }
+    // There are various `CHECK()`s and assumptions in the `OmniboxEditModel`
+    // that verify the keyword state is set. Even though we're relying on
+    // searchbox webUI code to manage its keyword state, we need to propagate to
+    // `OmniboxEditModel`'s too to avoid crashes and bugs. This won't be
+    // necessary as we kill the `OmniboxEditModel`.
+    if (is_keyword_selected && template_url) {
+      edit_model()->SetKeywordInfo(
+          KeywordState::kKeyword, template_url->keyword(),
+          /*keyword_placeholder=*/u"",
+          keyword == "?" ? metrics::OmniboxEventProto::QUESTION_MARK
+                         : metrics::OmniboxEventProto::SPACE_AT_END);
+    } else {
+      edit_model()->SetKeywordInfo(KeywordState::kNone, u"", u"",
+                                   metrics::OmniboxEventProto::INVALID);
+    }
   } else if (!is_on_focus &&
              metrics_tracker_.time_user_first_modified_omnibox().is_null()) {
     metrics_tracker_.set_time_user_first_modified_omnibox(
@@ -1153,6 +1309,7 @@ void SearchboxHandler::QueryAutocomplete(
       input_with_keyword, cursor_position, page_classification,
       ChromeAutocompleteSchemeClassifier(profile_));
   autocomplete_input.set_current_url(client()->GetURL());
+  autocomplete_input.set_current_title(client()->GetTitle());
   autocomplete_input.set_focus_type(
       is_on_focus ? metrics::OmniboxFocusType::INTERACTION_FOCUS
                   : metrics::OmniboxFocusType::INTERACTION_DEFAULT);
@@ -1246,6 +1403,29 @@ void SearchboxHandler::OpenAutocompleteMatch(
     uint8_t mouse_button,
     searchbox::mojom::ActionModifiersPtr modifiers,
     bool via_keyboard) {
+  const base::TimeTicks timestamp = base::TimeTicks::Now();
+  const WindowOpenDisposition disposition = ComputeWindowOpenDisposition(
+      mouse_button, modifiers->alt_key, modifiers->ctrl_key,
+      modifiers->meta_key, modifiers->shift_key, via_keyboard);
+
+  if (line == static_cast<uint8_t>(OmniboxPopupSelection::kNoMatch)) {
+    const OmniboxPopupSelection selection(OmniboxPopupSelection::kNoMatch);
+    // TODO(crbug.com/545723506): Use match from AutocompleteResult.
+    if (base::FeatureList::IsEnabled(
+            omnibox::kWebUISearchboxWithoutModelController)) {
+      AutocompleteMatch verbatim_match;
+      searchbox::ClassifyString(
+          client(), autocomplete_controller()->input().text(),
+          /*in_keyword_mode=*/false,
+          /*allow_exact_keyword_match=*/true, &verbatim_match);
+      OpenMatch(selection, verbatim_match, disposition, timestamp);
+    } else {
+      edit_model()->OpenSelection(selection, timestamp, disposition,
+                                  via_keyboard);
+    }
+    return;
+  }
+
   const AutocompleteMatch* match = GetMatchWithUrl(line, url);
   if (!match) {
     // This can happen due to asynchronous updates changing the result while
@@ -1253,10 +1433,6 @@ void SearchboxHandler::OpenAutocompleteMatch(
     return;
   }
   const OmniboxPopupSelection selection(line);
-  const base::TimeTicks timestamp = base::TimeTicks::Now();
-  const WindowOpenDisposition disposition = ComputeWindowOpenDisposition(
-      mouse_button, modifiers->alt_key, modifiers->ctrl_key,
-      modifiers->meta_key, modifiers->shift_key, via_keyboard);
   if (base::FeatureList::IsEnabled(
           omnibox::kWebUISearchboxWithoutModelController)) {
     OpenMatch(selection, *match, disposition, timestamp);
@@ -1306,18 +1482,24 @@ OmniboxPopupSelection ConvertSelection(
   // Special case line for mojom equivalent of kNoMatch; it is represented
   // as uint8_t so direct conversion would become a positive out of bounds
   // index.
-  return OmniboxPopupSelection(selection->line == 255
-                                   ? OmniboxPopupSelection::kNoMatch
-                                   : selection->line,
-                               state, selection->action_index);
+  return OmniboxPopupSelection(
+      selection->line == static_cast<uint8_t>(OmniboxPopupSelection::kNoMatch)
+          ? OmniboxPopupSelection::kNoMatch
+          : selection->line,
+      state, selection->action_index);
 }
 
 void SearchboxHandler::SetPopupSelection(
     searchbox::mojom::OmniboxPopupSelectionPtr selection) {
   if (!base::FeatureList::IsEnabled(
           omnibox::kWebUISearchboxWithoutModelController)) {
-    edit_model()->SetPopupSelection(ConvertSelection(std::move(selection)),
-                                    false, false, false);
+    OmniboxPopupSelection popup_selection =
+        ConvertSelection(std::move(selection));
+    if (popup_selection.line != OmniboxPopupSelection::kNoMatch &&
+        popup_selection.line >= autocomplete_controller()->result().size()) {
+      return;
+    }
+    edit_model()->SetPopupSelection(popup_selection, false, false, false);
   }
 }
 
@@ -1483,44 +1665,32 @@ void SearchboxHandler::ExecuteAction(uint8_t line,
   }
 }
 
-void SearchboxHandler::GetPlaceholderConfig(
-    GetPlaceholderConfigCallback callback) {
+void SearchboxHandler::GetCyclingPlaceholderConfig(
+    GetCyclingPlaceholderConfigCallback callback) {
   std::vector<std::u16string> placeholders;
 
-  // Try PEC API first to get the dynamic placeholder text.
   AimEligibilityService* service =
       AimEligibilityServiceFactory::GetForProfile(profile_);
 
-  const omnibox::SearchboxConfig* searchbox_config =
-      service ? service->GetSearchboxConfig() : nullptr;
+  // Non-AI-gated: always first per UX spec.
+  placeholders.emplace_back(l10n_util::GetStringUTF16(
+      IDS_NTP_SEARCH_BOX_DYNAMIC_PLACEHOLDER_ASK_GOOGLE));
 
-  if (searchbox_config) {
-    // Non-tool-dependent: always first per UX spec.
+  // Evergreen placeholders, gated on AI Mode eligibility only.
+  if (service && service->IsAimEligible()) {
     placeholders.emplace_back(l10n_util::GetStringUTF16(
-        IDS_NTP_SEARCH_BOX_DYNAMIC_PLACEHOLDER_ASK_GOOGLE));
+        IDS_NTP_SEARCH_BOX_DYNAMIC_PLACEHOLDER_RESEARCH_TOPIC));
+    placeholders.emplace_back(l10n_util::GetStringUTF16(
+        IDS_NTP_SEARCH_BOX_DYNAMIC_PLACEHOLDER_LEARN_SKILL));
+    placeholders.emplace_back(l10n_util::GetStringUTF16(
+        IDS_NTP_SEARCH_BOX_DYNAMIC_PLACEHOLDER_GET_ADVICE));
+  }
 
-    static constexpr auto kToolPlaceholderMap =
-        base::MakeFixedFlatMap<omnibox::ToolMode, int>({
-            {omnibox::TOOL_MODE_IMAGE_GEN,
-             IDS_NTP_SEARCH_BOX_DYNAMIC_PLACEHOLDER_IMAGE},
-            {omnibox::TOOL_MODE_DEEP_SEARCH,
-             IDS_NTP_SEARCH_BOX_DYNAMIC_PLACEHOLDER_RESEARCH},
-            {omnibox::TOOL_MODE_CANVAS,
-             IDS_NTP_SEARCH_BOX_DYNAMIC_PLACEHOLDER_CANVAS},
-        });
-
-    for (const auto& tool_config : searchbox_config->tool_configs()) {
-      auto it = kToolPlaceholderMap.find(tool_config.tool());
-      if (it != kToolPlaceholderMap.end()) {
-        placeholders.emplace_back(l10n_util::GetStringUTF16(it->second));
-      }
-    }
-
-    // If no tools are eligible, clear the placeholders to disable cycling and
-    // fall back to the static placeholder text.
-    if (placeholders.size() <= 1) {
-      placeholders.clear();
-    }
+  // Cycling requires at least 2 texts. If the user is not eligible, clear
+  // the placeholders to disable cycling and fall back to the static
+  // placeholder text.
+  if (placeholders.size() <= 1) {
+    placeholders.clear();
   }
 
   const auto placeholder_config = ntp_composebox::FeatureConfig::Get()
@@ -1705,7 +1875,6 @@ void SearchboxHandler::GetPageClassification(
       classification_enum));
 }
 
-
 void SearchboxHandler::OnDefaultSearchExtensionDialogDone(
     OmniboxPopupSelection selection,
     AutocompleteMatch match,
@@ -1713,7 +1882,9 @@ void SearchboxHandler::OnDefaultSearchExtensionDialogDone(
     base::TimeTicks match_selection_timestamp,
     OmniboxClient::ExtensionControlledDialogResult dialog_result) {
   if (dialog_result ==
-      OmniboxClient::ExtensionControlledDialogResult::kAccept) {
+          OmniboxClient::ExtensionControlledDialogResult::kAccept ||
+      dialog_result ==
+          OmniboxClient::ExtensionControlledDialogResult::kNoDialogShown) {
     OpenMatch(selection, match, disposition, match_selection_timestamp);
   } else if (dialog_result ==
              OmniboxClient::ExtensionControlledDialogResult::kReject) {
@@ -1721,13 +1892,10 @@ void SearchboxHandler::OnDefaultSearchExtensionDialogDone(
     AutocompleteMatch new_match;
     GURL new_alternate_nav_url;
 
-    AutocompleteClassifier* classifier = client()->GetAutocompleteClassifier();
-    if (classifier) {
-      classifier->Classify(
-          input_text, autocomplete_controller()->input().in_keyword_mode(),
-          true, client()->GetPageClassification(/*is_prefetch=*/false),
-          &new_match, &new_alternate_nav_url);
-    }
+    searchbox::ClassifyString(
+        client(), input_text,
+        autocomplete_controller()->input().in_keyword_mode(),
+        /*allow_exact_keyword_match=*/true, &new_match, &new_alternate_nav_url);
 
     OpenMatch(selection, new_match, disposition, match_selection_timestamp);
     client()->FocusWebContents();
@@ -1742,6 +1910,16 @@ void SearchboxHandler::GetSmartTabSharingActive(
   std::move(callback).Run(false);
 }
 #endif
+
+void SearchboxHandler::StartScreenshare(bool prefer_entire_screen,
+                                        StartScreenshareCallback callback) {
+  NOTREACHED();
+}
+
+void SearchboxHandler::CaptureRegionScreenshot(
+    CaptureRegionScreenshotCallback callback) {
+  NOTREACHED();
+}
 
 OmniboxController* SearchboxHandler::Delegate::GetOmniboxController() {
   return nullptr;

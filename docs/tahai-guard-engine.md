@@ -18,7 +18,8 @@ or installed-package validation.
 - Original crates.io archive SHA-256:
   `4844c456026028b3a22f3bc0b0e0b2485809591673e2d70930a4ada7c4d3a90d`.
 - [Pinned upstream source](https://github.com/brave/adblock-rust/tree/ca7f9f4a24a439da99e052b4e4041c45d87687f5).
-  This tag declares Rust 1.96; the checkout has a Chromium Rust 1.96 nightly.
+  This tag declares Rust 1.96; the approved Chromium 154 port now supplies
+  Chromium's pinned Rust 1.99 toolchain (native Guard acceptance is pending).
   This is a toolchain-aligned pin, NOT a claim that it is the newest release or
   is free of vulnerabilities. A September 5 query of the exact 60-package
   Cargo.lock dependency closure returned no published OSV advisories. The
@@ -32,8 +33,10 @@ or installed-package validation.
   features are forbidden in the import configuration.
 - The native wrapper uses Chromium's registry-controlled domain implementation,
   including private registries. No second embedded PSL is shipped by the engine.
-- `adblock` is restricted to the sandboxed service target. Existing `regex` and
-  `aho-corasick` versions are classified sandbox-only, not first-party exposed.
+- `adblock` is restricted to the sandboxed service target. `regex` remains
+  sandbox-only. Chromium 154 also consumes `aho-corasick` outside Guard, so its
+  upstream safe group is retained with unsafe Rust forbidden; Guard's parser
+  and regex engine remain in their sandbox process.
 - FlatBuffers and thiserror 1 use their stable code paths. Their optional
   nightly-probing build scripts are disabled through gnrt configuration. The
   existing thiserror 2 generation configuration is preserved separately.
@@ -45,6 +48,16 @@ became real source for a declared build dependency. The read-only audit verified
 Cargo archives. `tahai-guard-import-inventory.json` records versions, provenance,
 license hashes and vendored-tree hashes. This inventory is NOT the final linked
 binary SBOM and does not include all previously present transitive dependencies.
+
+September 30 source reconciliation found four ignored files missing from the
+checkpoint: two dependency READMEs and the original arrayvec/semver Cargo.lock
+files. Their restoration, plus tracking the two ignored generated hash-crate
+BUILD.gn files, makes the checked-in source reproducible. The 15 unchanged
+inventory entries and all 339 archive files were reverified against their pinned
+archive SHA-256 values; the inventory hashes were not regenerated to mask drift.
+`verify_source.ps1` now runs the real checkout inventory audit as well as its
+synthetic tests. Original-archive verification can be repeated with
+`audit_guard_dependencies.py --source-inventory docs/tahai-guard-import-inventory.json --cache <reviewed-crate-cache>`.
 
 ## License and source availability
 

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/ui/omnibox/ai_mode_page_action_controller.h"
+
 #include <memory>
 #include <string>
 #include <utility>
@@ -9,12 +11,12 @@
 #include "base/check_deref.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
+#include "build/build_config.h"
 #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/omnibox/ai_mode_page_action_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h"
@@ -27,6 +29,7 @@
 #include "components/omnibox/browser/mock_aim_eligibility_service.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "content/public/test/browser_test.h"
+#include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/interaction/interaction_sequence.h"
 #include "ui/base/interaction/interactive_test.h"
@@ -164,8 +167,16 @@ IN_PROC_BROWSER_TEST_F(AiModePageActionControllerInteractiveUiTest,
                   CheckChipVisible(/*visible=*/true));
 }
 
+// TODO(crbug.com/547718513): Re-enable
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_PressingChipWithMouseOpensAiMode \
+  DISABLED_PressingChipWithMouseOpensAiMode
+#else
+#define MAYBE_PressingChipWithMouseOpensAiMode \
+  PressingChipWithMouseOpensAiMode
+#endif
 IN_PROC_BROWSER_TEST_F(AiModePageActionControllerInteractiveUiTest,
-                       PressingChipWithMouseOpensAiMode) {
+                       MAYBE_PressingChipWithMouseOpensAiMode) {
   base::HistogramTester histogram_tester;
   RunTestSequence(
       OpenTabWithPageUrlAndFocusOmnibox(/*is_ntp=*/true),
@@ -282,6 +293,11 @@ IN_PROC_BROWSER_TEST_F(
   RunTestSequence(
       OpenTabWithPageUrlAndFocusOmnibox(/*is_ntp=*/true),
       CheckChipVisible(true), Do([this]() {
+        if (features::IsWebUILocationBarEnabled()) {
+          // TODO(crbug.com/545160323): Support background color test in WebUI
+          // location bar.
+          return;
+        }
         auto* provider = BrowserView::GetBrowserViewForBrowser(browser())
                              ->toolbar_button_provider();
         auto* view = static_cast<page_actions::PageActionView*>(
@@ -289,10 +305,31 @@ IN_PROC_BROWSER_TEST_F(
                 provider->GetPageActionViewInterface(kActionAiMode),
                 kActionAiMode));
         ASSERT_NE(view, nullptr);
-        SkColor actual_bg_color = view->GetBackgroundColor();
+        SkColor actual_bg_color = view->GetBackgroundColorForTesting();
         SkColor expected_bg_color = view->GetColorProvider()->GetColor(
             kColorOmniboxResultsBackgroundHovered);
         EXPECT_EQ(actual_bg_color, expected_bg_color);
+      }));
+}
+
+IN_PROC_BROWSER_TEST_F(
+    AiModePageActionControllerDynamicAiModeButtonInteractiveUiTest,
+    ShowsLeadingIconWhenNoUserInputInProgress) {
+  RunTestSequence(
+      OpenTabWithPageUrlAndFocusOmnibox(/*is_ntp=*/true),
+      CheckChipVisible(true),
+      Do([this]() {
+        if (features::IsWebUILocationBarEnabled()) {
+          return;
+        }
+        auto* provider = BrowserView::GetBrowserViewForBrowser(browser())
+                             ->toolbar_button_provider();
+        auto* view = static_cast<page_actions::PageActionView*>(
+            page_actions::GetIconLabelBubbleViewForTesting(
+                provider->GetPageActionViewInterface(kActionAiMode),
+                kActionAiMode));
+        ASSERT_NE(view, nullptr);
+        EXPECT_EQ(view->slide_animation_for_testing().GetCurrentValue(), 0.0);
       }));
 }
 

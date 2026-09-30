@@ -37,7 +37,9 @@
 #include "components/autofill/core/browser/data_model/addresses/autofill_i18n_api.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile_comparator.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_structured_address_component.h"
-#include "components/autofill/core/browser/data_model/addresses/contact_info.h"
+#include "components/autofill/core/browser/data_model/addresses/company_info.h"
+#include "components/autofill/core/browser/data_model/addresses/email_info.h"
+#include "components/autofill/core/browser/data_model/addresses/name_info.h"
 #include "components/autofill/core/browser/data_model/addresses/phone_number.h"
 #include "components/autofill/core/browser/data_model/form_group.h"
 #include "components/autofill/core/browser/data_model/usage_history_information.h"
@@ -95,19 +97,30 @@ FieldType GetStorableTypeCollapsingGroups(FieldType type) {
 // example, if the profile is going to fill ADDRESS_HOME_ZIP, it should
 // prioritize showing that over ADDRESS_HOME_STATE in the suggestion sublabel.
 int SpecificityForType(FieldType type) {
-  static constexpr auto kOrder =
+  static constexpr auto kOrderOld =
       std::to_array({ADDRESS_HOME_LINE1, ADDRESS_HOME_LINE2, EMAIL_ADDRESS,
                      PHONE_HOME_WHOLE_NUMBER, NAME_FULL, ADDRESS_HOME_ZIP,
                      ADDRESS_HOME_SORTING_CODE, COMPANY_NAME, ADDRESS_HOME_CITY,
                      ADDRESS_HOME_STATE, ADDRESS_HOME_COUNTRY});
+  // Prioritizes ADDRESS_HOME_STREET_ADDRESS over postal code in inferred
+  // labels. See crbug.com/540151895.
+  static constexpr auto kOrderNew = std::to_array(
+      {ADDRESS_HOME_LINE1, ADDRESS_HOME_LINE2, ADDRESS_HOME_STREET_ADDRESS,
+       EMAIL_ADDRESS, PHONE_HOME_WHOLE_NUMBER, NAME_FULL, ADDRESS_HOME_ZIP,
+       ADDRESS_HOME_SORTING_CODE, COMPANY_NAME, ADDRESS_HOME_CITY,
+       ADDRESS_HOME_STATE, ADDRESS_HOME_COUNTRY});
   CHECK_NE(type, EMPTY_TYPE);
-  if (auto it = std::ranges::find(kOrder, type); it != kOrder.end()) {
-    return it - kOrder.begin();
+  base::span<const FieldType> order =
+      base::FeatureList::IsEnabled(
+          features::kAutofillFixLabelGenerationForStreetAddress)
+          ? base::span<const FieldType>(kOrderNew)
+          : base::span<const FieldType>(kOrderOld);
+  if (auto it = std::ranges::find(order, type); it != order.end()) {
+    return it - order.begin();
   }
   // The priority of other types is arbitrary, but deterministic.
   return 100 + type;
 }
-
 // Fills `distinguishing_fields` with a list of fields to use when creating
 // labels that can help to distinguish between two profiles. Draws fields from
 // `suggested_fields` if it is non-NULL; otherwise returns a default list.
@@ -122,7 +135,7 @@ void GetFieldsForDistinguishingProfiles(
   std::vector<FieldType> default_fields;
   if (!suggested_fields) {
     default_fields.append_range(
-        AutofillProfile::kDefaultDistinguishingFieldsForLabels);
+        AutofillProfile::DefaultDistinguishingFieldsForLabels());
     if (excluded_fields.empty()) {
       distinguishing_fields->swap(default_fields);
       return;
@@ -705,10 +718,31 @@ void AutofillProfile::OverwriteDataFromForLegacySync(
   token_quality_ = std::move(token_quality);
 }
 
-bool AutofillProfile::MergeDataFrom(const AutofillProfile& profile,
-                                    std::string_view app_locale) {
+AutofillProfile::ProfileMergeResult AutofillProfile::MergeDataFrom(
+    const AutofillProfile& profile,
+    std::string_view app_locale) {
+  // TODO(crbug.com/453945181) Move this CHECK to a more suitable place.
+  CHECK(record_type() != RecordType::kAccountNameEmail ||
+        profile.record_type() != RecordType::kAccountNameEmail);
+
+  if (!data_util::HaveNonConflictingCountryCodes(
+          GetAddressCountryCode(), profile.GetAddressCountryCode())) {
+    return ProfileMergeResult::kMergeFailed;
+  }
+
+  // TODO(crbug.com/453945181): Change check and merge logic for `NameInfo` so
+  // it conforms to the other infos. The check logic should be embedded inside
+  // the merge method.
+  if (!NameInfo::AreNamesMergeable(profile.GetNameInfo(),
+                                   profile.GetAddressCountryCode(),
+                                   GetNameInfo(), GetAddressCountryCode()) ||
+      !NameInfo::AreAlternativeNamesMergeable(
+          profile.GetNameInfo(), profile.GetAddressCountryCode(), GetNameInfo(),
+          GetAddressCountryCode())) {
+    return ProfileMergeResult::kMergeFailed;
+  }
+
   AutofillProfileComparator comparator(app_locale);
-  DCHECK(comparator.AreMergeable(*this, profile));
 
   NameInfo name(
       /*alternative_names_supported=*/profile.GetAddressCountryCode() ==
@@ -726,17 +760,25 @@ bool AutofillProfile::MergeDataFrom(const AutofillProfile& profile,
   // accepting updates instead of preserving the original data. I.e., passing
   // the incoming profile first accepts case and diacritic changes, for example,
   // the other ways does not.
+  // TODO(crbug.com/453945181): Simplify this logic by returning merged
+  // objects instead of passing them by reference.
+  // TODO(crbug.com/453945181): Change check and merge logic for `NameInfo` so
+  // it conforms to the other infos. The check logic should be embedded inside
+  // the merge method.
   if (!NameInfo::MergeNames(
           profile.GetNameInfo(), profile.GetAddressCountryCode(), GetNameInfo(),
           GetAddressCountryCode(),
           usage_history().use_date() < profile.usage_history().use_date(),
           name) ||
-      !comparator.MergeEmailAddresses(profile, *this, email) ||
-      !comparator.MergeCompanyNames(profile, *this, company) ||
-      !comparator.MergePhoneNumbers(profile, *this, phone_number) ||
-      !comparator.MergeAddresses(profile, *this, address)) {
-    DUMP_WILL_BE_NOTREACHED();
-    return false;
+      comparator.MergeEmailAddresses(profile, *this, email) ==
+          ProfileMergeResult::kMergeFailed ||
+      comparator.MergeCompanyNames(profile, *this, company) ==
+          ProfileMergeResult::kMergeFailed ||
+      comparator.MergePhoneNumbers(profile, *this, phone_number) ==
+          ProfileMergeResult::kMergeFailed ||
+      comparator.MergeAddresses(profile, *this, address) ==
+          ProfileMergeResult::kMergeFailed) {
+    return ProfileMergeResult::kMergeFailed;
   }
 
   set_language_code(profile.language_code());
@@ -779,7 +821,8 @@ bool AutofillProfile::MergeDataFrom(const AutofillProfile& profile,
     modified = true;
   }
 
-  return modified;
+  return modified ? ProfileMergeResult::kMergeSucceededWithModification
+                  : ProfileMergeResult::kMergeSucceededWithoutModification;
 }
 
 void AutofillProfile::MergeFormGroupTokenQuality(
@@ -819,6 +862,31 @@ void AutofillProfile::OnProfileCountryUpdate(
   }
 
   name_.OnCountryChange(new_country_code);
+}
+
+// static
+base::span<const FieldType>
+AutofillProfile::DefaultDistinguishingFieldsForLabels() {
+  static constexpr auto kDefaultDistinguishingFieldsForLabelsOld =
+      std::to_array<FieldType>(
+          {NAME_FULL, ADDRESS_HOME_LINE1, ADDRESS_HOME_LINE2,
+           ADDRESS_HOME_DEPENDENT_LOCALITY, ADDRESS_HOME_CITY,
+           ADDRESS_HOME_STATE, ADDRESS_HOME_ZIP, ADDRESS_HOME_SORTING_CODE,
+           ADDRESS_HOME_COUNTRY, EMAIL_ADDRESS, PHONE_HOME_WHOLE_NUMBER,
+           COMPANY_NAME});
+  static constexpr auto kDefaultDistinguishingFieldsForLabelsNew =
+      std::to_array<FieldType>({NAME_FULL, ADDRESS_HOME_STREET_ADDRESS,
+                                ADDRESS_HOME_DEPENDENT_LOCALITY,
+                                ADDRESS_HOME_CITY, ADDRESS_HOME_STATE,
+                                ADDRESS_HOME_ZIP, ADDRESS_HOME_SORTING_CODE,
+                                ADDRESS_HOME_COUNTRY, EMAIL_ADDRESS,
+                                PHONE_HOME_WHOLE_NUMBER, COMPANY_NAME});
+  return base::FeatureList::IsEnabled(
+             features::kAutofillFixLabelGenerationForStreetAddress)
+             ? base::span<const FieldType>(
+                   kDefaultDistinguishingFieldsForLabelsNew)
+             : base::span<const FieldType>(
+                   kDefaultDistinguishingFieldsForLabelsOld);
 }
 
 // static
@@ -869,9 +937,8 @@ std::vector<std::u16string> AutofillProfile::CreateInferredLabels(
     } else {
       // We have more than one profile with the same label, so add
       // differentiating fields.
-      CreateInferredLabelsHelper(
-          profiles, it.second, fields_to_use, minimal_fields_shown, app_locale,
-          labels);
+      CreateInferredLabelsHelper(profiles, it.second, fields_to_use,
+                                 minimal_fields_shown, app_locale, labels);
     }
   }
   return labels;

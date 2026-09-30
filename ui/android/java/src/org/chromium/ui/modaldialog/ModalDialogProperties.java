@@ -11,11 +11,13 @@ import android.view.View;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.IntDef;
 
+import org.chromium.base.CallbackUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.listmenu.ListMenuDelegate;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModel.ReadableBooleanPropertyKey;
+import org.chromium.ui.modelutil.PropertyModel.ReadableIntDefPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.ReadableIntPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.ReadableObjectPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
@@ -156,7 +158,7 @@ public class ModalDialogProperties {
         private final Runnable mCallback;
 
         public ModalDialogMenuItem(Drawable icon, String text) {
-            this(icon, text, () -> {});
+            this(icon, text, CallbackUtils.emptyRunnable());
         }
 
         public ModalDialogMenuItem(Drawable icon, String text, Runnable callback) {
@@ -203,6 +205,13 @@ public class ModalDialogProperties {
     /** The dialog icon displayed at the end of the title. */
     public static final WritableObjectPropertyKey<Drawable> TITLE_END_ICON =
             new WritableObjectPropertyKey<>();
+
+    /**
+     * The {@link android.view.Gravity} of the dialog icon displayed at the end of the title.
+     * Default is {@link android.view.Gravity#CENTER_VERTICAL}.
+     */
+    public static final WritableIntPropertyKey TITLE_END_ICON_GRAVITY =
+            new WritableIntPropertyKey();
 
     /** Deprecated for MESSAGE_PARAGRAPHS. The only paragraph of the dialog. */
     public static final WritableObjectPropertyKey<CharSequence> MESSAGE_PARAGRAPH_1 =
@@ -329,13 +338,15 @@ public class ModalDialogProperties {
             new WritableBooleanPropertyKey();
 
     /** Whether the primary (positive) or negative button should be a filled button */
-    public static final ReadableIntPropertyKey BUTTON_STYLES = new ReadableIntPropertyKey();
+    public static final ReadableIntDefPropertyKey<ButtonStyles> BUTTON_STYLES =
+            new ReadableIntDefPropertyKey<>(ButtonStyles.PRIMARY_OUTLINE_NEGATIVE_OUTLINE);
 
     /** Whether the dialog should follow {@link DialogStyles}. */
-    public static final ReadableIntPropertyKey DIALOG_STYLES = new ReadableIntPropertyKey();
+    public static final ReadableIntDefPropertyKey<DialogStyles> DIALOG_STYLES =
+            new ReadableIntDefPropertyKey<>(DialogStyles.NORMAL);
 
     /**
-     * The handler for back presses done on a {@ModalDialogType.APP}. By default, a back press
+     * The handler for back presses done on a {@link ModalDialogType.APP}. By default, a back press
      * dismisses the dialog.
      */
     public static final WritableObjectPropertyKey<OnBackPressedCallback>
@@ -392,6 +403,7 @@ public class ModalDialogProperties {
                 TITLE_MAX_LINES,
                 TITLE_ICON,
                 TITLE_END_ICON,
+                TITLE_END_ICON_GRAVITY,
                 MESSAGE_PARAGRAPH_1,
                 MESSAGE_PARAGRAPHS,
                 MENU_ITEMS,

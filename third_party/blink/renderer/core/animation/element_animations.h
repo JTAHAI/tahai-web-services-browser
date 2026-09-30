@@ -102,13 +102,19 @@ class CORE_EXPORT ElementAnimations final
 
   void RecalcCompositedStatusForKeyframeChange(
       Element& element,
-      Animation::NativePaintWorkletReasons properties);
-  void RecalcCompositedStatus(Element* element);
+      const ComputedStyle& new_style,
+      Animation::NativePaintWorkletReasons properties,
+      bool force_update);
+  void RecalcCompositedStatus(Element* element,
+                              Animation::CompositorPendingReason reason);
 
   // TODO(crbug.com/1301961): Consider converting to an array or flat map of
   // fields for paint properties that can be composited.
 
   NativePaintWorkletData* EnsureBackgroundColorNpwData(Element* element);
+  NativePaintWorkletData* GetBackgroundColorNpwData() {
+    return background_color_npw_data_;
+  }
 
   CompositedPaintStatus CompositedBackgroundColorStatus() {
     return background_color_npw_data_

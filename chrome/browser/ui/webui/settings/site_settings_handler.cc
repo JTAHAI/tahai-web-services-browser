@@ -42,6 +42,7 @@
 #include "chrome/browser/file_system_access/chrome_file_system_access_permission_context.h"
 #include "chrome/browser/file_system_access/file_system_access_features.h"
 #include "chrome/browser/file_system_access/file_system_access_permission_context_factory.h"
+#include "chrome/browser/glic/selection/inline_cue_blocklist_utils.h"
 #include "chrome/browser/hid/hid_chooser_context.h"
 #include "chrome/browser/hid/hid_chooser_context_factory.h"
 #include "chrome/browser/infobars/browser_infobar_manager.h"
@@ -54,7 +55,6 @@
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_service_factory.h"
 #include "chrome/browser/serial/serial_chooser_context.h"
 #include "chrome/browser/serial/serial_chooser_context_factory.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/page_info/page_info_infobar_delegate.h"
 #include "chrome/browser/ui/safety_hub/notification_permission_review_service_factory.h"
@@ -75,7 +75,6 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/browsing_data/content/browsing_data_model.h"
-#include "components/browsing_topics/browsing_topics_service.h"
 #include "components/content_settings/core/browser/content_settings_registry.h"
 #include "components/content_settings/core/browser/content_settings_uma_util.h"
 #include "components/content_settings/core/browser/cookie_settings.h"
@@ -353,12 +352,15 @@ void InsertOriginIntoGroup(
   }
 }
 
-// Update the storage data in |origin_size_map|.
-void UpdateDataForOrigin(const url::Origin& origin,
-                         const int64_t size,
-                         std::map<url::Origin, int64_t>* origin_size_map) {
+// Update the storage data in |per_partition_origin_size_map|.
+void UpdateDataForOriginAndPartition(
+    const url::Origin& origin,
+    const int64_t size,
+    const std::optional<GroupingKey>& partition_grouping_key,
+    SiteSettingsHandler::PerPartitionOriginSizeMap*
+        per_partition_origin_size_map) {
   if (size > 0) {
-    (*origin_size_map)[origin] += size;
+    (*per_partition_origin_size_map)[{origin, partition_grouping_key}] += size;
   }
 }
 
@@ -418,11 +420,13 @@ bool IsPatternValidForType(const std::string& pattern_string,
 
 void UpdateDataFromModel(
     SiteSettingsHandler::AllSitesMap* all_sites_map,
-    std::map<url::Origin, int64_t>* origin_size_map,
+    SiteSettingsHandler::PerPartitionOriginSizeMap*
+        per_partition_origin_size_map,
     const url::Origin& origin,
     int64_t size,
     std::optional<GroupingKey> partition_grouping_key = std::nullopt) {
-  UpdateDataForOrigin(origin, size, origin_size_map);
+  UpdateDataForOriginAndPartition(origin, size, partition_grouping_key,
+                                  per_partition_origin_size_map);
   InsertOriginIntoGroup(all_sites_map, origin,
                         /*is_origin_with_cookies=*/false,
                         partition_grouping_key);
@@ -1370,12 +1374,12 @@ void SiteSettingsHandler::HandleGetRecentSitePermissions(
 
 base::ListValue SiteSettingsHandler::PopulateCookiesAndUsageData(
     Profile* profile) {
-  std::map<url::Origin, int64_t> origin_size_map;
+  PerPartitionOriginSizeMap per_partition_origin_size_map;
   std::map<std::pair<std::string, std::optional<std::string>>, int>
       host_cookie_map;
   base::ListValue list_value;
 
-  GetOriginStorage(&all_sites_map_, &origin_size_map);
+  GetOriginStorage(&all_sites_map_, &per_partition_origin_size_map);
   GetHostCookies(&all_sites_map_, &host_cookie_map);
   ConvertSiteGroupMapToList(all_sites_map_, origin_permission_set_, &list_value,
                             profile, browsing_data_model_.get());
@@ -1396,8 +1400,8 @@ base::ListValue SiteSettingsHandler::PopulateCookiesAndUsageData(
         cookie_num += etld_plus1_cookie_num_it->second;
       }
     }
-    // Iterate over the origins for the group, and set their usage and cookie
-    // numbers.
+    // Iterate over the origins and partitions for the group, and set their
+    // usage and cookie numbers.
     for (base::Value& value : origin_list) {
       base::DictValue& origin_info = value.GetDict();
       auto origin =
@@ -1405,8 +1409,10 @@ base::ListValue SiteSettingsHandler::PopulateCookiesAndUsageData(
       bool is_partitioned =
           origin_info.FindBool("isPartitioned").value_or(false);
 
-      const auto& size_info_it = origin_size_map.find(origin);
-      if (size_info_it != origin_size_map.end()) {
+      const auto& size_info_it = per_partition_origin_size_map.find(
+          {origin,
+           is_partitioned ? std::make_optional(grouping_key) : std::nullopt});
+      if (size_info_it != per_partition_origin_size_map.end()) {
         origin_info.Set("usage", static_cast<double>(size_info_it->second));
       }
 
@@ -1808,8 +1814,7 @@ void SiteSettingsHandler::HandleSetOriginPermissions(
             infobars::BrowserInfoBarManager::From(g_browser_process);
         if (browser_infobar_manager) {
           browser_infobar_manager->Show(
-              web_contents,
-              infobars::InfoBarDelegate::PAGE_INFO_INFOBAR_DELEGATE);
+              tab, infobars::InfoBarDelegate::PAGE_INFO_INFOBAR_DELEGATE);
         }
       } else {
         infobars::ContentInfoBarManager* const infobar_manager =
@@ -1866,6 +1871,15 @@ void SiteSettingsHandler::HandleResetCategoryPermissionForPattern(
       scoped_revocation_reporter(
           profile, primary_pattern, secondary_pattern, content_type,
           permissions::PermissionSourceUI::SITE_SETTINGS);
+
+  // For INLINE_CUE_MENU, if the site is in the default blocklist, resetting it
+  // explicitly sets CONTENT_SETTING_ALLOW in HostContentSettingsMap so that
+  // the user's intent to unblock the site takes precedence over the default
+  // blocklist fallback.
+  if (content_type == ContentSettingsType::INLINE_CUE_MENU &&
+      glic::UnblockDefaultSiteForInlineCue(profile, primary_pattern_string)) {
+    return;
+  }
 
   map->SetContentSettingCustomScope(primary_pattern, secondary_pattern,
                                     content_type, CONTENT_SETTING_DEFAULT);
@@ -2417,7 +2431,7 @@ void SiteSettingsHandler::StopObservingSourcesForProfile(Profile* profile) {
 
 void SiteSettingsHandler::GetOriginStorage(
     AllSitesMap* all_sites_map,
-    std::map<url::Origin, int64_t>* origin_size_map) {
+    PerPartitionOriginSizeMap* per_partition_origin_size_map) {
   for (const auto& entry : *browsing_data_model_) {
     if (entry.data_details->storage_size == 0) {
       continue;
@@ -2435,7 +2449,7 @@ void SiteSettingsHandler::GetOriginStorage(
       partition_grouping_key = GroupingKey::Create(url::Origin::Create(
           GURL(third_party_partitioning_site->Serialize())));
     }
-    UpdateDataFromModel(all_sites_map, origin_size_map, origin,
+    UpdateDataFromModel(all_sites_map, per_partition_origin_size_map, origin,
                         entry.data_details->storage_size,
                         partition_grouping_key);
   }

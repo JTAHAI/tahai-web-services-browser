@@ -8,6 +8,7 @@ load("@chromium-luci//builder_config.star", "builder_config")
 load("@chromium-luci//builders.star", "cpu", "os")
 load("@chromium-luci//consoles.star", "consoles")
 load("@chromium-luci//gn_args.star", "gn_args")
+load("@chromium-luci//gpu.star", shared_gpu = "gpu")
 load("@chromium-luci//html.star", "linkify_builder")
 load("@chromium-luci//targets.star", "targets")
 load("@chromium-luci//try.star", "try_")
@@ -27,7 +28,7 @@ try_.defaults.set(
     experiments = {
         "chromium_tests.resultdb_module": 100,
     },
-    orchestrator_cores = 2,
+    orchestrator_cores = "2|4",
     orchestrator_siso_remote_jobs = siso.remote_jobs.HIGH_JOBS_FOR_CQ,
     service_account = try_constants.DEFAULT_SERVICE_ACCOUNT,
     siso_keep_going = siso.KEEP_GOING,
@@ -256,6 +257,7 @@ try_.orchestrator_builder(
         "chromium.enable_cleandead": 100,
         # go/rts-project-proposal
         "chromium_rts.filter_file_analysis": 100,
+        "luci.buildbucket.run_in_turboci": 2,
     },
     main_list_view = "try",
     use_clang_coverage = True,
@@ -285,6 +287,8 @@ try_.builder(
             "skip_generate_fuzzer_owners",
         ],
     ),
+    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
+    os = os.MAC_15,
     contact_team_email = "chrome-fuzzing-core@google.com",
 )
 
@@ -303,6 +307,8 @@ try_.builder(
         "ci/mac-ubsan-fyi-rel",
     ],
     gn_args = "ci/mac-ubsan-fyi-rel",
+    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
+    os = os.MAC_15,
 )
 
 try_.builder(
@@ -427,6 +433,11 @@ try_.builder(
         ],
     ),
     cpu = cpu.ARM64,
+    properties = {
+        "$build/test_utils": {
+            "min_failed_suites_to_skip_retry": 10,
+        },
+    },
 )
 
 try_.builder(
@@ -520,6 +531,8 @@ try_.builder(
             "x64",
         ],
     ),
+    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
+    os = os.MAC_15,
     siso_remote_jobs = siso.remote_jobs.HIGH_JOBS_FOR_CQ,
 )
 
@@ -614,6 +627,8 @@ try_.builder(
     name = "mac_upload_clang",
     executable = "recipe:chromium_toolchain/package_clang",
     builderless = False,
+    # Mac 15 is the last mac version widely supported on x64.
+    os = os.MAC_15,
     execution_timeout = 8 * time.hour,
 )
 
@@ -629,6 +644,8 @@ try_.builder(
     name = "mac_upload_rust",
     executable = "recipe:chromium_toolchain/package_rust",
     builderless = False,
+    # Mac 15 is the last mac version widely supported on x64.
+    os = os.MAC_15,
     execution_timeout = 8 * time.hour,
 )
 
@@ -654,6 +671,8 @@ try_.builder(
         "ci/mac-treesinviz-disabled-rel",
     ],
     gn_args = "ci/mac-treesinviz-disabled-rel",
+    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
+    os = os.MAC_15,
     contact_team_email = "chrome-gpu-team@google.com",
 )
 
@@ -730,7 +749,6 @@ try_.orchestrator_builder(
     # TODO (crbug.com/1372179): Move back to orchestrator bots once they can be
     # properly rate limited
     # use_orchestrator_pool = True,
-    cores = 2,
     os = os.LINUX_DEFAULT,
     compilator = "ios-simulator-compilator",
     coverage_exclude_sources = "ios_test_files_and_test_utils",
@@ -743,6 +761,7 @@ try_.orchestrator_builder(
         "chromium.add_one_test_shard": 10,
         # go/rts-project-proposal
         "chromium_rts.filter_file_analysis": 100,
+        "luci.buildbucket.run_in_turboci": 2,
     },
     main_list_view = "try",
     use_clang_coverage = True,
@@ -912,7 +931,7 @@ ios_builder(
     execution_timeout = 10 * time.hour,
 )
 
-gpu.try_.optional_tests_builder(
+shared_gpu.try_.mac_optional_builder(
     name = "mac_optional_gpu_tests_rel",
     branch_selector = branches.selector.MAC_BRANCHES,
     description_html = ("Runs GPU tests on Mac Minis with Intel UHD 630 GPUs and Macbook Pros with AMD GPUs. " +
@@ -953,24 +972,20 @@ gpu.try_.optional_tests_builder(
         browser_config = targets.browser_config.RELEASE,
         os_type = targets.os_type.MAC,
     ),
-    pool = "luci.chromium.gpu.try",
-    builderless = True,
-    cpu = "arm64",
-    ssd = None,
-    free_space = None,
     alerts_enabled = False,
     contact_team_email = "chrome-gpu-infra@google.com",
     cq_settings = try_.cq_settings(
         location_filters = gpu.try_.optional_trybot_location_filters.MAC,
     ),
     experiments = {
-        "luci.buildbucket.run_in_turboci": 3,
+        "luci.buildbucket.run_in_turboci": 100,
     },
     main_list_view = "try",
     max_concurrent_builds = 7,
+    service_account = gpu.try_.SERVICE_ACCOUNT,
 )
 
-gpu.try_.optional_tests_builder(
+shared_gpu.try_.mac_optional_builder(
     name = "gpu-fyi-cq-mac-arm64",
     branch_selector = branches.selector.MAC_BRANCHES,
     description_html = ("Runs GPU tests on M2 Macbook Pros. Only automatically added to CLs that " +
@@ -983,19 +998,36 @@ gpu.try_.optional_tests_builder(
         retry_failed_shards = False,
     ),
     gn_args = "ci/GPU FYI Mac arm64 Builder",
-    pool = "luci.chromium.gpu.try",
-    builderless = True,
-    cpu = "arm64",
-    ssd = None,
-    free_space = None,
     alerts_enabled = False,
     contact_team_email = "chrome-gpu-infra@google.com",
     cq_settings = try_.cq_settings(
         location_filters = gpu.try_.optional_trybot_location_filters.MAC,
     ),
     experiments = {
-        "luci.buildbucket.run_in_turboci": 3,
+        "luci.buildbucket.run_in_turboci": 100,
     },
     main_list_view = "try",
     max_concurrent_builds = 7,
+    service_account = gpu.try_.SERVICE_ACCOUNT,
+)
+
+try_.builder(
+    name = "mac-separate-renderer-rel",
+    description_html = "Runs separate renderer tests on Mac, mirroring mac-separate-renderer-fyi-rel.",
+    mirrors = [
+        "ci/mac-separate-renderer-fyi-rel",
+    ],
+    gn_args = gn_args.config(
+        configs = [
+            "ci/mac-separate-renderer-fyi-rel",
+            "release_try_builder",
+            "dcheck_always_on",
+        ],
+    ),
+    # TODO(crbug.com/543006750): Revert to MAC_DEFAULT after arm migration.
+    os = os.MAC_15,
+    contact_team_email = "toyoshim@chromium.org",
+    cq_settings = try_.cq_settings(
+        includable_only = True,
+    ),
 )

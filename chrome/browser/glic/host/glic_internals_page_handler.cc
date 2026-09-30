@@ -4,6 +4,7 @@
 
 #include "chrome/browser/glic/host/glic_internals_page_handler.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <sstream>
 
@@ -18,6 +19,7 @@
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/glic/actor/glic_actor_policy_checker.h"
+#include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_controller.h"
 #include "chrome/browser/glic/experimental_triggering/glic_experimental_triggering_manager.h"
 #include "chrome/browser/glic/glic_enums.h"
 #include "chrome/browser/glic/glic_hotkey.h"
@@ -44,6 +46,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/common/chrome_features.h"
 #include "components/content_settings/core/common/content_settings_types.h"
+#include "components/glic/glic_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/skills/features.h"
 #include "components/subscription_eligibility/subscription_eligibility_service.h"
@@ -56,10 +59,6 @@
 #include "third_party/abseil-cpp/absl/functional/overload.h"
 #include "third_party/blink/public/common/features.h"
 #include "ui/base/device_form_factor.h"
-
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_controller.h"
-#endif
 
 namespace glic {
 
@@ -101,7 +100,7 @@ mojom::ProfileEnablementPtr BuildProfileEnablement(
   result->share_image_allowed = enablement.share_image_allowed;
   if (enablement.gemini_enterprise_settings) {
     result->gemini_enterprise_settings =
-        glic::mojom::GeminiEnterpriseSettings::New(
+        glic::mojom::GeminiEnterpriseSettingsInfo::New(
             enablement.gemini_enterprise_settings->project_id,
             enablement.gemini_enterprise_settings->app_id,
             enablement.gemini_enterprise_settings->location);
@@ -270,6 +269,8 @@ std::string InvocationSourceToString(glic::mojom::InvocationSource source) {
       return "kReshowInactive";
     case glic::mojom::InvocationSource::kTabContextMenu:
       return "kTabContextMenu";
+    case glic::mojom::InvocationSource::kWebContinuity:
+      return "kWebContinuity";
   }
   LOG(ERROR) << "Unexpected value for InvocationSource: "
              << static_cast<int>(source);
@@ -291,6 +292,10 @@ std::string FeatureModeToString(glic::mojom::FeatureMode mode) {
       return "kUniversalCart";
     case glic::mojom::FeatureMode::kPromotionPage:
       return "kPromotionPage";
+    case glic::mojom::FeatureMode::kPasswordChange:
+      return "kPasswordChange";
+    case glic::mojom::FeatureMode::kWebContinuity:
+      return "kWebContinuity";
   }
   LOG(ERROR) << "Unexpected value for FeatureMode: " << static_cast<int>(mode);
   return "Unknown";
@@ -747,16 +752,13 @@ void GlicInternalsPageHandler::TriggerInvokeFromInternalsAction(
   }
 
   GlicInvokeOptions options =
-      mojo_options->payload
-          ? GlicInvokeOptions(std::move(mojo_options->payload))
+      mojo_options->payload && mojo_options->payload->is_universal_cart()
+          ? GlicInvokeOptions(mojom::InvocationPayload::NewUniversalCart(
+                mojom::UniversalCartPayload::New(
+                    std::move(mojo_options->payload->get_universal_cart()
+                                  ->serialized_metadata))))
           : GlicInvokeOptions(mojo_options->invocation_source);
   options.prompts = std::move(mojo_options->prompts);
-
-  if (mojo_options->additional_context) {
-    options.additional_context = AdditionalTabContext(
-        std::move(mojo_options->additional_context),
-        content::GlobalRenderFrameHostId(), PolicyCheck::kClipboard);
-  }
 
   if (mojo_options->conversation->is_new_conversation()) {
     options.target.conversation = NewConversation();
@@ -769,13 +771,14 @@ void GlicInternalsPageHandler::TriggerInvokeFromInternalsAction(
 
   options.feature_mode = mojo_options->feature_mode;
   options.disable_zss = mojo_options->disable_zss;
-  if (mojo_options->zss_config) {
+  if (mojo_options->zss_additional_content) {
     options.zss_config =
-        ZssConfig(mojo_options->zss_config->additional_content);
+        ZssConfig(std::move(mojo_options->zss_additional_content));
   }
   options.skill_id = std::move(mojo_options->skill_id);
   options.error_message = std::move(mojo_options->error_message);
   options.timeout = mojo_options->timeout;
+  options.supersede_if_in_progress = mojo_options->supersede_if_in_progress;
   options.fre_override = mojo_options->fre_override;
   options.wait_for_panel_open = mojo_options->wait_for_panel_open;
   if (mojo_options->focus_on_show.has_value()) {
@@ -887,6 +890,28 @@ void GlicInternalsPageHandler::TriggerInvokeFromInternalsAction(
     }
   }
 
+  if (mojo_options->specific_tabs_to_share_indices.has_value()) {
+    std::vector<tabs::TabHandle> tabs_to_pin;
+    TabListInterface* tab_list = TabListInterface::From(current_browser);
+    if (tab_list) {
+      for (int32_t index :
+           mojo_options->specific_tabs_to_share_indices.value()) {
+        if (index >= 0 && index < tab_list->GetTabCount()) {
+          tabs::TabInterface* target_tab = tab_list->GetTab(index);
+          if (target_tab &&
+              std::find(tabs_to_pin.begin(), tabs_to_pin.end(),
+                        target_tab->GetHandle()) == tabs_to_pin.end()) {
+            tabs_to_pin.push_back(target_tab->GetHandle());
+          }
+        }
+      }
+    }
+    if (!tabs_to_pin.empty()) {
+      options.tab_sharing = TabSharingOptions(std::move(tabs_to_pin),
+                                              GlicPinTrigger::kContextMenu);
+    }
+  }
+
   LogGlicInvokeOptions(options, mojo_options->auto_submit,
                        mojo_options->show_panel);
 
@@ -960,7 +985,6 @@ void GlicInternalsPageHandler::SetShowErrorAllowed(bool allowed) {
 }
 
 void GlicInternalsPageHandler::ShowExperimentalOptIn() {
-#if !BUILDFLAG(IS_ANDROID)
   GlicKeyedService* service = GetGlicService();
   if (!service) {
     return;
@@ -973,7 +997,24 @@ void GlicInternalsPageHandler::ShowExperimentalOptIn() {
           : webui_contents_.get();
 
   service->opt_in_controller().ShowDialog(target_contents, base::DoNothing());
-#endif
+}
+
+void GlicInternalsPageHandler::RevokeExperimentalTriggeringConsent() {
+  if (auto* service = GetGlicService()) {
+    service->enabling().SetExperimentalTriggeringEnabled(false);
+  }
+}
+
+void GlicInternalsPageHandler::RevokeGlicConsent() {
+  if (auto* service = GetGlicService()) {
+    service->enabling().SetCompletedFre(glic::prefs::FreStatus::kNotStarted);
+  }
+}
+
+void GlicInternalsPageHandler::RevokeActuationConsent() {
+  if (auto* service = GetGlicService()) {
+    service->enabling().SetUserEnabledActuationOnWeb(false);
+  }
 }
 
 }  // namespace glic

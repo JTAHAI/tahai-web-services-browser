@@ -96,6 +96,8 @@ class RegionalCapabilitiesService : public KeyedService {
     // String id for the learn more accessibility.
     int subtitle_1_learn_more_a11y_string_id;
     std::optional<int> subtitle_2_string_id;
+    // String id for the third paragraph in the learn more dialog.
+    int learn_more_third_paragraph_string_id;
   };
 
   RegionalCapabilitiesService(
@@ -107,6 +109,13 @@ class RegionalCapabilitiesService : public KeyedService {
 
   std::vector<raw_ptr<const TemplateURLPrepopulateData::PrepopulatedEngine>>
   GetRegionalPrepopulatedEngines();
+
+  std::vector<raw_ptr<const TemplateURLPrepopulateData::PrepopulatedEngine>>
+  GetRegionalVariants();
+
+  // Returns whether the profile is associated with a region in which a search
+  // engine split migration is active.
+  bool IsSearchEngineSplitRegion();
 
   // Returns whether the profile is associated with a region in which we can
   // show a search engine choice screen.

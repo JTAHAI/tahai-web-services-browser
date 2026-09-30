@@ -23,18 +23,16 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.omnibox.LocationBarBackgroundDrawable.HairlineBehavior;
 
 /** Unit tests for {@link LocationBarBackgroundDrawable}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class LocationBarBackgroundDrawableUnitTest {
-    public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
-    private @Mock GradientDrawable mGradientDrawable;
-    private @Mock Canvas mCanvas;
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    @Mock private GradientDrawable mGradientDrawable;
+    @Mock private Canvas mCanvas;
 
     private LocationBarBackgroundDrawable mDrawable;
 
@@ -73,10 +71,28 @@ public class LocationBarBackgroundDrawableUnitTest {
         mDrawable.draw(mCanvas);
         verify(mGradientDrawable).draw(mCanvas);
         inOrder.verify(mCanvas).save();
-        inOrder.verify(mCanvas).clipPath(mDrawable.getPathForTesting());
+        inOrder.verify(mCanvas).clipPath(mDrawable.getOuterPathForTesting());
         inOrder.verify(mCanvas)
-                .drawPath(mDrawable.getPathForTesting(), mDrawable.getPaintForTesting());
+                .drawPath(mDrawable.getHairlinePathForTesting(), mDrawable.getPaintForTesting());
         inOrder.verify(mCanvas)
+                .drawPath(mDrawable.getBlurPathForTesting(), mDrawable.getBlurPaintForTesting());
+    }
+
+    @Test
+    public void testDraw_withStandbyHairline() {
+        mDrawable.setHairlineBehavior(HairlineBehavior.SOLID);
+        assertEquals(HairlineBehavior.SOLID, mDrawable.getHairlineBehaviorForTesting());
+
+        mDrawable.setStandbyColor(Color.GREEN);
+        assertEquals(Color.GREEN, mDrawable.getStandbyPaintForTesting().getColor());
+
+        mDrawable.draw(mCanvas);
+        verify(mGradientDrawable).draw(mCanvas);
+        verify(mCanvas)
+                .drawPath(
+                        mDrawable.getHairlinePathForTesting(),
+                        mDrawable.getStandbyPaintForTesting());
+        verify(mCanvas, never())
                 .drawPath(mDrawable.getBlurPathForTesting(), mDrawable.getBlurPaintForTesting());
     }
 
@@ -88,7 +104,7 @@ public class LocationBarBackgroundDrawableUnitTest {
         mDrawable.draw(mCanvas);
         verify(mGradientDrawable).draw(mCanvas);
         verify(mCanvas, never())
-                .drawPath(mDrawable.getPathForTesting(), mDrawable.getPaintForTesting());
+                .drawPath(mDrawable.getHairlinePathForTesting(), mDrawable.getPaintForTesting());
     }
 
     @Test

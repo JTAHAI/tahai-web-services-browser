@@ -80,6 +80,7 @@
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/text/platform_locale.h"
+#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_to_number.h"
 #include "ui/base/ui_base_features.h"
 
@@ -326,6 +327,14 @@ void HTMLSelectElement::SelectOptionByValue(const String& value,
 void HTMLSelectElement::SelectOptionByElement(HTMLOptionElement* option,
                                               bool send_events,
                                               WebAutofillState autofill_state) {
+  // Callers from outside of blink, such as autofill, may pass in an option
+  // which script has since removed from this select. Selecting it would
+  // corrupt this select's selection state, e.g. by marking a detached option
+  // as selected while SelectedOption() returns nullptr. See
+  // crbug.com/535975677.
+  if (option && option->OwnerSelectElement() != this) {
+    return;
+  }
   HTMLOptionElement* previous_selected_option = SelectedOption();
   SetSuggestedOption(nullptr);
   SelectOptionFlags flags = kDeselectOtherOptionsFlag | kMakeOptionDirtyFlag;
@@ -372,8 +381,11 @@ void HTMLSelectElement::SetSuggestedValue(const String& value) {
 }
 
 void HTMLSelectElement::SetSuggestedOption(HTMLOptionElement* option) {
-  if (RuntimeEnabledFeatures::CanvasDrawElementEnabled(GetExecutionContext()) &&
-      IsCanvasOrInCanvasSubtree()) {
+  // See the equivalent check in SelectOptionByElement().
+  if (option && option->OwnerSelectElement() != this) {
+    return;
+  }
+  if (IsCanvasOrInCanvasSubtree()) {
     // Hide suggested values when under canvas, to prevent leaking this
     // information to javascript.
     option = nullptr;
@@ -559,11 +571,10 @@ void HTMLSelectElement::SetOption(unsigned index,
   if (index > length() && (index >= kMaxListItems ||
                            GetListItems().size() + diff + 1 > kMaxListItems)) {
     GetDocument().AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
-        mojom::ConsoleMessageSource::kJavaScript,
-        mojom::ConsoleMessageLevel::kWarning,
-        String::Format(
-            "Unable to expand the option list and set an option at index=%u. "
-            "The maximum allowed list length is %u.",
+        ConsoleMessage::Source::kJavaScript, ConsoleMessage::Level::kWarning,
+        Format(
+            "Unable to expand the option list and set an option at index={}. "
+            "The maximum allowed list length is {}.",
             index, kMaxListItems)));
     return;
   }
@@ -599,11 +610,10 @@ void HTMLSelectElement::setLength(unsigned new_len,
       (new_len > kMaxListItems ||
        GetListItems().size() + new_len - length() > kMaxListItems)) {
     GetDocument().AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
-        mojom::ConsoleMessageSource::kJavaScript,
-        mojom::ConsoleMessageLevel::kWarning,
-        String::Format("Unable to expand the option list to length %u. "
-                       "The maximum allowed list length is %u.",
-                       new_len, kMaxListItems)));
+        ConsoleMessage::Source::kJavaScript, ConsoleMessage::Level::kWarning,
+        Format("Unable to expand the option list to length {}. "
+               "The maximum allowed list length is {}.",
+               new_len, kMaxListItems)));
     return;
   }
   int diff = length() - new_len;
@@ -889,8 +899,7 @@ int HTMLSelectElement::SelectedListIndex() const {
 
 void HTMLSelectElement::DidChangeIsInCanvasSubtree() {
   HTMLFormControlElementWithState::DidChangeIsInCanvasSubtree();
-  if (IsInCanvasSubtree() &&
-      RuntimeEnabledFeatures::CanvasDrawElementEnabled(GetExecutionContext())) {
+  if (IsInCanvasSubtree()) {
     // Hide suggested values when under canvas, to prevent leaking this
     // information to javascript.
     SetSuggestedOption(nullptr);
@@ -1369,14 +1378,9 @@ void HTMLSelectElement::DefaultEventHandler(Event& event) {
   if (!GetLayoutObject())
     return;
 
-  auto* keyboard_event = DynamicTo<KeyboardEvent>(event);
-  const bool is_repeat_keyboard_event =
-      keyboard_event && keyboard_event->repeat();
-
   if (event.type() == event_type_names::kClick ||
       event.type() == event_type_names::kChange ||
-      (event.type() == event_type_names::kKeydown &&
-       !is_repeat_keyboard_event)) {
+      event.type() == event_type_names::kKeydown) {
     SetUserHasEditedTheField();
   }
 
@@ -1385,21 +1389,18 @@ void HTMLSelectElement::DefaultEventHandler(Event& event) {
     return;
   }
 
-  if (!is_repeat_keyboard_event) {
-    if (select_type_->DefaultEventHandler(event)) {
+  if (select_type_->DefaultEventHandler(event)) {
+    event.SetDefaultHandled();
+    return;
+  }
+
+  if (auto* keyboard_event = DynamicTo<KeyboardEvent>(event)) {
+    if (TypeAhead::ShouldHandleKeyboardEvent(*keyboard_event)) {
+      TypeAheadFind(*keyboard_event);
       event.SetDefaultHandled();
       return;
     }
-
-    if (keyboard_event) {
-      if (TypeAhead::ShouldHandleKeyboardEvent(*keyboard_event)) {
-        TypeAheadFind(*keyboard_event);
-        event.SetDefaultHandled();
-        return;
-      }
-    }
   }
-
   HTMLFormControlElementWithState::DefaultEventHandler(event);
 }
 
@@ -1619,8 +1620,8 @@ String HTMLSelectElement::ItemText(const Element& element) const {
   else if (auto* option = DynamicTo<HTMLOptionElement>(element))
     item_string = option->TextIndentedToRespectGroupLabel();
 
-  if (GetLayoutObject() && GetLayoutObject()->Style()) {
-    return GetLayoutObject()->StyleRef().ApplyTextTransform(item_string);
+  if (const auto* layout_object = GetLayoutObject()) {
+    return layout_object->StyleRef().ApplyTextTransform(item_string);
   }
   return item_string;
 }

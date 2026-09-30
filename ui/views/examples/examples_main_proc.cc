@@ -41,6 +41,7 @@
 #include "ui/display/screen.h"
 #include "ui/gfx/font_util.h"
 #include "ui/gfx/image/image.h"
+#include "ui/gl/gl_implementation.h"
 #include "ui/gl/gl_utils.h"
 #include "ui/gl/init/gl_factory.h"
 #include "ui/views/buildflags.h"
@@ -101,12 +102,10 @@ ExamplesExitCode ExamplesMainProc(bool under_test, ExampleVector examples) {
     return ExamplesExitCode::kSucceeded;
   }
 
-  ui::AXPlatformForTest ax_platform;
-
-  // Disabling Direct Composition works around the limitation that
-  // InProcessContextFactory doesn't work with Direct Composition, causing the
-  // window to not render. See http://crbug.com/936249.
-  command_line->AppendSwitch(switches::kDisableDirectComposition);
+  std::unique_ptr<ui::AXPlatformForTest> ax_platform;
+  if (!under_test) {
+    ax_platform = std::make_unique<ui::AXPlatformForTest>();
+  }
 
   base::FeatureList::InitInstance(
       command_line->GetSwitchValueASCII(switches::kEnableFeatures),
@@ -126,18 +125,32 @@ ExamplesExitCode ExamplesMainProc(bool under_test, ExampleVector examples) {
   // These methods should only be initialized once.
   if (!g_initialized_once) {
     mojo::core::Init();
-
-    gl::init::InitializeGLOneOff(
-        /*gpu_preference=*/gl::GpuPreference::kDefault);
-
     base::i18n::InitializeICU();
-
-    ui::RegisterPathProvider();
-
-    base::DiscardableMemoryAllocator::SetInstance(
-        g_discardable_memory_allocator.Pointer());
-
     gfx::InitializeFonts();
+
+    if (!under_test) {
+      gl::init::InitializeGLOneOff(
+          /*gpu_preference=*/gl::GpuPreference::kDefault);
+      ui::RegisterPathProvider();
+
+      base::DiscardableMemoryAllocator::SetInstance(
+          g_discardable_memory_allocator.Pointer());
+
+      base::FilePath ui_test_pak_path;
+      CHECK(base::PathService::Get(ui::UI_TEST_PAK, &ui_test_pak_path));
+      ui::ResourceBundle::InitSharedInstanceWithPakPath(ui_test_pak_path);
+    }
+
+    base::FilePath views_examples_resources_pak_path;
+    CHECK(base::PathService::Get(base::DIR_ASSETS,
+                                 &views_examples_resources_pak_path));
+    ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
+        views_examples_resources_pak_path.AppendASCII(
+            "views_examples_resources.pak"),
+        ui::k100Percent);
+
+    ui::ColorProviderManager::Get().AppendColorProviderInitializer(
+        base::BindRepeating(&AddExamplesColorMixers));
 
     g_initialized_once = true;
   }
@@ -151,23 +164,16 @@ ExamplesExitCode ExamplesMainProc(bool under_test, ExampleVector examples) {
       std::make_unique<ui::TestContextFactories>(under_test,
                                                  /*output_to_window=*/true);
 
-  base::FilePath ui_test_pak_path;
-  CHECK(base::PathService::Get(ui::UI_TEST_PAK, &ui_test_pak_path));
-  ui::ResourceBundle::InitSharedInstanceWithPakPath(ui_test_pak_path);
-
-  base::FilePath views_examples_resources_pak_path;
-  CHECK(base::PathService::Get(base::DIR_ASSETS,
-                               &views_examples_resources_pak_path));
-  ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
-      views_examples_resources_pak_path.AppendASCII(
-          "views_examples_resources.pak"),
-      ui::k100Percent);
-
-  ui::ColorProviderManager::Get().AppendColorProviderInitializer(
-      base::BindRepeating(&AddExamplesColorMixers));
+#if BUILDFLAG(IS_WIN)
+  context_factories->GetContextFactory()->set_initialize_direct_composition(
+      true);
+#endif
 
 #if defined(USE_AURA)
-  std::unique_ptr<aura::Env> env = aura::Env::CreateInstance();
+  std::unique_ptr<aura::Env> env;
+  if (!under_test) {
+    env = aura::Env::CreateInstance();
+  }
   aura::Env::GetInstance()->set_context_factory(
       context_factories->GetContextFactory());
 #endif
@@ -180,6 +186,7 @@ ExamplesExitCode ExamplesMainProc(bool under_test, ExampleVector examples) {
     ExamplesViewsDelegateChromeOS views_delegate;
 #else  // BUILDFLAG(IS_CHROMEOS)
     views::DesktopTestViewsDelegate views_delegate;
+    views_delegate.set_use_desktop_native_widgets(true);
 #if BUILDFLAG(IS_MAC)
     views_delegate.set_context_factory(context_factories->GetContextFactory());
 #endif
@@ -230,7 +237,9 @@ ExamplesExitCode ExamplesMainProc(bool under_test, ExampleVector examples) {
     compare_result = pixel_diff.get_result();
 #endif
 
-    ui::ResourceBundle::CleanupSharedInstance();
+    if (!under_test) {
+      ui::ResourceBundle::CleanupSharedInstance();
+    }
   }
 
   ui::ShutdownInputMethod();

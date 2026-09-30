@@ -101,11 +101,14 @@ suite('ComposeboxInputPlaceholder', () => {
         menuLabel: '',
         aimUrlParams: [],
         menuTooltip: '',
+        icon: 0,
       }],
     });
 
     await setupComposeboxWithInputState(testInputState);
-    assertEquals(modelHint, composebox.getInputElement().$.input.placeholder);
+    assertEquals(
+        modelHint,
+        composebox.getInputElement().$.input.getAttribute('placeholder'));
   });
 
   const defaultApiHint = loadTimeData.getString('searchboxComposePlaceholder');
@@ -148,7 +151,8 @@ suite('ComposeboxInputPlaceholder', () => {
 
       // Initial placeholder check.
       assertEquals(
-          defaultApiHint, composebox.getInputElement().$.input.placeholder);
+          defaultApiHint,
+          composebox.getInputElement().$.input.getAttribute('placeholder'));
 
       // Enable tool mode.
       composebox.onToolClick(new CustomEvent('tool-click', {
@@ -164,7 +168,9 @@ suite('ComposeboxInputPlaceholder', () => {
       await searchboxPageRemote.$.flushForTesting();
       await microtasksFinished();
 
-      assertEquals(hint, composebox.getInputElement().$.input.placeholder);
+      assertEquals(
+          hint,
+          composebox.getInputElement().$.input.getAttribute('placeholder'));
 
       // Disable tool mode.
       composebox.onToolClick(new CustomEvent('tool-click', {
@@ -181,7 +187,8 @@ suite('ComposeboxInputPlaceholder', () => {
       microtasksFinished();
 
       assertEquals(
-          defaultApiHint, composebox.getInputElement().$.input.placeholder);
+          defaultApiHint,
+          composebox.getInputElement().$.input.getAttribute('placeholder'));
     });
   });
 

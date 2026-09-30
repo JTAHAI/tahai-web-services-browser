@@ -27,6 +27,7 @@
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/common/actor_webui.mojom-forward.h"
 #include "chrome/common/glic_enums.mojom.h"
+#include "components/actor/core/actor_ui_mode.h"
 #include "components/actor/core/aggregated_journal.h"
 #include "components/actor/core/task_id.h"
 #include "components/actor/core/task_source_info.h"
@@ -174,11 +175,28 @@ class ActorTask : public base::SupportsUserData {
     kTransient = 1,
   };
 
+  enum class InterruptReason {
+    kUnknownReason = 0,
+    kTaskComplete = 1,
+    kWaitingUserInput = 2,
+    kWaitingUserClarification = 3,
+    kWaitingUserConfirmation = 4,
+    kWaitingUserTakeOver = 5,
+    kWaitingIrrelevantUserInput = 6,
+    kWaitingUnsafeCounterAbuseVerdict = 7,
+    kWaitingForExperimentalTriggeringConsent = 8,
+    kMaxValue = kWaitingForExperimentalTriggeringConsent,
+  };
+
   State GetState() const;
   // TODO(bokan): This should be private (this class must be in control of its
   // state) but is used by tests. Make the tests friends (or update the tests)
   // and remove it from the public interface.
   void SetState(State new_state);
+
+  std::optional<InterruptReason> GetInterruptReason() const {
+    return interrupt_reason_;
+  }
 
   TaskDuration get_task_duration() const { return duration_; }
 
@@ -209,7 +227,9 @@ class ActorTask : public base::SupportsUserData {
   // retain_user_control is set to `true`.
   // TODO(crbug.com/484367299): Implement a proper actor task state for
   // interrupt-with-user-control.
-  void Interrupt(bool retain_user_control = false);
+  void Interrupt(
+      bool retain_user_control = false,
+      InterruptReason interrupt_reason = InterruptReason::kUnknownReason);
 
   // Uninterrupt from waiting on user input.
   void Uninterrupt(State resumed_state);
@@ -263,6 +283,12 @@ class ActorTask : public base::SupportsUserData {
   // The set of tabs that were acted on by the last call to Act.
   TabHandleSet GetLastActedTabs() const;
 
+  // The tab that was most recently added or actuated on. Unlike GetTabs()
+  // and GetLastActedTabs(), this handle is preserved after task completion
+  // as long as the underlying tab has not been destroyed.
+  tabs::TabInterface* GetLastActuatedTab() const;
+  tabs::TabHandle GetLastActuatedTabHandle() const;
+
   base::WeakPtr<ActorTask> GetWeakPtr();
 
   Profile* GetProfile() const;
@@ -272,6 +298,13 @@ class ActorTask : public base::SupportsUserData {
   }
 
   ActorKeyedService& actor_keyed_service() const { return service_.get(); }
+
+  bool has_visible_tab() const { return has_visible_tab_; }
+  bool is_in_pip() const { return is_in_pip_; }
+#if BUILDFLAG(IS_ANDROID)
+  void SetIsInPip(bool is_in_pip);
+#endif
+  ActorUiMode GetUiMode() const;
 
   // These observations will be added to the final ActionsResult returned by the
   // task. This is currently only used by the load and extract content tool. A
@@ -285,6 +318,9 @@ class ActorTask : public base::SupportsUserData {
   }
 
   void OnTabWillDetach(tabs::TabHandle handle);
+
+  const std::string& step_progress() const { return step_progress_; }
+  void SetStepProgress(std::string step_progress);
 
  private:
   class ActorControlledTabState : public content::WebContentsObserver {
@@ -408,6 +444,7 @@ class ActorTask : public base::SupportsUserData {
   base::ElapsedTimer visibility_timer_;
   // Whether any of the controlled tabs is visible.
   bool has_visible_tab_ = false;
+  bool is_in_pip_ = false;
   // Total time this task has been actuating while a tab was visible.
   base::TimeDelta total_time_visible_;
   // Total time this task has been actuating with no tabs visible.
@@ -423,6 +460,10 @@ class ActorTask : public base::SupportsUserData {
   absl::flat_hash_map<tabs::TabHandle, std::unique_ptr<ActorControlledTabState>>
       to_observe_tabs_;
 
+  // The handle of the tab most recently added for actuation, preserved across
+  // task completion.
+  tabs::TabHandle last_actuated_tab_;
+
   // A set of additional tab observations performed directly by the tools.
   std::vector<optimization_guide::proto::TabObservation>
       additional_tab_observations_;
@@ -437,8 +478,13 @@ class ActorTask : public base::SupportsUserData {
   // Whether the user should retain control of tabs while a task is interrupted.
   bool interrupted_task_needs_user_control_ = false;
 
+  // Progress text for the current step.
+  std::string step_progress_;
+
   // Once a task is stopped what the reason was.
   std::optional<StoppedReason> stopped_reason_;
+
+  std::optional<InterruptReason> interrupt_reason_;
 
   // This is owned by actor keyed service which owns this class.
   const raw_ref<const EnterprisePolicyChecker> policy_checker_;

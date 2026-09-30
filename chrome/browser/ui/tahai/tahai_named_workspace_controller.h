@@ -10,7 +10,7 @@
 #include "chrome/browser/ui/tahai/tahai_named_workspace_store.h"
 #include "ui/base/interaction/element_identifier.h"
 
-class Browser;
+class BrowserWindowInterface;
 
 namespace tahai {
 
@@ -34,17 +34,20 @@ struct NamedWorkspaceCaptureResult {
 // Browser-owned entry points only, never callable by arbitrary page script.
 // The failure is intentionally specific enough for the native manager to tell
 // the user what to fix. No variant omits a tab or rewrites current state.
-NamedWorkspaceCaptureResult CaptureNamedWorkspace(Browser* browser,
-                                                  std::string_view name);
+NamedWorkspaceCaptureResult CaptureNamedWorkspace(
+    BrowserWindowInterface* browser,
+    std::string_view name);
 // Returns a newly created window in the same regular profile. The source
 // window is never closed, navigated, or reordered. This restores navigation
 // references, not unsaved forms or authenticated sessions in another profile.
-Browser* OpenNamedWorkspace(Browser* source, std::string_view id);
+BrowserWindowInterface* OpenNamedWorkspace(BrowserWindowInterface* source,
+                                           std::string_view id);
 // Applies an independent local custom mode. Restores an optional saved
 // workspace in a new window, otherwise keeps the source window's tabs.
 // Appearance is reverified asynchronously; no declared action is dispatched.
-Browser* ActivateNativeCustomMode(Browser* source, std::string_view id);
-void ShowNamedWorkspaceManager(Browser* browser);
+BrowserWindowInterface* ActivateNativeCustomMode(BrowserWindowInterface* source,
+                                                 std::string_view id);
+void ShowNamedWorkspaceManager(BrowserWindowInterface* browser);
 
 }  // namespace tahai
 

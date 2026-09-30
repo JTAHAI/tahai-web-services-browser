@@ -13,7 +13,7 @@
 
 #include "base/memory/weak_ptr.h"
 
-class Browser;
+class BrowserWindowInterface;
 
 namespace tahai {
 
@@ -58,7 +58,7 @@ std::optional<std::u16string_view> GetOperationalCommandLabel(int command_id);
 // A menu/search result is pinned to the window and reviewed mode revision that
 // produced it. This is context to revalidate, not permission to run a command.
 struct WindowModeActionContext {
-  base::WeakPtr<Browser> browser;
+  base::WeakPtr<BrowserWindowInterface> browser;
   std::string skin_id;
   std::string archive_sha256;
   std::string operational_mode_id;
@@ -78,11 +78,12 @@ struct WindowModeActionSet {
 // Shared by the toolbar, app menu and Finder. nullopt means a compiled mode;
 // an engaged result with no actions means an unavailable/revoked custom
 // mode. Consumers must not replace that denial with a broader fixed menu.
-std::optional<WindowModeActionSet> ResolveOperationalWindowActions(Browser* browser);
-bool CanExecuteWindowModeAction(Browser* browser,
+std::optional<WindowModeActionSet> ResolveOperationalWindowActions(
+    BrowserWindowInterface* browser);
+bool CanExecuteWindowModeAction(BrowserWindowInterface* browser,
                                 const WindowModeActionContext& context,
                                 int command_id);
-bool ExecuteWindowModeAction(Browser* browser,
+bool ExecuteWindowModeAction(BrowserWindowInterface* browser,
                              const WindowModeActionContext& context,
                              int command_id);
 

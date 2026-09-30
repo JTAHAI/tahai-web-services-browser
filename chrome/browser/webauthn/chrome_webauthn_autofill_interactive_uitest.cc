@@ -26,7 +26,6 @@
 #include "chrome/browser/ui/autofill/autofill_popup_controller_impl_test_api.h"
 #include "chrome/browser/ui/autofill/autofill_suggestion_controller.h"
 #include "chrome/browser/ui/autofill/chrome_autofill_client.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/webauthn/chrome_authenticator_request_delegate.h"
 #include "chrome/browser/webauthn/gpm_enclave_controller.h"
 #include "chrome/browser/webauthn/passkey_model_factory.h"
@@ -44,6 +43,7 @@
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
+#include "components/password_manager/core/browser/password_string.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/sync/base/features.h"
@@ -227,7 +227,8 @@ class WebAuthnAutofillIntegrationTest : public CertVerifierBrowserTest {
     signin_form.url = url;
     signin_form.action = url;
     signin_form.username_value = u"remilia";
-    signin_form.password_value = u"shouldbeusingapasskeyinstead";
+    signin_form.password_value =
+        password_manager::PasswordString(u"shouldbeusingapasskeyinstead");
     base::RunLoop run_loop;
     password_store->AddLogin(password_manager::FromPasswordForm(signin_form),
                              run_loop.QuitClosure());

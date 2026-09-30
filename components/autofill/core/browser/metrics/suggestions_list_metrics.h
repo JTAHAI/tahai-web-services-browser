@@ -14,13 +14,41 @@
 namespace autofill {
 class AutofillField;
 enum class FillingProduct;
+struct Suggestion;
 
 namespace autofill_metrics {
 
-// Log the number of Autofill suggestions for the given
-// `filling_product`presented to the user when displaying the autofill popup.
-void LogSuggestionsCount(size_t num_suggestions,
-                         FillingProduct filling_product);
+// Log the number of Autofill suggestions presented to the user when
+// displaying the autofill popup, grouped by `FillingProduct` and excluding
+// management footer options.
+void LogSuggestionsCount(base::span<const Suggestion> suggestions);
+
+// Log the number of email suggestions shown to the user when merging
+// Autocomplete and Address suggestions.
+// TODO(crbug.com/506033768): Remove metric when feature is launched.
+void LogMergedEmailSuggestionCounts(size_t num_address_suggestions,
+                                    size_t num_autocomplete_suggestions);
+
+// LINT.IfChange(EmailSuggestionAcceptedStatus)
+
+enum class EmailSuggestionAcceptedStatus {
+  kAddressOnly = 0,
+  kAutocompleteOnly = 1,
+  kMixedAddressSelected = 2,
+  kMixedAutocompleteSelected = 3,
+
+  kMaxValue = kMixedAutocompleteSelected,
+};
+
+// LINT.ThenChange(//tools/metrics/histograms/metadata/autofill/enums.xml:AutofillEmailSuggestionAcceptedStatus)
+
+// Log the accepted suggestion type for email suggestions to evaluate merged
+// Autocomplete and Address suggestions.
+// TODO(crbug.com/506033768): Remove metric (including enum
+// `EmailSuggestionAcceptedStatus`) when feature is launched.
+void LogMergedEmailAcceptedSuggestionType(
+    SuggestionType accepted_suggestion_type,
+    base::span<const SuggestionType> shown_suggestion_types);
 
 // Log the index of the selected Autofill suggestion in the popup.
 void LogSuggestionAcceptedIndex(

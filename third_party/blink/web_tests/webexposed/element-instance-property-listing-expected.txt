@@ -122,6 +122,9 @@ namespace http://www.w3.org/1999/xhtml
     property containerTimingIgnore
     property contains
     property contentEditable
+    property convertPointFromNode
+    property convertQuadFromNode
+    property convertRectFromNode
     property currentCSSZoom
     property customElementRegistry
     property dataset
@@ -143,6 +146,7 @@ namespace http://www.w3.org/1999/xhtml
     property getAttributeNode
     property getAttributeNodeNS
     property getBoundingClientRect
+    property getBoxQuads
     property getClientRects
     property getElementsByClassName
     property getElementsByTagName
@@ -574,9 +578,15 @@ html element button
     property validity
     property value
     property willValidate
+html element camera
+    property error
+    property ontrack
+    property setConstraints
+    property track
 html element canvas
     property captureElementImage
     property captureStream
+    property clearElementGeometry
     property configureHighDynamicRange
     property getContext
     property getElementTransform
@@ -587,6 +597,7 @@ html element canvas
     property toBlob
     property toDataURL
     property transferControlToOffscreen
+    property updateElementGeometry
     property width
 html element caption
     property align
@@ -775,7 +786,6 @@ html element iframe
     property allow
     property allowFullscreen
     property allowPaymentRequest
-    property browsingTopics
     property connectionAllowlist
     property contentDocument
     property contentWindow
@@ -803,7 +813,6 @@ html element img
     property align
     property alt
     property border
-    property browsingTopics
     property complete
     property crossOrigin
     property currentSrc
@@ -880,6 +889,7 @@ html element input
     property step
     property stepDown
     property stepUp
+    property switch
     property type
     property useMap
     property validationMessage
@@ -896,7 +906,6 @@ html element ins
     property dateTime
 html element install
     property initialPermissionStatus
-    property installURL
     property invalidReason
     property isValid
     property manifest
@@ -987,6 +996,11 @@ html element meter
     property min
     property optimum
     property value
+html element microphone
+    property error
+    property ontrack
+    property setConstraints
+    property track
 html element nav
 html element nobr
 html element noembed
@@ -1200,7 +1214,11 @@ html element td
 html element template
     property buffer
     property content
+    property crossOrigin
     property htmlFor
+    property integrity
+    property referrerPolicy
+    property sanitize
     property shadowRootAdoptedStyleSheets
     property shadowRootClonable
     property shadowRootCustomElementRegistry
@@ -1209,6 +1227,7 @@ html element template
     property shadowRootReferenceTarget
     property shadowRootSerializable
     property shadowRootSlotAssignment
+    property src
 html element textarea
     property autocomplete
     property checkValidity
@@ -1307,17 +1326,9 @@ html element ul
     property type
 html element usermedia
     property error
-    property initialPermissionStatus
-    property invalidReason
-    property isValid
-    property onpromptaction
-    property onpromptdismiss
     property onstream
-    property onvalidationstatuschange
-    property permissionStatus
     property setConstraints
     property stream
-    property type
 html element var
 html element video
     property HAVE_CURRENT_DATA
@@ -1507,6 +1518,9 @@ namespace http://www.w3.org/2000/svg
     property containerTiming
     property containerTimingIgnore
     property contains
+    property convertPointFromNode
+    property convertQuadFromNode
+    property convertRectFromNode
     property currentCSSZoom
     property customElementRegistry
     property dataset
@@ -1524,6 +1538,7 @@ namespace http://www.w3.org/2000/svg
     property getAttributeNode
     property getAttributeNodeNS
     property getBoundingClientRect
+    property getBoxQuads
     property getClientRects
     property getElementsByClassName
     property getElementsByTagName
@@ -2485,6 +2500,9 @@ svg element textPath
     property TEXTPATH_METHODTYPE_ALIGN
     property TEXTPATH_METHODTYPE_STRETCH
     property TEXTPATH_METHODTYPE_UNKNOWN
+    property TEXTPATH_SIDETYPE_LEFT
+    property TEXTPATH_SIDETYPE_RIGHT
+    property TEXTPATH_SIDETYPE_UNKNOWN
     property TEXTPATH_SPACINGTYPE_AUTO
     property TEXTPATH_SPACINGTYPE_EXACT
     property TEXTPATH_SPACINGTYPE_UNKNOWN
@@ -2506,6 +2524,7 @@ svg element textPath
     property nearestViewportElement
     property requiredExtensions
     property selectSubString
+    property side
     property spacing
     property startOffset
     property systemLanguage

@@ -16,9 +16,9 @@
 #include "chrome/browser/tahai_guard/guard_profile_service.h"
 #include "chrome/browser/tahai_guard/guard_profile_service_factory.h"
 #include "chrome/browser/tahai_guard/tahai_guard_configuration_registry.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tahai/tahai_guard_panel.h"
 #include "chrome/browser/ui/tahai/tahai_mode_service.h"
@@ -88,13 +88,13 @@ class TahaiGuardRequestBrowserTest : public policy::PolicyTest {
     return GuardProfileServiceFactory::GetForProfile(browser()->GetProfile());
   }
 
-  content::WebContents* Contents(Browser* target = nullptr) {
+  content::WebContents* Contents(BrowserWindowInterface* target = nullptr) {
     return (target ? target : browser())
-        ->tab_strip_model()
+        ->GetTabStripModel()
         ->GetActiveWebContents();
   }
 
-  views::Widget* GuardPanel(Browser* target) {
+  views::Widget* GuardPanel(BrowserWindowInterface* target) {
     for (const auto& widget_ptr : views::Widget::GetAllOwnedWidgets(
              target->GetWindow()->GetNativeWindow())) {
       views::Widget* widget = widget_ptr.get();
@@ -126,7 +126,8 @@ class TahaiGuardRequestBrowserTest : public policy::PolicyTest {
                                                      configuration));
   }
 
-  bool Fetch(const std::string& path, Browser* target = nullptr) {
+  bool Fetch(const std::string& path,
+             BrowserWindowInterface* target = nullptr) {
     return content::EvalJs(
                Contents(target),
                content::JsReplace(
@@ -138,7 +139,7 @@ class TahaiGuardRequestBrowserTest : public policy::PolicyTest {
         .ExtractBool();
   }
 
-  bool WaitForHidden(bool hidden, Browser* target = nullptr) {
+  bool WaitForHidden(bool hidden, BrowserWindowInterface* target = nullptr) {
     return content::EvalJs(Contents(target), content::JsReplace(R"JS(
       new Promise(resolve => {
         let attempts = 0;
@@ -310,7 +311,7 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
   ASSERT_TRUE(SetTahaiGuardConfigurationForProfile(browser()->GetProfile(),
                                                    configuration));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), Page()));
-  Browser* second = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* second = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(second, Page("b.test")));
   // The active window now owns b.test. The original a.test factory still has
   // only a.test's exception; focus must never provide request ownership.
@@ -339,7 +340,8 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
   ASSERT_EQ(Update::kInstalled, Install());
   EnableDecisionCounters();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), Page()));
-  Browser* private_browser = CreateIncognitoBrowser(browser()->GetProfile());
+  BrowserWindowInterface* private_browser =
+      CreateIncognitoBrowser(browser()->GetProfile());
   auto* private_service =
       GuardProfileServiceFactory::GetForProfile(private_browser->GetProfile());
   ASSERT_TRUE(private_service);
@@ -375,7 +377,8 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
 IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
                        TahaiPrivateEngineRefreshAndTeardownAreIsolated) {
   ASSERT_EQ(Update::kInstalled, Install());
-  Browser* private_browser = CreateIncognitoBrowser(browser()->GetProfile());
+  BrowserWindowInterface* private_browser =
+      CreateIncognitoBrowser(browser()->GetProfile());
   auto private_service =
       GuardProfileServiceFactory::GetForProfile(private_browser->GetProfile())
           ->GetWeakPtr();
@@ -416,7 +419,8 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
                        TahaiPrivateManagedMissingEngineFailsClosed) {
-  Browser* private_browser = CreateIncognitoBrowser(browser()->GetProfile());
+  BrowserWindowInterface* private_browser =
+      CreateIncognitoBrowser(browser()->GetProfile());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(private_browser, Page()));
   auto* private_service =
       GuardProfileServiceFactory::GetForProfile(private_browser->GetProfile());
@@ -507,7 +511,8 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
 IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
                        TahaiPrivateEditorCannotMutateInheritedRules) {
   ASSERT_EQ(Update::kInstalled, Install());
-  Browser* private_browser = CreateIncognitoBrowser(browser()->GetProfile());
+  BrowserWindowInterface* private_browser =
+      CreateIncognitoBrowser(browser()->GetProfile());
   ASSERT_TRUE(
       ui_test_utils::NavigateToURL(private_browser, GURL(kTahaiSupportURL)));
   ASSERT_TRUE(base::test::RunUntil([&] {
@@ -761,7 +766,7 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
   base::test::TestFuture<Update> installed;
   other->InstallCustomRules("/guard/not-blocked-here", installed.GetCallback());
   ASSERT_EQ(Update::kInstalled, installed.Get());
-  Browser* second = CreateBrowser(&other_profile);
+  BrowserWindowInterface* second = CreateBrowser(&other_profile);
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), Page()));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(second, Page()));
   EXPECT_FALSE(Fetch("/guard/blocked"));
@@ -773,7 +778,7 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
                        TahaiDocumentPauseCannotLeakToSameOriginTabOrWorker) {
   ASSERT_EQ(Update::kInstalled, Install());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), Page()));
-  Browser* second = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* second = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(second, Page()));
   auto* document = Contents()->GetPrimaryMainFrame();
   ASSERT_TRUE(Service()->SetPagePaused(*document, true));
@@ -885,7 +890,8 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
                           ->GetPrefs()
                           ->GetDict(prefs::kTahaiGuardConfiguration)
                           .Clone();
-  Browser* private_browser = CreateIncognitoBrowser(browser()->GetProfile());
+  BrowserWindowInterface* private_browser =
+      CreateIncognitoBrowser(browser()->GetProfile());
   auto* service =
       GuardProfileServiceFactory::GetForProfile(private_browser->GetProfile());
   ASSERT_TRUE(base::test::RunUntil([&] {
@@ -961,7 +967,7 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURLWithDisposition(
       browser(), Page(), WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
-  auto* model = browser()->tab_strip_model();
+  auto* model = browser()->GetTabStripModel();
   ASSERT_EQ(2, model->count());
   model->ActivateTabAt(0);
   ASSERT_TRUE(chrome::OpenTahaiDualView(
@@ -995,7 +1001,7 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
   ASSERT_TRUE(panel.SetSiteException(true));
   EXPECT_TRUE(panel.HasSiteException());
   EXPECT_TRUE(Fetch("/guard/blocked"));
-  Browser* second = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* second = CreateBrowser(browser()->GetProfile());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(second, Page("b.test")));
   EXPECT_FALSE(Fetch("/guard/blocked", second));
   auto configuration =
@@ -1100,7 +1106,8 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardRequestBrowserTest,
                        TahaiNativeGuardPrivateAndManagedButtonsStayLocked) {
   ASSERT_EQ(Update::kInstalled, Install());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), Page()));
-  Browser* private_browser = CreateIncognitoBrowser(browser()->GetProfile());
+  BrowserWindowInterface* private_browser =
+      CreateIncognitoBrowser(browser()->GetProfile());
   auto* private_service =
       GuardProfileServiceFactory::GetForProfile(private_browser->GetProfile());
   ASSERT_TRUE(base::test::RunUntil([&] {
@@ -1218,7 +1225,7 @@ IN_PROC_BROWSER_TEST_F(
       Contents(),
       "document.body.innerHTML = '<div class=tahai-ad>Content</div>'"));
   EXPECT_TRUE(WaitForHidden(false));
-  Browser* private_browser = CreateIncognitoBrowser();
+  BrowserWindowInterface* private_browser = CreateIncognitoBrowser();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(private_browser, Page()));
   ASSERT_TRUE(content::ExecJs(
       Contents(private_browser),

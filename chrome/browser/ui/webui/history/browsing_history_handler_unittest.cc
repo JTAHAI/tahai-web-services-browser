@@ -18,23 +18,30 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/gmock_callback_support.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/mock_callback.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_clock.h"
+#include "base/test/test_future.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
+#include "chrome/browser/critical_actions/critical_action_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/hats/hats_service_factory.h"
 #include "chrome/browser/ui/hats/mock_hats_service.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/testing_profile.h"
+#include "components/critical_actions/core/browser/critical_action_service.h"
+#include "components/critical_actions/core/browser/critical_action_types.h"
+#include "components/critical_actions/core/browser/features.h"
 #include "components/history/core/browser/browsing_history_service.h"
 #include "components/history/core/browser/features.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
+#include "components/strings/grit/components_strings.h"
 #include "components/sync/base/data_type.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/test_web_ui.h"
@@ -42,6 +49,7 @@
 #include "net/http/http_status_code.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
 #include "testing/gmock/include/gmock/gmock.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/webui/resources/cr_components/history/history.mojom.h"
 #include "url/gurl.h"
 
@@ -165,7 +173,8 @@ class BrowsingHistoryHandlerTest : public ChromeRenderViewHostTestHarness {
                 /*app_id=*/options.app_id,
                 /*include_actor_visits=*/true,
                 /*include_user_visits=*/true,
-                /*restrict_to_synced_urls=*/false)))
+                /*restrict_to_synced_urls=*/false,
+                /*client_ids=*/testing::IsEmpty())))
         .Times(1)
         .WillOnce([&, mock_results](const std::u16string& search_text,
                                     const QueryOptions& options) {
@@ -176,7 +185,8 @@ class BrowsingHistoryHandlerTest : public ChromeRenderViewHostTestHarness {
                 GURL(("http://test.com")), u"Test",
                 base::Time::Now() - base::Minutes(5), std::string(), false,
                 std::u16string(), false, GURL(), 0, 0,
-                /*is_actor_visit=*/false, history::kNoAppIdFilter);
+                /*is_actor_visit=*/false, history::kNoAppIdFilter,
+                /*visit_id=*/history::kInvalidVisitID);
             results.push_back(entry);
           }
 
@@ -564,6 +574,427 @@ INSTANTIATE_TEST_SUITE_P(,
                          [](const testing::TestParamInfo<bool>& info) {
                            return info.param ? "SignedIn" : "SignedOut";
                          });
+
+class BrowsingHistoryHandlerCriticalActionsTest
+    : public BrowsingHistoryHandlerTest {
+ protected:
+  void SetUp() override {
+    BrowsingHistoryHandlerTest::SetUp();
+    feature_list_.InitAndEnableFeature(
+        critical_actions::features::kCriticalActionHistory);
+    critical_action_service_ =
+        critical_actions::CriticalActionFactory::GetForProfile(profile());
+    ASSERT_NE(critical_action_service_, nullptr);
+  }
+
+  void TearDown() override {
+    critical_action_service_ = nullptr;
+    BrowsingHistoryHandlerTest::TearDown();
+  }
+
+  critical_actions::CriticalActionService* service() {
+    return critical_action_service_;
+  }
+
+  critical_actions::CriticalActionEntry CreateAction(
+      std::string_view id,
+      base::Time timestamp,
+      int64_t visit_id,
+      critical_actions::ActionType type =
+          critical_actions::ActionType::kFormFill,
+      std::string_view conversation_id = "",
+      std::string_view actor_task_id = "",
+      std::string_view metadata = "") {
+    critical_actions::CriticalActionEntry entry;
+    entry.critical_action_id = std::string(id);
+    entry.timestamp = timestamp;
+    entry.visit_id = visit_id;
+    entry.action_type = type;
+    entry.url = GURL("http://actor-example.com");
+    entry.conversation_id = std::string(conversation_id);
+    entry.actor_task_id = std::string(actor_task_id);
+    entry.metadata = std::string(metadata);
+    return entry;
+  }
+
+  BrowsingHistoryService::HistoryEntry CreateActorHistoryEntry(
+      base::Time timestamp,
+      int64_t visit_id,
+      const std::u16string& title = u"Actor Visit",
+      int visit_count = 1) {
+    return BrowsingHistoryService::HistoryEntry(
+        BrowsingHistoryService::HistoryEntry::LOCAL_ENTRY,
+        GURL("http://actor-example.com"), title, timestamp, std::string(),
+        false, std::u16string(), false, GURL(), visit_count, 0,
+        /*is_actor_visit=*/true, history::kNoAppIdFilter, visit_id);
+  }
+
+  void FlushDatabaseTasks() {
+    base::test::TestFuture<std::vector<critical_actions::CriticalActionEntry>>
+        future;
+    critical_actions::CriticalActionQueryOptions options;
+    service()->GetCriticalActions(options, future.GetCallback());
+    ASSERT_TRUE(future.Wait());
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+  raw_ptr<critical_actions::CriticalActionService> critical_action_service_ =
+      nullptr;
+};
+
+TEST_F(BrowsingHistoryHandlerCriticalActionsTest,
+       CriticalActionsPopulatedForActorVisits) {
+  base::HistogramTester histogram_tester;
+  base::Time visit_time = base::Time::Now();
+
+  service()->AddCriticalAction(
+      CreateAction("test-action-id-1", visit_time, 42,
+                   critical_actions::ActionType::kCredentialAccess));
+  FlushDatabaseTasks();
+
+  BrowsingHistoryService::HistoryEntry actor_entry =
+      CreateActorHistoryEntry(visit_time, 42);
+
+  QueryOptions options;
+  MockHistoryServiceCall(u"actor-example", options, {actor_entry});
+
+  mojom::QueryResultPtr results = RunQueryHistory("actor-example");
+  ASSERT_TRUE(results);
+  ASSERT_EQ(results->value.size(), 1u);
+  EXPECT_TRUE(results->value[0]->is_actor_visit);
+  ASSERT_EQ(results->value[0]->critical_actions.size(), 1u);
+  EXPECT_EQ(results->value[0]->critical_actions[0]->id, "test-action-id-1");
+  EXPECT_EQ(
+      results->value[0]->critical_actions[0]->label,
+      l10n_util::GetStringUTF8(IDS_HISTORY_CRITICAL_ACTION_PASSWORD_FILLED));
+  EXPECT_EQ(
+      results->value[0]->critical_actions[0]->tooltip,
+      l10n_util::GetStringUTF8(IDS_HISTORY_CRITICAL_ACTION_PASSWORD_TOOLTIP));
+  EXPECT_EQ(results->value[0]->critical_actions[0]->linkout_url,
+            "chrome://password-manager/passwords/actor-example.com");
+  EXPECT_EQ(
+      results->value[0]->critical_actions[0]->action_type,
+      history::mojom::CriticalActionType::kCredentialAccess);
+
+  histogram_tester.ExpectTotalCount("HistoryPage.CriticalActionsQueryTime", 1);
+  histogram_tester.ExpectTotalCount(
+      "HistoryPage.QueryHistoryTotalTime.WithCriticalActions", 1);
+  histogram_tester.ExpectTotalCount(
+      "HistoryPage.QueryHistoryTotalTime.WithoutCriticalActions", 0);
+  histogram_tester.ExpectUniqueSample(
+      "HistoryPage.CriticalActionsPerVisitCount", 1, 1);
+}
+
+TEST_F(BrowsingHistoryHandlerTest,
+       QueryPerformanceMetricsEmittedWithoutCriticalActions) {
+  base::HistogramTester histogram_tester;
+  base::Time visit_time = base::Time::Now();
+
+  BrowsingHistoryService::HistoryEntry non_actor_entry(
+      BrowsingHistoryService::HistoryEntry::LOCAL_ENTRY,
+      GURL("http://regular-example.com"), u"Regular Visit", visit_time,
+      std::string(), false, std::u16string(), false, GURL(), 1, 0,
+      /*is_actor_visit=*/false, history::kNoAppIdFilter, /*visit_id=*/10);
+
+  QueryOptions options;
+  MockHistoryServiceCall(u"regular-example", options, {non_actor_entry});
+
+  mojom::QueryResultPtr results = RunQueryHistory("regular-example");
+  ASSERT_TRUE(results);
+  ASSERT_EQ(results->value.size(), 1u);
+  EXPECT_FALSE(results->value[0]->is_actor_visit);
+
+  histogram_tester.ExpectTotalCount("HistoryPage.CriticalActionsQueryTime", 0);
+  histogram_tester.ExpectTotalCount(
+      "HistoryPage.QueryHistoryTotalTime.WithCriticalActions", 0);
+  histogram_tester.ExpectTotalCount(
+      "HistoryPage.QueryHistoryTotalTime.WithoutCriticalActions", 1);
+  histogram_tester.ExpectTotalCount("HistoryPage.CriticalActionsPerVisitCount",
+                                    0);
+}
+
+TEST_F(BrowsingHistoryHandlerCriticalActionsTest,
+       CriticalActionsDistinguishesSeparateVisitsSameUrl) {
+  base::Time visit_time1 = base::Time::Now() - base::Minutes(20);
+  base::Time visit_time2 = base::Time::Now();
+
+  service()->AddCriticalAction(
+      CreateAction("action-visit-1", visit_time1 + base::Seconds(5), 1001,
+                   critical_actions::ActionType::kCredentialAccess));
+  service()->AddCriticalAction(
+      CreateAction("action-visit-2", visit_time2 + base::Seconds(5), 1002,
+                   critical_actions::ActionType::kDownload));
+  FlushDatabaseTasks();
+
+  BrowsingHistoryService::HistoryEntry entry2 =
+      CreateActorHistoryEntry(visit_time2, 1002, u"Visit 2");
+  BrowsingHistoryService::HistoryEntry entry1 =
+      CreateActorHistoryEntry(visit_time1, 1001, u"Visit 1");
+
+  QueryOptions options;
+  MockHistoryServiceCall(u"actor-example", options, {entry2, entry1});
+
+  mojom::QueryResultPtr results = RunQueryHistory("actor-example");
+  ASSERT_TRUE(results);
+  ASSERT_EQ(results->value.size(), 2u);
+
+  // Entry 2 (visit 1002) has action "download".
+  ASSERT_EQ(results->value[0]->critical_actions.size(), 1u);
+  EXPECT_EQ(results->value[0]->critical_actions[0]->id, "action-visit-2");
+  EXPECT_EQ(results->value[0]->critical_actions[0]->label,
+            l10n_util::GetStringUTF8(IDS_HISTORY_CRITICAL_ACTION_DOWNLOAD));
+
+  // Entry 1 (visit 1001) has action "password".
+  ASSERT_EQ(results->value[1]->critical_actions.size(), 1u);
+  EXPECT_EQ(results->value[1]->critical_actions[0]->id, "action-visit-1");
+  EXPECT_EQ(
+      results->value[1]->critical_actions[0]->label,
+      l10n_util::GetStringUTF8(IDS_HISTORY_CRITICAL_ACTION_PASSWORD_FILLED));
+}
+
+TEST_F(BrowsingHistoryHandlerCriticalActionsTest,
+       CriticalActionsAttachedToAggregatedActorVisits) {
+  base::test::ScopedFeatureList local_features(
+      history::kBrowsingHistoryActorIntegrationM3);
+
+  base::Time visit_time1 = base::Time::Now() - base::Minutes(20);
+  base::Time visit_time2 = base::Time::Now();
+
+  service()->AddCriticalAction(
+      CreateAction("action-visit-1", visit_time1 + base::Seconds(5), 1001,
+                   critical_actions::ActionType::kCredentialAccess));
+  service()->AddCriticalAction(
+      CreateAction("action-visit-2", visit_time2 + base::Seconds(5), 1002,
+                   critical_actions::ActionType::kDownload));
+  FlushDatabaseTasks();
+
+  // Single aggregated entry representing both visits on the same day.
+  BrowsingHistoryService::HistoryEntry entry =
+      CreateActorHistoryEntry(visit_time2, 1002, u"Visit", /*visit_count=*/2);
+  entry.all_visit_ids.push_back(1001);
+
+  QueryOptions options;
+  MockHistoryServiceCall(u"actor-example", options, {entry});
+
+  mojom::QueryResultPtr results = RunQueryHistory("actor-example");
+  ASSERT_TRUE(results);
+  ASSERT_EQ(results->value.size(), 1u);
+  ASSERT_EQ(results->value[0]->critical_actions.size(), 2u);
+  EXPECT_EQ(results->value[0]->critical_actions[0]->id, "action-visit-2");
+  EXPECT_EQ(results->value[0]->critical_actions[1]->id, "action-visit-1");
+}
+
+TEST_F(BrowsingHistoryHandlerCriticalActionsTest,
+       UnmatchedActorFormFillsAreShownAsIs) {
+  base::Time visit_time = base::Time::Now();
+
+  service()->AddCriticalAction(
+      CreateAction("test-action-id-actor", visit_time, 42,
+                   critical_actions::ActionType::kFormFill, "test-conv",
+                   "test-task", "{\"requested_data\": [\"FIRST_NAME\"]}"));
+  FlushDatabaseTasks();
+
+  BrowsingHistoryService::HistoryEntry actor_entry =
+      CreateActorHistoryEntry(visit_time, 42);
+
+  QueryOptions options;
+  MockHistoryServiceCall(u"actor-example", options, {actor_entry});
+
+  mojom::QueryResultPtr results = RunQueryHistory("actor-example");
+  ASSERT_TRUE(results);
+  ASSERT_EQ(results->value.size(), 1u);
+  EXPECT_TRUE(results->value[0]->is_actor_visit);
+  // The critical action should be shown because unmatched actions are shown
+  // as-is.
+  ASSERT_EQ(results->value[0]->critical_actions.size(), 1u);
+  EXPECT_EQ(results->value[0]->critical_actions[0]->id, "test-action-id-actor");
+}
+
+TEST_F(BrowsingHistoryHandlerCriticalActionsTest, MatchedFormFillsAreMerged) {
+  base::Time visit_time = base::Time::Now();
+
+  // 1. Add actor action.
+  service()->AddCriticalAction(CreateAction(
+      "action-actor", visit_time, 42, critical_actions::ActionType::kFormFill,
+      "test-conv", "test-task", "{\"requested_data\": [\"FIRST_NAME\"]}"));
+
+  // 2. Add system action with matching properties and timestamp within 5
+  // seconds.
+  service()->AddCriticalAction(
+      CreateAction("action-system", visit_time + base::Seconds(2), 42,
+                   critical_actions::ActionType::kFormFill, "test-conv",
+                   "test-task", "{\"filled_types\": [\"FIRST_NAME\"]}"));
+  FlushDatabaseTasks();
+
+  BrowsingHistoryService::HistoryEntry actor_entry =
+      CreateActorHistoryEntry(visit_time, 42);
+
+  QueryOptions options;
+  MockHistoryServiceCall(u"actor-example", options, {actor_entry});
+
+  mojom::QueryResultPtr results = RunQueryHistory("actor-example");
+  ASSERT_TRUE(results);
+  ASSERT_EQ(results->value.size(), 1u);
+  // Merged into 1 action in WebUI.
+  ASSERT_EQ(results->value[0]->critical_actions.size(), 1u);
+  EXPECT_EQ(results->value[0]->critical_actions[0]->id, "action-system");
+}
+
+TEST_F(BrowsingHistoryHandlerCriticalActionsTest,
+       UnmatchedSystemFormFillsAreShownAsIs) {
+  base::Time visit_time = base::Time::Now();
+
+  // Add system action only.
+  service()->AddCriticalAction(
+      CreateAction("action-system-only", visit_time, 42,
+                   critical_actions::ActionType::kFormFill, "test-conv",
+                   "test-task", "{\"filled_types\": [\"FIRST_NAME\"]}"));
+  FlushDatabaseTasks();
+
+  BrowsingHistoryService::HistoryEntry actor_entry =
+      CreateActorHistoryEntry(visit_time, 42);
+
+  QueryOptions options;
+  MockHistoryServiceCall(u"actor-example", options, {actor_entry});
+
+  mojom::QueryResultPtr results = RunQueryHistory("actor-example");
+  ASSERT_TRUE(results);
+  ASSERT_EQ(results->value.size(), 1u);
+  // Unmatched system action is displayed.
+  ASSERT_EQ(results->value[0]->critical_actions.size(), 1u);
+  EXPECT_EQ(results->value[0]->critical_actions[0]->id, "action-system-only");
+}
+
+TEST_F(BrowsingHistoryHandlerCriticalActionsTest,
+       MatchedFormFillsOutsideToleranceWindowAreNotMerged) {
+  base::Time visit_time = base::Time::Now();
+
+  // 1. Add actor action.
+  service()->AddCriticalAction(CreateAction(
+      "action-actor", visit_time, 42, critical_actions::ActionType::kFormFill,
+      "test-conv", "test-task", "{\"requested_data\": [\"FIRST_NAME\"]}"));
+
+  // 2. Add system action with matching properties but timestamp outside 5
+  // seconds (e.g. 6 seconds later).
+  service()->AddCriticalAction(
+      CreateAction("action-system", visit_time + base::Seconds(6), 42,
+                   critical_actions::ActionType::kFormFill, "test-conv",
+                   "test-task", "{\"filled_types\": [\"FIRST_NAME\"]}"));
+  FlushDatabaseTasks();
+
+  BrowsingHistoryService::HistoryEntry actor_entry =
+      CreateActorHistoryEntry(visit_time, 42);
+
+  QueryOptions options;
+  MockHistoryServiceCall(u"actor-example", options, {actor_entry});
+
+  mojom::QueryResultPtr results = RunQueryHistory("actor-example");
+  ASSERT_TRUE(results);
+  ASSERT_EQ(results->value.size(), 1u);
+  // Not merged. Both actions are displayed.
+  ASSERT_EQ(results->value[0]->critical_actions.size(), 2u);
+}
+
+TEST_F(BrowsingHistoryHandlerCriticalActionsTest,
+       DifferentActionTypesWithinToleranceWindowAreNotMerged) {
+  base::Time visit_time = base::Time::Now();
+
+  // 1. Add actor action (FormFill).
+  service()->AddCriticalAction(CreateAction(
+      "action-actor", visit_time, 42, critical_actions::ActionType::kFormFill,
+      "test-conv", "test-task", "{\"requested_data\": [\"FIRST_NAME\"]}"));
+
+  // 2. Add system action with matching timestamp but different action type
+  // (CredentialsOtp) within 5 seconds.
+  service()->AddCriticalAction(
+      CreateAction("action-system", visit_time + base::Seconds(2), 42,
+                   critical_actions::ActionType::kCredentialsOtp, "test-conv",
+                   "test-task", "{\"filled_types\": [\"FIRST_NAME\"]}"));
+  FlushDatabaseTasks();
+
+  BrowsingHistoryService::HistoryEntry actor_entry =
+      CreateActorHistoryEntry(visit_time, 42);
+
+  QueryOptions options;
+  MockHistoryServiceCall(u"actor-example", options, {actor_entry});
+
+  mojom::QueryResultPtr results = RunQueryHistory("actor-example");
+  ASSERT_TRUE(results);
+  ASSERT_EQ(results->value.size(), 1u);
+  // Not merged. Both actions are displayed.
+  ASSERT_EQ(results->value[0]->critical_actions.size(), 2u);
+}
+
+TEST_F(BrowsingHistoryHandlerCriticalActionsTest,
+       DifferentConversationsWithinToleranceWindowAreNotMerged) {
+  base::Time visit_time = base::Time::Now();
+
+  // 1. Add actor action (conv 1).
+  service()->AddCriticalAction(CreateAction(
+      "action-actor", visit_time, 42, critical_actions::ActionType::kFormFill,
+      "test-conv-1", "test-task", "{\"requested_data\": [\"FIRST_NAME\"]}"));
+
+  // 2. Add system action within 5 seconds but different conversation ID (conv
+  // 2).
+  service()->AddCriticalAction(
+      CreateAction("action-system", visit_time + base::Seconds(2), 42,
+                   critical_actions::ActionType::kFormFill, "test-conv-2",
+                   "test-task", "{\"filled_types\": [\"FIRST_NAME\"]}"));
+  FlushDatabaseTasks();
+
+  BrowsingHistoryService::HistoryEntry actor_entry =
+      CreateActorHistoryEntry(visit_time, 42);
+
+  QueryOptions options;
+  MockHistoryServiceCall(u"actor-example", options, {actor_entry});
+
+  mojom::QueryResultPtr results = RunQueryHistory("actor-example");
+  ASSERT_TRUE(results);
+  ASSERT_EQ(results->value.size(), 1u);
+  // Not merged. Both actions are displayed.
+  ASSERT_EQ(results->value[0]->critical_actions.size(), 2u);
+}
+
+TEST_F(BrowsingHistoryHandlerCriticalActionsTest,
+       MatchedFormFillsBoundaryTest) {
+  base::Time visit_time = base::Time::Now();
+
+  // We add three actions:
+  // 1. System action at visit_time.
+  // 2. System action at exactly visit_time - 5 seconds (on boundary).
+  // 3. System action at visit_time - 5 seconds - 1 millisecond (outside
+  // boundary).
+  service()->AddCriticalAction(CreateAction(
+      "action-1", visit_time, 42, critical_actions::ActionType::kFormFill,
+      "test-conv", "test-task", "{\"filled_types\": [\"FIRST_NAME\"]}"));
+  service()->AddCriticalAction(
+      CreateAction("action-2", visit_time - base::Seconds(5), 42,
+                   critical_actions::ActionType::kFormFill, "test-conv",
+                   "test-task", "{\"filled_types\": [\"FIRST_NAME\"]}"));
+  service()->AddCriticalAction(CreateAction(
+      "action-3", visit_time - base::Seconds(5) - base::Milliseconds(1), 42,
+      critical_actions::ActionType::kFormFill, "test-conv", "test-task",
+      "{\"filled_types\": [\"FIRST_NAME\"]}"));
+  FlushDatabaseTasks();
+
+  BrowsingHistoryService::HistoryEntry actor_entry =
+      CreateActorHistoryEntry(visit_time, 42);
+
+  QueryOptions options;
+  MockHistoryServiceCall(u"actor-example", options, {actor_entry});
+
+  mojom::QueryResultPtr results = RunQueryHistory("actor-example");
+  ASSERT_TRUE(results);
+  ASSERT_EQ(results->value.size(), 1u);
+  // action-1 is accepted.
+  // action-2 is on boundary (exactly 5s delta), so it's merged (dropped).
+  // action-3 is outside boundary (> 5s delta), so it is accepted.
+  // Total accepted actions = 2 (action-1 and action-3).
+  ASSERT_EQ(results->value[0]->critical_actions.size(), 2u);
+  EXPECT_EQ(results->value[0]->critical_actions[0]->id, "action-1");
+  EXPECT_EQ(results->value[0]->critical_actions[1]->id, "action-3");
+}
 
 #endif  // !BUILDFLAG(IS_CHROMEOS)
 

@@ -14,11 +14,14 @@
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
 #include "base/types/optional_util.h"
+#include "build/build_config.h"
 #include "media/base/media_switches.h"
+#include "media/base/video_frame_converter.h"
 #include "media/base/video_util.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/platform/webrtc/convert_to_webrtc_video_frame_buffer.h"
 #include "third_party/blink/renderer/platform/webrtc/webrtc_video_utils.h"
+#include "third_party/perfetto/include/perfetto/tracing/track.h"
 #include "third_party/webrtc/rtc_base/ref_counted_object.h"
 #include "third_party/webrtc/rtc_base/time_utils.h"
 
@@ -220,25 +223,59 @@ void WebRtcVideoTrackSource::OnFrameCaptured(
   // premapped. Otherwise it moves the mapping out of the encode operation,
   // thus not inflating the encode time metrics.
   if (base::FeatureList::IsEnabled(kWebrtcVideoTrackSourcePremap) &&
-      adapter_resources_->GetFeedback().require_mapped_frame &&
-      current_frame->HasMappableSharedImage() &&
-      current_frame->AsyncMappingIsNonBlocking()) {
-    using CallbackWithFrame =
-        base::OnceCallback<void(scoped_refptr<media::VideoFrame>)>;
-    CallbackWithFrame result_cb = base::BindOnce(
-        &WebRtcVideoTrackSource::CallbackProxy::ProcessMappedFrame,
-        callback_proxy_, pending_frames_.back().id);
-    // Ensure the callback is run on the current thread.
-    CallbackWithFrame cb_on_correct_thread = base::BindOnce(
-        &PostOrRunOnSequence, base::SequencedTaskRunner::GetCurrentDefault(),
-        std::move(result_cb));
+      adapter_resources_->GetFeedback().require_mapped_frame) {
+    if (current_frame->HasMappableSharedImage() &&
+        current_frame->AsyncMappingIsNonBlocking()) {
+      using CallbackWithFrame =
+          base::OnceCallback<void(scoped_refptr<media::VideoFrame>)>;
+      CallbackWithFrame result_cb = base::BindOnce(
+          &WebRtcVideoTrackSource::CallbackProxy::ProcessMappedFrame,
+          callback_proxy_, pending_frames_.back().id);
+      // Ensure the callback is run on the current thread.
+      CallbackWithFrame cb_on_correct_thread = base::BindOnce(
+          &PostOrRunOnSequence, base::SequencedTaskRunner::GetCurrentDefault(),
+          std::move(result_cb));
 
-    media::ConvertToMemoryMappedFrameAsync(current_frame,
-                                           std::move(cb_on_correct_thread));
-  } else {
-    pending_frames_.back().can_be_delivered = true;
-    TryProcessPendingFrames();
+      int64_t track_id = current_frame->timestamp().InMicroseconds();
+      TRACE_EVENT_BEGIN(
+          "webrtc", "ConvertToMemoryMappedFrameAsync",
+          perfetto::NamedTrack("ConvertToMemoryMappedFrameAsync", track_id),
+          "format", current_frame->format(), "storage_type",
+          current_frame->storage_type(), "natural_size",
+          current_frame->natural_size().ToString());
+
+      media::ConvertToMemoryMappedFrameAsync(current_frame,
+                                             std::move(cb_on_correct_thread));
+      return;
+#if BUILDFLAG(IS_ANDROID)
+    } else if (current_frame->HasMappableSharedImage() ||
+               current_frame->HasSharedImage()) {
+      int64_t track_id = current_frame->timestamp().InMicroseconds();
+      TRACE_EVENT_BEGIN(
+          "webrtc", "ConvertToMemoryMappedFrameAsync",
+          perfetto::NamedTrack("ConvertToMemoryMappedFrameAsync", track_id),
+          "format", current_frame->format(), "storage_type",
+          current_frame->storage_type(), "natural_size",
+          current_frame->natural_size().ToString());
+      scoped_refptr<media::VideoFrame> mapped_frame;
+      if (current_frame->HasMappableSharedImage()) {
+        mapped_frame =
+            adapter_resources_
+                ? adapter_resources_->ConstructVideoFrameFromGpu(current_frame)
+                : nullptr;
+      } else {
+        mapped_frame = adapter_resources_
+                           ? adapter_resources_->ConstructVideoFrameFromTexture(
+                                 current_frame)
+                           : nullptr;
+      }
+      ProcessMappedFrame(pending_frames_.back().id, std::move(mapped_frame));
+      return;
+#endif
+    }
   }
+  pending_frames_.back().can_be_delivered = true;
+  TryProcessPendingFrames();
 }
 
 void WebRtcVideoTrackSource::ComputeMetadataAndDeliverFrame(
@@ -432,6 +469,10 @@ void WebRtcVideoTrackSource::ProcessMappedFrame(
     return;
   }
 
+  TRACE_EVENT_END(
+      "webrtc", perfetto::NamedTrack("ConvertToMemoryMappedFrameAsync",
+                                     it->frame->timestamp().InMicroseconds()));
+
   if (!mapped_frame) {
     LOG(ERROR)
         << "Async mapping of frame failed. Producing black frame instead.";
@@ -503,18 +544,17 @@ void WebRtcVideoTrackSource::DeliverFrame(
 
   if (frame->ColorSpace().IsValid() &&
       base::FeatureList::IsEnabled(media::kWebRTCColorAccuracy)) {
-    if (frame->format() == media::PIXEL_FORMAT_ARGB ||
-        frame->format() == media::PIXEL_FORMAT_ABGR ||
-        frame->format() == media::PIXEL_FORMAT_XRGB ||
-        frame->format() == media::PIXEL_FORMAT_XBGR) {
+    if (media::IsRGB(frame->format())) {
       // RGB frames can't be encoded directly, there will be conversion in the
-      // encoder, which will produce Rec601.
+      // encoder.
+      gfx::ColorSpace cs =
+          media::VideoFrameConverter::GetDestinationColorSpace(*frame);
       if (base::FeatureList::IsEnabled(media::kWebRTCLogColorSpace)) {
-        LOG(ERROR) << "Rewriting color space to Rec601, because the format is "
+        LOG(ERROR) << "Rewriting color space to " << cs.ToString()
+                   << ", because the format is "
                    << media::VideoPixelFormatToString(frame->format());
       }
-      frame_builder.set_color_space(
-          GfxToWebRtcColorSpace(gfx::ColorSpace::CreateREC601()));
+      frame_builder.set_color_space(GfxToWebRtcColorSpace(cs));
     } else {
       frame_builder.set_color_space(GfxToWebRtcColorSpace(frame->ColorSpace()));
     }

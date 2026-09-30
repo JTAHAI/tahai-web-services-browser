@@ -225,7 +225,10 @@ class PrefHashBrowserTestBase : public extensions::ExtensionBrowserTest {
     PROTECTION_ENABLED_ALL
   };
 
-  PrefHashBrowserTestBase() : protection_level_(GetProtectionLevel()) {}
+  PrefHashBrowserTestBase() : protection_level_(GetProtectionLevel()) {
+    base_feature_list_.InitAndDisableFeature(
+        tracked::kDisallowLegacyPrefMacFallback);
+  }
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
     extensions::ExtensionBrowserTest::SetUpCommandLine(command_line);
@@ -489,6 +492,8 @@ class PrefHashBrowserTestBase : public extensions::ExtensionBrowserTest {
 #if BUILDFLAG(IS_WIN)
   std::wstring registry_key_for_external_validation_;
 #endif
+
+  base::test::ScopedFeatureList base_feature_list_;
 };
 
 }  // namespace
@@ -1362,8 +1367,10 @@ PREF_HASH_BROWSER_TEST(PrefHashBrowserTestExtensionDictTypeChanged,
 class PrefHashBrowserTestAccountValueUntrustedAddition
     : public PrefHashBrowserTestBase {
  public:
-  PrefHashBrowserTestAccountValueUntrustedAddition()
-      : feature_list_(switches::kEnablePreferencesAccountStorage) {}
+  PrefHashBrowserTestAccountValueUntrustedAddition() {
+    feature_list_.InitWithFeatures({switches::kEnablePreferencesAccountStorage},
+                                   {tracked::kDisallowLegacyPrefMacFallback});
+  }
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
     PrefHashBrowserTestBase::SetUpCommandLine(command_line);
@@ -1595,11 +1602,14 @@ class PrefHashBrowserTestEncryptedFallbackAndGeneratingEH
   PrefHashBrowserTestEncryptedFallbackAndGeneratingEH() {
     if (content::IsPreTest()) {
       // PRE_ phase: Feature is explicitly OFF to write only legacy MACs.
-      feature_list_.InitWithFeatures({}, {tracked::kEncryptedPrefHashing});
+      feature_list_.InitWithFeatures({},
+                                     {tracked::kEncryptedPrefHashing,
+                                      tracked::kDisallowLegacyPrefMacFallback});
     } else {
       // Main phase: Feature is ON to trigger the fallback and the generation of
       // encrypted hash process.
-      feature_list_.InitWithFeatures({tracked::kEncryptedPrefHashing}, {});
+      feature_list_.InitWithFeatures({tracked::kEncryptedPrefHashing},
+                                     {tracked::kDisallowLegacyPrefMacFallback});
     }
   }
 
@@ -1714,10 +1724,13 @@ class PrefHashBrowserTestEncryptedSplitPrefFallbackAndGeneratingEH
   PrefHashBrowserTestEncryptedSplitPrefFallbackAndGeneratingEH() {
     if (content::IsPreTest()) {
       // PRE_ phase: Feature is OFF to write only legacy MACs.
-      feature_list_.InitWithFeatures({}, {tracked::kEncryptedPrefHashing});
+      feature_list_.InitWithFeatures({},
+                                     {tracked::kEncryptedPrefHashing,
+                                      tracked::kDisallowLegacyPrefMacFallback});
     } else {
       // Main phase: Feature is ON to trigger FallbackAndGeneratingEH.
-      feature_list_.InitWithFeatures({tracked::kEncryptedPrefHashing}, {});
+      feature_list_.InitWithFeatures({tracked::kEncryptedPrefHashing},
+                                     {tracked::kDisallowLegacyPrefMacFallback});
     }
   }
 
@@ -2069,6 +2082,67 @@ class PrefHashBrowserTestEncryptedBypass
 
 PREF_HASH_BROWSER_TEST(PrefHashBrowserTestEncryptedBypass,
                        EncryptedVerificationNotBypassed);
+
+// Tests that when kDisallowLegacyPrefMacFallback is enabled, an attacker cannot
+// delete the encrypted hash and rely on a legacy MAC to bypass os_crypt.
+class PrefHashBrowserTestDowngradeAttackPrevented
+    : public PrefHashBrowserTestEncryptedBase {
+ public:
+  PrefHashBrowserTestDowngradeAttackPrevented() {
+    feature_list_.InitWithFeatures({tracked::kEncryptedPrefHashing,
+                                    tracked::kDisallowLegacyPrefMacFallback},
+                                   {});
+  }
+
+  void SetupPreferences() override {
+    profile()->GetPrefs()->SetString(prefs::kHomePage, "http://original.com");
+  }
+
+  void AttackPreferencesOnDisk(
+      base::DictValue* unprotected_preferences,
+      base::DictValue* protected_preferences) override {
+    base::DictValue* selected_prefs =
+        protection_level_ >= PROTECTION_ENABLED_BASIC ? protected_preferences
+                                                      : unprotected_preferences;
+    if (!selected_prefs) {
+      return;
+    }
+    base::DictValue* macs_dict =
+        selected_prefs->FindDictByDottedPath("protection.macs");
+    ASSERT_TRUE(macs_dict);
+
+    const std::string encrypted_hash_key =
+        std::string(prefs::kHomePage) + kEncryptedHashSuffix;
+    ASSERT_TRUE(macs_dict->contains(prefs::kHomePage));
+    ASSERT_TRUE(macs_dict->contains(encrypted_hash_key));
+
+    // Simulate downgrade attack: delete the encrypted hash while leaving the
+    // legacy MAC in place.
+    macs_dict->Remove(encrypted_hash_key);
+  }
+
+  void VerifyReactionToPrefAttack() override {
+    if (protection_level_ < PROTECTION_ENABLED_BASIC) {
+      return;
+    }
+    // Because legacy fallback is disallowed, missing encrypted hash is not
+    // healed via legacy MAC and the pref is reset to its default (empty).
+    EXPECT_TRUE(profile()->GetPrefs()->GetString(prefs::kHomePage).empty());
+
+    histograms_.ExpectUniqueSample(
+        user_prefs::tracked::kTrackedPrefHistogramInitialized,
+        2 /* homepage reporting_id */, 1);
+    histograms_.ExpectUniqueSample(
+        user_prefs::tracked::kTrackedPrefHistogramReset,
+        2 /* homepage reporting_id */, 1);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+PREF_HASH_BROWSER_TEST(PrefHashBrowserTestDowngradeAttackPrevented,
+                       DowngradeAttackPrevented);
 
 #if BUILDFLAG(IS_WIN)
 // Tests the enterprise-specific fallback logic when EncryptedPrefHashing is

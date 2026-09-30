@@ -15,6 +15,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -23,8 +24,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.content.Context;
 import android.content.res.Resources;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.LayerDrawable;
@@ -32,6 +36,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewGroup.MarginLayoutParams;
+import android.view.ViewStub;
 import android.view.ViewTreeObserver;
 
 import androidx.annotation.LayoutRes;
@@ -48,6 +53,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ResettersForTesting;
@@ -63,6 +69,7 @@ import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
+import org.chromium.chrome.browser.browser_controls.TopControlsStacker;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
@@ -92,9 +99,11 @@ import org.chromium.chrome.browser.toolbar.top.CaptureReadinessResult.TopToolbar
 import org.chromium.chrome.browser.toolbar.top.ToolbarControlContainer.ToolbarViewResourceAdapter;
 import org.chromium.chrome.browser.toolbar.top.ToolbarControlContainer.ToolbarViewResourceAdapter.ToolbarInMotionStage;
 import org.chromium.chrome.browser.toolbar.top.ToolbarControlContainer.ToolbarViewResourceCoordinatorLayout;
+import org.chromium.chrome.browser.ui.vertical_tabs.VerticalTabUtils;
 import org.chromium.components.browser_ui.desktop_windowing.AppHeaderState;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
 import org.chromium.components.browser_ui.widget.TouchEventObserver;
+import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.SwipeHandler;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.signin.SigninFeatures;
 import org.chromium.ui.base.TestActivity;
@@ -147,6 +156,7 @@ public class ToolbarControlContainerTest {
     @Mock private ViewTreeObserver mViewTreeObserver;
     @Mock private WindowAndroid mWindowAndroid;
     @Mock private DesktopWindowStateManager mDesktopWindowStateManager;
+    @Mock private TopControlsStacker mTopControlsStacker;
     @Mock private Callback<Integer> mRightMarginCallback;
     @Captor private ArgumentCaptor<CoordinatorLayout.LayoutParams> mToolbarLayoutParamsCaptor;
     @Captor private ArgumentCaptor<CoordinatorLayout.LayoutParams> mHairlineLayoutParamsCaptor;
@@ -203,7 +213,8 @@ public class ToolbarControlContainerTest {
                 mLayoutStateProviderSupplier,
                 mFullscreenManager,
                 mToolbarDataProvider,
-                mBrowserControlsStateProvider);
+                mBrowserControlsStateProvider,
+                mTopControlsStacker);
         // The adapter may observe some of these already, which will post events.
         RobolectricUtil.runAllBackgroundAndUi();
         // The initial addObserver triggers an event that we don't care about. Reset counts.
@@ -234,7 +245,8 @@ public class ToolbarControlContainerTest {
                 mFullscreenManager,
                 mToolbarDataProvider,
                 mBrowserControlsStateProvider,
-                mDesktopWindowStateManager);
+                mDesktopWindowStateManager,
+                mTopControlsStacker);
         ToolbarControlContainer.ToolbarViewResourceCoordinatorLayout toolbarContainer =
                 mControlContainer.findViewById(R.id.toolbar_container);
         toolbarContainer.setVisibility(View.GONE);
@@ -329,6 +341,7 @@ public class ToolbarControlContainerTest {
 
     @After
     public void after() {
+        VerticalTabUtils.resetSharedPrefsForTesting();
         mActivity.finish();
     }
 
@@ -685,10 +698,13 @@ public class ToolbarControlContainerTest {
     }
 
     @Test
+    @Config(qualifiers = "sw600dp")
+    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
     public void testToolbarRightOffsetInDesktopWindow() {
         initControlContainer(R.layout.toolbar_tablet);
         mControlContainer.setToolbarRightMarginCallback(mRightMarginCallback);
 
+        VerticalTabUtils.setVerticalTabsEnabled(true);
         SettableNonNullObservableSupplier<Boolean> isVerticalTabsActiveSupplier =
                 ObservableSuppliers.createNonNull(true);
         mControlContainer.setIsVerticalTabsActiveSupplier(isVerticalTabsActiveSupplier);
@@ -697,6 +713,7 @@ public class ToolbarControlContainerTest {
         // but is skipped since the initial margin is already 0.
         mControlContainer.onHeightChanged(80, 20, false);
         verify(mRightMarginCallback, never()).onResult(0);
+        assertFalse(mControlContainer.isToolbarInAppHeader());
 
         // Set app header with 10px padding on left, 20px on right, and 100px height.
         var appHeaderState =
@@ -707,10 +724,17 @@ public class ToolbarControlContainerTest {
         // right padding 20).
         mControlContainer.onHeightChanged(0, 20, false);
         verify(mRightMarginCallback).onResult(20);
+        assertTrue(mControlContainer.isToolbarInAppHeader());
 
-        // Disable vertical tabs while tab strip height is 0. Callback should be called with 0.
+        // Disable vertical tabs while tab strip height is 0. Shifting is retained.
+        VerticalTabUtils.setVerticalTabsEnabled(false);
         isVerticalTabsActiveSupplier.set(false);
+        verify(mRightMarginCallback, never()).onResult(0);
+
+        // Tab strip expands. Shifting is undone.
+        mControlContainer.onHeightChanged(80, 20, false);
         verify(mRightMarginCallback).onResult(0);
+        assertFalse(mControlContainer.isToolbarInAppHeader());
 
         // Exit desktop window. Margin is still 0, so callback should not be called again.
         var appHeaderState2 =
@@ -718,6 +742,7 @@ public class ToolbarControlContainerTest {
         when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(appHeaderState2);
         mControlContainer.onAppHeaderStateChanged(appHeaderState2);
         verify(mRightMarginCallback).onResult(0);
+        assertFalse(mControlContainer.isToolbarInAppHeader());
     }
 
     @Test
@@ -740,6 +765,90 @@ public class ToolbarControlContainerTest {
     }
 
     @Test
+    @Config(qualifiers = "sw600dp")
+    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
+    public void testToolbarRightOffset_ActiveWhileTabStripVisible() {
+        initControlContainer(R.layout.toolbar_tablet);
+        mControlContainer.setToolbarRightMarginCallback(mRightMarginCallback);
+
+        var appHeaderState =
+                new AppHeaderState(new Rect(0, 0, 100, 100), new Rect(10, 0, 80, 100), true);
+        when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(appHeaderState);
+
+        SettableNonNullObservableSupplier<Boolean> isVerticalTabsActiveSupplier =
+                ObservableSuppliers.createNonNull(false);
+        mControlContainer.setIsVerticalTabsActiveSupplier(isVerticalTabsActiveSupplier);
+
+        // Tab strip is visible (height 80). Margin is 0.
+        mControlContainer.onHeightChanged(80, 20, false);
+        assertEquals(0, mControlContainer.getRightMarginForTesting());
+        verify(mRightMarginCallback, never()).onResult(anyInt());
+
+        // Vertical tabs becomes active. Right margin is updated immediately even while
+        // tab strip is still visible.
+        VerticalTabUtils.setVerticalTabsEnabled(true);
+        mControlContainer.updateToolbarRightOffset();
+        assertEquals(20, mControlContainer.getRightMarginForTesting());
+        verify(mRightMarginCallback).onResult(20);
+
+        // Intermediate animation height update preserves the right margin.
+        mControlContainer.onHeightChanged(40, 20, false);
+        assertEquals(20, mControlContainer.getRightMarginForTesting());
+
+        // Tab strip finishes collapse to height 0.
+        mControlContainer.onHeightChanged(0, 20, false);
+        assertEquals(20, mControlContainer.getRightMarginForTesting());
+        verify(mRightMarginCallback, times(1)).onResult(20);
+    }
+
+    @Test
+    @Config(qualifiers = "sw600dp")
+    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
+    public void testToolbarRightOffset_StartupWithVerticalTabsOn() {
+        VerticalTabUtils.setVerticalTabsEnabled(true);
+        initControlContainer(R.layout.toolbar_tablet);
+
+        var appHeaderState =
+                new AppHeaderState(new Rect(0, 0, 100, 100), new Rect(10, 0, 80, 100), true);
+        when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(appHeaderState);
+
+        SettableNonNullObservableSupplier<Boolean> isVerticalTabsActiveSupplier =
+                ObservableSuppliers.createNonNull(true);
+        mControlContainer.setIsVerticalTabsActiveSupplier(isVerticalTabsActiveSupplier);
+        mControlContainer.setToolbarRightMarginCallback(mRightMarginCallback);
+
+        assertEquals(20, mControlContainer.getRightMarginForTesting());
+        verify(mRightMarginCallback).onResult(20);
+    }
+
+    @Test
+    @Config(qualifiers = "sw600dp")
+    @EnableFeatures(ChromeFeatureList.ANDROID_VERTICAL_TABS)
+    public void testToolbarRightOffset_VerticalTabsEnabledViaPref() {
+        initControlContainer(R.layout.toolbar_tablet);
+        mControlContainer.setToolbarRightMarginCallback(mRightMarginCallback);
+
+        var appHeaderState =
+                new AppHeaderState(new Rect(0, 0, 100, 100), new Rect(10, 0, 80, 100), true);
+        when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(appHeaderState);
+
+        // Supplier is false (e.g. animation hasn't completed yet).
+        SettableNonNullObservableSupplier<Boolean> isVerticalTabsActiveSupplier =
+                ObservableSuppliers.createNonNull(false);
+        mControlContainer.setIsVerticalTabsActiveSupplier(isVerticalTabsActiveSupplier);
+        assertEquals(0, mControlContainer.getRightMarginForTesting());
+
+        // Enable vertical tabs via preference.
+        VerticalTabUtils.setVerticalTabsEnabled(true);
+        mControlContainer.updateToolbarRightOffset();
+
+        // Right offset is applied immediately because VerticalTabUtils.isVerticalTabsEnabled is
+        // true.
+        assertEquals(20, mControlContainer.getRightMarginForTesting());
+        verify(mRightMarginCallback).onResult(20);
+    }
+
+    @Test
     @EnableFeatures(ChromeFeatureList.TOOLBAR_SNAPSHOT_REFACTOR)
     public void testSetToolbarContainerTopMarginForAutoHiddenVerticalTab_RefactorEnabled() {
         checkSetToolbarContainerTopMarginForAutoHiddenVerticalTab();
@@ -751,25 +860,104 @@ public class ToolbarControlContainerTest {
         checkSetToolbarContainerTopMarginForAutoHiddenVerticalTab();
     }
 
-    private void checkSetToolbarContainerTopMarginForAutoHiddenVerticalTab() {
+    @Test
+    public void testSetToolbarContainerTopMarginForAutoHiddenVerticalTab_NotInDesktopWindow() {
         initControlContainer(R.layout.toolbar_tablet);
+        SettableNonNullObservableSupplier<Boolean> isVerticalTabsActiveSupplier =
+                ObservableSuppliers.createNonNull(true);
+        mControlContainer.setIsVerticalTabsActiveSupplier(isVerticalTabsActiveSupplier);
+        var appHeaderState =
+                new AppHeaderState(new Rect(0, 0, 100, 100), new Rect(0, 0, 100, 100), false);
+        when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(appHeaderState);
+
         View toolbarContainer = mControlContainer.findViewById(R.id.toolbar_container);
         assertNotNull(toolbarContainer);
 
         MarginLayoutParams lp = (MarginLayoutParams) toolbarContainer.getLayoutParams();
+        mControlContainer.setToolbarContainerTopMarginForAutoHiddenVerticalTab(true);
+        mControlContainer.onMeasure(0, 0);
+        assertEquals(0, lp.topMargin);
+    }
+
+    @Test
+    public void testSetToolbarContainerTopMarginForAutoHiddenVerticalTab_InactiveVerticalTabs() {
+        initControlContainer(R.layout.toolbar_tablet);
+        SettableNonNullObservableSupplier<Boolean> isVerticalTabsActiveSupplier =
+                ObservableSuppliers.createNonNull(false);
+        mControlContainer.setIsVerticalTabsActiveSupplier(isVerticalTabsActiveSupplier);
+        var appHeaderState =
+                new AppHeaderState(new Rect(0, 0, 100, 100), new Rect(10, 0, 80, 100), true);
+        when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(appHeaderState);
+
+        View toolbarContainer = mControlContainer.findViewById(R.id.toolbar_container);
+        assertNotNull(toolbarContainer);
+
+        MarginLayoutParams lp = (MarginLayoutParams) toolbarContainer.getLayoutParams();
+        mControlContainer.setToolbarContainerTopMarginForAutoHiddenVerticalTab(true);
+        mControlContainer.onMeasure(0, 0);
+        assertEquals(0, lp.topMargin);
+    }
+
+    @Test
+    public void testSetToolbarContainerTopMargin_VerticalTabs_WithCaptionControlsTopOffset() {
+        initControlContainer(R.layout.toolbar_tablet);
+        SettableNonNullObservableSupplier<Boolean> isVerticalTabsActiveSupplier =
+                ObservableSuppliers.createNonNull(true);
+        mControlContainer.setIsVerticalTabsActiveSupplier(isVerticalTabsActiveSupplier);
+
+        int topOffset = 24;
+        var appHeaderState =
+                new AppHeaderState(new Rect(0, 0, 100, 100), new Rect(10, topOffset, 80, 64), true);
+        when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(appHeaderState);
+        when(mToolbarDataProvider.getPrimaryColor()).thenReturn(Color.BLUE);
+
+        View toolbarContainer = mControlContainer.findViewById(R.id.toolbar_container);
+        assertNotNull(toolbarContainer);
+
+        MarginLayoutParams lp = (MarginLayoutParams) toolbarContainer.getLayoutParams();
+        mControlContainer.onAppHeaderStateChanged(appHeaderState);
+        assertEquals(topOffset, lp.topMargin);
+        assertEquals(
+                mControlContainer
+                                .getContext()
+                                .getResources()
+                                .getDimensionPixelSize(R.dimen.toolbar_height_no_shadow)
+                        + topOffset,
+                mControlContainer.getToolbarHeight());
+        verify(mTopControlsStacker, atLeastOnce())
+                .requestLayerUpdatePost(/* requireAnimate= */ false);
+        assertTrue(mControlContainer.getBackground() instanceof ColorDrawable);
+        assertEquals(Color.BLUE, ((ColorDrawable) mControlContainer.getBackground()).getColor());
+
         int tabStripHeight =
                 mControlContainer
                         .getContext()
                         .getResources()
                         .getDimensionPixelSize(R.dimen.tab_strip_height);
-
         mControlContainer.setToolbarContainerTopMarginForAutoHiddenVerticalTab(true);
-        mControlContainer.onMeasure(0, 0);
-        assertEquals(tabStripHeight, lp.topMargin);
+        assertEquals(topOffset + tabStripHeight, lp.topMargin);
 
-        mControlContainer.setToolbarContainerTopMarginForAutoHiddenVerticalTab(false);
-        mControlContainer.onMeasure(0, 0);
+        isVerticalTabsActiveSupplier.set(false);
         assertEquals(0, lp.topMargin);
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.TOOLBAR_SNAPSHOT_REFACTOR)
+    public void
+            testUpdateToolbarContainerTopMargin_TabStripHeightChange_DoesNotRequestLayerUpdatePost() {
+        initControlContainer(R.layout.toolbar_tablet);
+        SettableNonNullObservableSupplier<Boolean> isVerticalTabsActiveSupplier =
+                ObservableSuppliers.createNonNull(false);
+        mControlContainer.setIsVerticalTabsActiveSupplier(isVerticalTabsActiveSupplier);
+
+        doReturn(80).when(mToolbar).getTabStripHeight();
+        mControlContainer.onMeasure(/* widthMeasureSpec= */ 0, /* heightMeasureSpec= */ 0);
+
+        View toolbarContainer = mControlContainer.findViewById(R.id.toolbar_container);
+        assertNotNull(toolbarContainer);
+        MarginLayoutParams lp = (MarginLayoutParams) toolbarContainer.getLayoutParams();
+        assertEquals(80, lp.topMargin);
+        verify(mTopControlsStacker, never()).requestLayerUpdatePost(anyBoolean());
     }
 
     @Test
@@ -936,6 +1124,51 @@ public class ToolbarControlContainerTest {
     }
 
     @Test
+    public void testTopLeftCornerOverlay_OnTabOrModelChanged() {
+        initControlContainer(R.layout.toolbar_tablet);
+
+        var appHeaderState =
+                new AppHeaderState(new Rect(0, 0, 100, 100), new Rect(10, 0, 80, 100), true);
+        when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(appHeaderState);
+        mControlContainer.onAppHeaderStateChanged(appHeaderState);
+
+        SettableNonNullObservableSupplier<Boolean> isVerticalTabsActiveSupplier =
+                ObservableSuppliers.createNonNull(true);
+        mControlContainer.setIsVerticalTabsActiveSupplier(isVerticalTabsActiveSupplier);
+
+        View overlayView = mControlContainer.getTopLeftCornerOverlayViewForTesting();
+        assertNotNull(overlayView);
+        assertEquals(View.VISIBLE, overlayView.getVisibility());
+
+        // Ensure background is null to verify onTabOrModelChanged updates state even when
+        // background is null.
+        mControlContainer.setBackground(null);
+
+        Context context = mControlContainer.getContext();
+        Canvas canvas = mock(Canvas.class);
+        ArgumentCaptor<Paint> paintCaptor = ArgumentCaptor.forClass(Paint.class);
+
+        // Switch to incognito model.
+        mControlContainer.onTabOrModelChanged(/* incognito= */ true);
+        overlayView.draw(canvas);
+        verify(canvas, atLeastOnce()).drawPath(any(), paintCaptor.capture());
+        assertEquals(
+                "Corner overlay should draw with incognito tab strip background color",
+                TabUiThemeUtil.getTabStripBackgroundColor(context, true),
+                paintCaptor.getValue().getColor());
+
+        // Switch back to regular model.
+        clearInvocations(canvas);
+        mControlContainer.onTabOrModelChanged(/* incognito= */ false);
+        overlayView.draw(canvas);
+        verify(canvas, atLeastOnce()).drawPath(any(), paintCaptor.capture());
+        assertEquals(
+                "Corner overlay should draw with regular tab strip background color",
+                TabUiThemeUtil.getTabStripBackgroundColor(context, false),
+                paintCaptor.getValue().getColor());
+    }
+
+    @Test
     public void testShowLocationBarOnly() {
         doReturn(mLocationBarView).when(mToolbar).removeLocationBarView();
         doReturn(Color.RED).when(mToolbarDataProvider).getPrimaryColor();
@@ -955,7 +1188,8 @@ public class ToolbarControlContainerTest {
                 mFullscreenManager,
                 mToolbarDataProvider,
                 mBrowserControlsStateProvider,
-                null);
+                null,
+                mTopControlsStacker);
 
         ToolbarPhone toolbarPhone = controlContainer.findViewById(R.id.toolbar);
         doReturn(mLocationBarCoordinatorPhone).when(mLocationBarCoordinator).getPhoneCoordinator();
@@ -1026,7 +1260,8 @@ public class ToolbarControlContainerTest {
                 mFullscreenManager,
                 mToolbarDataProvider,
                 mBrowserControlsStateProvider,
-                null);
+                null,
+                mTopControlsStacker);
         ToolbarControlContainer.ToolbarViewResourceCoordinatorLayout toolbarContainer =
                 controlContainer.findViewById(R.id.toolbar_container);
         toolbarContainer.setVisibility(View.GONE);
@@ -1045,6 +1280,49 @@ public class ToolbarControlContainerTest {
 
         doReturn(true).when(mTouchEventObserver).onInterceptTouchEvent(clickEvent);
         assertTrue(controlContainer.onInterceptTouchEvent(clickEvent));
+    }
+
+    @Test
+    public void testTouchEvent_BelowToolbarContainer() {
+        ToolbarControlContainer controlContainer =
+                (ToolbarControlContainer)
+                        mActivity.getLayoutInflater().inflate(R.layout.control_container, null);
+        controlContainer.initWithToolbar(R.layout.toolbar_phone, R.dimen.toolbar_height_no_shadow);
+        controlContainer.setPostInitializationDependencies(
+                mToolbar,
+                mToolbarView,
+                false,
+                mConstraintsSupplier,
+                mTabSupplier,
+                mCompositorInMotionSupplier,
+                mBrowserStateBrowserControlsVisibilityDelegate,
+                mLayoutStateProviderSupplier,
+                mFullscreenManager,
+                mToolbarDataProvider,
+                mBrowserControlsStateProvider,
+                null,
+                mTopControlsStacker);
+        ToolbarControlContainer.ToolbarViewResourceCoordinatorLayout toolbarContainer =
+                controlContainer.findViewById(R.id.toolbar_container);
+        toolbarContainer.setVisibility(View.VISIBLE);
+        toolbarContainer.layout(0, 0, 1000, 100);
+        controlContainer.setSwipeHandler(mock(SwipeHandler.class));
+
+        // Click within the toolbar container.
+        MotionEvent toolbarClickEvent =
+                MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100, 50, 0);
+        assertFalse(controlContainer.onInterceptTouchEvent(toolbarClickEvent));
+        assertTrue(controlContainer.onTouchEvent(toolbarClickEvent));
+
+        // Click below the toolbar container when tablet find in page is open.
+        ViewStub findToolbarStub = controlContainer.findViewById(R.id.find_toolbar_tablet_stub);
+        View findToolbar = findToolbarStub.inflate();
+        findToolbar.setVisibility(View.VISIBLE);
+
+        MotionEvent belowToolbarClickEvent =
+                MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100, 150, 0);
+        assertFalse(controlContainer.onInterceptTouchEvent(belowToolbarClickEvent));
+        assertFalse(controlContainer.onTouchEvent(belowToolbarClickEvent));
     }
 
     @Test
@@ -1374,6 +1652,58 @@ public class ToolbarControlContainerTest {
                 toolbarLayoutHeight,
                 /* expectedContainerTopMargin= */ 0,
                 /* expectedHairlineTopMargin= */ simulatedTabStripHeight + toolbarLayoutHeight);
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.TOOLBAR_SNAPSHOT_REFACTOR)
+    public void
+            testOnHeightChanged_WithToolbarSnapshotRefactorEnabled_SetsToolbarViewTopMarginToZero() {
+        initControlContainer(R.layout.toolbar_tablet);
+        mControlContainer.onHeightChanged(
+                /* tabStripHeight= */ 80, /* topPadding= */ 20, /* applyScrimOverlay= */ false);
+
+        verify(mToolbarView).setLayoutParams(mToolbarLayoutParamsCaptor.capture());
+        assertEquals(0, mToolbarLayoutParamsCaptor.getValue().topMargin);
+    }
+
+    @Test
+    @DisableFeatures(ChromeFeatureList.TOOLBAR_SNAPSHOT_REFACTOR)
+    public void
+            testOnHeightChanged_WithToolbarSnapshotRefactorDisabled_SetsToolbarViewTopMarginToTabStripHeight() {
+        initControlContainer(R.layout.toolbar_tablet);
+        mControlContainer.onHeightChanged(
+                /* tabStripHeight= */ 80, /* topPadding= */ 20, /* applyScrimOverlay= */ false);
+
+        verify(mToolbarView).setLayoutParams(mToolbarLayoutParamsCaptor.capture());
+        assertEquals(80, mToolbarLayoutParamsCaptor.getValue().topMargin);
+    }
+
+    private void checkSetToolbarContainerTopMarginForAutoHiddenVerticalTab() {
+        initControlContainer(R.layout.toolbar_tablet);
+        SettableNonNullObservableSupplier<Boolean> isVerticalTabsActiveSupplier =
+                ObservableSuppliers.createNonNull(true);
+        mControlContainer.setIsVerticalTabsActiveSupplier(isVerticalTabsActiveSupplier);
+        var appHeaderState =
+                new AppHeaderState(new Rect(0, 0, 100, 100), new Rect(10, 0, 80, 100), true);
+        when(mDesktopWindowStateManager.getAppHeaderState()).thenReturn(appHeaderState);
+
+        View toolbarContainer = mControlContainer.findViewById(R.id.toolbar_container);
+        assertNotNull(toolbarContainer);
+
+        MarginLayoutParams lp = (MarginLayoutParams) toolbarContainer.getLayoutParams();
+        int tabStripHeight =
+                mControlContainer
+                        .getContext()
+                        .getResources()
+                        .getDimensionPixelSize(R.dimen.tab_strip_height);
+
+        mControlContainer.setToolbarContainerTopMarginForAutoHiddenVerticalTab(true);
+        mControlContainer.onMeasure(/* widthMeasureSpec= */ 0, /* heightMeasureSpec= */ 0);
+        assertEquals(tabStripHeight, lp.topMargin);
+
+        mControlContainer.setToolbarContainerTopMarginForAutoHiddenVerticalTab(false);
+        mControlContainer.onMeasure(/* widthMeasureSpec= */ 0, /* heightMeasureSpec= */ 0);
+        assertEquals(0, lp.topMargin);
     }
 
     private void checkOnMeasureMargins(

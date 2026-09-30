@@ -69,7 +69,9 @@ try {
     $started = $now - 30000
     $finished = $now - 10000
     $artifacts = @()
-    foreach ($name in @('chrome.exe', 'chrome.dll', 'tahai_mission_service_tests.exe', 'browser_tests.exe')) {
+    foreach ($name in @('chrome.exe', 'chrome.dll', 'tahai_mission_service_tests.exe', 'browser_tests.exe',
+                        'elevation_service.exe', 'elevated_tracing_service.exe',
+                        'elevation_service_unittests.exe', 'elevated_tracing_service_unittests.exe')) {
         $filePath = Join-Path $buildDir $name
         # Plain text fixtures deliberately cannot be mistaken for PE binaries.
         [IO.File]::WriteAllText($filePath, "SYNTHETIC packaging-guard fixture: $name")
@@ -419,6 +421,12 @@ try {
     $nativeRecord.exitCode = 0
     $browserRecord = Write-FixtureEvidence 'browser.json' $browser
     $browserRecord.exitCode = 0
+    $elevation = New-TestSummary @('ServiceMainTest.TahaiConfiguredInterfaceMatchesTypeLibrary', 'ServiceMainTest.ExitSignalTest')
+    $tracing = New-TestSummary @('SystemTracingSessionTest.TahaiConfiguredInterfaceMatchesTypeLibrary', 'SystemTracingSessionTest.NoAggregation')
+    $elevationRecord = Write-FixtureEvidence 'elevation.json' $elevation
+    $elevationRecord.exitCode = 0
+    $tracingRecord = Write-FixtureEvidence 'tracing.json' $tracing
+    $tracingRecord.exitCode = 0
     $logPath = Join-Path $fixtureRoot 'build.log'
     [IO.File]::WriteAllText($logPath, 'SYNTHETIC build-log fixture, not a browser build.')
     $checks = @()
@@ -434,20 +442,61 @@ try {
         identity=@{head=('b' * 40); buildArgsSha256=(Get-FileHash -LiteralPath (Join-Path $buildDir 'args.gn') -Algorithm SHA256).Hash}
         sourceSnapshot=(Write-FixtureEvidence 'source.zip' @{synthetic=$true})
     }
-    $testResults = @{nativeExitCode=0; browserExitCode=0; isolatedTestSession='SYNTHETIC fixture only'}
-    $evidence = [ordered]@{schemaVersion=1; buildExitCode=0;
+    $testResults = @{nativeExitCode=0; browserExitCode=0; elevationExitCode=0; tracingExitCode=0; isolatedTestSession='SYNTHETIC fixture only'}
+    $evidence = [ordered]@{schemaVersion=2; buildExitCode=0;
         buildStartedUnixMs=$started; buildFinishedUnixMs=$finished; artifacts=$artifacts;
         buildLog=@{file='build.log';sha256=(Get-FileHash -LiteralPath $logPath -Algorithm SHA256).Hash};
         nativeTests=$nativeRecord; browserTests=$browserRecord;
+        elevationTests=$elevationRecord; tracingTests=$tracingRecord;
         sourceProvenance=(Write-FixtureEvidence 'source-provenance.json' $source);
         testResults=(Write-FixtureEvidence 'test-results.json' $testResults);
         smoke=(Write-FixtureEvidence 'smoke.json' $smoke)}
     $evidencePath = Join-Path $fixtureRoot 'release.json'
     $null = Write-FixtureEvidence 'release.json' $evidence
     $result = Assert-TahaiReleaseEvidence $evidencePath $buildDir
-    if ($result.NativeTestAttempts -ne 147 -or $result.BrowserTestAttempts -ne 180) {
+    if ($result.NativeTestAttempts -ne 147 -or $result.BrowserTestAttempts -ne 180 -or
+        $result.ElevationTestAttempts -ne 2 -or $result.TracingTestAttempts -ne 2) {
         throw 'Positive fixture counts were incorrect.'
     }
+    $script:cases++
+
+    $evidence.schemaVersion = 1
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'old evidence lacks required service gates'
+    $evidence.schemaVersion = 2
+    $evidence.Remove('tracingTests')
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'missing tracing test report'
+    $evidence.tracingTests = $tracingRecord
+    $testResults.elevationExitCode = $null
+    $evidence.testResults = Write-FixtureEvidence 'test-results.json' $testResults
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'missing actual service test exit'
+    $testResults.elevationExitCode = 0
+    $evidence.testResults = Write-FixtureEvidence 'test-results.json' $testResults
+    $tracing.per_iteration_data[0].PSObject.Properties.Remove('SystemTracingSessionTest.TahaiConfiguredInterfaceMatchesTypeLibrary')
+    $evidence.tracingTests = Write-FixtureEvidence 'tracing.json' $tracing
+    $evidence.tracingTests.exitCode = 0
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'missing changed tracing interface regression'
+    $tracing = New-TestSummary $tracing.all_tests
+    $tracing.all_tests += 'SystemTracingSessionTest.FilteredOut'
+    $evidence.tracingTests = Write-FixtureEvidence 'tracing.json' $tracing
+    $evidence.tracingTests.exitCode = 0
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'filtered-out discovered service test'
+    $tracing.all_tests = @($tracing.all_tests | Where-Object { $_ -ne 'SystemTracingSessionTest.FilteredOut' })
+    $evidence.tracingTests = Write-FixtureEvidence 'tracing.json' $tracing
+    $evidence.tracingTests.exitCode = 0
+    $evidence.elevationTests.exitCode = 1
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'service process failed'
+    $evidence.elevationTests.exitCode = 0
+    [IO.File]::SetLastWriteTimeUtc((Join-Path $buildDir 'elevated_tracing_service.exe'), [DateTimeOffset]::FromUnixTimeMilliseconds($started - 1000).UtcDateTime)
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'stale tracing service binary'
+    [IO.File]::SetLastWriteTimeUtc((Join-Path $buildDir 'elevated_tracing_service.exe'), [DateTimeOffset]::FromUnixTimeMilliseconds($started + 1000).UtcDateTime)
+    $null = Assert-TahaiReleaseEvidence $evidencePath $buildDir
     $script:cases++
 
     $native.per_iteration_data[0].PSObject.Properties.Remove('TahaiWorkflowJournalTest.AbruptWriterExitRollsBackWithoutReplay')

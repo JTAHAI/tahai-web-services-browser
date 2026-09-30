@@ -10,9 +10,13 @@
 
 #include "base/component_export.h"
 #include "components/services/app_service/public/cpp/macros.h"
-#include "components/services/app_service/public/protos/app_types.pb.h"
 
 namespace apps {
+
+enum ApplicationType : int;
+enum ApplicationInstallReason : int;
+enum ApplicationInstallSource : int;
+enum ApplicationUninstallSource : int;
 
 // When updating the enum below, update the ApplicationType enum in
 // //components/services/app_service/public/protos/app_types.proto.
@@ -29,7 +33,7 @@ enum class AppType {
   kCrostini = 3,   // Linux (via Crostini) app.
   kChromeApp = 4,  // Chrome app.
   kWeb = 5,        // Web app.
-  kPluginVm = 6,   // Plugin VM app, see go/pluginvm.
+  kPluginVm = 6,   // Deprecated. Do not reuse this value.
   // kStandaloneBrowser = 7,  // Removed. No longer used.
   kRemote = 8,      // Remote app.
   kBorealis = 9,    // Borealis app, see go/borealis-app.

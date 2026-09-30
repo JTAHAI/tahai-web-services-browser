@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import type {AnnotationBrush, TextAnnotation, TextAnnotationMessageData, TextAttributes, TextBoxInit, UndoRedoStateChangedDetail, Viewport} from 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/pdf_viewer_wrapper.js';
-import {AnnotationBrushType, DEFAULT_TEXTBOX_WIDTH, Ink2Manager, MIN_TEXTBOX_SIZE_PX, PluginController, PluginControllerEventType, TextAlignment, TextAnnotationSource, TextTypeface} from 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/pdf_viewer_wrapper.js';
+import {AnnotationBrushType, DEFAULT_TEXTBOX_WIDTH, Ink2Manager, MIN_TEXTBOX_SIZE_PX, PluginController, PluginControllerEventType, TextAlignment, TextAnnotationSource, TextStyle, TextTypeface} from 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/pdf_viewer_wrapper.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {eventToPromise} from 'chrome://webui-test/test_util.js';
 
@@ -360,6 +360,7 @@ chrome.test.runTests([
       styles: {
         bold: false,
         italic: false,
+        strikethrough: false,
       },
     };
     assertTextUpdate(0, expectedAttributes);
@@ -380,11 +381,29 @@ chrome.test.runTests([
     expectedAttributes.color = blue;
     assertTextUpdate(3, expectedAttributes);
 
-    // Set style to bold + italic.
-    const boldItalic = {bold: true, italic: true};
+    // Toggle bold style on.
+    manager.toggleTextStyle(TextStyle.BOLD);
+    expectedAttributes
+        .styles = {bold: true, italic: false, strikethrough: false};
+    assertTextUpdate(4, expectedAttributes);
+
+    // Toggle italic style on.
+    manager.toggleTextStyle(TextStyle.ITALIC);
+    expectedAttributes
+        .styles = {bold: true, italic: true, strikethrough: false};
+    assertTextUpdate(5, expectedAttributes);
+
+    // Toggle bold style off.
+    manager.toggleTextStyle(TextStyle.BOLD);
+    expectedAttributes
+        .styles = {bold: false, italic: true, strikethrough: false};
+    assertTextUpdate(6, expectedAttributes);
+
+    // Set style to bold + italic explicitly.
+    const boldItalic = {bold: true, italic: true, strikethrough: false};
     manager.setTextStyles(boldItalic);
     expectedAttributes.styles = boldItalic;
-    assertTextUpdate(4, expectedAttributes);
+    assertTextUpdate(7, expectedAttributes);
 
     chrome.test.succeed();
   },
@@ -421,7 +440,7 @@ chrome.test.runTests([
     manager.setTextAlignment(TextAlignment.CENTER);
     const red = {r: 255, b: 0, g: 0};
     manager.setTextColor(red);
-    const boldItalic = {bold: true, italic: true};
+    const boldItalic = {bold: true, italic: true, strikethrough: false};
     manager.setTextStyles(boldItalic);
 
     const whenInitEvent = eventToPromise<CustomEvent<TextBoxInit>>(
@@ -1094,6 +1113,127 @@ chrome.test.runTests([
     chrome.test.assertEq(3, redoMsg.data.viewportOrientation);
 
     mockPlugin.clearMessages();
+    chrome.test.succeed();
+  },
+
+  async function testSaveAnnotationToClipboard() {
+    const manager = await setUpTextMode();
+    const annotation = {
+      ...getTestAnnotation(1),
+      text: 'Clipboard Text',
+    };
+
+    const whenSaveCopy = eventToPromise<
+        CustomEvent<{annotation: TextAnnotation, isCut: boolean}>>(
+        'saved-annotation-to-clipboard-for-testing', manager);
+    manager.saveAnnotationToClipboard(annotation, /*isCut=*/ false);
+    const saveCopyEvent = await whenSaveCopy;
+    chrome.test.assertEq(
+        'Clipboard Text', saveCopyEvent.detail.annotation.text);
+    chrome.test.assertFalse(saveCopyEvent.detail.isCut);
+
+    const whenSaveCut = eventToPromise<
+        CustomEvent<{annotation: TextAnnotation, isCut: boolean}>>(
+        'saved-annotation-to-clipboard-for-testing', manager);
+    manager.saveAnnotationToClipboard(annotation, /*isCut=*/ true);
+    const saveCutEvent = await whenSaveCut;
+    chrome.test.assertEq('Clipboard Text', saveCutEvent.detail.annotation.text);
+    chrome.test.assertTrue(saveCutEvent.detail.isCut);
+
+    chrome.test.succeed();
+  },
+
+  async function testPasteAnnotation() {
+    const manager = await setUpTextMode();
+    const originalAnnotation: TextAnnotation = {
+      ...getTestAnnotation(5),
+      text: 'Pasted Text',
+      textAttributes: {
+        alignment: TextAlignment.CENTER,
+        color: {r: 255, g: 0, b: 0},
+        size: 18,
+        styles: {
+          [TextStyle.BOLD]: true,
+          [TextStyle.ITALIC]: false,
+          [TextStyle.STRIKETHROUGH]: false,
+        },
+        typeface: TextTypeface.SERIF,
+      },
+      textBoxRect: {height: 20, locationX: 100, locationY: 50, width: 100},
+    };
+
+    // Case 1: Paste when clipboard is empty returns false.
+    chrome.test.assertFalse(manager.pasteAnnotation());
+
+    // Case 2: Paste copied annotation (isCut = false).
+    // Creates a new annotation ID and updates attributes.
+    manager.saveAnnotationToClipboard(originalAnnotation, /*isCut=*/ false);
+
+    let whenInitEvent = eventToPromise<CustomEvent<TextBoxInit>>(
+        'initialize-text-box', manager);
+    let whenAttrEvent = eventToPromise<CustomEvent<TextAttributes>>(
+        'attributes-changed', manager);
+    chrome.test.assertTrue(manager.pasteAnnotation());
+
+    let initEvent = await whenInitEvent;
+    let attrEvent = await whenAttrEvent;
+
+    chrome.test.assertTrue(initEvent.detail.isPaste === true);
+    chrome.test.assertEq('Pasted Text', initEvent.detail.annotation.text);
+    // Gets new ID 0 since nextAnnotationId_ starts at 0.
+    chrome.test.assertEq(0, initEvent.detail.annotation.id);
+    // Location is offset by 10px in screen coordinates. Page 0 screen offset is
+    // (55, 3).
+    chrome.test.assertEq(
+        165, initEvent.detail.annotation.textBoxRect.locationX);
+    chrome.test.assertEq(63, initEvent.detail.annotation.textBoxRect.locationY);
+    assertDeepEquals(originalAnnotation.textAttributes, attrEvent.detail);
+    assertDeepEquals(
+        originalAnnotation.textAttributes, manager.getCurrentTextAttributes());
+
+    // Consecutive paste cascades position (+10px) and gets next ID (1).
+    whenInitEvent = eventToPromise<CustomEvent<TextBoxInit>>(
+        'initialize-text-box', manager);
+    chrome.test.assertTrue(manager.pasteAnnotation());
+    initEvent = await whenInitEvent;
+    chrome.test.assertEq(1, initEvent.detail.annotation.id);
+    chrome.test.assertEq(
+        175, initEvent.detail.annotation.textBoxRect.locationX);
+    chrome.test.assertEq(73, initEvent.detail.annotation.textBoxRect.locationY);
+
+    // Case 3: Paste cut annotation (isCut = true).
+    // Reuses the cut annotation's original ID (5).
+    manager.saveAnnotationToClipboard(originalAnnotation, /*isCut=*/ true);
+
+    whenInitEvent = eventToPromise<CustomEvent<TextBoxInit>>(
+        'initialize-text-box', manager);
+    whenAttrEvent = eventToPromise<CustomEvent<TextAttributes>>(
+        'attributes-changed', manager);
+    chrome.test.assertTrue(manager.pasteAnnotation());
+
+    initEvent = await whenInitEvent;
+    attrEvent = await whenAttrEvent;
+
+    chrome.test.assertTrue(initEvent.detail.isPaste === true);
+    chrome.test.assertEq('Pasted Text', initEvent.detail.annotation.text);
+    chrome.test.assertEq(5, initEvent.detail.annotation.id);
+    // Position offset from original annotation:
+    chrome.test.assertEq(
+        165, initEvent.detail.annotation.textBoxRect.locationX);
+    chrome.test.assertEq(63, initEvent.detail.annotation.textBoxRect.locationY);
+    assertDeepEquals(originalAnnotation.textAttributes, attrEvent.detail);
+
+    // Subsequent paste after cut annotation gets next ID (6) and cascading
+    // offset.
+    whenInitEvent = eventToPromise<CustomEvent<TextBoxInit>>(
+        'initialize-text-box', manager);
+    chrome.test.assertTrue(manager.pasteAnnotation());
+    initEvent = await whenInitEvent;
+    chrome.test.assertEq(6, initEvent.detail.annotation.id);
+    chrome.test.assertEq(
+        175, initEvent.detail.annotation.textBoxRect.locationX);
+    chrome.test.assertEq(73, initEvent.detail.annotation.textBoxRect.locationY);
+
     chrome.test.succeed();
   },
 ]);

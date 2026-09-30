@@ -11,6 +11,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <set>
 #include <string>
 #include <string_view>
@@ -30,6 +31,7 @@
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
+#include "base/memory/stack_allocated.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
@@ -42,14 +44,14 @@
 #include "base/types/expected.h"
 #include "base/types/optional_ref.h"
 #include "base/types/pass_key.h"
-#include "base/types/zip.h"
+#include "components/autofill/core/browser/autofill_browser_util.h"
 #include "components/autofill/core/browser/autofill_field.h"
 #include "components/autofill/core/browser/autofill_trigger_source.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
 #include "components/autofill/core/browser/data_model/payments/credit_card.h"
 #include "components/autofill/core/browser/data_quality/autofill_data_util.h"
-#include "components/autofill/core/browser/field_type_utils.h"
+#include "components/autofill/core/browser/field_type_util.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/filling/addresses/field_filling_address_util.h"
 #include "components/autofill/core/browser/filling/autofill_ai/field_filling_entity_util.h"
@@ -200,31 +202,6 @@ bool AllowPaymentSwapping(const AutofillField& trigger_field,
          IsPaymentsFieldSwappingEnabled();
 }
 
-// Returns whether a filling action for `filling_product` should be included in
-// the form autofill history.
-bool ShouldRecordFillingHistory(FillingProduct filling_product) {
-  switch (filling_product) {
-    case FillingProduct::kAddress:
-    case FillingProduct::kAutofillAi:
-    case FillingProduct::kCreditCard:
-    case FillingProduct::kLoyaltyCard:
-    case FillingProduct::kOneTimePassword:
-      return true;
-    case FillingProduct::kNone:
-    case FillingProduct::kMerchantPromoCode:
-    case FillingProduct::kIban:
-    case FillingProduct::kAutocomplete:
-    case FillingProduct::kPasskey:
-    case FillingProduct::kPassword:
-    case FillingProduct::kCompose:
-    case FillingProduct::kIdentityCredential:
-    case FillingProduct::kDataList:
-    case FillingProduct::kAtMemory:
-      return false;
-  }
-  NOTREACHED();
-}
-
 // Called by `FormFiller::MaybeScheduleAutomaticRefill()` and constructs a
 // refill value in case the website used JavaScript to reformat an expiration
 // date like "05/2023" into "05 / 20" (i.e. it broke the year by cutting the
@@ -314,6 +291,9 @@ DenseSet<FieldFillingSkipReason> GetIgnorableSkipReasons(
 
 // Like FillingPayload, but may carry additional data needed for filling.
 struct FormFiller::AugmentedFillingPayload {
+  STACK_ALLOCATED();
+
+ public:
   using EntityPayload = std::pair<const EntityInstance*,
                                   std::vector<AutofillFieldWithAttributeType>>;
   using Variant = std::variant<const AutofillProfile*,
@@ -825,7 +805,7 @@ void FormFiller::UndoAutofill(mojom::ActionPersistence action_persistence,
   manager_->driver().ApplyFormAction(
       mojom::FormActionType::kUndo, action_persistence, result_fields,
       FillId::Create(), /*supports_refill=*/false, url::Origin(),
-      /*field_type_map=*/{}, /*section_for_clear_form_on_ios=*/Section());
+      /*field_type_map=*/{});
 }
 
 void FormFiller::FillOrPreviewField(mojom::ActionPersistence action_persistence,
@@ -905,7 +885,8 @@ void FormFiller::FillOrPreviewForm(
       });
   absl::flat_hash_map<FieldGlobalId, FieldType> filled_field_types;
 
-  for (auto [result_field, field] : base::zip(result_fields, form.fields())) {
+  for (auto [result_field, field] :
+       std::views::zip(result_fields, form.fields())) {
     if (!skip_reasons[field->global_id()].empty()) {
       continue;
     }
@@ -934,10 +915,8 @@ void FormFiller::FillOrPreviewForm(
   base::flat_set<FieldGlobalId> safe_filled_field_ids =
       manager_->driver().ApplyFormAction(
           mojom::FormActionType::kFill, action_persistence, result_fields,
-          fill_id,
-          /*supports_refill=*/may_refill_in_future, trigger_field.origin(),
-          filled_field_types,
-          /*section_for_clear_form_on_ios=*/trigger_field.section());
+          fill_id, /*supports_refill=*/may_refill_in_future,
+          trigger_field.origin(), filled_field_types);
 
   // This will hold the cached version of `result_fields`.
   std::vector<const AutofillField*> safe_filled_fields =
@@ -1393,38 +1372,35 @@ void FormFiller::AppendFillLogEvents(
     const FieldFillingSkipReason skip_reason =
         skip_reasons.at(field_id).empty() ? FieldFillingSkipReason::kNotSkipped
                                           : *skip_reasons.at(field_id).begin();
-    if (!IsCheckable(field->check_status())) {
-      if (skip_reason == FieldFillingSkipReason::kNotSkipped) {
-        field->AppendLogEventIfNotRepeated(FillFieldLogEvent{
-            .fill_event_id = fill_event_id,
-            .had_value_before_filling = ToOptionalBoolean(has_value_before),
-            .autofill_skipped_status = skip_reason,
-            .was_autofilled_before_security_policy = OptionalBoolean::kTrue,
-            .had_value_after_filling =
-                ToOptionalBoolean(safe_field_ids.contains(field_id)),
-            .filling_prevented_by_iframe_security_policy =
-                OptionalBoolean::kFalse,
-            .was_refill = ToOptionalBoolean(is_refill),
-        });
-      } else {
-        const bool skipped_because_of_security_policy =
-            skip_reasons.at(field_id).size() == 1 &&
-            skip_reason == FieldFillingSkipReason::kIframeSecurityPolicy;
-        field->AppendLogEventIfNotRepeated(FillFieldLogEvent{
-            .fill_event_id = fill_event_id,
-            .had_value_before_filling = ToOptionalBoolean(has_value_before),
-            .autofill_skipped_status = skip_reason,
-            .was_autofilled_before_security_policy =
-                skipped_because_of_security_policy ? OptionalBoolean::kTrue
-                                                   : OptionalBoolean::kFalse,
-            .had_value_after_filling = ToOptionalBoolean(has_value_before),
-            .filling_prevented_by_iframe_security_policy =
-                skipped_because_of_security_policy
-                    ? OptionalBoolean::kTrue
-                    : OptionalBoolean::kUndefined,
-            .was_refill = ToOptionalBoolean(is_refill),
-        });
-      }
+    if (skip_reason == FieldFillingSkipReason::kNotSkipped) {
+      field->AppendLogEventIfNotRepeated(FillFieldLogEvent{
+          .fill_event_id = fill_event_id,
+          .had_value_before_filling = ToOptionalBoolean(has_value_before),
+          .autofill_skipped_status = skip_reason,
+          .was_autofilled_before_security_policy = OptionalBoolean::kTrue,
+          .had_value_after_filling =
+              ToOptionalBoolean(safe_field_ids.contains(field_id)),
+          .filling_prevented_by_iframe_security_policy =
+              OptionalBoolean::kFalse,
+          .was_refill = ToOptionalBoolean(is_refill),
+      });
+    } else {
+      const bool skipped_because_of_security_policy =
+          skip_reasons.at(field_id).size() == 1 &&
+          skip_reason == FieldFillingSkipReason::kIframeSecurityPolicy;
+      field->AppendLogEventIfNotRepeated(FillFieldLogEvent{
+          .fill_event_id = fill_event_id,
+          .had_value_before_filling = ToOptionalBoolean(has_value_before),
+          .autofill_skipped_status = skip_reason,
+          .was_autofilled_before_security_policy =
+              skipped_because_of_security_policy ? OptionalBoolean::kTrue
+                                                 : OptionalBoolean::kFalse,
+          .had_value_after_filling = ToOptionalBoolean(has_value_before),
+          .filling_prevented_by_iframe_security_policy =
+              skipped_because_of_security_policy ? OptionalBoolean::kTrue
+                                                 : OptionalBoolean::kUndefined,
+          .was_refill = ToOptionalBoolean(is_refill),
+      });
     }
   }
 }

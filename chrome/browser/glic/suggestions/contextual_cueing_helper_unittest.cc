@@ -21,10 +21,11 @@
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile_manager.h"
-#include "components/history/core/browser/features.h"
 #include "components/page_content_annotations/content/page_content_extraction_service.h"
+#include "components/tabs/public/mock_tab_interface.h"
 #include "content/public/test/mock_navigation_handle.h"
 #include "content/public/test/navigation_simulator.h"
+#include "ui/base/unowned_user_data/unowned_user_data_host.h"
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
@@ -132,7 +133,18 @@ class ContextualCueingHelperTest : public ChromeRenderViewHostTestHarness {
                 base::BindRepeating(&CreateContextualCueingService)}};
   }
 
+  std::unique_ptr<ContextualCueingHelper> CreateContextualCueingHelper() {
+    ON_CALL(tab_, GetContents()).WillByDefault(Return(web_contents()));
+    ON_CALL(tab_, GetUnownedUserDataHost())
+        .WillByDefault(testing::ReturnRef(user_data_host_));
+    return ContextualCueingHelper::MaybeCreate(&tab_);
+  }
+
  private:
+  // Declared before `tab_` so the host outlives references handed to helpers
+  // attached to the mock tab.
+  ui::UnownedUserDataHost user_data_host_;
+  tabs::MockTabInterface tab_;
   glic::GlicUnitTestEnvironment glic_test_env_;
   base::test::ScopedFeatureList scoped_feature_list_;
   raw_ptr<TestingProfileManager> profile_manager_ = nullptr;
@@ -143,39 +155,14 @@ class ContextualCueingHelperTest : public ChromeRenderViewHostTestHarness {
 };
 
 TEST_F(ContextualCueingHelperTest, TabHelperStartsUp) {
-  ContextualCueingHelper::MaybeCreateForWebContents(web_contents());
-  auto* contextual_cueing_helper =
-      ContextualCueingHelper::FromWebContents(web_contents());
+  std::unique_ptr<ContextualCueingHelper> contextual_cueing_helper =
+      CreateContextualCueingHelper();
   EXPECT_NE(nullptr, contextual_cueing_helper);
 }
 
-class ContextualCueingHelperResponseCodeTest
-    : public ContextualCueingHelperTest,
-      public testing::WithParamInterface<bool> {
- public:
-  ContextualCueingHelperResponseCodeTest() {
-    std::vector<base::test::FeatureRef> enabled_features = {kContextualCueing};
-    std::vector<base::test::FeatureRef> disabled_features = {
-        glic::kGlicZeroStateSuggestions};
-
-    const bool are_404_navigations_saved_to_history = GetParam();
-    if (are_404_navigations_saved_to_history) {
-      enabled_features.push_back(history::kVisitedLinksOn404);
-    } else {
-      disabled_features.push_back(history::kVisitedLinksOn404);
-    }
-
-    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-TEST_P(ContextualCueingHelperResponseCodeTest, Committed404Page) {
-  ContextualCueingHelper::MaybeCreateForWebContents(web_contents());
-  auto* contextual_cueing_helper =
-      ContextualCueingHelper::FromWebContents(web_contents());
+TEST_F(ContextualCueingHelperTest, Committed404Page) {
+  std::unique_ptr<ContextualCueingHelper> contextual_cueing_helper =
+      CreateContextualCueingHelper();
   ASSERT_NE(contextual_cueing_helper, nullptr);
   auto* mock_contextual_cueing_service =
       static_cast<testing::NiceMock<MockContextualCueingService>*>(
@@ -205,16 +192,11 @@ TEST_P(ContextualCueingHelperResponseCodeTest, Committed404Page) {
                                        actually_written_bytes));
   EXPECT_EQ(actually_written_bytes, response_body.size());
 
-  // If 404 navigations are saved to history, we should filter them out. If they
-  // aren't saved to history, we still won't report it, because we only report
-  // page loads for navigations that are saved to history.
+  // 404 navigations are saved to history, but we should filter them out and not
+  // report page load.
   EXPECT_CALL(*mock_contextual_cueing_service, ReportPageLoad()).Times(0);
   navigation_simulator->Commit();
 }
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         ContextualCueingHelperResponseCodeTest,
-                         ::testing::Bool());
 
 #endif  // !BUILDFLAG(IS_ANDROID)
 

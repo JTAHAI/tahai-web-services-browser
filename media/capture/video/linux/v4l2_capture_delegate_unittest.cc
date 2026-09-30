@@ -244,8 +244,7 @@ class V4L2CaptureDelegateTest : public ::testing::Test {
 #if BUILDFLAG(IS_LINUX)
 class MockV4l2GpuClient : public VideoCaptureDevice::Client {
  public:
-  void OnIncomingCapturedData(const uint8_t* data,
-                              int length,
+  void OnIncomingCapturedData(base::span<const uint8_t> data,
                               const VideoCaptureFormat& frame_format,
                               const gfx::ColorSpace& color_space,
                               int clockwise_rotation,
@@ -286,14 +285,6 @@ class MockV4l2GpuClient : public VideoCaptureDevice::Client {
                              int*,
                              int*));
 
-  void OnIncomingCapturedBuffer(
-      Buffer buffer,
-      const VideoCaptureFormat& format,
-      base::TimeTicks reference_,
-      base::TimeDelta timestamp,
-      std::optional<base::TimeTicks> capture_begin_time,
-      const std::optional<media::VideoFrameMetadata>&) override {}
-
   MOCK_METHOD8(OnIncomingCapturedBufferExt,
                void(Buffer,
                     const VideoCaptureFormat&,
@@ -310,6 +301,7 @@ class MockV4l2GpuClient : public VideoCaptureDevice::Client {
                     const std::string&));
 
   MOCK_METHOD1(OnFrameDropped, void(VideoCaptureFrameDropReason));
+  MOCK_METHOD0(InvalidateBuffers, void());
 
   double GetBufferPoolUtilization() const override { return 0.0; }
 

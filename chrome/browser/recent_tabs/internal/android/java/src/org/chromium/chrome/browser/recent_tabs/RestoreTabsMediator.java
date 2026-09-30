@@ -29,7 +29,6 @@ import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
-import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
@@ -56,7 +55,7 @@ public class RestoreTabsMediator {
     /**
      * Initialize mediator with required dependencies.
      *
-     * @param model A {@link PropertyModel} that holds the {@RestoreTabsProperties}.
+     * @param model A {@link PropertyModel} that holds the {@link RestoreTabsProperties}.
      * @param profile The {@link Profile} for the current user.
      * @param tabCreatorManager A {@link TabCreatorManager} instance to restore tabs.
      * @param bottomSheetController The {@link BottomSheetController} used to show/hide the sheet.
@@ -84,10 +83,9 @@ public class RestoreTabsMediator {
                 });
 
         mBottomSheetDismissedObserver =
-                new EmptyBottomSheetObserver() {
+                new BottomSheetObserver() {
                     @Override
                     public void onSheetClosed(@BottomSheetController.StateChangeReason int reason) {
-                        super.onSheetClosed(reason);
                         dismiss();
                         assumeNonNull(mBottomSheetController)
                                 .removeObserver(mBottomSheetDismissedObserver);

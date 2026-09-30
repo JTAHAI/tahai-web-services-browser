@@ -12,6 +12,7 @@
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "content/browser/back_forward_cache/back_forward_cache_disable.h"
+#include "content/browser/renderer_host/frame_tree_node.h"
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/browser/back_forward_cache.h"
 #include "content/public/browser/content_browser_client.h"
@@ -23,6 +24,8 @@
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "services/device/public/mojom/serial.mojom.h"
 #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
+#include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom.h"
+#include "third_party/blink/public/mojom/frame/user_activation_update_types.mojom.h"
 
 namespace content {
 
@@ -87,21 +90,38 @@ void SerialService::RequestPort(
         allowed_bluetooth_service_class_ids,
     RequestPortCallback callback) {
   SerialDelegate* delegate = GetContentClient()->browser()->GetSerialDelegate();
-  if (!delegate) {
+  if (!delegate || !delegate->CanRequestPortPermission(&render_frame_host())) {
     std::move(callback).Run(nullptr);
     return;
   }
 
-  if (!delegate->CanRequestPortPermission(&render_frame_host())) {
+  // Ensure the requesting document is still active and consume transient user
+  // activation to prevent stale/pending-deletion frames from opening choosers
+  // or consuming user gestures from newly committed documents.
+  if (!render_frame_host().IsActive() ||
+      !FrameTreeNode::From(&render_frame_host())
+           ->UpdateUserActivationState(
+               blink::mojom::UserActivationUpdateType::
+                   kConsumeTransientActivation,
+               blink::mojom::UserActivationNotificationType::kNone)) {
     std::move(callback).Run(nullptr);
     return;
   }
 
-  chooser_ = delegate->RunChooser(
+  // The delegate's chooser implementation may spin a nested message loop (e.g.
+  // to drop fullscreen), during which the frame may be detached and the
+  // service destroyed. Check that the service is still alive before accessing
+  // member variables.
+  base::WeakPtr<SerialService> weak_this = weak_factory_.GetWeakPtr();
+  auto chooser = delegate->RunChooser(
       &render_frame_host(), std::move(filters),
       allowed_bluetooth_service_class_ids,
       base::BindOnce(&SerialService::FinishRequestPort,
                      weak_factory_.GetWeakPtr(), std::move(callback)));
+  if (!weak_this) {
+    return;
+  }
+  chooser_ = std::move(chooser);
 }
 
 void SerialService::OpenPort(

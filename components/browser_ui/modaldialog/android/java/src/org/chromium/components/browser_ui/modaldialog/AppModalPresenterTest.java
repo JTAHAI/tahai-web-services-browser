@@ -214,6 +214,47 @@ public class AppModalPresenterTest {
     @Test
     @SmallTest
     @Feature({"ModalDialog"})
+    public void testBackPressedCallback_alreadyAddedToDispatcher_reboundSafely()
+            throws TimeoutException {
+        PropertyModel dialog1 = createDialog(sActivity, mManager, "title 1", null);
+        PropertyModel dialog2 = createDialog(sActivity, mManager, "title 2", null);
+        CallbackHelper callbackHelper = new CallbackHelper();
+        final OnBackPressedCallback onBackPressedCallback =
+                new OnBackPressedCallback(true) {
+                    @Override
+                    public void handleOnBackPressed() {
+                        callbackHelper.notifyCalled();
+                    }
+                };
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    dialog1.set(
+                            ModalDialogProperties.APP_MODAL_DIALOG_BACK_PRESS_HANDLER,
+                            onBackPressedCallback);
+                });
+
+        showDialogInRoot(mManager, dialog1, ModalDialogType.APP);
+
+        // Dismiss dialog1 by pressing back
+        Espresso.pressBack();
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    dialog2.set(
+                            ModalDialogProperties.APP_MODAL_DIALOG_BACK_PRESS_HANDLER,
+                            onBackPressedCallback);
+                });
+
+        showDialogInRoot(mManager, dialog2, ModalDialogType.APP);
+
+        Espresso.pressBack();
+        callbackHelper.waitForCallback(0);
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"ModalDialog"})
     @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/479879586
     public void testButton_negativeButtonFilled() throws Exception {
         PropertyModel dialog =
@@ -248,10 +289,10 @@ public class AppModalPresenterTest {
     @Test
     @MediumTest
     @Feature({"ModalDialog"})
-    // TODO(crbug.com/428056054): Do not read color from system window bars on B+.
+    // TODO(crbug.com/428281050): Do not read color from system window bars on B+.
     @DisableIf.Build(
             sdk_is_greater_than = Build.VERSION_CODES.VANILLA_ICE_CREAM,
-            message = "crbug.com/428056054")
+            message = "crbug.com/428281050")
     public void testFullscreenDarkStyle() {
         PropertyModel dialog =
                 createDialogWithDialogStyle(

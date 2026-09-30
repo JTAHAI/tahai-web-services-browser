@@ -20,6 +20,7 @@
 #include "base/metrics/user_metrics.h"
 #include "base/time/time.h"
 #include "chrome/browser/glic/host/auth_controller.h"
+#include "chrome/browser/glic/host/guest_util.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/webui_url_constants.h"
@@ -111,8 +112,11 @@ class GlicCookieSynchronizer::SyncCookiesForDevelopmentTask {
     cookie_options.set_do_not_update_access_time();
     // Cookies we need to set are HttpOnly.
     cookie_options.set_include_httponly();
-    for (const GURL& url : {GURL("https://login.corp.google.com"),
-                            GURL("https://googleplex.com")}) {
+    for (const GURL& url :
+         {GURL("https://login.corp.google.com"), GURL("https://googleplex.com"),
+          GURL("https://corp.google.com"),
+          GURL("https://sslproxy.corp.google.com"),
+          GURL("https://proxy.googleprod.com")}) {
       ++get_cookie_list_request_count_;
       cookie_manager->GetCookieList(
           url, cookie_options, {},
@@ -204,13 +208,9 @@ class GlicCookieSynchronizer::SyncCookiesForDevelopmentTask {
 GlicCookieSynchronizer::GlicCookieSynchronizer(
     content::BrowserContext* context,
     signin::IdentityManager* identity_manager)
-    : GlicCookieSynchronizer(
-          context,
-          identity_manager,
-          content::StoragePartitionConfig::Create(context,
-                                                  chrome::kChromeUIGlicHost,
-                                                  /*partition_name=*/"glicpart",
-                                                  /*in_memory=*/false)) {}
+    : GlicCookieSynchronizer(context,
+                             identity_manager,
+                             GetGlicStoragePartitionConfig(context)) {}
 
 GlicCookieSynchronizer::GlicCookieSynchronizer(
     content::BrowserContext* context,

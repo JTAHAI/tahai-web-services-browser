@@ -11,12 +11,20 @@
 
 @protocol GeminiSettingsMutator;
 
+// Delegate for settings dismissal events requested by child view controllers.
+@protocol GeminiSettingsDismissalDelegate <NSObject>
+- (void)settingsViewControllerDidRequestDismissal:
+    (UIViewController*)viewController;
+@end
+
 // View controller related to Gemini setting.
 @interface GeminiSettingsViewController
     : SettingsRootTableViewController <GeminiSettingsConsumer,
                                        SettingsControllerProtocol>
 
 @property(nonatomic, weak) id<GeminiSettingsMutator> mutator;
+@property(nonatomic, weak) id<GeminiSettingsDismissalDelegate>
+    geminiSettingsDismissalDelegate;
 
 @end
 

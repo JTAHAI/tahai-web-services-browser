@@ -33,13 +33,15 @@
 #include "build/build_config.h"
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
 #include "chrome/browser/captive_portal/captive_portal_service_factory.h"
+#include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/devtools/features.h"
+#include "chrome/browser/enterprise/net/enterprise_proxy_error_service_factory.h"
+#include "chrome/browser/enterprise/net/enterprise_proxy_service_factory.h"
 #include "chrome/browser/enterprise/reporting/prefs.h"
 #include "chrome/browser/global_features.h"
 #include "chrome/browser/media/prefs/capture_device_ranking.h"
 #include "chrome/browser/search/search.h"
-#include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/shell_integration.h"
 #include "chrome/browser/ui/startup/google_chrome_scheme_util.h"
 #include "chrome/browser/ui/ui_features.h"
@@ -59,6 +61,13 @@
 #include "components/content_settings/core/browser/cookie_settings.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/pref_names.h"
+#include "components/enterprise/net/content/enterprise_proxy_navigation_error_data.h"
+#include "components/enterprise/net/core/enterprise_proxy_error_data.h"
+#include "components/enterprise/net/core/enterprise_proxy_service.h"
+#include "components/enterprise/net/core/features.h"
+#include "components/enterprise/net/core/mock_enterprise_proxy_service.h"
+#include "components/error_page/common/error_page_switches.h"
+#include "components/error_page/common/localized_error.h"
 #include "components/file_access/scoped_file_access.h"
 #include "components/file_access/test/mock_scoped_file_access_delegate.h"
 #include "components/guest_view/buildflags/buildflags.h"
@@ -68,7 +77,6 @@
 #include "components/privacy_sandbox/privacy_sandbox_features.h"
 #include "components/search/ntp_features.h"
 #include "components/search_engines/search_engines_switches.h"
-#include "components/search_engines/template_url_service.h"
 #include "components/site_isolation/features.h"
 #include "components/variations/variations_associated_data.h"
 #include "components/version_info/version_info.h"
@@ -85,11 +93,13 @@
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui_controller.h"
+#include "content/public/common/alternative_error_page_override_info.mojom.h"
 #include "content/public/common/child_process_id.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/browser_test_utils.h"
+#include "content/public/test/mock_navigation_handle.h"
 #include "content/public/test/mock_render_process_host.h"
 #include "content/public/test/navigation_simulator.h"
 #include "content/public/test/test_web_ui.h"
@@ -123,7 +133,6 @@
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/pref_names.h"
-#include "chrome/test/base/search_test_utils.h"
 #include "components/password_manager/core/common/password_manager_features.h"
 #include "media/base/picture_in_picture_events_info.h"
 #include "third_party/blink/public/mojom/installedapp/related_application.mojom.h"
@@ -163,6 +172,7 @@
 #include "chrome/browser/ash/system_web_apps/test_support/test_system_web_app_manager.h"
 #include "chrome/browser/policy/system_features_disable_list_policy_handler.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_types.h"
+#include "chromeos/ash/components/dbus/debug_daemon/debug_daemon_client.h"
 #include "chromeos/components/kiosk/kiosk_test_utils.h"
 #include "chromeos/components/kiosk/kiosk_utils.h"
 #include "components/user_manager/scoped_user_manager.h"
@@ -213,14 +223,27 @@ using ::testing::Return;
 
 class ChromeContentBrowserClientTest : public testing::Test {
  public:
-  ChromeContentBrowserClientTest()
 #if BUILDFLAG(IS_CHROMEOS)
+  ChromeContentBrowserClientTest()
       : test_system_web_app_manager_creator_(base::BindRepeating(
             &ChromeContentBrowserClientTest::CreateSystemWebAppManager,
-            base::Unretained(this)))
-#endif  // BUILDFLAG(IS_CHROMEOS)
-  {
+            base::Unretained(this))) {
+    if (!ash::DebugDaemonClient::Get()) {
+      ash::DebugDaemonClient::InitializeFake();
+      initialized_debug_daemon_client_ = true;
+    }
   }
+#else
+  ChromeContentBrowserClientTest() = default;
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
+#if BUILDFLAG(IS_CHROMEOS)
+  ~ChromeContentBrowserClientTest() override {
+    if (initialized_debug_daemon_client_) {
+      ash::DebugDaemonClient::Shutdown();
+    }
+  }
+#endif
 
  protected:
 #if BUILDFLAG(IS_CHROMEOS)
@@ -237,6 +260,7 @@ class ChromeContentBrowserClientTest : public testing::Test {
   }
   // The custom manager creator should be constructed before `TestingProfile`.
   ash::TestSystemWebAppManagerCreator test_system_web_app_manager_creator_;
+  bool initialized_debug_daemon_client_ = false;
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
   TestingProfile* profile() { return &profile_; }
@@ -510,6 +534,133 @@ TEST_F(ChromeContentBrowserClientTest, AutomaticBeaconCredentials) {
       profile(), GURL("a.test"), url::Origin::Create(GURL("c.test"))));
 }
 
+TEST_F(ChromeContentBrowserClientTest, AllowWorkerStorageAccess) {
+  ChromeContentBrowserClient client;
+  const GURL first_party_url("https://a.test/");
+  const GURL third_party_url("https://b.test/");
+  const blink::StorageKey first_party_key =
+      blink::StorageKey::CreateFirstParty(url::Origin::Create(first_party_url));
+  const blink::StorageKey partitioned_key = blink::StorageKey::Create(
+      url::Origin::Create(third_party_url), net::SchemefulSite(first_party_url),
+      blink::mojom::AncestorChainBit::kCrossSite);
+
+  // 1. First-party context should be allowed.
+  EXPECT_TRUE(client.AllowWorkerCacheStorage(first_party_url, profile(), {},
+                                             first_party_key));
+  EXPECT_TRUE(client.AllowWorkerIndexedDB(first_party_url, profile(), {},
+                                          first_party_key));
+
+  // 2. Partitioned third-party context with default settings should be allowed.
+  EXPECT_TRUE(client.AllowWorkerCacheStorage(third_party_url, profile(), {},
+                                             partitioned_key));
+  EXPECT_TRUE(client.AllowWorkerIndexedDB(third_party_url, profile(), {},
+                                          partitioned_key));
+
+  // 3. Partitioned third-party context with 3P cookies blocked should still be
+  // allowed because partitioned storage is allowed by default.
+  profile()->GetPrefs()->SetInteger(
+      prefs::kCookieControlsMode,
+      static_cast<int>(content_settings::CookieControlsMode::kBlockThirdParty));
+  EXPECT_TRUE(client.AllowWorkerCacheStorage(third_party_url, profile(), {},
+                                             partitioned_key));
+  EXPECT_TRUE(client.AllowWorkerIndexedDB(third_party_url, profile(), {},
+                                          partitioned_key));
+
+  // 4. If cookies/storage are explicitly blocked for the third-party origin,
+  // worker storage access should be blocked.
+  CookieSettingsFactory::GetForProfile(profile())->SetCookieSetting(
+      third_party_url, CONTENT_SETTING_BLOCK);
+  EXPECT_FALSE(client.AllowWorkerCacheStorage(third_party_url, profile(), {},
+                                              partitioned_key));
+  EXPECT_FALSE(client.AllowWorkerIndexedDB(third_party_url, profile(), {},
+                                           partitioned_key));
+}
+
+using TestEnterpriseProxyService = enterprise_net::MockEnterpriseProxyService;
+
+TEST_F(ChromeContentBrowserClientTest,
+       GetAlternativeErrorPageOverrideInfo_EnterpriseProxyError) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitWithFeatures(
+      {enterprise_net::kEnableDynamicRouteFetching,
+       enterprise_net::kEnterpriseProxyErrorHandling},
+      {});
+
+  EnterpriseProxyServiceFactory::GetInstance()->SetTestingFactory(
+      profile(), base::BindRepeating([](content::BrowserContext* context)
+                                         -> std::unique_ptr<KeyedService> {
+        return std::make_unique<TestEnterpriseProxyService>();
+      }));
+  EnterpriseProxyErrorServiceFactory::GetInstance()->SetTestingFactory(
+      profile(), base::BindRepeating([](content::BrowserContext* context)
+                                         -> std::unique_ptr<KeyedService> {
+        Profile* p = Profile::FromBrowserContext(context);
+        return std::make_unique<enterprise_net::EnterpriseProxyErrorService>(
+            EnterpriseProxyServiceFactory::GetForProfile(p));
+      }));
+
+  ChromeContentBrowserClient client;
+  content::MockNavigationHandle navigation_handle(
+      GURL("https://target.example.com/test"), /*render_frame_host=*/nullptr);
+
+  // Without EnterpriseProxyNavigationErrorData attached, returns nullptr.
+  EXPECT_FALSE(client.GetAlternativeErrorPageOverrideInfo(
+      navigation_handle, /*render_frame_host=*/nullptr, profile(),
+      net::ERR_PROXY_AUTH_REQUESTED));
+
+  // Attach EnterpriseProxyNavigationErrorData.
+  enterprise_net::EnterpriseProxyErrorDataDelegate delegate(&navigation_handle);
+  delegate.AttachDisguisedErrorData(enterprise_net::EnterpriseProxyErrorData(
+      GURL("https://target.example.com/test"),
+      GURL("https://proxy.example.com:443"), 403));
+
+  auto info = client.GetAlternativeErrorPageOverrideInfo(
+      navigation_handle, /*render_frame_host=*/nullptr, profile(),
+      net::ERR_PROXY_AUTH_REQUESTED);
+
+  ASSERT_TRUE(info);
+  auto override_param = info->alternative_error_page_params.FindBool(
+      error_page::kOverrideErrorPage);
+  ASSERT_TRUE(override_param.has_value());
+  EXPECT_TRUE(*override_param);
+
+  auto is_enterprise_error =
+      info->alternative_error_page_params.FindBool("is_enterprise_proxy_error");
+  ASSERT_TRUE(is_enterprise_error.has_value());
+  EXPECT_TRUE(*is_enterprise_error);
+
+  const auto* html_content =
+      info->alternative_error_page_params.FindString("error_page_html");
+  ASSERT_TRUE(html_content);
+  EXPECT_NE(html_content->find("https://target.example.com/test"),
+            std::string::npos);
+  EXPECT_NE(html_content->find("https://proxy.example.com/"),
+            std::string::npos);
+  EXPECT_NE(html_content->find("403"), std::string::npos);
+}
+
+TEST_F(
+    ChromeContentBrowserClientTest,
+    GetAlternativeErrorPageOverrideInfo_EnterpriseProxyError_FeatureDisabled) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitWithFeatures(
+      {enterprise_net::kEnableDynamicRouteFetching},
+      {enterprise_net::kEnterpriseProxyErrorHandling});
+
+  ChromeContentBrowserClient client;
+  content::MockNavigationHandle navigation_handle(
+      GURL("https://target.example.com/test"), /*render_frame_host=*/nullptr);
+
+  enterprise_net::EnterpriseProxyErrorDataDelegate delegate(&navigation_handle);
+  delegate.AttachDisguisedErrorData(enterprise_net::EnterpriseProxyErrorData(
+      GURL("https://target.example.com/test"),
+      GURL("https://proxy.example.com:443"), 403));
+
+  EXPECT_FALSE(client.GetAlternativeErrorPageOverrideInfo(
+      navigation_handle, /*render_frame_host=*/nullptr, profile(),
+      net::ERR_PROXY_AUTH_REQUESTED));
+}
+
 TEST_F(ChromeContentBrowserClientTestWithWebContents,
        GetAutoPipInfo_AutoPipReason) {
   ChromeContentBrowserClient client;
@@ -635,71 +786,6 @@ TEST_F(ChromeContentBrowserClientTestWithWebContents,
 
   ASSERT_TRUE(future.Wait());
   EXPECT_FALSE(future.Get().has_value());
-}
-
-// TODO(crbug.com/352578800): Move this from
-// `ChromeContentBrowserClientWindowTest` to run the test on Android.
-TEST_F(ChromeContentBrowserClientTestWithWebContents,
-       IsServiceWorkerSyntheticResponseAllowed) {
-  ChromeContentBrowserClient browser_client;
-
-  // Update the default search engine.
-  TemplateURLServiceFactory::GetInstance()->SetTestingFactoryAndUse(
-      profile(),
-      base::BindRepeating(&TemplateURLServiceFactory::BuildInstanceFor));
-  TemplateURLService* template_url_service =
-      TemplateURLServiceFactory::GetForProfile(profile());
-  search_test_utils::WaitForTemplateURLServiceToLoad(template_url_service);
-  TemplateURLData data;
-  data.SetShortName(u"example.com");
-  data.SetURL("https://example.com/test?q={searchTerms}");
-  data.new_tab_url = chrome::kChromeUINewTabURL;
-  TemplateURL* template_url =
-      template_url_service->Add(std::make_unique<TemplateURL>(data));
-  template_url_service->SetUserSelectedDefaultSearchProvider(template_url);
-
-  EXPECT_FALSE(browser_client.IsServiceWorkerSyntheticResponseAllowed(
-      profile(), GURL("https://foo.com/test")));
-  EXPECT_FALSE(browser_client.IsServiceWorkerSyntheticResponseAllowed(
-      profile(), GURL("https://example.com/")));
-  EXPECT_FALSE(browser_client.IsServiceWorkerSyntheticResponseAllowed(
-      profile(), GURL("https://example.com/test")));
-  EXPECT_FALSE(browser_client.IsServiceWorkerSyntheticResponseAllowed(
-      profile(), GURL("https://example.com/test?q=")));
-  EXPECT_TRUE(browser_client.IsServiceWorkerSyntheticResponseAllowed(
-      profile(), GURL("https://example.com/test?q=test")));
-}
-
-TEST_F(ChromeContentBrowserClientTestWithWebContents,
-       IsServiceWorkerSyntheticResponseAllowedForAlternateUrls) {
-  ChromeContentBrowserClient browser_client;
-
-  // Update the default search engine with an alternate URL on a different
-  // origin.
-  TemplateURLServiceFactory::GetInstance()->SetTestingFactoryAndUse(
-      profile(),
-      base::BindRepeating(&TemplateURLServiceFactory::BuildInstanceFor));
-  TemplateURLService* template_url_service =
-      TemplateURLServiceFactory::GetForProfile(profile());
-  search_test_utils::WaitForTemplateURLServiceToLoad(template_url_service);
-  TemplateURLData data;
-  data.SetShortName(u"example.com");
-  data.SetURL("https://example.com/test?q={searchTerms}");
-  data.alternate_urls.push_back("https://other.test/{searchTerms}");
-  data.new_tab_url = chrome::kChromeUINewTabURL;
-  TemplateURL* template_url =
-      template_url_service->Add(std::make_unique<TemplateURL>(data));
-  template_url_service->SetUserSelectedDefaultSearchProvider(template_url);
-
-  // The synthetic response should only be allowed for navigations to the
-  // default search provider's own origin, even when an alternate URL on a
-  // different origin matches.
-  EXPECT_TRUE(browser_client.IsServiceWorkerSyntheticResponseAllowed(
-      profile(), GURL("https://example.com/test?q=test")));
-  EXPECT_FALSE(browser_client.IsServiceWorkerSyntheticResponseAllowed(
-      profile(), GURL("https://other.test/page")));
-  EXPECT_FALSE(browser_client.IsServiceWorkerSyntheticResponseAllowed(
-      profile(), GURL("http://example.com/test?q=test")));
 }
 
 #endif  // !BUILDFLAG(IS_ANDROID)
@@ -1251,15 +1337,38 @@ TEST_F(ChromeContentSettingsRedirectTest, RedirectHelpURL) {
   test_content_browser_client.HandleWebUI(&dest_url, &profile_);
   EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
 }
+
+#if BUILDFLAG(CHROME_ROOT_STORE_CERT_MANAGEMENT_UI)
+TEST_F(ChromeContentSettingsRedirectTest,
+       RedirectCertificateManagerURLWhenBrowserSettingsDisabled) {
+  TestChromeContentBrowserClient test_content_browser_client;
+  const GURL cert_manager_redirect_url("chrome://settings/certificates");
+  const GURL cert_manager_url("chrome://certificate-manager");
+
+  GURL dest_url = cert_manager_redirect_url;
+  test_content_browser_client.HandleWebUI(&dest_url, &profile_);
+  EXPECT_EQ(cert_manager_url, dest_url);
+
+  base::ListValue list;
+  list.Append(static_cast<int>(policy::SystemFeature::kBrowserSettings));
+  TestingBrowserProcess::GetGlobal()->GetTestingLocalState()->SetUserPref(
+      policy::policy_prefs::kSystemFeaturesDisableList, std::move(list));
+
+  dest_url = cert_manager_redirect_url;
+  test_content_browser_client.HandleWebUI(&dest_url, &profile_);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
+
+  dest_url = cert_manager_url;
+  test_content_browser_client.HandleWebUI(&dest_url, &profile_);
+  EXPECT_EQ(GURL(ash::kChromeUIAppDisabledURL), dest_url);
+}
+#endif  // BUILDFLAG(CHROME_ROOT_STORE_CERT_MANAGEMENT_UI)
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
     BUILDFLAG(IS_CHROMEOS)
 
 TEST_F(ChromeContentSettingsRedirectTest, RedirectAddressesURL) {
-  base::test::ScopedFeatureList scoped_feature_list{
-      autofill::features::kYourSavedInfoSettingsPage};
-
   TestChromeContentBrowserClient test_content_browser_client;
   const GURL addresses_url("chrome://settings/addresses");
   GURL dest_url = addresses_url;

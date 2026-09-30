@@ -25,6 +25,22 @@ class Encryptor;
 // This class manages a SQLite database that stores various web page meta data.
 class WEBDATA_EXPORT WebDatabase {
  public:
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  enum class InitResult {
+    kSuccess = 0,
+    kCouldNotOpen = 1,
+    // kDatabaseLocked = 2,  // No longer used.
+    kCouldNotRazeIncompatibleVersion = 3,
+    kFailedToBeginInitTransaction = 4,
+    kMetaTableInitFailed = 5,
+    // kCurrentVersionTooNew = 6,  // No longer used.
+    kMigrationError = 7,
+    kFailedToCreateTable = 8,
+    kFailedToCommitInitTransaction = 9,
+    kMaxValue = kFailedToCommitInitTransaction
+  };
+
   enum State { COMMIT_NOT_NEEDED, COMMIT_NEEDED };
 
   // Current database version number.
@@ -32,7 +48,7 @@ class WEBDATA_EXPORT WebDatabase {
   // Note: when changing the current version number, corresponding changes must
   // happen in the unit tests, and new migration test added to
   // `WebDatabaseMigrationTest`.
-  static constexpr int kCurrentVersionNumber = 153;
+  static constexpr int kCurrentVersionNumber = 154;
 
   // To support users who are upgrading from older versions of Chrome, we enable
   // migrating from any database version newer than `kDeprecatedVersionNumber`.
@@ -127,6 +143,7 @@ class WEBDATA_EXPORT WebDatabase {
   bool MigrateToVersion58DropWebAppsAndIntents();
   bool MigrateToVersion79DropLoginsTable();
   bool MigrateToVersion105DropIbansTable();
+  bool MigrateToVersion154DropPlusAddressTables();
 
   sql::Database db_;
   sql::MetaTable meta_table_;

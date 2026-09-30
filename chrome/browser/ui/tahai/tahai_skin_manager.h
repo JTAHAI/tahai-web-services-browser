@@ -6,7 +6,7 @@
 
 #include "ui/base/interaction/element_identifier.h"
 
-class Browser;
+class BrowserWindowInterface;
 
 namespace tahai::skins {
 DECLARE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerImportElementId);
@@ -25,8 +25,8 @@ DECLARE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerPublisherRevokeElementId);
 DECLARE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerApplyElementId);
 DECLARE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerApplyWindowElementId);
 DECLARE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerResetElementId);
-bool CanShowSkinManager(Browser* browser);
-void ShowSkinManager(Browser* browser);
+bool CanShowSkinManager(BrowserWindowInterface* browser);
+void ShowSkinManager(BrowserWindowInterface* browser);
 }  // namespace tahai::skins
 
 #endif  // CHROME_BROWSER_UI_TAHAI_TAHAI_SKIN_MANAGER_H_

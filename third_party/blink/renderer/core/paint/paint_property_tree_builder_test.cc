@@ -4,7 +4,8 @@
 
 #include "third_party/blink/renderer/core/paint/paint_property_tree_builder_test.h"
 
-#include "base/compiler_specific.h"
+#include <string_view>
+
 #include "cc/test/fake_layer_tree_host_delegate.h"
 #include "cc/trees/effect_node.h"
 #include "cc/trees/layer_tree_host.h"
@@ -26,6 +27,7 @@
 #include "third_party/blink/renderer/platform/testing/layer_tree_host_embedder.h"
 #include "third_party/blink/renderer/platform/testing/paint_property_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/testing_platform_support.h"
+#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 #include "ui/gfx/geometry/test/geometry_util.h"
 
@@ -102,8 +104,8 @@ void PaintPropertyTreeBuilderTest::SetUp() {
     if ((source_object)->HasLayer() && (ancestor)->HasLayer()) {               \
       auto actual = LocalVisualRect(*(source_object));                         \
       (source_object)                                                          \
-          ->MapToVisualRectInAncestorSpace(ancestor, actual,                   \
-                                           kUseGeometryMapper);                \
+          ->MapToVisualRectInAncestorSpace(                                    \
+              ancestor, actual, {VisualRectFlag::kUseGeometryMapper});         \
       SCOPED_TRACE("GeometryMapper: ");                                        \
       EXPECT_EQ(expected, actual);                                             \
     }                                                                          \
@@ -115,11 +117,10 @@ void PaintPropertyTreeBuilderTest::SetUp() {
     if (slop_factor) {                                                         \
       auto inflated_expected = expected;                                       \
       inflated_expected.Inflate(LayoutUnit(slop_factor));                      \
-      SCOPED_TRACE(String::Format(                                             \
-          "Slow path rect: %s, Expected: %s, Inflated expected: %s",           \
-          slow_path_rect.ToString().Ascii().c_str(),                           \
-          expected.ToString().Ascii().c_str(),                                 \
-          inflated_expected.ToString().Ascii().c_str()));                      \
+      SCOPED_TRACE(                                                            \
+          Format("Slow path rect: {}, Expected: {}, Inflated expected: {}",    \
+                 slow_path_rect.ToString(), expected.ToString(),               \
+                 inflated_expected.ToString()));                               \
       EXPECT_TRUE(                                                             \
           PhysicalRect(ToEnclosingRect(slow_path_rect)).Contains(expected));   \
       EXPECT_TRUE(inflated_expected.Contains(slow_path_rect));                 \
@@ -3734,15 +3735,15 @@ TEST_P(PaintPropertyTreeBuilderTest, ReplacedContentTransformFlattening) {
 TEST_P(PaintPropertyTreeBuilderTest, ContainPaintOrStyleLayoutTreeState) {
   for (const char* containment : {"paint", "style layout"}) {
     SCOPED_TRACE(containment);
-    SetBodyInnerHTML(UNSAFE_TODO(String::Format(R"HTML(
-      <style>body { margin: 20px 30px; }</style>
+    SetBodyInnerHTML(Format(R"HTML(
+      <style>body {{ margin: 20px 30px; }}</style>
       <div id='clipper'
-          style='contain: %s; width: 300px; height: 200px;'>
+          style='contain: {}; width: 300px; height: 200px;'>
         <div id='child'
             style='position: relative; width: 400px; height: 500px;'></div>
       </div>
     )HTML",
-                                                containment)));
+                            containment));
 
     auto* clipper =
         To<LayoutBoxModelObject>(GetLayoutObjectByElementId("clipper"));
@@ -3774,7 +3775,7 @@ TEST_P(PaintPropertyTreeBuilderTest, ContainPaintOrStyleLayoutTreeState) {
     // properties effect.
     EXPECT_EQ(clip_properties->EffectIsolationNode()->Parent(),
               &clip_local_properties.Effect());
-    if (UNSAFE_TODO(strcmp(containment, "paint")) == 0) {
+    if (std::string_view(containment) == "paint") {
       // If we contain paint, then clip isolation node is parented to the
       // overflow clip, which is in turn parented to the local border box
       // properties clip.
@@ -8012,6 +8013,45 @@ TEST_P(SingleAxisPaintPropertyTest, NestedStickyShiftingStickyBox) {
   EXPECT_EQ(gfx::Vector2dF(0, 0), grandchild_sticky->Get2dTranslation());
 }
 
+TEST_P(SingleAxisPaintPropertyTest, StickyBlockUnderStickyInline) {
+  SetBodyInnerHTML(R"HTML(
+    <style>
+      #scroller {
+        width: 200px;
+        height: 200px;
+        overflow-x: clip;
+        overflow-y: scroll;
+      }
+      #contents { height: 500px; }
+      #before { height: 100px; }
+      #container { height: 300px; }
+      #outer { display: inline; position: sticky; top: 50px; }
+      #inner {
+        display: block;
+        position: sticky;
+        top: 60px;
+        width: 100px;
+        height: 50px;
+      }
+    </style>
+    <div id="scroller">
+      <div id="contents">
+        <div id="before"></div>
+        <div id="container">
+          <span id="outer"><span id="inner"></span></span>
+        </div>
+      </div>
+    </div>
+  )HTML");
+
+  const auto* outer_translation = StickyTranslation("outer");
+  ASSERT_TRUE(outer_translation);
+  const auto* inner_constraint = StickyConstraint("inner");
+  ASSERT_TRUE(inner_constraint);
+  EXPECT_EQ(outer_translation->GetCompositorElementId(),
+            inner_constraint->nearest_element_shifting_sticky_box);
+}
+
 TEST_P(SingleAxisPaintPropertyTest, NestedStickyShiftingContainingBlock) {
   SetBodyInnerHTML(R"HTML(
     <style>
@@ -8147,6 +8187,32 @@ TEST_P(PaintPropertyTreeBuilderTest, ScrollAxisLockPropagatesToCc) {
 
   cc_scroll_node = scroll_tree.FindNodeFromElementId(element_id);
   EXPECT_TRUE(cc_scroll_node->prevent_scroll_axis_locking);
+}
+
+TEST_P(PaintPropertyTreeBuilderTest, ElementCanvasTransformPropertyTree) {
+  SetBodyInnerHTML(R"HTML(
+    <canvas layoutsubtree id="canvas">
+      <div id="target" style="translate: 10px 20px"></div>
+    </canvas>
+  )HTML");
+
+  auto* target_element = GetDocument().getElementById(AtomicString("target"));
+  target_element->SetCanvasTransform(gfx::Transform::MakeTranslation(50, 60));
+  UpdateAllLifecyclePhasesForTest();
+
+  const auto* properties = PaintPropertiesForElement("target");
+  ASSERT_TRUE(properties);
+  const auto* canvas_transform = properties->ElementCanvasTransform();
+  ASSERT_TRUE(canvas_transform);
+  EXPECT_EQ(gfx::Transform::MakeTranslation(50, 60),
+            canvas_transform->Matrix());
+  auto* canvas_element = GetDocument().getElementById(AtomicString("canvas"));
+  EXPECT_EQ(&canvas_element->GetLayoutObject()
+                 ->FirstFragment()
+                 .ContentsProperties()
+                 .Transform(),
+            canvas_transform->Parent());
+  EXPECT_EQ(canvas_transform, properties->Translate()->Parent());
 }
 
 }  // namespace blink

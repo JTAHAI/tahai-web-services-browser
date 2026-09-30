@@ -5,6 +5,7 @@
 #ifndef IOS_CHROME_BROWSER_OPTIMIZATION_GUIDE_MODEL_OPTIMIZATION_GUIDE_SERVICE_H_
 #define IOS_CHROME_BROWSER_OPTIMIZATION_GUIDE_MODEL_OPTIMIZATION_GUIDE_SERVICE_H_
 
+#include <memory>
 #include <vector>
 
 #include "base/files/file_path.h"
@@ -109,6 +110,12 @@ class OptimizationGuideService
       const optimization_guide::ModelExecutionOptions& options,
       optimization_guide::OptimizationGuideModelExecutionResultCallback
           callback) override;
+  std::unique_ptr<optimization_guide::RemoteModelExecutionSession>
+  StartStreamingSession(
+      optimization_guide::ModelBasedCapabilityKey feature,
+      const optimization_guide::StreamingModelExecutionOptions& options,
+      optimization_guide::OptimizationGuideModelExecutionStreamingCallback
+          callback) override;
 
   // optimization_guide::OptimizationGuideModelProvider implementation:
   void AddObserverForOptimizationTargetModel(
@@ -119,6 +126,9 @@ class OptimizationGuideService
   void RemoveObserverForOptimizationTargetModel(
       optimization_guide::proto::OptimizationTarget optimization_target,
       optimization_guide::OptimizationTargetModelObserver* observer) override;
+  void SetModelDownloadSchedulingParams(
+      optimization_guide::proto::OptimizationTarget optimization_target,
+      const download::SchedulingParams& params) override;
 
   // These functions are not private but are for optimization_guide component
   // internal use only.

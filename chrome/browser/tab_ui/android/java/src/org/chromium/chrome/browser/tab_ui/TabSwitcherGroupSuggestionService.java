@@ -9,6 +9,7 @@ import static java.util.Comparator.comparingInt;
 import androidx.annotation.IntDef;
 
 import org.chromium.base.Callback;
+import org.chromium.base.CallbackUtils;
 import org.chromium.base.Token;
 import org.chromium.base.ValueChangedCallback;
 import org.chromium.base.metrics.RecordHistogram;
@@ -169,6 +170,12 @@ public class TabSwitcherGroupSuggestionService {
 
                 @Override
                 public void willCloseTab(Tab tab, boolean didCloseAlone) {
+                    clearSuggestions();
+                }
+
+                @Override
+                public void willCloseTabs(
+                        List<Tab> tabs, boolean isAllTabs, boolean allowUndo) {
                     clearSuggestions();
                 }
 
@@ -394,7 +401,7 @@ public class TabSwitcherGroupSuggestionService {
     /** Records a histogram for a {@link SuggestionUiEvent}. */
     public static void recordGroupSuggestionHistogram(@SuggestionUiEvent int suggestionUiEvent) {
         RecordHistogram.recordEnumeratedHistogram(
-                SUGGESTION_UI_HISTOGRAM_NAME, suggestionUiEvent, SuggestionUiEvent.MAX_VALUE);
+                SUGGESTION_UI_HISTOGRAM_NAME, suggestionUiEvent, SuggestionUiEvent.MAX_VALUE + 1);
     }
 
     /** Forces a tab group suggestion for testing purposes. */
@@ -436,7 +443,7 @@ public class TabSwitcherGroupSuggestionService {
                         /* suggestedName= */ "",
                         /* promoHeader= */ "",
                         /* promoContents= */ "");
-        showSuggestion(groupSuggestion, tabIds, ignored -> {});
+        showSuggestion(groupSuggestion, tabIds, CallbackUtils.emptyCallback());
     }
 
     /**

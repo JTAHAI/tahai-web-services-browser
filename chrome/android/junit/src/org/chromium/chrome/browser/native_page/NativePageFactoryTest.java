@@ -40,7 +40,6 @@ import org.chromium.components.embedder_support.util.UrlConstants;
 
 /** Tests public methods in NativePageFactory. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class NativePageFactoryTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private PdfPage mPdfPage;
@@ -142,7 +141,7 @@ public class NativePageFactoryTest {
         }
 
         @Override
-        public NativePage buildSettingsPage(Tab tab) {
+        public NativePage buildSettingsPage(Tab tab, String url) {
             return new MockNativePage(NativePageType.SETTINGS);
         }
     }
@@ -209,6 +208,7 @@ public class NativePageFactoryTest {
 
     @Test
     @EnableFeatures(ChromeFeatureList.SETTINGS_IN_TAB)
+    @Config(qualifiers = "sw600dp")
     public void testCreateSettingsPage() {
         MockNativePage page =
                 (MockNativePage)
@@ -219,8 +219,20 @@ public class NativePageFactoryTest {
     }
 
     @Test
+    @EnableFeatures(ChromeFeatureList.SETTINGS_IN_TAB)
+    @Config(qualifiers = "sw320dp")
+    public void testCreateSettingsPageOnPhone_ReturnsNull() {
+        MockNativePage page =
+                (MockNativePage)
+                        mNativePageFactory.createNativePageForURL(
+                                UrlConstants.SETTINGS_URL, null, mTab, false, null);
+        Assert.assertNull(page);
+    }
+
+    @Test
     @DisableFeatures(ChromeFeatureList.SETTINGS_IN_TAB)
-    public void testCreateSettingsPageDisabled() {
+    @Config(qualifiers = "sw600dp")
+    public void testCreateSettingsPage_SettingsInTabDisabled() {
         MockNativePage page =
                 (MockNativePage)
                         mNativePageFactory.createNativePageForURL(

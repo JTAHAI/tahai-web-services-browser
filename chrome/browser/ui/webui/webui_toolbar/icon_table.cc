@@ -130,12 +130,11 @@ const base::flat_map<const gfx::VectorIcon*, IconInfo>& KnownIcons() {
            {"webui-toolbar:person_filled", IconType::kIconSet}},
           {{&kTabSearchTabStripOldIcon},
            {"webui-toolbar:manage_search", IconType::kIconSet}},
-          {{&kTableChartIcon},
-           {"webui-toolbar:table_chart", IconType::kIconSet}},
-          {{&kTaskManagerOldIcon},
+          {{&vector_icons::kTableChartIcon},
            {"webui-toolbar:table_chart", IconType::kIconSet}},
           {{&kTrashCanRefreshOldIcon},
            {"webui-toolbar:delete", IconType::kIconSet}},
+          {{&kWalletIcon}, {"webui-toolbar:wallet", IconType::kIconSet}},
           {{&kZoomInIcon}, {"webui-toolbar:zoom_in", IconType::kIconSet}},
           {{&kZoomInOldIcon}, {"webui-toolbar:zoom_in", IconType::kIconSet}},
           {{&kZoomMinusChromeRefreshOldIcon},
@@ -153,6 +152,10 @@ const base::flat_map<const gfx::VectorIcon*, IconInfo>& KnownIcons() {
            {"webui-toolbar:star", IconType::kIconSet}},
           {{&omnibox::kChromeProductIcon},
            {"webui-toolbar:chrome_product", IconType::kIconSet}},
+          {{&omnibox::kExtensionAppOldIcon},
+           {"webui-toolbar:extension_filled", IconType::kIconSet}},
+          {{&omnibox::kExtensionFilledIcon},
+           {"webui-toolbar:extension_filled", IconType::kIconSet}},
           {{&omnibox::kFindInPageIcon},
            {"webui-toolbar:find_in_page", IconType::kIconSet}},
           {{&omnibox::kFindInPageChromeRefreshOldIcon},
@@ -211,14 +214,20 @@ const base::flat_map<const gfx::VectorIcon*, IconInfo>& KnownIcons() {
            {"webui-toolbar:dangerous_filled", IconType::kIconSet}},
           {{&vector_icons::kDomainIcon},
            {"webui-toolbar:domain", IconType::kIconSet}},
+          {{&vector_icons::kDraftIcon},
+           {"webui-toolbar:draft", IconType::kIconSet}},
           {{&vector_icons::kEditChromeRefreshOldIcon},
            {"webui-toolbar:edit", IconType::kIconSet}},
           {{&vector_icons::kEditIcon},
            {"webui-toolbar:edit", IconType::kIconSet}},
           {{&vector_icons::kExtensionChromeRefreshOldIcon},
            {"webui-toolbar:extension", IconType::kIconSet}},
+          {{&vector_icons::kExtensionFilledIcon},
+           {"webui-toolbar:extension_filled", IconType::kIconSet}},
           {{&vector_icons::kExtensionOffOldIcon},
            {"webui-toolbar:extension_off", IconType::kIconSet}},
+          {{&vector_icons::kExtensionOldIcon},
+           {"webui-toolbar:extension_filled", IconType::kIconSet}},
           {{&vector_icons::kExtensionOnOldIcon},
            {"webui-toolbar:extension_check", IconType::kIconSet}},
           {{&vector_icons::kFeedbackIcon},
@@ -255,6 +264,8 @@ const base::flat_map<const gfx::VectorIcon*, IconInfo>& KnownIcons() {
            {"webui-toolbar:no_encryption", IconType::kIconSet}},
           {{&vector_icons::kNotSecureWarningChromeRefreshOldIcon},
            {"webui-toolbar:warning", IconType::kIconSet}},
+          {{&vector_icons::kPasskeyIcon},
+           {"webui-toolbar:passkey", IconType::kIconSet}},
           {{&vector_icons::kPasswordManagerIcon},
            {"webui-toolbar:password_manager", IconType::kIconSet}},
           {{&vector_icons::kPasswordManagerOldIcon},
@@ -298,6 +309,8 @@ const base::flat_map<const gfx::VectorIcon*, IconInfo>& KnownIcons() {
            {"webui-toolbar:visibility", IconType::kIconSet}},
           {{&views::kEyeRefreshOldIcon},
            {"webui-toolbar:visibility", IconType::kIconSet}},
+          {{&views::kVisibilityOffIcon},
+           {"webui-toolbar:visibility_off", IconType::kIconSet}},
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
           {{&vector_icons::kFastForwardCircleSparkIcon},
@@ -397,6 +410,7 @@ class IconTable::ProviderImpl : public toolbar_ui_api::IconHandle::Provider {
         name_or_url_ = webui::EncodePNGAndMakeDataURI(
             image_model_->Rasterize(icon_table_->delegate_->GetColorProvider()),
             scale_factor);
+        rasterized_scale_ = scale_factor;
       }
     } else if (image_model_ && image_model_->IsVectorIcon()) {
       ui::ColorVariant color_variant = image_model_->GetVectorIcon().color();
@@ -410,6 +424,8 @@ class IconTable::ProviderImpl : public toolbar_ui_api::IconHandle::Provider {
   const std::optional<ui::ImageModel>& MaybeImageModel() {
     return image_model_;
   }
+
+  void ForceRerasterize() { rasterized_scale_.reset(); }
 
  private:
   ~ProviderImpl() override {
@@ -584,6 +600,15 @@ IconTable::TakePendingUpdates() {
 
   pending_updates_.clear();
   return updates;
+}
+
+void IconTable::OnThemeChanged() {
+  // In the rare event of a theme change, update all icons as their colors
+  // likely changed.
+  for (auto& kv : registered_icons_) {
+    kv.second->ForceRerasterize();
+    pending_updates_.insert(kv.first);
+  }
 }
 
 toolbar_ui_api::IconHandle IconTable::AddRegistration(

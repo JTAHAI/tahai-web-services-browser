@@ -4,10 +4,8 @@
 
 package org.chromium.chrome.browser.tasks.tab_management.vertical_tabs;
 
-import static java.util.Collections.emptySet;
-
 import android.app.Activity;
-import android.content.res.Configuration;
+import android.content.Context;
 import android.transition.ChangeBounds;
 import android.transition.Fade;
 import android.transition.Transition;
@@ -23,6 +21,8 @@ import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.R;
+import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tasks.tab_management.vertical_tabs.VerticalTabListProperties.RailCollapseState;
 import org.chromium.chrome.browser.ui.side_ui.SideUiContainer;
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator;
@@ -34,10 +34,8 @@ import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.SideUiSpecs.Side
 import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.UiUpdateRequest;
 import org.chromium.chrome.browser.ui.side_ui.SideUiObserver;
 import org.chromium.chrome.browser.ui.vertical_tabs.VerticalTabUtils;
+import org.chromium.chrome.browser.ui.vertical_tabs.VerticalTabUtils.WindowWidthBoundary;
 import org.chromium.ui.base.ViewUtils;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Coordinator that acts as a container for the Vertical Tab List within the Side UI framework. This
@@ -63,6 +61,10 @@ public class VerticalTabsSideUiCoordinator implements SideUiContainer, SideUiObs
     // Whether the vertical tab is set to visible via UI. Remains true even if it is temporarily
     // hidden by other conditions such as narrow window i.e. |mIsAutoHiddenSupplier.get()| is true.
     private boolean mManualVisible;
+    // Whether the vertical tabs rail is forced to collapse due to narrow window constraints or
+    // insufficient available width. When true, the rail collapses and the collapse button is
+    // disabled.
+    private boolean mIsForcedCollapsed;
 
     public VerticalTabsSideUiCoordinator(
             Activity activity,
@@ -77,21 +79,7 @@ public class VerticalTabsSideUiCoordinator implements SideUiContainer, SideUiObs
         mIsVerticalTabsActiveSupplier = isVerticalTabsActiveSupplier;
         mSideUiCoordinator.addObserver(this);
 
-        mRootView =
-                new FrameLayout(activity) {
-                    @Override
-                    protected void onConfigurationChanged(Configuration newConfig) {
-                        super.onConfigurationChanged(newConfig);
-                        // Observe configuration changes on mRootView because onSideUiSpecsChanged()
-                        // is only dispatched when there is a non-empty diff between the new and
-                        // current SideUiSpecs. If the window is resized without altering
-                        // SideUiSpecs, this callback ensures we still update rail collapse and
-                        // button state when crossing the narrow-window threshold.
-                        updateCollapseButtonAndRailState(
-                                newConfig.screenWidthDp
-                                        < VerticalTabUtils.MIN_EXPAND_WINDOW_WIDTH_DP);
-                    }
-                };
+        mRootView = new FrameLayout(activity);
         mRootView.setLayoutParams(
                 new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
@@ -128,6 +116,38 @@ public class VerticalTabsSideUiCoordinator implements SideUiContainer, SideUiObs
         mIsVerticalTabsActiveSupplier.set(false);
     }
 
+    /** Requests keyboard focus on the Vertical Tabs rail. */
+    public void requestKeyboardFocus() {
+        mTabListCoordinator.requestKeyboardFocus();
+    }
+
+    /** Returns whether the Vertical Tabs rail contains keyboard focus. */
+    public boolean containsKeyboardFocus() {
+        View view = mTabListCoordinator.getView();
+        return view != null && view.hasFocus();
+    }
+
+    /**
+     * Opens the context menu for the currently keyboard-focused tab or group header in Vertical
+     * Tabs.
+     *
+     * @return Whether the context menu was successfully opened.
+     */
+    public boolean openKeyboardFocusedContextMenu() {
+        if (!containsKeyboardFocus()) {
+            return false;
+        }
+        return mTabListCoordinator.openKeyboardFocusedContextMenu();
+    }
+
+    /**
+     * Returns whether or not Tab layout toggle menu can be activated. Used to grey out the menu
+     * item if it cannot be activated due to conditions such as a narrow app Window width.
+     */
+    public boolean canActivateTabLayoutToggleMenu() {
+        return mSideUiCoordinator.canShowSideUi(SideUiId.VERTICAL_TABS);
+    }
+
     // SideUiContainer implementation:
     @Override
     public View getView() {
@@ -142,19 +162,32 @@ public class VerticalTabsSideUiCoordinator implements SideUiContainer, SideUiObs
     @Override
     public SideUiSize determineShowableSize(
             @Px int availableWidth, @Px int windowWidth, boolean isFullscreen) {
-        if (isFullscreen) {
+        Context context = mRootView.getContext();
+        int availableWidthDp = ViewUtils.pxToDp(context, availableWidth);
+        int windowWidthDp = ViewUtils.pxToDp(context, windowWidth);
+        @WindowWidthBoundary
+        int boundary = VerticalTabUtils.getWindowWidthBoundary(windowWidthDp, availableWidthDp);
+
+        boolean isForcedCollapsed = boundary <= WindowWidthBoundary.FORCED_COLLAPSED;
+        // SideUiCoordinator only dispatches onSideUiSpecsChanged() when there is a non-empty
+        // SideUiSpecs diff. If the window is resized while rail width remains unchanged (e.g.
+        // staying at collapsed 76dp across the narrow-window threshold), onSideUiSpecsChanged()
+        // will be skipped. Synchronize button state here on forced-collapsed transitions.
+        // If any future internal state changes while rail width (specs) remains unchanged,
+        // synchronize it here or handle the state transition explicitly.
+        if (mIsForcedCollapsed != isForcedCollapsed) {
+            mIsForcedCollapsed = isForcedCollapsed;
+            updateCollapseButtonAndRailState();
+        }
+
+        int targetWidth = calculateWidthPx(boundary, windowWidth, availableWidth);
+        boolean shouldHide = boundary == WindowWidthBoundary.NOT_SHOWABLE;
+
+        updateAutoHiddenState(mManualVisible && shouldHide);
+        if (isFullscreen || shouldHide) {
             return new SideUiSize(0, HeightType.NOT_APPLICABLE);
         }
-        int targetWidth =
-                mCollapseController.getEffectiveRailCollapseState(isCurrentWindowNarrow())
-                                == RailCollapseState.COLLAPSED
-                        ? mCollapsedViewWidth
-                        : mExpandedViewWidth;
-        boolean shouldHide = availableWidth < targetWidth;
-        updateAutoHiddenState(mManualVisible && shouldHide);
-        return shouldHide
-                ? new SideUiSize(0, HeightType.NOT_APPLICABLE)
-                : new SideUiSize(targetWidth, HeightType.TOOLBAR);
+        return new SideUiSize(targetWidth, HeightType.TOOLBAR);
     }
 
     private void updateAutoHiddenState(boolean isHiddenDueToNarrowWidth) {
@@ -167,16 +200,8 @@ public class VerticalTabsSideUiCoordinator implements SideUiContainer, SideUiObs
     }
 
     @Override
-    public boolean hasContentToShow() {
+    public boolean hasContentToShow(Tab tab) {
         return mManualVisible;
-    }
-
-    /**
-     * Returns whether or not Tab layout toggle menu can be activated. Used to grey out the menu
-     * item if it cannot be activated due to conditions such as a narrow app Window width.
-     */
-    public boolean canActivateTabLayoutToggleMenu() {
-        return mSideUiCoordinator.canShowSideUi(SideUiId.VERTICAL_TABS);
     }
 
     @Override
@@ -186,6 +211,11 @@ public class VerticalTabsSideUiCoordinator implements SideUiContainer, SideUiObs
             layoutParams.width = width;
             mRootView.setLayoutParams(layoutParams);
         }
+    }
+
+    @Override
+    public boolean shouldLockTopControls() {
+        return true;
     }
 
     @Override
@@ -205,25 +235,27 @@ public class VerticalTabsSideUiCoordinator implements SideUiContainer, SideUiObs
         int oldWidth = mSideUiCoordinator.getCurrentSideUiSpecs().getWidth(side);
 
         if (oldWidth > 0 && newWidth > 0 && oldWidth != newWidth) {
+            mTabListCoordinator.setInTransition(true);
             TransitionSet transitionSet =
                     new TransitionSet()
                             .setOrdering(TransitionSet.ORDERING_TOGETHER)
                             .addTransition(new ChangeBounds())
                             .addTransition(new Fade());
-            List<View> views = new ArrayList<>();
-            views.add(mRootView);
-            ViewUtils.getAllDescendants(mRootView, views, emptySet());
-            for (View view : views) {
-                transitionSet.addTarget(view);
-            }
+            transitionSet.excludeTarget(R.id.compositor_view_holder, /* exclude= */ true);
+            transitionSet.excludeChildren(R.id.compositor_view_holder, /* exclude= */ true);
             return transitionSet;
         }
         return null;
     }
 
     @Override
+    public void onTransitionEnded(SideUiSpecs sideUiSpecs) {
+        mTabListCoordinator.setInTransition(false);
+    }
+
+    @Override
     public void onSideUiSpecsChanged(SideUiSpecs sideUiSpecs) {
-        updateCollapseButtonAndRailState(isCurrentWindowNarrow());
+        updateCollapseButtonAndRailState();
     }
 
     // Sequence when user requests state change:
@@ -237,7 +269,7 @@ public class VerticalTabsSideUiCoordinator implements SideUiContainer, SideUiObs
         // TODO(crbug.com/527641177): Remove this if check after expand on hovering UI is done.
         if (VerticalTabRailCollapseController.isExpanded(currentState)
                 && VerticalTabRailCollapseController.isExpanded(targetState)) {
-            updateCollapseButtonAndRailState(isCurrentWindowNarrow());
+            updateCollapseButtonAndRailState();
         } else {
             mSideUiCoordinator.updateUi(
                     new UiUpdateRequest(getSideUiId(), /* suppressAnimations= */ false));
@@ -245,26 +277,35 @@ public class VerticalTabsSideUiCoordinator implements SideUiContainer, SideUiObs
     }
 
     /**
-     * Updates the collapse button enabled state and effective rail collapse state based on window
-     * width.
-     *
-     * @param isNarrow True if the current window width is below the threshold for expanding.
+     * Updates the collapse button enabled state and effective rail collapse state based on whether
+     * the window forces the rail to collapse.
      */
-    private void updateCollapseButtonAndRailState(boolean isNarrow) {
-        // Apply effective state (COLLAPSED if narrow, or mRailCollapseStateByUser if wide).
+    private void updateCollapseButtonAndRailState() {
+        // Apply effective state (COLLAPSED if forced collapsed, or mRailCollapseStateByUser if
+        // expandable).
         mCollapseController.dispatchRailCollapseStateUpdate(
-                mCollapseController.getEffectiveRailCollapseState(isNarrow));
+                mCollapseController.getEffectiveRailCollapseState(mIsForcedCollapsed));
         // Disable the collapse button in narrow windows so users cannot expand beyond bounds.
-        mTabListCoordinator.setCollapseButtonEnabled(!isNarrow);
+        mTabListCoordinator.setCollapseButtonEnabled(!mIsForcedCollapsed);
     }
 
-    private boolean isCurrentWindowNarrow() {
-        return mRootView.getContext().getResources().getConfiguration().screenWidthDp
-                < VerticalTabUtils.MIN_EXPAND_WINDOW_WIDTH_DP;
+    private @Px int calculateWidthPx(
+            @WindowWidthBoundary int boundary, @Px int windowWidthPx, @Px int availableWidthPx) {
+        boolean isForcedCollapsed = boundary <= WindowWidthBoundary.FORCED_COLLAPSED;
+        if (mCollapseController.getEffectiveRailCollapseState(isForcedCollapsed)
+                == RailCollapseState.COLLAPSED) {
+            return mCollapsedViewWidth;
+        }
+        if (boundary == WindowWidthBoundary.DYNAMIC_EXPANDABLE) {
+            int ratioWidthPx =
+                    Math.round(windowWidthPx * VerticalTabUtils.EXPANDED_WINDOW_WIDTH_RATIO);
+            return Math.min(mExpandedViewWidth, Math.min(ratioWidthPx, availableWidthPx));
+        }
+        return mExpandedViewWidth;
     }
 
     @RailCollapseState
     int getRailCollapseStateForTesting() {
-        return mCollapseController.getEffectiveRailCollapseState(isCurrentWindowNarrow());
+        return mCollapseController.getEffectiveRailCollapseState(mIsForcedCollapsed);
     }
 }

@@ -12,13 +12,13 @@ import android.content.Intent;
 import android.graphics.drawable.Drawable;
 
 import androidx.annotation.VisibleForTesting;
-import androidx.appcompat.content.res.AppCompatResources;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ObserverList;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplierImpl;
+import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.build.annotations.EnsuresNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -57,6 +57,7 @@ import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.device_lock.DeviceLockActivityLauncher;
 import org.chromium.components.browser_ui.settings.SettingsNavigation;
+import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.components.feature_engagement.Tracker;
@@ -165,7 +166,7 @@ public class IdentityDiscController
                                                 .getContentDescriptionForIdentityDisc(
                                                         mContext, null, UserActionableError.NONE),
                                         /* supportsTinting= */ false)
-                                .setOnClickListener(view -> onClick())
+                                .setOnClickListener(_ -> onClick())
                                 .setIphCommandBuilder(
                                         new IphCommandBuilder(
                                                 mContext.getResources(),
@@ -189,7 +190,11 @@ public class IdentityDiscController
 
     @Override
     public ButtonData get(@Nullable Tab tab) {
-        mIsTabNtp = tab != null && tab.getNativePage() instanceof NewTabPage;
+        mIsTabNtp =
+                tab != null
+                        && !tab.isOffTheRecord()
+                        && (tab.getNativePage() instanceof NewTabPage
+                                || UrlUtilities.isNtpUrl(tab.getUrl()));
         if (!mIsTabNtp) {
             mButtonData.setCanShow(false);
             return mButtonData;
@@ -286,22 +291,7 @@ public class IdentityDiscController
      */
     private Drawable getProfileImage(@Nullable DisplayableProfileData profileData) {
         if (profileData == null) {
-            Drawable accountCircle =
-                    AppCompatResources.getDrawable(mContext, R.drawable.account_circle);
-            if (SigninFeatureMap.isEnabled(SigninFeatures.ENABLE_AI_SUBSCRIPTION_AVATAR_RING)) {
-                int aiTierRingThicknessPx =
-                        mContext.getResources()
-                                .getDimensionPixelSize(
-                                        R.dimen.ai_tier_ring_thickness_identity_disc);
-                int aiTierImageSizePx =
-                        mContext.getResources()
-                                .getDimensionPixelSize(
-                                        R.dimen.toolbar_identity_disc_size_with_ring);
-
-                return ProfileDataCache.getPlaceholderImageWithAiTierRingPadding(
-                        mContext, accountCircle, aiTierImageSizePx, aiTierRingThicknessPx);
-            }
-            return accountCircle;
+            return assumeNonNull(mProfileDataCache).getPlaceholderImage();
         }
         return profileData.getImage();
     }
@@ -569,8 +559,8 @@ public class IdentityDiscController
                                     mDeviceLockActivityLauncher,
                                     profileSupplier,
                                     () -> mBottomSheetController,
-                                    mModalDialogManager,
-                                    mSnackbarManager,
+                                    SupplierUtils.of(mModalDialogManager),
+                                    SupplierUtils.of(mSnackbarManager),
                                     SigninAccessPoint.NTP_SIGNED_OUT_ICON);
         }
     }

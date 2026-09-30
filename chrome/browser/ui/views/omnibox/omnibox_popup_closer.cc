@@ -5,8 +5,10 @@
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_closer.h"
 
 #include "base/logging.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
+#include "chrome/browser/ui/omnibox/omnibox_popup_state_manager.h"
 #include "chrome/browser/ui/omnibox/omnibox_popup_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h"
@@ -40,8 +42,16 @@ std::string CloseReasonToString(omnibox::PopupCloseReason reason) {
 
 }  // namespace
 
-OmniboxPopupCloser::OmniboxPopupCloser(BrowserView* browser_view)
-    : browser_view_(browser_view) {
+DEFINE_USER_DATA(OmniboxPopupCloser);
+
+// static
+OmniboxPopupCloser* OmniboxPopupCloser::From(BrowserWindowInterface* browser) {
+  return Get(browser->GetUnownedUserDataHost());
+}
+
+OmniboxPopupCloser::OmniboxPopupCloser(BrowserView* browser_view,
+                                       ui::UnownedUserDataHost& host)
+    : browser_view_(browser_view), scoped_unowned_user_data_(host, *this) {
   // Observe UI events on `BrowserView`.
   browser_view_observation_.Observe(browser_view_);
 }
@@ -79,6 +89,13 @@ void OmniboxPopupCloser::CloseWithReason(PopupCloseReason reason) {
   // Reset focus ring for the AIM button if it was set.
   if (auto* omnibox_view = location_bar->GetOmniboxView()) {
     omnibox_view->ApplyFocusRingToAimButton(false);
+  }
+  // For `kRevertAll` ensure the popup state is reset back to `kNone`.
+  if (reason == PopupCloseReason::kRevertAll) {
+    if (auto* state_manager =
+            location_bar->GetOmniboxController()->popup_state_manager()) {
+      state_manager->SetPopupState(OmniboxPopupState::kNone);
+    }
   }
 }
 

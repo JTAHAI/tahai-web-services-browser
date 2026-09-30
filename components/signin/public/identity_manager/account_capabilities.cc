@@ -156,6 +156,11 @@ AccountCapabilities::can_make_chrome_search_engine_choice_screen_choice()
 }
 #endif
 
+signin::Tribool
+AccountCapabilities::can_override_account_info() const {
+  return GetCapabilityByName(kCanOverrideAccountInfoCapabilityName);
+}
+
 #if !BUILDFLAG(IS_IOS)
 signin::Tribool AccountCapabilities::can_run_chrome_privacy_sandbox_trials()
     const {
@@ -309,6 +314,10 @@ signin::Tribool AccountCapabilities::is_subject_to_enterprise_features() const {
 
 signin::Tribool AccountCapabilities::is_subject_to_parental_controls() const {
   return GetCapabilityByName(kIsSubjectToParentalControlsCapabilityName);
+}
+
+signin::Tribool AccountCapabilities::is_subject_to_universal_opt_out() const {
+  return GetCapabilityByName(kIsSubjectToUniversalOptOutCapabilityName);
 }
 
 #if BUILDFLAG(IS_IOS)

@@ -12,25 +12,33 @@ import androidx.annotation.VisibleForTesting;
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JniType;
 
+import org.chromium.base.FeatureMap;
 import org.chromium.build.BuildConfig;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.firstrun.FirstRunUtils;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.flags.ChromeFeatureMap;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.components.browser_ui.media.MediaFeatureList;
+import org.chromium.components.browser_ui.media.MediaFeatureMap;
 import org.chromium.components.browser_ui.modaldialog.ModalDialogFeatureMap;
+import org.chromium.components.browser_ui.notifications.NotificationFeatureMap;
 import org.chromium.components.cached_flags.CachedFeatureParam;
 import org.chromium.components.cached_flags.CachedFlag;
 import org.chromium.components.cached_flags.CachedFlagUtils;
 import org.chromium.components.cached_flags.CachedFlagsSafeMode;
+import org.chromium.components.omnibox.OmniboxFeatureMap;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.permissions.PermissionsAndroidFeatureList;
+import org.chromium.components.permissions.PermissionsAndroidFeatureMap;
 import org.chromium.components.policy.PolicyFeatureMap;
 import org.chromium.components.signin.SigninFeatureMap;
 import org.chromium.content_public.browser.ContentFeatureList;
+import org.chromium.content_public.browser.ContentFeatureMap;
 import org.chromium.content_public.browser.JavalessRenderersFeatureList;
 import org.chromium.ui.base.UiAndroidFeatureList;
+import org.chromium.ui.base.UiAndroidFeatureMap;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +48,22 @@ import java.util.Set;
 @NullMarked
 public class ChromeCachedFlags {
     private static final ChromeCachedFlags INSTANCE = new ChromeCachedFlags();
+
+    @VisibleForTesting
+    static final List<FeatureMap> LIST_OF_FEATURE_MAPS =
+            List.of(
+                    ChromeFeatureMap.getInstance(),
+                    ContentFeatureMap.getInstance(),
+                    OmniboxFeatureMap.getInstance(),
+                    ModalDialogFeatureMap.getInstance(),
+                    UiAndroidFeatureMap.getInstance(),
+                    SigninFeatureMap.getInstance(),
+                    PolicyFeatureMap.getInstance(),
+                    MediaFeatureMap.getInstance(),
+                    PermissionsAndroidFeatureMap.getInstance(),
+                    NotificationFeatureMap.getInstance());
+
+    // The list of cached flags should be derived from the list of feature maps above.
     static final List<List<CachedFlag>> LISTS_OF_CACHED_FLAGS_FULL_BROWSER =
             List.of(
                     ChromeFeatureList.sFlagsCachedFullBrowser,
@@ -50,7 +74,8 @@ public class ChromeCachedFlags {
                     UiAndroidFeatureList.sFlagsCachedUiAndroid,
                     SigninFeatureMap.sCachedFlags,
                     PolicyFeatureMap.sCachedFlags,
-                    MediaFeatureList.getAllCachedFlags());
+                    MediaFeatureList.getAllCachedFlags(),
+                    NotificationFeatureMap.sCachedFlags);
     static final List<List<CachedFlag>> LISTS_OF_CACHED_FLAGS_MINIMAL_BROWSER =
             List.of(ChromeFeatureList.sFlagsCachedInMinimalBrowser);
 
@@ -64,8 +89,10 @@ public class ChromeCachedFlags {
                     ChromeFeatureList.sFlagsCachedInMinimalBrowser,
                     UiAndroidFeatureList.sFlagsCachedUiAndroid,
                     PolicyFeatureMap.sCachedFlags,
-                    MediaFeatureList.getAllCachedFlags());
+                    MediaFeatureList.getAllCachedFlags(),
+                    NotificationFeatureMap.sCachedFlags);
 
+    // The list of feature params should be derived from the list of feature maps above.
     static final List<List<CachedFeatureParam<?>>> LISTS_OF_FEATURE_PARAMS_FULL_BROWSER =
             List.of(
                     ChromeFeatureList.sParamsCached,

@@ -5,12 +5,13 @@
 #ifndef CHROME_BROWSER_APPS_LINK_CAPTURING_APPS_INTENT_PICKER_DELEGATE_H_
 #define CHROME_BROWSER_APPS_LINK_CAPTURING_APPS_INTENT_PICKER_DELEGATE_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "base/functional/callback_forward.h"
-#include "chrome/browser/apps/link_capturing/intent_picker_info.h"
 #include "chrome/browser/apps/link_capturing/metrics/intent_handling_metrics.h"
+#include "components/apps/link_capturing/intent_picker_info.h"
 #include "ui/base/models/image_model.h"
 #include "url/gurl.h"
 
@@ -32,6 +33,10 @@ class AppsIntentPickerDelegate {
   // Will CHECK-fail if `ShouldShowIntentPickerWithApps()` returns `false`.
   virtual void FindAllAppsForUrl(const GURL& url,
                                  IntentPickerAppsCallback apps_callback) = 0;
+  // Builds picker info for `app_id`, or returns nullopt if it is not
+  // registered. CHECK-fails if `ShouldShowIntentPickerWithApps()` is false.
+  virtual std::optional<apps::IntentPickerAppInfo> GetAppInfoForId(
+      const std::string& app_id) = 0;
   // Will CHECK-fail if `ShouldShowIntentPickerWithApps()` returns `false`.
   virtual bool IsPreferredAppForSupportedLinks(const std::string& app_id) = 0;
   // Will CHECK-fail if `ShouldShowIntentPickerWithApps()` returns `false`.

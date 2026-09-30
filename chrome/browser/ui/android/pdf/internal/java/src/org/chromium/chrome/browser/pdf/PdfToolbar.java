@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.pdf;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.View;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 
 import androidx.appcompat.widget.Toolbar;
@@ -16,7 +15,6 @@ import androidx.constraintlayout.widget.ConstraintSet;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.ui.util.CommonOnLayoutChangeListeners;
 
 import java.util.Arrays;
 import java.util.List;
@@ -44,7 +42,7 @@ public class PdfToolbar extends Toolbar {
     private @Nullable List<View> mPageNav;
     private @Nullable View mEditButton;
 
-    private @Nullable View mPageZoomDivider;
+    private @Nullable View mNavZoomDivider;
     private @Nullable View mZoomFitDivider;
     private @Nullable View mFitEditDivider;
 
@@ -82,8 +80,11 @@ public class PdfToolbar extends Toolbar {
                         findViewById(R.id.page_count));
 
         mEditButton = findViewById(R.id.edit_button);
+        if (!PdfUtils.isInlinePdfV2EditEnabled()) {
+            setViewVisibility(mEditButton, false);
+        }
 
-        mPageZoomDivider = findViewById(R.id.page_zoom_divider);
+        mNavZoomDivider = findViewById(R.id.nav_zoom_divider);
         mZoomFitDivider = findViewById(R.id.zoom_fit_divider);
         mFitEditDivider = findViewById(R.id.fit_edit_divider);
 
@@ -92,13 +93,19 @@ public class PdfToolbar extends Toolbar {
         mEndGroup = findViewById(R.id.pdf_toolbar_group_end);
         mTitle = findViewById(R.id.pdf_title);
 
-        addOnLayoutChangeListener(
-                CommonOnLayoutChangeListeners.createWidthChangedListener(
-                        (v, left, top, right, bottom) -> {
-                            if (mOnWidthChangedListener != null) {
-                                mOnWidthChangedListener.onWidthChanged(right - left);
-                            }
-                        }));
+        updateDividersAndConstraints();
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        int width = MeasureSpec.getSize(widthMeasureSpec);
+        // Evaluating width and updating view visibilities before measuring ensures that
+        // child views (such as the center group) are measured and positioned in the same layout
+        // pass without a visual delay where hidden controls leave an empty gap.
+        if (width > 0 && mOnWidthChangedListener != null) {
+            mOnWidthChangedListener.onWidthChanged(width);
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 
     void setDownloadButtonVisible(boolean visible) {
@@ -122,35 +129,41 @@ public class PdfToolbar extends Toolbar {
 
     void setPageNavAndEditVisible(boolean visible) {
         setViewsVisibility(mPageNav, visible);
-        setViewVisibility(mEditButton, visible);
-        setViewVisibility(mCenterGroup, visible);
+        setViewVisibility(mEditButton, visible && PdfUtils.isInlinePdfV2EditEnabled());
         updateDividersAndConstraints();
     }
 
     private void updateDividersAndConstraints() {
-        boolean showNavEdit = mEditButton != null && mEditButton.getVisibility() == View.VISIBLE;
+        boolean showPageNav =
+                mPageNav != null
+                        && !mPageNav.isEmpty()
+                        && mPageNav.get(0).getVisibility() == View.VISIBLE;
+        boolean showEdit = mEditButton != null && mEditButton.getVisibility() == View.VISIBLE;
         boolean showZoom =
                 mZoomControls != null
                         && !mZoomControls.isEmpty()
-                        && mZoomControls.get(0) != null
                         && mZoomControls.get(0).getVisibility() == View.VISIBLE;
         boolean showFit =
                 mFitToPageButton != null && mFitToPageButton.getVisibility() == View.VISIBLE;
 
         // Dividers
-        setViewVisibility(mPageZoomDivider, showNavEdit && showZoom);
+        setViewVisibility(mNavZoomDivider, showPageNav && showZoom);
         setViewVisibility(mZoomFitDivider, showZoom && showFit);
-        setViewVisibility(mFitEditDivider, showFit && showNavEdit);
+        setViewVisibility(mFitEditDivider, (showFit || showZoom || showPageNav) && showEdit);
+
+        boolean isCenterGroupVisible = showPageNav || showZoom || showFit || showEdit;
+        setViewVisibility(mCenterGroup, isCenterGroupVisible);
 
         // Adjust title constraints
         if (mConstraintLayout != null
                 && mTitle != null
                 && mCenterGroup != null
                 && mEndGroup != null) {
-            if (mIsTitleConstrainedToCenter == null || mIsTitleConstrainedToCenter != showNavEdit) {
+            if (mIsTitleConstrainedToCenter == null
+                    || mIsTitleConstrainedToCenter != isCenterGroupVisible) {
                 ConstraintSet constraintSet = new ConstraintSet();
                 constraintSet.clone(mConstraintLayout);
-                if (showNavEdit) {
+                if (isCenterGroupVisible) {
                     constraintSet.connect(
                             R.id.pdf_title,
                             ConstraintSet.END,
@@ -166,7 +179,7 @@ public class PdfToolbar extends Toolbar {
                             0);
                 }
                 constraintSet.applyTo(mConstraintLayout);
-                mIsTitleConstrainedToCenter = showNavEdit;
+                mIsTitleConstrainedToCenter = isCenterGroupVisible;
             }
         }
     }
@@ -174,8 +187,6 @@ public class PdfToolbar extends Toolbar {
     public boolean isDownloadButtonVisible() {
         return mDownloadButton != null && mDownloadButton.getVisibility() == View.VISIBLE;
     }
-
-
 
     public boolean isFitToPageButtonVisible() {
         return mFitToPageButton != null && mFitToPageButton.getVisibility() == View.VISIBLE;
@@ -193,23 +204,6 @@ public class PdfToolbar extends Toolbar {
         if (views == null) return;
         for (View view : views) {
             setViewVisibility(view, visible);
-        }
-    }
-
-    @Override
-    public void clearChildFocus(View child) {
-        super.clearChildFocus(child);
-        if (child.getId() == R.id.current_page) {
-            hideKeyboard(child);
-        }
-    }
-
-    private void hideKeyboard(View view) {
-        InputMethodManager imm =
-                (InputMethodManager)
-                        view.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (imm != null) {
-            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
         }
     }
 }

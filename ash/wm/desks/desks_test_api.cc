@@ -24,6 +24,7 @@
 #include "ash/wm/overview/overview_utils.h"
 #include "base/run_loop.h"
 #include "base/test/run_until.h"
+#include "cc/base/math_util.h"
 #include "ui/base/mojom/menu_source_type.mojom.h"
 #include "ui/compositor/layer.h"
 #include "ui/events/test/event_generator.h"
@@ -113,6 +114,17 @@ ui::LayerTreeOwner* DesksTestApi::GetMirroredContentsLayerTreeForRootAndDesk(
     }
   }
   return nullptr;
+}
+
+// static
+DesksWindowOcclusionCalculator* DesksTestApi::GetWindowOcclusionCalculator(
+    DeskBarViewBase::Type type,
+    aura::Window* root) {
+  auto& mini_views = GetDeskBarView(type, root)->mini_views();
+  if (mini_views.empty()) {
+    return nullptr;
+  }
+  return mini_views[0]->desk_preview()->window_occlusion_calculator_.get();
 }
 
 // static

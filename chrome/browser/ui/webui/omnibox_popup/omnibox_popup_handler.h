@@ -7,8 +7,11 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/scoped_observation.h"
 #include "chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom.h"
 #include "chrome/browser/ui/webui/top_chrome/top_chrome_web_ui_controller.h"
+#include "components/search_engines/template_url_service.h"
+#include "components/search_engines/template_url_service_observer.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -21,7 +24,13 @@ class WebContents;
 
 class OmniboxController;
 
-class OmniboxPopupHandler : public omnibox_popup::mojom::PageHandler {
+// Returns the WebUI resource path or favicon URL for the default search
+// provider.
+std::string GetDefaultSearchProviderIcon(
+    const TemplateURLService* template_url_service);
+
+class OmniboxPopupHandler : public omnibox_popup::mojom::PageHandler,
+                            public TemplateURLServiceObserver {
  public:
   OmniboxPopupHandler(
       mojo::PendingReceiver<omnibox_popup::mojom::PageHandler> receiver,
@@ -54,6 +63,12 @@ class OmniboxPopupHandler : public omnibox_popup::mojom::PageHandler {
                uint32_t sequence_number) override;
   void RequestInputState() override;
   void OpenAimPopup(bool via_keyboard) override;
+  void OnCutOrCopy(uint32_t sequence_number,
+                   bool is_cut,
+                   const std::string& full_text,
+                   const gfx::Range& selection) override;
+  void SetEditHistoryState(bool can_undo, bool can_redo) override;
+  void OpenDevTools() override;
 
   // omnibox_popup::mojom::Page:
   void OnShow();
@@ -65,23 +80,37 @@ class OmniboxPopupHandler : public omnibox_popup::mojom::PageHandler {
                      bool is_focused,
                      const std::string& permanent_display_text,
                      bool show_full_url,
-                     bool query_zps);
-  void SetFocus(bool is_focused);
+                     bool query_zps,
+                     searchbox::mojom::InputKeywordModelPtr keyword_model);
+  void SetFocus(bool is_focused, bool query_zps = false);
   void ClearAutocompleteMatches();
+  void ClearPopup(base::OnceClosure callback);
+
+  // TemplateURLServiceObserver:
+  void OnTemplateURLServiceChanged() override;
+  void OnTemplateURLServiceShuttingDown() override;
 
   const gfx::Range& latest_selection() const { return latest_selection_; }
   bool show_full_url() const { return show_full_url_; }
+  bool can_undo() const { return can_undo_; }
+  bool can_redo() const { return can_redo_; }
 
  private:
+  void NotifyDefaultSearchProviderChanged();
+
   mojo::Receiver<omnibox_popup::mojom::PageHandler> receiver_;
   mojo::Remote<omnibox_popup::mojom::Page> page_;
   base::WeakPtr<TopChromeWebUIController::Embedder> embedder_;
   raw_ptr<content::WebContents> web_contents_;
   raw_ptr<OmniboxController> controller_;
+  base::ScopedObservation<TemplateURLService, TemplateURLServiceObserver>
+      template_url_service_observation_{this};
   // Caches the latest selection range reported by the WebUI to allow
   // synchronous access on tab switches.
   gfx::Range latest_selection_;
   bool show_full_url_ = false;
+  bool can_undo_ = false;
+  bool can_redo_ = false;
   // Monotonically increasing sequence number sent to the WebUI to reject stale
   // selection reports that arrive asynchronously.
   uint32_t current_sequence_number_ = 0;

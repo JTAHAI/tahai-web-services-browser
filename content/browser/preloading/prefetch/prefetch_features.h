@@ -130,9 +130,32 @@ CONTENT_EXPORT extern const base::FeatureParam<
     PrefetchCancelUnrelatedPrefetchCancelPolicy>
     kPrefetchCancelUnrelatedPrefetchCancelPolicy;
 
+enum class PrefetchMatchResolverUnblockAsyncPolicy {
+  // Asyncifies `PrefetchMatchResolver::UnblockInternal()` for all blocked
+  // navigations.
+  kAsyncBlocked,
+  // Asyncifies `PrefetchMatchResolver::UnblockInternal()` for blocked
+  // navigations only when there is no matching prefetch (unmatch case).
+  kAsyncBlockedUnmatch,
+};
+
+CONTENT_EXPORT extern const base::FeatureParam<
+    PrefetchMatchResolverUnblockAsyncPolicy>
+    kPrefetchMatchResolverUnblockAsyncPolicy;
+
 // Kill switch for making `PrefetchHandle`'s callbacks async.
 // TODO(crbug.com/480271813): Remove it after confirming stability.
 CONTENT_EXPORT BASE_DECLARE_FEATURE(kPrefetchAsyncPrefetchHandleCallback);
+
+// Making `PrefetchMatchResolver::UnblockInternal()` async.
+// See crbug.com/404416345 to track this issue.
+CONTENT_EXPORT BASE_DECLARE_FEATURE(kPrefetchMatchResolverUnblockAsync);
+
+// Kill switch for a couple of changes to the "Accept" request header for
+// prefetch requests: when enabled,
+// - SXG is removed from the "Accept" request header value.
+// - "Accept" request header is added on non-UI thread.
+CONTENT_EXPORT BASE_DECLARE_FEATURE(kPrefetchRevampAcceptHeader);
 
 }  // namespace features
 

@@ -13,8 +13,10 @@
 #include "ui/accessibility/accessibility_features.h"
 #include "ui/accessibility/platform/ax_platform.h"
 #include "ui/accessibility/platform/browser_accessibility_manager.h"
+#include "ui/views/accessibility/ax_virtual_view.h"
 #include "ui/views/accessibility/tree/widget_view_ax_cache.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
 
 #if BUILDFLAG(IS_WIN)
@@ -124,6 +126,7 @@ WidgetAXManager::WidgetAXManager(Widget* widget)
 
 WidgetAXManager::~WidgetAXManager() {
   ClearAXTreeHost();
+  DetachFromParentTree();
   ui::AXPlatform::GetInstance().RemoveModeObserver(this);
   ax_tree_manager_.reset();
 }
@@ -225,11 +228,103 @@ void WidgetAXManager::OnChildRemoved(ViewAccessibility& child,
 }
 
 void WidgetAXManager::OnChildManagerAdded(WidgetAXManager& child_manager) {
-  child_manager.SetParentAXTreeID(ax_tree_id_);
+  child_manager.UpdateParentTreeConnection();
 }
 
 void WidgetAXManager::OnChildManagerRemoved(WidgetAXManager& child_manager) {
+  RemoveChildWidgetTreeHost(child_manager.ax_tree_id_);
   child_manager.SetParentAXTreeID(ui::AXTreeIDUnknown());
+}
+
+void WidgetAXManager::AppendChildWidgetTreeHosts(
+    std::vector<raw_ptr<ViewAccessibility>>& out) const {
+  for (const auto& host : child_widget_tree_hosts_) {
+    out.push_back(host.get());
+  }
+}
+
+void WidgetAXManager::UpdateParentTreeConnection() {
+  Widget* parent = widget_ ? widget_->parent() : nullptr;
+  WidgetAXManager* parent_manager = parent ? parent->ax_manager() : nullptr;
+
+  // A View that hosts this tree owns the connection, and that View can live in
+  // a widget that is not the parent widget.
+  if (ax_tree_host_tracker_.view()) {
+    if (parent_manager) {
+      parent_manager->RemoveChildWidgetTreeHost(ax_tree_id_);
+    }
+    return;
+  }
+
+  if (!parent_manager) {
+    DetachFromParentTree();
+    return;
+  }
+
+  SetParentAXTreeID(parent_manager->ax_tree_id_);
+
+  // A hidden widget stays out of the parent tree.
+  if (!widget_->IsVisible()) {
+    parent_manager->RemoveChildWidgetTreeHost(ax_tree_id_);
+    return;
+  }
+
+  parent_manager->AddChildWidgetTreeHost(ax_tree_id_);
+}
+
+void WidgetAXManager::DetachFromParentTree() {
+  Widget* parent = widget_ ? widget_->parent() : nullptr;
+  if (WidgetAXManager* parent_manager =
+          parent ? parent->ax_manager() : nullptr) {
+    parent_manager->RemoveChildWidgetTreeHost(ax_tree_id_);
+  }
+  SetParentAXTreeID(ui::AXTreeIDUnknown());
+}
+
+void WidgetAXManager::AddChildWidgetTreeHost(
+    const ui::AXTreeID& child_tree_id) {
+  View* root_view = widget_ ? widget_->GetRootView() : nullptr;
+  if (!root_view || FindChildWidgetTreeHost(child_tree_id)) {
+    return;
+  }
+
+  // An ignored host is transparent, thus the hosted tree takes its place.
+  auto owned_host = std::make_unique<AXVirtualView>();
+  owned_host->SetRole(ax::mojom::Role::kNone);
+  AXVirtualView* host = owned_host.get();
+  child_widget_tree_hosts_.push_back(std::move(owned_host));
+
+  ViewAccessibility& root_view_ax = root_view->GetViewAccessibility();
+  host->set_parent_view(&root_view_ax);
+  host->SetChildTreeID(child_tree_id);
+  OnChildAdded(*host, root_view_ax);
+}
+
+void WidgetAXManager::RemoveChildWidgetTreeHost(
+    const ui::AXTreeID& child_tree_id) {
+  AXVirtualView* host = FindChildWidgetTreeHost(child_tree_id);
+  if (!host) {
+    return;
+  }
+
+  if (ViewAccessibility* parent = host->parent_view()) {
+    OnChildRemoved(*host, *parent);
+    host->set_parent_view(nullptr);
+  }
+  std::erase_if(child_widget_tree_hosts_,
+                [host](const std::unique_ptr<AXVirtualView>& candidate) {
+                  return candidate.get() == host;
+                });
+}
+
+AXVirtualView* WidgetAXManager::FindChildWidgetTreeHost(
+    const ui::AXTreeID& child_tree_id) const {
+  for (const auto& host : child_widget_tree_hosts_) {
+    if (host->GetChildTreeID() == child_tree_id) {
+      return host.get();
+    }
+  }
+  return nullptr;
 }
 
 void WidgetAXManager::HostAXTreeInView(ViewAccessibility& host_view_ax) {
@@ -239,6 +334,7 @@ void WidgetAXManager::HostAXTreeInView(ViewAccessibility& host_view_ax) {
       host_widget ? host_widget->ax_manager() : nullptr;
   if (!host_view || !host_manager || host_manager == this) {
     ClearAXTreeHost();
+    UpdateParentTreeConnection();
     return;
   }
 
@@ -249,13 +345,15 @@ void WidgetAXManager::HostAXTreeInView(ViewAccessibility& host_view_ax) {
 
   ++ax_tree_host_generation_;
   ax_tree_host_tracker_.SetView(host_view);
+  // Only one node may claim this tree, so drop the host in the parent widget.
+  UpdateParentTreeConnection();
   SetParentAXTreeID(host_manager->ax_tree_id_);
   host_view_ax.SetChildTreeID(ax_tree_id_);
 }
 
 void WidgetAXManager::ScheduleUnhostAXTree() {
   if (!ax_tree_host_tracker_) {
-    SetParentAXTreeID(ui::AXTreeIDUnknown());
+    UpdateParentTreeConnection();
     return;
   }
 
@@ -293,6 +391,11 @@ void WidgetAXManager::OnWidgetDestroyed(Widget* widget) {
   widget_observation_.Reset();
 }
 
+void WidgetAXManager::OnWidgetVisibilityChanged(Widget* widget, bool visible) {
+  CHECK_EQ(widget_, widget);
+  UpdateParentTreeConnection();
+}
+
 gfx::NativeViewAccessible WidgetAXManager::GetNativeViewAccessibleForId(
     ui::AXNodeID id) {
   if (!ax_tree_manager_) {
@@ -303,6 +406,14 @@ gfx::NativeViewAccessible WidgetAXManager::GetNativeViewAccessibleForId(
     return gfx::NativeViewAccessible();
   }
   return browser_node->GetNativeViewAccessible();
+}
+
+ui::AXTreeID WidgetAXManager::GetAXTreeID() const {
+  if (!ax_tree_manager_) {
+    return ui::AXTreeIDUnknown();
+  }
+
+  return ax_tree_id_;
 }
 
 base::WeakPtr<ui::AXPlatformTreeManager>
@@ -344,7 +455,8 @@ gfx::Rect WidgetAXManager::AccessibilityGetViewBounds() {
   if (!widget_) {
     return gfx::Rect();
   }
-  return widget_->GetWindowBoundsInScreen();
+  // View-to-screen conversions are anchored at the client area, not the window.
+  return widget_->GetClientAreaBoundsInScreen();
 }
 
 float WidgetAXManager::AccessibilityGetDeviceScaleFactor() {
@@ -531,6 +643,10 @@ void WidgetAXManager::InitAXTreeManager() {
   update.root_id = root_data.id;
   update.nodes.push_back(root_data);
 
+  update.has_tree_data = true;
+  update.tree_data.tree_id = ax_tree_id_;
+  update.tree_data.parent_tree_id = parent_ax_tree_id_;
+
   cache_->Init(widget_->GetRootView()->GetViewAccessibility(),
                false /* full_tree */);
 
@@ -560,7 +676,7 @@ void WidgetAXManager::Enable() {
   if (is_enabled_) {
     return;
   }
-  UpdateParentAXTreeIDFromWidget();
+  UpdateParentTreeConnection();
   is_enabled_ = true;
   tree_source_ = std::make_unique<ViewAccessibilityAXTreeSource>(
       widget_->GetRootView()->GetViewAccessibility().GetUniqueId(), ax_tree_id_,
@@ -603,11 +719,18 @@ void WidgetAXManager::SetParentAXTreeID(const ui::AXTreeID& parent_ax_tree_id) {
   }
 
   tree_source_->SetParentTreeId(parent_ax_tree_id_);
-  if (is_enabled_) {
-    pending_data_updates_.insert(
-        widget_->GetRootView()->GetViewAccessibility().GetUniqueId());
-    SchedulePendingUpdate();
+  if (!is_enabled_) {
+    return;
   }
+
+  // The root view is already gone when the widget tears the manager down.
+  View* root_view = widget_->GetRootView();
+  if (!root_view) {
+    return;
+  }
+
+  pending_data_updates_.insert(root_view->GetViewAccessibility().GetUniqueId());
+  SchedulePendingUpdate();
 }
 
 void WidgetAXManager::ClearAXTreeHost() {
@@ -621,7 +744,6 @@ void WidgetAXManager::ClearAXTreeHost() {
   }
 
   ax_tree_host_tracker_.SetView(nullptr);
-  SetParentAXTreeID(ui::AXTreeIDUnknown());
 }
 
 void WidgetAXManager::UnhostAXTreeAfterFlush(
@@ -640,21 +762,7 @@ void WidgetAXManager::UnhostAXTreeAfterFlush(
   }
 
   manager->ClearAXTreeHost();
-}
-
-void WidgetAXManager::UpdateParentAXTreeIDFromWidget() {
-  if (!widget_) {
-    SetParentAXTreeID(ui::AXTreeIDUnknown());
-    return;
-  }
-
-  Widget* parent = widget_->parent();
-  if (!parent || !parent->ax_manager()) {
-    SetParentAXTreeID(ui::AXTreeIDUnknown());
-    return;
-  }
-
-  SetParentAXTreeID(parent->ax_manager()->ax_tree_id_);
+  manager->UpdateParentTreeConnection();
 }
 
 void WidgetAXManager::SendPendingUpdate() {

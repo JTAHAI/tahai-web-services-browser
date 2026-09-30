@@ -31,9 +31,6 @@ class SharingDeviceRegistration {
   // Un-registers device with sharing sync preferences.
   virtual void UnregisterDevice(RegistrationCallback callback) = 0;
 
-  // Returns if device can handle receiving of shared clipboard contents.
-  virtual bool IsSharedClipboardSupported() const = 0;
-
   // Returns if device can handle receiving of sms fetcher requests.
   virtual bool IsSmsFetcherSupported() const = 0;
 
@@ -50,6 +47,9 @@ class SharingDeviceRegistration {
 
   // Returns if device can handle receiving of glic experimental triggering.
   virtual bool IsGlicExperimentalTriggeringSupported() const = 0;
+
+  // Returns if device can handle receiving of browser actuator.
+  virtual bool IsBrowserActuatorSupported() const = 0;
 
   // For testing
   virtual void SetEnabledFeaturesForTesting(

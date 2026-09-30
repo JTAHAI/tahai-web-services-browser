@@ -12,12 +12,13 @@ import android.os.Handler;
 import android.os.LocaleList;
 import android.os.Looper;
 import android.view.View;
+import android.view.ViewGroup;
 
+import androidx.annotation.IdRes;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ApkInfo;
 import org.chromium.base.Callback;
-import org.chromium.base.DeviceInfo;
 import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.metrics.RecordUserAction;
@@ -64,6 +65,7 @@ import java.util.concurrent.TimeUnit;
 public class BookmarkUtils {
     private static final String TAG = "BookmarkUtils";
     private static final int READING_LIST_SESSION_LENGTH_MS = (int) TimeUnit.HOURS.toMillis(1);
+    public static final int WIDE_DISPLAY_THRESHOLD_DP = 840;
 
     private static @Nullable Boolean sReadingListSupportedForTesting;
 
@@ -144,9 +146,7 @@ public class BookmarkUtils {
             boolean isBookmarkBarVisible) {
         assert bookmarkModel.isBookmarkModelLoaded();
         if (existingBookmarkItem != null) {
-            if (DeviceInfo.isDesktop()
-                    && ChromeFeatureList.isEnabled(
-                            ChromeFeatureList.ANDROID_DESKTOP_BOOKMARK_POPUP)) {
+            if (ChromeFeatureList.isEnabled(ChromeFeatureList.ANDROID_DESKTOP_BOOKMARK_POPUP)) {
                 showSaveFlow(
                         activity,
                         bottomSheetController,
@@ -306,23 +306,37 @@ public class BookmarkUtils {
             return;
         }
 
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.ANDROID_DESKTOP_BOOKMARK_POPUP)
-                && DeviceInfo.isDesktop()) {
-            View anchor = activity.findViewById(R.id.bookmark_button);
+        ShoppingService shoppingService = ShoppingServiceFactory.getForProfile(profile);
+
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.ANDROID_DESKTOP_BOOKMARK_POPUP)) {
+            View decorView =
+                    activity.getWindow() != null
+                            ? activity.getWindow().getDecorView()
+                            : activity.findViewById(android.R.id.content);
+            View anchor = findFirstShownView(decorView, R.id.bookmark_button);
+
+            // When the bookmark button isn't visible, fallback to the 3-dot menu.
+            if (anchor == null) {
+                anchor = findFirstShownView(decorView, R.id.menu_button_wrapper);
+            }
+
+            // As a last resort, anchor to the content view. This should be rare/never happen.
             if (anchor == null) {
                 anchor = activity.findViewById(android.R.id.content);
             }
-            // TODO(crbug.com/536095968): Support anchor-less invocation, and anchoring on the app
-            // menu for small screen sizes.
-            if (anchor == null) return;
+            assert anchor != null && anchor.isShown() : "Unable to find anchor for bookmark popup.";
 
             BookmarkPopupCoordinator popupCoordinator =
-                    new BookmarkPopupCoordinator(activity, profile, anchor, bookmarkManagerOpener);
+                    new BookmarkPopupCoordinator(
+                            activity,
+                            profile,
+                            anchor,
+                            bookmarkManagerOpener,
+                            shoppingService,
+                            priceDropNotificationManager);
             popupCoordinator.show(bookmarkId, isNewBookmark);
             return;
         }
-
-        ShoppingService shoppingService = ShoppingServiceFactory.getForProfile(profile);
         UserEducationHelper userEducationHelper =
                 new UserEducationHelper(
                         activity, profile, new Handler(assumeNonNull(Looper.myLooper())));
@@ -930,11 +944,45 @@ public class BookmarkUtils {
     }
 
     /**
+     * @return Whether the desktop bookmarks dialog is enabled.
+     */
+    public static boolean isDesktopBookmarksDialogEnabled() {
+        return ChromeFeatureList.isEnabled(ChromeFeatureList.ANDROID_DESKTOP_BOOKMARK_DIALOG);
+    }
+
+    /**
      * @return Whether the desktop bookmarks layout is enabled.
      */
     public static boolean isDesktopBookmarksLayoutEnabled() {
-        return ChromeFeatureList.isEnabled(ChromeFeatureList.BOOKMARKS_DESKTOP_LAYOUT)
-                && DeviceInfo.isDesktop();
+        return ChromeFeatureList.isEnabled(ChromeFeatureList.ANDROID_DESKTOP_BOOKMARK_LAYOUT);
+    }
+
+    /**
+     * Returns the 0-based display order index for top-level bookmark folders. Lower indices appear
+     * earlier in UI surfaces.
+     *
+     * @param bookmarkModel The bookmark model.
+     * @param id The ID of the folder.
+     * @return The 0-based display order index.
+     */
+    public static int getTopLevelFolderDisplayOrderIndex(
+            BookmarkModel bookmarkModel, BookmarkId id) {
+        // Check both local and account folder IDs. We can use the same index logic if we match
+        // either the local or account version of the folder.
+        if (Objects.equals(id, bookmarkModel.getDesktopFolderId())
+                || Objects.equals(id, bookmarkModel.getAccountDesktopFolderId())) {
+            return 0;
+        } else if (Objects.equals(id, bookmarkModel.getOtherFolderId())
+                || Objects.equals(id, bookmarkModel.getAccountOtherFolderId())) {
+            return 1;
+        } else if (Objects.equals(id, bookmarkModel.getLocalOrSyncableReadingListFolder())
+                || Objects.equals(id, bookmarkModel.getAccountReadingListFolder())) {
+            return 2;
+        } else if (Objects.equals(id, bookmarkModel.getMobileFolderId())
+                || Objects.equals(id, bookmarkModel.getAccountMobileFolderId())) {
+            return 3;
+        }
+        return 4;
     }
 
     private static Locale getLocale(Activity activity) {
@@ -950,5 +998,45 @@ public class BookmarkUtils {
     public static void setReadingListSupportedForTesting(Boolean supported) {
         sReadingListSupportedForTesting = supported;
         ResettersForTesting.register(() -> sReadingListSupportedForTesting = null);
+    }
+
+    /** Returns the number of non-folder bookmarks in the given list of bookmark IDs. */
+    public static int getNonFolderBookmarkCount(BookmarkModel bookmarkModel, List<BookmarkId> ids) {
+        int count = 0;
+        for (BookmarkId id : ids) {
+            BookmarkItem item = bookmarkModel.getBookmarkById(id);
+            if (item != null && !item.isFolder()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** Returns the number of non-folder bookmarks that are direct children of the given folder. */
+    public static int getChildNonFolderBookmarkCountForFolder(
+            BookmarkModel bookmarkModel, BookmarkId folderId) {
+        return getNonFolderBookmarkCount(bookmarkModel, bookmarkModel.getChildIds(folderId));
+    }
+
+    /**
+     * Finds the first view with the given resource ID that is currently shown in the view
+     * hierarchy. Prunes non-visible subtrees for efficiency.
+     */
+    private static @Nullable View findFirstShownView(@Nullable View root, @IdRes int id) {
+        if (root == null || root.getVisibility() != View.VISIBLE) {
+            return null;
+        }
+        if (root.getId() == id && root.isShown()) {
+            return root;
+        }
+        if (root instanceof ViewGroup viewGroup) {
+            for (int i = 0; i < viewGroup.getChildCount(); i++) {
+                View found = findFirstShownView(viewGroup.getChildAt(i), id);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 }

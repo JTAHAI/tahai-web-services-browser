@@ -24,6 +24,7 @@
 #include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
+#include "base/numerics/checked_math.h"
 #include "base/process/memory.h"
 #include "base/process/process_handle.h"
 #include "base/process/process_info.h"
@@ -185,7 +186,7 @@ FieldTrial::PickleState::PickleState(const PickleState& other) = default;
 
 FieldTrial::PickleState::~PickleState() = default;
 
-void FieldTrial::AppendGroup(const std::string& name,
+void FieldTrial::AppendGroup(std::string_view name,
                              Probability group_probability) {
   // When the group choice was previously forced, we only need to return the
   // the id of the chosen group, and anything can be returned for the others.
@@ -383,7 +384,7 @@ void FieldTrial::SetTrialRegistered() {
   trial_registered_ = true;
 }
 
-void FieldTrial::SetGroupChoice(const std::string& group_name, int number) {
+void FieldTrial::SetGroupChoice(std::string_view group_name, int number) {
   group_ = number;
   if (group_name.empty()) {
     StringAppendF(&group_name_, "%d", group_);
@@ -869,8 +870,9 @@ bool FieldTrialList::GetParamsFromSharedMemory(FieldTrial* field_trial,
           field_trial->ref_, &allocated_size);
   CHECK(entry);
 
-  uint64_t actual_size = sizeof(internal::FieldTrialEntry) + entry->pickle_size;
-  if (allocated_size < actual_size) {
+  base::CheckedNumeric<uint64_t> actual_size = sizeof(internal::FieldTrialEntry);
+  actual_size += entry->pickle_size;
+  if (!actual_size.IsValid() || allocated_size < actual_size.ValueOrDie()) {
     return false;
   }
 
@@ -1242,11 +1244,9 @@ void FieldTrialList::GetActiveFieldTrialGroupsInternal(
              ->GetRuntimeOverrides()) {
       // Runtime FieldTrial overrides are all considered active, so include them
       // all.
-      FieldTrial::ActiveGroup active_group;
-      active_group.trial_name = runtime_override.trial_name;
-      active_group.group_name = runtime_override.group_name;
-      active_group.is_overridden = false;
-      active_groups->push_back(std::move(active_group));
+      active_groups->emplace_back(runtime_override.trial_name,
+                                  runtime_override.group_name,
+                                  /*is_overridden=*/false);
       if (runtime_override.overridden_trial) {
         trials_to_ignore.insert(
             runtime_override.overridden_trial->trial_name());

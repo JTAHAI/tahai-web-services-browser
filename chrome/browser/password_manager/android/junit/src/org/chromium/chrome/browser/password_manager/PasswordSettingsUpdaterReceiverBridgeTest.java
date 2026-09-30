@@ -22,15 +22,11 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Batch;
 
 /** Tests that settings updater callbacks invoke the right native callbacks. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
-@Batch(Batch.PER_CLASS)
 public class PasswordSettingsUpdaterReceiverBridgeTest {
 
     private static final long sFakeNativePointer = 7;

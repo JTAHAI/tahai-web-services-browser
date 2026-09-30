@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/ui/toolbar/app_menu_model.h"
+
 #include <optional>
 #include <string>
 
@@ -20,13 +22,11 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
 #include "chrome/browser/ui/accelerator_utils.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/chrome_pages.h"
-#include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/test/web_app_icon_test_utils.h"
@@ -118,7 +118,8 @@ class AppMenuModelInteractiveTest : public InteractiveBrowserTest {
   }
 
  protected:
-  auto CheckIncognitoWindowOpened(const Browser* default_browser) {
+  auto CheckIncognitoWindowOpened(
+      const BrowserWindowInterface* default_browser) {
     return Check(base::BindLambdaForTesting([default_browser]() {
       BrowserWindowInterface* new_browser = nullptr;
       if (GlobalBrowserCollection::GetInstance()->GetIncognitoBrowserCount() ==
@@ -139,7 +140,7 @@ class AppMenuModelInteractiveTest : public InteractiveBrowserTest {
     }));
   }
 
-  auto CheckGuestWindowOpened(const Browser* default_browser) {
+  auto CheckGuestWindowOpened(const BrowserWindowInterface* default_browser) {
     return Check(base::BindLambdaForTesting([default_browser]() {
       BrowserWindowInterface* new_browser = nullptr;
       if (GlobalBrowserCollection::GetInstance()->GetGuestBrowserCount() == 1) {
@@ -661,20 +662,7 @@ IN_PROC_BROWSER_TEST_F(UniversalInstallAppMenuModelInteractiveTest,
       EnsurePresent(AppMenuModel::kInstallAppItem));
 }
 
-class YourSavedInfoMenuItemInteractiveTest
-    : public AppMenuModelInteractiveTest {
- public:
-  YourSavedInfoMenuItemInteractiveTest() {
-    feature_list_.InitAndEnableFeature(
-        autofill::features::kYourSavedInfoSettingsPage);
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(YourSavedInfoMenuItemInteractiveTest,
-                       ContactInfoNavigation) {
+IN_PROC_BROWSER_TEST_F(AppMenuModelInteractiveTest, ContactInfoNavigation) {
   base::HistogramTester histograms;
   RunTestSequence(
       InstrumentTab(kPrimaryTabPageElementId),
@@ -690,8 +678,7 @@ IN_PROC_BROWSER_TEST_F(YourSavedInfoMenuItemInteractiveTest,
                                MENU_ACTION_SHOW_CONTACT_INFO, 1);
 }
 
-IN_PROC_BROWSER_TEST_F(YourSavedInfoMenuItemInteractiveTest,
-                       IdentityDocsNavigation) {
+IN_PROC_BROWSER_TEST_F(AppMenuModelInteractiveTest, IdentityDocsNavigation) {
   base::HistogramTester histograms;
   RunTestSequence(
       InstrumentTab(kPrimaryTabPageElementId),
@@ -707,7 +694,7 @@ IN_PROC_BROWSER_TEST_F(YourSavedInfoMenuItemInteractiveTest,
                                MENU_ACTION_SHOW_IDENTITY_DOCS, 1);
 }
 
-IN_PROC_BROWSER_TEST_F(YourSavedInfoMenuItemInteractiveTest, TravelNavigation) {
+IN_PROC_BROWSER_TEST_F(AppMenuModelInteractiveTest, TravelNavigation) {
   base::HistogramTester histograms;
   RunTestSequence(InstrumentTab(kPrimaryTabPageElementId),
                   PressButton(kToolbarAppMenuButtonElementId),

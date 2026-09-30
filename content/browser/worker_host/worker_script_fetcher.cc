@@ -22,6 +22,7 @@
 #include "content/browser/renderer_host/frame_tree_node.h"
 #include "content/browser/renderer_host/policy_container_host.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
+#include "content/browser/renderer_preferences_util.h"
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
 #include "content/browser/service_worker/service_worker_main_resource_handle.h"
 #include "content/browser/storage_partition_impl.h"
@@ -32,6 +33,7 @@
 #include "content/browser/worker_host/worker_script_loader_factory.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/child_process_host.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/global_request_id.h"
 #include "content/public/browser/network_service_instance.h"
@@ -117,8 +119,8 @@ void AddAdditionalRequestHeaders(network::ResourceRequest* resource_request,
       net::HttpRequestHeaders::kAccept, network::kDefaultAcceptHeaderValue);
 
   blink::RendererPreferences renderer_preferences;
-  GetContentClient()->browser()->UpdateRendererPreferencesForWorker(
-      browser_context, &renderer_preferences);
+  UpdateRendererPreferencesForWorkerHelper(browser_context,
+                                           &renderer_preferences);
   UpdateAdditionalHeadersForBrowserInitiatedRequest(
       &resource_request->headers, browser_context,
       /*should_update_existing_headers=*/false, renderer_preferences,
@@ -619,13 +621,13 @@ WorkerScriptFetcher::CreateFactoryBundle(
   non_network_factories.emplace(url::kDataScheme,
                                 DataURLLoaderFactory::Create());
   if (filesystem_url_support) {
-    // TODO(crbug.com/41471904): Pass ChildProcessHost::kInvalidUniqueID
-    // instead of valid `worker_process_id` for `factory_bundle_for_browser`
-    // once CanCommitURL-like check is implemented in PlzWorker.
+    int process_id = loader_type == LoaderType::kMainResource
+                         ? ChildProcessHost::kInvalidUniqueID
+                         : worker_process_id;
     non_network_factories.emplace(
         url::kFileSystemScheme,
         CreateFileSystemURLLoaderFactory(
-            worker_process_id, FrameTreeNodeId(),
+            process_id, FrameTreeNodeId(),
             storage_partition->GetFileSystemContext(), storage_domain,
             request_initiator_storage_key));
   }

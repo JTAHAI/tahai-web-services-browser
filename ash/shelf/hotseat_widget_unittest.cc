@@ -217,6 +217,11 @@ class HotseatWidgetTest
 
 using StackedHotseatWidgetTest = HotseatWidgetTest;
 
+class HotseatWidgetDragTest : public HotseatWidgetTest {
+ public:
+  HotseatWidgetDragTest() { set_add_default_shelf_icon(false); }
+};
+
 // Counts the number of times the work area changes.
 class DisplayWorkAreaChangeCounter : public display::DisplayObserver {
  public:
@@ -339,12 +344,18 @@ INSTANTIATE_TEST_SUITE_P(
         /*navigation_buttons_shown_in_tablet_mode*/ testing::Bool(),
         /*sunfish_or_scanner_enabled=*/testing::Bool()));
 
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    HotseatWidgetDragTest,
+    testing::Combine(
+        testing::Values(ShelfAutoHideBehavior::kNever,
+                        ShelfAutoHideBehavior::kAlways),
+        /*navigation_buttons_shown_in_tablet_mode*/ testing::Bool(),
+        /*sunfish_or_scanner_enabled=*/testing::Bool()));
+
 // TODO(b:270757104) Set status are widget sizes.
 TEST_P(StackedHotseatWidgetTest, StackedHotseatShownOnSmallScreens) {
   UpdateDisplay("475x350");
-  base::HistogramTester histogram_tester;
-  // Nothing logged before entering the tablet mode.
-  histogram_tester.ExpectTotalCount("Ash.Shelf.ShowStackedHotseat", 0);
 
   TabletModeControllerTestApi().EnterTabletMode();
   GetAppListTestHelper()->CheckVisibility(true);
@@ -355,19 +366,11 @@ TEST_P(StackedHotseatWidgetTest, StackedHotseatShownOnSmallScreens) {
   ASSERT_EQ(hotseat_bounds.bottom(),
             350 - ShelfConfig::Get()->hotseat_bottom_padding() * 2 -
                 ShelfConfig::Get()->shelf_size());
-
-  // Showed stacked hostseat.
-  histogram_tester.ExpectBucketCount("Ash.Shelf.ShowStackedHotseat", true, 1);
-  histogram_tester.ExpectBucketCount("Ash.Shelf.ShowStackedHotseat", false, 0);
 }
 
 // TODO(b:270757104) Set status are widget sizes.
 TEST_P(StackedHotseatWidgetTest, StackedHotseatNotShownOnLargeScreens) {
   UpdateDisplay("800x600");
-
-  base::HistogramTester histogram_tester;
-  // Nothing logged before entering the tablet mode.
-  histogram_tester.ExpectTotalCount("Ash.Shelf.ShowStackedHotseat", 0);
 
   TabletModeControllerTestApi().EnterTabletMode();
   GetAppListTestHelper()->CheckVisibility(true);
@@ -377,10 +380,6 @@ TEST_P(StackedHotseatWidgetTest, StackedHotseatNotShownOnLargeScreens) {
                                        ->GetWindowBoundsInScreen();
   ASSERT_EQ(hotseat_bounds.bottom(),
             600 - ShelfConfig::Get()->hotseat_bottom_padding());
-
-  // Showed regular hotseat.
-  histogram_tester.ExpectBucketCount("Ash.Shelf.ShowStackedHotseat", true, 0);
-  histogram_tester.ExpectBucketCount("Ash.Shelf.ShowStackedHotseat", false, 1);
 }
 
 TEST_P(HotseatWidgetTest, LongPressHomeWithoutAppWindow) {
@@ -562,7 +561,7 @@ TEST_P(HotseatWidgetTest, CloseLastWindowOpenedInTabletMode) {
 }
 
 // Verifies removing a shelf item by dragging it off the extended hotseat.
-TEST_P(HotseatWidgetTest, DragItemOffExtendedHotseat) {
+TEST_P(HotseatWidgetDragTest, DragItemOffExtendedHotseat) {
   TabletModeControllerTestApi().EnterTabletMode();
   std::unique_ptr<aura::Window> window =
       CreateWindowWithAppType(chromeos::AppType::NON_APP, {400, 400});

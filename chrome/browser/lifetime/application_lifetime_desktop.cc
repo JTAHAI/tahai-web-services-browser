@@ -22,6 +22,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/download/download_core_service.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/lifetime/browser_close_manager.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
@@ -33,13 +34,14 @@
 #include "chrome/browser/sessions/exit_type_service.h"
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/sessions/session_service_factory.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+#include "chrome/browser/ui/omnibox/omnibox_everywhere/omnibox_everywhere_controller.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_features.h"
@@ -62,6 +64,10 @@
 #if BUILDFLAG(IS_WIN)
 #include "base/win/win_util.h"
 #endif  // BUILDFLAG(IS_WIN)
+
+#if BUILDFLAG(IS_MAC)
+#include "chrome/browser/shutdown_watchdog_mac.h"
+#endif  // BUILDFLAG(IS_MAC)
 
 #if BUILDFLAG(ENABLE_SESSION_SERVICE)
 #include "chrome/browser/sessions/session_data_service.h"
@@ -168,8 +174,7 @@ void PostTryToCloseBrowsersForProfile(
                                    original_profile
                              : browser->GetProfile() == original_profile;
           if (matches) {
-            UnloadController::From(browser->GetBrowserForMigrationOnly())
-                ->ResetTryToCloseWindow();
+            UnloadController::From(browser)->ResetTryToCloseWindow();
           }
           return true;
         });
@@ -200,13 +205,12 @@ void TryToCloseBrowsersForProfile(
         if (!matches_profile(browser)) {
           return true;
         }
-        if (UnloadController::From(browser->GetBrowserForMigrationOnly())
-                ->TryToCloseWindow(
-                    skip_beforeunload,
-                    base::BindRepeating(
-                        &PostTryToCloseBrowsersForProfile, original_profile,
-                        match_original_profile, on_close_success,
-                        on_close_aborted, profile_path, skip_beforeunload))) {
+        if (UnloadController::From(browser)->TryToCloseWindow(
+                skip_beforeunload,
+                base::BindRepeating(&PostTryToCloseBrowsersForProfile,
+                                    original_profile, match_original_profile,
+                                    on_close_success, on_close_aborted,
+                                    profile_path, skip_beforeunload))) {
           waiting_for_close = true;
           return false;
         }
@@ -306,6 +310,12 @@ void ShutdownIfNoBrowsers() {
     glic_background_mode_manager->ExitBackgroundMode();
   }
 
+  auto* browser_features =
+      g_browser_process ? g_browser_process->GetFeatures() : nullptr;
+  if (browser_features && browser_features->omnibox_everywhere_controller()) {
+    browser_features->omnibox_everywhere_controller()->ExitBackgroundMode();
+  }
+
 #if BUILDFLAG(ENABLE_SESSION_SERVICE)
   // If ShuttingDownWithoutClosingBrowsers() returns true, the session
   // services may not get a chance to shut down normally, so explicitly shut
@@ -375,6 +385,14 @@ void SessionEnding() {
     return;
   }
   already_ended = true;
+
+#if BUILDFLAG(IS_MAC)
+  // Hand off from the graceful-path emergency watchdog (armed at SIGTERM
+  // receipt with the same 10s budget EndSession()'s rundown wait uses, which
+  // would otherwise fire mid-critical-writes) to a strict bound covering
+  // SessionEnding itself. See shutdown_watchdog_mac.h.
+  shutdown_watchdog::ArmForSessionEnding();
+#endif
 
   // ~ShutdownWatcherHelper uses IO (it joins a thread). We'll only trigger that
   // if Terminate() fails, which leaves us in a weird state, or the OS is going

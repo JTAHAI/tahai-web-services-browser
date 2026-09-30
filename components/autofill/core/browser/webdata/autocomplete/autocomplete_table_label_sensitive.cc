@@ -26,9 +26,11 @@
 #include "base/numerics/safe_conversions.h"
 #include "base/time/time.h"
 #include "components/autofill/core/browser/webdata/autocomplete/autocomplete_entry_label_sensitive.h"
-#include "components/autofill/core/browser/webdata/autofill_table_utils.h"
+#include "components/autofill/core/browser/webdata/autofill_table_util.h"
 #include "components/autofill/core/common/autofill_clock.h"
 #include "components/autofill/core/common/autofill_constants.h"
+#include "components/autofill/core/common/autofill_features.h"
+#include "components/autofill/core/common/autofill_prefs.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "components/webdata/common/web_database.h"
 #include "components/webdata/common/web_database_table.h"
@@ -557,6 +559,37 @@ bool AutocompleteTableLabelSensitive::InitMainTable() {
                                {kName, kLabel, kValue});
   }
   return true;
+}
+
+bool AutocompleteTableLabelSensitive::MigrateDataFromLegacyTable() {
+  sql::Transaction transaction(db());
+  if (!transaction.Begin()) {
+    return false;
+  }
+
+  if (!db()->DoesTableExist("autofill")) {
+    return true;
+  }
+
+  if (!db()->Execute("DELETE FROM autocomplete")) {
+    return false;
+  }
+  if (!db()->Execute(
+          "INSERT INTO autocomplete (name, value, label, label_normalized, "
+          "value_lower, date_created, date_last_used, count) "
+          "SELECT "
+          "    name, "
+          "    value, "
+          "    '' as label, "
+          "    '' as label_normalized, "
+          "    value_lower, "
+          "    date_created, "
+          "    date_last_used, "
+          "    count "
+          "FROM autofill")) {
+    return false;
+  }
+  return transaction.Commit();
 }
 
 }  // namespace autofill

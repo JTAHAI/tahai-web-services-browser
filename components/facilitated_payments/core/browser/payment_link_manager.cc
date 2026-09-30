@@ -13,18 +13,20 @@
 #include "base/containers/span.h"
 #include "base/feature_list.h"
 #include "base/functional/callback_helpers.h"
+#include "base/task/bind_post_task.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "components/autofill/core/browser/data_manager/payments/payments_data_manager.h"
 #include "components/autofill/core/browser/data_model/payments/ewallet.h"
 #include "components/autofill/core/browser/payments/payments_autofill_client.h"
 #include "components/autofill/core/browser/payments/payments_util.h"
+#include "components/facilitated_payments/core/browser/ewallet_account_linking_manager.h"
 #include "components/facilitated_payments/core/browser/facilitated_payments_api_client.h"
 #include "components/facilitated_payments/core/browser/facilitated_payments_app_info_list.h"
 #include "components/facilitated_payments/core/browser/facilitated_payments_client.h"
 #include "components/facilitated_payments/core/browser/network_api/facilitated_payments_initiate_payment_request_details.h"
 #include "components/facilitated_payments/core/browser/network_api/facilitated_payments_initiate_payment_response_details.h"
 #include "components/facilitated_payments/core/browser/network_api/facilitated_payments_network_interface.h"
-#include "components/facilitated_payments/core/browser/payment_link_manager.h"
 #include "components/facilitated_payments/core/browser/strike_databases/payment_link_suggestion_strike_database.h"
 #include "components/facilitated_payments/core/features/features.h"
 #include "components/facilitated_payments/core/metrics/facilitated_payments_metrics.h"
@@ -63,6 +65,7 @@ void PaymentLinkManager::TriggerPaymentLinkPushPayment(
   if (ui_state_ != UiState::kHidden) {
     return;
   }
+  Reset();
   payment_flow_triggered_timestamp_ = base::TimeTicks::Now();
   ukm_source_id_ = ukm_source_id;
   scheme_ = PaymentLinkValidator().GetScheme(payment_link_url);
@@ -147,11 +150,7 @@ void PaymentLinkManager::TriggerPaymentLinkPushPayment(
           EwalletNewAccountLinkingFlowExitedReason::kNoSupportedCreationOption,
           scheme_);
     } else {
-      // TODO(crbug.com/517710197): Trigger NAL onboarding UI here once built.
-      DVLOG(1)
-          << "eWallet NAL: Matched creation options but standard linked "
-             "ewallets are empty. New Account Linking onboarding flow will "
-             "trigger in subsequent step.";
+      TriggerEwalletAccountLinkingFlow(payment_link_url);
     }
   }
 }
@@ -232,6 +231,34 @@ void PaymentLinkManager::RetrieveSupportedEwallets(
   }
 }
 
+void PaymentLinkManager::TriggerEwalletAccountLinkingFlow(
+    const GURL& payment_link_url) {
+  if (supported_ewallet_creation_options_.size() > 1) {
+    LogEwalletNewAccountLinkingFlowExitedReason(
+        EwalletNewAccountLinkingFlowExitedReason::
+            kMultipleSupportedCreationOptions,
+        scheme_);
+    return;
+  }
+
+  // At this point, there should only be 1 creation option.
+  ewallet_account_linking_manager_ =
+      std::make_unique<EwalletAccountLinkingManager>(
+          &client_.get(), api_client_creator_,
+          supported_ewallet_creation_options_.front());
+
+  // Kicks off an async flow that fetches a client token and makes a
+  // GetDetailsForCreatePaymentInstrument network call. The base class handles
+  // the network response and triggers a callback, which subsequently displays
+  // the account linking bottom sheet if eligible.
+  // BindPostTask ensures the callback executes asynchronously, preventing UAF
+  // if PaymentLinkManager synchronously destroys EwalletAccountLinkingManager.
+  ewallet_account_linking_manager_->TriggerAccountLinking(
+      base::BindPostTaskToCurrentDefault(
+          base::BindOnce(&PaymentLinkManager::OnAccountLinkingResult,
+                         weak_ptr_factory_.GetWeakPtr(), payment_link_url)));
+}
+
 bool PaymentLinkManager::CanTriggerAppPaymentFlow(const GURL& page_url) {
   if (optimization_guide_decider_->CanApplyOptimization(
           page_url, optimization_guide::proto::A2A_MERCHANT_ALLOWLIST,
@@ -263,6 +290,10 @@ void PaymentLinkManager::Reset() {
   ui_state_ = UiState::kHidden;
   is_ewallet_available_ = false;
   is_payment_app_available_ = false;
+  if (ewallet_account_linking_manager_) {
+    ewallet_account_linking_manager_->DismissAndCancel();
+    ewallet_account_linking_manager_.reset();
+  }
   weak_ptr_factory_.InvalidateWeakPtrs();
 }
 
@@ -604,6 +635,56 @@ PaymentLinkManager::GetOrCreateStrikeDatabase() {
     }
   }
   return strike_database_.get();
+}
+
+void PaymentLinkManager::OnAccountLinkingResult(const GURL& payment_link_url,
+                                                AccountLinkingResult result) {
+  // Reset the latency timer as the user just spent time in the account linking
+  // flow.
+  payment_flow_triggered_timestamp_ = base::TimeTicks::Now();
+
+  // Extract account linking result.
+  if (!result.is_successful) {
+    if (result.error_code == AccountLinkingResultCode::kResultError) {
+      // Delegate to error screen for hard failures.
+      ewallet_account_linking_manager_.reset();
+      ShowErrorScreen();
+    } else {
+      // Clean up the manager and UI state for soft cancellations, early exits,
+      // and user dismissals.
+      Reset();
+    }
+    return;
+  }
+
+  // Ewallet payment flow can't be completed in the landscape mode as the
+  // Payments server doesn't support it yet.
+  if (client_->IsInLandscapeMode()) {
+    LogEwalletFlowExitedReason(
+        EwalletFlowExitedReason::kLandscapeScreenOrientation, scheme_);
+    Reset();
+    return;
+  }
+
+  // Utilize the returned instrument_id for the payment request.
+  initiate_payment_request_details_->instrument_id_ = result.instrument_id;
+
+  if (autofill::PaymentsDataManager* payments_data_manager =
+          client_->GetPaymentsDataManager()) {
+    initiate_payment_request_details_->billing_customer_number_ =
+        autofill::payments::GetBillingCustomerId(*payments_data_manager);
+  } else {
+    Reset();
+    return;
+  }
+
+  // Note: FopSelectorShown telemetry is omitted since we bypassed the UI.
+
+  // Kick off the asynchronous checkout sequence (Risk Data -> Client Token ->
+  // Send InitiatePaymentRequest) to complete the purchase.
+  client_->LoadRiskData(base::BindOnce(&PaymentLinkManager::OnRiskDataLoaded,
+                                       weak_ptr_factory_.GetWeakPtr(),
+                                       base::TimeTicks::Now()));
 }
 
 }  // namespace payments::facilitated

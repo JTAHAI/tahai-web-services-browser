@@ -2,17 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/ui/views/extensions/extension_popup.h"
+
+#include "base/functional/bind.h"
 #include "base/strings/strcat.h"
+#include "base/test/run_until.h"
+#include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/extensions/extension_apitest.h"
 #include "chrome/browser/extensions/extension_view_host.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/extensions/extension_action_test_helper.h"
-#include "chrome/browser/ui/views/extensions/extension_popup.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
 #include "chrome/browser/ui/views/extensions/security_dialog_tracker.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/permissions/chip/permission_chip_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/permissions/permission_request_manager_test_api.h"
 #include "components/constrained_window/constrained_window_views.h"
@@ -22,6 +28,8 @@
 #include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/browser_test_utils.h"
+#include "content/public/test/test_devtools_protocol_client.h"
 #include "extensions/browser/disable_reason.h"
 #include "extensions/browser/extension_host.h"
 #include "extensions/browser/extension_host_test_helper.h"
@@ -104,7 +112,7 @@ base::WeakPtr<views::Widget> WaitForLastExtensionPopupVisible() {
 }
 
 base::WeakPtr<views::Widget> OpenExtensionPopup(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     const extensions::Extension* extension) {
   extensions::ExtensionHostTestHelper popup_waiter(browser->GetProfile(),
                                                    extension->id());
@@ -248,17 +256,17 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
 }
 
 // Tests that an extension popup does not close on deactivation while it is
-// under inspection.
+// under inspection, when the popup was opened with inspection enabled.
 // TODO(crbug.com/478799302): Flakily fails on TSAN bots
 #if defined(THREAD_SANITIZER)
-#define MAYBE_ExtensionPopupDoesNotCloseWhileInpsecting \
-  DISABLED_ExtensionPopupDoesNotCloseWhileInpsecting
+#define MAYBE_ExtensionPopupDoesNotCloseWhileInspecting \
+  DISABLED_ExtensionPopupDoesNotCloseWhileInspecting
 #else
-#define MAYBE_ExtensionPopupDoesNotCloseWhileInpsecting \
-  ExtensionPopupDoesNotCloseWhileInpsecting
+#define MAYBE_ExtensionPopupDoesNotCloseWhileInspecting \
+  ExtensionPopupDoesNotCloseWhileInspecting
 #endif
 IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
-                       MAYBE_ExtensionPopupDoesNotCloseWhileInpsecting) {
+                       MAYBE_ExtensionPopupDoesNotCloseWhileInspecting) {
   static constexpr char kManifest[] =
       R"({
            "name": "Test Extension",
@@ -474,7 +482,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
   views::Widget* web_dialog_widget =
       constrained_window::ShowWebModalDialogViews(
           web_dialog.release(),
-          browser()->tab_strip_model()->GetActiveWebContents());
+          browser()->GetTabStripModel()->GetActiveWebContents());
   views::test::WidgetVisibleWaiter(web_dialog_widget).Wait();
   EXPECT_TRUE(web_dialog_widget->IsVisible());
 
@@ -579,6 +587,88 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_FALSE(extension_popup_widget->IsClosed());
 }
 
+// Tests that attaching an external devtools client to an extension popup while
+// it is loading does not open a devtools window automatically. Regression test
+// for crbug.com/537973327.
+IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
+                       SlowLoadingExtensionPopupDoesNotOpenDevToolsWindow) {
+  // Start an embedded test server that serves a slow responding image.
+  static constexpr char kSlowImgURL[] = "/slow-img";
+  net::test_server::ControllableHttpResponse slow_img_response(
+      embedded_test_server(), kSlowImgURL);
+  ASSERT_TRUE(StartEmbeddedTestServer());
+  const GURL slow_image_url = embedded_test_server()->GetURL(kSlowImgURL);
+
+  // Load an extension whose popup embeds the slow loading image.
+  static constexpr char kManifest[] =
+      R"({
+           "name": "Test Extension",
+           "manifest_version": 3,
+           "action": { "default_popup": "popup.html" },
+           "version": "0.1"
+         })";
+  const std::string html =
+      base::StrCat({"<html><img src='", slow_image_url.spec(), "'></html>"});
+
+  extensions::TestExtensionDir test_dir;
+  test_dir.WriteManifest(kManifest);
+  test_dir.WriteFile(FILE_PATH_LITERAL("popup.html"), html);
+
+  const extensions::Extension* extension =
+      LoadExtension(test_dir.UnpackedPath());
+  ASSERT_TRUE(extension);
+
+  // Use the raw action to open the popup because we control its loading.
+  ExtensionActionTestHelper::Create(browser())->Press(extension->id());
+
+  // Start the request but do not finish it.
+  slow_img_response.WaitForRequest();
+
+  // Attach a devtools client to the popup.
+  ExtensionPopup* extension_popup = ExtensionPopup::last_popup_for_testing();
+  ASSERT_TRUE(extension_popup);
+  content::WebContents* extension_contents =
+      extension_popup->host()->host_contents();
+  ASSERT_TRUE(extension_contents);
+
+  // This emulates what chromedriver does when enumerating
+  // driver.window_handles.
+  content::TestDevToolsProtocolClient devtools_client;
+  devtools_client.AttachToTabTarget(extension_contents);
+  base::DictValue command_params;
+  command_params.Set("autoAttach", true);
+  command_params.Set("waitForDebuggerOnStart", false);
+  command_params.Set("flatten", true);
+  devtools_client.SendCommandSync("Target.setAutoAttach",
+                                  std::move(command_params));
+  // Sanity check: ensure "Target.setAutoAttach" was sent before the widget got
+  // shown.
+  extension_popup = ExtensionPopup::last_popup_for_testing();
+  ASSERT_TRUE(extension_popup);
+  ASSERT_FALSE(extension_popup->GetWidget()->IsVisible());
+
+  // Respond to the image loading.
+  slow_img_response.Send(net::HTTP_OK, "image/png");
+  slow_img_response.Send("image_body");
+  slow_img_response.Done();
+
+  base::WeakPtr<views::Widget> extension_popup_widget =
+      WaitForLastExtensionPopupVisible();
+
+  // Primary assertion of the test: ensure no devtools window opened.
+  EXPECT_FALSE(
+      DevToolsWindow::GetInstanceForInspectedWebContents(extension_contents));
+
+  // Cleanup.
+  devtools_client.DetachProtocolClient();
+  // Activating the browser window should cause the extension popup to be
+  // deactivated and closed.
+  browser()->GetWindow()->Activate();
+
+  // The extension popup should close.
+  ExpectWidgetDestroy(extension_popup_widget);
+}
+
 // Tests that an API-triggered extenion popup does not show if a security dialog
 // is visible. This extension loads a slow image that completes loading only
 // after a security dialog is shown.
@@ -612,9 +702,9 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
   extensions::ExtensionHostTestHelper popup_waiter(browser()->GetProfile(),
                                                    extension->id());
   popup_waiter.RestrictToType(extensions::mojom::ViewType::kExtensionPopup);
-  BrowserView& browser_view = browser()->GetBrowserView();
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
   ExtensionsToolbarDesktop* extensions_container =
-      browser_view.toolbar()->extensions_container();
+      browser_view->toolbar()->extensions_container();
   extensions_container->GetToolbarViewModel()->ShowToolbarActionPopupForAPICall(
       extension->id(), ShowPopupCallback());
 
@@ -623,7 +713,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
 
   // While the extension is loading, open a security UI.
   views::UniqueWidgetPtr security_widget =
-      CreateTestDialogWidget(browser_view.GetWidget());
+      CreateTestDialogWidget(browser_view->GetWidget());
   extensions::SecurityDialogTracker::GetInstance()->AddSecurityDialog(
       security_widget.get());
   security_widget->Show();
@@ -676,9 +766,9 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
   slow_img_response.WaitForRequest();
 
   // While the extension is loading, open a security UI.
-  BrowserView& browser_view = browser()->GetBrowserView();
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
   views::UniqueWidgetPtr security_widget =
-      CreateTestDialogWidget(browser_view.GetWidget());
+      CreateTestDialogWidget(browser_view->GetWidget());
   extensions::SecurityDialogTracker::GetInstance()->AddSecurityDialog(
       security_widget.get());
   security_widget->Show();
@@ -691,4 +781,97 @@ IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
 
   // The extension should be destroyed without showing.
   popup_waiter.WaitForHostDestroyed();
+}
+
+// Tests that pressing Escape in an extension popup does not close the popup
+// if the keydown event is default-prevented by JavaScript.
+IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
+                       EscapeKeyDoesNotClosePopupWhenPreventedInJS) {
+  static constexpr char kManifest[] =
+      R"({
+           "name": "Test Extension",
+           "manifest_version": 3,
+           "action": { "default_popup": "popup.html" },
+           "version": "0.1"
+         })";
+  static constexpr char kPopupHtml[] =
+      R"(<!DOCTYPE html>
+         <html>
+         <body>
+           <script src="popup.js"></script>
+         </body>
+         </html>)";
+  static constexpr char kPopupJs[] =
+      R"(window.escapeHandled = false;
+         window.addEventListener('keydown', (e) => {
+           if (e.key === 'Escape') {
+             e.preventDefault();
+           }
+         });
+         window.addEventListener('keyup', (e) => {
+           if (e.key === 'Escape') {
+             window.escapeHandled = true;
+           }
+         });)";
+
+  extensions::TestExtensionDir test_dir;
+  test_dir.WriteManifest(kManifest);
+  test_dir.WriteFile(FILE_PATH_LITERAL("popup.html"), kPopupHtml);
+  test_dir.WriteFile(FILE_PATH_LITERAL("popup.js"), kPopupJs);
+  const extensions::Extension* extension =
+      LoadExtension(test_dir.UnpackedPath());
+  ASSERT_TRUE(extension);
+
+  base::WeakPtr<views::Widget> widget =
+      OpenExtensionPopup(browser(), extension);
+  ASSERT_TRUE(widget);
+
+  content::WebContents* host_contents =
+      ExtensionPopup::last_popup_for_testing()->host()->host_contents();
+
+  // Send Escape key press directly to the popup bubble window.
+  ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
+      widget->GetNativeWindow(), ui::VKEY_ESCAPE, false, false, false, false));
+
+  // Wait for JavaScript to process the key event.
+  EXPECT_TRUE(base::test::RunUntil([&]() -> bool {
+    return content::EvalJs(host_contents, "window.escapeHandled")
+               .ExtractBool() == true;
+  }));
+
+  // The popup widget should still be open and visible.
+  EXPECT_TRUE(widget);
+  EXPECT_FALSE(widget->IsClosed());
+}
+
+// Tests that pressing Escape in an extension popup closes the popup when not
+// default-prevented by JavaScript.
+IN_PROC_BROWSER_TEST_F(ExtensionPopupInteractiveUiTest,
+                       EscapeKeyClosesPopupWhenNotPreventedInJS) {
+  static constexpr char kManifest[] =
+      R"({
+           "name": "Test Extension",
+           "manifest_version": 3,
+           "action": { "default_popup": "popup.html" },
+           "version": "0.1"
+         })";
+  static constexpr char kPopupHtml[] = "<html><body>Popup</body></html>";
+
+  extensions::TestExtensionDir test_dir;
+  test_dir.WriteManifest(kManifest);
+  test_dir.WriteFile(FILE_PATH_LITERAL("popup.html"), kPopupHtml);
+  const extensions::Extension* extension =
+      LoadExtension(test_dir.UnpackedPath());
+  ASSERT_TRUE(extension);
+
+  base::WeakPtr<views::Widget> widget =
+      OpenExtensionPopup(browser(), extension);
+  ASSERT_TRUE(widget);
+
+  // Send Escape key press directly to the popup bubble window.
+  ASSERT_TRUE(ui_test_utils::SendKeyPressToWindowSync(
+      widget->GetNativeWindow(), ui::VKEY_ESCAPE, false, false, false, false));
+
+  // Wait until the popup widget is destroyed.
+  EXPECT_TRUE(base::test::RunUntil([&]() { return !widget; }));
 }

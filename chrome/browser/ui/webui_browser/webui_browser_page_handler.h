@@ -18,7 +18,7 @@
 class AppMenu;
 class AppMenuModel;
 class BackForwardMenuModel;
-class Browser;
+class BrowserWindowInterface;
 
 namespace views {
 class MenuModelAdapter;
@@ -57,13 +57,15 @@ class WebUIBrowserPageHandler
   void ShowBackForwardMenu(bool is_back) override;
   void GetTabStripInset(GetTabStripInsetCallback callback) override;
 
+  static int GetTabStripInsetWidth();
+
  private:
   WebUIBrowserPageHandler(
       content::RenderFrameHost& render_frame_host,
       mojo::PendingReceiver<webui_browser::mojom::PageHandler> receiver,
       WebUIBrowserUI* controller);
 
-  Browser* GetBrowser();
+  BrowserWindowInterface* GetBrowser();
   WebUIBrowserWindow* GetBrowserWindow();
 
   std::unique_ptr<AppMenuModel> menu_model_;

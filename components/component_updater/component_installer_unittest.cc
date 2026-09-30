@@ -4,15 +4,16 @@
 
 #include "components/component_updater/component_installer.h"
 
+#include <cstdint>
 #include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "base/barrier_closure.h"
+#include "base/containers/to_vector.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -189,7 +190,7 @@ class MockInstallerPolicy : public ComponentInstallerPolicy {
 
  private:
   static void GetPkHash(std::vector<uint8_t>* hash) {
-    hash->assign(std::begin(kSha256Hash), std::end(kSha256Hash));
+    hash->assign_range(kSha256Hash);
   }
 
   ComponentReadyCallback component_ready_cb_;
@@ -274,9 +275,8 @@ void ComponentInstallerTest::RunThreads() {
 void ComponentInstallerTest::Unpack(const base::FilePath& crx_path) {
   update_client::Unpacker::Unpack(
       "jebgalgnebhfojomionfpkfelancnnkf", "ComponentInstallerTest",
-      std::vector<uint8_t>(std::begin(kSha256Hash), std::end(kSha256Hash)),
-      crx_path, config_->GetUnzipperFactory()->Create(),
-      crx_file::VerifierFormat::CRX3,
+      base::ToVector(kSha256Hash), crx_path,
+      config_->GetUnzipperFactory()->Create(), crx_file::VerifierFormat::CRX3,
       /*is_foreground=*/true,
       base::BindOnce(&ComponentInstallerTest::UnpackComplete,
                      base::Unretained(this)));
@@ -315,14 +315,13 @@ std::optional<base::FilePath> CreateComponentDirectory(
     return std::nullopt;
   }
 
-  static constexpr std::string_view kManifestData = R"({
+  return base::WriteFile(component_dir.AppendASCII("manifest.json"),
+                         absl::StrFormat(R"({
     "name": "%s",
     "version": "%s",
     "min_env_version": "%s"
-  })";
-  return base::WriteFile(component_dir.AppendASCII("manifest.json"),
-                         absl::StrFormat(kManifestData.data(), name, version,
-                                         min_env_version))
+  })",
+                                         name, version, min_env_version))
              ? std::make_optional(component_dir)
              : std::nullopt;
 }
@@ -365,9 +364,7 @@ TEST_F(ComponentInstallerTest, RegisterComponent) {
   expected_attrs["ap"] = "fake-ap";
   expected_attrs["is-enterprise"] = "1";
 
-  EXPECT_EQ(
-      std::vector<uint8_t>(std::begin(kSha256Hash), std::end(kSha256Hash)),
-      component.pk_hash);
+  EXPECT_EQ(base::ToVector(kSha256Hash), component.pk_hash);
   EXPECT_EQ(base::Version("0.0.0.0"), component.version);
   EXPECT_TRUE(component.fingerprint.empty());
   EXPECT_EQ("fake name", component.name);
@@ -527,7 +524,7 @@ TEST_F(ComponentInstallerTest, UnpackPathInstallError) {
         EXPECT_EQ(result.result.category,
                   update_client::ErrorCategory::kInstall);
         EXPECT_EQ(result.result.code,
-                  static_cast<int>(
+                  std::to_underlying(
                       update_client::InstallError::NO_DIR_COMPONENT_USER));
       }));
 

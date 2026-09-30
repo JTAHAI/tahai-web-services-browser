@@ -49,14 +49,15 @@ class SidePanelCoordinatorAndroid : public SidePanelUIBase {
   SidePanelCoordinatorAndroid& operator=(const SidePanelCoordinatorAndroid&) =
       delete;
 
-  // Implements Java `SidePanelCoordinatorAndroid.Natives`. These methods are
-  // called from Java via JNI, see `SidePanelCoordinatorAndroidImpl.java`.
+  // Implements Java `SidePanelCoordinatorAndroidBridge.Natives`. These methods
+  // are called from Java via JNI, see `SidePanelCoordinatorAndroidBridge.java`.
   void Init();
   void Destroy();
-  void ClosePanel();
+  void ClosePanel(bool suppress_animations);
   bool HasContentToShow();
   void OnPanelContainerUpdated(int old_width, int new_width);
   void OnPanelContentReplaced();
+  void OnActiveChanged(bool active);
   void OnWillAutoClose();
   void OnWillAutoRestore();
 
@@ -139,7 +140,7 @@ class SidePanelCoordinatorAndroid : public SidePanelUIBase {
   // Delegates to `SidePanelRegistry::ClearCachedEntryViews` in all
   // `SidePanelRegistry` instances accessible from this class, including
   // the window-scoped registry and all contextual (tab-scoped) registries.
-  void ClearCachedEntryViews();
+  void ClearCachedEntryViews(bool include_active_entry = false);
 
   UniqueKey GetCurrentKeyNonNull() const;
   SidePanelEntry* GetEntryForCurrentKeyNonNull() const;

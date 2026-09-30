@@ -222,7 +222,6 @@
       break;
     }
     case InProductHelpType::kReaderModeOptions: {
-      CHECK(IsReaderModeAvailable());
       [_presenter presentReaderModeOptionsBubble];
       break;
     }
@@ -255,6 +254,10 @@
     }
     case InProductHelpType::kHomeBackgroundCustomization: {
       [_presenter presentHomeBackgroundCustomizationTipBubble];
+      break;
+    }
+    case InProductHelpType::kSendTabToSelfOmnibox: {
+      [_presenter presentSendTabToSelfOmniboxBubble];
       break;
     }
   }

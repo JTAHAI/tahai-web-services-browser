@@ -794,6 +794,10 @@ TEST_F(RenderViewImplTest, BeginNavigation) {
   request.SetRequestContext(blink::mojom::RequestContextType::INTERNAL);
   request.SetRequestorOrigin(requestor_origin);
   auto navigation_info = std::make_unique<blink::WebNavigationInfo>();
+  navigation_info->initiator_state_token =
+      frame()->GetWebFrame()->GetInitiatorStateToken();
+  navigation_info->initiator_document_token =
+      frame()->GetWebFrame()->GetDocument().Token();
   navigation_info->url_request = std::move(request);
   navigation_info->frame_type =
       blink::mojom::RequestContextFrameType::kTopLevel;
@@ -807,6 +811,10 @@ TEST_F(RenderViewImplTest, BeginNavigation) {
 
   // Form posts to WebUI URLs.
   auto form_navigation_info = std::make_unique<blink::WebNavigationInfo>();
+  form_navigation_info->initiator_state_token =
+      frame()->GetWebFrame()->GetInitiatorStateToken();
+  form_navigation_info->initiator_document_token =
+      frame()->GetWebFrame()->GetDocument().Token();
   form_navigation_info->url_request = blink::WebURLRequest(GetWebUIURL("foo"));
   form_navigation_info->url_request.SetHttpMethod("POST");
   form_navigation_info->url_request.SetMode(
@@ -832,6 +840,10 @@ TEST_F(RenderViewImplTest, BeginNavigation) {
   // Popup links to WebUI URLs.
   blink::WebURLRequest popup_request(GetWebUIURL("foo"));
   auto popup_navigation_info = std::make_unique<blink::WebNavigationInfo>();
+  popup_navigation_info->initiator_state_token =
+      frame()->GetWebFrame()->GetInitiatorStateToken();
+  popup_navigation_info->initiator_document_token =
+      frame()->GetWebFrame()->GetDocument().Token();
   popup_navigation_info->url_request = blink::WebURLRequest(GetWebUIURL("foo"));
   popup_navigation_info->url_request.SetMode(
       network::mojom::RequestMode::kNavigate);
@@ -867,6 +879,10 @@ TEST_F(RenderViewImplTest, BeginNavigationHandlesAllTopLevel) {
 
   for (const auto& nav_type : kNavTypes) {
     auto navigation_info = std::make_unique<blink::WebNavigationInfo>();
+    navigation_info->initiator_state_token =
+        frame()->GetWebFrame()->GetInitiatorStateToken();
+    navigation_info->initiator_document_token =
+        frame()->GetWebFrame()->GetDocument().Token();
     navigation_info->url_request = blink::WebURLRequest(GURL("http://foo.com"));
     navigation_info->url_request.SetRequestorOrigin(
         blink::WebSecurityOrigin::Create(GURL("http://foo.com")));
@@ -890,6 +906,10 @@ TEST_F(RenderViewImplTest, BeginNavigationForWebUI) {
 
   // Navigations to normal HTTP URLs.
   auto navigation_info = std::make_unique<blink::WebNavigationInfo>();
+  navigation_info->initiator_state_token =
+      frame()->GetWebFrame()->GetInitiatorStateToken();
+  navigation_info->initiator_document_token =
+      frame()->GetWebFrame()->GetDocument().Token();
   navigation_info->url_request = blink::WebURLRequest(GURL("http://foo.com"));
   navigation_info->url_request.SetMode(network::mojom::RequestMode::kNavigate);
   navigation_info->url_request.SetRedirectMode(
@@ -907,6 +927,10 @@ TEST_F(RenderViewImplTest, BeginNavigationForWebUI) {
 
   // Navigations to WebUI URLs.
   auto webui_navigation_info = std::make_unique<blink::WebNavigationInfo>();
+  webui_navigation_info->initiator_state_token =
+      frame()->GetWebFrame()->GetInitiatorStateToken();
+  webui_navigation_info->initiator_document_token =
+      frame()->GetWebFrame()->GetDocument().Token();
   webui_navigation_info->url_request = blink::WebURLRequest(GetWebUIURL("foo"));
   webui_navigation_info->url_request.SetMode(
       network::mojom::RequestMode::kNavigate);
@@ -925,6 +949,10 @@ TEST_F(RenderViewImplTest, BeginNavigationForWebUI) {
 
   // Form posts to data URLs.
   auto data_navigation_info = std::make_unique<blink::WebNavigationInfo>();
+  data_navigation_info->initiator_state_token =
+      frame()->GetWebFrame()->GetInitiatorStateToken();
+  data_navigation_info->initiator_document_token =
+      frame()->GetWebFrame()->GetDocument().Token();
   data_navigation_info->url_request =
       blink::WebURLRequest(GURL("data:text/html,foo"));
   data_navigation_info->url_request.SetMode(
@@ -963,6 +991,10 @@ TEST_F(RenderViewImplTest, BeginNavigationForWebUI) {
       blink::AllocateSessionStorageNamespaceId(), consumed_user_gesture,
       std::nullopt, /*base_url=*/blink::WebURL());
   auto popup_navigation_info = std::make_unique<blink::WebNavigationInfo>();
+  popup_navigation_info->initiator_state_token =
+      frame()->GetWebFrame()->GetInitiatorStateToken();
+  popup_navigation_info->initiator_document_token =
+      frame()->GetWebFrame()->GetDocument().Token();
   popup_navigation_info->url_request = std::move(popup_request);
   popup_navigation_info->frame_type =
       blink::mojom::RequestContextFrameType::kAuxiliary;
@@ -1139,7 +1171,8 @@ TEST_F(RenderViewImplScaleFactorTest, DeviceScaleCorrectAfterCrossOriginNav) {
       blink::mojom::TreeScopeType::kDocument, std::move(replication_state),
       std::move(widget_params), blink::mojom::FrameOwnerProperties::New(),
       /*is_on_initial_empty_document=*/true, blink::DocumentToken(),
-      CreateStubPolicyContainer(), /*is_for_nested_main_frame=*/false);
+      base::UnguessableToken::Create(), CreateStubPolicyContainer(),
+      /*is_for_nested_main_frame=*/false);
 
   TestRenderFrame* provisional_frame =
       static_cast<TestRenderFrame*>(RenderFrameImpl::FromWebFrame(
@@ -1210,7 +1243,8 @@ TEST_F(RenderViewImplTest, DetachingProxyAlsoDestroysProvisionalFrame) {
       blink::mojom::TreeScopeType::kDocument, std::move(replication_state),
       /*widget_params=*/nullptr, blink::mojom::FrameOwnerProperties::New(),
       /*is_on_initial_empty_document=*/true, blink::DocumentToken(),
-      CreateStubPolicyContainer(), /*is_for_nested_main_frame=*/false);
+      base::UnguessableToken::Create(), CreateStubPolicyContainer(),
+      /*is_for_nested_main_frame=*/false);
   {
     TestRenderFrame* provisional_frame =
         static_cast<TestRenderFrame*>(RenderFrameImpl::FromWebFrame(

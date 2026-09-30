@@ -163,4 +163,25 @@ public class StubTabModel extends EmptyTabModel {
             throw error();
         }
     }
+
+    @Override
+    public void notifyWillActiveStateChange(boolean active) {
+        // The logic here should be consistent with setActive().
+        if (active) {
+            throw error();
+        }
+    }
+
+    @Override
+    public void notifyDidActiveStateChange(boolean active) {
+        // The logic here should be consistent with setActive().
+        if (active) {
+            throw error();
+        }
+    }
+
+    @Override
+    public @Nullable Tab getHierarchicalNextTab(Tab closingTab, List<Tab> closingTabs) {
+        throw error();
+    }
 }

@@ -18,7 +18,9 @@ typedef NS_ENUM(NSInteger, SettingsSectionIdentifier) {
   SettingsSectionIdentifierInfo,
   SettingsSectionIdentifierDebug,
   SettingsSectionIdentifierDefaults,
-  SettingsSectionIdentifierESBPromo
+  SettingsSectionIdentifierESBPromo,
+  SettingsSectionIdentifierDefaultPassiveCell,
+  SettingsSectionIdentifierDefaultPassiveCard
 };
 
 // Item types used per Setting section.
@@ -36,6 +38,7 @@ typedef NS_ENUM(NSInteger, SettingsItemType) {
   SettingsItemTypeIdentityDocs,
   SettingsItemTypeTravelInfo,
   SettingsItemTypeShoppingInfo,
+  SettingsItemTypeSuggestionsFromGemini,
   SettingsItemTypeAutofillAndPasswords,
   SettingsItemTypeAutofillSettings,
   SettingsItemTypeVoiceSearch,
@@ -44,6 +47,7 @@ typedef NS_ENUM(NSInteger, SettingsItemType) {
   SettingsItemTypePrivacy,
   SettingsItemTypeLanguageSettings,
   SettingsItemTypeContentSettings,
+  SettingsItemTypeSitePermissions,
   SettingsItemTypeDownloadsSettings,
   SettingsItemTypeSafariDataImport,
   SettingsItemTypeBandwidth,
@@ -62,7 +66,9 @@ typedef NS_ENUM(NSInteger, SettingsItemType) {
   SettingsItemTypeTabs,
   SettingsItemTypeESBPromo,
   SettingsItemTypeBWGSettings,
-  SettingsItemTypeBackendPromoDebugTools
+  SettingsItemTypeBackendPromoDebugTools,
+  SettingsItemTypeDefaultBrowserPassiveCell,
+  SettingsItemTypeDefaultBrowserPassiveCard
 };
 
 // The accessibility identifier of the settings TableView.
@@ -119,6 +125,9 @@ extern NSString* const kSettingsTravelInfoCellId;
 
 // The accessibility identifier of the Shopping Info cell.
 extern NSString* const kSettingsShoppingInfoCellId;
+
+// The accessibility identifier of the Suggestions From Gemini cell.
+extern NSString* const kSettingsSuggestionsFromGeminiCellId;
 
 // The accessibility identifier of the Autofill and Passwords cell.
 extern NSString* const kSettingsAutofillAndPasswordsCellId;
@@ -238,5 +247,11 @@ extern NSString* const kSettingsAutomaticallyOpenTabGroupsCellId;
 
 // The accessibility identifier of the Detect Units cell.
 extern NSString* const kSettingsDetectUnitsCellId;
+
+// The accessibility identifier of the default browser passive promo cell.
+extern NSString* const kSettingsDefaultBrowserPassiveCellId;
+
+// The accessibility identifier of the site permissions cell.
+extern NSString* const kSettingsSitePermissionsCellId;
 
 #endif  // IOS_CHROME_BROWSER_SETTINGS_UI_BUNDLED_SETTINGS_TABLE_VIEW_CONTROLLER_CONSTANTS_H_

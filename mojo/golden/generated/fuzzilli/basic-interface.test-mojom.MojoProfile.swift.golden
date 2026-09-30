@@ -10,7 +10,7 @@
 //     basic-interface.test-mojom
 //
 
-private static let mojoPrefix = "golden."
+private let mojoPrefix = "golden."
 
 ///
 /// Interfaces
@@ -23,6 +23,9 @@ extension ILType {
         withMethods: [
             "method",
             "methodWithoutResponse",
+            "methodWithEmptyReponse",
+            "syncMethod",
+            "syncMethodWithEmptyReponse",
         ])
     fileprivate static let jsGoldenPrimaryRemoteWrapper: ILType = .object(
         ofGroup: "golden.PrimaryRemoteWrapper",
@@ -40,11 +43,20 @@ extension ObjectGroup {
         methods: [
             "method": [
                 .plain(.boolean),
-            ] => .jsPromise,
+            ] => .jsPromise(resolvingTo: .jsGoldenPrimary_Method_ResponseParams),
             "methodWithoutResponse": [
                 .plain(.string),
-                .plain(.boolean),
+                .either(.boolean, .undefined),
             ] => .undefined,
+            "methodWithEmptyReponse": [
+                .plain(.boolean),
+            ] => .jsPromise(resolvingTo: .jsGoldenPrimary_MethodWithEmptyReponse_ResponseParams),
+            "syncMethod": [
+                .plain(.boolean),
+            ] => .jsGoldenPrimary_SyncMethod_ResponseParams,
+            "syncMethodWithEmptyReponse": [
+                .plain(.boolean),
+            ] => .jsGoldenPrimary_SyncMethodWithEmptyReponse_ResponseParams,
         ]
     )
 
@@ -62,6 +74,61 @@ extension ObjectGroup {
     fileprivate static let goldenPrimaryPendingReceiver = ObjectGroup(
         name: "golden.PrimaryPendingReceiver",
         instanceType: .jsGoldenPrimaryPendingReceiver,
+        properties: [:],
+        methods: [:]
+    )
+}
+
+///
+/// Structs
+///
+extension ILType {
+    fileprivate static let jsGoldenPrimary_Method_ResponseParams: ILType = .object(
+        ofGroup: "golden.Primary_Method_ResponseParams",
+        withProperties: [
+            "result",
+        ])
+    fileprivate static let jsGoldenPrimary_MethodWithEmptyReponse_ResponseParams: ILType = .object(
+        ofGroup: "golden.Primary_MethodWithEmptyReponse_ResponseParams",
+        withProperties: [
+        ])
+    fileprivate static let jsGoldenPrimary_SyncMethod_ResponseParams: ILType = .object(
+        ofGroup: "golden.Primary_SyncMethod_ResponseParams",
+        withProperties: [
+            "result",
+        ])
+    fileprivate static let jsGoldenPrimary_SyncMethodWithEmptyReponse_ResponseParams: ILType = .object(
+        ofGroup: "golden.Primary_SyncMethodWithEmptyReponse_ResponseParams",
+        withProperties: [
+        ])
+}
+
+extension ObjectGroup {
+    fileprivate static let goldenPrimaryMethodResponseParams = ObjectGroup(
+        name: "golden.Primary_Method_ResponseParams",
+        instanceType: .jsGoldenPrimary_Method_ResponseParams,
+        properties: [
+            "result": .string,
+        ],
+        methods: [:]
+    )
+    fileprivate static let goldenPrimaryMethodWithEmptyReponseResponseParams = ObjectGroup(
+        name: "golden.Primary_MethodWithEmptyReponse_ResponseParams",
+        instanceType: .jsGoldenPrimary_MethodWithEmptyReponse_ResponseParams,
+        properties: [:],
+        methods: [:]
+    )
+    fileprivate static let goldenPrimarySyncMethodResponseParams = ObjectGroup(
+        name: "golden.Primary_SyncMethod_ResponseParams",
+        instanceType: .jsGoldenPrimary_SyncMethod_ResponseParams,
+        properties: [
+            "result": .string,
+        ],
+        methods: [:]
+    )
+    fileprivate static let goldenPrimarySyncMethodWithEmptyReponseResponseParams = ObjectGroup(
+        name: "golden.Primary_SyncMethodWithEmptyReponse_ResponseParams",
+        instanceType: .jsGoldenPrimary_SyncMethodWithEmptyReponse_ResponseParams,
         properties: [:],
         methods: [:]
     )
@@ -172,15 +239,22 @@ let mojoPrimaryProfile = Profile(
     ] + commonMojoCodeGenerators,
     additionalProgramTemplates: WeightedList([]),
     disabledCodeGenerators: mojoDisabledGenerators,
-    disabledMutators: v8Profile.disabledMutators,
+    disabledMutators: [
+        "ExplorationMutator", "ProbingMutator", "PropertyAccessorMutator"
+    ],
     additionalBuiltins: mojoBuiltins.merging(commonMojoBuiltins) { (existing, _) in existing },
     additionalObjectGroups: [
         .goldenPrimaryRemote,
         .goldenPrimaryRemoteWrapper,
         .goldenPrimaryPendingReceiver,
+        .goldenPrimaryMethodResponseParams,
+        .goldenPrimaryMethodWithEmptyReponseResponseParams,
+        .goldenPrimarySyncMethodResponseParams,
+        .goldenPrimarySyncMethodWithEmptyReponseResponseParams,
     ] + commonMojoObjectGroups,
     additionalEnumerations: [
     ] + commonMojoEnumerations,
-    additionalOptionsBags: [] + commonMojoOptionsBags,
+    additionalOptionsBags: [
+    ] + commonMojoOptionsBags,
     optionalPostProcessor: nil
 )

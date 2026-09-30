@@ -5,7 +5,7 @@
 import 'chrome://settings/settings.js';
 
 import {AiEnterpriseFeaturePrefName, EntityDataManagerProxyImpl} from 'chrome://settings/lazy_load.js';
-import type {SettingsIdentityDocsPageElement} from 'chrome://settings/lazy_load.js';
+import type {SettingsAutofillAiEntriesListElement, SettingsIdentityDocsPageElement} from 'chrome://settings/lazy_load.js';
 import {CrSettingsPrefs, loadTimeData, ModelExecutionEnterprisePolicyValue, resetRouterForTesting, Router} from 'chrome://settings/settings.js';
 import type {SettingsPrefsElement} from 'chrome://settings/settings.js';
 import {MetricsBrowserProxyImpl} from 'chrome://settings/settings.js';
@@ -47,8 +47,7 @@ suite('IdentityDocsPage', function() {
   ].forEach(({identityDocsOptIn}) => {
     test(`Toggle should show current opt-in status`, async function() {
       loadTimeData.overrideValues({
-        userEligibleForAutofillAi: true,
-        autofillAiAvailableByDefault: false,
+        canEnableOrDisableAutofillAi: true,
       });
 
       entityDataManager.setGetOptInStatusResponse(true);
@@ -65,7 +64,7 @@ suite('IdentityDocsPage', function() {
   });
 
   test(`Toggle should switch opt-in status in prefs`, async function() {
-    loadTimeData.overrideValues({userEligibleForAutofillAi: true});
+    loadTimeData.overrideValues({canEnableOrDisableAutofillAi: true});
 
     entityDataManager.setGetOptInStatusResponse(true);
 
@@ -78,89 +77,39 @@ suite('IdentityDocsPage', function() {
     assertTrue(settingsPrefs.get(
         'prefs.autofill.autofill_ai.identity_entities_enabled.value'));
 
+    const entriesList =
+        page.shadowRoot!.querySelector<SettingsAutofillAiEntriesListElement>(
+            'settings-autofill-ai-entries-list')!;
+    assertTrue(!!entriesList);
+    assertTrue(entriesList.allowNewEntitiesAdditionPref!.value);
+
     page.$.optInToggle.click();
+    await flushTasks();
 
     assertFalse(page.$.optInToggle.checked);
     assertFalse(settingsPrefs.get(
         'prefs.autofill.autofill_ai.identity_entities_enabled.value'));
-  });
-
-  [{enhancedAutofillOptIn: true, identityDocsOptIn: true},
-   {enhancedAutofillOptIn: true, identityDocsOptIn: false},
-   {enhancedAutofillOptIn: false, identityDocsOptIn: true},
-   {enhancedAutofillOptIn: false, identityDocsOptIn: false},
-  ].forEach(({enhancedAutofillOptIn, identityDocsOptIn}) => {
-    test(
-        'When not elligible for enhanced autofill, toggle should' +
-            'always be disabled and off: ' +
-            `enhancedAutofillOptIn(${enhancedAutofillOptIn}) ` +
-            `identityDocsOptIn(${identityDocsOptIn})`,
-        async function() {
-          loadTimeData.overrideValues({userEligibleForAutofillAi: false});
-
-          entityDataManager = new TestEntityDataManagerProxy();
-          EntityDataManagerProxyImpl.setInstance(entityDataManager);
-          entityDataManager.setGetOptInStatusResponse(enhancedAutofillOptIn);
-
-          settingsPrefs.set(
-              'prefs.autofill.autofill_ai.identity_entities_enabled.value',
-              identityDocsOptIn);
-
-          const page = await setupPage();
-
-          assertTrue(page.$.optInToggle.disabled);
-          assertFalse(page.$.optInToggle.checked);
-        });
+    assertFalse(entriesList.allowNewEntitiesAdditionPref!.value);
   });
 
   [{canEnableOrDisableAutofillAi: true},
    {canEnableOrDisableAutofillAi: false},
   ].forEach(({canEnableOrDisableAutofillAi}) => {
     test(
-        'When Autofill AI is available by default ' +
-            '(autofillAiAvailableByDefault is true) the toggle ' +
-            'availability depends on ' +
-            'canEnableOrDisableAutofillAi, not on the opt-in status: ' +
+        'Toggle availability depends on canEnableOrDisableAutofillAi: ' +
             `canEnableOrDisableAutofillAi(${canEnableOrDisableAutofillAi})`,
         async function() {
           loadTimeData.overrideValues({
-            userEligibleForAutofillAi: false,
-            autofillAiAvailableByDefault: true,
             canEnableOrDisableAutofillAi: canEnableOrDisableAutofillAi,
           });
 
           entityDataManager = new TestEntityDataManagerProxy();
           EntityDataManagerProxyImpl.setInstance(entityDataManager);
-          entityDataManager.setGetOptInStatusResponse(false);
 
           const page = await setupPage();
 
           assertEquals(
               page.$.optInToggle.disabled, !canEnableOrDisableAutofillAi);
-        });
-  });
-
-  [{identityDocsOptIn: true},
-   {identityDocsOptIn: false},
-  ].forEach(({identityDocsOptIn}) => {
-    test(
-        'When opted out from identity docs autofill, toggle should always ' +
-            `be disabled and off, identityDocsOptIn(${identityDocsOptIn})`,
-        async function() {
-          loadTimeData.overrideValues({userEligibleForAutofillAi: true});
-
-          entityDataManager = new TestEntityDataManagerProxy();
-          EntityDataManagerProxyImpl.setInstance(entityDataManager);
-          entityDataManager.setGetOptInStatusResponse(false);
-
-          settingsPrefs.set(
-              'prefs.autofill.autofill_ai.identity_entities_enabled.value',
-              identityDocsOptIn);
-
-          const page = await setupPage();
-
-          assertTrue(page.$.optInToggle.disabled);
-          assertFalse(page.$.optInToggle.checked);
         });
   });
 
@@ -191,9 +140,8 @@ suite('IdentityDocsPage', function() {
             `addressAutofillStatus(${addressAutofillStatus})`,
         async function() {
           loadTimeData.overrideValues({
-            userEligibleForAutofillAi: true,
+            canEnableOrDisableAutofillAi: true,
             AutofillSettingsEnterprisePolicyEnabled: experimentEnabled,
-            autofillAiAvailableByDefault: false,
           });
 
           entityDataManager.setGetOptInStatusResponse(true);
@@ -215,9 +163,7 @@ suite('IdentityDocsPage', function() {
           'controlled by policy',
       async function() {
         loadTimeData.overrideValues({
-          userEligibleForAutofillAi: true,
           AutofillSettingsEnterprisePolicyEnabled: false,
-          autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
 
@@ -245,9 +191,7 @@ suite('IdentityDocsPage', function() {
           'controlled by extension',
       async function() {
         loadTimeData.overrideValues({
-          userEligibleForAutofillAi: true,
           AutofillSettingsEnterprisePolicyEnabled: false,
-          autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
 
@@ -276,9 +220,7 @@ suite('IdentityDocsPage', function() {
           'controlled by extension and forced true',
       async function() {
         loadTimeData.overrideValues({
-          userEligibleForAutofillAi: true,
           AutofillSettingsEnterprisePolicyEnabled: false,
-          autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
 
@@ -305,9 +247,7 @@ suite('IdentityDocsPage', function() {
           'controlled by policy',
       async function() {
         loadTimeData.overrideValues({
-          userEligibleForAutofillAi: true,
           AutofillSettingsEnterprisePolicyEnabled: false,
-          autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
 
@@ -332,9 +272,7 @@ suite('IdentityDocsPage', function() {
           'allowed by policy',
       async function() {
         loadTimeData.overrideValues({
-          userEligibleForAutofillAi: true,
           AutofillSettingsEnterprisePolicyEnabled: false,
-          autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
 
@@ -351,6 +289,91 @@ suite('IdentityDocsPage', function() {
             'cr-policy-pref-indicator');
 
         assertFalse(!!policyIndicator);
+        assertTrue(page.$.optInToggle.checked);
+      });
+
+  test(
+      'Policy controlled icon is shown when identity_docs is blocked by ' +
+          'types_blocked policy',
+      async function() {
+        loadTimeData.overrideValues({
+          AutofillSettingsEnterprisePolicyEnabled: true,
+          canEnableOrDisableAutofillAi: true,
+        });
+
+        settingsPrefs.set(
+            'prefs.autofill.autofill_ai.identity_entities_enabled.value', true);
+        settingsPrefs.set('prefs.autofill.types_blocked', {
+          value: [{url_pattern: '*', blocked_types: ['identity_docs']}],
+        });
+
+        const page = await setupPage();
+        const policyIndicator = page.$.optInToggle.shadowRoot!.querySelector(
+            'cr-policy-pref-indicator');
+
+        assertTrue(!!policyIndicator);
+        assertTrue(page.$.optInToggle.controlDisabled());
+        assertFalse(page.$.optInToggle.checked);
+
+        const entriesList =
+            page.shadowRoot!
+                .querySelector<SettingsAutofillAiEntriesListElement>(
+                    'settings-autofill-ai-entries-list')!;
+        assertTrue(!!entriesList);
+        assertFalse(entriesList.allowNewEntitiesAdditionPref!.value);
+      });
+
+  test(
+      'Policy controlled icon is shown when all is blocked by ' +
+          'types_blocked policy',
+      async function() {
+        loadTimeData.overrideValues({
+          AutofillSettingsEnterprisePolicyEnabled: true,
+          canEnableOrDisableAutofillAi: true,
+        });
+
+        settingsPrefs.set(
+            'prefs.autofill.autofill_ai.identity_entities_enabled.value', true);
+        settingsPrefs.set('prefs.autofill.types_blocked', {
+          value: [{url_pattern: '*', blocked_types: ['all']}],
+        });
+
+        const page = await setupPage();
+        const policyIndicator = page.$.optInToggle.shadowRoot!.querySelector(
+            'cr-policy-pref-indicator');
+
+        assertTrue(!!policyIndicator);
+        assertTrue(page.$.optInToggle.controlDisabled());
+        assertFalse(page.$.optInToggle.checked);
+
+        const entriesList =
+            page.shadowRoot!
+                .querySelector<SettingsAutofillAiEntriesListElement>(
+                    'settings-autofill-ai-entries-list')!;
+        assertTrue(!!entriesList);
+        assertFalse(entriesList.allowNewEntitiesAdditionPref!.value);
+      });
+
+  test(
+      'types_blocked policy is ignored when enterprise policy flag is disabled',
+      async function() {
+        loadTimeData.overrideValues({
+          AutofillSettingsEnterprisePolicyEnabled: false,
+          canEnableOrDisableAutofillAi: true,
+        });
+
+        settingsPrefs.set(
+            'prefs.autofill.autofill_ai.identity_entities_enabled.value', true);
+        settingsPrefs.set('prefs.autofill.types_blocked', {
+          value: [{url_pattern: '*', blocked_types: ['identity_docs']}],
+        });
+
+        const page = await setupPage();
+        const policyIndicator = page.$.optInToggle.shadowRoot!.querySelector(
+            'cr-policy-pref-indicator');
+
+        assertFalse(!!policyIndicator);
+        assertFalse(page.$.optInToggle.controlDisabled());
         assertTrue(page.$.optInToggle.checked);
       });
 

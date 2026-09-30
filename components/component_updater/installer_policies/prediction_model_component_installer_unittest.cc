@@ -7,12 +7,15 @@
 #include <array>
 #include <memory>
 #include <utility>
+#include <vector>
 
+#include "base/containers/to_vector.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/callback_helpers.h"
 #include "base/run_loop.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/scoped_path_override.h"
@@ -28,6 +31,7 @@
 #include "components/optimization_guide/proto/models.pb.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
+#include "third_party/zlib/google/zip.h"
 
 namespace component_updater {
 
@@ -125,11 +129,14 @@ class PredictionModelComponentInstallerTest : public PlatformTest {
   void SetUp() override {
     PlatformTest::SetUp();
 
+    feature_list_.InitAndEnableFeatureWithParameters(
+        optimization_guide::kPredictionModelComponentDelivery,
+        {{"targets", base::NumberToString(std::to_underlying(kTestTarget))}});
+
     // Create a default config for testing.
     config_ =
         std::make_unique<optimization_guide::PredictionModelComponentConfig>(
-            "Test Component", std::vector<uint8_t>(kTestPublicKeySHA256.begin(),
-                                                   kTestPublicKeySHA256.end()));
+            "Test Component", base::ToVector(kTestPublicKeySHA256));
 
     policy_ = CreatePredictionModelComponentInstallerPolicy(
         kTestTarget, *config_, listener_.GetWeakPtr());
@@ -137,8 +144,7 @@ class PredictionModelComponentInstallerTest : public PlatformTest {
 
   base::test::TaskEnvironment task_environment_;
   base::ScopedPathOverride scoped_path_override_{DIR_COMPONENT_USER};
-  base::test::ScopedFeatureList feature_list_{
-      optimization_guide::kPredictionModelComponentDelivery};
+  base::test::ScopedFeatureList feature_list_;
   optimization_guide::ModelProviderRegistry fallback_provider_;
   optimization_guide::PredictionModelComponentUpdateListener listener_{
       fallback_provider_, base::DoNothing()};
@@ -208,8 +214,7 @@ TEST_F(PredictionModelComponentInstallerTest, GetRelativeInstallDir) {
 TEST_F(PredictionModelComponentInstallerTest, GetHashAndName) {
   std::vector<uint8_t> hash;
   policy_->GetHash(&hash);
-  EXPECT_EQ(hash, std::vector<uint8_t>(kTestPublicKeySHA256.begin(),
-                                       kTestPublicKeySHA256.end()));
+  EXPECT_EQ(hash, base::ToVector(kTestPublicKeySHA256));
   EXPECT_EQ(policy_->GetName(), "Test Component");
 }
 
@@ -227,8 +232,9 @@ TEST_F(PredictionModelComponentInstallerTest,
 TEST_F(PredictionModelComponentInstallerTest,
        RegistersComponentWithFeatureEnabled) {
   base::test::ScopedFeatureList scoped_list;
-  scoped_list.InitAndEnableFeature(
-      optimization_guide::kPredictionModelComponentDelivery);
+  scoped_list.InitAndEnableFeatureWithParameters(
+      optimization_guide::kPredictionModelComponentDelivery,
+      {{"targets", base::NumberToString(std::to_underlying(kTestTarget))}});
 
   base::RunLoop run_loop;
   EXPECT_CALL(cus_, RegisterComponent(testing::_))
@@ -244,8 +250,11 @@ TEST_F(PredictionModelComponentInstallerTest,
 TEST_F(PredictionModelComponentInstallerTest,
        DoesNotRegisterComponentWhenNoConfig) {
   base::test::ScopedFeatureList scoped_list;
-  scoped_list.InitAndEnableFeature(
-      optimization_guide::kPredictionModelComponentDelivery);
+  scoped_list.InitAndEnableFeatureWithParameters(
+      optimization_guide::kPredictionModelComponentDelivery,
+      {{"targets", base::NumberToString(std::to_underlying(
+                       optimization_guide::proto::
+                           OPTIMIZATION_TARGET_PAINFUL_PAGE_LOAD))}});
 
   // OPTIMIZATION_TARGET_PAINFUL_PAGE_LOAD does not have config in
   // prediction_model_component_configs.cc.
@@ -254,6 +263,17 @@ TEST_F(PredictionModelComponentInstallerTest,
   RegisterPredictionModelComponent(
       &cus_, optimization_guide::proto::OPTIMIZATION_TARGET_PAINFUL_PAGE_LOAD,
       listener_.GetWeakPtr());
+}
+
+TEST_F(PredictionModelComponentInstallerTest,
+       DoesNotRegisterComponentWhenTargetsEmpty) {
+  base::test::ScopedFeatureList scoped_list;
+  scoped_list.InitAndEnableFeature(
+      optimization_guide::kPredictionModelComponentDelivery);
+
+  EXPECT_CALL(cus_, RegisterComponent(testing::_)).Times(0);
+
+  RegisterPredictionModelComponent(&cus_, kTestTarget, listener_.GetWeakPtr());
 }
 
 TEST_F(PredictionModelComponentInstallerTest, UninstallNotifiesListener) {
@@ -326,6 +346,50 @@ TEST_F(PredictionModelComponentInstallerTest, UninstallBeforeComponentReady) {
   EXPECT_EQ(observer.last_model_info(), nullptr);
 
   listener_.RemoveObserverForOptimizationTargetModel(kTestTarget, &observer);
+}
+
+TEST_F(PredictionModelComponentInstallerTest, OnCustomInstallExtractsModelCrx) {
+  // Create a staging folder for raw model files.
+  base::ScopedTempDir raw_files_dir;
+  ASSERT_TRUE(raw_files_dir.CreateUniqueTempDir());
+  base::WriteFile(raw_files_dir.GetPath().Append(
+                      optimization_guide::GetBaseFileNameForModels()),
+                  "dummy model content");
+
+  optimization_guide::proto::ModelInfo model_info;
+  model_info.set_optimization_target(kTestTarget);
+  model_info.set_version(123);
+  std::string serialized;
+  ASSERT_TRUE(model_info.SerializeToString(&serialized));
+  base::WriteFile(raw_files_dir.GetPath().Append(
+                      optimization_guide::GetBaseFileNameForModelInfo()),
+                  serialized);
+
+  // Zip the model files and save to a new, empty install_dir.
+  base::ScopedTempDir install_dir;
+  ASSERT_TRUE(install_dir.CreateUniqueTempDir());
+  base::FilePath model_crx_path =
+      install_dir.GetPath().AppendASCII("model.crx3");
+  ASSERT_TRUE(zip::Zip(raw_files_dir.GetPath(), model_crx_path,
+                       /*include_hidden_files=*/false));
+
+  // Prior to `OnCustomInstall`, the extracted model files do not exist, and
+  // `OnCustomInstall` should unzip model.crx3 and delete the crx3 file.
+  EXPECT_FALSE(
+      policy_->VerifyInstallation(base::DictValue(), install_dir.GetPath()));
+  auto result =
+      policy_->OnCustomInstall(base::DictValue(), install_dir.GetPath());
+  EXPECT_EQ(result.result.code, 0);
+  EXPECT_FALSE(base::PathExists(model_crx_path));
+
+  EXPECT_TRUE(
+      policy_->VerifyInstallation(base::DictValue(), install_dir.GetPath()));
+}
+
+TEST_F(PredictionModelComponentInstallerTest, OnCustomInstallNoModelCrx) {
+  // When model.crx3 is not present `OnCustomInstall` should succeed as a no-op.
+  auto result = policy_->OnCustomInstall(base::DictValue(), model_dir_.path());
+  EXPECT_EQ(result.result.code, 0);
 }
 
 }  // namespace component_updater

@@ -8,9 +8,10 @@
 
 #include "base/strings/stringprintf.h"
 #include "base/test/test_future.h"
+#include "build/build_config.h"
 #include "chrome/browser/apps/link_capturing/enable_link_capturing_infobar_delegate.h"
 #include "chrome/browser/apps/link_capturing/link_capturing_feature_test_support.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/web_apps/web_app_link_capturing_test_utils.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -20,6 +21,7 @@
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_navigation_capturing_browsertest_base.h"
+#include "chrome/browser/web_applications/web_app_origin_association_manager.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -82,7 +84,7 @@ IN_PROC_BROWSER_TEST_F(WebAppNavigationCapturingIntentPickerBrowserTest,
                      mojom::UserDisplayMode::kStandalone,
                      ManifestLaunchHandler_ClientMode::kFocusExisting));
 
-  Browser* app_browser = LaunchWebAppBrowserAndWait(app_id);
+  BrowserWindowInterface* app_browser = LaunchWebAppBrowserAndWait(app_id);
   EXPECT_NE(app_browser, browser());
   content::WebContents* app_contents =
       app_browser->tab_strip_model()->GetWebContentsAt(0);
@@ -124,7 +126,7 @@ IN_PROC_BROWSER_TEST_F(WebAppNavigationCapturingIntentPickerBrowserTest,
       mojom::UserDisplayMode::kStandalone,
       ManifestLaunchHandler_ClientMode::kNavigateExisting));
 
-  Browser* app_browser = LaunchWebAppBrowserAndWait(app_id);
+  BrowserWindowInterface* app_browser = LaunchWebAppBrowserAndWait(app_id);
   EXPECT_NE(app_browser, browser());
   content::WebContents* app_contents =
       app_browser->tab_strip_model()->GetWebContentsAt(0);
@@ -155,8 +157,16 @@ IN_PROC_BROWSER_TEST_F(WebAppNavigationCapturingIntentPickerBrowserTest,
 
 // Test that the intent picker shows up for chrome://password-manager, since it
 // is installable.
+// TODO(crbug.com/545478765): Flaky on Windows.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_DoShowIconAndBubbleOnChromePasswordManagerPage \
+  DISABLED_DoShowIconAndBubbleOnChromePasswordManagerPage
+#else
+#define MAYBE_DoShowIconAndBubbleOnChromePasswordManagerPage \
+  DoShowIconAndBubbleOnChromePasswordManagerPage
+#endif
 IN_PROC_BROWSER_TEST_F(WebAppNavigationCapturingIntentPickerBrowserTest,
-                       DoShowIconAndBubbleOnChromePasswordManagerPage) {
+                       MAYBE_DoShowIconAndBubbleOnChromePasswordManagerPage) {
   GURL password_manager_url("chrome://password-manager");
   ui_test_utils::NavigateToURLWithDisposition(
       browser(), password_manager_url, WindowOpenDisposition::CURRENT_TAB,
@@ -178,14 +188,14 @@ IN_PROC_BROWSER_TEST_F(WebAppNavigationCapturingIntentPickerBrowserTest,
       [&](base::FunctionRef<webapps::AppId()> app_browser_launcher) {
         ui_test_utils::BrowserCreatedObserver browser_created_observer;
         webapps::AppId app_id = app_browser_launcher();
-        Browser* app_browser = browser_created_observer.Wait();
+        BrowserWindowInterface* app_browser = browser_created_observer.Wait();
         EXPECT_NE(app_browser, browser());
         EXPECT_TRUE(AppBrowserController::IsForWebApp(app_browser, app_id));
         return std::make_pair(app_browser, app_id);
       };
 
   // Install WCO app and toggle the Window Controls Overlay display.
-  Browser* app_browser =
+  BrowserWindowInterface* app_browser =
       web_app::InstallWebAppFromPageGetBrowser(browser(), GetAppUrlWithWCO());
   const webapps::AppId app_id =
       web_app::AppBrowserController::From(app_browser)->app_id();
@@ -196,12 +206,13 @@ IN_PROC_BROWSER_TEST_F(WebAppNavigationCapturingIntentPickerBrowserTest,
   content::WebContents* contents =
       app_browser->tab_strip_model()->GetActiveWebContents();
   content::TitleWatcher title_watcher1(contents, u"WCO Enabled");
-  app_browser->GetBrowserView().ToggleWindowControlsOverlayEnabled(
-      test_future.GetCallback());
+  BrowserView::GetBrowserViewForBrowser(app_browser)
+      ->ToggleWindowControlsOverlayEnabled(test_future.GetCallback());
 
   ASSERT_TRUE(test_future.Wait());
   std::ignore = title_watcher1.WaitAndGetTitle();
-  ASSERT_TRUE(app_browser->GetBrowserView().IsWindowControlsOverlayEnabled());
+  ASSERT_TRUE(BrowserView::GetBrowserViewForBrowser(app_browser)
+                  ->IsWindowControlsOverlayEnabled());
 
   // Disable navigation capturing for the app_id so that the enable link
   // capturing infobar shows up.
@@ -221,15 +232,15 @@ IN_PROC_BROWSER_TEST_F(WebAppNavigationCapturingIntentPickerBrowserTest,
   // hangs, waiting for certain nested tasks to finish.
   content::TitleWatcher title_watcher2(new_contents, u"WCO Disabled",
                                        /*include_nestable_tasks=*/true);
-  std::pair<Browser*, webapps::AppId> post_intent_picker_data =
+  std::pair<BrowserWindowInterface*, webapps::AppId> post_intent_picker_data =
       ensure_app_browser([&] {
         EXPECT_TRUE(web_app::ClickIntentPickerChip(browser()));
         return app_id;
       });
-  Browser* new_app_browser = post_intent_picker_data.first;
+  BrowserWindowInterface* new_app_browser = post_intent_picker_data.first;
   std::ignore = title_watcher2.WaitAndGetTitle();
-  EXPECT_FALSE(
-      new_app_browser->GetBrowserView().IsWindowControlsOverlayEnabled());
+  EXPECT_FALSE(BrowserView::GetBrowserViewForBrowser(new_app_browser)
+                   ->IsWindowControlsOverlayEnabled());
   EXPECT_TRUE(
       apps::EnableLinkCapturingInfoBarDelegate::FindInfoBar(new_contents));
 
@@ -240,8 +251,8 @@ IN_PROC_BROWSER_TEST_F(WebAppNavigationCapturingIntentPickerBrowserTest,
                                        /*include_nestable_tasks=*/true);
   apps::EnableLinkCapturingInfoBarDelegate::RemoveInfoBar(new_contents);
   std::ignore = title_watcher3.WaitAndGetTitle();
-  EXPECT_TRUE(
-      new_app_browser->GetBrowserView().IsWindowControlsOverlayEnabled());
+  EXPECT_TRUE(BrowserView::GetBrowserViewForBrowser(new_app_browser)
+                  ->IsWindowControlsOverlayEnabled());
   EXPECT_FALSE(
       apps::EnableLinkCapturingInfoBarDelegate::FindInfoBar(new_contents));
 }
@@ -429,7 +440,7 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppNavigationCapturingIntentPickerBrowserTest,
   if (expect_new_window) {
     ui_test_utils::BrowserCreatedObserver browser_observer;
     ASSERT_TRUE(web_app::ClickIntentPickerChip(browser()));
-    Browser* second_app_browser = browser_observer.Wait();
+    BrowserWindowInterface* second_app_browser = browser_observer.Wait();
 
     // Verify the new browser is for the correct app.
     EXPECT_TRUE(AppBrowserController::IsForWebApp(second_app_browser,

@@ -16,6 +16,7 @@
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
+#import "ios/web/common/crw_viewport_controller.h"
 
 namespace {
 
@@ -84,10 +85,11 @@ constexpr CGFloat kThresholdForCompleteVisibility = 0.3;
   [self setUpHeader];
   [self setUpWebStateView];
 
-  [self
-      registerForTraitChanges:
-          @[ UITraitHorizontalSizeClass.class, UITraitVerticalSizeClass.class ]
-                   withAction:@selector(traitsDidChange)];
+  [self registerForTraitChanges:@[
+    UITraitHorizontalSizeClass.class, UITraitVerticalSizeClass.class,
+    UITraitUserInterfaceStyle.class
+  ]
+                     withAction:@selector(traitsDidChange)];
   [self traitsDidChange];
 }
 
@@ -98,6 +100,7 @@ constexpr CGFloat kThresholdForCompleteVisibility = 0.3;
   // `updateInputPlateOverlap` early returns if `IsChromeNextIaEnabled()` is
   // true.
   [self updateInputPlateOverlap];
+  [self updateWebViewInsets];
 }
 
 - (void)traitsDidChange {
@@ -160,6 +163,7 @@ constexpr CGFloat kThresholdForCompleteVisibility = 0.3;
   _inputViewController.view.alpha = effectPercentage;
   _webStateView.alpha = effectPercentage;
   _inputViewFade.alpha = effectPercentage;
+  _zeroStateViewController.view.alpha = effectPercentage;
   self.isMinimized = effectPercentage == 0;
 
   [_headerView adjustForPercentage:effectPercentage];
@@ -325,6 +329,7 @@ constexpr CGFloat kThresholdForCompleteVisibility = 0.3;
   _webStateView = webStateView;
 
   [self setUpWebStateView];
+  [self updateWebViewInsets];
 }
 
 - (void)displayThread {
@@ -439,14 +444,20 @@ constexpr CGFloat kThresholdForCompleteVisibility = 0.3;
                                   : self.view.bottomAnchor;
 
     AddSameConstraintsToSides(_zeroStateViewController.view, self.view,
-                              LayoutSides::kLeading | LayoutSides::kTrailing);
+                              LayoutSides::kHorizontal);
 
+    // Lowering the layout priority prevents a conflict with the header size
+    // when minimizing.
+    // This is safe because the zero state isn't visible when the assistant is
+    // minimized.
+    NSLayoutConstraint* zeroStateTopToHeader =
+        [_zeroStateViewController.view.topAnchor
+            constraintEqualToAnchor:_headerView.bottomAnchor
+                           constant:kTitleVerticalMargin];
+    zeroStateTopToHeader.priority = UILayoutPriorityRequired - 1;
     [NSLayoutConstraint activateConstraints:@[
-      [_zeroStateViewController.view.topAnchor
-          constraintEqualToAnchor:_headerView.bottomAnchor
-                         constant:kTitleVerticalMargin],
-      [_zeroStateViewController.view.bottomAnchor
-          constraintEqualToAnchor:bottomAnchor]
+      zeroStateTopToHeader, [_zeroStateViewController.view.bottomAnchor
+                                constraintEqualToAnchor:bottomAnchor]
     ]];
 
     _zeroStateViewController.view.hidden =
@@ -477,6 +488,7 @@ constexpr CGFloat kThresholdForCompleteVisibility = 0.3;
 - (void)computeInputPlateVisibility {
   BOOL shouldHide = _inputPlateForceHidden || _isMinimized;
   [_inputViewController.view setHidden:shouldHide];
+  [self updateWebViewInsets];
 }
 
 // Recursively searches for a WKWebView in the given view's hierarchy.
@@ -613,6 +625,55 @@ constexpr CGFloat kThresholdForCompleteVisibility = 0.3;
   _inputPlateBottomMargin.constant = -bottomMargin;
 }
 
+// Updates the web view insets to prevent content from being hidden by the input
+// plate.
+- (void)updateWebViewInsets {
+  if (!self.isViewLoaded || !_webStateView) {
+    return;
+  }
+
+  WKWebView* wkWebView = [self findWKWebViewInView:_webStateView];
+  if (!wkWebView) {
+    return;
+  }
+
+  CGFloat bottomObscured = 0;
+  if (!_inputViewController.view.isHidden && !self.isMinimized) {
+    // The WKWebView naturally adjusts its content inset to account for the
+    // device's bottom safe area. To avoid double padding, we calculate the
+    // exact distance between the bottom of the safe area and the top of the
+    // input plate.
+    // Note: `_inputPlateBottomMargin.constant` is negative and automatically
+    // includes the keyboard height when the keyboard is visible.
+    CGFloat inputPlateHeight =
+        CGRectGetHeight(_inputViewController.view.bounds);
+    CGFloat inputPlateMinY = CGRectGetMaxY(self.view.bounds) +
+                             _inputPlateBottomMargin.constant -
+                             inputPlateHeight;
+    CGFloat safeAreaMaxY =
+        CGRectGetMaxY(self.view.safeAreaLayoutGuide.layoutFrame);
+    bottomObscured = MAX(0.0, safeAreaMaxY - inputPlateMinY);
+  }
+
+  UIEdgeInsets insets = UIEdgeInsetsMake(0, 0, bottomObscured, 0);
+
+  if (!UIEdgeInsetsEqualToEdgeInsets(wkWebView.scrollView.contentInset,
+                                     insets)) {
+    wkWebView.scrollView.contentInset = insets;
+    wkWebView.scrollView.scrollIndicatorInsets = insets;
+    if (@available(iOS 26.0, *)) {
+      if ([wkWebView conformsToProtocol:@protocol(CRWViewportController)]) {
+        id<CRWViewportController> controller =
+            (id<CRWViewportController>)wkWebView;
+        if ([controller
+                respondsToSelector:@selector(setObscuredContentInsets:)]) {
+          controller.obscuredContentInsets = insets;
+        }
+      }
+    }
+  }
+}
+
 // Sets up the web state view.
 - (void)setUpWebStateView {
   if (!_webStateView || !self.isViewLoaded) {
@@ -708,6 +769,15 @@ constexpr CGFloat kThresholdForCompleteVisibility = 0.3;
     [self.view layoutIfNeeded];
   }];
   [self.mutator didTapHistory];
+}
+
+- (void)assistantAIMHeaderViewDidTapMyActivity:
+    (AssistantAIMHeaderView*)headerView {
+  [self.delegate assistantAIMViewControllerDidTapMyActivity:self];
+}
+
+- (void)assistantAIMHeaderViewDidTapHelp:(AssistantAIMHeaderView*)headerView {
+  [self.delegate assistantAIMViewControllerDidTapHelp:self];
 }
 
 #pragma mark - Private

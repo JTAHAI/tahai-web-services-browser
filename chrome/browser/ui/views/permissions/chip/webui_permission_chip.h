@@ -20,16 +20,20 @@
 #include "ui/gfx/vector_icon_types.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 
-class WebUILocationBar;
+class LocationBar;
 
 class WebUIPermissionChip : public PermissionChipInterface {
  public:
-  explicit WebUIPermissionChip(WebUILocationBar* location_bar);
+  explicit WebUIPermissionChip(LocationBar* location_bar);
   ~WebUIPermissionChip() override;
 
   // PermissionChipInterface:
   void SetVisible(bool visible) override;
   bool GetVisible() const override;
+  PermissionChipTheme GetThemeForTesting() const override;
+  std::u16string GetTooltipText() const override;
+  std::u16string GetTextForTesting() const override;
+  bool GetIsRequestForTesting() const override;
   void SetChipIcon(const gfx::VectorIcon& icon) override;
   void SetChipIcon(const gfx::VectorIcon* icon) override;
   void SetMessage(std::u16string message) override;
@@ -53,15 +57,18 @@ class WebUIPermissionChip : public PermissionChipInterface {
   void AnnounceText(const std::u16string& text) override;
   void AnnounceAlert(const std::u16string& text) override;
   bool IsMouseHovered() const override;
-  void SetPressedCallback(base::RepeatingClosure callback) override;
+  void SetPressedCallback(
+      base::RepeatingCallback<void(bool)> callback) override;
   views::BubbleAnchor GetAnchor() override;
   void SetBubbleOwner(BubbleOwnerDelegate* owner) override;
+  void ExecuteForTesting() override;
+  void EndAnimationForTesting() override;
 
   // Called from WebUI
   void OnExpandAnimationEnded();
   void OnCollapseAnimationEnded();
   void OnMousePressed();
-  void OnClicked();
+  void OnClicked(bool is_pointer_interaction);
   void OnMouseEntered();
   void OnMouseExited();
 
@@ -74,7 +81,7 @@ class WebUIPermissionChip : public PermissionChipInterface {
   void NotifyVisibilityChanged();
   void UpdateState();
 
-  raw_ptr<WebUILocationBar> location_bar_;
+  raw_ptr<LocationBar> location_bar_;
 
   bool is_visible_ = false;
   std::string icon_name_;
@@ -98,7 +105,7 @@ class WebUIPermissionChip : public PermissionChipInterface {
 
   raw_ptr<BubbleOwnerDelegate> bubble_owner_ = nullptr;
 
-  base::RepeatingClosure pressed_callback_;
+  base::RepeatingCallback<void(bool)> pressed_callback_;
 
   // Matching the behavior of native Views PermissionChipView.
   // Allow reentrancy in observer list to prevent crash when the second

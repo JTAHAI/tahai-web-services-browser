@@ -34,7 +34,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/e2e_tests/live_test.h"
 #include "chrome/browser/signin/e2e_tests/signin_util.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
@@ -205,8 +204,9 @@ void GlicE2ETest::LoginTestAccountOrForceFakeSignin() {
         GetTestAccounts()->GetAccount(account_label);
     signin::test::SignInFunctions sign_in_functions =
         signin::test::SignInFunctions(
-            base::BindLambdaForTesting(
-                [this]() -> Browser* { return this->browser(); }),
+            base::BindLambdaForTesting([this]() -> BrowserWindowInterface* {
+              return this->browser();
+            }),
             base::BindLambdaForTesting(
                 [this](int index, const GURL& url,
                        ui::PageTransition transition) -> bool {
@@ -214,7 +214,10 @@ void GlicE2ETest::LoginTestAccountOrForceFakeSignin() {
                 }));
     // Sign in to opted in test account.
     CHECK(test_account.has_value());
-    sign_in_functions.TurnOnSync(*test_account, 0);
+    sign_in_functions.SignInFromSettingsWithSyncChoice(
+        *test_account, 0,
+        signin::test::SignInFunctions::SyncChoice::
+            kAcceptAllOptionalDataTypesSync);
   } else {
     SigninWithPrimaryAccount(browser()->GetProfile());
     SetGlicCapability(browser()->GetProfile(), true);
@@ -245,6 +248,9 @@ void GlicE2ETest::SetUpInProcessBrowserTestFixture() {
 }
 
 void GlicE2ETest::TearDownOnMainThread() {
+  host_observation_.Reset();
+  active_instance_subscription_ = base::CallbackListSubscription();
+
   if (HasFailure()) {
     base::FilePath snapshot_path = SaveDesktopSnapshot();
     if (!snapshot_path.empty()) {
@@ -399,10 +405,6 @@ static_assert(static_cast<int>(GlicActorTaskState::State::kPausedByUser) >= 0);
 static_assert(static_cast<int>(GlicActorTaskState::State::kReflecting) >= 0);
 
 // Validate features and switches used by internal tests:
-const base::Feature& GetGlicActionAllowlistFeature() {
-  return actor::kGlicActionAllowlist;
-}
-
 const char* GetDisableActorSafetyChecksSwitch() {
   return actor::switches::kDisableActorSafetyChecks;
 }

@@ -8,6 +8,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Base64;
+import android.view.ContextThemeWrapper;
 import android.view.ViewGroup;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -33,6 +34,8 @@ import org.chromium.android_webview.common.WebViewCachedFlags;
 import org.chromium.android_webview.gfx.AwDrawFnImpl;
 import org.chromium.android_webview.test.util.GraphicsTestUtils;
 import org.chromium.android_webview.test.util.JSUtils;
+import org.chromium.base.ContextUtils;
+import org.chromium.base.GarbageCollectionTestUtils;
 import org.chromium.base.Log;
 import org.chromium.base.PathUtils;
 import org.chromium.base.ThreadUtils;
@@ -118,6 +121,8 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
 
     private final List<WeakReference<Activity>> mActivitiesCreatedInTests = new ArrayList<>();
 
+    private final List<WeakReference<Activity>> mReparentedActivities = new ArrayList<>();
+
     @Nullable private Consumer<AwSettings> mMaybeMutateAwSettings;
 
     public AwActivityTestRule() {
@@ -177,6 +182,13 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
             }
         }
         mActivitiesCreatedInTests.clear();
+
+        for (WeakReference<Activity> activityRef : mReparentedActivities) {
+            CriteriaHelper.pollUiThread(
+                    () -> GarbageCollectionTestUtils.canBeGarbageCollected(activityRef),
+                    "Reparented Activity context should be garbage collected.");
+        }
+        mReparentedActivities.clear();
 
         super.after();
     }
@@ -628,6 +640,21 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
      * testing state preservation across context updates.
      */
     public AwTestContainerView reparentAwContents(AwTestContainerView view) {
+        return reparentAwContents(view, 0);
+    }
+
+    /**
+     * Overload for reparentAwContents that allows injecting a customized theme on the new Activity.
+     *
+     * @param view The view to reparent.
+     * @param themeId The theme resource ID to apply to the newly spawned AwTestRunnerActivity.
+     */
+    public AwTestContainerView reparentAwContents(AwTestContainerView view, int themeId) {
+        Activity oldActivity = ContextUtils.activityFromContext(view.getContext());
+        if (oldActivity != null) {
+            mReparentedActivities.add(new WeakReference<>(oldActivity));
+        }
+
         AwTestRunnerActivity newActivity;
         Intent intent = new Intent(getActivity(), AwTestRunnerActivity.class);
         newActivity =
@@ -638,26 +665,41 @@ public class AwActivityTestRule extends BaseActivityTestRule<AwTestRunnerActivit
         ApplicationTestUtils.waitForActivityState(newActivity, Stage.RESUMED);
         mActivitiesCreatedInTests.add(new WeakReference<>(newActivity));
 
-        return ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    ViewGroup parent = (ViewGroup) view.getParent();
-                    if (parent != null) {
-                        parent.removeView(view);
-                    }
+        AwTestContainerView newContainerView =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> {
+                            ViewGroup parent = (ViewGroup) view.getParent();
+                            if (parent != null) {
+                                parent.removeView(view);
+                            }
 
-                    AwTestContainerView newContainerView =
-                            new AwTestContainerView(
-                                    newActivity,
-                                    /* allowHardwareAcceleration= */ true,
-                                    /* allowMultipleHardwareViews= */ true);
-                    newContainerView.initialize(view.getAwContents());
-                    view.getAwContents()
-                            .adopt(newContainerView, newContainerView.getInternalAccessDelegate());
+                            Context context = newActivity;
+                            if (themeId != 0) {
+                                context = new ContextThemeWrapper(newActivity, themeId);
+                            }
 
-                    newActivity.addView(newContainerView);
-                    newContainerView.requestFocus();
-                    return newContainerView;
-                });
+                            AwTestContainerView newContainer =
+                                    new AwTestContainerView(
+                                            context,
+                                            /* allowHardwareAcceleration= */ true,
+                                            /* allowMultipleHardwareViews= */ true);
+                            newContainer.initialize(view.getAwContents());
+                            view.getAwContents()
+                                    .adopt(
+                                            newContainer,
+                                            newContainer.getInternalAccessDelegate());
+
+                            newActivity.addView(newContainer);
+                            newContainer.requestFocus();
+                            return newContainer;
+                        });
+
+        if (oldActivity != null) {
+            ApplicationTestUtils.finishActivity(oldActivity);
+            setActivity(newActivity);
+        }
+
+        return newContainerView;
     }
 
     public void destroyAwContentsOnMainSync(@Nullable final AwContents awContents) {

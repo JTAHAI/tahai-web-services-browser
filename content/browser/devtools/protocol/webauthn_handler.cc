@@ -4,6 +4,8 @@
 
 #include "content/browser/devtools/protocol/webauthn_handler.h"
 
+#include <cmath>
+#include <limits>
 #include <map>
 #include <string>
 #include <string_view>
@@ -129,17 +131,49 @@ std::optional<device::Ctap2Version> ConvertToCtap2Version(
   return std::nullopt;
 }
 
+// LINT.IfChange(ConvertToFidoTransportProtocol)
+std::optional<device::FidoTransportProtocol> ConvertToFidoTransportProtocol(
+    std::string_view transport) {
+  if (transport == WebAuthn::AuthenticatorTransportEnum::Usb) {
+    return device::FidoTransportProtocol::kUsbHumanInterfaceDevice;
+  }
+  if (transport == WebAuthn::AuthenticatorTransportEnum::Nfc) {
+    return device::FidoTransportProtocol::kNearFieldCommunication;
+  }
+  if (transport == WebAuthn::AuthenticatorTransportEnum::Ble) {
+    return device::FidoTransportProtocol::kBluetoothLowEnergy;
+  }
+  if (transport == WebAuthn::AuthenticatorTransportEnum::Cable ||
+      transport == WebAuthn::AuthenticatorTransportEnum::Hybrid) {
+    return device::FidoTransportProtocol::kHybrid;
+  }
+  if (transport == WebAuthn::AuthenticatorTransportEnum::Internal) {
+    return device::FidoTransportProtocol::kInternal;
+  }
+  if (transport == WebAuthn::AuthenticatorTransportEnum::SmartCard) {
+    return device::FidoTransportProtocol::kSmartCard;
+  }
+  return std::nullopt;
+}
+// LINT.ThenChange(//third_party/blink/public/devtools_protocol/domains/WebAuthn.pdl:AuthenticatorTransport)
+
 std::vector<uint8_t> CopyBinaryToVector(const Binary& binary) {
   return std::vector<uint8_t>(binary.begin(), binary.end());
+}
+
+bool IsValidSignCount(double sign_count) {
+  return sign_count >= -1 &&
+         sign_count <= std::numeric_limits<uint32_t>::max() &&
+         std::floor(sign_count) == sign_count;
 }
 
 std::unique_ptr<WebAuthn::Credential> BuildCredentialFromRegistration(
     const VirtualAuthenticator& authenticator,
     base::span<const uint8_t> credential_id,
     const device::VirtualFidoDevice::RegistrationData& registration) {
-  int sign_count = -1;
+  double sign_count = -1;
   if (registration.counter.has_value()) {
-    sign_count = base::saturated_cast<int>(*registration.counter);
+    sign_count = static_cast<double>(*registration.counter);
   }
   auto credential = WebAuthn::Credential::Create()
                         .SetCredentialId(Binary::fromSpan(credential_id))
@@ -226,8 +260,7 @@ Response WebAuthnHandler::AddVirtualAuthenticator(
   if (!authenticator_manager)
     return Response::ServerError(kVirtualEnvironmentNotEnabled);
 
-  auto transport =
-      device::ConvertToFidoTransportProtocol(options->GetTransport());
+  auto transport = ConvertToFidoTransportProtocol(options->GetTransport());
   if (!transport)
     return Response::InvalidParams(kInvalidTransport);
 
@@ -424,14 +457,13 @@ void WebAuthnHandler::AddCredential(
       CopyBinaryToVector(credential->GetCredentialId());
 
   std::optional<uint32_t> counter;
-  int provided_sign_count = credential->GetSignCount().value_or(0);
-  if (provided_sign_count < -1) {
+  if (!IsValidSignCount(credential->GetSignCount())) {
     callback->sendFailure(Response::InvalidParams(kInvalidSignatureCounter));
     return;
   }
-  if (provided_sign_count > -1) {
+  if (credential->GetSignCount() > -1) {
     // -1 is a special value to mean no signature counter.
-    counter = static_cast<uint32_t>(provided_sign_count);
+    counter = static_cast<uint32_t>(credential->GetSignCount());
   }
 
   if (credential->GetIsResidentCredential()) {
@@ -614,7 +646,7 @@ Response WebAuthnHandler::SetCredentialProperties(
     std::optional<bool> backup_state,
     std::optional<int> active_cmtg_key_index,
     std::optional<bool> generate_cmtg_key_on_next_operation,
-    std::optional<int> sign_count) {
+    std::optional<double> sign_count) {
   VirtualAuthenticator* authenticator;
   Response response = FindAuthenticator(authenticator_id, &authenticator);
   if (!response.IsSuccess()) {
@@ -655,14 +687,15 @@ Response WebAuthnHandler::SetCredentialProperties(
     }
   }
   if (sign_count.has_value()) {
-    if (*sign_count < -1) {
+    if (!IsValidSignCount(*sign_count)) {
       return Response::InvalidParams(kInvalidSignatureCounter);
     }
     authenticator->SetSignatureCounter(
         credential_id,
         // -1 is used to represent no counter available.
-        *sign_count == -1 ? std::nullopt
-                          : std::make_optional<uint32_t>(*sign_count));
+        *sign_count == -1
+            ? std::nullopt
+            : std::make_optional(static_cast<uint32_t>(*sign_count)));
   }
   return Response::Success();
 }

@@ -10,7 +10,9 @@
 #include "base/logging.h"
 #include "build/build_config.h"
 #include "chrome/browser/defaults.h"
+#include "chrome/browser/enterprise/isolated_mode/isolated_mode_settings_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "components/policy/core/common/policy_pref_names.h"
@@ -105,7 +107,11 @@ bool IncognitoModePrefs::CanOpenBrowser(Profile* profile) {
 bool IncognitoModePrefs::IsIncognitoAllowed(Profile* profile) {
   return !profile->IsGuestSession() &&
          IncognitoModePrefs::GetAvailability(profile->GetPrefs()) !=
-             IncognitoModeAvailability::kDisabled;
+             IncognitoModeAvailability::kDisabled &&
+         // For enterprise profiles, Isolated Mode replaces standard Incognito
+         // Mode. Therefore, Incognito is not allowed when Isolated Mode is
+         // enabled.
+         !enterprise_isolated_mode::IsolatedModeReplacesIncognito(profile);
 }
 
 // static

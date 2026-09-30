@@ -25,6 +25,12 @@ extern const base::FeatureParam<int> kLocalWebApprovalBottomSheetLoadTimeoutMs;
 #endif  // BUILDFLAG(IS_IOS) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) ||
         // BUILDFLAG(IS_WIN)
 
+#if BUILDFLAG(IS_ANDROID)
+// Enables the supervised user verification interstitial and best-effort URL
+// classification on Android when in pending auth state.
+BASE_DECLARE_FEATURE(kSupervisedUserVerificationPageOnAndroid);
+#endif
+
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 // Uses supervised user strings on the signout dialog.
 BASE_DECLARE_FEATURE(kEnableSupervisedUserVersionSignOutDialog);
@@ -33,23 +39,6 @@ BASE_DECLARE_FEATURE(kEnableSupervisedUserVersionSignOutDialog);
 // Whether the Pacp widget can process a url payload as part of the local
 // approval request.
 BASE_DECLARE_FEATURE(kLocalWebApprovalsWidgetSupportsUrlPayload);
-
-// SupervisedUserUrlFilteringService does not use the PrefService indirection
-// (specifically, the SupervisedUserPrefStore) to get the URL filtering
-// settings. When enabled, all url filtering settings are read directly from the
-// related supervision services.
-BASE_DECLARE_FEATURE(kSupervisedUserUseUrlFilteringService);
-
-// The SupervisedUserPrefStore will merge all of the non-web filtering device
-// parental controls settings with the Family Link settings and emit merged
-// values as prefs.
-BASE_DECLARE_FEATURE(
-    kSupervisedUserMergeDeviceParentalControlsAndFamilyLinkPrefs);
-
-// When enabled, the supervised user log record will emit the device
-// log record separately. When disabled, the system assumes that the device log
-// record is mutually exclusive with the account/policy based log record.
-BASE_DECLARE_FEATURE(kSupervisedUserEmitLogRecordSeparately);
 
 // Returns whether local parent approvals on Family Link user's device are
 // enabled.

@@ -8,6 +8,7 @@
 #include <optional>
 #include <vector>
 
+#include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/metrics/histogram_functions.h"
@@ -16,7 +17,6 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/thread_pool.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/download/download_item_warning_data.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/enterprise/connectors/analysis/content_analysis_downloads_delegate.h"
@@ -52,6 +52,7 @@
 #include "components/sessions/content/session_tab_helper.h"
 #include "components/url_matcher/url_matcher.h"
 #include "content/public/browser/download_item_utils.h"
+#include "content/public/common/content_switches.h"
 #include "ui/base/l10n/l10n_util.h"
 
 #if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
@@ -60,7 +61,7 @@
 #endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 
 #if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #endif  // !BUILDFLAG(IS_ANDROID)
@@ -86,10 +87,8 @@ GetHighestPrecedenceForceSaveToCloudDestination(
       (destination_1 == TriggeredRule::CORP_G_DRIVE ||
        destination_2 == TriggeredRule::CORP_G_DRIVE)) {
     return TriggeredRule::CORP_G_DRIVE;
-  } else if (base::FeatureList::IsEnabled(
-                 enterprise_data_protection::kEnableForceDownloadToOneDrive) &&
-             (destination_1 == TriggeredRule::CORP_ONEDRIVE ||
-              destination_2 == TriggeredRule::CORP_ONEDRIVE)) {
+  } else if (destination_1 == TriggeredRule::CORP_ONEDRIVE ||
+             destination_2 == TriggeredRule::CORP_ONEDRIVE) {
     return TriggeredRule::CORP_ONEDRIVE;
   }
 #endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
@@ -108,6 +107,13 @@ TriggeredRule::CustomRuleMessage GetForceSaveToCloudCustomRuleMessage(
   }
   return TriggeredRule::CustomRuleMessage();
 }
+
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+bool CanBypassForceSaveDialogForAutomation() {
+  return base::CommandLine::ForCurrentProcess()->HasSwitch(
+      switches::kEnableAutomation);
+}
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 
 DownloadCheckResult GetHighestPrecedenceResult(DownloadCheckResult result_1,
                                                DownloadCheckResult result_2) {
@@ -360,6 +366,7 @@ DownloadCheckResult ResponseToDownloadCheckResult(
       case enterprise_connectors::TriggeredRule::KEEP_IN_MANAGED_CHROME:
       case enterprise_connectors::TriggeredRule::ACTION_UNSPECIFIED:
         break;
+      case enterprise_connectors::TriggeredRule::JUSTIFICATION_REQUIRED:
       case enterprise_connectors::TriggeredRule::FORCE_SAVE_TO_CLOUD:
         NOTREACHED();
     }
@@ -380,6 +387,7 @@ DownloadCheckResult ResponseToDownloadCheckResult(
       case enterprise_connectors::TriggeredRule::BLOCK:
         return DownloadCheckResult::SENSITIVE_CONTENT_BLOCK;
       case enterprise_connectors::TriggeredRule::WARN:
+      case enterprise_connectors::TriggeredRule::JUSTIFICATION_REQUIRED:
         return DownloadCheckResult::SENSITIVE_CONTENT_WARNING;
       case enterprise_connectors::TriggeredRule::REPORT_ONLY:
       case enterprise_connectors::TriggeredRule::KEEP_IN_MANAGED_CHROME:
@@ -824,6 +832,10 @@ void DeepScanningRequest::OnEnterpriseScanComplete(
 
   if (force_save_web_contents) {
 #if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+    if (CanBypassForceSaveDialogForAutomation()) {
+      ProcessEnterpriseDownloadResult(download_result);
+      return;
+    }
     if (save_package_files_.empty()) {
       // ProcessEnterpriseDownloadResult will run via
       // dialog callback.
@@ -995,6 +1007,10 @@ void DeepScanningRequest::MaybeFinishRequest(DownloadCheckResult result) {
           MaybeGetWebContentsForForceSave(download_check_result_);
       if (force_save_web_contents) {
 #if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+        if (CanBypassForceSaveDialogForAutomation()) {
+          FinishRequest(download_check_result_);
+          return;
+        }
         base::OnceClosure keep_closure = base::BindOnce(
             &DeepScanningRequest::FinishRequest, weak_ptr_factory_.GetWeakPtr(),
             download_check_result_);
@@ -1012,10 +1028,10 @@ void DeepScanningRequest::MaybeFinishRequest(DownloadCheckResult result) {
           }
         }
 
-        ShowForceSaveToCloudDialog(
-            std::move(keep_closure), std::move(discard_closure),
-            force_save_web_contents, custom_message,
-            save_package_files_.size());
+        ShowForceSaveToCloudDialog(std::move(keep_closure),
+                                   std::move(discard_closure),
+                                   force_save_web_contents, custom_message,
+                                   save_package_files_.size());
         return;
 #endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
       }
@@ -1136,12 +1152,9 @@ content::WebContents* DeepScanningRequest::MaybeGetWebContentsForForceSave(
     return nullptr;
   }
 
-  const auto& force_save_to_cloud_feature =
-      result == DownloadCheckResult::FORCE_SAVE_TO_GDRIVE
-          ? enterprise_data_protection::kEnableForceDownloadToCloud
-          : enterprise_data_protection::kEnableForceDownloadToOneDrive;
-
-  if (!base::FeatureList::IsEnabled(force_save_to_cloud_feature)) {
+  if (result == DownloadCheckResult::FORCE_SAVE_TO_GDRIVE &&
+      !base::FeatureList::IsEnabled(
+          enterprise_data_protection::kEnableForceDownloadToCloud)) {
     result = DownloadCheckResult::SENSITIVE_CONTENT_BLOCK;
     return nullptr;
   }

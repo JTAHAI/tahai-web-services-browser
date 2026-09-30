@@ -13,7 +13,9 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/test/base/testing_profile.h"
+#include "components/omnibox/browser/omnibox_prefs.h"
 #include "components/omnibox/browser/test_omnibox_client.h"
+#include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_web_contents_factory.h"
@@ -49,13 +51,12 @@ class TestUpdatePropagator : public WebUIReadOnlyOmnibox::UpdatePropagator {
     state_ = std::move(update);
   }
 
+  void PropagateApplyFocusRingToAimButton(bool force_focus) override {}
+
   void PropagateFocusRequest(
       toolbar_ui_api::mojom::FocusRequestTarget target) override {}
 
-  std::optional<GURL> ConsumeDroppedUrl(
-      const gfx::PointF& drop_position) override {
-    return std::nullopt;
-  }
+  void OpenOmniboxIfFullPopup(bool query_zps) override {}
 
   toolbar_ui_api::mojom::OmniboxViewStatePtr TakeState() {
     return std::move(state_);
@@ -97,6 +98,13 @@ void WebUIReadOnlyOmniboxTest::SetUp() {
 
   EXPECT_CALL(*omnibox_client_, GetPrefs())
       .WillRepeatedly(testing::Return(profile_->GetPrefs()));
+
+  omnibox::RegisterProfilePrefs(
+      static_cast<sync_preferences::TestingPrefServiceSyncable*>(
+          omnibox_controller_->autocomplete_controller()
+              ->autocomplete_provider_client()
+              ->GetPrefs())
+          ->registry());
 
   omnibox_view_ = std::make_unique<WebUIReadOnlyOmnibox>(
       /*location_bar=*/nullptr, /*toolbar_delegate=*/nullptr,
@@ -287,7 +295,8 @@ TEST_F(WebUIReadOnlyOmniboxTest, InputVersion) {
           ->OnOmniboxAction(toolbar_ui_api::mojom::OmniboxAction::NewTextInput(
               toolbar_ui_api::mojom::OmniboxActionTextInput::New(
                   /*text=*/u"https://en.wikiped", /*inline_completion=*/u"",
-                  /*browser_version=*/1, /*ui_version=*/10, gfx::Range(18))))
+                  /*browser_version=*/1, /*ui_version=*/10, /*unelision=*/false,
+                  gfx::Range(18))))
           .has_value());
 
   // State will reflect it, including the version.
@@ -319,7 +328,8 @@ TEST_F(WebUIReadOnlyOmniboxTest, InputVersion) {
           ->OnOmniboxAction(toolbar_ui_api::mojom::OmniboxAction::NewTextInput(
               toolbar_ui_api::mojom::OmniboxActionTextInput::New(
                   /*text=*/u"https://en.wikipedi", /*inline_completion=*/u"",
-                  /*browser_version=*/1, /*ui_version=*/11, gfx::Range(19))))
+                  /*browser_version=*/1, /*ui_version=*/11, /*unelision=*/false,
+                  gfx::Range(19))))
           .has_value());
   mojo_state = update_propagator_.TakeState();
   // Nothing got updated, so update_propagator_ didn't see anything.
@@ -342,7 +352,8 @@ TEST_F(WebUIReadOnlyOmniboxTest, InputVersion) {
               toolbar_ui_api::mojom::OmniboxActionTextInput::New(
                   /*text=*/u"https://www.example.org/a",
                   /*inline_completion=*/u"",
-                  /*browser_version=*/2, /*ui_version=*/1, gfx::Range(25))))
+                  /*browser_version=*/2, /*ui_version=*/1, /*unelision=*/false,
+                  gfx::Range(25))))
           .has_value());
   mojo_state = update_propagator_.TakeState();
   ASSERT_TRUE(mojo_state);
@@ -353,6 +364,162 @@ TEST_F(WebUIReadOnlyOmniboxTest, InputVersion) {
                                  OmniboxTextColor::kOmniboxText)));
   EXPECT_EQ(2u, mojo_state->browser_version);
   EXPECT_EQ(1u, mojo_state->ui_version);
+}
+
+TEST_F(WebUIReadOnlyOmniboxTest, ClearInputFromWebUI) {
+  std::u16string initial_text = u"https://www.example.org/";
+  location_bar_model()->set_url(GURL(initial_text));
+  omnibox_view_->Update();
+
+  // Verify initial state.
+  EXPECT_EQ(initial_text, omnibox_view_->GetText());
+
+  // Simulate WebUI clearing the text.
+  // This sends an empty text with updated UI version.
+  EXPECT_TRUE(
+      omnibox_view_
+          ->OnOmniboxAction(toolbar_ui_api::mojom::OmniboxAction::NewTextInput(
+              toolbar_ui_api::mojom::OmniboxActionTextInput::New(
+                  /*text=*/u"", /*inline_completion=*/u"",
+                  /*browser_version=*/1, /*ui_version=*/10, /*unelision=*/false,
+                  gfx::Range(0))))
+          .has_value());
+
+  // State will reflect it.
+  auto mojo_state = update_propagator_.TakeState();
+  ASSERT_TRUE(mojo_state);
+  EXPECT_THAT(mojo_state->text_pieces, ElementsAre());  // Empty text pieces
+  EXPECT_EQ(1u, mojo_state->browser_version);
+  EXPECT_EQ(10u, mojo_state->ui_version);
+  EXPECT_EQ(u"", omnibox_view_->GetText());
+}
+
+TEST_F(WebUIReadOnlyOmniboxTest, UnelideUserInputBit) {
+  location_bar_model()->set_url(GURL("https://www.example.org/"));
+  location_bar_model()->set_url_for_display(u"www.example.org");
+  omnibox_view_->Update();
+
+  auto mojo_state = update_propagator_.TakeState();
+  ASSERT_TRUE(mojo_state);
+  EXPECT_THAT(
+      mojo_state->text_pieces,
+      ElementsAre(IsSpan("www.example.org", OmniboxTextColor::kOmniboxText)));
+  EXPECT_FALSE(omnibox_controller_->edit_model()->user_input_in_progress());
+  EXPECT_EQ(1u, mojo_state->browser_version);
+  EXPECT_EQ(0u, mojo_state->ui_version);
+
+  EXPECT_TRUE(
+      omnibox_view_
+          ->OnOmniboxAction(toolbar_ui_api::mojom::OmniboxAction::NewTextInput(
+              toolbar_ui_api::mojom::OmniboxActionTextInput::New(
+                  /*text=*/u"https://www.example.org/",
+                  /*inline_completion=*/u"",
+                  /*browser_version=*/1, /*ui_version=*/1, /*unelision=*/true,
+                  gfx::Range(6))))
+          .has_value());
+  mojo_state = update_propagator_.TakeState();
+  ASSERT_TRUE(mojo_state);
+  EXPECT_THAT(
+      mojo_state->text_pieces,
+      ElementsAre(IsSpan("https://", OmniboxTextColor::kOmniboxTextDimmed),
+                  IsSpan("www.example.org", OmniboxTextColor::kOmniboxText),
+                  IsSpan("/", OmniboxTextColor::kOmniboxTextDimmed)));
+  EXPECT_FALSE(omnibox_controller_->edit_model()->user_input_in_progress());
+  EXPECT_EQ(1u, mojo_state->browser_version);
+  EXPECT_EQ(1u, mojo_state->ui_version);
+
+  EXPECT_TRUE(
+      omnibox_view_
+          ->OnOmniboxAction(toolbar_ui_api::mojom::OmniboxAction::NewTextInput(
+              toolbar_ui_api::mojom::OmniboxActionTextInput::New(
+                  /*text=*/u"https://awww.example.org/",
+                  /*inline_completion=*/u"",
+                  /*browser_version=*/1, /*ui_version=*/2, /*unelision=*/false,
+                  gfx::Range(7))))
+          .has_value());
+  mojo_state = update_propagator_.TakeState();
+  EXPECT_THAT(mojo_state->text_pieces,
+              ElementsAre(IsSpan("https://awww.example.org/",
+                                 OmniboxTextColor::kOmniboxText)));
+  EXPECT_TRUE(omnibox_controller_->edit_model()->user_input_in_progress());
+  EXPECT_EQ(1u, mojo_state->browser_version);
+  EXPECT_EQ(2u, mojo_state->ui_version);
+}
+
+TEST_F(WebUIReadOnlyOmniboxTest, ContextualTasksFocusBlur) {
+  // Set up contextual tasks page.
+  location_bar_model()->set_is_contextual_tasks_page(true);
+  std::u16string display_url = u"chrome://google.com/search?q=test";
+  location_bar_model()->set_url_for_display(display_url);
+  omnibox_view_->Update();  // Pull initial state
+
+  // Initially not focused, should show display URL, but input NOT in progress.
+  EXPECT_EQ(display_url, omnibox_view_->GetText());
+  {
+    auto mojo_state = update_propagator_.TakeState();
+    ASSERT_TRUE(mojo_state);
+    EXPECT_FALSE(mojo_state->user_input_in_progress);
+  }
+
+  // Focus the omnibox.
+  EXPECT_TRUE(omnibox_view_
+                  ->OnOmniboxAction(
+                      toolbar_ui_api::mojom::OmniboxAction::NewFocusChange(
+                          toolbar_ui_api::mojom::OmniboxActionFocusChange::New(
+                              /*has_focus=*/true,
+                              /*request_clear_keyword=*/false,
+                              /*activate_default_search=*/false,
+                              /*start_zero_suggest=*/false,
+                              /*selection=*/gfx::Range(0))))
+                  .has_value());
+
+  // Should still show display URL, and user input is NOT in progress.
+  EXPECT_EQ(display_url, omnibox_view_->GetText());
+  {
+    auto mojo_state = update_propagator_.TakeState();
+    ASSERT_TRUE(mojo_state);
+    EXPECT_FALSE(mojo_state->user_input_in_progress);
+  }
+
+  // Blur the omnibox.
+  EXPECT_TRUE(omnibox_view_
+                  ->OnOmniboxAction(
+                      toolbar_ui_api::mojom::OmniboxAction::NewFocusChange(
+                          toolbar_ui_api::mojom::OmniboxActionFocusChange::New(
+                              /*has_focus=*/false,
+                              /*request_clear_keyword=*/false,
+                              /*activate_default_search=*/false,
+                              /*start_zero_suggest=*/false,
+                              /*selection=*/gfx::Range(0))))
+                  .has_value());
+
+  // Should still show display URL, and user input is NOT in progress again.
+  EXPECT_EQ(display_url, omnibox_view_->GetText());
+  {
+    auto mojo_state = update_propagator_.TakeState();
+    ASSERT_TRUE(mojo_state);
+    EXPECT_FALSE(mojo_state->user_input_in_progress);
+  }
+}
+
+TEST_F(WebUIReadOnlyOmniboxTest, OnPointer) {
+  // Sending pointer down action should succeed.
+  EXPECT_TRUE(
+      omnibox_view_
+          ->OnOmniboxAction(toolbar_ui_api::mojom::OmniboxAction::NewPointer(
+              toolbar_ui_api::mojom::OmniboxActionPointer::New(
+                  /*is_pointer_down=*/true, /*start_zero_suggest=*/false,
+                  gfx::Range(0))))
+          .has_value());
+
+  // Sending pointer up action with start_zero_suggest=true should succeed.
+  EXPECT_TRUE(
+      omnibox_view_
+          ->OnOmniboxAction(toolbar_ui_api::mojom::OmniboxAction::NewPointer(
+              toolbar_ui_api::mojom::OmniboxActionPointer::New(
+                  /*is_pointer_down=*/false, /*start_zero_suggest=*/true,
+                  gfx::Range(0))))
+          .has_value());
 }
 
 }  // namespace

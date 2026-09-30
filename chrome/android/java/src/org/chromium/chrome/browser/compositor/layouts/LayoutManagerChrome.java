@@ -7,13 +7,16 @@ package org.chromium.chrome.browser.compositor.layouts;
 import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
+import android.app.Activity;
 import android.content.Context;
 import android.view.MotionEvent;
 import android.view.ViewGroup;
 
+import androidx.annotation.Px;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ContextUtils;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.lifetime.DestroyChecker;
 import org.chromium.base.metrics.RecordUserAction;
@@ -22,7 +25,7 @@ import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
+import org.chromium.chrome.browser.browser_controls.BrowserControlsVisibilityManager;
 import org.chromium.chrome.browser.device.DeviceClassManager;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.hub.HubLayout;
@@ -33,6 +36,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tab_ui.TabContentManager.ThumbnailChangeListener;
 import org.chromium.chrome.browser.tab_ui.TabSwitcher;
+import org.chromium.chrome.browser.tab_ui.TabSwitcherUtils;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
@@ -64,7 +68,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
      * A {@link Layout} that should be used when the user is in the tab switcher when the hub flag
      * is enabled.
      */
-    protected @Nullable Layout mHubLayout;
+    protected @Nullable HubLayout mHubLayout;
 
     // Event Filter Handlers
     private final SwipeHandler mToolbarSwipeHandler;
@@ -81,11 +85,14 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
     private final Supplier<TabModelSelector> mTabModelSelectorSupplier;
 
     private final HubLayoutDependencyHolder mHubLayoutDependencyHolder;
-    private final ThumbnailChangeListener mThumbnailChangeListener = (id) -> requestUpdate();
+    private final ThumbnailChangeListener mThumbnailChangeListener = (_) -> requestUpdate();
     private final Callback<TabContentManager> mOnTabContentManager = this::onTabContentManager;
     private final DestroyChecker mDestroyChecker = new DestroyChecker();
 
     protected @Nullable DesktopWindowStateManager mDesktopWindowStateManager;
+
+    /** Offset from the left side of the screen. */
+    private @Px int mContentOffsetX;
 
     /**
      * Creates the {@link LayoutManagerChrome} instance.
@@ -95,7 +102,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
      * @param tabSwitcherSupplier Supplier for an interface to talk to the Grid Tab Switcher. Used
      *     to create TabSwitcherLayout if it has value.
      * @param tabModelSelectorSupplier Supplier for an interface to talk to the Tab Model Selector.
-     * @param tabContentManagerSupplier Supplier of the {@link TabContentManager} instance.
+     * @param tabContentManagerSupplier Supplier of the manager providing tab thumbnail snapshots.
      * @param toolbarThemeColorProvider {@link ThemeColorProvider} for the toolbar.
      * @param hubLayoutDependencyHolder The dependency holder for creating {@link HubLayout}.
      */
@@ -110,7 +117,9 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
         super(host, contentContainer, tabContentManagerSupplier, toolbarThemeColorProvider);
         // Build Event Filter Handlers
         mToolbarSwipeHandler =
-                createToolbarSwipeHandler(/* supportsSwipeToShowTabSwitcher= */ true);
+                createToolbarSwipeHandler(
+                        /* supportsSwipeToShowTabSwitcher= */ !TabSwitcherUtils
+                                .isGridTabSwitcherDisabled());
 
         mTabContentManagerSupplier = tabContentManagerSupplier;
         mTabContentManagerSupplier.addSyncObserverAndPostIfNonNull(mOnTabContentManager);
@@ -134,6 +143,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
                         hubLayoutDependencyHolder,
                         mTabModelSelectorSupplier,
                         mDesktopWindowStateManager);
+        mHubLayout.setContentOffsetX(mContentOffsetX);
         TabContentManager content = mTabContentManagerSupplier.get();
         if (content != null) {
             mHubLayout.setTabContentManager(content);
@@ -178,7 +188,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
             NonNullObservableSupplier<Integer> bottomControlsOffsetSupplier) {
         Context context = mHost.getContext();
         LayoutRenderHost renderHost = mHost.getLayoutRenderHost();
-        BrowserControlsStateProvider browserControlsStateProvider =
+        BrowserControlsVisibilityManager browserControlsVisibilityManager =
                 mHost.getBrowserControlsManager();
 
         // Build Layouts
@@ -187,11 +197,12 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
                         context,
                         this,
                         renderHost,
-                        browserControlsStateProvider,
+                        browserControlsVisibilityManager,
                         this,
                         toolbarThemeColorProvider,
                         bottomControlsOffsetSupplier,
                         getContentContainer(),
+                        controlContainer,
                         () -> {
                             if (controlContainer != null) {
                                 controlContainer.doSynchronousLayout(
@@ -225,8 +236,14 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
     public void showLayout(int layoutType, boolean animate) {
         if (mDestroyChecker.isDestroyed()) return;
 
-        if (layoutType == LayoutType.HUB && mHubLayout == null) {
-            initHubLayout();
+        if (layoutType == LayoutType.HUB) {
+            if (TabSwitcherUtils.isGridTabSwitcherDisabled()) {
+                throw new IllegalStateException(
+                        "Hub should not be shown when Grid Tab Switcher is disabled.");
+            }
+            if (mHubLayout == null) {
+                initHubLayout();
+            }
         }
         super.showLayout(layoutType, animate);
     }
@@ -305,28 +322,54 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
     }
 
     @Override
+    public void setContentOffsetX(@Px int contentOffsetX) {
+        super.setContentOffsetX(contentOffsetX);
+        mContentOffsetX = contentOffsetX;
+        if (mHubLayout != null) {
+            mHubLayout.setContentOffsetX(contentOffsetX);
+        }
+    }
+
+    public int getContentOffsetXForTesting() {
+        return mContentOffsetX;
+    }
+
+    @Override
     protected void tabClosed(int id, int nextId, boolean incognito, boolean tabRemoved) {
-        boolean showOverview = nextId == Tab.INVALID_TAB_ID;
-        boolean animate = !tabRemoved && animationsEnabled();
-        if (getActiveLayoutType() != LayoutType.HUB
-                && showOverview
-                && getNextLayoutType() != LayoutType.HUB
-                && !DeviceInfo.isXr()) {
-            showLayout(LayoutType.HUB, animate);
-        } else if (getActiveLayoutType() == LayoutType.HUB
-                && assumeNonNull(getActiveLayout()).isStartingToHide()
-                && showOverview
-                && getNextLayoutType() == LayoutType.BROWSING
-                && !DeviceInfo.isXr()) {
-            showLayout(LayoutType.HUB, animate);
+        if (!isActivityFinishingOrDestroyed()) {
+            boolean showOverview = nextId == Tab.INVALID_TAB_ID;
+            if (shouldShowHubOnTabClosed(showOverview)) {
+                boolean animate = !tabRemoved && animationsEnabled();
+                showLayout(LayoutType.HUB, animate);
+            }
         }
         super.tabClosed(id, nextId, incognito, tabRemoved);
     }
 
+    private boolean isHubEnabled() {
+        return !DeviceInfo.isXr() && !TabSwitcherUtils.isGridTabSwitcherDisabled();
+    }
+
+    private boolean shouldShowHubOnTabClosed(boolean showOverview) {
+        if (!showOverview || !isHubEnabled()) {
+            return false;
+        }
+        // Case 1: Not currently in the Hub and not already navigating to the Hub.
+        if (getActiveLayoutType() != LayoutType.HUB && getNextLayoutType() != LayoutType.HUB) {
+            return true;
+        }
+        // Case 2: In the Hub, but the Hub is starting to hide back to the browsing layout.
+        return getActiveLayoutType() == LayoutType.HUB
+                && assumeNonNull(getActiveLayout()).isStartingToHide()
+                && getNextLayoutType() == LayoutType.BROWSING;
+    }
+
     @Override
     public void tabsAllClosing(boolean incognito) {
-        if (getActiveLayout() == mStaticLayout && !incognito && !DeviceInfo.isXr()) {
-            showLayout(LayoutType.HUB, /* animate= */ false);
+        if (!isActivityFinishingOrDestroyed()) {
+            if (getActiveLayout() == mStaticLayout && !incognito && isHubEnabled()) {
+                showLayout(LayoutType.HUB, /* animate= */ false);
+            }
         }
         super.tabsAllClosing(incognito);
     }
@@ -336,6 +379,8 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
         super.tabModelSwitched(incognito);
         TabModelSelector selector = getTabModelSelector();
         selector.commitAllTabClosures();
+
+        if (!isHubEnabled()) return;
 
         // Skip forcing the tab switcher to show with 0 tabs until tab state is fully restored in
         // the event it is slow.
@@ -507,15 +552,21 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
                 return false;
             }
 
+            if (direction == ScrollDirection.LEFT || direction == ScrollDirection.RIGHT) {
+                return true;
+            }
+
+            if (!mSupportsSwipeToShowTabSwitcher) {
+                return false;
+            }
+
             Tab tab = getTabModelSelector() != null ? getTabModelSelector().getCurrentTab() : null;
             boolean toolbarShownOnTop = ToolbarPositionController.shouldShowToolbarOnTop(tab);
             @ScrollDirection
             int showTabSwitcherScrollDirection =
                     toolbarShownOnTop ? ScrollDirection.DOWN : ScrollDirection.UP;
 
-            return direction == showTabSwitcherScrollDirection
-                    || direction == ScrollDirection.LEFT
-                    || direction == ScrollDirection.RIGHT;
+            return direction == showTabSwitcherScrollDirection;
         }
     }
 
@@ -530,13 +581,17 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
 
     @Override
     protected void switchToTab(@Nullable Tab tab, int lastTabId) {
-        if (tab == null || lastTabId == Tab.INVALID_TAB_ID) {
-            super.switchToTab(tab, lastTabId);
+        if (tab == null || lastTabId == Tab.INVALID_TAB_ID || tab.getId() == lastTabId) {
             return;
         }
 
         mToolbarSwipeLayout.setSwitchToTab(tab.getId(), lastTabId);
         showLayout(LayoutType.TOOLBAR_SWIPE, false);
+    }
+
+    private boolean isActivityFinishingOrDestroyed() {
+        Activity activity = ContextUtils.activityFromContext(mHost.getContext());
+        return activity != null && (activity.isFinishing() || activity.isDestroyed());
     }
 
     private void onTabContentManager(TabContentManager tabContentManager) {

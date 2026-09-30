@@ -8,17 +8,20 @@ import org.jni_zero.CalledByNative;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
-import org.chromium.base.Log;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.content_public.browser.WebContentsObserver;
 
 /** Glue for the tab sharing toolbar UI code and communication with the native backend. */
 @NullMarked
 public class TabSharingUIBridge {
-    private static final String TAG = "TabSharing";
-
     private final WebContents mCapturer;
     private final WebContents mCapturee;
+    private final WebContentsObserver mCapturerObserver;
+    private final WebContentsObserver mCaptureeObserver;
+    private final boolean mIsSourceSwitchingSupported;
+    private final boolean mAppPreferredCurrentTab;
+
     private long mNativeTabSharingUIAndroid;
 
     /**
@@ -29,10 +32,30 @@ public class TabSharingUIBridge {
      * @param capturee The {@link WebContents} that is being shared.
      */
     private TabSharingUIBridge(
-            long nativeTabSharingUIAndroid, WebContents capturer, WebContents capturee) {
+            long nativeTabSharingUIAndroid,
+            WebContents capturer,
+            WebContents capturee,
+            boolean isSourceSwitchingSupported,
+            boolean appPreferredCurrentTab) {
         mNativeTabSharingUIAndroid = nativeTabSharingUIAndroid;
         mCapturer = capturer;
         mCapturee = capturee;
+        mIsSourceSwitchingSupported = isSourceSwitchingSupported;
+        mAppPreferredCurrentTab = appPreferredCurrentTab;
+        mCapturerObserver =
+                new WebContentsObserver(mCapturer) {
+                    @Override
+                    public void webContentsDestroyed() {
+                        stopSharing();
+                    }
+                };
+        mCaptureeObserver =
+                new WebContentsObserver(mCapturee) {
+                    @Override
+                    public void webContentsDestroyed() {
+                        stopSharing();
+                    }
+                };
     }
 
     /**
@@ -43,30 +66,35 @@ public class TabSharingUIBridge {
      * @param capturee The {@link WebContents} that is being shared.
      */
     @CalledByNative
-    private static TabSharingUIBridge create(
+    static TabSharingUIBridge create(
             long nativePtr,
             @JniType("content::WebContents*") WebContents capturer,
-            @JniType("content::WebContents*") WebContents capturee) {
-        TabSharingUIBridge bridge = new TabSharingUIBridge(nativePtr, capturer, capturee);
-        Log.d(
-                TAG,
-                "UIBridge#create: for capturer %s and capturee %s, created instance %s",
-                capturer,
-                capturee,
-                bridge);
+            @JniType("content::WebContents*") WebContents capturee,
+            boolean isSourceSwitchingSupported,
+            boolean appPreferredCurrentTab) {
+        TabSharingUIBridge bridge =
+                new TabSharingUIBridge(
+                        nativePtr,
+                        capturer,
+                        capturee,
+                        isSourceSwitchingSupported,
+                        appPreferredCurrentTab);
         TabSharingUIManager.getInstance().addBridge(bridge);
         return bridge;
     }
 
     @CalledByNative
-    private void destroy() {
-        Log.d(TAG, "UIBridge#destroy: %s", this);
+    void destroy() {
+        if (mNativeTabSharingUIAndroid == 0) return;
+        mCapturerObserver.observe(null);
+        mCaptureeObserver.observe(null);
         TabSharingUIManager.getInstance().removeBridge(this);
         mNativeTabSharingUIAndroid = 0;
     }
 
     /** Stops the sharing session associated with this bridge. */
     public void stopSharing() {
+        MediaCaptureDevicesDispatcherAndroid.setSourceSwitchingInProgress(mCapturer, false);
         if (mNativeTabSharingUIAndroid == 0) return;
         TabSharingUIBridgeJni.get().stopSharing(mNativeTabSharingUIAndroid);
     }
@@ -78,6 +106,7 @@ public class TabSharingUIBridge {
      */
     public void changeSource(WebContents newSource) {
         if (mNativeTabSharingUIAndroid == 0) return;
+        MediaCaptureDevicesDispatcherAndroid.setSourceSwitchingInProgress(mCapturer, true);
         TabSharingUIBridgeJni.get().changeSource(mNativeTabSharingUIAndroid, newSource);
     }
 
@@ -89,6 +118,16 @@ public class TabSharingUIBridge {
     /** Returns the {@link WebContents} that is being shared. */
     public WebContents getCapturee() {
         return mCapturee;
+    }
+
+    /** Returns true if source switching is supported for this capture session. */
+    public boolean isSourceSwitchingSupported() {
+        return mIsSourceSwitchingSupported;
+    }
+
+    /** Returns true if the capturing application preferred capturing the current tab. */
+    public boolean appPreferredCurrentTab() {
+        return mAppPreferredCurrentTab;
     }
 
     @NativeMethods

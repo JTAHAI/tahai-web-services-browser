@@ -10,6 +10,7 @@
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_trait.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/elements/gradient/gradient_view.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/ui_util.h"
@@ -22,18 +23,33 @@ constexpr CGFloat kFakeboxHighlightDuration = 0.4;
 // Fakebox highlight background alpha.
 constexpr CGFloat kFakeboxHighlightAlpha = 0.06;
 
+// Fakebox shadow parameters for NTP UI cleanup.
+constexpr CGFloat kFakeboxShadowRadius = 14.0;
+constexpr CGFloat kFakeboxShadowVerticalOffset = 3.0;
+constexpr CGFloat kFakeboxShadowOpacity = 0.16;
+
+// Helper function to resolve dynamic fakebox background color. The fakebox
+// background color is dependent on if `kNewTabPageUICleanup` is enabled.
+UIColor* DynamicFakeboxColor(NSString* solid_color_name,
+                             NSString* gradient_color_name) {
+  if (ShouldApplyFakeboxBackgroundAndShadow()) {
+    return [UIColor colorNamed:kNTPRedesignFakeboxBackgroundColor];
+  }
+  return UIAccessibilityIsReduceTransparencyEnabled()
+             ? [UIColor colorNamed:solid_color_name]
+             : [UIColor colorNamed:gradient_color_name];
+}
+
 // Returns the top color of the Fakebox's gradient background.
 UIColor* FakeboxTopColor() {
-  return UIAccessibilityIsReduceTransparencyEnabled()
-             ? [UIColor colorNamed:@"fake_omnibox_solid_background_color"]
-             : [UIColor colorNamed:@"fake_omnibox_top_gradient_color"];
+  return DynamicFakeboxColor(@"fake_omnibox_solid_background_color",
+                             @"fake_omnibox_top_gradient_color");
 }
 
 // Returns the bottom color of the Fakebox's gradient background.
 UIColor* FakeboxBottomColor() {
-  return UIAccessibilityIsReduceTransparencyEnabled()
-             ? [UIColor colorNamed:@"fake_omnibox_solid_background_color"]
-             : [UIColor colorNamed:@"fake_omnibox_bottom_gradient_color"];
+  return DynamicFakeboxColor(@"fake_omnibox_solid_background_color",
+                             @"fake_omnibox_bottom_gradient_color");
 }
 
 }  // namespace
@@ -42,13 +58,16 @@ UIColor* FakeboxBottomColor() {
   GradientView* _fakeLocationBarGradientView;
   UIVisualEffectView* _fakeLocationBarBlurEffectView;
   UIView* _fakeLocationBarHighlightView;
+  CGRect _lastLayoutBounds;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
   self = [super initWithFrame:frame];
   if (self) {
     self.translatesAutoresizingMaskIntoConstraints = NO;
-    self.clipsToBounds = YES;
+    if (!ShouldApplyFakeboxBackgroundAndShadow()) {
+      self.clipsToBounds = YES;
+    }
 
     _fakeLocationBarGradientView =
         [[GradientView alloc] initWithTopColor:FakeboxTopColor()
@@ -76,12 +95,41 @@ UIColor* FakeboxBottomColor() {
     [self addSubview:_fakeLocationBarHighlightView];
     AddSameConstraints(self, _fakeLocationBarHighlightView);
 
+    if (ShouldApplyFakeboxBackgroundAndShadow()) {
+      _fakeLocationBarGradientView.layer.masksToBounds = YES;
+      _fakeLocationBarBlurEffectView.layer.masksToBounds = YES;
+      _fakeLocationBarHighlightView.layer.masksToBounds = YES;
+
+      self.layer.shadowOffset = CGSizeMake(0, kFakeboxShadowVerticalOffset);
+      self.layer.shadowRadius = kFakeboxShadowRadius;
+      self.layer.shadowOpacity = kFakeboxShadowOpacity;
+    }
+
     // Make sure the correct background is visible.
-    [self registerForTraitChanges:@[ NewTabPageImageBackgroundTrait.class ]
+    [self registerForTraitChanges:@[
+      NewTabPageImageBackgroundTrait.class, UITraitUserInterfaceStyle.class
+    ]
                        withAction:@selector(applyBackgroundTheme)];
     [self applyBackgroundTheme];
   }
   return self;
+}
+
+- (void)layoutSubviews {
+  [super layoutSubviews];
+  if (ShouldApplyFakeboxBackgroundAndShadow() &&
+      !CGRectEqualToRect(self.bounds, _lastLayoutBounds)) {
+    _lastLayoutBounds = self.bounds;
+    CGFloat cornerRadius = self.bounds.size.height / 2;
+    _fakeLocationBarGradientView.layer.cornerRadius = cornerRadius;
+    _fakeLocationBarBlurEffectView.layer.cornerRadius = cornerRadius;
+    _fakeLocationBarHighlightView.layer.cornerRadius = cornerRadius;
+
+    self.layer.shadowPath =
+        [UIBezierPath bezierPathWithRoundedRect:self.bounds
+                                   cornerRadius:cornerRadius]
+            .CGPath;
+  }
 }
 
 - (void)setHighlighted:(BOOL)highlighted {
@@ -100,6 +148,10 @@ UIColor* FakeboxBottomColor() {
 - (void)updateColorsWithProgress:(CGFloat)progress
                     colorPalette:(NewTabPageColorPalette*)colorPalette {
   UIColor* pinnedColor = [UIColor colorNamed:kTextfieldBackgroundColor];
+  if (!CanShowTabStrip(self) && ShouldApplyFakeboxBackgroundAndShadow()) {
+    pinnedColor = colorPalette ? colorPalette.omniboxColor
+                               : [UIColor colorNamed:kSolidWhiteColor];
+  }
 
   // Use a quadratic curve interpolation.
   progress = progress * progress;
@@ -110,6 +162,10 @@ UIColor* FakeboxBottomColor() {
            endColor:BlendColors(colorPalette ? colorPalette.omniboxColor
                                              : FakeboxBottomColor(),
                                 pinnedColor, progress)];
+
+  if (ShouldApplyFakeboxBackgroundAndShadow()) {
+    self.layer.shadowOpacity = (1.0 - progress) * kFakeboxShadowOpacity;
+  }
 }
 
 - (void)applyBackgroundTheme {
@@ -122,6 +178,11 @@ UIColor* FakeboxBottomColor() {
   } else {
     _fakeLocationBarGradientView.hidden = NO;
     _fakeLocationBarBlurEffectView.hidden = YES;
+  }
+
+  if (ShouldApplyFakeboxBackgroundAndShadow()) {
+    self.layer.shadowColor =
+        [UIColor colorNamed:kBackgroundShadowColor].CGColor;
   }
 }
 

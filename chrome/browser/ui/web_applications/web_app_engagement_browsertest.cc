@@ -16,7 +16,7 @@
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
@@ -164,11 +164,11 @@ class WebAppEngagementBrowserTest : public WebAppBrowserTestBase {
   // Test some other engagement events by directly calling into
   // SiteEngagementService.
   void TestEngagementEventsAfterLaunch(const Histograms& histograms,
-                                       Browser* browser) {
+                                       BrowserWindowInterface* browser) {
     base::HistogramTester tester;
 
     content::WebContents* web_contents =
-        browser->tab_strip_model()->GetActiveWebContents();
+        browser->GetTabStripModel()->GetActiveWebContents();
     auto* site_engagement_service =
         site_engagement::SiteEngagementService::Get(browser->GetProfile());
 
@@ -230,10 +230,12 @@ IN_PROC_BROWSER_TEST_F(WebAppEngagementBrowserTest, AppInWindow) {
   web_app_info->user_display_mode = mojom::UserDisplayMode::kStandalone;
   webapps::AppId app_id = InstallWebAppAndCountApps(std::move(web_app_info));
 
-  Browser* app_browser = LaunchWebAppBrowserAndWait(app_id);
+  BrowserWindowInterface* app_browser = LaunchWebAppBrowserAndWait(app_id);
   NavigateViaLinkClickToURLAndWait(app_browser, example_url);
 
-  EXPECT_EQ(GetAppIdFromApplicationName(app_browser->app_name()), app_id);
+  EXPECT_EQ(GetAppIdFromApplicationName(
+                BrowserInitState::From(app_browser)->create_params().app_name),
+            app_id);
 
   Histograms histograms;
   histograms[kHistogramInWindow] = true;
@@ -264,10 +266,12 @@ IN_PROC_BROWSER_TEST_F(WebAppEngagementBrowserTest, DiyAppInWindow) {
   web_app_info->is_diy_app = true;
   webapps::AppId app_id = InstallWebAppAndCountApps(std::move(web_app_info));
 
-  Browser* app_browser = LaunchWebAppBrowserAndWait(app_id);
+  BrowserWindowInterface* app_browser = LaunchWebAppBrowserAndWait(app_id);
   NavigateViaLinkClickToURLAndWait(app_browser, example_url);
 
-  EXPECT_EQ(GetAppIdFromApplicationName(app_browser->app_name()), app_id);
+  EXPECT_EQ(GetAppIdFromApplicationName(
+                BrowserInitState::From(app_browser)->create_params().app_name),
+            app_id);
 
   Histograms histograms;
   histograms[kHistogramInWindow] = true;
@@ -298,7 +302,7 @@ IN_PROC_BROWSER_TEST_F(WebAppEngagementBrowserTest, AppInTab) {
   web_app_info->user_display_mode = mojom::UserDisplayMode::kBrowser;
   webapps::AppId app_id = InstallWebAppAndCountApps(std::move(web_app_info));
 
-  Browser* browser = LaunchBrowserForWebAppInTab(app_id);
+  BrowserWindowInterface* browser = LaunchBrowserForWebAppInTab(app_id);
   EXPECT_FALSE(web_app::AppBrowserController::From(browser));
   NavigateViaLinkClickToURLAndWait(browser, example_url);
 
@@ -334,7 +338,7 @@ IN_PROC_BROWSER_TEST_F(WebAppEngagementBrowserTest, DiyAppInTab) {
   web_app_info->is_diy_app = true;
   webapps::AppId app_id = InstallWebAppAndCountApps(std::move(web_app_info));
 
-  Browser* browser = LaunchBrowserForWebAppInTab(app_id);
+  BrowserWindowInterface* browser = LaunchBrowserForWebAppInTab(app_id);
   EXPECT_FALSE(web_app::AppBrowserController::From(browser));
   NavigateViaLinkClickToURLAndWait(browser, example_url);
 
@@ -371,9 +375,11 @@ IN_PROC_BROWSER_TEST_F(WebAppEngagementBrowserTest, AppWithoutScope) {
   web_app_info->user_display_mode = mojom::UserDisplayMode::kStandalone;
   webapps::AppId app_id = InstallWebAppAndCountApps(std::move(web_app_info));
 
-  Browser* browser = LaunchWebAppBrowserAndWait(app_id);
+  BrowserWindowInterface* browser = LaunchWebAppBrowserAndWait(app_id);
 
-  EXPECT_EQ(GetAppIdFromApplicationName(browser->app_name()), app_id);
+  EXPECT_EQ(GetAppIdFromApplicationName(
+                BrowserInitState::From(browser)->create_params().app_name),
+            app_id);
   EXPECT_TRUE(web_app::AppBrowserController::From(browser));
   NavigateViaLinkClickToURLAndWait(browser, example_url);
 
@@ -420,13 +426,19 @@ IN_PROC_BROWSER_TEST_F(WebAppEngagementBrowserTest, TwoApps) {
   // Launch them three times. This ensures that each launch only logs once.
   // (Since all apps receive the notification on launch, there is a danger that
   // we might log too many times.)
-  Browser* app_browser1 = LaunchWebAppBrowserAndWait(app_id1);
-  Browser* app_browser2 = LaunchWebAppBrowserAndWait(app_id1);
-  Browser* app_browser3 = LaunchWebAppBrowserAndWait(app_id2);
+  BrowserWindowInterface* app_browser1 = LaunchWebAppBrowserAndWait(app_id1);
+  BrowserWindowInterface* app_browser2 = LaunchWebAppBrowserAndWait(app_id1);
+  BrowserWindowInterface* app_browser3 = LaunchWebAppBrowserAndWait(app_id2);
 
-  EXPECT_EQ(GetAppIdFromApplicationName(app_browser1->app_name()), app_id1);
-  EXPECT_EQ(GetAppIdFromApplicationName(app_browser2->app_name()), app_id1);
-  EXPECT_EQ(GetAppIdFromApplicationName(app_browser3->app_name()), app_id2);
+  EXPECT_EQ(GetAppIdFromApplicationName(
+                BrowserInitState::From(app_browser1)->create_params().app_name),
+            app_id1);
+  EXPECT_EQ(GetAppIdFromApplicationName(
+                BrowserInitState::From(app_browser2)->create_params().app_name),
+            app_id1);
+  EXPECT_EQ(GetAppIdFromApplicationName(
+                BrowserInitState::From(app_browser3)->create_params().app_name),
+            app_id2);
 
   Histograms histograms;
   histograms[kHistogramInWindow] = true;
@@ -469,7 +481,7 @@ IN_PROC_BROWSER_TEST_F(WebAppEngagementBrowserTest, ManyUserApps) {
   // Launch an app in a window.
   DCHECK_LE(num_launches, num_user_apps);
   for (int i = 0; i < num_launches; ++i) {
-    Browser* browser = LaunchWebAppBrowserAndWait(app_ids[i]);
+    BrowserWindowInterface* browser = LaunchWebAppBrowserAndWait(app_ids[i]);
 
     const GURL url = GetUrlForSuffix(base_url, i);
     NavigateViaLinkClickToURLAndWait(browser, url);
@@ -508,7 +520,7 @@ IN_PROC_BROWSER_TEST_F(WebAppEngagementBrowserTest, DISABLED_DefaultApp) {
   EXPECT_TRUE(provider().registrar_unsafe().AppMatches(
       app_id.value(), WebAppFilter::InstalledByDefaultManagement()));
 
-  Browser* browser = LaunchWebAppBrowserAndWait(*app_id);
+  BrowserWindowInterface* browser = LaunchWebAppBrowserAndWait(*app_id);
   NavigateViaLinkClickToURLAndWait(browser, example_url);
 
   Histograms histograms;
@@ -541,7 +553,7 @@ IN_PROC_BROWSER_TEST_F(WebAppEngagementBrowserTest, NavigateAwayFromAppTab) {
   web_app_info->user_display_mode = mojom::UserDisplayMode::kBrowser;
   webapps::AppId app_id = InstallWebAppAndCountApps(std::move(web_app_info));
 
-  Browser* browser = LaunchBrowserForWebAppInTab(app_id);
+  BrowserWindowInterface* browser = LaunchBrowserForWebAppInTab(app_id);
   EXPECT_FALSE(web_app::AppBrowserController::From(browser));
 
   NavigateViaLinkClickToURLAndWait(browser, start_url);

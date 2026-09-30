@@ -187,10 +187,17 @@ found in the LICENSE file.
     <style name="Theme.Chromium.DialogWhenLarge" parent="Base.Theme.Chromium.DialogWhenLarge" />
     <style name="DimmingDialog" parent="Base.Theme.Chromium.DialogWhenLarge">
         <item name="isDialogFullscreen">true</item>
-        <item name="android:statusBarColor">@color/modal_dialog_scrim_color</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@macro/sheet_bg_color</item>
         <item name="android:navigationBarDividerColor">@null</item>
         <item name="android:windowLightNavigationBar">false</item>
+    </style>
+    <!-- Clears fixed-height constraints so dialog wraps content to spec. -->
+    <style
+        name="ThemeOverlay.Chromium.DialogWhenLarge.ContentWrapping"
+        parent="">
+        <item name="windowFixedHeightMajor">@null</item>
+        <item name="windowFixedHeightMinor">@null</item>
     </style>
 
     <!-- Theme variation for low-end devices.
@@ -225,11 +232,6 @@ found in the LICENSE file.
 
 
     <!-- Settings -->
-    <style name="SettingsToolbarStyle" parent="Widget.Material3Expressive.Toolbar">
-        <item name="titleTextAppearance">@style/TextAppearance.Headline.Primary</item>
-        <item name="titleTextColor">?attr/colorOnSurface</item>
-        <item name="navigationIconTint">?attr/colorOnSurface</item>
-    </style>
     <style name="TextAppearance.SettingsMainMenuItemTitle">
         <item name="android:textColor">?attr/colorOnBackground</item>
     </style>
@@ -467,6 +469,10 @@ found in the LICENSE file.
         <item name="android:textColorHint">@macro/ntp_search_box_hint</item>
     </style>
 
+    <style name="TextAppearance.FakeSearchBoxTextNewStyle" parent="TextAppearance.MediumStyle">
+        <item name="android:textColorHint">?attr/colorOutline</item>
+    </style>
+
     <!-- Similar to FakeSearchBoxText, but with text size 16sp, medium weight, Google Sans text font.
     -->
     <style name="TextAppearance.FakeSearchBoxTextMedium" parent="TextAppearance.MediumStyle">
@@ -581,7 +587,7 @@ found in the LICENSE file.
         <!-- The same as the regular style, but using dp instead of sp. -->
         <item name="android:textSize">16dp</item>
     </style>
-        <style name="TextAppearance.RegularFolderChildCount" parent="TextAppearance.TextLarge.Primary" tools:ignore="SpUsage">
+    <style name="TextAppearance.RegularFolderChildCount" parent="TextAppearance.TextLarge.Primary" tools:ignore="SpUsage">
         <!-- The same as the regular style, but using dp instead of sp. -->
         <item name="android:textSize">16dp</item>
     </style>
@@ -598,6 +604,7 @@ found in the LICENSE file.
     -->
     <style name="ModernToolbarPopupTheme">
         <item name="android:listChoiceIndicatorSingle">@drawable/checkmark_selection_drawable</item>
+        <item name="android:listChoiceIndicatorMultiple">@drawable/checkmark_selection_drawable</item>
         <item name="android:itemTextAppearance">@style/TextAppearance.DensityAdaptive.TextLarge.Primary</item>
         <item name="android:letterSpacing">0</item>
         <item name="android:lineSpacingExtra">0dp</item>

@@ -12,7 +12,7 @@ import {assertEquals, assertFalse, assertGE, assertLE, assertTrue} from 'chrome:
 import type {TestMock} from 'chrome://webui-test/test_mock.js';
 import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
-import {assertNotStyle, assertStyle, createTheme, installMock, keydown} from './test_support.js';
+import {assertNotStyle, assertStyle, createBackgroundImage, createTheme, installMock, keydown} from './test_support.js';
 
 const imageOffsetHeight = 168;
 const imageOffsetWidth = 336;
@@ -133,6 +133,32 @@ suite('NewTabPageLogoTest', () => {
       assertEquals(32, $$<HTMLElement>(logo, '#shareButton')!.offsetWidth);
       assertEquals(32, $$<HTMLElement>(logo, '#shareButton')!.offsetHeight);
     });
+  });
+
+  test('background image with doodle is boxed', async () => {
+    // Arrange.
+    const theme = createTheme();
+    theme.backgroundImage = createBackgroundImage('https://img.png');
+
+    // Act.
+    const logo = await createLogo(createImageDoodle(), theme);
+
+    // Assert.
+    assertTrue(!!$$(logo, '#doodle'));
+    assertTrue(logo.hasAttribute('doodle-boxed_'));
+  });
+
+  test('background image without doodle is not boxed', async () => {
+    // Arrange.
+    const theme = createTheme();
+    theme.backgroundImage = createBackgroundImage('https://img.png');
+
+    // Act.
+    const logo = await createLogo(null, theme);
+
+    // Assert.
+    assertTrue(!!$$(logo, '#logo'));
+    assertFalse(logo.hasAttribute('doodle-boxed_'));
   });
 
   [null, '#ff0000'].forEach(color => {
@@ -362,7 +388,7 @@ suite('NewTabPageLogoTest', () => {
         assertEquals('https://foo.com/', windowProxy.getArgs('open')[0]);
       }
       assertEquals(
-          hasUrl ? 0 : -1, $$<HTMLElement>(logo, '#imageDoodle')!.tabIndex);
+          hasUrl ? 0 : -1, $$<HTMLElement>(logo, '#imageContainer')!.tabIndex);
     });
 
     [' ', 'Enter'].forEach(key => {
@@ -381,7 +407,8 @@ suite('NewTabPageLogoTest', () => {
           assertEquals('https://foo.com/', windowProxy.getArgs('open')[0]);
         }
         assertEquals(
-            hasUrl ? 0 : -1, $$<HTMLElement>(logo, '#imageDoodle')!.tabIndex);
+            hasUrl ? 0 : -1,
+            $$<HTMLElement>(logo, '#imageContainer')!.tabIndex);
       });
     });
 
@@ -393,7 +420,7 @@ suite('NewTabPageLogoTest', () => {
       doodle.image.onClickUrl = hasUrl ? 'https://bar.com' : null;
       const logo = await createLogo(doodle, createTheme({isDark: false}));
       assertEquals(
-          hasUrl ? 0 : -1, $$<HTMLElement>(logo, '#imageDoodle')!.tabIndex);
+          hasUrl ? 0 : -1, $$<HTMLElement>(logo, '#imageContainer')!.tabIndex);
 
       // Act (click).
       $$<HTMLElement>(logo, '#image')!.click();
@@ -405,7 +432,7 @@ suite('NewTabPageLogoTest', () => {
         assertEquals('https://bar.com/', windowProxy.getArgs('open')[0]);
       }
       assertEquals(
-          hasUrl ? 0 : -1, $$<HTMLElement>(logo, '#imageDoodle')!.tabIndex);
+          hasUrl ? 0 : -1, $$<HTMLElement>(logo, '#imageContainer')!.tabIndex);
     });
   });
 

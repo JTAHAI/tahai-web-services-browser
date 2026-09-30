@@ -36,6 +36,7 @@
 
 #include "base/auto_reset.h"
 #include "base/memory/ptr_util.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/stringprintf.h"
 #include "cc/animation/animation.h"
@@ -2262,13 +2263,13 @@ TEST_P(AnimationCompositorAnimationsTest,
   // Add a transform with a compositing reason, which should allow starting
   // animation.
   UpdateDummyTransformNode(properties,
-                           CompositingReason::kActiveTransformAnimation);
+                           {CompositingReason::kActiveTransformAnimation});
   EXPECT_EQ(
       CheckCanStartElementOnCompositor(*element, *keyframe_animation_effect2_),
       CompositorAnimations::kNoFailure);
 
   // Setting to CompositingReasonNone should produce false.
-  UpdateDummyTransformNode(properties, CompositingReason::kNone);
+  UpdateDummyTransformNode(properties, {});
   EXPECT_TRUE(
       CheckCanStartElementOnCompositor(*element, *keyframe_animation_effect2_) &
       CompositorAnimations::kTargetHasInvalidCompositingState);
@@ -2298,13 +2299,13 @@ TEST_P(AnimationCompositorAnimationsTest,
   // Add an effect with a compositing reason, which should allow starting
   // animation.
   UpdateDummyEffectNode(properties,
-                        CompositingReason::kActiveTransformAnimation);
+                        {CompositingReason::kActiveTransformAnimation});
   EXPECT_EQ(
       CheckCanStartElementOnCompositor(*element, *keyframe_animation_effect2_),
       CompositorAnimations::kNoFailure);
 
   // Setting to CompositingReasonNone should produce false.
-  UpdateDummyEffectNode(properties, CompositingReason::kNone);
+  UpdateDummyEffectNode(properties, {});
   EXPECT_TRUE(
       CheckCanStartElementOnCompositor(*element, *keyframe_animation_effect2_) &
       CompositorAnimations::kTargetHasInvalidCompositingState);
@@ -4903,7 +4904,8 @@ class CompositorTimelineTriggerBehaviorTest
   Persistent<Element> source_;
   Persistent<Element> target_;
   Persistent<Element> scroller_;
-  cc::AnimationHost* impl_animation_host_;
+  raw_ptr<cc::AnimationHost, UnprotectedInRelease | DanglingUntriaged>
+      impl_animation_host_;
   Persistent<Animation> blink_animation_;
   Persistent<AnimationTrigger> blink_trigger_;
 };

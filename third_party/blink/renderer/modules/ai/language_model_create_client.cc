@@ -298,20 +298,11 @@ void LanguageModelCreateClient::Create(
   if (options_->hasExpectedInputs()) {
     expected_in = ToMojoExpectations(options_->expectedInputs());
     for (const auto& expected : expected_in) {
-      // Reject kToolCall in expectedInputs - tool calls are model outputs, not
-      // inputs. Tool responses should be used to send results back.
-      // TODO(crbug.com/422803232): Maybe allow kToolCall expectedInputs.
-      if (expected->type ==
-          mojom::blink::AILanguageModelPromptType::kToolCall) {
-        GetResolver()->Reject(DOMException::Create(
-            kExceptionMessageUnableToCreateSession,
-            DOMException::GetErrorName(DOMExceptionCode::kNotSupportedError)));
-        return;
-      }
-      // Reject kToolResponse without AIPromptAPIToolUse runtime feature
-      // enabled.
-      if (expected->type ==
-              mojom::blink::AILanguageModelPromptType::kToolResponse &&
+      // Reject tool types without AIPromptAPIToolUse runtime feature enabled.
+      if ((expected->type ==
+               mojom::blink::AILanguageModelPromptType::kToolCall ||
+           expected->type ==
+               mojom::blink::AILanguageModelPromptType::kToolResponse) &&
           !RuntimeEnabledFeatures::AIPromptAPIToolUseEnabled(
               GetExecutionContext())) {
         GetResolver()->Reject(DOMException::Create(
@@ -496,18 +487,6 @@ void LanguageModelCreateClient::OnError(
           GetResolver(), kExceptionMessageInputTooLarge,
           static_cast<double>(quota_error_info->quota),
           static_cast<double>(quota_error_info->requested));
-      break;
-    }
-    case AIManagerCreateClientError::kUnsupportedLanguage: {
-      GetResolver()->RejectWithDOMException(
-          DOMExceptionCode::kNotSupportedError,
-          kExceptionMessageUnsupportedLanguages);
-      break;
-    }
-    case AIManagerCreateClientError::kIncompatiblePreferenceOptions: {
-      GetResolver()->RejectWithDOMException(
-          DOMExceptionCode::kNotSupportedError,
-          kExceptionMessageIncompatiblePreferenceOptions);
       break;
     }
   }

@@ -15,7 +15,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "components/autofill/core/browser/integrators/at_memory/memory_search_result.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
-#include "components/autofill/core/browser/metrics/autofill_metrics_utils.h"
+#include "components/autofill/core/browser/metrics/autofill_metrics_util.h"
 #include "components/autofill/core/common/aliases.h"
 #include "components/optimization_guide/core/model_quality/model_quality_log_entry.h"
 #include "components/optimization_guide/core/model_quality/model_quality_logs_uploader_service.h"
@@ -86,7 +86,6 @@ std::string_view MemoryDataTypeToCategoryString(MemoryDataType type) {
     case MemoryDataType::kCreditCardNickname:
       return "CreditCard";
 
-    case MemoryDataType::kDriversLicenseFull:
     case MemoryDataType::kDriversLicenseName:
     case MemoryDataType::kDriversLicenseState:
     case MemoryDataType::kDriversLicenseNumber:
@@ -94,7 +93,6 @@ std::string_view MemoryDataTypeToCategoryString(MemoryDataType type) {
     case MemoryDataType::kDriversLicenseExpirationDate:
       return "DriversLicense";
 
-    case MemoryDataType::kFlightReservationFull:
     case MemoryDataType::kFlightReservationFlightNumber:
     case MemoryDataType::kFlightReservationTicketNumber:
     case MemoryDataType::kFlightReservationConfirmationCode:
@@ -109,13 +107,11 @@ std::string_view MemoryDataTypeToCategoryString(MemoryDataType type) {
     case MemoryDataType::kIbanNickname:
       return "Iban";
 
-    case MemoryDataType::kKnownTravelerNumberFull:
     case MemoryDataType::kKnownTravelerNumberName:
     case MemoryDataType::kKnownTravelerNumberNumber:
     case MemoryDataType::kKnownTravelerNumberExpirationDate:
       return "KnownTravelerNumber";
 
-    case MemoryDataType::kNationalIdCardFull:
     case MemoryDataType::kNationalIdCardName:
     case MemoryDataType::kNationalIdCardCountry:
     case MemoryDataType::kNationalIdCardNumber:
@@ -123,7 +119,6 @@ std::string_view MemoryDataTypeToCategoryString(MemoryDataType type) {
     case MemoryDataType::kNationalIdCardExpirationDate:
       return "NationalIdCard";
 
-    case MemoryDataType::kOrderFull:
     case MemoryDataType::kOrderId:
     case MemoryDataType::kOrderAccount:
     case MemoryDataType::kOrderDate:
@@ -133,7 +128,6 @@ std::string_view MemoryDataTypeToCategoryString(MemoryDataType type) {
     case MemoryDataType::kOrderGrandTotal:
       return "Order";
 
-    case MemoryDataType::kPassportFull:
     case MemoryDataType::kPassportName:
     case MemoryDataType::kPassportCountry:
     case MemoryDataType::kPassportNumber:
@@ -141,12 +135,10 @@ std::string_view MemoryDataTypeToCategoryString(MemoryDataType type) {
     case MemoryDataType::kPassportExpirationDate:
       return "Passport";
 
-    case MemoryDataType::kRedressNumberFull:
     case MemoryDataType::kRedressNumberName:
     case MemoryDataType::kRedressNumberNumber:
       return "RedressNumber";
 
-    case MemoryDataType::kShipmentFull:
     case MemoryDataType::kShipmentTrackingNumber:
     case MemoryDataType::kShipmentAssociatedOrderId:
     case MemoryDataType::kShipmentDeliveryAddress:
@@ -157,7 +149,6 @@ std::string_view MemoryDataTypeToCategoryString(MemoryDataType type) {
     case MemoryDataType::kShipmentShippedDate:
       return "Shipment";
 
-    case MemoryDataType::kVehicle:
     case MemoryDataType::kVehicleMake:
     case MemoryDataType::kVehicleModel:
     case MemoryDataType::kVehicleYear:
@@ -222,6 +213,26 @@ AtMemoryMetricsRecorder::~AtMemoryMetricsRecorder() {
     return;
   }
 
+  AtMemoryUiSessionOutcome session_outcome;
+  if (suggestion_filled_in_session_) {
+    session_outcome = AtMemoryUiSessionOutcome::kSuggestionFilled;
+  } else if (suggestion_accepted_in_session_) {
+    session_outcome = AtMemoryUiSessionOutcome::kSuggestionAcceptedNotFilled;
+  } else if (query_count_ == 0) {
+    session_outcome = AtMemoryUiSessionOutcome::kDismissedBeforeQuery;
+  } else if (query_response_count_ == 0) {
+    // TODO(crbug.com/535486238): Reconsider calculating this once statefulness
+    // is implemented.
+    session_outcome = AtMemoryUiSessionOutcome::kDismissedBeforeResults;
+  } else if (suggestion_acceptance_.suggestions_received) {
+    session_outcome =
+        AtMemoryUiSessionOutcome::kDismissedResultsBeforeAcceptance;
+  } else {
+    session_outcome = AtMemoryUiSessionOutcome::kDismissedEmptyResults;
+  }
+  base::UmaHistogramEnumeration("Autofill.AtMemory.UiSessionOutcome",
+                                session_outcome);
+
   base::UmaHistogramBoolean("Autofill.AtMemory.QuerySubmitted",
                             query_count_ > 0);
   MaybeLogSuggestionAccepted();
@@ -284,6 +295,9 @@ void AtMemoryMetricsRecorder::OnPopupShown(
     case AutofillSuggestionTriggerSource::kAtMemoryContextMenu:
       source_ = AutofillMetrics::AtMemoryTriggerSource::kContextMenu;
       break;
+    case AutofillSuggestionTriggerSource::kAtMemoryDoubleCtrl:
+      source_ = AutofillMetrics::AtMemoryTriggerSource::kDoubleCtrl;
+      break;
     case AutofillSuggestionTriggerSource::kAtMemoryKeyboardShortcut:
       source_ = AutofillMetrics::AtMemoryTriggerSource::kKeyboardShortcut;
       break;
@@ -303,11 +317,10 @@ void AtMemoryMetricsRecorder::OnPopupShown(
     case AutofillSuggestionTriggerSource::kComposeDialogLostFocus:
     case AutofillSuggestionTriggerSource::kComposeDelayedProactiveNudge:
     case AutofillSuggestionTriggerSource::kPasswordManagerProcessedFocusedField:
-    case AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess:
     case AutofillSuggestionTriggerSource::kProactivePasswordRecovery:
     case AutofillSuggestionTriggerSource::kGlic:
     case AutofillSuggestionTriggerSource::kAtMemoryInactivityNudge:
-      // This class should only be used for @memory searches.
+      // This class should only be used for AtMemory searches.
       NOTREACHED();
   }
 
@@ -405,6 +418,7 @@ void AtMemoryMetricsRecorder::OnSuggestionAccepted(
 
 void AtMemoryMetricsRecorder::OnQueryResponseReceived(
     const MemorySearchResults& result) {
+  ++query_response_count_;
   if (std::optional<AtMemoryQueryCompletedStatus> status =
           GetQueryCompletedStatus(result)) {
     base::UmaHistogramEnumeration("Autofill.AtMemory.QueryCompleted", *status);

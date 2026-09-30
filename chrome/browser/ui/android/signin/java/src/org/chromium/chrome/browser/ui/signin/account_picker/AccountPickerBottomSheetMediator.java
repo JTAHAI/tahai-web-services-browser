@@ -19,6 +19,8 @@ import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.signin.services.AccountPreviewDataService;
+import org.chromium.chrome.browser.signin.services.AccountPreviewPreference;
 import org.chromium.chrome.browser.signin.services.DisplayableProfileData;
 import org.chromium.chrome.browser.signin.services.ProfileDataCache;
 import org.chromium.chrome.browser.signin.services.SigninFlowTimestampsLogger;
@@ -27,6 +29,7 @@ import org.chromium.chrome.browser.signin.services.SigninFlowTimestampsLogger.Fl
 import org.chromium.chrome.browser.signin.services.SigninManager;
 import org.chromium.chrome.browser.signin.services.SigninMetricsUtils;
 import org.chromium.chrome.browser.signin.services.SigninPreferencesManager;
+import org.chromium.chrome.browser.ui.signin.AccountPreviewPreferenceStringUtils;
 import org.chromium.chrome.browser.ui.signin.SigninUtils;
 import org.chromium.chrome.browser.ui.signin.account_picker.AccountPickerBottomSheetProperties.ViewState;
 import org.chromium.components.browser_ui.device_lock.DeviceLockActivityLauncher;
@@ -34,6 +37,8 @@ import org.chromium.components.signin.AccountManagerFacade;
 import org.chromium.components.signin.AccountManagerFacadeProvider;
 import org.chromium.components.signin.AccountUtils;
 import org.chromium.components.signin.AccountsChangeObserver;
+import org.chromium.components.signin.SigninFeatureMap;
+import org.chromium.components.signin.SigninFeatures;
 import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.IdentityManager;
@@ -62,15 +67,16 @@ public class AccountPickerBottomSheetMediator
     private final Activity mActivity;
     private final IdentityManager mIdentityManager;
     private final SigninManager mSigninManager;
+    private final @Nullable AccountPreviewDataService mAccountPreviewDataService;
     private final AccountPickerDelegate mAccountPickerDelegate;
     private final Runnable mDismissBottomSheet;
+    private final AccountPickerBottomSheetStrings mAccountPickerBottomSheetStrings;
     private final DeviceLockActivityLauncher mDeviceLockActivityLauncher;
     private final @ViewState int mInitialViewState;
     private final ProfileDataCache mProfileDataCache;
     private final PropertyModel mModel;
     private final AccountManagerFacade mAccountManagerFacade;
     private final boolean mIsSeamlessSignin;
-
     private @Nullable Runnable mRequestDisplayBottomSheet;
     private @Nullable CoreAccountInfo mSelectedAccount;
     private @Nullable CoreAccountInfo mDefaultAccount;
@@ -99,6 +105,7 @@ public class AccountPickerBottomSheetMediator
             WindowAndroid windowAndroid,
             IdentityManager identityManager,
             SigninManager signinManager,
+            @Nullable AccountPreviewDataService accountPreviewDataService,
             AccountPickerDelegate accountPickerDelegate,
             Runnable dismissBottomSheet,
             AccountPickerBottomSheetStrings accountPickerBottomSheetStrings,
@@ -107,8 +114,7 @@ public class AccountPickerBottomSheetMediator
             boolean isWebSignin,
             @SigninAccessPoint int signinAccessPoint,
             @Nullable CoreAccountId accountId) {
-
-        final @ViewState int initialView;
+        @ViewState int initialView;
         switch (launchMode) {
             case AccountPickerLaunchMode.CHOOSE_ACCOUNT:
                 initialView = ViewState.EXPANDED_ACCOUNT_LIST;
@@ -127,6 +133,7 @@ public class AccountPickerBottomSheetMediator
                 windowAndroid,
                 identityManager,
                 signinManager,
+                accountPreviewDataService,
                 accountPickerDelegate,
                 /* requestDisplayBottomSheet= */ null,
                 dismissBottomSheet,
@@ -143,6 +150,7 @@ public class AccountPickerBottomSheetMediator
             WindowAndroid windowAndroid,
             IdentityManager identityManager,
             SigninManager signinManager,
+            @Nullable AccountPreviewDataService accountPreviewDataService,
             AccountPickerDelegate accountPickerDelegate,
             Runnable requestDisplayBottomSheet,
             Runnable dismissBottomSheet,
@@ -154,6 +162,7 @@ public class AccountPickerBottomSheetMediator
                 windowAndroid,
                 identityManager,
                 signinManager,
+                accountPreviewDataService,
                 accountPickerDelegate,
                 requestDisplayBottomSheet,
                 dismissBottomSheet,
@@ -170,6 +179,7 @@ public class AccountPickerBottomSheetMediator
             WindowAndroid windowAndroid,
             IdentityManager identityManager,
             SigninManager signinManager,
+            @Nullable AccountPreviewDataService accountPreviewDataService,
             AccountPickerDelegate accountPickerDelegate,
             @Nullable Runnable requestDisplayBottomSheet,
             Runnable dismissBottomSheet,
@@ -184,9 +194,11 @@ public class AccountPickerBottomSheetMediator
         mActivity = assertNonNull(windowAndroid.getActivity().get());
         mIdentityManager = identityManager;
         mSigninManager = signinManager;
+        mAccountPreviewDataService = accountPreviewDataService;
         mAccountPickerDelegate = accountPickerDelegate;
         mRequestDisplayBottomSheet = requestDisplayBottomSheet;
         mDismissBottomSheet = dismissBottomSheet;
+        mAccountPickerBottomSheetStrings = accountPickerBottomSheetStrings;
         mProfileDataCache =
                 ProfileDataCache.createWithDefaultImageSizeAndNoBadge(mActivity, identityManager);
         mDeviceLockActivityLauncher = deviceLockActivityLauncher;
@@ -435,11 +447,18 @@ public class AccountPickerBottomSheetMediator
         if (accountId != null) {
             mDefaultAccount =
                     assertNonNull(AccountUtils.findAccountByGaiaId(accounts, accountId.getId()));
-            setSelectedAccount(mDefaultAccount);
-            mModel.set(AccountPickerBottomSheetProperties.VIEW_STATE, mInitialViewState);
-            return;
+        } else {
+            AccountPreviewPreference preference = getValidAccountPreference(accounts);
+            if (preference != null) {
+                mDefaultAccount =
+                        assertNonNull(
+                                AccountUtils.findAccountByGaiaId(accounts, preference.getGaiaId()));
+                updateSubtitleForPreferredAccountIfNeeded(preference);
+            } else {
+                mDefaultAccount = accounts.get(0);
+            }
         }
-        mDefaultAccount = accounts.get(0);
+
         setSelectedAccount(mDefaultAccount);
         mModel.set(AccountPickerBottomSheetProperties.VIEW_STATE, mInitialViewState);
     }
@@ -473,7 +492,13 @@ public class AccountPickerBottomSheetMediator
             return;
         }
 
-        mDefaultAccount = accounts.get(0);
+        // Do not update the subtitle once set during initialization to avoid visual flicker.
+        AccountPreviewPreference preference = getValidAccountPreference(accounts);
+        mDefaultAccount =
+                preference != null
+                        ? assertNonNull(
+                                AccountUtils.findAccountByGaiaId(accounts, preference.getGaiaId()))
+                        : accounts.get(0);
         mSelectedAccount =
                 mSelectedAccount == null
                         ? null
@@ -775,5 +800,45 @@ public class AccountPickerBottomSheetMediator
     private void startSigninTimestampLogging() {
         @FlowVariant String flowVariant = mAccountPickerDelegate.getSigninFlowVariant();
         mSigninTimestampsLogger = SigninFlowTimestampsLogger.startLogging(flowVariant);
+    }
+
+    private @Nullable AccountPreviewPreference getValidAccountPreference(
+            List<AccountInfo> accounts) {
+        if (mAccountPreviewDataService != null
+                && SigninFeatureMap.isEnabled(
+                        SigninFeatures.ENABLE_ACCOUNT_PREVIEW_PREFERRED_ACCOUNT)) {
+            AccountPreviewPreference preference =
+                    mAccountPreviewDataService.getPreferredAccountForPromo();
+            if (preference != null
+                    && AccountUtils.findAccountByGaiaId(accounts, preference.getGaiaId()) != null) {
+                return preference;
+            }
+        }
+        return null;
+    }
+
+    private void updateSubtitleForPreferredAccountIfNeeded(AccountPreviewPreference preference) {
+        // TODO(crbug.com/553530451): Migrate access point specific subtitle customization to a per
+        // access point string delegate instead of checking individual access points here.
+        // We shouldn't use access point in such a helper.
+        boolean isCustomizedSubtitleEnabled =
+                mIsWebSignin || mSigninAccessPoint == SigninAccessPoint.NTP_SIGNED_OUT_ICON;
+        if (!isCustomizedSubtitleEnabled) {
+            return;
+        }
+        String customizedSubtitle =
+                mIsWebSignin
+                        ? AccountPreviewPreferenceStringUtils.getSubtitleForWebSignin(
+                                mActivity, preference)
+                        : AccountPreviewPreferenceStringUtils.getSubtitleForDefaultFlow(
+                                mActivity, preference);
+        if (customizedSubtitle == null) {
+            return;
+        }
+        AccountPickerBottomSheetStrings newStrings =
+                new AccountPickerBottomSheetStrings.Builder(mAccountPickerBottomSheetStrings)
+                        .setSubtitleString(customizedSubtitle)
+                        .build();
+        mModel.set(AccountPickerBottomSheetProperties.BOTTOM_SHEET_STRINGS, newStrings);
     }
 }

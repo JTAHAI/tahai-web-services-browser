@@ -1092,14 +1092,15 @@ std::u16string AutocompleteController::GetSuggestionGroupHeaderText(
         contextual_search_provider() &&
         contextual_search_provider()->HasToolbeltLensAction();
     const auto* client = autocomplete_provider_client();
-    bool has_lens_search_chip =
-        client->IsOmniboxNextLensSearchChipEnabled() &&
+    bool has_contextual_chip =
+        (client->IsOmniboxNextLensSearchChipEnabled() ||
+         client->IsAskGShowChipEnabled()) &&
         ContextualSearchProvider::LensEntrypointEligible(input_, client);
 
     if (suggestion_group_id.value() == omnibox::GROUP_CONTEXTUAL_SEARCH &&
-        (has_toolbelt_lens_action || has_lens_search_chip)) {
+        (has_toolbelt_lens_action || has_contextual_chip)) {
       if (base::FeatureList::IsEnabled(omnibox::kHideContextualGroupHeaders) ||
-          has_lens_search_chip) {
+          has_contextual_chip) {
         return u"";
       }
       return header_text.empty()
@@ -1154,7 +1155,7 @@ bool AutocompleteController::ShouldRunProvider(
   }
 
 #if BUILDFLAG(IS_ANDROID)
-  if (omnibox::IsAndroidHub(input_.current_page_classification())) {
+  if (omnibox::IsAndroidHubOrTabSearch(input_.current_page_classification())) {
     return provider->type() == AutocompleteProvider::TYPE_SEARCH ||
            provider->type() == AutocompleteProvider::TYPE_OPEN_TAB ||
            provider->type() == AutocompleteProvider::TYPE_BOOKMARK ||
@@ -1590,12 +1591,13 @@ void AutocompleteController::UpdateResult(UpdateType update_type,
   }
 
   PostProcessMatches();
-
-  const bool is_lens_enabled = autocomplete_provider_client()->IsLensEnabled();
-
+  // TODO (crbug.com/555355466): Refactor or remove this logic when we remove
+  // OB simplification code paths.
+  const auto* client = autocomplete_provider_client();
   internal_result_.set_has_contextual_chips(
-      autocomplete_provider_client()->IsOmniboxNextAimPopupEnabled() &&
-      (is_lens_enabled || can_show_contextual_suggestions));
+      client->IsOmniboxNextAimPopupEnabled() &&
+      (client->IsLensEnabled() || client->IsAskGShowChipEnabled() ||
+       can_show_contextual_suggestions));
 
   bool default_match_changed = CheckWhetherDefaultMatchChanged(
       old_result.last_default_match,
@@ -1717,9 +1719,6 @@ void AutocompleteController::PostProcessMatches() {
   // Notify providers which of their matches were shown. If we end up with more
   // providers to notify, we should add `RegisterDisplayedMatches()` to the
   // `AutocompleteProvider` interface and iterate all providers here.
-  if (search_provider_) {
-    search_provider_->RegisterDisplayedAnswers(internal_result_);
-  }
   // `featured_search_provider_` isn't interested in "invisible" autocomplete
   // runs, e.g. when text is copied.
   if (featured_search_provider_ && !input_.omit_asynchronous_matches()) {
@@ -1824,7 +1823,7 @@ void AutocompleteController::AttachActions() {
   // TabMatcher should run for ZPS for the Hub since open tab suggestions are
   // shown there.
   if (!input_.IsZeroSuggest() ||
-      omnibox::IsAndroidHub(input_.current_page_classification())) {
+      omnibox::IsAndroidHubOrTabSearch(input_.current_page_classification())) {
     // Do not look for matching tabs on Android unless we collected all the
     // suggestions. Tab matching is an expensive process with multiple JNI calls
     // involved. Run it only when all the suggestions are collected.
@@ -1986,7 +1985,8 @@ void AutocompleteController::UpdateKeywordDescriptions(
           //   alternative UX because they're opened in the side panel.
           i->description = template_url->AdjustedShortNameForLocaleDirection();
           if (is_contextual) {
-            if (!i->IsStaticContextualSearchSuggestion()) {
+            if (!i->IsStaticContextualSearchSuggestion() ||
+                autocomplete_provider_client()->IsAskGShowChipEnabled()) {
               i->description = l10n_util::GetStringUTF16(
                   IDS_CONTEXTUAL_SEARCH_OPEN_LENS_ACTION_LABEL);
             } else {

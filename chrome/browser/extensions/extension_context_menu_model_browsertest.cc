@@ -16,15 +16,19 @@
 #include "base/test/metrics/user_action_tester.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/context_menu_matcher.h"
+#include "chrome/browser/extensions/cws_info_service_factory.h"
 #include "chrome/browser/extensions/extension_action_runner.h"
 #include "chrome/browser/extensions/extension_action_test_util.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
+#include "chrome/browser/extensions/extension_util.h"
 #include "chrome/browser/extensions/menu_manager.h"
 #include "chrome/browser/extensions/menu_manager_factory.h"
 #include "chrome/browser/extensions/permissions_url_constants.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/common/extensions/api/context_menus.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/crx_file/id_util.h"
 #include "components/policy/core/browser/browser_policy_connector.h"
@@ -34,6 +38,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
+#include "extensions/browser/cws_info_service.h"
 #include "extensions/browser/extension_dialog_auto_confirm.h"
 #include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
@@ -234,6 +239,12 @@ void VerifyItems(const ExtensionContextMenuModel& model,
   }
   EXPECT_EQ(item_number.size(), j);
 }
+
+// A stub popup delegate to use with the ExtensionContextMenuModel.
+class TestPopupDelegate : public ExtensionContextMenuModel::PopupDelegate {
+ public:
+  void InspectPopup() override {}
+};
 
 }  // namespace
 
@@ -712,41 +723,70 @@ IN_PROC_BROWSER_TEST_F(ExtensionContextMenuModelTest,
   }
 }
 
-// TODO(emiliapaz): Currently, the test scenarios always have "inspect popup"
-// hidden since the context menu doesn't have a popup delegate and the developer
-// mode pref is not set. Add a popup delegate and developer mode pref to
-// properly test the "inspect popup" entry visibility.
 IN_PROC_BROWSER_TEST_F(ExtensionContextMenuModelTest,
                        ExtensionContextMenuInspectPopupEntryVisibility) {
+  TestPopupDelegate popup_delegate;
+
+  // TODO(https://crbug.com/40804030): Update the test extensions in this suite
+  // to MV3.
+  const Extension* action =
+      AddExtension("browser_action", manifest_keys::kBrowserAction,
+                   ManifestLocation::kInternal);
+  ASSERT_TRUE(action);
+
+  const Extension* no_action =
+      AddExtension("no_action", nullptr, ManifestLocation::kInternal);
+  ASSERT_TRUE(no_action);
+
+  // 1. Developer mode is NOT enabled and no PopupDelegate provided.
   {
-    const Extension* page_action = AddExtension(
-        "page_action", manifest_keys::kPageAction, ManifestLocation::kInternal);
-    ASSERT_TRUE(page_action);
-    ExtensionContextMenuModel menu(page_action, browser_window_interface(),
+    ExtensionContextMenuModel menu(action, browser_window_interface(),
                                    /*is_pinned=*/true, nullptr, true,
                                    ContextMenuSource::kToolbarAction);
     EXPECT_EQ(GetCommandState(menu, ExtensionContextMenuModel::INSPECT_POPUP),
               CommandState::kAbsent);
   }
 
+  // 2. Developer mode is NOT enabled, but PopupDelegate IS provided.
   {
-    const Extension* browser_action =
-        AddExtension("browser_action", manifest_keys::kBrowserAction,
-                     ManifestLocation::kInternal);
-    ExtensionContextMenuModel menu(browser_action, browser_window_interface(),
+    ExtensionContextMenuModel menu(action, browser_window_interface(),
+                                   /*is_pinned=*/true, &popup_delegate, true,
+                                   ContextMenuSource::kToolbarAction);
+    EXPECT_EQ(GetCommandState(menu, ExtensionContextMenuModel::INSPECT_POPUP),
+              CommandState::kAbsent);
+  }
+
+  // Enable developer mode.
+  profile()->GetPrefs()->SetBoolean(prefs::kExtensionsUIDeveloperMode, true);
+
+  // 3. Developer mode IS enabled, but NO PopupDelegate provided.
+  {
+    ExtensionContextMenuModel menu(action, browser_window_interface(),
                                    /*is_pinned=*/true, nullptr, true,
                                    ContextMenuSource::kToolbarAction);
     EXPECT_EQ(GetCommandState(menu, ExtensionContextMenuModel::INSPECT_POPUP),
+              CommandState::kAbsent);
+  }
+
+  // 4. Developer mode IS enabled AND PopupDelegate IS provided.
+  {
+    ExtensionContextMenuModel menu(action, browser_window_interface(),
+                                   /*is_pinned=*/true, &popup_delegate, true,
+                                   ContextMenuSource::kToolbarAction);
+    // NOTE: Ideally, we'd verify this were CommandState::kEnabled. However,
+    // the model only allows that if there's an associated active web contents,
+    // which isn't the case in these dynamically-constructed menus. As such, we
+    // just verify its presence in the menu (i.e., != kAbsent); since this test
+    // exercises its visibility, that's sufficient for our use case.
+    EXPECT_NE(GetCommandState(menu, ExtensionContextMenuModel::INSPECT_POPUP),
               CommandState::kAbsent);
   }
 
   {
     // An extension with no specified action has one synthesized. However,
     // there will never be a popup to inspect, so we shouldn't add a menu item.
-    const Extension* no_action =
-        AddExtension("no_action", nullptr, ManifestLocation::kInternal);
     ExtensionContextMenuModel menu(no_action, browser_window_interface(),
-                                   /*is_pinned=*/true, nullptr, true,
+                                   /*is_pinned=*/true, &popup_delegate, true,
                                    ContextMenuSource::kToolbarAction);
     EXPECT_EQ(GetCommandState(menu, ExtensionContextMenuModel::INSPECT_POPUP),
               CommandState::kAbsent);
@@ -2476,6 +2516,85 @@ IN_PROC_BROWSER_TEST_P(
                 CommandState::kAbsent);
     }
   }
+}
+
+class ExtensionContextMenuModelRateExtensionTest
+    : public ExtensionContextMenuModelTest {
+ private:
+  base::test::ScopedFeatureList feature_list_{
+      extensions_features::kCWSReviewPromptingNativeUI};
+};
+
+IN_PROC_BROWSER_TEST_F(ExtensionContextMenuModelRateExtensionTest,
+                       RateExtensionCommand) {
+  scoped_refptr<const Extension> unpacked_extension =
+      ExtensionBuilder("Unpacked Extension")
+          .SetLocation(mojom::ManifestLocation::kUnpacked)
+          .Build();
+  InitializeAndAddExtension(*unpacked_extension);
+
+  ExtensionContextMenuModel unpacked_menu(
+      unpacked_extension.get(), browser_window_interface(),
+      /*is_pinned=*/true, nullptr,
+      /*can_show_icon_in_toolbar=*/true, ContextMenuSource::kMenuItem);
+
+  EXPECT_EQ(
+      GetCommandState(unpacked_menu, ExtensionContextMenuModel::RATE_EXTENSION),
+      CommandState::kAbsent);
+
+  scoped_refptr<const Extension> cws_extension =
+      ExtensionBuilder("CWS Extension")
+          .SetLocation(mojom::ManifestLocation::kInternal)
+          .AddFlags(Extension::FROM_WEBSTORE)
+          .Build();
+  InitializeAndAddExtension(*cws_extension);
+
+  base::DictValue cws_info_dict;
+  cws_info_dict.Set("is-present", true);
+  cws_info_dict.Set("is-live", true);
+  cws_info_dict.Set("violation-type", 0);
+  ExtensionPrefs::Get(profile())->UpdateExtensionPref(
+      cws_extension->id(), "cws-info", base::Value(std::move(cws_info_dict)));
+
+  EXPECT_EQ(GetTabCount(), 1);
+
+  // Test Extensions Menu source (kMenuItem)
+  ExtensionContextMenuModel menu_item(
+      cws_extension.get(), browser_window_interface(),
+      /*is_pinned=*/true, nullptr,
+      /*can_show_icon_in_toolbar=*/true, ContextMenuSource::kMenuItem);
+
+  EXPECT_EQ(
+      GetCommandState(menu_item, ExtensionContextMenuModel::RATE_EXTENSION),
+      CommandState::kEnabled);
+  menu_item.ExecuteCommand(ExtensionContextMenuModel::RATE_EXTENSION, 0);
+
+  content::WebContents* web_contents = GetActiveWebContents();
+  content::WaitForLoadStop(web_contents);
+  EXPECT_EQ(GetTabCount(), 2);
+  EXPECT_EQ(web_contents->GetLastCommittedURL(),
+            extensions::util::GetCWSWritingReviewUrl(
+                cws_extension->id(),
+                extensions::util::CWSReviewSource::kExtensionsMenu));
+
+  // Test Context Menu source (kToolbarAction)
+  ExtensionContextMenuModel menu_toolbar(
+      cws_extension.get(), browser_window_interface(),
+      /*is_pinned=*/true, nullptr,
+      /*can_show_icon_in_toolbar=*/true, ContextMenuSource::kToolbarAction);
+
+  EXPECT_EQ(
+      GetCommandState(menu_toolbar, ExtensionContextMenuModel::RATE_EXTENSION),
+      CommandState::kEnabled);
+  menu_toolbar.ExecuteCommand(ExtensionContextMenuModel::RATE_EXTENSION, 0);
+
+  web_contents = GetActiveWebContents();
+  content::WaitForLoadStop(web_contents);
+  EXPECT_EQ(GetTabCount(), 3);
+  EXPECT_EQ(web_contents->GetLastCommittedURL(),
+            extensions::util::GetCWSWritingReviewUrl(
+                cws_extension->id(),
+                extensions::util::CWSReviewSource::kContextMenu));
 }
 
 }  // namespace extensions

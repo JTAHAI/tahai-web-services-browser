@@ -10,6 +10,7 @@
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/core/frame/web_local_frame_impl.h"
 #include "third_party/blink/renderer/core/html/html_image_element.h"
+#include "third_party/blink/renderer/core/paint/paint_flags.h"
 #include "third_party/blink/renderer/core/paint/timing/largest_contentful_paint_manager.h"
 #include "third_party/blink/renderer/core/paint/timing/mock_paint_timing_callback_manager.h"
 #include "third_party/blink/renderer/core/paint/timing/paint_timing.h"
@@ -17,6 +18,7 @@
 #include "third_party/blink/renderer/core/paint/timing/paint_timing_test_base.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
 #include "third_party/blink/renderer/core/timing/dom_window_performance.h"
+#include "third_party/blink/renderer/platform/graphics/paint/paint_record_builder.h"
 #include "third_party/blink/renderer/platform/graphics/unaccelerated_static_bitmap_image.h"
 #include "third_party/skia/include/core/SkImage.h"
 #include "third_party/skia/include/core/SkSurface.h"
@@ -37,15 +39,6 @@ class LargestContentfulPaintCalculatorTest : public PaintTimingTestBase {
     test_delegate_ = MakeGarbageCollected<LcpTestDelegate>();
     GetLargestContentfulPaintCalculator()->SetDelegateForTest(test_delegate_);
     trace_analyzer::Start(kTraceCategories);
-  }
-
-  void SetImage(const char* id,
-                int width,
-                int height,
-                int bytes,
-                ImageStatus status = ImageStatus::kLoaded) {
-    To<HTMLImageElement>(GetElementById(id))
-        ->SetImageForTest(CreateImageForTest(width, height, bytes, status));
   }
 
   uint64_t LargestReportedSize() {
@@ -124,7 +117,7 @@ TEST_F(LargestContentfulPaintCalculatorTest, SingleImage) {
     <!DOCTYPE html>
     <img id='target'/>
   )HTML");
-  SetImage("target", 100, 150, 1500);
+  SetImageContent("target", 100, 150, 1500);
   SimulateRenderingAndPresentationTime();
 
   auto analyzer = trace_analyzer::Stop();
@@ -168,7 +161,7 @@ TEST_F(LargestContentfulPaintCalculatorTest, ImageLargerText) {
     <img id='target'/>
     <p id='text'>This text should be larger than the image!!!!</p>
   )HTML");
-  SetImage("target", 3, 3, 100);
+  SetImageContent("target", 3, 3, 100);
   SimulateRenderingAndPresentationTime();
 
   EXPECT_GT(LargestReportedSize(), 9u);
@@ -186,7 +179,7 @@ TEST_F(LargestContentfulPaintCalculatorTest, ImageSmallerText) {
     <img id='target'/>
     <p>.</p>
   )HTML");
-  SetImage("target", 100, 200, /*bytes=*/250);
+  SetImageContent("target", 100, 200, /*bytes=*/250);
   SimulateRenderingAndPresentationTime();
 
   EXPECT_EQ(LargestReportedSize(), 20000u);
@@ -203,8 +196,8 @@ TEST_F(LargestContentfulPaintCalculatorTest, LargestImageRemoved) {
     <img id='small'/>
     <p>Larger than the second image</p>
   )HTML");
-  SetImage("large", 100, 200, 200);
-  SetImage("small", 3, 3, 18);
+  SetImageContent("large", 100, 200, 200);
+  SetImageContent("small", 3, 3, 18);
   SimulateRenderingAndPresentationTime();
   // Image is larger than the text.
   EXPECT_EQ(LargestReportedSize(), 20000u);
@@ -232,7 +225,7 @@ TEST_F(LargestContentfulPaintCalculatorTest, LargestTextRemoved) {
     </p>
     <p id='small'>.</p>
   )HTML");
-  SetImage("medium", 10, 5, /*bytes=*/50);
+  SetImageContent("medium", 10, 5, /*bytes=*/50);
   SimulateRenderingAndPresentationTime();
   // Text is larger than the image.
   EXPECT_GT(LargestReportedSize(), 50u);
@@ -266,7 +259,7 @@ TEST_F(LargestContentfulPaintCalculatorTest, SingleImageExcludedForEntropy) {
   )HTML");
   // 600 bytes will cause a calculated entropy of 0.032bpp, which is below the
   // 2bpp threshold.
-  SetImage("target", 100, 150, 60);
+  SetImageContent("target", 100, 150, 60);
   SimulateRenderingAndPresentationTime();
 
   EXPECT_EQ(LargestReportedSize(), 0u);
@@ -283,8 +276,8 @@ TEST_F(LargestContentfulPaintCalculatorTest, LargerImageExcludedForEntropy) {
   )HTML");
   // Smaller image has 1.6 bpp of entropy, enough to be considered for LCP.
   // Larger image has only 0.032 bpp, which is below the 2bpp threshold.
-  SetImage("small", 3, 3, 18);
-  SetImage("large", 100, 200, 80);
+  SetImageContent("small", 3, 3, 18);
+  SetImageContent("large", 100, 200, 80);
   SimulateRenderingAndPresentationTime();
 
   EXPECT_EQ(LargestReportedSize(), 9u);
@@ -303,8 +296,8 @@ TEST_F(LargestContentfulPaintCalculatorTest,
   )HTML");
   // Smaller image has 16 bpp of entropy, enough to be considered for LCP.
   // Larger image has 0.32 bpp, which is now above the 0.2bpp threshold.
-  SetImage("small", 3, 3, 18);
-  SetImage("large", 100, 200, 800);
+  SetImageContent("small", 3, 3, 18);
+  SetImageContent("large", 100, 200, 800);
   SimulateRenderingAndPresentationTime();
 
   EXPECT_EQ(LargestReportedSize(), 20000u);
@@ -320,8 +313,8 @@ TEST_F(LargestContentfulPaintCalculatorTest, LargestPendingImage) {
   )HTML");
   // Smaller image has 16 bpp of entropy, enough to be considered for LCP.
   // Larger image has 0.32 bpp, which is now above the 0.2bpp threshold.
-  SetImage("small", 3, 3, 18);
-  SetImage("large", 100, 300, 800, ImageStatus::kPending);
+  SetImageContent("small", 3, 3, 18);
+  SetImageContent("large", 100, 300, 800, ImageStatus::kPending);
   SimulateRenderingAndPresentationTime();
 
   // The smaller image, which is the largest presented image, should be reported
@@ -341,8 +334,8 @@ TEST_F(LargestContentfulPaintCalculatorTest, RemoveLargestPendingImage) {
   )HTML");
   // Smaller image has 16 bpp of entropy, enough to be considered for LCP.
   // Larger image has 0.32 bpp, which is now above the 0.2bpp threshold.
-  SetImage("small", 3, 3, 18);
-  SetImage("large", 100, 300, 800, ImageStatus::kPending);
+  SetImageContent("small", 3, 3, 18);
+  SetImageContent("large", 100, 300, 800, ImageStatus::kPending);
   SimulateRenderingAndPresentationTime();
 
   // The smaller image, which is the largest presented image, should be reported
@@ -380,9 +373,9 @@ TEST_F(LargestContentfulPaintCalculatorTest, MulitiplePendingImages) {
   )HTML");
   // Smaller image has 16 bpp of entropy, enough to be considered for LCP.
   // Larger image has 0.32 bpp, which is now above the 0.2bpp threshold.
-  SetImage("small", 3, 3, 18);
-  SetImage("large", 100, 100, 800, ImageStatus::kPending);
-  SetImage("largest", 150, 200, 800, ImageStatus::kPending);
+  SetImageContent("small", 3, 3, 18);
+  SetImageContent("large", 100, 100, 800, ImageStatus::kPending);
+  SetImageContent("largest", 150, 200, 800, ImageStatus::kPending);
   SimulateRenderingAndPresentationTime();
 
   // The smaller image, which is the largest presented image, should be reported
@@ -400,6 +393,27 @@ TEST_F(LargestContentfulPaintCalculatorTest, MulitiplePendingImages) {
   EXPECT_EQ(LargestReportedSize(), 9u);
   EXPECT_EQ(LargestImagePaintSize(), 9u);
   EXPECT_FALSE(LargestImagePaintTime().is_null());
+  trace_analyzer::Stop();
+}
+
+TEST_F(LargestContentfulPaintCalculatorTest, OutOfLifecyclePaintsIgnored) {
+  SetMainFrameBodyContent(R"HTML(
+    <!DOCTYPE html>
+    <img id='large' width=100 height=300 />
+  )HTML");
+
+  // Set the content as pending to force the image to be stored as the largest
+  // pending image if it gets painted.
+  SetImageContent("large", 100, 300, 800, ImageStatus::kPending);
+
+  // Paint outside of the normal lifecycle. This should be ignored by
+  // paint timing.
+  PaintRecordBuilder builder;
+  GetFrameView().PaintOutsideOfLifecycle(builder.Context(), PaintFlag::kNoFlag,
+                                         CullRect::Infinite());
+  EXPECT_EQ(GetLargestContentfulPaintCalculator()
+                ->LargestPaintedOrPendingImageForTest(),
+            nullptr);
   trace_analyzer::Stop();
 }
 

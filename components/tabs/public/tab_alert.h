@@ -7,9 +7,11 @@
 
 namespace tabs {
 // Alert states for a tab. Any number of these (or none) may apply at once.
+// GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.tabs
 // LINT.IfChange(TabAlert)
 enum class TabAlert {
-  kMediaRecording,       // Audio/Video [both] being recorded, consumed by tab.
+  kNone = -1,
+  kMediaRecording = 0,   // Audio/Video [both] being recorded, consumed by tab.
   kTabCapturing,         // Tab contents being captured.
   kAudioPlaying,         // Audible audio is playing from the tab.
   kAudioMuting,          // Tab audio is being muted.
@@ -30,7 +32,7 @@ enum class TabAlert {
 };
 // Any changes to the TabAlert enum needs to be updated in CompareAlerts as
 // well.
-// LINT.ThenChange(/chrome/browser/ui/tabs/alert/tab_alert_controller.cc)
+// LINT.ThenChange(/chrome/browser/ui/tabs/alert/tab_alert_controller.cc,/chrome/android/java/src/org/chromium/chrome/browser/tab/TabUtils.java:TabAlert)
 }  // namespace tabs
 
 #endif  // COMPONENTS_TABS_PUBLIC_TAB_ALERT_H_

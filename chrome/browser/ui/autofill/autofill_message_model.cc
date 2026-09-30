@@ -7,9 +7,10 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
+#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/android/android_theme_resources.h"
-#include "chrome/browser/android/preferences/autofill/settings_navigation_helper.h"
 #include "chrome/browser/android/resource_mapper.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/autofill/core/browser/ui/payments/save_payment_method_and_virtual_card_enroll_confirmation_ui_params.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/grit/components_scaled_resources.h"
@@ -19,6 +20,7 @@
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "url/gurl.h"
 
 namespace autofill {
 
@@ -107,8 +109,9 @@ AutofillMessageModel::CreateForPersonalContextFetchingFailure() {
 
 std::unique_ptr<AutofillMessageModel>
 AutofillMessageModel::CreateForPrivateInferenceNotice(
-    content::WebContents* web_contents,
-    base::OnceClosure action_callback) {
+    base::OnceClosure action_callback,
+    messages::MessageWrapper::DismissCallback dismiss_callback,
+    base::RepeatingClosure secondary_action_callback) {
   std::unique_ptr<messages::MessageWrapper> message =
       std::make_unique<messages::MessageWrapper>(
           messages::MessageIdentifier::PRIVATE_INFERENCE_NOTICE);
@@ -122,12 +125,29 @@ AutofillMessageModel::CreateForPrivateInferenceNotice(
       IDR_ANDROID_AUTOFILL_ID_CHROME_PRODUCT));
   message->SetSecondaryIconResourceId(
       ResourceMapper::MapToJavaDrawableId(IDR_ANDROID_MESSAGE_SETTINGS));
-  message->SetSecondaryActionCallback(
-      base::BindRepeating(&ShowAutofillSettings, web_contents));
+  message->SetSecondaryActionCallback(std::move(secondary_action_callback));
 
   return base::WrapUnique(new AutofillMessageModel(
       std::move(message), Type::kPrivateInferenceNotice,
-      std::move(action_callback), base::DoNothing()));
+      std::move(action_callback), std::move(dismiss_callback)));
+}
+
+std::unique_ptr<AutofillMessageModel>
+AutofillMessageModel::CreateForEmailVerified(
+    const GURL& issuer,
+    base::OnceClosure action_callback) {
+  std::unique_ptr<messages::MessageWrapper> message =
+      std::make_unique<messages::MessageWrapper>(
+          messages::MessageIdentifier::EMAIL_VERIFIED);
+  message->SetTitle(l10n_util::GetStringFUTF16(
+      IDS_EMAIL_VERIFIED, base::UTF8ToUTF16(issuer.host())));
+  message->SetPrimaryButtonText(l10n_util::GetStringUTF16(IDS_MANAGE));
+  message->SetIconResourceId(
+      ResourceMapper::MapToJavaDrawableId(IDR_ANDROID_AUTOFILL_EMAIL_VERIFIED));
+
+  return base::WrapUnique(
+      new AutofillMessageModel(std::move(message), Type::kEmailVerified,
+                               std::move(action_callback), base::DoNothing()));
 }
 
 std::string_view AutofillMessageModel::TypeToString(Type message_type) {
@@ -146,6 +166,8 @@ std::string_view AutofillMessageModel::TypeToString(Type message_type) {
       return "PersonalContextFetchingFailure";
     case Type::kPrivateInferenceNotice:
       return "PrivateInferenceNotice";
+    case Type::kEmailVerified:
+      return "EmailVerified";
   }
 }
 

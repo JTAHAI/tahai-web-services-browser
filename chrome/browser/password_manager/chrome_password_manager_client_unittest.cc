@@ -30,7 +30,6 @@
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "chrome/browser/autofill/mock_manual_filling_view.h"
-#include "chrome/browser/critical_actions/critical_action_factory.h"
 #include "chrome/browser/keyboard_accessory/test_utils/android/mock_address_accessory_controller.h"
 #include "chrome/browser/keyboard_accessory/test_utils/android/mock_at_memory_accessory_controller.h"
 #include "chrome/browser/password_manager/chrome_password_change_service.h"
@@ -46,7 +45,7 @@
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/autofill/content/browser/autofill_test_utils.h"
+#include "components/autofill/content/browser/autofill_test_util.h"
 #include "components/autofill/content/browser/content_autofill_client.h"
 #include "components/autofill/content/browser/content_autofill_driver.h"
 #include "components/autofill/content/common/mojom/autofill_agent.mojom.h"
@@ -54,14 +53,12 @@
 #include "components/autofill/core/browser/logging/log_manager.h"
 #include "components/autofill/core/browser/logging/log_receiver.h"
 #include "components/autofill/core/browser/logging/log_router.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
 #include "components/autofill/core/common/autofill_features.h"
-#include "components/autofill/core/common/autofill_test_utils.h"
+#include "components/autofill/core/common/autofill_test_util.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/signatures.h"
 #include "components/autofill/core/common/unique_ids.h"
-#include "components/critical_actions/core/browser/critical_action_service.h"
-#include "components/critical_actions/core/browser/critical_action_types.h"
 #include "components/device_reauth/device_authenticator.h"
 #include "components/device_reauth/mock_device_authenticator.h"
 #include "components/password_manager/content/browser/content_password_manager_driver.h"
@@ -92,6 +89,7 @@
 #include "content/public/common/url_constants.h"
 #include "content/public/test/mock_navigation_handle.h"
 #include "content/public/test/navigation_simulator.h"
+#include "content/public/test/prerender_test_util.h"
 #include "content/public/test/web_contents_tester.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
@@ -426,27 +424,6 @@ class MockTouchToFillPasswordManagerController
               (override));
 };
 #endif  // BUILDFLAG_IS_ANDROID)
-
-class MockCriticalActionService
-    : public critical_actions::CriticalActionService {
- public:
-  MockCriticalActionService(
-      const base::FilePath& db_path,
-      scoped_refptr<base::SequencedTaskRunner> backend_task_runner)
-      : critical_actions::CriticalActionService(db_path, backend_task_runner) {}
-  ~MockCriticalActionService() override = default;
-
-  MOCK_METHOD(void,
-              AddCriticalAction,
-              (const critical_actions::CriticalActionEntry& entry),
-              (override));
-  MOCK_METHOD(void,
-              AddCriticalActionWithNavigationId,
-              (const critical_actions::CriticalActionEntry& entry,
-               int64_t navigation_id),
-              (override));
-  MOCK_METHOD(void, OnNavigationDiscarded, (int64_t navigation_id), (override));
-};
 
 }  // namespace
 
@@ -1693,99 +1670,20 @@ TEST_F(ChromePasswordManagerClientTest, MissingUIDelegate) {
   client->HideManualFallbackForSaving();
 }
 
-class ChromePasswordManagerClientCriticalActionsTest
-    : public ChromePasswordManagerClientTest {
- public:
-  void SetUp() override {
-    ChromePasswordManagerClientTest::SetUp();
+TEST_F(ChromePasswordManagerClientTest, GetActionableError) {
+  password_manager::MockPasswordStoreInterface* mock_profile_store =
+      static_cast<password_manager::MockPasswordStoreInterface*>(
+          GetClient()->GetProfilePasswordStore());
+  EXPECT_CALL(*mock_profile_store, GetError)
+      .WillRepeatedly(
+          Return(password_manager::ActionableError::kTrustedVaultKeyNeeded));
+  EXPECT_EQ(password_manager::ActionableError::kTrustedVaultKeyNeeded,
+            GetClient()->GetActionableError());
 
-    ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
-    base::FilePath db_path =
-        temp_dir_.GetPath().AppendASCII("TestCriticalActions.db");
-    scoped_refptr<base::SequencedTaskRunner> backend_task_runner =
-        base::ThreadPool::CreateSequencedTaskRunner({base::MayBlock()});
-
-    // Setup the mock CriticalActionService factory.
-    auto mock_service = std::make_unique<NiceMock<MockCriticalActionService>>(
-        db_path, backend_task_runner);
-    mock_service_ = mock_service.get();
-
-    critical_actions::CriticalActionFactory::GetInstance()->SetTestingFactory(
-        profile(),
-        base::BindOnce(
-            [](std::unique_ptr<NiceMock<MockCriticalActionService>> service,
-               content::BrowserContext* context)
-                -> std::unique_ptr<KeyedService> { return std::move(service); },
-            std::move(mock_service)));
-
-    // Setup a committed main frame navigation and visit ID.
-    auto simulator = content::NavigationSimulator::CreateBrowserInitiated(
-        test_url_, web_contents());
-    simulator->Start();
-    nav_id_ = simulator->GetNavigationHandle()->GetNavigationId();
-    simulator->Commit();
-  }
-
-  void TearDown() override {
-    DeleteContents();
-    mock_service_ = nullptr;
-    ChromePasswordManagerClientTest::TearDown();
-  }
-
- protected:
-  MockCriticalActionService* mock_service() { return mock_service_; }
-  const GURL& test_url() const { return test_url_; }
-  int64_t nav_id() const { return nav_id_; }
-
- private:
-  base::ScopedTempDir temp_dir_;
-  raw_ptr<MockCriticalActionService> mock_service_ = nullptr;
-  const GURL test_url_{"https://example.com/login"};
-  int64_t nav_id_ = 0;
-};
-
-TEST_F(ChromePasswordManagerClientCriticalActionsTest,
-       DelegatesToCriticalActionServiceWithNavigationId) {
-  // Expect OnPasswordFilled to call AddCriticalActionWithNavigationId with the
-  // main frame navigation ID.
-  EXPECT_CALL(*mock_service(), AddCriticalActionWithNavigationId)
-      .WillOnce([&](const critical_actions::CriticalActionEntry& entry,
-                    int64_t navigation_id) {
-        EXPECT_EQ(entry.action_type, critical_actions::ActionType::kFormFill);
-        EXPECT_EQ(entry.action_source,
-                  critical_actions::ActionSource::kPasswordManager);
-        EXPECT_EQ(entry.url, test_url());
-        EXPECT_EQ(navigation_id, nav_id());
-
-        auto parsed_json =
-            base::JSONReader::Read(entry.metadata, base::JSON_PARSE_RFC);
-        ASSERT_TRUE(parsed_json.has_value());
-        ASSERT_TRUE(parsed_json->is_dict());
-        const std::string* type_val = parsed_json->GetDict().FindString("type");
-        ASSERT_TRUE(type_val);
-        EXPECT_EQ(*type_val, "password_manager_autofill");
-      });
-
-  GetClient()->OnPasswordFilled(
-      nullptr, test_url(),
-      PasswordManagerClient::PasswordFillTrigger::kPasswordManagerAutofill);
-}
-
-TEST_F(ChromePasswordManagerClientCriticalActionsTest,
-       NotifiesCriticalActionServiceOnUncommittedNavigation) {
-  auto simulator = content::NavigationSimulator::CreateBrowserInitiated(
-      GURL("https://example.com/other"), web_contents());
-  simulator->Start();
-  int64_t uncommitted_nav_id =
-      simulator->GetNavigationHandle()->GetNavigationId();
-
-  EXPECT_CALL(*mock_service(), OnNavigationDiscarded(uncommitted_nav_id));
-
-  simulator->Fail(net::ERR_ABORTED);
-
-  // Verify that the call happened and clear expectations so that
-  // TearDown's DeleteContents() doesn't trigger noise.
-  testing::Mock::VerifyAndClearExpectations(mock_service());
+  EXPECT_CALL(*mock_profile_store, GetError)
+      .WillRepeatedly(Return(password_manager::ActionableError::kNoError));
+  EXPECT_EQ(password_manager::ActionableError::kNoError,
+            GetClient()->GetActionableError());
 }
 
 #if BUILDFLAG(IS_ANDROID)
@@ -2588,6 +2486,56 @@ TEST_F(ChromePasswordManagerClientAndroidTest,
   // be called.
   AdvanceClock(base::Seconds(5));
   base::RunLoop().RunUntilIdle();
+}
+
+TEST_F(ChromePasswordManagerClientAndroidTest,
+       DoNotShowKeyboardReplacingSurfaceForInactiveFrame) {
+  webauthn::WebAuthnCredManDelegate::override_cred_man_support_for_testing(
+      webauthn::CredManSupport::DISABLED);
+  CreateManualFillingController(web_contents());
+
+  auto* ttf_controller = MakeMockTouchToFillPasswordManagerController();
+  EXPECT_CALL(*ttf_controller, InitData).Times(0);
+  EXPECT_CALL(*ttf_controller, Show).Times(0);
+
+  constexpr char kUrl[] = "https://www.foo.com/login.html";
+  NavigateAndCommit(GURL(kUrl));
+
+  content::RenderFrameHostWrapper old_rfh(main_rfh());
+  ContentAutofillDriver* autofill_driver =
+      ContentAutofillDriver::GetForRenderFrameHost(old_rfh.get());
+  ASSERT_TRUE(autofill_driver);
+
+  std::vector<FormFieldData> fields = {CreateTestFormField(
+      "Username:", "username", "", FormControlType::kInputText, "webauthn")};
+  FormData form =
+      CreateFormDataForRenderFrameHost(*old_rfh.get(), std::move(fields));
+  {
+    autofill::TestAutofillManagerWaiter waiter(
+        autofill_driver->GetAutofillManager(),
+        {autofill::AutofillManagerEvent::kFormsSeen});
+    autofill_driver->renderer_events().FormsSeen(/*updated_forms=*/{form},
+                                                 /*removed_forms=*/{});
+    ASSERT_TRUE(waiter.Wait(/*num_expected_relevant_events=*/1));
+  }
+
+  auto* old_driver =
+      ContentPasswordManagerDriver::GetForRenderFrameHost(old_rfh.get());
+
+  GetClient()->ShowKeyboardReplacingSurface(
+      old_driver, GetFocusedFieldSuggestionRequest(form));
+
+  // Navigate to another site so old_rfh becomes inactive.
+  NavigateAndCommit(GURL("https://www.bar.com/page2.html"));
+  ASSERT_FALSE(old_rfh.get()->IsActive());
+
+  // Passkeys arrive for the old driver/frame after page navigation.
+  ChromeWebAuthnCredentialsDelegateFactory::GetFactory(web_contents())
+      ->GetDelegateForFrame(old_rfh.get())
+      ->OnCredentialsReceived(
+          std::vector<password_manager::PasskeyCredential>(),
+          ChromeWebAuthnCredentialsDelegate::SecurityKeyOrHybridFlowAvailable(
+              true));
 }
 
 #endif  // BUILDFLAG(IS_ANDROID)

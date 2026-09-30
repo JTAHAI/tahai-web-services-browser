@@ -82,7 +82,7 @@ ci.builder(
         mixins = [
             "arm64",
             "docker",
-            "linux-jammy",
+            "linux-ubuntu",
         ],
         per_test_modifications = {
             "blink_web_tests": targets.remove(
@@ -148,6 +148,7 @@ ci.builder(
             ),
         },
     ),
+    ssd = None,
     free_space = free_space.high,
     console_view_entry = [
         consoles.console_view_entry(
@@ -251,6 +252,7 @@ ci.builder(
             ),
         },
     ),
+    ssd = None,
     console_view_entry = [
         consoles.console_view_entry(
             branch_selector = branches.selector.MAIN,
@@ -309,6 +311,7 @@ ci.builder(
             ),
         ],
     ),
+    ssd = None,
     free_space = free_space.high,
     console_view_entry = [
         consoles.console_view_entry(
@@ -492,6 +495,7 @@ ci.builder(
             ),
         },
     ),
+    ssd = None,
     console_view_entry = [
         consoles.console_view_entry(
             branch_selector = branches.selector.MAIN,

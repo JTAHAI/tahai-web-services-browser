@@ -7,6 +7,7 @@
 
 #include <optional>
 
+#include "cc/input/main_thread_scrolling_reason.h"
 #include "cc/layers/layer_collections.h"
 #include "third_party/blink/renderer/platform/graphics/compositor_element_id.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
@@ -40,7 +41,7 @@ class ScrollPaintPropertyNode;
 class SynthesizedClip;
 class TransformPaintPropertyNode;
 
-using StackScrollTranslationVector =
+using StackTransformPaintPropertyNodeVector =
     HeapVector<Member<const TransformPaintPropertyNode>, 32>;
 
 class PropertyTreeManagerClient {
@@ -180,8 +181,9 @@ class PropertyTreeManager {
   static void DropCompositorScrollDeltaNextCommit(cc::LayerTreeHost&,
                                                   CompositorElementId);
 
-  static uint32_t GetMainThreadRepaintReasons(const cc::LayerTreeHost&,
-                                              const ScrollPaintPropertyNode&);
+  static cc::MainThreadRepaintReasons GetMainThreadRepaintReasons(
+      const cc::LayerTreeHost&,
+      const ScrollPaintPropertyNode&);
   // TODO(crbug.com/40517276): Remove this function after launching
   // RasterInducingScroll.
   static bool UsesCompositedScrolling(const cc::LayerTreeHost&,
@@ -205,7 +207,7 @@ class PropertyTreeManager {
       const HashSet<int>& layers_having_video);
 
   void EnsureCompositorNodesForAnchorPositionAdjustmentContainers(
-      const StackScrollTranslationVector& scroll_translations);
+      const StackTransformPaintPropertyNodeVector& transforms);
 
   // The type of operation the current cc effect node applies.
   enum CcEffectType {
@@ -223,8 +225,6 @@ class PropertyTreeManager {
     kSyntheticFor2dAxisAlignment = 1 << 1
   };
 
-  struct CurrentEffectState;
-
   // This is public for WTF_ALLOW_MOVE_AND_INIT_WITH_MEM_FUNCTIONS.
   // Note: EffectState holds direct references to property nodes. Ordinarily it
   // would be verboten to keep references to data controlled by PropertyTrees,
@@ -237,7 +237,6 @@ class PropertyTreeManager {
 
    public:
     EffectState() = default;
-    explicit EffectState(const CurrentEffectState&);
 
     // The effect state of the cc effect node. It's never nullptr.
     Member<const EffectPaintPropertyNode> effect;
@@ -295,26 +294,6 @@ class PropertyTreeManager {
     }
   };
 
-  // For performance, the top of effect_stack_ is separated into current_
-  // which is stack allocated and allow raw pointers to avoid the overhead of
-  // Member<>.
-  struct CurrentEffectState {
-    STACK_ALLOCATED();
-
-   public:
-    CurrentEffectState() = default;
-    explicit CurrentEffectState(const EffectState&);
-
-    const EffectPaintPropertyNode* effect = nullptr;
-    const ClipPaintPropertyNode* clip = nullptr;
-    const TransformPaintPropertyNode* transform = nullptr;
-    int effect_id = 0;
-    CcEffectType effect_type = kEffect;
-    EffectState::Alignment may_be_2d_axis_misaligned_to_render_surface =
-        EffectState::kAligned;
-    bool contained_by_non_render_surface_synthetic_rounded_clip = false;
-  };
-
  private:
   void SetupRootTransformNode();
   void SetupRootClipNode();
@@ -370,7 +349,7 @@ class PropertyTreeManager {
 
   void UpdatePixelMovingFilterClipExpanders();
 
-  uint32_t NonCompositedMainThreadRepaintReasons(
+  cc::MainThreadRepaintReasons NonCompositedMainThreadRepaintReasons(
       const TransformPaintPropertyNode& scroll_translation) const;
 
   // The current effect state. Virtually it's the top of the effect stack if

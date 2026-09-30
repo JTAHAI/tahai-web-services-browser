@@ -16,15 +16,16 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.customtabs.BaseCustomTabActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabSelectionType;
+import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeUtils;
 import org.chromium.components.browser_ui.display_cutout.DisplayCutoutController;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.edge_to_edge.EdgeToEdgeManager;
+import org.chromium.ui.edge_to_edge.EdgeToEdgeStateProvider;
 import org.chromium.ui.edge_to_edge.EdgeToEdgeTokenHolder;
 import org.chromium.ui.insets.InsetObserver;
 import org.chromium.url.GURL;
@@ -45,7 +46,7 @@ public class DisplayCutoutTabHelper implements UserData {
 
     /** Listens to various Tab events. */
     private final TabObserver mTabObserver =
-            new EmptyTabObserver() {
+            new TabObserver() {
                 @Override
                 public void onShown(Tab tab, @TabSelectionType int type) {
                     assert tab == mTab;
@@ -163,6 +164,22 @@ public class DisplayCutoutTabHelper implements UserData {
         @Override
         public void setEdgeToEdgeState(boolean drawEdgeToEdge) {
             EdgeToEdgeManager edgeToEdgeManager = getEdgeToEdgeManagerOrNull();
+            // currentProvider is null whenever the currently attached activity isn't a
+            // BaseCustomTabActivity at all (e.g. the tab was reparented into the regular tabbed
+            // browser activity), not just when it's a *different* BaseCustomTabActivity.
+            EdgeToEdgeStateProvider currentProvider =
+                    edgeToEdgeManager == null
+                            ? null
+                            : edgeToEdgeManager.getEdgeToEdgeStateProvider();
+            if (mEdgeToEdgeTokenHolder != null
+                    && mEdgeToEdgeTokenHolder.getProvider() != currentProvider) {
+                // The tab is no longer attached to the activity/window whose provider this token
+                // holder was bound to (it may have been reparented into a different
+                // BaseCustomTabActivity, or into a non-CCT activity entirely). Release the token
+                // so this delegate stops pinning the old (possibly destroyed) activity in memory.
+                mEdgeToEdgeTokenHolder.release();
+                mEdgeToEdgeTokenHolder = null;
+            }
             if (edgeToEdgeManager == null) return;
             if (mEdgeToEdgeTokenHolder == null) {
                 mEdgeToEdgeTokenHolder =
@@ -173,7 +190,8 @@ public class DisplayCutoutTabHelper implements UserData {
             } else {
                 mEdgeToEdgeTokenHolder.release();
             }
-            edgeToEdgeManager.setContentFitsWindowInsets(!drawEdgeToEdge);
+            edgeToEdgeManager.setContentFitsWindowInsets(
+                    !drawEdgeToEdge && !EdgeToEdgeUtils.isEdgeToEdgeEverywhereEnabled());
         }
     }
 

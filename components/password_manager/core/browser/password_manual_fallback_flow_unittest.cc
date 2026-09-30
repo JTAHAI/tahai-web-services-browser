@@ -19,7 +19,7 @@
 #include "components/autofill/core/browser/suggestions/suggestion_test_helpers.h"
 #include "components/autofill/core/browser/ui/autofill_suggestion_delegate.h"
 #include "components/autofill/core/common/aliases.h"
-#include "components/autofill/core/common/autofill_test_utils.h"
+#include "components/autofill/core/common/autofill_test_util.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom-shared.h"
 #include "components/autofill/core/common/unique_ids.h"
 #include "components/device_reauth/mock_device_authenticator.h"
@@ -695,7 +695,8 @@ TEST_F(PasswordManualFallbackFlowTest,
   suggestion.labels = {{Suggestion::Text(u"username")}};
   // `suggestion.is_acceptable` is `true` if the popup is triggered on a
   // password form.
-  suggestion.acceptability = Suggestion::Acceptability::kAcceptable;
+  suggestion.acceptability =
+      Suggestion::Acceptability::kSelectableAndAcceptable;
   flow().DidSelectSuggestion(suggestion);
 }
 
@@ -730,7 +731,8 @@ TEST_F(PasswordManualFallbackFlowTest,
                                             u"cross-domain.com",
                                             /*is_cross_domain=*/true));
   suggestion.labels = {{Suggestion::Text(u"username")}};
-  suggestion.acceptability = Suggestion::Acceptability::kAcceptable;
+  suggestion.acceptability =
+      Suggestion::Acceptability::kSelectableAndAcceptable;
   flow().DidSelectSuggestion(suggestion);
 }
 
@@ -765,7 +767,8 @@ TEST_F(PasswordManualFallbackFlowTest,
                                             u"cross-domain.com",
                                             /*is_cross_domain=*/true));
   suggestion.labels = {{Suggestion::Text(u"username")}};
-  suggestion.acceptability = Suggestion::Acceptability::kAcceptable;
+  suggestion.acceptability =
+      Suggestion::Acceptability::kSelectableAndAcceptable;
   flow().DidSelectSuggestion(suggestion);
 }
 
@@ -799,7 +802,8 @@ TEST_F(PasswordManualFallbackFlowTest,
       l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_EMPTY_LOGIN))}};
   // `suggestion.is_acceptable` is `true` if the popup is triggered on a
   // password form.
-  suggestion.acceptability = Suggestion::Acceptability::kAcceptable;
+  suggestion.acceptability =
+      Suggestion::Acceptability::kSelectableAndAcceptable;
   flow().DidSelectSuggestion(suggestion);
 }
 
@@ -820,7 +824,8 @@ TEST_F(PasswordManualFallbackFlowTest,
   suggestion.labels = {{Suggestion::Text(u"username")}};
   // `suggestion.is_acceptable` is `false` if the popup is triggered on a
   // different type of form or a standalone field.
-  suggestion.acceptability = Suggestion::Acceptability::kUnacceptable;
+  suggestion.acceptability =
+      Suggestion::Acceptability::kSelectableButUnacceptable;
   flow().DidSelectSuggestion(suggestion);
 }
 
@@ -897,7 +902,8 @@ TEST_F(PasswordManualFallbackFlowTest,
   suggestion.labels = {{Suggestion::Text(u"username")}};
   // `suggestion.is_acceptable` is `true` if the popup is triggered on a
   // password form.
-  suggestion.acceptability = Suggestion::Acceptability::kAcceptable;
+  suggestion.acceptability =
+      Suggestion::Acceptability::kSelectableAndAcceptable;
   ShowAndAcceptSuggestion(
       suggestion,
       AutofillSuggestionDelegate::SuggestionMetadata{.multi_index = {0}});
@@ -944,7 +950,8 @@ TEST_F(PasswordManualFallbackFlowTest,
   suggestion.labels = {{Suggestion::Text(u"username")}};
   // `suggestion.is_acceptable` is `true` if the popup is triggered on a
   // password form.
-  suggestion.acceptability = Suggestion::Acceptability::kAcceptable;
+  suggestion.acceptability =
+      Suggestion::Acceptability::kSelectableAndAcceptable;
   ShowAndAcceptSuggestion(
       suggestion,
       AutofillSuggestionDelegate::SuggestionMetadata{.multi_index = {0}});
@@ -1003,7 +1010,8 @@ TEST_F(PasswordManualFallbackFlowTest,
   suggestion.labels = {{Suggestion::Text(u"username")}};
   // `suggestion.is_acceptable` is `true` if the popup is triggered on a
   // password form.
-  suggestion.acceptability = Suggestion::Acceptability::kAcceptable;
+  suggestion.acceptability =
+      Suggestion::Acceptability::kSelectableAndAcceptable;
   ShowAndAcceptSuggestion(
       suggestion,
       AutofillSuggestionDelegate::SuggestionMetadata{.multi_index = {0}});
@@ -1048,7 +1056,8 @@ TEST_F(PasswordManualFallbackFlowTest,
       l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_EMPTY_LOGIN))}};
   // `suggestion.is_acceptable` is `true` if the popup is triggered on a
   // password form.
-  suggestion.acceptability = Suggestion::Acceptability::kAcceptable;
+  suggestion.acceptability =
+      Suggestion::Acceptability::kSelectableAndAcceptable;
   ShowAndAcceptSuggestion(
       suggestion,
       AutofillSuggestionDelegate::SuggestionMetadata{.multi_index = {0}});
@@ -1071,7 +1080,8 @@ TEST_F(PasswordManualFallbackFlowTest,
   suggestion.labels = {{Suggestion::Text(u"username")}};
   // `suggestion.is_acceptable` is `false` if the popup is triggered on a
   // different type of form or a standalone field.
-  suggestion.acceptability = Suggestion::Acceptability::kUnacceptable;
+  suggestion.acceptability =
+      Suggestion::Acceptability::kSelectableButUnacceptable;
   ShowAndAcceptSuggestion(
       suggestion,
       AutofillSuggestionDelegate::SuggestionMetadata{.multi_index = {0}});

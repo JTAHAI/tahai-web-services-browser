@@ -23,6 +23,7 @@
 #include "ash/quick_pair/keyed_service/fake_quick_pair_mediator_factory.h"
 #include "ash/quick_pair/keyed_service/quick_pair_mediator.h"
 #include "ash/session/test_session_controller_client.h"
+#include "ash/shelf/shelf_test_util.h"
 #include "ash/shell.h"
 #include "ash/shell_init_params.h"
 #include "ash/style/dark_light_mode_controller_impl.h"
@@ -57,6 +58,7 @@
 #include "chromeos/ash/components/geolocation/live_location_provider.h"
 #include "chromeos/ash/components/geolocation/location_fetcher.h"
 #include "chromeos/ash/components/login/login_state/login_state.h"
+#include "chromeos/ash/components/sync/fake_sync_service_provider.h"
 #include "chromeos/ash/services/bluetooth_config/in_process_instance.h"
 #include "chromeos/ash/services/hotspot_config/public/cpp/cros_hotspot_config_test_helper.h"
 #include "chromeos/constants/chromeos_features.h"
@@ -224,6 +226,10 @@ void AshTestHelper::TearDown() {
   // CompositorFrameSinkClient::ReclaimResources()
   base::RunLoop().RunUntilIdle();
 
+  // Uninstall the SyncServiceProvider now that no //ash consumer remains, and
+  // while any SyncService a test registered with it is still alive.
+  sync_service_provider_.reset();
+
   LoginState::Shutdown();
 
   TypecdClient::Shutdown();
@@ -311,6 +317,12 @@ void AshTestHelper::SetUp(InitParams init_params) {
       init_params.create_global_cras_audio_handler;
   create_quick_pair_mediator_ = init_params.create_quick_pair_mediator;
   destroy_screen_ = init_params.destroy_screen;
+
+  // Install a SyncServiceProvider so //ash code that resolves a user's
+  // SyncService (e.g. wallpaper sync) does not crash on the missing
+  // process-wide provider. Tests can register a service per account via
+  // sync_service_provider().
+  sync_service_provider_ = std::make_unique<FakeSyncServiceProvider>();
 
   if (create_global_cras_audio_handler_) {
     // Create `CrasAudioHandler` for testing since `g_browser_process` is not
@@ -469,6 +481,12 @@ void AshTestHelper::SetUp(InitParams init_params) {
 
   if (TabletMode::IsBoardTypeMarkedAsTabletCapable()) {
     shell->tablet_mode_controller()->OnDeviceListsComplete();
+  }
+
+  if (init_params.add_default_shelf_icon) {
+    // Add a pinned app shortcut to Shelf, in order to reflect the unpinnable
+    // Browser shortcut.
+    ShelfTestUtil::AddAppShortcut("default_app", TYPE_BROWSER_SHORTCUT);
   }
 
   fwupd_download_client_ = std::make_unique<FakeFwupdDownloadClient>();

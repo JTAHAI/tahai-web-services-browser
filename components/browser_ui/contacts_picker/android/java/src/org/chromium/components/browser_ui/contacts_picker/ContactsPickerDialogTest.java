@@ -10,11 +10,12 @@ import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.drawable.BitmapDrawable;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
+import androidx.core.graphics.drawable.RoundedBitmapDrawable;
+import androidx.core.graphics.drawable.RoundedBitmapDrawableFactory;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.LargeTest;
@@ -30,6 +31,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 
+import org.chromium.base.AconfigFlaggedApiDelegate;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
@@ -37,7 +39,6 @@ import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.blink.mojom.ContactIconBlob;
 import org.chromium.build.annotations.Nullable;
@@ -70,7 +71,6 @@ import java.util.List;
 @RunWith(BaseJUnit4ClassRunner.class)
 @Batch(Batch.PER_CLASS)
 @EnableFeatures(ContactsPickerFeatureList.CONTACTS_PICKER_SELECT_ALL)
-@DisableFeatures(ContactsPickerFeatureList.ANDROID_SYSTEM_CONTACTS_PICKER)
 public class ContactsPickerDialogTest
         implements ContactsPickerListener, SelectionObserver<ContactDetails> {
     @ClassRule
@@ -146,6 +146,10 @@ public class ContactsPickerDialogTest
 
     @Before
     public void setupTest() throws Exception {
+        FakeAconfigFlaggedApiDelegate fakeDelegate = new FakeAconfigFlaggedApiDelegate();
+        fakeDelegate.setSystemContactsPickerEnabled(false);
+        AconfigFlaggedApiDelegate.setInstanceForTesting(fakeDelegate);
+
         mWindowAndroid =
                 ThreadUtils.runOnUiThreadBlocking(
                         () -> {
@@ -524,7 +528,9 @@ public class ContactsPickerDialogTest
                             Arrays.asList("owner@example.com"),
                             /* phoneNumbers= */ null,
                             /* addresses= */ null);
-            owner.setSelfIcon(new BitmapDrawable(mIcon));
+            RoundedBitmapDrawable roundedIcon =
+                    RoundedBitmapDrawableFactory.create(mActivity.getResources(), mIcon);
+            owner.setSelfIcon(roundedIcon);
             ContactDetails owner2 =
                     new ContactDetails(
                             "7",

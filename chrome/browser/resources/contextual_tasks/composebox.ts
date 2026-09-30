@@ -24,13 +24,11 @@ import {InputType, ToolMode} from '//resources/mojo/components/omnibox/composebo
 import type {UnguessableToken} from '//resources/mojo/mojo/public/mojom/base/unguessable_token.mojom-webui.js';
 import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
-import {WindowOpenDisposition} from 'chrome://resources/mojo/ui/base/mojom/window_open_disposition.mojom-webui.js';
 
 import {getCss} from './composebox.css.js';
 import {getHtml} from './composebox.html.js';
 import {IconType} from './contextual_tasks.mojom-webui.js';
-import type {InjectedInput, PageHandlerInterface} from './contextual_tasks.mojom-webui.js';
-import {BrowserProxyImpl} from './contextual_tasks_browser_proxy.js';
+import type {InjectedInput} from './contextual_tasks.mojom-webui.js';
 
 const ICON_TYPE_TO_NAME: {[id: number]: string} = {
   [IconType.kUnspecified]: 'unspecified',
@@ -44,12 +42,12 @@ const ICON_TYPE_TO_NAME: {[id: number]: string} = {
 };
 
 function recordVoiceSearchAction(voiceSearchState: VoiceSearchState) {
-  // Safety return statement in rare case chrome metrics is not available.
-  if (!chrome.histograms) {
+  const metricsService = chrome.histograms || chrome.metricsPrivate;
+  if (!metricsService) {
     return;
   }
 
-  chrome.histograms.recordEnumerationValue(
+  metricsService.recordEnumerationValue(
       'ContextualTasks.VoiceSearch.StateV2', voiceSearchState,
       VoiceSearchState.MAX_VALUE + 1);
 }
@@ -60,7 +58,10 @@ function createGhostMatch(): AutocompleteMatch {
     description: '\u200b',
     type: 'SEARCH_SUGGEST',
     isSearchType: true,
-    iconPath: '//resources/cr_components/searchbox/icons/search_spark.svg',
+    iconPath:
+        (document.documentElement.hasAttribute('webui-rounded-icons') ?
+             '//resources/cr_components/searchbox/icons/search_spark.svg' :
+             '//resources/cr_components/searchbox/icons/search_spark_old.svg'),
   });
 }
 export interface ContextualTasksComposeboxElement {
@@ -116,7 +117,6 @@ export class ContextualTasksComposeboxElement extends I18nMixinLit
       },
       showContextMenu_: {
         type: Boolean,
-        value: loadTimeData.getBoolean('composeboxShowContextMenu'),
       },
       voiceSearchCoherenceEnabled_: {
         type: Boolean,
@@ -154,6 +154,7 @@ export class ContextualTasksComposeboxElement extends I18nMixinLit
       useFork_: {type: Boolean},
       smartTabSharingVisible_: {type: Boolean},
       contextManagementInComposeboxEnabled_: {type: Boolean},
+      clearAllInputsWhenSubmittingQuery_: {type: Boolean},
       energyEffectEnabled_: {type: Boolean, reflect: true},
       energyEffectAnimationEnabled_: {type: Boolean, reflect: true},
       glifAnimationState_: {type: String},
@@ -200,7 +201,6 @@ export class ContextualTasksComposeboxElement extends I18nMixinLit
   protected searchboxHandler_: SearchboxPageHandlerRemote;
   private eventTracker_: EventTracker = new EventTracker();
   private pageHandler_: PageHandlerRemote;
-  private contextualTasksHandler_: PageHandlerInterface;
   private searchboxCallbackRouter_: SearchboxPageCallbackRouter;
   private searchboxListenerIds_: number[] = [];
   private shouldSubmitAfterUpload_: boolean = false;
@@ -224,6 +224,8 @@ export class ContextualTasksComposeboxElement extends I18nMixinLit
       loadTimeData.getBoolean('composeboxSmartTabSharingVisible');
   protected accessor contextManagementInComposeboxEnabled_: boolean =
       loadTimeData.getBoolean('contextManagementInComposeboxEnabled');
+  protected accessor clearAllInputsWhenSubmittingQuery_: boolean =
+      loadTimeData.getBoolean('clearAllInputsWhenSubmittingQuery');
   protected accessor energyEffectEnabled_: boolean =
       loadTimeData.getBoolean('energyEffectEnabled');
   // The use of energyEffectEnabled to set energyEffectAnimationEnabled_ is
@@ -237,7 +239,6 @@ export class ContextualTasksComposeboxElement extends I18nMixinLit
   constructor() {
     super();
     this.pageHandler_ = ComposeboxProxyImpl.getInstance().handler;
-    this.contextualTasksHandler_ = BrowserProxyImpl.getInstance().handler;
     this.searchboxCallbackRouter_ =
         ComposeboxProxyImpl.getInstance().searchboxCallbackRouter;
     this.searchboxHandler_ = ComposeboxProxyImpl.getInstance().searchboxHandler;
@@ -265,6 +266,7 @@ export class ContextualTasksComposeboxElement extends I18nMixinLit
               this.shouldSubmitAfterUpload_ = false;
               composebox.submitQuery();
             }
+            this.fire('update-tooltip-visibility');
           });
       this.eventTracker_.add(composebox, 'composebox-focus-in', () => {
         this.isComposeboxFocused_ = true;
@@ -386,12 +388,14 @@ export class ContextualTasksComposeboxElement extends I18nMixinLit
               await this.pageHandler_.canShowNextboxAnimation();
           if (allowed) {
             this.glifAnimationState_ = GlifAnimationState.STARTED;
-            this.pageHandler_.recordNextboxAnimationImpression();
+            this.pageHandler_.recordNextboxAnimationImpression(true);
           } else {
             this.glifAnimationState_ = GlifAnimationState.INELIGIBLE;
+            this.pageHandler_.recordNextboxAnimationImpression(false);
           }
         } else {
           this.glifAnimationState_ = GlifAnimationState.STARTED;
+          this.pageHandler_.recordNextboxAnimationImpression(true);
         }
       } else {
         this.glifAnimationState_ = GlifAnimationState.INELIGIBLE;
@@ -451,8 +455,7 @@ export class ContextualTasksComposeboxElement extends I18nMixinLit
     e.detail.event.preventDefault();
     const anchor = e.detail.event.target as HTMLAnchorElement;
     if (anchor && anchor.href) {
-      this.contextualTasksHandler_.openUrl(
-          anchor.href, WindowOpenDisposition.NEW_FOREGROUND_TAB);
+      this.pageHandler_.navigateUrl(anchor.href);
     }
   }
 
@@ -522,9 +525,15 @@ export class ContextualTasksComposeboxElement extends I18nMixinLit
     const hadContent = this.$.composebox.input.trim().length > 0 ||
         this.$.composebox.hasFiles();
 
-    // Clear text from composebox and focus.
-    this.$.composebox.clearAllInputs(
-        querySubmitted, /* shouldBlockAutoSuggestedTabs= */ false);
+    // When submitting a query, clear all inputs. When refocusing or starting a
+    // new thread, only clear typed text and manual attachments to keep the
+    // auto-suggested tab.
+    if (querySubmitted) {
+      this.$.composebox.clearAllInputs(
+          querySubmitted, /* shouldBlockAutoSuggestedTabs= */ false);
+    } else {
+      this.$.composebox.clearInputsForNewThread();
+    }
     this.$.composebox.focusInput();
 
     // Unconditionally clearing matches wipes out the zero state suggestions
@@ -619,7 +628,7 @@ export class ContextualTasksComposeboxElement extends I18nMixinLit
           (this.inputState_?.activeTool ?? toolMode) !== ToolMode.kUnspecified;
 
       this.searchboxHandler_.setActiveToolMode(
-          toolMode as ToolMode, /*isSetByServer=*/ true);
+          toolMode as ToolMode, /*isSetByAim=*/ true);
     }
 
     if (modelMode !== undefined && modelMode !== null) {
@@ -629,7 +638,9 @@ export class ContextualTasksComposeboxElement extends I18nMixinLit
           activeModel: modelMode as ModelMode,
         };
       }
-      this.searchboxHandler_.setActiveModelMode(modelMode as ModelMode);
+      this.searchboxHandler_.setActiveModelMode(
+          modelMode as ModelMode,
+          /*isSetByAim=*/ true);
     }
   }
 

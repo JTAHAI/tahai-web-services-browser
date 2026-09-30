@@ -90,6 +90,14 @@ void ManifestBrokerState::AddDownloadProgressObserver(
   }
 }
 
+void ManifestBrokerState::AddAssetDownloadObserver(
+    const std::string& asset_name,
+    mojo::PendingRemote<on_device_model::mojom::DownloadObserver> observer) {
+  if (asset_manager_) {
+    asset_manager_->AddAssetDownloadObserver(asset_name, std::move(observer));
+  }
+}
+
 void ManifestBrokerState::BindModelBroker(
     mojo::PendingReceiver<mojom::ModelBroker> receiver) {
   if (!features::IsOnDeviceExecutionEnabled()) {
@@ -115,7 +123,8 @@ std::unique_ptr<OnDeviceSession> ManifestBrokerState::StartSession(
               "feature", base::ToString(feature));
   OnDeviceModelEligibilityReason reason = GetOnDeviceModelEligibility(feature);
   LogEligibilityReason(feature, reason);
-  usage_tracker_.OnDeviceEligibleFeatureUsed(feature);
+  usage_tracker_.RaisePriority(ToUseCaseName(feature),
+                               UsageTracker::Priority::kUserBlocking);
 
   // Return if we cannot do anything more for right now.
   if (reason != OnDeviceModelEligibilityReason::kSuccess) {
@@ -328,7 +337,10 @@ void ManifestBrokerState::GetStateInfo(
 
 void ManifestBrokerState::SetUseCaseRequested(const std::string& use_case,
                                               bool requested) {
-  usage_tracker_.SetUseCaseRequested(use_case, requested);
+  usage_tracker_.SetPriority(
+      use_case,
+      requested ? std::make_optional(UsageTracker::Priority::kUserBlocking)
+                : std::nullopt);
 }
 
 void ManifestBrokerState::UninstallModels() {

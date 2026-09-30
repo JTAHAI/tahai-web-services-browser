@@ -8,13 +8,16 @@
 #include <cmath>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/check.h"
 #include "base/check_op.h"
 #include "base/containers/adapters.h"
+#include "base/containers/span.h"
 #include "base/feature_list.h"
 #include "base/memory/raw_ref.h"
+#include "base/metrics/histogram.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/timer/elapsed_timer.h"
@@ -22,13 +25,25 @@
 #include "pdf/accessibility_structs.h"
 #include "pdf/pdf_features.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+#include "third_party/icu/source/common/unicode/uchar.h"
+#include "third_party/icu/source/common/unicode/uscript.h"
 #include "ui/accessibility/accessibility_features.h"
 #include "ui/accessibility/ax_enums.mojom-shared.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rect_f.h"
 
+namespace pdf {
+
 namespace {
+
+// Histogram range parameters for recording heading-to-body font size ratios
+// (ratio * 100).
+constexpr int kHeadingToBodySizeRatioMin = 100;
+constexpr int kHeadingToBodySizeRatioMax = 500;
+// 42 buckets from 100 to 500 gives a step size of 10 units
+// ((500 - 100) / (42 - 2) = 10), resulting in 10-unit wide linear buckets:
+constexpr size_t kHeadingToBodySizeRatioBucketCount = 42;
 
 // Don't try to apply font size thresholds to automatically identify headings
 // if the median font size is not at least this many points.
@@ -50,16 +65,45 @@ constexpr float kHeadingFontSizeRatio = 1.2f;
 // size on the page for it to be considered an H1 instead of H2.
 constexpr float kH1MinFontSizeRatio = 1.7f;
 
-// Ratio between the smallest heading candidate font size and the median font
-// size on the page for it to be considered a heading.
-constexpr float kMinHeadingFontSizeRatio = 1.2f;
-
 // Ratio between the line spacing between two lines and the median on the
 // page for that line spacing to be considered a paragraph break.
 constexpr float kParagraphLineSpacingRatio = 1.2f;
 
 // The default heading level used when the run is determined to be a heading.
 constexpr int kDefaultHeadingLevel = 2;
+
+// The largest heading level used when the run is determined to be a heading due
+// to a combination of its font size and other styling, instead of just size.
+constexpr int kLargestStyledHeadingLevel = 3;
+
+// The smallest heading level allowed (corresponds to <h6>).
+constexpr int kSmallestHeadingLevel = 6;
+
+// Font weight for semi-bold text. Used to determine if the run could be a
+// heading.
+constexpr int kSemiBoldWeight = 600;
+
+// Helper to determine whether two vertical spans overlap enough to be on the
+// same line.
+bool DoBoundsOverlapOnLine(float top1,
+                           float height1,
+                           float top2,
+                           float height2) {
+  if (height1 == 0.0f || height2 == 0.0f) {
+    return false;
+  }
+
+  float clamped_top = std::max(top1, top2);
+  float clamped_bottom = std::min(top1 + height1, top2 + height2);
+  if (clamped_bottom < clamped_top) {
+    return false;
+  }
+
+  // See if it falls within the line (within the threshold).
+  float coverage = (clamped_bottom - clamped_top) / height2;
+  constexpr float kLineCoverageThreshold = 0.25f;
+  return coverage > kLineCoverageThreshold;
+}
 
 // This class is used as part of our heuristic to determine which text runs live
 // on the same "line".  As we process runs, we keep a weighted average of the
@@ -100,25 +144,12 @@ class LineHelper {
 
     float line_top = accumulated_weight_top_ / accumulated_width_;
     float line_bottom = accumulated_weight_bottom_ / accumulated_width_;
+    float line_height = line_bottom - line_top;
 
     // Look at the next run, and determine how much it overlaps the line.
     const auto& run_bounds = (*text_runs_)[run_index].bounds;
-    if (run_bounds.height() == 0.0f) {
-      return false;
-    }
-
-    float clamped_top = std::max(line_top, run_bounds.y());
-    float clamped_bottom =
-        std::min(line_bottom, run_bounds.y() + run_bounds.height());
-    if (clamped_bottom < clamped_top) {
-      return false;
-    }
-
-    float coverage = (clamped_bottom - clamped_top) / (run_bounds.height());
-
-    // See if it falls within the line (within our threshold).
-    constexpr float kLineCoverageThreshold = 0.25f;
-    return coverage > kLineCoverageThreshold;
+    return DoBoundsOverlapOnLine(line_top, line_height, run_bounds.y(),
+                                 run_bounds.height());
   }
 
  private:
@@ -183,72 +214,155 @@ size_t NormalizeTextRunIndex(uint32_t object_end_text_run_index,
       current_text_run_index ? current_text_run_index - 1 : 0);
 }
 
-void ComputeParagraphAndHeadingThresholds(
-    const std::vector<chrome_pdf::AccessibilityTextRunInfo>& text_runs,
-    float* out_heading_font_size_threshold,
-    float* out_paragraph_spacing_threshold,
-    std::map<float, int>* out_heading_font_size_mapping) {
-  // Scan over the font sizes and line spacing within this page and
-  // set heuristic thresholds so that text larger than the median font
-  // size can be marked as a heading, and spacing larger than the median
-  // line spacing can be a paragraph break.
+bool IsAllUppercase(base::span<const chrome_pdf::AccessibilityCharInfo> chars) {
+  bool has_cased_letter = false;
+  for (const auto& char_info : chars) {
+    UChar32 c = static_cast<UChar32>(char_info.unicode_character);
+    if (u_islower(c)) {
+      return false;
+    }
+    if (u_isupper(c)) {
+      has_cased_letter = true;
+    }
+  }
+  return has_cased_letter;
+}
+
+// Returns whether a font name indicates a bold, semi-bold, black, or heavy
+// heading font style based on delimited font style patterns (e.g. "-bold").
+bool IsHeadingFontName(std::string_view font_name) {
+  static constexpr std::string_view kHeadingPatterns[] = {
+      "-bold",      ",bold",      " bold",     "+bold",      "-semibold",
+      ",semibold",  " semibold",  "+semibold", "-demi",      ",demi",
+      " demi",      "+demi",      "-black",    ",black",     " black",
+      "+black",     "-blk",       ",blk",      " blk",       "+blk",
+      "-heavy",     ",heavy",     " heavy",    "+heavy",     "-extrabld",
+      ",extrabld",  " extrabld",  "+extrabld", "-ultrabold", ",ultrabold",
+      " ultrabold", "+ultrabold",
+  };
+
+  std::string lower_font_name = base::ToLowerASCII(font_name);
+  for (std::string_view pattern : kHeadingPatterns) {
+    if (lower_font_name.contains(pattern)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void ComputeFontSizes(std::vector<float> font_sizes,
+                      float* out_heading_font_size_threshold,
+                      float* out_median_font_size,
+                      std::map<float, int>* out_heading_font_size_mapping) {
+  if (font_sizes.size() <= 2) {
+    return;
+  }
+
+  std::ranges::sort(font_sizes);
+  *out_median_font_size = font_sizes[font_sizes.size() / 2];
+  if (*out_median_font_size <= kMinimumFontSize) {
+    return;
+  }
+
+  *out_heading_font_size_threshold =
+      *out_median_font_size * kHeadingFontSizeRatio;
+
+  if (!features::IsPdfAccessibilityHeuristicEnhancementsEnabled()) {
+    return;
+  }
+
+  CHECK(out_heading_font_size_mapping->empty());
+  // Start at heading level 1 only if the font size is significantly
+  // larger than the median.
+  float current_cluster_font_size = font_sizes.back();
+  bool is_much_larger = current_cluster_font_size >=
+                        (*out_median_font_size * kH1MinFontSizeRatio);
+  int current_level = is_much_larger ? 1 : 2;
+  float min_mapping_font_size = *out_median_font_size;
+  // Iterate from the largest font size down to the median font size. The
+  // largest font size is compared to itself in the first iteration of the
+  // loop so that it's set as the first level.
+  for (float size : base::Reversed(font_sizes)) {
+    if (size < min_mapping_font_size) {
+      break;
+    }
+    // If the current cluster size and the new size are different enough,
+    // update the heading level. Otherwise, maintain the current cluster.
+    if (current_cluster_font_size - size > kFontSizeWiggleRoom) {
+      current_cluster_font_size = size;
+      if (current_level < kSmallestHeadingLevel) {
+        current_level++;
+      }
+    }
+    // Once the normal heading size threshold is reached, start at level
+    // `kMaxStyledHeadingLevel` and increment from there so that no text
+    // of size < heading threshold is a heading level h1 or h2.
+    if (size < *out_heading_font_size_threshold &&
+        current_level < kLargestStyledHeadingLevel) {
+      current_level = kLargestStyledHeadingLevel;
+    }
+    (*out_heading_font_size_mapping)[size] = current_level;
+  }
+}
+
+float ComputeLineSpacings(std::vector<float> line_spacings) {
+  if (line_spacings.size() <= 4) {
+    return 0.0f;
+  }
+
+  std::ranges::sort(line_spacings);
+  float median_line_spacing = line_spacings[line_spacings.size() / 2];
+  if (median_line_spacing > kMinimumLineSpacing) {
+    return median_line_spacing * kParagraphLineSpacingRatio;
+  }
+  return 0.0f;
+}
+
+std::optional<uint32_t> ComputeColors(
+    const std::map<uint32_t, uint32_t>& all_color_char_counts) {
+  if (all_color_char_counts.size() < 2) {
+    return std::nullopt;
+  }
+
+  auto it = std::ranges::max_element(
+      all_color_char_counts,
+      [](const auto& a, const auto& b) { return a.second < b.second; });
+  return it->first;
+}
+
+HeuristicPageProperties ComputeHeuristicPageProperties(
+    const std::vector<chrome_pdf::AccessibilityTextRunInfo>& text_runs) {
   std::vector<float> font_sizes;
   std::vector<float> line_spacings;
+  std::map<uint32_t, uint32_t> all_color_char_counts;
+
   for (size_t i = 0; i < text_runs.size(); ++i) {
-    font_sizes.push_back(text_runs[i].style.font_size);
+    const auto& run = text_runs[i];
+    font_sizes.push_back(run.style.font_size);
+    // TODO(crbug.com/525508832): Use a color distance threshold to group
+    // visually indistinguishable but non-identical colors together.
+    all_color_char_counts[run.style.fill_color] += run.len;
+
     if (i > 0) {
-      const auto& cur = text_runs[i].bounds;
+      const auto& cur = run.bounds;
       const auto& prev = text_runs[i - 1].bounds;
       if (cur.y() > prev.y() + prev.height() / 2) {
         line_spacings.push_back(cur.y() - prev.y());
       }
     }
   }
-  if (font_sizes.size() > 2) {
-    std::sort(font_sizes.begin(), font_sizes.end());
-    float median_font_size = font_sizes[font_sizes.size() / 2];
-    if (median_font_size > kMinimumFontSize) {
-      *out_heading_font_size_threshold =
-          median_font_size * kHeadingFontSizeRatio;
 
-      if (features::IsPdfAccessibilityHeuristicEnhancementsEnabled()) {
-        CHECK(out_heading_font_size_mapping->empty());
-        // Start at heading level 1 only if the font size is significantly
-        // larger than the median.
-        float current_cluster_font_size = font_sizes.back();
-        bool is_much_larger = current_cluster_font_size >=
-                              (median_font_size * kH1MinFontSizeRatio);
-        int current_level = is_much_larger ? 1 : 2;
-        float heading_font_size_threshold =
-            median_font_size * kMinHeadingFontSizeRatio;
-        // Iterate from the largest font size down to the heading threshold. The
-        // largest font size is compared to itself in the first iteration of the
-        // loop so that it's set as the first level.
-        for (float size : base::Reversed(font_sizes)) {
-          if (size < heading_font_size_threshold) {
-            break;
-          }
-          // If the current cluster size and the new size are different enough,
-          // update the heading level. Otherwise, maintain the current cluster.
-          if (current_cluster_font_size - size > kFontSizeWiggleRoom) {
-            current_cluster_font_size = size;
-            if (current_level < 6) {
-              current_level++;
-            }
-          }
-          (*out_heading_font_size_mapping)[size] = current_level;
-        }
-      }
-    }
-  }
-  if (line_spacings.size() > 4) {
-    std::sort(line_spacings.begin(), line_spacings.end());
-    float median_line_spacing = line_spacings[line_spacings.size() / 2];
-    if (median_line_spacing > kMinimumLineSpacing) {
-      *out_paragraph_spacing_threshold =
-          median_line_spacing * kParagraphLineSpacingRatio;
-    }
-  }
+  HeuristicPageProperties page_properties;
+  ComputeFontSizes(std::move(font_sizes),
+                   &page_properties.heading_font_size_threshold,
+                   &page_properties.median_font_size,
+                   &page_properties.heading_font_size_mapping);
+  page_properties.paragraph_spacing_threshold =
+      ComputeLineSpacings(std::move(line_spacings));
+  page_properties.body_text_color = ComputeColors(all_color_char_counts);
+
+  return page_properties;
 }
 
 // Returns the hierarchical heading level (1 to 6) for a given font size,
@@ -257,8 +371,8 @@ void ComputeParagraphAndHeadingThresholds(
 int GetHeadingLevelFromSize(
     const std::map<float, int>& heading_font_size_mapping,
     float font_size) {
-  if (!features::IsPdfAccessibilityHeuristicEnhancementsEnabled() ||
-      heading_font_size_mapping.empty()) {
+  CHECK(features::IsPdfAccessibilityHeuristicEnhancementsEnabled());
+  if (heading_font_size_mapping.empty()) {
     return 0;
   }
 
@@ -291,31 +405,178 @@ int GetHeadingLevelFromSize(
   return best_level;
 }
 
-bool BreakParagraph(
-    const std::vector<chrome_pdf::AccessibilityTextRunInfo>& text_runs,
-    uint32_t text_run_index,
-    float paragraph_spacing_threshold,
-    const std::map<float, int>& heading_font_size_mapping,
-    const ui::AXNodeData* block_node) {
-  // Use line spacing to determine where to break body text.
-  if (!(features::IsPdfAccessibilityHeuristicEnhancementsEnabled() &&
-        block_node->role == ax::mojom::Role::kHeading)) {
-    float line_spacing = fabsf(text_runs[text_run_index + 1].bounds.y() -
-                               text_runs[text_run_index].bounds.y());
-    return ((paragraph_spacing_threshold > 0 &&
-             line_spacing > paragraph_spacing_threshold) ||
-            (paragraph_spacing_threshold == 0 &&
-             line_spacing > kParagraphLineSpacingRatio *
-                                text_runs[text_run_index].bounds.height()));
+void RecordHeadingToBodySizeRatioHistogram(std::string_view name, int sample) {
+  CHECK(features::IsPdfAccessibilityHeuristicEnhancementsEnabled());
+  base::HistogramBase* histogram = base::LinearHistogram::FactoryGet(
+      name, kHeadingToBodySizeRatioMin, kHeadingToBodySizeRatioMax,
+      kHeadingToBodySizeRatioBucketCount,
+      base::HistogramBase::kUmaTargetedHistogramFlag);
+  histogram->Add(sample);
+}
+
+// Returns a span of AccessibilityCharInfo corresponding to the text run at
+// `text_run_index`.
+base::span<const chrome_pdf::AccessibilityCharInfo> GetTextRunChars(
+    const PageLayoutData& layout,
+    size_t text_run_index) {
+  uint32_t start_index = layout.text_run_start_indices[text_run_index];
+  uint32_t len = layout.text_runs[text_run_index].len;
+  return base::span(layout.chars).subspan(start_index, len);
+}
+
+const chrome_pdf::AccessibilityTextRunInfo* GetRunAfterIndex(
+    base::span<const chrome_pdf::AccessibilityTextRunInfo> text_runs,
+    size_t index) {
+  return (index + 1 < text_runs.size()) ? &text_runs[index + 1] : nullptr;
+}
+
+bool AreRunsOnSameLine(const chrome_pdf::AccessibilityTextRunInfo& run1,
+                       const chrome_pdf::AccessibilityTextRunInfo& run2) {
+  return DoBoundsOverlapOnLine(run1.bounds.y(), run1.bounds.height(),
+                               run2.bounds.y(), run2.bounds.height());
+}
+
+bool AreStylesAndFontsEquivalent(
+    const chrome_pdf::AccessibilityTextStyleInfo& style1,
+    const chrome_pdf::AccessibilityTextStyleInfo& style2) {
+  return PdfAccessibilityTreeBuilder::AreStylesEquivalent(style1, style2) &&
+         style1.font_name == style2.font_name &&
+         style1.fill_color == style2.fill_color;
+}
+
+HeadingClassifier GetHeadingClassifier(
+    const chrome_pdf::AccessibilityTextRunInfo& current_run,
+    const chrome_pdf::AccessibilityTextRunInfo* next_run,
+    base::span<const chrome_pdf::AccessibilityCharInfo> current_run_chars,
+    const HeuristicPageProperties& page_properties) {
+  CHECK(features::IsPdfAccessibilityHeuristicEnhancementsEnabled());
+
+  const chrome_pdf::AccessibilityTextStyleInfo& style = current_run.style;
+  if (style.font_size < page_properties.median_font_size) {
+    return HeadingClassifier::kNone;
   }
 
-  // Use heading level to determine where to break headings. i.e. if the next
-  // run is the same heading level as the current run, don't break.
+  // Any styled heading candidate must terminate its visual line (the next run
+  // cannot be on the same line unless it has the exact same style).
+  bool is_same_line = next_run && AreRunsOnSameLine(current_run, *next_run);
+  bool is_same_style = next_run && AreStylesAndFontsEquivalent(
+                                       current_run.style, next_run->style);
+  if (is_same_line && !is_same_style) {
+    return HeadingClassifier::kNone;
+  }
+
+  // Handle styled text that is the same size as the normal body text with more
+  // caution so that stylized body text isn't mistaken as a heading.
+  bool is_run_all_uppercase = IsAllUppercase(current_run_chars);
+  if (style.font_size == page_properties.median_font_size) {
+    // If this is the last run of the page, label this body text.
+    if (!next_run) {
+      return HeadingClassifier::kNone;
+    }
+
+    // Inline all-caps text (e.g. acronyms on the same line) is body text.
+    if (is_run_all_uppercase && is_same_line) {
+      return HeadingClassifier::kNone;
+    }
+
+    // Non-all-caps text continuing onto a new line with the same style is body
+    // text. All caps text continuing onto a new line with the same style is
+    // more likely a heading.
+    if (!is_run_all_uppercase && !is_same_line && is_same_style) {
+      return HeadingClassifier::kNone;
+    }
+  }
+
+  // Check all-caps before bold styling because if a run has both, the all caps
+  // classification should take precedence. If `is_run_all_uppercase` is true
+  // here, then this must be either larger than the median font size, or the
+  // next run must be on a different line. In either case, it's likely to be a
+  // heading.
+  if (is_run_all_uppercase) {
+    return HeadingClassifier::kAllUppercase;
+  }
+
+  if (PdfAccessibilityTreeBuilder::IsBoldStyle(style)) {
+    return HeadingClassifier::kBoldStyle;
+  }
+
+  // `IsBoldStyle()` above is only true for weight >= 700, but semi-bold text
+  // runs can still be headings.
+  if (PdfAccessibilityTreeBuilder::GetFontWeight(style) >= kSemiBoldWeight) {
+    return HeadingClassifier::kSemiBoldWeight;
+  }
+
+  // Not every PDF specifies its /FontWeight or /StemV properly. If none of the
+  // above cases apply, check the font name which will often include the word
+  // "bold" or similar.
+  if (IsHeadingFontName(style.font_name)) {
+    return HeadingClassifier::kFontName;
+  }
+
+  // Text color differs from dominant body text color.
+  if (page_properties.body_text_color.has_value() &&
+      style.fill_color != *page_properties.body_text_color) {
+    return HeadingClassifier::kTextColor;
+  }
+
+  return HeadingClassifier::kNone;
+}
+
+void PromoteNodeToHeading(ui::AXNodeData* block_node, int heading_level) {
+  block_node->role = ax::mojom::Role::kHeading;
+  block_node->AddIntAttribute(ax::mojom::IntAttribute::kHierarchicalLevel,
+                              heading_level);
+  block_node->AddStringAttribute(ax::mojom::StringAttribute::kHtmlTag,
+                                 "h" + base::NumberToString(heading_level));
+}
+
+bool BreakParagraph(uint32_t text_run_index,
+                    const ui::AXNodeData* block_node,
+                    HeadingClassifier heading_classifier,
+                    const PageLayoutData& layout,
+                    const HeuristicPageProperties& page_properties) {
+  const chrome_pdf::AccessibilityTextRunInfo& current_run =
+      layout.text_runs[text_run_index];
+  const chrome_pdf::AccessibilityTextRunInfo& next_run =
+      layout.text_runs[text_run_index + 1];
+
+  // Use line spacing to determine where to break body text.
+  if (!features::IsPdfAccessibilityHeuristicEnhancementsEnabled() ||
+      heading_classifier == HeadingClassifier::kNone) {
+    float line_spacing = fabsf(next_run.bounds.y() - current_run.bounds.y());
+    if (page_properties.paragraph_spacing_threshold > 0) {
+      return line_spacing > page_properties.paragraph_spacing_threshold;
+    }
+
+    // If there's no threshold, that means there weren't enough lines to compute
+    // an accurate median, so compare against the line size instead.
+    return line_spacing >
+           kParagraphLineSpacingRatio * current_run.bounds.height();
+  }
+
+  // Always break headings at style changes.
+  if (!AreStylesAndFontsEquivalent(current_run.style, next_run.style)) {
+    return true;
+  }
+
+  // For font-size classified headings, break if the next run has a different
+  // heading level.
   int current_level =
       block_node->GetIntAttribute(ax::mojom::IntAttribute::kHierarchicalLevel);
-  int next_level = GetHeadingLevelFromSize(
-      heading_font_size_mapping, text_runs[text_run_index + 1].style.font_size);
-  return current_level != next_level;
+  if (heading_classifier == HeadingClassifier::kFontSize) {
+    int next_level = GetHeadingLevelFromSize(
+        page_properties.heading_font_size_mapping, next_run.style.font_size);
+    return current_level != next_level;
+  }
+
+  // For styled headings (e.g. bold, uppercase, font name), break if the next
+  // run has a different classifier.
+  const chrome_pdf::AccessibilityTextRunInfo* next_next_run =
+      GetRunAfterIndex(layout.text_runs, text_run_index + 1);
+  HeadingClassifier next_classifier = GetHeadingClassifier(
+      next_run, next_next_run, GetTextRunChars(layout, text_run_index + 1),
+      page_properties);
+  return heading_classifier != next_classifier;
 }
 
 void BuildStaticNode(
@@ -343,8 +604,6 @@ void ConnectPreviousAndNextOnLine(ui::AXNodeData* previous_on_line_node,
 
 }  // namespace
 
-namespace pdf {
-
 PdfAccessibilityTreeBuilderHeuristic::PdfAccessibilityTreeBuilderHeuristic(
     PdfAccessibilityTreeBuilder& builder)
     : builder_(builder) {}
@@ -354,19 +613,36 @@ PdfAccessibilityTreeBuilderHeuristic::~PdfAccessibilityTreeBuilderHeuristic() =
 
 void PdfAccessibilityTreeBuilderHeuristic::BuildPageTree() {
   base::ElapsedTimer timer;
-  absl::Cleanup run_on_exit = [&timer] {
+  std::optional<float> min_heading_ratio;
+  std::optional<float> max_heading_ratio;
+  absl::Cleanup run_on_exit = [&timer, &min_heading_ratio, &max_heading_ratio] {
     base::UmaHistogramTimes("Accessibility.PDF.Heuristic.BuildPageTreeTime",
                             timer.Elapsed());
+    if (features::IsPdfAccessibilityHeuristicEnhancementsEnabled() &&
+        min_heading_ratio && max_heading_ratio) {
+      RecordHeadingToBodySizeRatioHistogram(
+          "Accessibility.PdfHeuristics.HeadingToBodySizeRatioMax",
+          static_cast<int>(std::round(*max_heading_ratio * 100.0f)));
+      RecordHeadingToBodySizeRatioHistogram(
+          "Accessibility.PdfHeuristics.HeadingToBodySizeRatioMin",
+          static_cast<int>(std::round(*min_heading_ratio * 100.0f)));
+    }
   };
-  ComputeParagraphAndHeadingThresholds(
-      builder_->text_runs(), &heading_font_size_threshold_,
-      &paragraph_spacing_threshold_, &font_size_heading_mapping_);
+
+  const HeuristicPageProperties page_properties =
+      ComputeHeuristicPageProperties(builder_->text_runs());
+  const PageLayoutData page_layout = {
+      .text_runs = builder_->text_runs(),
+      .chars = builder_->chars(),
+      .text_run_start_indices = builder_->text_run_start_indices(),
+  };
 
   ui::AXNodeData* block_node = nullptr;
   ui::AXNodeData* static_text_node = nullptr;
   ui::AXNodeData* previous_on_line_node = nullptr;
   std::string static_text;
   std::optional<chrome_pdf::AccessibilityTextStyleInfo> current_style;
+  HeadingClassifier current_heading_classifier = HeadingClassifier::kNone;
   LineHelper line_helper(builder_->text_runs());
   bool pdf_forms_enabled =
       base::FeatureList::IsEnabled(chrome_pdf::features::kAccessiblePDFForm);
@@ -405,8 +681,27 @@ void PdfAccessibilityTreeBuilderHeuristic::BuildPageTree() {
 #endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
     // If we don't have a block level node, create one.
     if (!block_node) {
-      block_node = CreateBlockLevelNode(text_run.style.font_size);
+      const chrome_pdf::AccessibilityTextRunInfo* next_run =
+          GetRunAfterIndex(page_layout.text_runs, text_run_index);
+      block_node = CreateBlockLevelNode(
+          text_run, next_run, GetTextRunChars(page_layout, text_run_index),
+          page_properties, &current_heading_classifier);
       builder_->page_node()->child_ids.push_back(block_node->id);
+
+      if (features::IsPdfAccessibilityHeuristicEnhancementsEnabled() &&
+          current_heading_classifier != HeadingClassifier::kNone) {
+        base::UmaHistogramEnumeration(
+            "Accessibility.PdfHeuristics.HeadingClassifier",
+            current_heading_classifier);
+        if (page_properties.median_font_size > 0) {
+          float ratio =
+              text_run.style.font_size / page_properties.median_font_size;
+          min_heading_ratio =
+              std::min(min_heading_ratio.value_or(ratio), ratio);
+          max_heading_ratio =
+              std::max(max_heading_ratio.value_or(ratio), ratio);
+        }
+      }
     }
 
     // If the `text_run_index` is less than or equal to the link's
@@ -472,6 +767,7 @@ void PdfAccessibilityTreeBuilderHeuristic::BuildPageTree() {
           !PdfAccessibilityTreeBuilder::AreStylesEquivalent(*current_style,
                                                             text_run.style)) {
         BuildStaticNode(&static_text_node, &static_text, &current_style);
+        current_heading_classifier = HeadingClassifier::kNone;
       }
 
       // This node is for the text inside the block, it includes the text of all
@@ -528,11 +824,11 @@ void PdfAccessibilityTreeBuilderHeuristic::BuildPageTree() {
     }
 
     if (!previous_on_line_node) {
-      if (BreakParagraph(builder_->text_runs(), text_run_index,
-                         paragraph_spacing_threshold_,
-                         font_size_heading_mapping_, block_node)) {
+      if (BreakParagraph(text_run_index, block_node, current_heading_classifier,
+                         page_layout, page_properties)) {
         BuildStaticNode(&static_text_node, &static_text, &current_style);
         block_node = nullptr;
+        current_heading_classifier = HeadingClassifier::kNone;
       }
     }
   }
@@ -555,28 +851,49 @@ void PdfAccessibilityTreeBuilderHeuristic::BuildPageTree() {
 }
 
 ui::AXNodeData* PdfAccessibilityTreeBuilderHeuristic::CreateBlockLevelNode(
-    float font_size) {
+    const chrome_pdf::AccessibilityTextRunInfo& current_run,
+    const chrome_pdf::AccessibilityTextRunInfo* next_run,
+    base::span<const chrome_pdf::AccessibilityCharInfo> current_run_chars,
+    const HeuristicPageProperties& page_properties,
+    HeadingClassifier* out_heading_classifier) {
   ui::AXNodeData* block_node = builder_->CreateAndAppendNode(
       ax::mojom::Role::kParagraph, ax::mojom::Restriction::kReadOnly);
   block_node->AddBoolAttribute(ax::mojom::BoolAttribute::kIsLineBreakingObject,
                                true);
+  *out_heading_classifier = HeadingClassifier::kNone;
 
-  if (builder_->mark_headings_using_heuristic() &&
-      heading_font_size_threshold_ > 0 &&
-      font_size > heading_font_size_threshold_) {
-    block_node->role = ax::mojom::Role::kHeading;
+  if (!builder_->mark_headings_using_heuristic()) {
+    return block_node;
+  }
+
+  float font_size = current_run.style.font_size;
+  if (page_properties.heading_font_size_threshold > 0 &&
+      font_size > page_properties.heading_font_size_threshold) {
     int heading_level = kDefaultHeadingLevel;
     if (features::IsPdfAccessibilityHeuristicEnhancementsEnabled()) {
-      int heuristic_heading_level =
-          GetHeadingLevelFromSize(font_size_heading_mapping_, font_size);
+      int heuristic_heading_level = GetHeadingLevelFromSize(
+          page_properties.heading_font_size_mapping, font_size);
       if (heuristic_heading_level >= 1 && heuristic_heading_level <= 6) {
         heading_level = heuristic_heading_level;
       }
     }
-    block_node->AddIntAttribute(ax::mojom::IntAttribute::kHierarchicalLevel,
-                                heading_level);
-    block_node->AddStringAttribute(ax::mojom::StringAttribute::kHtmlTag,
-                                   "h" + base::NumberToString(heading_level));
+    PromoteNodeToHeading(block_node, heading_level);
+    *out_heading_classifier = HeadingClassifier::kFontSize;
+    return block_node;
+  }
+
+  // Use other styling information to classify headings for text that is smaller
+  // than the heading_font_size_threshold.
+  if (features::IsPdfAccessibilityHeuristicEnhancementsEnabled()) {
+    HeadingClassifier classifier = GetHeadingClassifier(
+        current_run, next_run, current_run_chars, page_properties);
+
+    if (classifier != HeadingClassifier::kNone) {
+      int heading_level = GetHeadingLevelFromSize(
+          page_properties.heading_font_size_mapping, font_size);
+      PromoteNodeToHeading(block_node, heading_level);
+      *out_heading_classifier = classifier;
+    }
   }
 
   return block_node;

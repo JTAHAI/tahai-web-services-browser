@@ -27,8 +27,10 @@
 
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_shape.h"
 
+#include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
 #include "third_party/blink/renderer/core/layout/hit_test_location.h"
 #include "third_party/blink/renderer/core/layout/hit_test_result.h"
+#include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/core/layout/pointer_events_hit_rules.h"
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_resource_paint_server.h"
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_root.h"
@@ -68,38 +70,27 @@ bool ComputeStrokeHasRelativeLengths(const ComputedStyle& style) {
 }  // namespace
 
 LayoutSVGShape::LayoutSVGShape(SVGGeometryElement* node)
-    : LayoutSVGModelObject(node),
-      // A description (classification) of what geometric shape is represented -
-      // used for computing stroke bounds more efficiently, fast-paths for
-      // painting and determining if a shape is "empty".
-      geometry_type_(GeometryType::kEmpty),
-      // Default is false, the cached rects are empty from the beginning.
-      needs_boundaries_update_(false),
-      // Default is true, so we grab a Path object once from SVGGeometryElement.
-      needs_shape_update_(true),
-      // Default is true, so we grab a AffineTransform object once from
-      // SVGGeometryElement.
-      needs_transform_update_(true),
-      transform_uses_reference_box_(false) {}
+    : LayoutSVGModelObject(node) {}
 
 LayoutSVGShape::~LayoutSVGShape() = default;
 
 void LayoutSVGShape::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
+    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
-  LayoutSVGModelObject::StyleDidChange(diff, old_style, style_change_context);
+  LayoutSVGModelObject::StyleDidChange(diff, old_style, new_style,
+                                       style_change_context);
 
   if (diff.NeedsFullLayout()) {
     SetNeedsBoundariesUpdate();
   }
 
-  const ComputedStyle& style = StyleRef();
-
   TransformHelper::UpdateOffsetPath(*GetElement(), old_style);
-  transform_uses_reference_box_ = TransformHelper::DependsOnReferenceBox(style);
-  SVGResources::UpdatePaints(*this, old_style, style);
+  transform_uses_reference_box_ =
+      TransformHelper::DependsOnReferenceBox(new_style);
+  SVGResources::UpdatePaints(*this, old_style, new_style);
 
   if (old_style) {
     // Most of the stroke attributes (caps, joins, miters, width, etc.) will
@@ -107,16 +98,17 @@ void LayoutSVGShape::StyleDidChange(
     // are a couple of additional properties that *won't* cause a layout, but
     // are significant enough to require invalidating the cache.
     if (!diff.NeedsFullLayout() && stroke_path_cache_) {
-      if (old_style->StrokeDashOffset() != style.StrokeDashOffset() ||
-          old_style->PathLength() != style.PathLength() ||
+      if (old_style->StrokeDashOffset() != new_style.StrokeDashOffset() ||
+          old_style->PathLength() != new_style.PathLength() ||
           !base::ValuesEquivalent(old_style->StrokeDashArray(),
-                                  style.StrokeDashArray())) {
+                                  new_style.StrokeDashArray())) {
         stroke_path_cache_.reset();
       }
     }
 
     if (transform_uses_reference_box_ && !needs_transform_update_) {
-      if (TransformHelper::CheckReferenceBoxDependencies(*old_style, style)) {
+      if (TransformHelper::CheckReferenceBoxDependencies(*old_style,
+                                                         new_style)) {
         SetNeedsTransformUpdate();
         SetNeedsPaintPropertyUpdate();
       }
@@ -129,18 +121,22 @@ void LayoutSVGShape::StyleDidChange(
     // which are zoom-independent, so they would not otherwise notice. Force a
     // shape update here.
     if (RuntimeEnabledFeatures::SvgNewZoomEnabled() &&
-        old_style->EffectiveZoom() != style.EffectiveZoom()) {
+        old_style->EffectiveZoom() != new_style.EffectiveZoom()) {
       SetNeedsShapeUpdate();
     }
   }
 
-  SetTransformAffectsVectorEffect(HasNonScalingStroke());
+  const bool has_non_scaling_stroke = HasNonScalingStroke();
+  SetTransformAffectsVectorEffect(has_non_scaling_stroke);
+  if (has_non_scaling_stroke) {
+    View()->SetContainsNonScalingStroke();
+  }
 }
 
-void LayoutSVGShape::WillBeDestroyed() {
+void LayoutSVGShape::WillBeDestroyed(const ComputedStyle* style) {
   NOT_DESTROYED();
-  SVGResources::ClearPaints(*this, Style());
-  LayoutSVGModelObject::WillBeDestroyed();
+  SVGResources::ClearPaints(*this, style);
+  LayoutSVGModelObject::WillBeDestroyed(style);
 }
 
 void LayoutSVGShape::ClearPath() {
@@ -563,9 +559,18 @@ bool LayoutSVGShape::NodeAtPoint(HitTestResult& result,
   if (HitTestShape(result.GetHitTestRequest(), *local_location, hit_rules)) {
     UpdateHitTestResult(result, PhysicalOffset::FromPointFRound(
                                     local_location->TransformedPoint()));
-    if (result.AddNodeToListBasedTestResult(GetElement(), *local_location) ==
-        kStopHitTesting)
+    gfx::RectF bounds;
+    if (result.GetHitTestRequest().IsHitTestVisualOverflow()) [[unlikely]] {
+      bounds =
+          SVGLayoutSupport::ApplyFiltersToRect(*this, DecoratedBoundingBox());
+    } else if (hit_rules.can_hit_bounding_box) {
+      bounds = ObjectBoundingBox();
+    }
+    if (result.AddNodeToListBasedTestResult(
+            GetElement(), *local_location,
+            PhysicalRect::EnclosingRect(bounds)) == kStopHitTesting) {
       return true;
+    }
   }
 
   return false;

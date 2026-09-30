@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/containers/flat_map.h"
@@ -121,8 +122,12 @@ class GraphBuilderTflite final {
 
   // Factory method that creates a GraphBuilderTflite and builds a TFLite
   // Flatbuffer Returns unexpected if it fails.
+  //
+  // `context_device` selects the runtime accelerator the model is being
+  // built for.
   [[nodiscard]] static base::expected<Result, std::string> CreateAndBuild(
       ContextProperties context_properties,
+      mojom::Device context_device,
       const mojom::GraphInfo& graph_info,
       const base::flat_map<OperandId, std::unique_ptr<WebNNConstantOperand>>&
           constant_operands,
@@ -151,6 +156,7 @@ class GraphBuilderTflite final {
 
   GraphBuilderTflite(
       ContextProperties context_properties,
+      mojom::Device context_device,
       const mojom::GraphInfo& graph_info,
       const base::flat_map<OperandId, std::unique_ptr<WebNNConstantOperand>>&
           constant_operands,
@@ -274,6 +280,11 @@ class GraphBuilderTflite final {
   OperatorCodeIndex GetOperatorCodeIndex(::tflite::BuiltinOperator code,
                                          int32_t version = 1);
 
+  // Registers (once per unique name) a `BuiltinOperator_CUSTOM` operator code
+  // with the given custom name and returns its index.
+  OperatorCodeIndex GetCustomOperatorCodeIndex(std::string_view custom_code,
+                                               int32_t version = 1);
+
   // Returns the Operand corresponding to an `operand_id` from `graph_info_`.
   // Will crash if `graph_info_` does not contain `operand_id`.
   const mojom::Operand& GetOperand(OperandId operand_id) const;
@@ -285,6 +296,9 @@ class GraphBuilderTflite final {
 
   // Get the value from constant operand and cast it to int64 data type.
   base::FixedArray<int64_t> GetConstantInt64Value(OperandId operand_id);
+  // Returns the value of `operand_id` if it is a floating point constant with
+  // a single element.
+  std::optional<float> GetFloatScalarConstant(OperandId operand_id);
   // Get quantize scale value for float16 and float32 data type.
   base::FixedArray<float> GetQuantizeScaleValue(OperandId operand_id);
 
@@ -559,6 +573,14 @@ class GraphBuilderTflite final {
       const TensorInfo& input_tensor_info,
       base::span<const uint32_t> permutation);
 
+  // Serializes the rank-2 constant `operand_id` with its two axes
+  // exchanged, so that no TRANSPOSE operator is emitted for it. A
+  // float16 constant is followed by the DEQUANTIZE which unpacks it,
+  // so the returned index may be that operator's output rather than
+  // the constant.
+  base::expected<TensorIndex, std::string> SerializeTransposedConstant2D(
+      OperandId operand_id);
+
   // Serialize a sub graph (pow appending mul operation) for erf operation.
   base::expected<TensorIndex, std::string> SerializeSubGraphPowMul(
       base::span<const int32_t> input_dimensions,
@@ -774,12 +796,19 @@ class GraphBuilderTflite final {
       const mojom::HardSigmoid& hard_sigmoid);
   base::expected<OperatorOffset, std::string> SerializeHardSwish(
       const mojom::HardSwish& hard_swish);
-  OperatorOffset SerializeIdentityOperation(TensorIndex input_tensor_index,
-                                            TensorIndex output_tensor_index,
-                                            base::span<const int32_t> shape);
+  // Returns Null OperatorOffset if the operation is elided, otherwise returns
+  // the OperatorOffset of the serialized operation.
+  base::expected<OperatorOffset, std::string> SerializeIdentityOperation(
+      OperandId input_operand_id,
+      OperandId output_operand_id);
+
   base::expected<OperatorOffset, std::string> SerializeInstanceNormalization(
       const mojom::InstanceNormalization& instance_normalization);
   base::expected<OperatorOffset, std::string> SerializeLayerNormalization(
+      const mojom::LayerNormalization& layer_normalization);
+  // Emits a `custom_call.LayerNorm` custom op if supported by
+  // `context_device_`. Returns `std::nullopt` otherwise.
+  std::optional<OperatorOffset> SerializeLayerNormalizationAsCustomCall(
       const mojom::LayerNormalization& layer_normalization);
   base::expected<OperatorOffset, std::string> SerializeLeakyRelu(
       const mojom::LeakyRelu& leaky_relu);
@@ -1001,6 +1030,9 @@ class GraphBuilderTflite final {
       bool graph_requires_fp32_precision);
 
   const ContextProperties context_properties_;
+
+  // The accelerator the compiled model will target.
+  const mojom::Device context_device_;
 
   // A reference to the WebNN compute graph that `this` instance is converting
   // to TFLite. The creator of `this` must ensure the GraphInfo reference passed

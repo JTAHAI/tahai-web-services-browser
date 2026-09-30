@@ -26,6 +26,7 @@
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/defaults.h"
+#include "chrome/browser/enterprise/isolated_mode/isolated_mode_settings_service_factory.h"
 #include "chrome/browser/enterprise/util/managed_browser_utils.h"
 #include "chrome/browser/extensions/extension_ui_util.h"
 #include "chrome/browser/feedback/report_unsafe_site_dialog.h"
@@ -46,6 +47,7 @@
 #include "chrome/browser/search/search.h"
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
 #include "chrome/browser/sharing_hub/sharing_hub_features.h"
+#include "chrome/browser/signin/account_preview_data_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_ui_util.h"
 #include "chrome/browser/signin/signin_util.h"
@@ -53,7 +55,6 @@
 #include "chrome/browser/sync/sync_ui_util.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/bookmarks/bookmark_utils.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
@@ -108,6 +109,7 @@
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
+#include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
@@ -276,7 +278,7 @@ std::u16string GetUpgradeDialogTitleText() {
 
 // Returns the appropriate menu label for the IDC_INSTALL_PWA command if
 // available.
-std::u16string GetInstallPWALabel(Browser* browser) {
+std::u16string GetInstallPWALabel(BrowserWindowInterface* browser) {
   // There may be no active web contents in tests.
   auto* const web_contents = browser->tab_strip_model()->GetActiveWebContents();
   if (!web_contents) {
@@ -362,7 +364,7 @@ std::u16string GetInstallPWALabel(Browser* browser) {
 }
 
 // TODO(b/328077967): Implement async updates of menu for app icon.
-ui::ImageModel GetInstallPWAIcon(Browser* browser) {
+ui::ImageModel GetInstallPWAIcon(BrowserWindowInterface* browser) {
   ui::ImageModel app_icon_to_use = ui::ImageModel::FromVectorIcon(
       features::IsRoundedIconsEnabled() ? vector_icons::kInstallDesktopIcon
                                         : kInstallDesktopChromeRefreshOldIcon,
@@ -411,7 +413,7 @@ ui::ImageModel GetInstallPWAIcon(Browser* browser) {
 
 // Returns the appropriate menu label for the IDC_OPEN_IN_PWA_WINDOW command if
 // available.
-std::u16string GetOpenPWALabel(Browser* browser) {
+std::u16string GetOpenPWALabel(BrowserWindowInterface* browser) {
   std::optional<webapps::AppId> app_id =
       web_app::GetWebAppForActiveTab(browser);
   if (!app_id.has_value()) {
@@ -446,12 +448,12 @@ std::u16string GetSyncSectionTitle(Profile* profile,
   }
 
   if (signin_util::IsSigninPending(identity_manager)) {
-    return base::UTF8ToUTF16(account.email);
+    return base::UTF8ToUTF16(account.GetEmail());
   }
 
   return l10n_util::GetStringFUTF16(
       IDS_PROFILE_ROW_SIGNED_IN_MESSAGE_WITH_EMAIL,
-      {base::UTF8ToUTF16(account.email)});
+      {base::UTF8ToUTF16(account.GetEmail())});
 }
 
 class ProfileSubMenuModel : public ui::SimpleMenuModel,
@@ -515,7 +517,11 @@ ProfileSubMenuModel::ProfileSubMenuModel(
       features::IsRoundedIconsEnabled() ? kAccountCircleIcon
                                         : kAccountCircleChromeRefreshOldIcon,
       ui::kColorMenuIcon, avatar_icon_size);
-  if (profile->IsIncognitoProfile()) {
+  // TODO(b/540249284): Temporarily Isolated mode is treated as Incognito. This
+  // should be revisited when deciding on the final integration of Isolated
+  // mode.
+  if (profile->IsIncognitoProfile() ||
+      profile->IsEnterpriseIsolatedModeProfile()) {
     avatar_image_model_ = ui::ImageModel::FromVectorIcon(
         features::IsRoundedIconsEnabled() ? kIncognitoCircleFilledIcon
                                           : kIncognitoOldIcon,
@@ -544,8 +550,9 @@ ProfileSubMenuModel::ProfileSubMenuModel(
                         ThemeServiceFactory::GetForProfile(profile),
                         /*background_color_id=*/ui::kColorMenuBackground,
                         *color_provider))
-              : std::make_pair(account_info.account_image,
-                               AvatarIconType::kNonPlaceholder);
+              : std::make_pair(
+                    account_info.GetAvatarImage().value_or(gfx::Image()),
+                    AvatarIconType::kNonPlaceholder);
       // The avatar image can be empty if the account image hasn't been
       // fetched yet, if there is no image, or in tests.
       // Keep the default vector icon for placeholder avatars so that
@@ -580,8 +587,11 @@ ProfileSubMenuModel::ProfileSubMenuModel(
 
   bool needs_separator = false;
   const bool is_guest_mode_enabled = profiles::IsGuestModeEnabled(*profile);
-
-  if (!profile->IsIncognitoProfile() && !profile->IsGuestSession()) {
+  // TODO(b/540249284): Temporarily Isolated mode is treated as Incognito. This
+  // should be revisited when deciding on the final integration of Isolated
+  // mode.
+  if (!profile->IsIncognitoProfile() && !profile->IsGuestSession() &&
+      !profile->IsEnterpriseIsolatedModeProfile()) {
     AddSeparator(ui::NORMAL_SEPARATOR);
     AddTitle(l10n_util::GetStringUTF16(IDS_OTHER_CHROME_PROFILES_TITLE));
     auto profile_entries = GetAllOtherProfileEntriesForProfileSubMenu(profile);
@@ -795,7 +805,9 @@ bool ProfileSubMenuModel::BuildSyncSection() {
                 : vector_icons::kAccountCircleOldIcon);
         signin_metrics::LogSignInOffered(
             signin_metrics::AccessPoint::kMenu,
-            signin_ui_util::GetSingleAccountForPromos(identity_manager)
+            signin_ui_util::GetSingleAccountForPromos(
+                identity_manager,
+                AccountPreviewDataServiceFactory::GetForProfile(profile_))
                     .IsEmpty()
                 ? signin_metrics::PromoAction::
                       PROMO_ACTION_NEW_ACCOUNT_NO_EXISTING_ACCOUNT
@@ -819,9 +831,12 @@ void ProfileSubMenuModel::BuildGuestProfileRow(Profile* profile) {
   SetElementIdentifierAt(GetIndexOfCommandId(IDC_OPEN_GUEST_PROFILE).value(),
                          AppMenuModel::kProfileOpenGuestItem);
 }
-
+// TODO(b/540249284): Temporarily Isolated mode is treated as Incognito. This
+// should be revisited when deciding on the final integration of Isolated
+// mode.
 void ProfileSubMenuModel::BuildCustomizeProfileRow(Profile* profile) {
-  if (!profile->IsIncognitoProfile() && !profile->IsGuestSession()) {
+  if (!profile->IsIncognitoProfile() && !profile->IsGuestSession() &&
+      !profile->IsEnterpriseIsolatedModeProfile()) {
     AddItemWithStringIdAndVectorIcon(
         this, IDC_CUSTOMIZE_CHROME, IDS_CUSTOMIZE_CHROME,
         features::IsRoundedIconsEnabled()
@@ -843,7 +858,8 @@ void ProfileSubMenuModel::BuildCloseProfileRow(Profile* profile) {
 
 void ProfileSubMenuModel::BuildManageGoogleAccountRow(Profile* profile) {
   if (HasUnconstentedProfile(profile) && !IsSyncPaused(profile) &&
-      !profile->IsIncognitoProfile()) {
+      !profile->IsIncognitoProfile() &&
+      !profile->IsEnterpriseIsolatedModeProfile()) {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
     const gfx::VectorIcon& manage_account_icon =
         vector_icons::kGoogleGLogoMonochromeIcon;
@@ -881,44 +897,32 @@ PasswordsAndAutofillSubMenuModel::PasswordsAndAutofillSubMenuModel(
   SetElementIdentifierAt(GetIndexOfCommandId(IDC_SHOW_PASSWORD_MANAGER).value(),
                          AppMenuModel::kPasswordManagerMenuItem);
 
-  AddItemWithStringIdAndVectorIcon(
-      this, IDC_SHOW_PAYMENT_METHODS,
-      base::FeatureList::IsEnabled(
-          autofill::features::kYourSavedInfoSettingsPage)
-          ? IDS_YOUR_SAVED_INFO_PAYMENTS_SUBMENU_OPTION
-          : IDS_PAYMENT_METHOD_SUBMENU_OPTION,
-      features::IsRoundedIconsEnabled() ? kCreditCardIcon
-                                        : kCreditCardChromeRefreshOldIcon);
+  AddItemWithStringIdAndVectorIcon(this, IDC_SHOW_PAYMENT_METHODS,
+                                   IDS_YOUR_SAVED_INFO_PAYMENTS_SUBMENU_OPTION,
+                                   features::IsRoundedIconsEnabled()
+                                       ? kCreditCardIcon
+                                       : kCreditCardChromeRefreshOldIcon);
 
-  if (!base::FeatureList::IsEnabled(
-          autofill::features::kYourSavedInfoSettingsPage)) {
-    AddItemWithStringIdAndVectorIcon(
-        this, IDC_SHOW_ADDRESSES, IDS_ADDRESSES_AND_MORE_SUBMENU_OPTION,
-        features::IsRoundedIconsEnabled()
-            ? vector_icons::kLocationOnIcon
-            : vector_icons::kLocationOnChromeRefreshOldIcon);
-  } else {
-    AddItemWithStringIdAndVectorIcon(
-        this, IDC_SHOW_CONTACT_INFO,
-        IDS_YOUR_SAVED_INFO_CONTACT_INFO_SUBMENU_OPTION,
-        features::IsRoundedIconsEnabled()
-            ? vector_icons::kLocationOnIcon
-            : vector_icons::kLocationOnChromeRefreshOldIcon);
-    SetElementIdentifierAt(GetIndexOfCommandId(IDC_SHOW_CONTACT_INFO).value(),
-                           AppMenuModel::kContactInfoMenuItem);
-    AddItemWithStringIdAndVectorIcon(
-        this, IDC_SHOW_IDENTITY_DOCS, IDS_IDENTITY_DOCS_SUBMENU_OPTION,
-        features::IsRoundedIconsEnabled() ? vector_icons::kIdCardIcon
-                                          : vector_icons::kIdCardOldIcon);
-    SetElementIdentifierAt(GetIndexOfCommandId(IDC_SHOW_IDENTITY_DOCS).value(),
-                           AppMenuModel::kIdentityDocsMenuItem);
-    AddItemWithStringIdAndVectorIcon(
-        this, IDC_SHOW_TRAVEL, IDS_TRAVEL_SUBMENU_OPTION,
-        features::IsRoundedIconsEnabled() ? vector_icons::kTripIcon
-                                          : vector_icons::kTripOldIcon);
-    SetElementIdentifierAt(GetIndexOfCommandId(IDC_SHOW_TRAVEL).value(),
-                           AppMenuModel::kTravelMenuItem);
-  }
+  AddItemWithStringIdAndVectorIcon(
+      this, IDC_SHOW_CONTACT_INFO,
+      IDS_YOUR_SAVED_INFO_CONTACT_INFO_SUBMENU_OPTION,
+      features::IsRoundedIconsEnabled()
+          ? vector_icons::kLocationOnIcon
+          : vector_icons::kLocationOnChromeRefreshOldIcon);
+  SetElementIdentifierAt(GetIndexOfCommandId(IDC_SHOW_CONTACT_INFO).value(),
+                         AppMenuModel::kContactInfoMenuItem);
+  AddItemWithStringIdAndVectorIcon(
+      this, IDC_SHOW_IDENTITY_DOCS, IDS_IDENTITY_DOCS_SUBMENU_OPTION,
+      features::IsRoundedIconsEnabled() ? vector_icons::kIdCardIcon
+                                        : vector_icons::kIdCardOldIcon);
+  SetElementIdentifierAt(GetIndexOfCommandId(IDC_SHOW_IDENTITY_DOCS).value(),
+                         AppMenuModel::kIdentityDocsMenuItem);
+  AddItemWithStringIdAndVectorIcon(
+      this, IDC_SHOW_TRAVEL, IDS_TRAVEL_SUBMENU_OPTION,
+      features::IsRoundedIconsEnabled() ? vector_icons::kTripIcon
+                                        : vector_icons::kTripOldIcon);
+  SetElementIdentifierAt(GetIndexOfCommandId(IDC_SHOW_TRAVEL).value(),
+                         AppMenuModel::kTravelMenuItem);
 }
 
 class FindAndEditSubMenuModel : public ui::SimpleMenuModel {
@@ -952,7 +956,7 @@ FindAndEditSubMenuModel::FindAndEditSubMenuModel(
 class SaveAndShareSubMenuModel : public ui::SimpleMenuModel {
  public:
   SaveAndShareSubMenuModel(ui::SimpleMenuModel::Delegate* delegate,
-                           Browser* browser);
+                           BrowserWindowInterface* browser);
   SaveAndShareSubMenuModel(const SaveAndShareSubMenuModel&) = delete;
   SaveAndShareSubMenuModel& operator=(const SaveAndShareSubMenuModel&) = delete;
   ~SaveAndShareSubMenuModel() override = default;
@@ -960,7 +964,7 @@ class SaveAndShareSubMenuModel : public ui::SimpleMenuModel {
  private:
   // Builds Send Tab to Self target device submenu when enhanced desktop UI is
   // enabled.
-  void BuildSendTabToSelfSubmenu(Browser* browser,
+  void BuildSendTabToSelfSubmenu(BrowserWindowInterface* browser,
                                  content::WebContents* web_contents);
 
   // Fallback helper to add simple Send Tab to Self menu item.
@@ -972,7 +976,7 @@ class SaveAndShareSubMenuModel : public ui::SimpleMenuModel {
 };
 
 void SaveAndShareSubMenuModel::BuildSendTabToSelfSubmenu(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     content::WebContents* web_contents) {
   CHECK(web_contents);
 
@@ -1003,7 +1007,7 @@ void SaveAndShareSubMenuModel::BuildSendTabToSelfSimpleItem() {
 
 SaveAndShareSubMenuModel::SaveAndShareSubMenuModel(
     ui::SimpleMenuModel::Delegate* delegate,
-    Browser* browser)
+    BrowserWindowInterface* browser)
     : SimpleMenuModel(delegate) {
   if (media_router::MediaRouterEnabled(browser->GetProfile())) {
     AddTitle(l10n_util::GetStringUTF16(IDS_SAVE_AND_SHARE_MENU_CAST));
@@ -1115,14 +1119,14 @@ void LogWrenchMenuAction(AppMenuAction action_id) {
 // Only used in branded builds.
 
 HelpMenuModel::HelpMenuModel(ui::SimpleMenuModel::Delegate* delegate,
-                             Browser* browser)
+                             BrowserWindowInterface* browser)
     : SimpleMenuModel(delegate) {
   Build(browser);
 }
 
 HelpMenuModel::~HelpMenuModel() = default;
 
-void HelpMenuModel::Build(Browser* browser) {
+void HelpMenuModel::Build(BrowserWindowInterface* browser) {
 #if BUILDFLAG(IS_CHROMEOS) && defined(OFFICIAL_BUILD)
   int help_string_id = IDS_GET_HELP;
 #else
@@ -1167,7 +1171,6 @@ void HelpMenuModel::Build(Browser* browser) {
           HelpMenuModel::kReportUnsafeSiteMenuItem);
     }
   }
-}
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 }
 
@@ -1175,7 +1178,7 @@ void HelpMenuModel::Build(Browser* browser) {
 // ToolsMenuModel
 
 ToolsMenuModel::ToolsMenuModel(ui::SimpleMenuModel::Delegate* delegate,
-                               Browser* browser)
+                               BrowserWindowInterface* browser)
     : SimpleMenuModel(delegate) {
   Build(browser);
 }
@@ -1188,7 +1191,7 @@ ToolsMenuModel::~ToolsMenuModel() = default;
 // - Reading mode.
 // - Developer tools.
 // - Option to enable profiling.
-void ToolsMenuModel::Build(Browser* browser) {
+void ToolsMenuModel::Build(BrowserWindowInterface* browser) {
   // Tablet mode does not have a Tab Search button. We should not show tablet
   // mode users these menu items.
   bool is_tablet_mode = false;
@@ -1219,18 +1222,11 @@ void ToolsMenuModel::Build(Browser* browser) {
                                     : kDockToRightOldIcon
           : features::IsRoundedIconsEnabled() ? kDockToRightIcon
                                               : kDockToLeftOldIcon);
-      const bool use_preview_badge =
-          base::FeatureList::IsEnabled(tabs::kVerticalTabsPreviewBadge);
-      const ui::NewBadgeType badge_type = use_preview_badge
-                                              ? ui::NewBadgeType::kPreview
-                                              : ui::NewBadgeType::kNew;
       const user_education::DisplayNewBadge show_badge =
-          UserEducationService::MaybeShowNewBadge(
-              browser->GetProfile(), use_preview_badge
-                                         ? tabs::kVerticalTabsPreviewBadge
-                                         : tabs::kVerticalTabsNewBadge);
+          UserEducationService::MaybeShowNewBadge(browser->GetProfile(),
+                                                  tabs::kVerticalTabsNewBadge);
       SetIsNewFeatureAt(GetIndexOfCommandId(IDC_TOGGLE_VERTICAL_TABS).value(),
-                        show_badge, badge_type);
+                        show_badge, ui::NewBadgeType::kNew);
     }
   }
 
@@ -1264,10 +1260,9 @@ void ToolsMenuModel::Build(Browser* browser) {
                          kPerformanceMenuItem);
 
   if (chrome::CanOpenTaskManager()) {
-    AddItemWithStringIdAndVectorIcon(
-        this, IDC_TASK_MANAGER_APP_MENU, IDS_TASK_MANAGER,
-        features::IsRoundedIconsEnabled() ? kTableChartIcon
-                                          : kTaskManagerOldIcon);
+    AddItemWithStringIdAndVectorIcon(this, IDC_TASK_MANAGER_APP_MENU,
+                                     IDS_TASK_MANAGER,
+                                     vector_icons::kTableChartIcon);
   }
 #if BUILDFLAG(IS_CHROMEOS)
   AddItemWithStringId(IDC_TAKE_SCREENSHOT, IDS_TAKE_SCREENSHOT);
@@ -1308,7 +1303,7 @@ void ToolsMenuModel::Build(Browser* browser) {
 
 ExtensionsMenuModel::ExtensionsMenuModel(
     ui::SimpleMenuModel::Delegate* delegate,
-    Browser* browser)
+    BrowserWindowInterface* browser)
     : SimpleMenuModel(delegate) {
   Build(browser);
 }
@@ -1319,7 +1314,7 @@ ExtensionsMenuModel::~ExtensionsMenuModel() = default;
 // - An overflow with two items:
 //   - An item to manage extensions at chrome://extensions
 //   - An item to visit the Chrome Web Store
-void ExtensionsMenuModel::Build(Browser* browser) {
+void ExtensionsMenuModel::Build(BrowserWindowInterface* browser) {
   AddItemWithStringIdAndVectorIcon(
       this, IDC_EXTENSIONS_SUBMENU_MANAGE_EXTENSIONS,
       IDS_EXTENSIONS_SUBMENU_MANAGE_EXTENSIONS_ITEM,
@@ -1359,7 +1354,7 @@ AlertMenuItem AppMenuModel::GetAlertItemForRunningTutorial(
 }
 
 AppMenuModel::AppMenuModel(ui::AcceleratorProvider* provider,
-                           Browser* browser,
+                           BrowserWindowInterface* browser,
                            AppMenuIconController* app_menu_icon_controller,
                            AlertMenuItem alert_item)
     : ui::SimpleMenuModel(this),
@@ -1415,14 +1410,29 @@ void AppMenuModel::ExecuteCommand(int command_id, int event_flags) {
   }
 
   LogMenuMetrics(command_id);
-  actions::ActionInvocationContext context =
-      actions::ActionInvocationContext::Builder()
-          .SetProperty(
-              kSidePanelOpenTriggerKey,
-              static_cast<std::underlying_type_t<SidePanelOpenTrigger>>(
-                  SidePanelOpenTrigger::kAppMenu))
-          .Build();
-  chrome::ExecuteCommandWithContext(browser_, command_id, std::move(context));
+
+  switch (command_id) {
+    case IDC_SHOW_BOOKMARK_SIDE_PANEL:
+    case IDC_SHOW_HISTORY_CLUSTERS_SIDE_PANEL:
+    case IDC_SHOW_READING_MODE_SIDE_PANEL:
+    case IDC_READING_LIST_MENU_SHOW_UI:
+    case IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL: {
+      actions::ActionInvocationContext context =
+          actions::ActionInvocationContext::Builder()
+              .SetProperty(
+                  kSidePanelOpenTriggerKey,
+                  static_cast<std::underlying_type_t<SidePanelOpenTrigger>>(
+                      SidePanelOpenTrigger::kAppMenu))
+              .Build();
+      chrome::ExecuteCommandWithContext(browser_, command_id,
+                                        std::move(context));
+      break;
+    }
+
+    default:
+      chrome::ExecuteCommand(browser_, command_id);
+      break;
+  }
 }
 
 void AppMenuModel::LogSafetyHubInteractionMetrics(
@@ -1468,6 +1478,9 @@ void AppMenuModel::LogMenuMetrics(int command_id) {
             "WrenchMenu.TimeToAction.NewIncognitoWindow", delta);
       }
       LogMenuAction(MENU_ACTION_NEW_INCOGNITO_WINDOW);
+      break;
+    case IDC_NEW_ISOLATED_WINDOW:
+      LogMenuAction(MENU_ACTION_NEW_ISOLATED_WINDOW);
       break;
 
     // Bookmarks sub menu.
@@ -2108,8 +2121,8 @@ bool AppMenuModel::IsCommandIdChecked(int command_id) const {
   const std::string_view rail_state =
       tahai::WindowModeController::RailStateForCommandId(command_id);
   if (!rail_state.empty()) {
-    const auto* controller = tahai::WindowModeController::GetForBrowser(
-        browser_->GetBrowserForMigrationOnly());
+    const auto* controller =
+        tahai::WindowModeController::GetForBrowser(browser_);
     return controller &&
            controller->active_configuration().rail_state == rail_state;
   }
@@ -2175,6 +2188,11 @@ bool AppMenuModel::IsCommandIdAlerted(int command_id) const {
 bool AppMenuModel::GetAcceleratorForCommandId(
     int command_id,
     ui::Accelerator* accelerator) const {
+  if (command_id == IDC_NEW_ISOLATED_WINDOW) {
+    return provider_->GetAcceleratorForCommandId(IDC_NEW_INCOGNITO_WINDOW,
+                                                 accelerator);
+  }
+
   // Reading mode uses different command IDs for different ways of opening
   // it, so adjust to use the command ID for the keyboard shortcut to grab
   // the proper accelerator.
@@ -2182,6 +2200,13 @@ bool AppMenuModel::GetAcceleratorForCommandId(
     return provider_->GetAcceleratorForCommandId(IDC_SHOW_READING_MODE_KEYBOARD,
                                                  accelerator);
   }
+
+  if (command_id == IDC_NEW_INCOGNITO_WINDOW) {
+    if (!IncognitoModePrefs::IsIncognitoAllowed(browser_->GetProfile())) {
+      return false;
+    }
+  }
+
   return provider_->GetAcceleratorForCommandId(command_id, accelerator);
 }
 
@@ -2190,6 +2215,10 @@ void AppMenuModel::LogMenuAction(AppMenuAction action_id) {
 }
 
 // Note: When adding new menu items please place under an appropriate section.
+// Capitalization Policy (go/chrome-capitalization):
+// In-browser 3-dot app menus use sentence case across all platforms, including
+// macOS. Native macOS system menus (the main menu bar and right-click context
+// menus) use Title Case separately.
 // Menu is organised as follows:
 // - Extension toolbar overflow.
 // - Global browser errors and warnings.
@@ -2222,10 +2251,13 @@ void AppMenuModel::Build() {
       AddDefaultBrowserMenuItems()) {
     AddSeparator(ui::NORMAL_SEPARATOR);
   }
-
+  // TODO(b/540249284): Temporarily Isolated mode is treated as Incognito. This
+  // should be revisited when deciding on the final integration of Isolated
+  // mode.
   AddItemWithStringIdAndVectorIcon(
       this, IDC_NEW_TAB,
-      browser_->GetProfile()->IsIncognitoProfile() &&
+      (browser_->GetProfile()->IsIncognitoProfile() ||
+       browser_->GetProfile()->IsEnterpriseIsolatedModeProfile()) &&
               !browser_->GetProfile()->IsGuestSession()
           ? IDS_NEW_INCOGNITO_TAB
           : IDS_NEW_TAB,
@@ -2245,9 +2277,21 @@ void AppMenuModel::Build() {
     SetElementIdentifierAt(
         GetIndexOfCommandId(IDC_NEW_INCOGNITO_WINDOW).value(),
         kIncognitoMenuItem);
+
+    bool isolated_mode_enabled =
+        enterprise_isolated_mode::IsolatedModeReplacesIncognito(
+            browser_->GetProfile());
+
+    if (isolated_mode_enabled) {
+      AddItemWithStringIdAndVectorIcon(
+          this, IDC_NEW_ISOLATED_WINDOW, IDS_NEW_ISOLATED_WINDOW,
+          features::IsRoundedIconsEnabled()
+              ? vector_icons::kDomainIcon
+              : vector_icons::kBusinessChromeRefreshOldIcon);
+    }
   }
 
-  if (!chrome::IsTahaiMultiView(browser_->GetBrowserForMigrationOnly())) {
+  if (!chrome::IsTahaiMultiView(browser_)) {
     AddItemWithIcon(
         IDC_TAHAI_DUAL_VIEW,
         l10n_util::GetStringUTF16(IDS_TAHAI_OPEN_DUAL_VIEW),
@@ -2275,8 +2319,7 @@ void AppMenuModel::Build() {
   } else {
     AddItemWithIcon(
         IDC_TAHAI_QUAD_FOCUS,
-        l10n_util::GetStringUTF16(chrome::IsTahaiMultiViewFocusMode(
-                                      browser_->GetBrowserForMigrationOnly())
+        l10n_util::GetStringUTF16(chrome::IsTahaiMultiViewFocusMode(browser_)
                                       ? IDS_TAHAI_RESTORE_QUAD_VIEW
                                       : IDS_TAHAI_FOCUS_ACTIVE_PANE),
         ui::ImageModel::FromVectorIcon(kGridViewIcon, ui::kColorMenuIcon,
@@ -2297,8 +2340,7 @@ void AppMenuModel::Build() {
     tahai::WindowModeController* const window_mode_controller =
         browser_->GetProfile()->IsOffTheRecord()
             ? nullptr
-            : tahai::WindowModeController::GetForBrowser(
-                  browser_->GetBrowserForMigrationOnly());
+            : tahai::WindowModeController::GetForBrowser(browser_);
     Profile* const mode_profile =
         browser_->GetProfile()->IsOffTheRecord()
             ? browser_->GetProfile()->GetOriginalProfile()
@@ -2663,11 +2705,14 @@ bool AppMenuModel::AddGlobalErrorMenuItems() {
   }
   return menu_items_added;
 }
-
+// TODO(b/540249284): Temporarily Isolated mode is treated as Incognito. This
+// should be revisited when deciding on the final integration of Isolated
+// mode.
 bool AppMenuModel::AddDefaultBrowserMenuItems() {
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
   if (browser_->GetProfile()->IsIncognitoProfile() ||
-      browser_->GetProfile()->IsGuestSession()) {
+      browser_->GetProfile()->IsGuestSession() ||
+      browser_->GetProfile()->IsEnterpriseIsolatedModeProfile()) {
     return false;
   }
 

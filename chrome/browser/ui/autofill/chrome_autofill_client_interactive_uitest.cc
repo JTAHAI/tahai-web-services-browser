@@ -24,12 +24,12 @@
 #include "components/autofill/core/browser/metrics/autofill_settings_metrics.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
 #include "components/autofill/core/browser/ui/autofill_external_delegate.h"
 #include "components/autofill/core/browser/ui/popup_open_enums.h"
 #include "components/autofill/core/common/aliases.h"
 #include "components/autofill/core/common/autofill_features.h"
-#include "components/autofill/core/common/autofill_test_utils.h"
+#include "components/autofill/core/common/autofill_test_util.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/form_data_test_api.h"
 #include "components/feature_engagement/public/feature_constants.h"
@@ -249,36 +249,24 @@ IN_PROC_BROWSER_TEST_F(ChromeAutofillClientBrowserTest,
   base::HistogramTester histogram_tester;
   client()->ShowAutofillSettings(SuggestionType::kManageAddress);
   histogram_tester.ExpectUniqueSample(
-      "Autofill.AddressesSettingsPage.VisitReferrer",
+      "Autofill.YourSavedInfoSettingsPage.VisitReferrer",
       autofill_metrics::AutofillSettingsReferrer::kFillingFlowDropdown, 1);
 
   client()->ShowAutofillSettings(SuggestionType::kManageCreditCard);
   histogram_tester.ExpectUniqueSample(
-      "Autofill.PaymentMethodsSettingsPage.VisitReferrer",
-      autofill_metrics::AutofillSettingsReferrer::kFillingFlowDropdown, 1);
+      "Autofill.YourSavedInfoSettingsPage.VisitReferrer",
+      autofill_metrics::AutofillSettingsReferrer::kFillingFlowDropdown, 2);
 
   client()->ShowAutofillSettings(SuggestionType::kManageIban);
   histogram_tester.ExpectUniqueSample(
-      "Autofill.PaymentMethodsSettingsPage.VisitReferrer",
-      autofill_metrics::AutofillSettingsReferrer::kFillingFlowDropdown, 2);
+      "Autofill.YourSavedInfoSettingsPage.VisitReferrer",
+      autofill_metrics::AutofillSettingsReferrer::kFillingFlowDropdown, 3);
 }
-
-class ChromeAutofillClientYourSavedInfoTest
-    : public ChromeAutofillClientBrowserTest {
- public:
-  void SetUpInProcessBrowserTestFixture() override {
-    ChromeAutofillClientBrowserTest::SetUpInProcessBrowserTestFixture();
-    feature_list_.InitAndEnableFeature(features::kYourSavedInfoSettingsPage);
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
 
 // Tests that calling ShowAutofillSettings() with
 // SuggestionType::kManageAutofillAi navigates the active tab to the main
 // "Your Saved Info" settings page and records the visit referrer metric.
-IN_PROC_BROWSER_TEST_F(ChromeAutofillClientYourSavedInfoTest,
+IN_PROC_BROWSER_TEST_F(ChromeAutofillClientBrowserTest,
                        ShowAutofillSettings_NavigatesToYourSavedInfo) {
   base::HistogramTester histogram_tester;
   client()->ShowAutofillSettings(SuggestionType::kManageAutofillAi);
@@ -296,7 +284,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAutofillClientYourSavedInfoTest,
 // Tests that calling ShowAutofillSettings() with
 // SuggestionType::kManageAutofillAiIdentityDocs navigates the active tab to the
 // Identity Docs settings subpage and records the visit referrer metric.
-IN_PROC_BROWSER_TEST_F(ChromeAutofillClientYourSavedInfoTest,
+IN_PROC_BROWSER_TEST_F(ChromeAutofillClientBrowserTest,
                        ShowAutofillSettings_NavigatesToIdentityDocs) {
   base::HistogramTester histogram_tester;
   client()->ShowAutofillSettings(SuggestionType::kManageAutofillAiIdentityDocs);
@@ -314,7 +302,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAutofillClientYourSavedInfoTest,
 // Tests that calling ShowAutofillSettings() with
 // SuggestionType::kManageAutofillAiTravel navigates the active tab to the
 // Travel settings subpage and records the visit referrer metric.
-IN_PROC_BROWSER_TEST_F(ChromeAutofillClientYourSavedInfoTest,
+IN_PROC_BROWSER_TEST_F(ChromeAutofillClientBrowserTest,
                        ShowAutofillSettings_NavigatesToTravel) {
   base::HistogramTester histogram_tester;
   client()->ShowAutofillSettings(SuggestionType::kManageAutofillAiTravel);
@@ -331,7 +319,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAutofillClientYourSavedInfoTest,
 // Tests that calling ShowAutofillSettings() with
 // SuggestionType::kManageAutofillAiShopping navigates the active tab to the
 // Shopping settings subpage and records the visit referrer metric.
-IN_PROC_BROWSER_TEST_F(ChromeAutofillClientYourSavedInfoTest,
+IN_PROC_BROWSER_TEST_F(ChromeAutofillClientBrowserTest,
                        ShowAutofillSettings_NavigatesToShopping) {
   base::HistogramTester histogram_tester;
   client()->ShowAutofillSettings(SuggestionType::kManageAutofillAiShopping);

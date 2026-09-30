@@ -116,6 +116,7 @@ FORWARD_DECLARE_TEST(ServiceWorkerVersionTest, DevToolsAttachThenDetach);
 FORWARD_DECLARE_TEST(ServiceWorkerVersionTest,
                      DefaultTimeoutRequestDoesNotAffectMaxTimeoutRequest);
 FORWARD_DECLARE_TEST(ServiceWorkerVersionTest, Doom);
+FORWARD_DECLARE_TEST(ServiceWorkerVersionTest, SetStatus_ReentrantSkipWaiting);
 }  // namespace service_worker_version_unittest
 
 FORWARD_DECLARE_TEST(ServiceWorkerRegistryTest, ScriptResponseTime);
@@ -807,6 +808,12 @@ class CONTENT_EXPORT ServiceWorkerVersion
 
   void OnPaymentHandlerDisconnect();
 
+  struct RouterRulesForDevTools {
+    std::optional<std::string> legacy_rules;
+    std::vector<ServiceWorkerRouterRule> typed_rules;
+  };
+  RouterRulesForDevTools CalculateRouterRulesForDevTools() const;
+
   // Timeout for a request to be handled.
   static constexpr base::TimeDelta kRequestTimeout = base::Minutes(5);
 
@@ -904,6 +911,9 @@ class CONTENT_EXPORT ServiceWorkerVersion
   FRIEND_TEST_ALL_PREFIXES(
       service_worker_version_unittest::ServiceWorkerVersionTest,
       Doom);
+  FRIEND_TEST_ALL_PREFIXES(
+      service_worker_version_unittest::ServiceWorkerVersionTest,
+      SetStatus_ReentrantSkipWaiting);
   FRIEND_TEST_ALL_PREFIXES(ServiceWorkerRegistryTest, ScriptResponseTime);
   FRIEND_TEST_ALL_PREFIXES(ServiceWorkerBrowserTest,
                            WarmUpAndStartServiceWorker);
@@ -1145,6 +1155,10 @@ class CONTENT_EXPORT ServiceWorkerVersion
   // Checks if there is an active and pending PAYMENT_REQUEST event
   // for the current service worker version.
   bool HasPendingPaymentRequestEvent();
+
+  // Checks if there is an active and pending event that allows the worker to
+  // open a new window or focus an existing one.
+  bool HasPendingWindowInteractionEvent();
 
   void DidShowPaymentHandlerWindow(
       const GURL& url,

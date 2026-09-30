@@ -42,15 +42,13 @@ chrome.runtime.onMessageExternal.addListener(
         if (!details.invocationSource) {
           throw new Error('missing invocationSource');
         }
-        if (!details.promptId &&
-            details.invocationSource !== 'promotion-page') {
-          throw new Error('missing promptId');
-        }
         return await chrome.glicPrivate.invoke({
           promptId: details.promptId,
           invocationSource: details.invocationSource,
           documentId: sender.documentId,
           inNewTab: details.inNewTab,
+          conversationId: details.conversationId,
+          turnId: details.turnId,
         });
       }
 

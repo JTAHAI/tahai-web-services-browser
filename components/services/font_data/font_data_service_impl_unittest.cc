@@ -208,13 +208,13 @@ TEST_F(FontDataServiceImplUnitTest, MatchFamilyName) {
   font_service_->MatchFamilyName(
       family_name, CreateTypefaceStyle(400, 5, mojom::TypefaceSlant::kRoman),
       &out_result);
-#if BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   EXPECT_EQ(impl_.GetCacheSizeForTesting(), 0u);
   EXPECT_TRUE(out_result->typeface_data->is_font_file());
   EXPECT_TRUE(
       out_result->typeface_data->get_font_file()->file_handle.IsValid());
 #else
-  // For now, on Linux/ChromeOS we always hit the memory region fallback, and
+  // For now, on other platforms we always hit the memory region fallback, and
   // therefore also adds to the cache.
   EXPECT_EQ(impl_.GetCacheSizeForTesting(), 1u);
   EXPECT_TRUE(out_result->typeface_data->is_region());
@@ -339,12 +339,12 @@ TEST_F(FontDataServiceImplUnitTest, LegacyMakeTypefaceNullFamilyName) {
   font_service_->LegacyMakeTypeface(
       std::nullopt, CreateTypefaceStyle(400, 5, mojom::TypefaceSlant::kRoman),
       &out_result);
-#if BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   EXPECT_TRUE(out_result->typeface_data->is_font_file());
   EXPECT_TRUE(
       out_result->typeface_data->get_font_file()->file_handle.IsValid());
 #else
-  // For now, on Linux/ChromeOS we always hit the memory region fallback.
+  // For now, on other platforms we always hit the memory region fallback.
   EXPECT_TRUE(out_result->typeface_data->is_region());
   EXPECT_TRUE(out_result->typeface_data->get_region().IsValid());
 #endif

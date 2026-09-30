@@ -4,18 +4,24 @@
 
 package org.chromium.content.browser.framehost;
 
+import android.util.LongSparseArray;
+
+import androidx.annotation.AnyThread;
+
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.content_public.browser.Page;
+import org.chromium.content_public.browser.PageState;
 import org.chromium.url.GURL;
 
-import java.util.HashMap;
-import java.util.Map;
-
-/** JNI bridge with content::Page */
+/**
+ * JNI bridge with content::Page
+ *
+ * <p>All methods should be called on the UI thread with exception to getMostRecentPageState
+ */
 @JNINamespace("content")
 @NullMarked
 public class PageImpl implements Page {
@@ -23,13 +29,16 @@ public class PageImpl implements Page {
     // entry per instance in the finite global ref table. This scales poorly with a large number of
     // WebContents. As a workaround, an entry is kept in a static map from the native pointer to the
     // Java object to prevent garbage collection.
-    private static final Map<Long, PageImpl> sPages = new HashMap<>();
+    private static final LongSparseArray<PageImpl> sPages = new LongSparseArray<>();
 
     private boolean mIsPrerendering;
     private GURL mUrl = GURL.emptyGURL();
     private long mNativePage;
 
     private @Nullable PageDeletionListener mListener;
+
+    // Holds the most recent PageState snapshot taken, this is taken every time mUrl changes
+    private volatile PageState mMostRecentPageState;
 
     @Override
     public void setPageDeletionListener(PageDeletionListener listener) {
@@ -40,9 +49,12 @@ public class PageImpl implements Page {
     public PageImpl(long nativePage, boolean isPrerendering) {
         mNativePage = nativePage;
         mIsPrerendering = isPrerendering;
+
+        takePageSnapshot();
+
         if (mNativePage != 0) {
-            var oldValue = sPages.put(mNativePage, this);
-            assert oldValue == null;
+            assert sPages.get(mNativePage) == null;
+            sPages.put(mNativePage, this);
         }
     }
 
@@ -58,7 +70,8 @@ public class PageImpl implements Page {
     @CalledByNative
     private void destroy() {
         assert mNativePage != 0;
-        var removedValue = sPages.remove(mNativePage);
+        var removedValue = sPages.get(mNativePage);
+        sPages.remove(mNativePage);
         assert removedValue == this;
         mNativePage = 0;
     }
@@ -81,10 +94,22 @@ public class PageImpl implements Page {
     @Override
     public void setUrl(GURL url) {
         mUrl = url;
+        takePageSnapshot();
     }
 
     @CalledByNative
     private static @Nullable PageImpl getJavaObject(long nativePage) {
         return sPages.get(nativePage);
+    }
+
+    @Override
+    @AnyThread
+    public PageState getMostRecentPageState() {
+        return mMostRecentPageState;
+    }
+
+    /** Take a snapshot of the current state of Page */
+    private void takePageSnapshot() {
+        mMostRecentPageState = new PageState(mUrl);
     }
 }

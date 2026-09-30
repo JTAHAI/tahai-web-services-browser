@@ -17,7 +17,6 @@
 #import "ios/chrome/browser/content_suggestions/magic_stack/public/magic_stack_constants.h"
 #import "ios/chrome/browser/content_suggestions/magic_stack/ui/magic_stack_collection_view.h"
 #import "ios/chrome/browser/content_suggestions/public/ntp_home_constants.h"
-#import "ios/chrome/browser/content_suggestions/ui/cells/content_suggestions_cells_constants.h"
 #import "ios/chrome/browser/content_suggestions/ui/content_suggestions_collection_utils.h"
 #import "ios/chrome/browser/content_suggestions/ui/content_suggestions_view_controller.h"
 #import "ios/chrome/browser/home_customization/ui/home_customization_image_view.h"
@@ -27,6 +26,7 @@
 #import "ios/chrome/browser/ntp/ui_bundled/feed_header_view_controller.h"
 #import "ios/chrome/browser/ntp/ui_bundled/feed_wrapper_view_controller.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_color_palette.h"
+#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_color_palette_util.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_constants.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_content_delegate.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
@@ -60,11 +60,6 @@ const CGFloat kFeedContainerMinimumHeight = 1000;
 // Added height to the feed container so that it doesn't end abruptly on
 // overscroll.
 const CGFloat kFeedContainerExtraHeight = 500;
-
-// The spacing for the quick actions buttons.
-const CGFloat kQuickActionSpacingTop = 3.0;
-const CGFloat kQuickActionSpacingBottom = 19.0;
-const CGFloat kSpaceBetweenModules = 14.0;
 
 // Duration of animation to, from, and between different background images.
 const CGFloat kBackgroundImageAnimationDuration = 0.2;
@@ -193,6 +188,8 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   BOOL _isAIMAllowed;
   // Whether the omnibox is in bottom position.
   BOOL _isBottomOmnibox;
+  // The bottom inset for the feed.
+  CGFloat _feedBottomInset;
 }
 
 // Properties synthesized from NewTabPageConsumer.
@@ -262,7 +259,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 
   NSArray<UITrait>* traits = @[
     UITraitUserInterfaceStyle.class, UITraitHorizontalSizeClass.class,
-    UITraitPreferredContentSizeCategory.class
+    UITraitVerticalSizeClass.class, UITraitPreferredContentSizeCategory.class
   ];
   __weak __typeof(self) weakSelf = self;
   UITraitChangeHandler handler = ^(id<UITraitEnvironment> traitEnvironment,
@@ -558,7 +555,11 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 }
 
 - (void)updateNTPLayout {
-  [self updateNTPLayoutForWidth:self.collectionView.bounds.size.width];
+  if (IsNewTabPageUICleanupEnabled()) {
+    [self updateNTPLayoutForWidth:self.view.bounds.size.width];
+  } else {
+    [self updateNTPLayoutForWidth:self.collectionView.bounds.size.width];
+  }
 }
 
 - (void)updateHeightAboveFeed {
@@ -639,16 +640,19 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     if (obj == self.magicStackCollectionView ||
         obj == self.contentSuggestionsViewController ||
         obj == self.feedHeaderViewController) {
-      heightAboveFeed += kSpaceBetweenModules;
+      heightAboveFeed +=
+          content_suggestions::ReducedModuleSpacing(self.traitCollection);
     }
 
     if (obj == _quickActionsViewController) {
       // First, subtract off the "standard" space that was added in the
       // previous iteration of the loop because this module uses custom
       // top and bottom spacing.
-      heightAboveFeed -= kSpaceBetweenModules;
+      heightAboveFeed -=
+          content_suggestions::ReducedModuleSpacing(self.traitCollection);
       // Then add in the custom spacing used for this module.
-      heightAboveFeed += kQuickActionSpacingTop + kQuickActionSpacingBottom;
+      heightAboveFeed += content_suggestions::QuickActionsTopPadding() +
+                         [self quickActionsBottomSpacing];
     }
   }
   return heightAboveFeed;
@@ -671,15 +675,16 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
                          ntp_header::kScrolledToTopOmniboxBottomMargin);
   }
 
-  if (self.collectionView.contentSize.height > minimumNTPHeight) {
-    self.collectionView.contentInset =
-        UIEdgeInsetsMake(self.collectionView.contentInset.top, 0, 0, 0);
-  } else {
-    CGFloat bottomInset =
-        minimumNTPHeight - self.collectionView.contentSize.height;
-    self.collectionView.contentInset = UIEdgeInsetsMake(
-        self.collectionView.contentInset.top, 0, bottomInset, 0);
+  CGFloat bottomInset = _feedBottomInset;
+  if (self.collectionView.contentSize.height <= minimumNTPHeight) {
+    bottomInset = MAX(
+        bottomInset, minimumNTPHeight - self.collectionView.contentSize.height);
   }
+  self.collectionView.contentInset =
+      UIEdgeInsetsMake(self.collectionView.contentInset.top, 0, bottomInset, 0);
+  self.collectionView.verticalScrollIndicatorInsets =
+      UIEdgeInsetsMake(self.collectionView.verticalScrollIndicatorInsets.top, 0,
+                       _feedBottomInset, 0);
 }
 
 - (void)updateScrollPositionForFeedTopSectionClosed {
@@ -815,6 +820,16 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
       [self setMinimumHeight];
     }
     [self updateFakeOmniboxForScrollPosition];
+  }
+}
+
+- (void)setFeedBottomInset:(CGFloat)feedBottomInset {
+  if (_feedBottomInset == feedBottomInset) {
+    return;
+  }
+  _feedBottomInset = feedBottomInset;
+  if (self.feedVisible) {
+    [self updateFeedInsetsForMinimumHeight];
   }
 }
 
@@ -979,8 +994,8 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     // return to it on defocus.
     self.collectionShiftingOffset =
         MAX(-[self heightAboveFeed],
-            AlignValueToPixel([self.headerView pinnedOffsetY] -
-                              [self adjustedOffset].y));
+            AlignValueToLowerPixel([self.headerView pinnedOffsetY] -
+                                   [self adjustedOffset].y));
   }
 
   // If the fake omnibox is already at the final position, just focus it and
@@ -1096,6 +1111,9 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     self.view.backgroundColor = colorPalette.primaryColor;
     [_backgroundGradientView setStartColor:colorPalette.secondaryColor
                                   endColor:colorPalette.primaryColor];
+  } else if (IsNewTabPageUICleanupEnabled()) {
+    _backgroundGradientView.hidden = YES;
+    self.view.backgroundColor = [UIColor colorNamed:kNewTabPageBackgroundColor];
   } else {
     self.view.backgroundColor = [UIColor colorNamed:@"ntp_background_color"];
     [_backgroundGradientView
@@ -1119,9 +1137,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   NewTabPageColorPalette* colorPalette =
       [self.traitCollection objectForNewTabPageTrait];
 
-  _feedContainer.backgroundColor = colorPalette
-                                       ? colorPalette.secondaryCellColor
-                                       : [UIColor colorNamed:kBackgroundColor];
+  _feedContainer.backgroundColor = NTPCardBackgroundColor(colorPalette);
 }
 
 - (void)setNTPShortcutsHandler:
@@ -1137,7 +1153,34 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 
 // Whether the quick actions button row is visible.
 - (BOOL)quickActionsVisible {
-  return _isAIMAllowed && IsAimEnabledInNtp();
+  if (!_isAIMAllowed || !IsAimEnabledInNtp()) {
+    return NO;
+  }
+  AimButtonRefactorArm arm = GetAimButtonRefactorArm();
+  return arm != AimButtonRefactorArm::kAimAsModule &&
+         arm != AimButtonRefactorArm::kAimAsMvt &&
+         arm != AimButtonRefactorArm::kNoChips;
+}
+
+// Applies the horizontal constraints for the quick actions row.
+- (void)applyQuickActionsConstraints {
+  if (IsNewTabPageUICleanupEnabled()) {
+    [NSLayoutConstraint activateConstraints:@[
+      [_quickActionsViewController.view.leadingAnchor
+          constraintEqualToAnchor:self.moduleLayoutGuide.leadingAnchor],
+      [_quickActionsViewController.view.trailingAnchor
+          constraintEqualToAnchor:self.moduleLayoutGuide.trailingAnchor],
+    ]];
+  } else {
+    [NSLayoutConstraint activateConstraints:@[
+      [_quickActionsViewController.view.leadingAnchor
+          constraintEqualToAnchor:self.headerView.fakeOmniboxView
+                                      .leadingAnchor],
+      [_quickActionsViewController.view.trailingAnchor
+          constraintEqualToAnchor:self.headerView.fakeOmniboxView
+                                      .trailingAnchor],
+    ]];
+  }
 }
 
 - (BOOL)shouldSkipScrollToFocusOmnibox {
@@ -1375,8 +1418,11 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
         [viewBelowHeader.topAnchor
             constraintEqualToAnchor:self.headerView.bottomAnchor
                            constant:self.quickActionsVisible
-                                        ? kQuickActionSpacingTop
-                                        : kSpaceBetweenModules],
+                                        ? content_suggestions::
+                                              QuickActionsTopPadding()
+                                        : content_suggestions::
+                                              ReducedModuleSpacing(
+                                                  self.traitCollection)],
       ];
     }
   }
@@ -1421,11 +1467,13 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
     BOOL animateScrollAnimation =
         IsChromeNextIaEnabled() ? YES : !self.disableScrollAnimation;
     UIEdgeInsets insets = self.collectionView.safeAreaInsets;
-    [self.headerView
-        updateFakeOmniboxForOffset:[self adjustedOffset].y
-                       screenWidth:self.collectionView.frame.size.width
-                    safeAreaInsets:insets
-            animateScrollAnimation:animateScrollAnimation];
+    CGFloat screenWidth = IsNewTabPageUICleanupEnabled()
+                              ? self.view.bounds.size.width
+                              : self.collectionView.frame.size.width;
+    [self.headerView updateFakeOmniboxForOffset:[self adjustedOffset].y
+                                    screenWidth:screenWidth
+                                 safeAreaInsets:insets
+                         animateScrollAnimation:animateScrollAnimation];
     [self.NTPContentDelegate
         didUpdateNTPTabOmniboxScrollProgress:self.headerView.scrollProgress];
   }
@@ -1532,18 +1580,15 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 
   if (self.feedHeaderViewController) {
     [self cleanUpCollectionViewConstraints];
-
     [NSLayoutConstraint activateConstraints:@[
-      // Apply parent collection view constraints.
-      [self.collectionView.centerXAnchor
-          constraintEqualToAnchor:self.moduleLayoutGuide.centerXAnchor],
-
       // Apply feed header constraints.
       [self.feedHeaderViewController.view.centerXAnchor
           constraintEqualToAnchor:self.collectionView.frameLayoutGuide
                                       .centerXAnchor],
       [self.feedHeaderViewController.view.widthAnchor
           constraintEqualToAnchor:self.moduleLayoutGuide.widthAnchor],
+      [self.collectionView.centerXAnchor
+          constraintEqualToAnchor:self.moduleLayoutGuide.centerXAnchor],
     ]];
     if (self.feedTopSectionViewController) {
       [NSLayoutConstraint activateConstraints:@[
@@ -1605,14 +1650,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
   if (self.quickActionsVisible) {
     _quickActionsViewController.view.translatesAutoresizingMaskIntoConstraints =
         NO;
-    [NSLayoutConstraint activateConstraints:@[
-      [_quickActionsViewController.view.leadingAnchor
-          constraintEqualToAnchor:self.headerView.fakeOmniboxView
-                                      .leadingAnchor],
-      [_quickActionsViewController.view.trailingAnchor
-          constraintEqualToAnchor:self.headerView.fakeOmniboxView
-                                      .trailingAnchor],
-    ]];
+    [self applyQuickActionsConstraints];
   }
 
   // Anchor each module except the one directly below the header, since it will
@@ -1638,8 +1676,10 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
         UIView* viewAbove =
             [self viewForAboveFeedObject:self.objectsAboveFeed[index - 1]];
 
-        CGFloat spacingToUse =
-            isQuickActions ? kQuickActionSpacingBottom : kSpaceBetweenModules;
+        CGFloat spacingToUse = isQuickActions
+                                   ? [self quickActionsBottomSpacing]
+                                   : content_suggestions::ReducedModuleSpacing(
+                                         self.traitCollection);
         [NSLayoutConstraint activateConstraints:@[
           [view.topAnchor constraintEqualToAnchor:viewAbove.bottomAnchor
                                          constant:spacingToUse],
@@ -1676,6 +1716,15 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 // background color to this view's otherwise.
 - (void)updateModularHomeBackgroundColorForUserInterfaceStyle:
     (UIUserInterfaceStyle)style {
+  if (IsNewTabPageUICleanupEnabled()) {
+    NewTabPageColorPalette* colorPalette =
+        [self.traitCollection objectForNewTabPageTrait];
+    if (!colorPalette &&
+        ![self.traitCollection boolForNewTabPageImageBackgroundTrait]) {
+      _backgroundGradientView.hidden = YES;
+      return;
+    }
+  }
   _backgroundGradientView.hidden =
       style == UIUserInterfaceStyleLight &&
       ![self.traitCollection boolForNewTabPageImageBackgroundTrait];
@@ -1756,9 +1805,16 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 // Updates the width constraint of `moduleLayoutGuide`.
 - (void)updateModuleWidthWithWidth:(CGFloat)viewWidth {
   CGFloat oldWidth = _moduleWidth.constant;
-  CGFloat widthMultiplier = (100 - kHomeModuleMinimumPadding) / 100;
-  CGFloat width =
-      MIN(viewWidth * widthMultiplier, kDiscoverFeedContentMaxWidth);
+  CGFloat width;
+  if (IsNewTabPageUICleanupEnabled()) {
+    CGFloat maxWidth = (IsRegularXRegularSizeClass(self))
+                           ? kDiscoverFeedContentMaxWidthUICleanup
+                           : kDiscoverFeedContentMaxWidth;
+    width = MIN(viewWidth - (2 * kNewTabPageHorizontalMargin), maxWidth);
+  } else {
+    CGFloat widthMultiplier = (100 - kHomeModuleMinimumPadding) / 100;
+    width = MIN(viewWidth * widthMultiplier, kDiscoverFeedContentMaxWidth);
+  }
 
   BOOL existingConstraintUpdated = NO;
   if (!_moduleWidth) {
@@ -1817,6 +1873,14 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 }
 
 #pragma mark - Helpers
+
+// Bottom spacing below the Quick Actions module, depending on whether Most
+// Visited is visible.
+- (CGFloat)quickActionsBottomSpacing {
+  return self.mostVisitedVisible
+             ? content_suggestions::MostVisitedTopPadding()
+             : content_suggestions::ReducedModuleSpacing(self.traitCollection);
+}
 
 - (CGFloat)minimumNTPHeight {
   CGFloat collectionViewHeight = self.collectionView.bounds.size.height;
@@ -1880,9 +1944,9 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 // The y-position content offset for when the fake omnibox
 // should stick to the top of the NTP.
 - (CGFloat)offsetToStickOmnibox {
-  return AlignValueToPixel(-([self heightAboveFeed] -
-                             [self.headerView headerHeight] +
-                             [self stickyOmniboxHeight]));
+  return AlignValueToLowerPixel(-([self heightAboveFeed] -
+                                  [self.headerView headerHeight] +
+                                  [self stickyOmniboxHeight]));
 }
 
 // Whether the collection view has attained its minimum height.
@@ -1966,7 +2030,7 @@ const CGFloat kBackgroundImageAnimationDuration = 0.2;
 // updates property.
 - (void)updateScrolledToMinimumHeight {
   CGFloat scrollPosition = [self scrollPosition];
-  CGFloat minimumHeightOffset = AlignValueToPixel([self pinnedOffsetY]);
+  CGFloat minimumHeightOffset = AlignValueToLowerPixel([self pinnedOffsetY]);
 
   self.scrolledToMinimumHeight = scrollPosition >= minimumHeightOffset;
 }

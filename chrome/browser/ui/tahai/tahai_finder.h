@@ -13,7 +13,7 @@
 #include "chrome/browser/ui/tahai/tahai_mode_command_model.h"
 #include "ui/base/interaction/element_identifier.h"
 
-class Browser;
+class BrowserWindowInterface;
 namespace content {
 class WebContents;
 }
@@ -29,7 +29,7 @@ struct FinderResult {
   std::u16string title;
   std::u16string detail;
   int command_id = 0;
-  base::WeakPtr<Browser> browser;
+  base::WeakPtr<BrowserWindowInterface> browser;
   base::WeakPtr<content::WebContents> contents;
   std::string workspace_id;
   std::optional<WindowModeActionContext> mode_action_context;
@@ -37,10 +37,11 @@ struct FinderResult {
 
 // Profile equality is exact: private windows never search the original profile.
 // Results carry native object identity and are revalidated before activation.
-std::vector<FinderResult> FindBrowserItems(Browser* source,
+std::vector<FinderResult> FindBrowserItems(BrowserWindowInterface* source,
                                            std::u16string_view query);
-bool ActivateFinderResult(Browser* source, const FinderResult& result);
-void ShowFinder(Browser* browser);
+bool ActivateFinderResult(BrowserWindowInterface* source,
+                          const FinderResult& result);
+void ShowFinder(BrowserWindowInterface* browser);
 
 }  // namespace tahai
 

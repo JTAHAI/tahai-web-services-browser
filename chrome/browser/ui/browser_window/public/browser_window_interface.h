@@ -39,8 +39,6 @@ namespace web_modal {
 class WebContentsModalDialogHost;
 }  // namespace web_modal
 
-class Browser;
-class BrowserActions;
 class BrowserWindowFeatures;
 class DesktopBrowserWindowCapabilities;
 class GURL;
@@ -320,19 +318,9 @@ class BrowserWindowInterface : public content::PageNavigator {
   virtual base::CallbackListSubscription RegisterDidBecomeInactive(
       DidBecomeInactiveCallback callback) = 0;
 
-  // This class manages actions that a user can take that are scoped to a
-  // browser window (e.g. most of the 3-dot menu actions).
-  virtual BrowserActions* GetActions() = 0;
-
   // This is used by features that need to operate on most or all tabs in the
   // browser window. Do not use this method to find a specific tab.
   virtual std::vector<tabs::TabInterface*> GetAllTabInterfaces() = 0;
-
-  // Downcasts to a Browser*. The only valid use for this method is when
-  // migrating a large chunk of code to BrowserWindowInterface, to allow
-  // incremental migration.
-  virtual Browser* GetBrowserForMigrationOnly() = 0;
-  virtual const Browser* GetBrowserForMigrationOnly() const = 0;
 
   // Checks if the browser popup is tab modal dialog.
   virtual bool IsTabModalPopup() const = 0;

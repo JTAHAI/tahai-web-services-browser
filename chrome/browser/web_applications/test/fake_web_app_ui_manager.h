@@ -16,10 +16,9 @@
 #include "base/values.h"
 #include "chrome/browser/web_applications/web_app_ui_manager.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
+#include "components/webapps/browser/install_result_code.h"
 #include "components/webapps/browser/installable/ml_install_operation_tracker.h"
 #include "components/webapps/common/web_app_id.h"
-
-class Browser;
 
 namespace base {
 class FilePath;
@@ -62,7 +61,7 @@ class FakeWebAppUiManager : public WebAppUiManager {
   // WebAppUiManager:
   WebAppUiManagerImpl* AsImpl() override;
   size_t GetNumWindowsForApp(const webapps::AppId& app_id) override;
-  void CloseAppWindows(const webapps::AppId& app_id) override {}
+  void CloseAppWindows(const webapps::AppId& app_id) override;
   void NotifyOnAllAppWindowsClosed(const webapps::AppId& app_id,
                                    base::OnceClosure callback) override;
   bool CanAddAppToQuickLaunchBar() const override;
@@ -77,10 +76,11 @@ class FakeWebAppUiManager : public WebAppUiManager {
       const webapps::AppId& app_id,
       bool shortcut_created,
       content::WebContents* web_contents) const override;
-  Browser* ReparentAppTabToWindow(content::WebContents* contents,
-                                  const webapps::AppId& app_id,
-                                  bool shortcut_created) override;
-  Browser* ReparentAppTabToWindow(
+  BrowserWindowInterface* ReparentAppTabToWindow(
+      content::WebContents* contents,
+      const webapps::AppId& app_id,
+      bool shortcut_created) override;
+  BrowserWindowInterface* ReparentAppTabToWindow(
       content::WebContents* contents,
       const webapps::AppId& app_id,
       base::OnceCallback<void(content::WebContents*)> completion_callback)
@@ -126,14 +126,6 @@ class FakeWebAppUiManager : public WebAppUiManager {
   void TriggerInstallDialog(content::WebContents* web_contents,
                             webapps::WebappInstallSource source,
                             InstallCallback callback) override;
-  void TriggerInstallDialogForBackgroundInstall(
-      content::WebContents* initiating_web_contents,
-      std::unique_ptr<webapps::MlInstallOperationTracker> tracker,
-      const GURL& install_url,
-      const std::optional<GURL>& manifest_id,
-      const GURL& last_committed_url,
-      InstallCallback callback) override;
-
   void TriggerInstallDialogForManifestInstall(
       content::WebContents* initiating_web_contents,
       base::WeakPtr<content::Page> initiating_page,
@@ -178,7 +170,8 @@ class FakeWebAppUiManager : public WebAppUiManager {
 
   void ShowIntentPicker(const GURL& url,
                         content::WebContents* web_contents,
-                        ShowIntentPickerBubbleCallback callback) override;
+                        ShowIntentPickerBubbleCallback callback,
+                        std::optional<webapps::AppId> scoped_app_id) override;
 
   void LaunchOrFocusIsolatedWebAppInstaller(
       const base::FilePath& bundle_path) override;
@@ -195,7 +188,7 @@ class FakeWebAppUiManager : public WebAppUiManager {
       content::WebContents* web_contents) override;
 
   void MaybeShowIPHPromoForAppsLaunchedViaLinkCapturing(
-      Browser* browser,
+      BrowserWindowInterface* browser,
       Profile* profile,
       const std::string& app_id) override;
 
@@ -203,6 +196,10 @@ class FakeWebAppUiManager : public WebAppUiManager {
 
   void SetCanAddAppToQuickLaunchBar(bool can_add);
   void SetProvider(WebAppProvider* provider);
+
+  // Sets the InstallResultCode that TriggerInstallDialog passes to its
+  // callback. Defaults to kWebAppProviderNotReady.
+  void SetTriggerInstallDialogResultCode(webapps::InstallResultCode code);
 
   void UninstallAppSilentlyForMigration(const webapps::AppId& app_id) override;
 
@@ -224,6 +221,8 @@ class FakeWebAppUiManager : public WebAppUiManager {
   bool can_add_to_quick_launch_bar_ = false;
   base::flat_set<webapps::AppId> quick_launch_bar_apps_;
   raw_ptr<WebAppProvider> provider_ = nullptr;
+  webapps::InstallResultCode trigger_install_dialog_result_code_ =
+      webapps::InstallResultCode::kWebAppProviderNotReady;
 };
 
 }  // namespace web_app

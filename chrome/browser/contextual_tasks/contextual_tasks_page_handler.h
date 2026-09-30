@@ -5,10 +5,12 @@
 #ifndef CHROME_BROWSER_CONTEXTUAL_TASKS_CONTEXTUAL_TASKS_PAGE_HANDLER_H_
 #define CHROME_BROWSER_CONTEXTUAL_TASKS_CONTEXTUAL_TASKS_PAGE_HANDLER_H_
 
+#include <memory>
 #include <vector>
 
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks.mojom.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_interface.h"
@@ -18,7 +20,6 @@
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
-#include "third_party/lens_server_proto/aim_communication.pb.h"
 #include "ui/base/interaction/element_tracker.h"
 
 namespace base {
@@ -26,8 +27,20 @@ class Uuid;
 }
 
 namespace lens {
+class ClientToAimMessage;
+class ExecuteActions;
+class InjectInput;
 class InputPlateParametersRequest;
+class UpdateThreadContextLibrary;
 }
+
+namespace actor {
+class ActorActionsRunner;
+}  // namespace actor
+
+namespace optimization_guide::proto {
+class ActionsResult;
+}  // namespace optimization_guide::proto
 
 namespace contextual_tasks {
 class ContextualTasksService;
@@ -79,7 +92,6 @@ class ContextualTasksPageHandler
                              bool is_side_panel,
                              GetCommonSearchParamsCallback callback) override;
   void OnboardingTooltipDismissed() override;
-  void LensSearchTooltipDismissed() override;
   void AskGTooltipDismissed() override;
   void ReopenTabs() override;
   void PinSidePanel() override;
@@ -94,7 +106,8 @@ class ContextualTasksPageHandler
   void CloseWindow(
       const contextual_tasks::ContextualWindowId& window_id) override;
   void MaybeTriggerPinningPromo() override;
-  void ShowPageInfoBubble() override;
+  void ShowPageInfoBubble(bool is_pointer_interaction) override;
+  void OnLogoPointerDown() override;
   void CreateNewThread() override;
   void PostAimMessage(const lens::ClientToAimMessage& message);
 
@@ -110,6 +123,10 @@ class ContextualTasksPageHandler
     skip_feedback_ui_for_testing_ = skip;
   }
 
+  actor::ActorActionsRunner* actions_runner_for_testing() const {
+    return actions_runner_.get();
+  }
+
   // PinnedToolbarActionsModel::Observer:
   void OnActionsChanged() override;
 
@@ -121,6 +138,10 @@ class ContextualTasksPageHandler
   void OnReceivedInjectInput(const lens::InjectInput& inject_input);
   void OnReceivedRemoveInjectedInput(const std::string& id);
   void OnPinStateChanged(bool is_pinned);
+  void OnReceivedExecuteActions(const lens::ExecuteActions& execute_actions);
+  void OnActionsComplete();
+  void SendActionsResult(
+      const optimization_guide::proto::ActionsResult& result);
 
   mojo::Receiver<contextual_tasks::mojom::PageHandler> receiver_;
   raw_ptr<contextual_tasks::ContextualTasksUIInterface> web_ui_controller_;
@@ -137,6 +158,10 @@ class ContextualTasksPageHandler
   base::ScopedObservation<PinnedToolbarActionsModel,
                           PinnedToolbarActionsModel::Observer>
       pinned_toolbar_actions_model_observation_{this};
+
+  std::unique_ptr<actor::ActorActionsRunner> actions_runner_;
+
+  SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<ContextualTasksPageHandler> weak_ptr_factory_{this};
 };

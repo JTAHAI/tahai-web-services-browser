@@ -54,8 +54,8 @@
 #include "url/origin.h"
 
 #if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 using content::WebContents;
@@ -147,9 +147,8 @@ bool OpenPopupInBrowser(BrowserWindowInterface& browser,
   // exists, so the check below is sufficient.
   // On other platforms, ExtensionsContainer is always constructed except for
   // guest sessions, so we need more detailed checks.
-  Browser& browser_legacy = *browser.GetBrowserForMigrationOnly();
-  if (!browser_legacy.SupportsWindowFeature(
-          Browser::WindowFeature::kFeatureToolbar) ||
+  if (!WindowFeatureController::From(&browser)->SupportsWindowFeature(
+          WindowFeatureController::WindowFeature::kFeatureToolbar) ||
       !BrowserWindow::FromBrowser(&browser)->IsToolbarVisible()) {
     *error = "Browser window has no toolbar.";
     return false;

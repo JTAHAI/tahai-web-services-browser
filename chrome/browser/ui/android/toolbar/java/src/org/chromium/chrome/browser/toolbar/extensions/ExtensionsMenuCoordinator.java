@@ -18,6 +18,8 @@ import androidx.core.widget.ImageViewCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import org.chromium.base.Callback;
+import org.chromium.base.TimeUtils;
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
@@ -31,7 +33,6 @@ import org.chromium.chrome.browser.toolbar.MenuBuilderHelper;
 import org.chromium.chrome.browser.toolbar.extensions.ExtensionsToolbarCoordinatorImpl.MenuButtonPinningDelegate;
 import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTask;
 import org.chromium.chrome.browser.ui.extensions.ExtensionsMenuButtonState;
-import org.chromium.chrome.browser.ui.extensions.ExtensionsMenuTypes;
 import org.chromium.chrome.browser.ui.extensions.ExtensionsToolbarBridge;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.chrome.browser.user_education.IphCommandBuilder;
@@ -68,6 +69,13 @@ public class ExtensionsMenuCoordinator
         implements Destroyable,
                 ExtensionsToolbarBridge.Observer,
                 ExtensionsToolbarBridge.MenuDelegate {
+    /**
+     * Threshold to ignore click events on the menu button immediately following a popup dismissal.
+     * Touch-down on the button dismisses the popup, and the subsequent touch-up generates a click
+     * event that should not immediately re-open the menu.
+     */
+    private static final long CLICK_TO_DISMISS_THRESHOLD_MS = 200;
+
     private final Context mContext;
     private final ListMenu mExtensionsMenu;
     private final ListMenuButton mExtensionsMenuButton;
@@ -94,8 +102,13 @@ public class ExtensionsMenuCoordinator
                 }
             };
     private final ModalDialogManager mModalDialogManager;
+    private final Callback<@Nullable Tab> mTabSupplierObserver =
+            (tab) -> updateButtonState(tab != null ? tab.getWebContents() : null);
 
     @Nullable @VisibleForTesting ExtensionsMenuMediator mMediator;
+    private long mLastDismissalTimeMs;
+    private boolean mIsMenuOpen;
+    private final boolean mIsWebApp;
 
     /**
      * Constructor.
@@ -112,6 +125,7 @@ public class ExtensionsMenuCoordinator
      * @param MenuButtonPinningDelegate The {@link MenuButtonPinningDelegate} to handle pinning the
      *     icon.
      * @param modalDialogManager The {@link ModalDialogManager}.
+     * @param isWebApp Whether this extensions menu is in a web app.
      */
     public ExtensionsMenuCoordinator(
             Context context,
@@ -124,7 +138,8 @@ public class ExtensionsMenuCoordinator
             TabCreator tabCreator,
             ExtensionsToolbarBridge extensionsToolbarBridge,
             MenuButtonPinningDelegate menuButtonPinningDelegate,
-            ModalDialogManager modalDialogManager) {
+            ModalDialogManager modalDialogManager,
+            boolean isWebApp) {
         mContext = context;
         mCurrentTabSupplier = currentTabSupplier;
         mProfile = profile;
@@ -134,6 +149,7 @@ public class ExtensionsMenuCoordinator
         mExtensionsToolbarBridge = extensionsToolbarBridge;
         mMenuButtonPinningDelegate = menuButtonPinningDelegate;
         mModalDialogManager = modalDialogManager;
+        mIsWebApp = isWebApp;
 
         mExtensionsToolbarBridge.setMenuDelegate(this);
 
@@ -176,6 +192,13 @@ public class ExtensionsMenuCoordinator
         // Menu mediator is created when menu is triggered.
         mExtensionsMenuButton.setOnClickListener(
                 (view) -> {
+                    // Ignore clicks triggered by the touch-up of the gesture that just dismissed
+                    // the menu.
+                    if (mLastDismissalTimeMs != 0
+                            && TimeUtils.elapsedRealtimeMillis() - mLastDismissalTimeMs
+                                    < CLICK_TO_DISMISS_THRESHOLD_MS) {
+                        return;
+                    }
                     TrackerFactory.getTrackerForProfile(mProfile)
                             .notifyEvent(EventConstants.EXTENSIONS_MENU_BUTTON_CLICKED);
                     createMediator();
@@ -184,10 +207,14 @@ public class ExtensionsMenuCoordinator
         mExtensionsMenuButton.addPopupListener(
                 new ListMenuHost.PopupMenuShownListener() {
                     @Override
-                    public void onPopupMenuShown() {}
+                    public void onPopupMenuShown() {
+                        mIsMenuOpen = true;
+                    }
 
                     @Override
                     public void onPopupMenuDismissed() {
+                        mIsMenuOpen = false;
+                        mLastDismissalTimeMs = TimeUtils.elapsedRealtimeMillis();
                         mMenuButtonPinningDelegate.requestLayoutWithViewUtils();
                         destroyMediator();
                         mExtensionModels.clear();
@@ -219,6 +246,7 @@ public class ExtensionsMenuCoordinator
 
         mExtensionModels = new ModelList();
         setUpExtensionsRecyclerView(mContentView, mContext, mExtensionModels);
+        mCurrentTabSupplier.addSyncObserver(mTabSupplierObserver);
         updateButtonState();
 
         mModalDialogManager.addObserver(mModalDialogManagerObserver);
@@ -287,7 +315,7 @@ public class ExtensionsMenuCoordinator
 
     /** Returns whether the extensions menu is open. */
     public boolean isExtensionsMenuOpen() {
-        return mExtensionsMenuButton.getHost().isMenuShowing();
+        return mIsMenuOpen;
     }
 
     private void setupMainPageModel() {
@@ -320,6 +348,7 @@ public class ExtensionsMenuCoordinator
         mMainPageModel.set(
                 ExtensionsMenuProperties.MENU_BUTTON_PINNED,
                 mMenuButtonPinningDelegate.isMenuButtonPinned());
+        mMainPageModel.set(ExtensionsMenuProperties.MENU_BUTTON_PINNING_VISIBLE, !mIsWebApp);
         mMainPageModel.set(ExtensionsMenuProperties.SITE_SETTINGS_CONTAINER_VISIBLE, true);
         mMainPageModel.set(ExtensionsMenuProperties.SITE_SETTINGS_TOGGLE_VISIBLE, true);
         mMainPageModel.set(ExtensionsMenuProperties.SITE_SETTINGS_TOGGLE_CHECKED, true);
@@ -331,9 +360,6 @@ public class ExtensionsMenuCoordinator
                     }
                 });
         mMainPageModel.set(ExtensionsMenuProperties.SITE_SETTINGS_LABEL, "");
-        mMainPageModel.set(
-                ExtensionsMenuProperties.OPTIONAL_SECTION_TYPE,
-                ExtensionsMenuTypes.OptionalSectionType.NONE);
         mMainPageModel.set(ExtensionsMenuProperties.HOST_ACCESS_REQUESTS, new ArrayList<>());
         mMainPageModel.set(
                 ExtensionsMenuProperties.ALLOW_EXTENSION_CLICK_LISTENER,
@@ -440,9 +466,8 @@ public class ExtensionsMenuCoordinator
         extensionRecyclerView.setItemAnimator(null);
     }
 
-    private void updateButtonState() {
-        Tab currentTab = mCurrentTabSupplier.get();
-        if (currentTab == null || currentTab.getWebContents() == null) return;
+    private void updateButtonState(@Nullable WebContents webContents) {
+        if (webContents == null) return;
 
         int color = SemanticColorUtils.getDefaultIconColor(mContext);
 
@@ -454,7 +479,7 @@ public class ExtensionsMenuCoordinator
 
         ExtensionsMenuButtonState state =
                 mExtensionsToolbarBridge.getMenuButtonState(
-                        currentTab.getWebContents(), iconSizeDp, iconSizeDp, density, color);
+                        webContents, iconSizeDp, iconSizeDp, density, color);
 
         if (state.getIcon() != null) {
             mExtensionsMenuButton.setImageBitmap(state.getIcon());
@@ -468,6 +493,11 @@ public class ExtensionsMenuCoordinator
         mExtensionsMenuButton.setContentDescription(state.getAccessibleText());
     }
 
+    private void updateButtonState() {
+        Tab currentTab = mCurrentTabSupplier.get();
+        updateButtonState(currentTab != null ? currentTab.getWebContents() : null);
+    }
+
     @Override
     public void onToolbarControlStateUpdated() {
         updateButtonState();
@@ -475,7 +505,7 @@ public class ExtensionsMenuCoordinator
 
     @Override
     public void onActiveWebContentsChanged(WebContents webContents) {
-        updateButtonState();
+        updateButtonState(webContents);
     }
 
     @Override
@@ -505,6 +535,8 @@ public class ExtensionsMenuCoordinator
 
     @Override
     public void destroy() {
+        mIsMenuOpen = false;
+        mCurrentTabSupplier.removeObserver(mTabSupplierObserver);
         destroyMediator();
         mModalDialogManager.removeObserver(mModalDialogManagerObserver);
         mExtensionsMenuButton.setOnClickListener(null);

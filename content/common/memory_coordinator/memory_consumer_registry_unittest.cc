@@ -6,7 +6,6 @@
 
 #include <cstddef>
 #include <map>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -33,13 +32,17 @@ using ::testing::Test;
 struct ConsumerEntry {
   uint32_t consumer_id;
   std::string consumer_name;
-  std::optional<base::MemoryConsumerTraits> traits;
+  base::MemoryConsumerTraits traits;
   ProcessType process_type;
   ChildProcessId child_process_id;
   raw_ptr<MemoryConsumerGroupHost> host;
 };
 
-const std::optional<base::MemoryConsumerTraits> kTestTraits1 = std::nullopt;
+constexpr base::MemoryConsumerTraits kTestTraits1(
+    base::MemoryConsumerTraits::EstimatedMemoryUsage::kSmall,
+    base::MemoryConsumerTraits::ReleaseMemoryCost::kRequiresTraversal,
+    base::MemoryConsumerTraits::InformationRetention::kLossless,
+    base::MemoryConsumerTraits::ExecutionType::kSynchronous);
 
 }  // namespace
 
@@ -69,7 +72,7 @@ class MemoryConsumerRegistryTest : public Test,
 
   void OnConsumerGroupAdded(uint32_t consumer_id,
                             std::string_view consumer_name,
-                            std::optional<base::MemoryConsumerTraits> traits,
+                            base::MemoryConsumerTraits traits,
                             ChildProcessId child_process_id) override {
     const HostInfo& host_info = hosts_.at(child_process_id);
     entries_.push_back({consumer_id, std::string(consumer_name), traits,
@@ -88,7 +91,7 @@ class MemoryConsumerRegistryTest : public Test,
 #if BUILDFLAG(ENABLE_MEMORY_COORDINATOR_INTERNALS)
   void OnMemoryLimitChanged(uint32_t consumer_id,
                             ChildProcessId child_process_id,
-                            int memory_limit) override {}
+                            base::MemoryLimit memory_limit) override {}
 #endif
 
  private:
@@ -251,6 +254,40 @@ TEST_F(MemoryConsumerRegistryTest, ReentrantRemovalDuringLimitUpdateOnly) {
   entries().front().host->UpdateConsumers({{kConsumerId, 50, false}});
 
   // Verify it was called and successfully removed itself without crashing!
+  EXPECT_TRUE(consumer.limit_updated());
+  ASSERT_EQ(registry().size(), 0u);
+}
+
+TEST_F(MemoryConsumerRegistryTest, ReentrantRemovalDuringOverrideLimit) {
+  const std::string kConsumerName = "reentrant_override_consumer";
+  const uint32_t kConsumerId = base::PersistentHash(kConsumerName);
+
+  ReentrantSelfRemovingOnLimitMemoryConsumer consumer(registry(),
+                                                      kConsumerName);
+
+  registry().AddMemoryConsumer(kConsumerName, kTestTraits1, &consumer);
+  ASSERT_EQ(registry().size(), 1u);
+
+  // Trigger override limit update.
+  entries().front().host->SetOverrideLimit(kConsumerId, 50);
+
+  EXPECT_TRUE(consumer.limit_updated());
+  ASSERT_EQ(registry().size(), 0u);
+}
+
+TEST_F(MemoryConsumerRegistryTest, ReentrantRemovalDuringClearOverrideLimit) {
+  const std::string kConsumerName = "reentrant_clear_override_consumer";
+  const uint32_t kConsumerId = base::PersistentHash(kConsumerName);
+
+  ReentrantSelfRemovingOnLimitMemoryConsumer consumer(registry(),
+                                                      kConsumerName);
+
+  registry().AddMemoryConsumer(kConsumerName, kTestTraits1, &consumer);
+  ASSERT_EQ(registry().size(), 1u);
+
+  // Trigger clear override limit update.
+  entries().front().host->ClearOverrideLimit(kConsumerId, 100);
+
   EXPECT_TRUE(consumer.limit_updated());
   ASSERT_EQ(registry().size(), 0u);
 }

@@ -15,7 +15,7 @@
 #include "chrome/browser/media/webrtc/media_stream_device_permission_context.h"
 #include "chrome/browser/permissions/permission_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/permissions/embedded_permission_prompt_content_scrim_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -90,7 +90,7 @@ class PermissionElementBrowserTestBase
   void TearDownOnMainThread() override { DetachProtocolClient(); }
 
   content::WebContents* web_contents() {
-    return browser()->tab_strip_model()->GetWebContentsAt(0);
+    return browser()->GetTabStripModel()->GetWebContentsAt(0);
   }
 
   void WaitForPromptActionEvent(const std::string& id) {
@@ -139,7 +139,6 @@ class PermissionElementBrowserTestBase
         position);
 
     permission_request_manager->Dismiss(/*prompt_options=*/std::monostate());
-    permission_request_manager->FinalizeCurrentRequests();
   }
 
   void WaitForDevtoolsIssue(const std::string& expected_issue_type) {
@@ -412,11 +411,11 @@ IN_PROC_BROWSER_TEST_F(PermissionElementBrowserTest, TabSwitchingClosesPrompt) {
 
   std::unique_ptr<content::WebContents> new_tab = content::WebContents::Create(
       content::WebContents::CreateParams(browser()->GetProfile()));
-  browser()->tab_strip_model()->AppendWebContents(std::move(new_tab),
-                                                  /*foreground*/ false);
+  browser()->GetTabStripModel()->AppendWebContents(std::move(new_tab),
+                                                   /*foreground*/ false);
 
   ExpectNoEvents();
-  browser()->tab_strip_model()->ActivateTabAt(1);
+  browser()->GetTabStripModel()->ActivateTabAt(1);
   WaitForDismissEvent("camera");
 }
 
@@ -439,7 +438,6 @@ IN_PROC_BROWSER_TEST_F(PermissionElementBrowserTest,
   auto* permission_request_manager =
       permissions::PermissionRequestManager::FromWebContents(web_contents());
   permission_request_manager->Dismiss(/*prompt_options=*/std::monostate());
-  permission_request_manager->FinalizeCurrentRequests();
   WaitForDismissEvent("microphone");
 
   permission_request_manager->set_auto_response_for_test(
@@ -807,7 +805,7 @@ IN_PROC_BROWSER_TEST_F(MiscellaneousElementBrowserTest, CountMetrics) {
       {{blink::mojom::WebFeature::kHTMLPermissionElement, 0}});
 
   // UKM metrics are recorded when the page is unloaded or on a new navigation.
-  browser()->tab_strip_model()->CloseAllTabs();
+  browser()->GetTabStripModel()->CloseAllTabs();
   base::RunLoop().RunUntilIdle();
 
   auto entries = ukm_recorder.GetEntriesByName(
@@ -888,7 +886,7 @@ IN_PROC_BROWSER_TEST_F(MiscellaneousElementBrowserTest,
   });
 
   // UKM metrics are recorded when the page is unloaded or on a new navigation.
-  browser()->tab_strip_model()->CloseAllTabs();
+  browser()->GetTabStripModel()->CloseAllTabs();
   base::RunLoop().RunUntilIdle();
 
   auto entries = ukm_recorder.GetEntriesByName(

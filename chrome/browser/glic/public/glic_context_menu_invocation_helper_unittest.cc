@@ -50,14 +50,11 @@ class GlicContextMenuInvocationHelperUnittest : public testing::Test {
                       &GlicContextMenuInvocationHelperUnittest::CreateService,
                       base::Unretained(this)));
 
-    GlicEnabling::SetBypassEnablementChecksForTesting(true);
-
     // Create the service so mock_service_ is not null.
     GlicKeyedServiceFactory::GetGlicKeyedService(profile_, /*create=*/true);
   }
 
   void TearDown() override {
-    GlicEnabling::SetBypassEnablementChecksForTesting(false);
     identity_test_env_adaptor_.reset();
     profile_ = nullptr;
     mock_service_ = nullptr;
@@ -78,6 +75,7 @@ class GlicContextMenuInvocationHelperUnittest : public testing::Test {
   }
 
  protected:
+  GlicEnabling::ScopedBypassEnablementChecksForTesting scoped_glic_bypass_;
   content::BrowserTaskEnvironment task_environment_;
   content::RenderViewHostTestEnabler enabler_;
   raw_ptr<TestingProfile> profile_;
@@ -109,6 +107,27 @@ inline auto TargetTabAndFreOverride(
 TEST_F(GlicContextMenuInvocationHelperUnittest, HandleClickStandard) {
   feature_list_.InitWithFeatures({features::kGlic, features::kGlicContextMenu},
                                  {});
+
+  tabs::MockTabInterface mock_tab;
+  std::unique_ptr<content::WebContents> web_contents =
+      content::WebContents::Create(
+          content::WebContents::CreateParams(profile_.get()));
+  ON_CALL(mock_tab, GetContents())
+      .WillByDefault(testing::Return(web_contents.get()));
+
+  EXPECT_CALL(*mock_service_,
+              Invoke(TargetTabAndFreOverride(
+                  &mock_tab, glic::mojom::FreOverride::kTrustFirstClick)))
+      .Times(1);
+  GlicContextMenuInvocationHelper::HandleContextualMenuClick(&mock_tab);
+}
+
+TEST_F(GlicContextMenuInvocationHelperUnittest, HandleClickArm1) {
+  feature_list_.InitWithFeaturesAndParameters(
+      {{features::kGlic, {}},
+       {features::kGlicContextMenu,
+        {{features::kGlicContextMenuArm.name, "arm1"}}}},
+      {});
 
   tabs::MockTabInterface mock_tab;
   std::unique_ptr<content::WebContents> web_contents =

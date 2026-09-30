@@ -60,7 +60,7 @@ def _CreateHeader(jni_mode, jni_objs, args):
 
   with sb.section('Class Accessors.'):
     for java_class in java_classes:
-      escaped_name = java_class.to_cpp()
+      escaped_name = java_class.class_without_prefix.to_cpp()
       sb(f"""\
 static jclass {escaped_name}_clazz(JNIEnv* env) {{
   static const char kClassName[] = "{java_class.full_name}";
@@ -118,8 +118,6 @@ def GenerateRegisterNativesFromJars(parser, args, jni_mode):
     if not args.javap:
       parser.error('Could not find "javap" on your PATH. Use --javap to '
                    'specify its location.')
-
-  java_types.SetUseJniPrimitiveTypes()
 
   class_blocklist = None
   if args.class_blocklist:

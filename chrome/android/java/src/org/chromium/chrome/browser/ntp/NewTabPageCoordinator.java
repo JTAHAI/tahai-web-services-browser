@@ -27,6 +27,8 @@ import org.chromium.base.DeviceInfo;
 import org.chromium.base.Log;
 import org.chromium.base.TimeUtils;
 import org.chromium.base.TraceEvent;
+import org.chromium.base.TriState;
+import org.chromium.base.TriStateUtils;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplier;
@@ -128,7 +130,6 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
     private final NewTabPageManager mManager;
     private final Activity mActivity;
     private final NewTabPageLayout mNewTabPageLayout;
-    private final NewTabPageLayout.Delegate mLayoutDelegate;
     private final PropertyModel mModel;
     private final Tab mTab;
     private final TabModelSelector mTabModelSelector;
@@ -144,10 +145,10 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
     private final SnackbarManager mSnackbarManager;
     private final boolean mIsLff;
     private final Supplier<Integer> mTabStripHeightSupplier;
-    private final OneshotSupplier<SideUiStateProvider> mSideUiStateProviderSupplier;
     private final SideUiObserver mSideUiObserver;
     private final SearchEngineService mSearchEngineService;
     private final BackPressManager mBackPressManager;
+
     /**
      * The predefined baseline vertical scroll distance before the fake search box reaches the top
      * toolbar at which the transition animation into the omnibox begins.
@@ -159,6 +160,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
      * #mCurrentNtpFakeSearchBoxTransitionStartOffset}.
      */
     private final int mNtpSearchBoxTransitionStartOffset;
+
     private final int mNtpSearchBoxTopMarginWithoutLogo;
     private final boolean mEnableLogs;
     private final int mSearchBoxMaxWidth;
@@ -216,16 +218,16 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
     private @Nullable FeedSurfaceScrollDelegate mScrollDelegate;
     private @Nullable Callback<Logo> mOnLogoAvailableCallback;
 
-    // mCanShowComposeplateButton is null before checking whether to initialize composeplate view in
-    // NewTabPageCoordinator#initialize().
-    private @Nullable Boolean mCanShowComposeplateButton;
+    // mCanShowComposeplateButton is TriState.NOT_SET before checking whether to initialize
+    // composeplate view in NewTabPageCoordinator#initialize().
+    private @TriState int mCanShowComposeplateButton;
     private boolean mIsComposeplatePolicyEnabled;
     private boolean mIsComposeplateViewInitialized;
     private @Nullable Supplier<GURL> mComposeplateUrlSupplier;
     private @Nullable ComposeplateCoordinator mComposeplateCoordinator;
     // Previous visibility states for metrics.
-    private @Nullable Boolean mPreviousVoiceSearchButtonVisible;
-    private @Nullable Boolean mPreviousLensButtonVisible;
+    private @TriState int mPreviousVoiceSearchButtonVisible;
+    private @TriState int mPreviousLensButtonVisible;
     /**
      * The current runtime vertical scroll distance before the fake search box reaches the top
      * toolbar at which the transition animation into the omnibox begins.
@@ -240,7 +242,8 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
     // ENABLE_SEAMLESS_SIGNIN is removed after the experiment.
     private @Nullable NtpSigninPromoCoordinator mSigninPromoCoordinator;
 
-    private @Nullable Boolean mIsWhiteBackgroundOnSearchBoxApplied;
+    private @TriState int mIsWhiteBackgroundOnSearchBoxApplied;
+    private @TriState int mIsWhiteBackgroundOnComposeplateApplied;
 
     /**
      * Constructor of the NewTabPageCoordinator.
@@ -261,7 +264,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
      * @param isLff {@code true} if the NTP surface is on a large form factor (LFF) device.
      * @param tabStripHeightSupplier Supplier of the tab strip height.
      * @param sideUiStateProviderSupplier Supplier for the {@link SideUiStateProvider}.
-     * @param homeSurfaceTracker Used to decide whether we are the home surface.
+     * @param homeSurfaceTracker Tracker recording whether this NTP acts as the home surface.
      * @param backPressManager Manages back press dispatching.
      */
     public NewTabPageCoordinator(
@@ -298,7 +301,6 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
         mSnackbarManager = snackbarManager;
         mIsLff = isLff;
         mTabStripHeightSupplier = tabStripHeightSupplier;
-        mSideUiStateProviderSupplier = sideUiStateProviderSupplier;
         mSearchEngineService = SearchEngineService.getForProfile(mProfile);
 
         Resources resources = mActivity.getResources();
@@ -313,7 +315,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
         mModel = new PropertyModel(NewTabPageLayoutProperties.ALL_KEYS);
         PropertyModelChangeProcessor.create(
                 mModel, mNewTabPageLayout, NewTabPageLayoutViewBinder::bind);
-        mLayoutDelegate =
+        NewTabPageLayout.Delegate layoutDelegate =
                 new NewTabPageLayout.Delegate() {
                     @Override
                     public void onMeasure(int width) {
@@ -330,7 +332,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
                         NewTabPageCoordinator.this.updateActionButtonVisibility();
                     }
                 };
-        mModel.set(NewTabPageLayoutProperties.DELEGATE, mLayoutDelegate);
+        mModel.set(NewTabPageLayoutProperties.DELEGATE, layoutDelegate);
         sCount++;
 
         // TODO(crbug.com/517393491): Refactor to a reusable component to apply to other UiConfigs.
@@ -340,7 +342,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
                         mUiConfig.setHorizontalInset(getSideUiWidthDp(sideUiSpecs));
                     }
                 };
-        mSideUiStateProviderSupplier.onAvailable(
+        sideUiStateProviderSupplier.onAvailable(
                 mCallbackController.makeCancelable(
                         provider -> {
                             mSideUiStateProvider = provider;
@@ -365,6 +367,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
      * @param uiConfig UiConfig that will provide the preferred display style for NTP based on the
      *     available space.
      * @param lifecycleDispatcher Activity lifecycle dispatcher.
+     * @param composeplateUrlSupplier Supplier providing the composeplate URL.
      */
     @Initializer
     public void initialize(
@@ -385,7 +388,9 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
         mContextMenuStartPosition =
                 ReturnToChromeUtil.calculateContextMenuStartPosition(mActivity.getResources());
 
-        if (mIsLff) {
+        if (mIsLff
+                || NewTabPageUtils.getPaddingStyleForAurora()
+                        != NewTabPageUtils.PaddingStyle.DEFAULT) {
             mDisplayStyleObserver = this::onDisplayStyleChanged;
             mUiConfig.addObserver(mDisplayStyleObserver);
         } else {
@@ -426,7 +431,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
         initializeSearchBoxTextView();
 
         initializeComposeplateFlags(mProfile);
-        if (assumeNonNull(mCanShowComposeplateButton)) {
+        if (mCanShowComposeplateButton == TriState.TRUE) {
             initializeComposeplate();
         }
 
@@ -460,7 +465,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
         Resources resources = mActivity.getResources();
         int searchBoxHeight =
                 NtpCustomizationUtils.getSearchBoxHeight(
-                        resources, assumeNonNull(mCanShowComposeplateButton));
+                        resources, mCanShowComposeplateButton == TriState.TRUE);
         if (mNtpSearchBox != null) {
             mNtpSearchBox.setHeight(searchBoxHeight);
         }
@@ -498,23 +503,20 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
 
         // @TODO(crbug.com/41492572): Add test case for search box OnDragListener.
         mNtpSearchBox.setSearchBoxDragListener(
-                new View.OnDragListener() {
-                    @Override
-                    public boolean onDrag(View view, DragEvent dragEvent) {
-                        // Disable search box EditText when browser content is dropped, its
-                        // re-enabled in {@link ChromeTabbedOnDragListener}, since a disabled view
-                        // will stop receiving further drag events. Given the child-first drag event
-                        // dispatch, disabling the TextView at ACTION_DRAG_STARTED is necessary to
-                        // prevent it from registering as a drop target and consuming the
-                        // ACTION_DROP event, thereby ensuring {@link ChromeTabbedOnDragListener}
-                        // receives it.
-                        if (MimeTypeUtils.clipDescriptionHasBrowserContent(
-                                        dragEvent.getClipDescription())
-                                && dragEvent.getAction() == DragEvent.ACTION_DRAG_STARTED) {
-                            enableSearchBoxEditText(false);
-                        }
-                        return false;
+                (View _, DragEvent dragEvent) -> {
+                    // Disable search box EditText when browser content is dropped, its
+                    // re-enabled in {@link ChromeTabbedOnDragListener}, since a disabled view
+                    // will stop receiving further drag events. Given the child-first drag event
+                    // dispatch, disabling the TextView at ACTION_DRAG_STARTED is necessary to
+                    // prevent it from registering as a drop target and consuming the
+                    // ACTION_DROP event, thereby ensuring {@link ChromeTabbedOnDragListener}
+                    // receives it.
+                    if (MimeTypeUtils.clipDescriptionHasBrowserContent(
+                                    dragEvent.getClipDescription())
+                            && dragEvent.getAction() == DragEvent.ACTION_DRAG_STARTED) {
+                        enableSearchBoxEditText(false);
                     }
+                    return false;
                 });
 
         mNtpSearchBox.setSearchBoxTextWatcher(
@@ -524,7 +526,6 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
                         if (s.length() == 0 || mNtpSearchBox == null) return;
                         mManager.focusSearchBox(
                                 false, AutocompleteRequestType.SEARCH, false, s.toString());
-                        mNtpSearchBox.setSearchText("");
                     }
                 });
         TraceEvent.end(TAG + ".initializeSearchBoxTextView()");
@@ -556,9 +557,11 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
     }
 
     private void initializeComposeplateFlags(Profile profile) {
-        mCanShowComposeplateButton = ComposeplateUtils.canShowComposeplateButtonOnNtp(profile);
+        mCanShowComposeplateButton =
+                TriStateUtils.from(ComposeplateUtils.canShowComposeplateButtonOnNtp(profile));
         mIsComposeplatePolicyEnabled =
-                mCanShowComposeplateButton && ComposeplateUtils.isEnabledByPolicy(profile);
+                mCanShowComposeplateButton == TriState.TRUE
+                        && ComposeplateUtils.isEnabledByPolicy(profile);
     }
 
     @VisibleForTesting
@@ -576,11 +579,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
         mComposeplateCoordinator.setComposeplateButtonClickListener(
                 this::onComposeplateButtonClicked);
 
-        if (shouldApplyWhiteBackgroundOnSearchBox()) {
-            // It is safe to call mComposeplateCoordinator.applyWhiteBackground() again since it is
-            // no-op if the white background has been applied.
-            mComposeplateCoordinator.applyWhiteBackground(/* apply= */ true);
-        }
+        updateComposeplateBackground();
     }
 
     private void onComposeplateButtonClicked(View view) {
@@ -814,14 +813,14 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
 
         // Skips if the flag hasn't been initialized since the initialization of the following
         // components will be called again in #initialize().
-        if (mCanShowComposeplateButton != null) {
+        if (mCanShowComposeplateButton != TriState.NOT_SET) {
             // When mSearchProviderIsGoogle is changed, mCanShowComposeplateButton might be changed
             // too, recalculate its value.
             if (isSearchProviderIsGoogleChanged) {
-                boolean previousCanShowComposeplateButton = mCanShowComposeplateButton;
+                int previousCanShowComposeplateButton = mCanShowComposeplateButton;
                 initializeComposeplateFlags(mProfile);
-                if (!previousCanShowComposeplateButton
-                        && mCanShowComposeplateButton
+                if (previousCanShowComposeplateButton != TriState.TRUE
+                        && mCanShowComposeplateButton == TriState.TRUE
                         && mComposeplateCoordinator == null) {
                     // If the composeplate view is enabled while mComposeplateCoordinator hasn't
                     // been initialized yet, initialize it now.
@@ -1024,6 +1023,10 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
             mNtpSearchBox.setTopMargin(topMargin);
         }
 
+        setLogoTopMargin();
+    }
+
+    void setLogoTopMargin() {
         if (mLogoCoordinator != null) {
             mLogoCoordinator.setTopMargin(getLogoTopMargin());
         }
@@ -1045,7 +1048,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
             return LogoUtils.getTopMarginForDoodle(resources);
         }
 
-        return resources.getDimensionPixelSize(R.dimen.ntp_logo_margin_top);
+        return LogoUtils.getTopMarginForLogo(resources);
     }
 
     /**
@@ -1085,7 +1088,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
         // Skips now if the composeplate flag hasn't been initialized. This prevents logging the
         // impression metrics incorrectly due to the status of whether to show the composeplate
         // button hasn't been initialized.
-        if (mCanShowComposeplateButton == null) return;
+        if (mCanShowComposeplateButton == TriState.NOT_SET) return;
 
         mNtpSearchBox.setVoiceSearchButtonVisibility(shouldShowVoiceSearchButton);
         mNtpSearchBox.setLensButtonVisibility(shouldShowLensButton);
@@ -1094,7 +1097,7 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
         // visibility.
         if (mComposeplateCoordinator != null) {
             shouldShowComposeplateButton =
-                    mCanShowComposeplateButton
+                    mCanShowComposeplateButton == TriState.TRUE
                             && mSearchProviderIsGoogle
                             && IncognitoUtils.isIncognitoModeEnabled(mProfile);
             mComposeplateCoordinator.setVisibility(
@@ -1116,16 +1119,15 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
             boolean isVoiceSearchButtonVisible,
             boolean isLensButtonVisible,
             boolean isComposeplateButtonVisible) {
+        int voiceSearchVisibleState = TriStateUtils.from(isVoiceSearchButtonVisible);
+        int lensVisibleState = TriStateUtils.from(isLensButtonVisible);
         if (!mManager.isCurrentPage()
-                || (mPreviousVoiceSearchButtonVisible != null
-                        && isVoiceSearchButtonVisible == mPreviousVoiceSearchButtonVisible
-                        && mPreviousLensButtonVisible != null
-                        && isLensButtonVisible == mPreviousLensButtonVisible)) {
+                || (mPreviousVoiceSearchButtonVisible == voiceSearchVisibleState
+                        && mPreviousLensButtonVisible == lensVisibleState)) {
             return;
         }
 
-        if (mPreviousLensButtonVisible == null
-                || isLensButtonVisible != mPreviousLensButtonVisible) {
+        if (mPreviousLensButtonVisible != lensVisibleState) {
             LensMetrics.recordShown(LensEntryPoint.NEW_TAB_PAGE, isLensButtonVisible);
         }
 
@@ -1133,8 +1135,8 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
         ComposeplateMetricsUtils.recordFakeSearchBoxComposeplateButtonImpression2(
                 isComposeplateButtonVisible);
 
-        mPreviousVoiceSearchButtonVisible = isVoiceSearchButtonVisible;
-        mPreviousLensButtonVisible = isLensButtonVisible;
+        mPreviousVoiceSearchButtonVisible = voiceSearchVisibleState;
+        mPreviousLensButtonVisible = lensVisibleState;
     }
 
     /**
@@ -1501,7 +1503,12 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
     }
 
     private void onDisplayStyleChanged(UiConfig.DisplayStyle newDisplayStyle) {
-        if (!mIsLff) return;
+        if (!mIsLff) {
+            // Logo and Doodle have different top margin on landscape and portrait modes on phones,
+            // update when the screen rotates.
+            setLogoTopMargin();
+            return;
+        }
 
         updateDoodleOnTablet();
         updateSearchBoxTwoSideMargin();
@@ -1570,39 +1577,48 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
 
     /** Called when a customized background image is selected or deselected. */
     void onCustomizedBackgroundChanged() {
-        boolean applyWhiteBackgroundOnSearchBox = shouldApplyWhiteBackgroundOnSearchBox();
-
-        // If shouldn't apply a white background and the background hasn't been updated before,
-        // returns now.
-        if (mIsWhiteBackgroundOnSearchBoxApplied == null && !applyWhiteBackgroundOnSearchBox) {
-            return;
-        }
-
-        // If composeplate view flags haven't been initialized yet, returns now.
-        if (mCanShowComposeplateButton == null) {
-            return;
-        }
-
-        // If the background has been updated before and it should remain the same, returns now.
-        if (mIsWhiteBackgroundOnSearchBoxApplied != null
-                && mIsWhiteBackgroundOnSearchBoxApplied == applyWhiteBackgroundOnSearchBox) {
-            return;
-        }
-
-        // If the fake search box hasn't been initialized, returns now. It is fine to skip here
+        // If composeplate view flags haven't been initialized yet or the fake search box hasn't
+        // been initialized, returns now.
+        // It is fine to skip applyWhiteBackground() on the search box
         // because applyWhiteBackground() will be called immediately after the mNtpSearchBox
         // is initialized.
-        if (mNtpSearchBox == null) return;
-
-        mIsWhiteBackgroundOnSearchBoxApplied = applyWhiteBackgroundOnSearchBox;
-
-        if (mNtpSearchBox != null) {
-            mNtpSearchBox.applyWhiteBackground(applyWhiteBackgroundOnSearchBox);
+        if (mCanShowComposeplateButton == TriState.NOT_SET || mNtpSearchBox == null) {
+            return;
         }
 
-        if (mComposeplateCoordinator != null) {
-            mComposeplateCoordinator.applyWhiteBackground(applyWhiteBackgroundOnSearchBox);
+        updateSearchBoxBackground();
+        updateComposeplateBackground();
+    }
+
+    private void updateSearchBoxBackground() {
+        boolean desiredState = shouldApplyWhiteBackgroundOnSearchBox();
+        if (shouldUpdateBackground(desiredState, mIsWhiteBackgroundOnSearchBoxApplied)) {
+            mIsWhiteBackgroundOnSearchBoxApplied = TriStateUtils.from(desiredState);
+            assertNonNull(mNtpSearchBox);
+            mNtpSearchBox.applyWhiteBackground(desiredState);
         }
+    }
+
+    private void updateComposeplateBackground() {
+        if (mComposeplateCoordinator == null) return;
+
+        boolean desiredState = NtpCustomizationUtils.shouldApplyWhiteBackgroundOnComposeplate();
+        if (shouldUpdateBackground(desiredState, mIsWhiteBackgroundOnComposeplateApplied)) {
+            mIsWhiteBackgroundOnComposeplateApplied = TriStateUtils.from(desiredState);
+            mComposeplateCoordinator.applyWhiteBackground(desiredState);
+        }
+    }
+
+    private boolean shouldUpdateBackground(boolean desiredState, @TriState int currentState) {
+        // On initial creation, update the background if a customized image is selected or if
+        // NTP Aurora is enabled to configure the dynamic background and shadow on startup.
+        if (currentState == TriState.NOT_SET) {
+            // When NTP Aurora is launched, remove `|| NewTabPageUtils.isNtpAuroraEnabled()` here
+            // and change the default background in the layout XML directly.
+            return desiredState || NewTabPageUtils.isNtpAuroraEnabled();
+        }
+        // If the background has been updated before and it should remain the same, returns false.
+        return TriStateUtils.from(desiredState) != currentState;
     }
 
     /** Returns the top inset of the NTP. */
@@ -1652,11 +1668,24 @@ public class NewTabPageCoordinator implements ModuleDelegateHost {
         mComposeplateCoordinator = composeplateCoordinator;
     }
 
-    void setIsComposeplateEnabledForTesting(Boolean enabled) {
+    void setIsComposeplateEnabledForTesting(@TriState int enabled) {
         mCanShowComposeplateButton = enabled;
+    }
+
+    @TriState
+    int getIsComposeplateEnabledForTesting() {
+        return mCanShowComposeplateButton;
     }
 
     @Nullable ComposeplateCoordinator getComposeplateCoordinatorForTesting() {
         return mComposeplateCoordinator;
+    }
+
+    void setIsWhiteBackgroundOnSearchBoxApplied(@TriState int applied) {
+        mIsWhiteBackgroundOnSearchBoxApplied = applied;
+    }
+
+    void setIsWhiteBackgroundOnComposeplateApplied(@TriState int applied) {
+        mIsWhiteBackgroundOnComposeplateApplied = applied;
     }
 }

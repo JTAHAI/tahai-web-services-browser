@@ -30,6 +30,9 @@
 #include "chrome/browser/autofill/actor/one_time_tokens/actor_one_time_token_filling_service.h"
 #include "chrome/browser/autofill/one_time_token_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/tab_enums.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/actor/core/actor_switches.h"
 #include "components/actor/core/aggregated_journal.h"
 #include "components/actor/core/shared_types.h"
@@ -40,6 +43,7 @@
 #include "components/one_time_tokens/core/browser/one_time_token.h"
 #include "components/one_time_tokens/core/browser/one_time_token_service_impl.h"
 #include "components/prefs/pref_service.h"
+#include "components/tabs/public/tab_interface.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -127,11 +131,20 @@ class AttemptOtpFillingToolBrowserTest : public ActorToolsTest {
     observer_ = std::make_unique<TestJournalObserver>(
         &actor_keyed_service().GetJournal());
 
-    embedded_https_test_server().ServeFilesFromSourceDirectory(
-        "chrome/test/data");
     ASSERT_TRUE(embedded_https_test_server().Start());
-    embedded_test_server()->ServeFilesFromSourceDirectory("chrome/test/data");
     ASSERT_TRUE(embedded_test_server()->Start());
+
+    // Allow no-op calls to Subscribe for SMS from Autofill OtpManager.
+    EXPECT_CALL(
+        GetMockOtpService(),
+        Subscribe(one_time_tokens::OneTimeTokenSource::kOnDeviceSms, _, _, _))
+        .WillRepeatedly(
+            [](one_time_tokens::OneTimeTokenSource source,
+               base::Time expiration,
+               one_time_tokens::OneTimeTokenService::Callback callback,
+               base::OnceClosure expiration_callback) {
+              return one_time_tokens::ExpiringSubscription();
+            });
   }
 
   void TearDownOnMainThread() override {
@@ -189,20 +202,21 @@ class AttemptOtpFillingToolBrowserTest : public ActorToolsTest {
         AffiliationServiceFactory::GetForProfile(GetProfile()));
   }
 
-  void SetExpectedOtp(std::optional<std::string> otp) {
+  void SetExpectedOtp(std::optional<std::string> otp,
+                      std::string sender = "sender@example.com") {
     EXPECT_CALL(GetMockOtpService(),
                 Subscribe(one_time_tokens::OneTimeTokenSource::kGmail, _, _, _))
         .WillOnce(
-            [otp](one_time_tokens::OneTimeTokenSource source,
-                  base::Time expiration,
-                  one_time_tokens::OneTimeTokenService::Callback callback,
-                  base::OnceClosure expiration_callback) {
+            [otp, sender](
+                one_time_tokens::OneTimeTokenSource source,
+                base::Time expiration,
+                one_time_tokens::OneTimeTokenService::Callback callback,
+                base::OnceClosure expiration_callback) {
               if (otp) {
-                callback.Run(
-                    one_time_tokens::OneTimeTokenSource::kGmail,
-                    one_time_tokens::OneTimeToken(
-                        one_time_tokens::OneTimeTokenType::kGmail, *otp,
-                        base::TimeTicks::Now(), "sender@example.com"));
+                callback.Run(one_time_tokens::OneTimeTokenSource::kGmail,
+                             one_time_tokens::OneTimeToken(
+                                 one_time_tokens::OneTimeTokenType::kGmail,
+                                 *otp, base::TimeTicks::Now(), sender));
               } else {
                 callback.Run(
                     one_time_tokens::OneTimeTokenSource::kGmail,
@@ -509,11 +523,13 @@ IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
       std::make_unique<AttemptOtpFillingToolRequest>(
           active_tab()->GetHandle(), std::vector<PageTarget>{otp_field},
           /*for_signin=*/false);
+  SeedTestServerAffiliation("example.com");
+  SetExpectedOtp("1234", "sender@example.com");
 
   ActResultFuture result;
   actor_task().Act(ToRequestList(std::move(request)), result.GetCallback());
 
-  ExpectErrorResult(result, mojom::ActionResultCode::kOtpSigninContextMismatch);
+  ExpectErrorResult(result, mojom::ActionResultCode::kOtpUnableToFill);
   EXPECT_THAT(JournalEntries(),
               testing::Contains(testing::ContainsRegex(
                   "AttemptOtpFillingTool::Invoke;.*for_signin=false")));
@@ -556,14 +572,14 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
                        ToolFailsWhenTabIsNull) {
   // Add a new tab to the browser.
-  int index = browser()->tab_strip_model()->count();
+  int index = browser()->GetTabStripModel()->count();
   std::unique_ptr<content::WebContents> new_contents =
       content::WebContents::Create(
           content::WebContents::CreateParams(GetProfile()));
-  browser()->tab_strip_model()->AppendWebContents(std::move(new_contents),
-                                                  /*foreground=*/true);
+  browser()->GetTabStripModel()->AppendWebContents(std::move(new_contents),
+                                                   /*foreground=*/true);
   tabs::TabInterface* new_tab =
-      browser()->tab_strip_model()->GetTabAtIndex(index);
+      browser()->GetTabStripModel()->GetTabAtIndex(index);
   tabs::TabHandle target_tab_handle = new_tab->GetHandle();
 
   DomNode dummy_field = {.node_id = 1, .document_identifier = "dummy"};
@@ -573,8 +589,8 @@ IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
           /*for_signin=*/true);
 
   // Close the newly added tab.
-  browser()->tab_strip_model()->CloseWebContentsAt(index,
-                                                   TabCloseTypes::CLOSE_NONE);
+  browser()->GetTabStripModel()->CloseWebContentsAt(index,
+                                                    TabCloseTypes::CLOSE_NONE);
 
   ActResultFuture result;
   actor_task().Act(ToRequestList(std::move(request)), result.GetCallback());
@@ -712,8 +728,9 @@ IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
       "is_actor_login=true;"));
 }
 
-IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
-                       IsActorLoginFlow_Mismatch_RequiresConfirmation) {
+IN_PROC_BROWSER_TEST_F(
+    AttemptOtpFillingToolBrowserTest,
+    IsActorLoginFlow_MainFrameOriginMismatch_RequiresConfirmation) {
   const GURL url = embedded_https_test_server().GetURL("example.com",
                                                        "/actor/otp_page.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
@@ -736,18 +753,21 @@ IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
       std::make_unique<AttemptOtpFillingToolRequest>(
           active_tab()->GetHandle(), std::vector<PageTarget>{otp_field},
           /*for_signin=*/true);
+  SeedTestServerAffiliation("example.com");
+  SetExpectedOtp("1234", "sender@example.com");
 
   ActResultFuture result;
   actor_task().Act(ToRequestList(std::move(request)), result.GetCallback());
-  ExpectErrorResult(result, mojom::ActionResultCode::kOtpSigninContextMismatch);
+  ExpectErrorResult(result, mojom::ActionResultCode::kOtpUnableToFill);
 
   EXPECT_TRUE(HasJournalEntryWithDetails(
       "AttemptOtpFillingTool::OnActorLoginFlowChecked",
       "is_actor_login=false;"));
 }
 
-IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
-                       IsActorLoginFlow_AffiliationMatch_SilentFilling) {
+IN_PROC_BROWSER_TEST_F(
+    AttemptOtpFillingToolBrowserTest,
+    IsActorLoginFlow_MainFrameAffiliationMatch_SilentFilling) {
   const GURL url = embedded_https_test_server().GetURL("b.example.com",
                                                        "/actor/otp_page.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
@@ -793,8 +813,9 @@ IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
       "is_actor_login=true;"));
 }
 
-IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
-                       IsActorLoginFlow_PslMatchStrong_RequiresConfirmation) {
+IN_PROC_BROWSER_TEST_F(
+    AttemptOtpFillingToolBrowserTest,
+    IsActorLoginFlow_MainFramePslMatchStrong_RequiresConfirmation) {
   const GURL url = embedded_https_test_server().GetURL("sub1.example.com",
                                                        "/actor/otp_page.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
@@ -817,18 +838,21 @@ IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
       std::make_unique<AttemptOtpFillingToolRequest>(
           active_tab()->GetHandle(), std::vector<PageTarget>{otp_field},
           /*for_signin=*/true);
+  SeedTestServerAffiliation("sub1.example.com");
+  SetExpectedOtp("1234", "sender@sub1.example.com");
 
   ActResultFuture result;
   actor_task().Act(ToRequestList(std::move(request)), result.GetCallback());
-  ExpectErrorResult(result, mojom::ActionResultCode::kOtpSigninContextMismatch);
+  ExpectErrorResult(result, mojom::ActionResultCode::kOtpUnableToFill);
 
   EXPECT_TRUE(HasJournalEntryWithDetails(
       "AttemptOtpFillingTool::OnActorLoginFlowChecked",
       "is_actor_login=false;"));
 }
 
-IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
-                       IsActorLoginFlow_PslMatchWeak_SilentFilling) {
+IN_PROC_BROWSER_TEST_F(
+    AttemptOtpFillingToolBrowserTest,
+    IsActorLoginFlow_MainFramePslNavigation_RequiresConfirmation) {
   const GURL url = embedded_https_test_server().GetURL("sub1.example.com",
                                                        "/actor/otp_page.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
@@ -839,18 +863,6 @@ IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
 
   // Sign-in started on sub2.example.com.
   GURL login_url = GURL("https://sub2.example.com");
-
-  // Seed affiliation group containing page origin and standard HTTPS origin
-  // of the sender to allow OTP sender matching (which requires exact or
-  // affiliated matches).
-  // The login flow match (`sub2.example.com` vs `sub1.example.com`) is still
-  // tested via PSL match since they are not affiliated.
-  std::string page_spec = url::Origin::Create(url).Serialize();
-  fake_affiliation_service()->AddAffiliationGroup({
-      affiliations::Facet(affiliations::FacetURI::FromCanonicalSpec(page_spec)),
-      affiliations::Facet(
-          affiliations::FacetURI::FromCanonicalSpec("https://example.com")),
-  });
 
   actor_task()
       .GetExecutionEngine()
@@ -863,15 +875,19 @@ IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
       std::make_unique<AttemptOtpFillingToolRequest>(
           active_tab()->GetHandle(), std::vector<PageTarget>{otp_field},
           /*for_signin=*/true);
-  SetExpectedOtp("1234");
+  SeedTestServerAffiliation("sub1.example.com");
+  SetExpectedOtp("1234", "sender@sub1.example.com");
 
   ActResultFuture result;
   actor_task().Act(ToRequestList(std::move(request)), result.GetCallback());
-  ExpectOkResult(result);
+  ExpectErrorResult(result, mojom::ActionResultCode::kOtpUnableToFill);
 
   EXPECT_TRUE(HasJournalEntryWithDetails(
       "AttemptOtpFillingTool::OnActorLoginFlowChecked",
-      "is_actor_login=true;"));
+      "is_actor_login=false;"));
+  EXPECT_TRUE(HasJournalEntryWithDetails(
+      "AttemptOtpFillingTool::OnOtpRetrieved",
+      "status=Requesting to show the confirmation dialog;"));
 }
 
 IN_PROC_BROWSER_TEST_F(
@@ -911,10 +927,12 @@ IN_PROC_BROWSER_TEST_F(
       std::make_unique<AttemptOtpFillingToolRequest>(
           active_tab()->GetHandle(), std::vector<PageTarget>{otp_field},
           /*for_signin=*/true);
+  SeedTestServerAffiliation("example.com");
+  SetExpectedOtp("1234", "sender@example.com");
 
   ActResultFuture result;
   actor_task().Act(ToRequestList(std::move(request)), result.GetCallback());
-  ExpectErrorResult(result, mojom::ActionResultCode::kOtpSigninContextMismatch);
+  ExpectErrorResult(result, mojom::ActionResultCode::kOtpUnableToFill);
 
   EXPECT_TRUE(HasJournalEntryWithDetails(
       "AttemptOtpFillingTool::OnActorLoginFlowChecked",
@@ -923,7 +941,7 @@ IN_PROC_BROWSER_TEST_F(
 
 IN_PROC_BROWSER_TEST_F(
     AttemptOtpFillingToolBrowserTest,
-    IsActorLoginFlow_EmbeddedOtpIframeOriginMismatch_ToolFails) {
+    IsActorLoginFlow_OtpFrameOriginMismatch_RequiresConfirmation) {
   const GURL main_url = embedded_https_test_server().GetURL(
       "example.com", "/actor/positioned_iframe.html");
   const GURL iframe_url =
@@ -959,11 +977,13 @@ IN_PROC_BROWSER_TEST_F(
       std::make_unique<AttemptOtpFillingToolRequest>(
           active_tab()->GetHandle(), std::vector<PageTarget>{*otp_field},
           /*for_signin=*/true);
+  SeedTestServerAffiliation("a.com");
+  SetExpectedOtp("1234", "sender@a.com");
 
   ActResultFuture result;
   actor_task().Act(ToRequestList(std::move(request)), result.GetCallback());
 
-  ExpectErrorResult(result, mojom::ActionResultCode::kOtpSigninContextMismatch);
+  ExpectErrorResult(result, mojom::ActionResultCode::kOtpUnableToFill);
 
   EXPECT_TRUE(HasJournalEntryWithDetails(
       "AttemptOtpFillingTool::OnActorLoginFlowChecked",
@@ -971,7 +991,7 @@ IN_PROC_BROWSER_TEST_F(
 }
 
 IN_PROC_BROWSER_TEST_F(AttemptOtpFillingToolBrowserTest,
-                       IsActorLoginFlow_EmbeddedOtpIframe_SucceedsValidation) {
+                       IsActorLoginFlow_OtpFramePslMatchWeak_SilentFilling) {
   const GURL main_url = embedded_https_test_server().GetURL(
       "example.com", "/actor/positioned_iframe.html");
   const GURL iframe_url = embedded_https_test_server().GetURL(

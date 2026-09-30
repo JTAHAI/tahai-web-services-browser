@@ -11,7 +11,6 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.autofill.AutofillSuggestion;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
-import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
 import java.util.List;
@@ -25,13 +24,20 @@ public class AtMemoryBottomSheetCoordinator {
 
     public static final int ITEM_TYPE_SUGGESTION = 1;
     public static final int ITEM_TYPE_SEARCH_TILE = 2;
-    public static final int ITEM_TYPE_ZERO_STATE = 3;
+    public static final int ITEM_TYPE_ILLUSTRATION_CARD = 3;
 
     private final BottomSheetObserver mBottomSheetObserver =
-            new EmptyBottomSheetObserver() {
+            new BottomSheetObserver() {
+                @Override
+                public void onSheetOpened(@BottomSheetController.StateChangeReason int reason) {
+                    if (mBottomSheetController.getCurrentSheetContent() != null
+                            && mBottomSheetController.getCurrentSheetContent() == mContent) {
+                        mMediator.onSheetOpened();
+                    }
+                }
+
                 @Override
                 public void onSheetClosed(@BottomSheetController.StateChangeReason int reason) {
-                    super.onSheetClosed(reason);
                     if (mBottomSheetController.getCurrentSheetContent() != null
                             && mBottomSheetController.getCurrentSheetContent() == mContent) {
                         onDismissed();
@@ -69,7 +75,7 @@ public class AtMemoryBottomSheetCoordinator {
 
         AtMemoryBottomSheetView view = new AtMemoryBottomSheetView(context);
 
-        mMediator = new AtMemoryBottomSheetMediator(context, delegate, view);
+        mMediator = new AtMemoryBottomSheetMediator(context, delegate, view, profile);
 
         mContent = new AtMemoryBottomSheetContent(view, mBottomSheetController);
 
@@ -78,8 +84,8 @@ public class AtMemoryBottomSheetCoordinator {
 
     public void show(List<AutofillSuggestion> suggestions) {
         mBottomSheetController.addObserver(mBottomSheetObserver);
+        mMediator.show(suggestions);
         if (mBottomSheetController.requestShowContent(mContent, /* animate= */ true)) {
-            mMediator.show(suggestions);
             expand(/* expandInFullHeight= */ true);
         } else {
             onDismissed();

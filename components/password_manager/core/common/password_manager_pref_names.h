@@ -12,6 +12,10 @@ namespace password_manager::prefs {
 // Alphabetical list of preference names specific to the PasswordManager
 // component.
 
+// Boolean controlling whether automated password change is enabled by the user.
+inline constexpr char kAutomatedPasswordChangeEnabled[] =
+    "automated_password_change_enabled";
+
 // Boolean controlling whether websites and apps can automatically upgrade
 // existing accounts to use passkeys when available.
 //
@@ -247,6 +251,11 @@ inline constexpr char kBiometricAuthenticationBeforeFilling[] =
 inline constexpr char kPasswordManagerPromoCardsList[] =
     "password_manager.password_promo_cards_list";
 #endif
+
+// Boolean pref indicating whether the user has accepted the privacy notice
+// agreement for starting the password change flow with private inference.
+inline constexpr char kPasswordChangeWithPrivateInferenceNoticeAgreement[] =
+    "password_manager.password_change_with_private_inference_notice_agreement";
 
 // Boolean pref indicating whether password sharing is enabled. Enables both
 // sending and receiving passwords.

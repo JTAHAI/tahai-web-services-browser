@@ -67,6 +67,7 @@
 #include "net/ssl/test_static_ech_mode_getter.h"
 #include "net/test/cert_test_util.h"
 #include "net/test/gtest_util.h"
+#include "net/test/ssl_test_util.h"
 #include "net/test/test_data_directory.h"
 #include "net/test/test_with_task_environment.h"
 #include "net/third_party/quiche/src/quiche/common/http/http_header_block.h"
@@ -246,11 +247,51 @@ class QuicChromiumClientSessionTest
   }
 
  protected:
-  void Initialize(bool migrate_session_on_network_change_v2 = false,
-                  int yield_after_packets = kQuicYieldAfterPacketsRead,
-                  quic::QuicTime::Delta yield_after_duration =
-                      quic::QuicTime::Delta::FromMilliseconds(
-                          kQuicYieldAfterDurationMilliseconds)) {
+  void Initialize() {
+    InitializeInternal(&crypto_client_stream_factory_,
+                       /*migrate_session_on_network_change_v2=*/false,
+                       MultiplexedSessionCreationInitiator::kUnknown,
+                       QuicConnectionReuseDetails(), kQuicYieldAfterPacketsRead,
+                       quic::QuicTime::Delta::FromMilliseconds(
+                           kQuicYieldAfterDurationMilliseconds));
+  }
+
+  void Initialize(bool migrate_session_on_network_change_v2) {
+    InitializeInternal(&crypto_client_stream_factory_,
+                       migrate_session_on_network_change_v2,
+                       MultiplexedSessionCreationInitiator::kUnknown,
+                       QuicConnectionReuseDetails(), kQuicYieldAfterPacketsRead,
+                       quic::QuicTime::Delta::FromMilliseconds(
+                           kQuicYieldAfterDurationMilliseconds));
+  }
+
+  void Initialize(
+      MultiplexedSessionCreationInitiator session_creation_initiator,
+      QuicConnectionReuseDetails reuse_details) {
+    InitializeInternal(&crypto_client_stream_factory_,
+                       /*migrate_session_on_network_change_v2=*/false,
+                       session_creation_initiator, reuse_details,
+                       kQuicYieldAfterPacketsRead,
+                       quic::QuicTime::Delta::FromMilliseconds(
+                           kQuicYieldAfterDurationMilliseconds));
+  }
+
+  void InitializeWithoutMockCrypto() {
+    InitializeInternal(QuicCryptoClientStreamFactory::GetDefaultFactory(),
+                       /*migrate_session_on_network_change_v2=*/false,
+                       MultiplexedSessionCreationInitiator::kUnknown,
+                       QuicConnectionReuseDetails(), kQuicYieldAfterPacketsRead,
+                       quic::QuicTime::Delta::FromMilliseconds(
+                           kQuicYieldAfterDurationMilliseconds));
+  }
+
+  void InitializeInternal(
+      QuicCryptoClientStreamFactory* crypto_client_stream_factory,
+      bool migrate_session_on_network_change_v2,
+      MultiplexedSessionCreationInitiator session_creation_initiator,
+      QuicConnectionReuseDetails reuse_details,
+      int yield_after_packets,
+      quic::QuicTime::Delta yield_after_duration) {
     if (socket_data_) {
       socket_factory_.AddSocketDataProvider(socket_data_.get());
     }
@@ -277,7 +318,7 @@ class QuicChromiumClientSessionTest
                             base::Unretained(this)));
     session_ = std::make_unique<TestingQuicChromiumClientSession>(
         connection, std::move(socket),
-        /*stream_factory=*/nullptr, &crypto_client_stream_factory_, &clock_,
+        /*stream_factory=*/nullptr, crypto_client_stream_factory, &clock_,
         transport_security_state_.get(), &ssl_config_service_,
         base::WrapUnique(static_cast<QuicServerInfo*>(nullptr)),
         QuicSessionAliasKey(url::SchemeHostPort(), session_key_),
@@ -298,8 +339,8 @@ class QuicChromiumClientSessionTest
         base::SingleThreadTaskRunner::GetCurrentDefault().get(),
         /*socket_performance_watcher=*/nullptr, ConnectionEndpointMetadata(),
         /*enable_origin_frame=*/true, /*allow_server_preferred_address=*/true,
-        MultiplexedSessionCreationInitiator::kUnknown,
-        NetLogWithSource::Make(NetLogSourceType::NONE));
+        session_creation_initiator,
+        NetLogWithSource::Make(NetLogSourceType::NONE), reuse_details);
     if (connectivity_monitor_) {
       connectivity_monitor_->SetInitialDefaultNetwork(default_network_);
       session_->AddConnectivityObserver(connectivity_monitor_.get());
@@ -3377,6 +3418,7 @@ TEST_P(QuicChromiumClientSessionTest, ECHModeDisabled) {
 
   quic::QuicSSLConfig config = session_->GetSSLConfig();
   EXPECT_FALSE(config.ech_grease_enabled);
+  EXPECT_FALSE(config.reject_unusable_ech_config);
   EXPECT_TRUE(config.ech_config_list.empty());
 
   CompleteCryptoHandshake();
@@ -3414,10 +3456,39 @@ TEST_P(QuicChromiumClientSessionTest, ECHModeStrictWithConfigs) {
 
   quic::QuicSSLConfig config = session_->GetSSLConfig();
   EXPECT_TRUE(config.ech_grease_enabled);
+  EXPECT_TRUE(config.reject_unusable_ech_config);
   EXPECT_EQ(config.ech_config_list,
             std::string(ech_config_list.begin(), ech_config_list.end()));
 
   CompleteCryptoHandshake();
+}
+
+// Test that, if EchMode is kStrict and ECH configs are unusable, CryptoConnect
+// fails.
+TEST_P(QuicChromiumClientSessionTest, ECHModeStrictUnusableConfig) {
+  ssl_config_service_.SetEchModeGetter(
+      std::make_unique<TestStaticEchModeGetter>(EchMode::kStrict,
+                                                kServerHostname));
+  std::vector<uint8_t> ech_config_list;
+  bssl::UniquePtr<SSL_ECH_KEYS> keys =
+      MakeTestEchKeys(kServerHostname, /*max_name_len=*/64, &ech_config_list);
+  ASSERT_TRUE(keys);
+  ASSERT_GT(ech_config_list.size(), 4u);
+  ech_config_list[2] ^= 1;
+
+  client_maker_.SetEncryptionLevel(quic::ENCRYPTION_INITIAL);
+  MockQuicData quic_data(version_);
+  quic_data.AddWrite(SYNCHRONOUS, ERR_IO_PENDING);
+  quic_data.AddRead(ASYNC, ERR_IO_PENDING);
+  quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
+  quic_data.AddSocketDataToFactory(&socket_factory_);
+
+  InitializeWithoutMockCrypto();
+  test::QuicChromiumClientSessionPeer::SetEchConfigList(session_.get(),
+                                                        ech_config_list);
+
+  EXPECT_THAT(session_->CryptoConnect(callback_.callback()),
+              IsError(ERR_QUIC_HANDSHAKE_FAILED));
 }
 
 // Test that, if EchMode is kOpportunistic, ECH GREASE is enabled in
@@ -3435,9 +3506,272 @@ TEST_P(QuicChromiumClientSessionTest, ECHModeOpportunistic) {
 
   quic::QuicSSLConfig config = session_->GetSSLConfig();
   EXPECT_TRUE(config.ech_grease_enabled);
+  EXPECT_FALSE(config.reject_unusable_ech_config);
   EXPECT_TRUE(config.ech_config_list.empty());
 
   CompleteCryptoHandshake();
+}
+
+// Test that, if EchMode is kOpportunistic and ECH configs are unusable,
+// CryptoConnect silently succeeds without ECH.
+TEST_P(QuicChromiumClientSessionTest, ECHModeOpportunisticUnusableConfig) {
+  ssl_config_service_.SetEchModeGetter(
+      std::make_unique<TestStaticEchModeGetter>(EchMode::kOpportunistic,
+                                                kServerHostname));
+  std::vector<uint8_t> ech_config_list;
+  bssl::UniquePtr<SSL_ECH_KEYS> keys =
+      MakeTestEchKeys(kServerHostname, /*max_name_len=*/64, &ech_config_list);
+  ASSERT_TRUE(keys);
+  ASSERT_GT(ech_config_list.size(), 4u);
+  ech_config_list[2] ^= 1;
+
+  MockQuicData quic_data(version_);
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddRead(ASYNC, ERR_IO_PENDING);
+  quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
+  quic_data.AddSocketDataToFactory(&socket_factory_);
+  Initialize();
+  test::QuicChromiumClientSessionPeer::SetEchConfigList(session_.get(),
+                                                        ech_config_list);
+
+  CompleteCryptoHandshake();
+}
+
+TEST_P(QuicChromiumClientSessionTest, GoogleSearchSessionMetricsUnused) {
+  base::HistogramTester histogram_tester;
+  QuicConnectionReuseDetails reuse_details;
+  reuse_details.establishment_reason =
+      QuicSessionEstablishmentReason::kSessionExistedAndWasPreconnect;
+  Initialize(MultiplexedSessionCreationInitiator::kPreconnect, reuse_details);
+  QuicChromiumClientSessionPeer::SetHostname(session_.get(), "www.google.com");
+  session_.reset();
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.SessionCreationInitiator.Unused",
+      MultiplexedSessionCreationInitiator::kPreconnect, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Unused",
+      QuicSessionEstablishmentReason::kSessionExistedAndWasPreconnect, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Preconnect.Unused",
+      QuicSessionEstablishmentReason::kSessionExistedAndWasPreconnect, 1);
+  histogram_tester.ExpectTotalCount(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.NonPreconnect.Unused",
+      0);
+}
+
+TEST_P(QuicChromiumClientSessionTest, GoogleSearchSessionMetricsUsed) {
+  base::HistogramTester histogram_tester;
+  QuicConnectionReuseDetails reuse_details;
+  reuse_details.establishment_reason =
+      QuicSessionEstablishmentReason::kSessionExistedButNotPreconnect;
+  Initialize(MultiplexedSessionCreationInitiator::kUnknown, reuse_details);
+  QuicChromiumClientSessionPeer::SetHostname(session_.get(), "www.google.com");
+  QuicChromiumClientSessionPeer::SetNumTotalStreamsForTesting(session_.get(),
+                                                              1);
+  session_.reset();
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.SessionCreationInitiator.Used",
+      MultiplexedSessionCreationInitiator::kUnknown, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Used",
+      QuicSessionEstablishmentReason::kSessionExistedButNotPreconnect, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.NonPreconnect.Used",
+      QuicSessionEstablishmentReason::kSessionExistedButNotPreconnect, 1);
+  histogram_tester.ExpectTotalCount(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Preconnect.Used", 0);
+}
+
+TEST_P(QuicChromiumClientSessionTest, GoogleSearchSessionMetricsNoSession) {
+  base::HistogramTester histogram_tester;
+  QuicConnectionReuseDetails reuse_details;
+  reuse_details.establishment_reason =
+      QuicSessionEstablishmentReason::kNoSessionExisted;
+  Initialize(MultiplexedSessionCreationInitiator::kUnknown, reuse_details);
+  QuicChromiumClientSessionPeer::SetHostname(session_.get(), "www.google.com");
+  session_.reset();
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Unused",
+      QuicSessionEstablishmentReason::kNoSessionExisted, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.NonPreconnect.Unused",
+      QuicSessionEstablishmentReason::kNoSessionExisted, 1);
+  histogram_tester.ExpectTotalCount(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Preconnect.Unused", 0);
+}
+
+TEST_P(QuicChromiumClientSessionTest,
+       GoogleSearchSessionMetricsPreconnectUsed) {
+  base::HistogramTester histogram_tester;
+  QuicConnectionReuseDetails reuse_details;
+  reuse_details.establishment_reason =
+      QuicSessionEstablishmentReason::kSessionExistedAndWasPreconnect;
+  Initialize(MultiplexedSessionCreationInitiator::kPreconnect, reuse_details);
+  QuicChromiumClientSessionPeer::SetHostname(session_.get(), "www.google.com");
+  QuicChromiumClientSessionPeer::SetNumTotalStreamsForTesting(session_.get(),
+                                                              1);
+  session_.reset();
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.SessionCreationInitiator.Used",
+      MultiplexedSessionCreationInitiator::kPreconnect, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Used",
+      QuicSessionEstablishmentReason::kSessionExistedAndWasPreconnect, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Preconnect.Used",
+      QuicSessionEstablishmentReason::kSessionExistedAndWasPreconnect, 1);
+  histogram_tester.ExpectTotalCount(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.NonPreconnect.Used",
+      0);
+}
+
+TEST_P(QuicChromiumClientSessionTest,
+       GoogleSearchSessionMetricsNonReuseReason) {
+  base::HistogramTester histogram_tester;
+  QuicConnectionReuseDetails reuse_details;
+  reuse_details.establishment_reason =
+      QuicSessionEstablishmentReason::kNoSessionExisted;
+  reuse_details.non_reuse_reason =
+      QuicSessionNonReuseReason::kNoSessionExisted_KeyMismatch_SocketTag;
+  Initialize(MultiplexedSessionCreationInitiator::kUnknown, reuse_details);
+  QuicChromiumClientSessionPeer::SetHostname(session_.get(), "www.google.com");
+  session_.reset();
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.Unused",
+      QuicSessionNonReuseReason::kNoSessionExisted_KeyMismatch_SocketTag, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.NonPreconnect.Unused",
+      QuicSessionNonReuseReason::kNoSessionExisted_KeyMismatch_SocketTag, 1);
+  histogram_tester.ExpectTotalCount(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.Preconnect.Unused", 0);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Unused",
+      QuicSessionEstablishmentReason::kNoSessionExisted, 1);
+}
+
+TEST_P(QuicChromiumClientSessionTest,
+       GoogleSearchSessionMetricsNonReuseReason_MultipleFields) {
+  base::HistogramTester histogram_tester;
+  QuicConnectionReuseDetails reuse_details;
+  reuse_details.establishment_reason =
+      QuicSessionEstablishmentReason::kNoSessionExisted;
+  reuse_details.non_reuse_reason =
+      QuicSessionNonReuseReason::kNoSessionExisted_KeyMismatch_MultipleFields;
+  Initialize(MultiplexedSessionCreationInitiator::kUnknown, reuse_details);
+  QuicChromiumClientSessionPeer::SetHostname(session_.get(), "www.google.com");
+  session_.reset();
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.Unused",
+      QuicSessionNonReuseReason::kNoSessionExisted_KeyMismatch_MultipleFields,
+      1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.NonPreconnect.Unused",
+      QuicSessionNonReuseReason::kNoSessionExisted_KeyMismatch_MultipleFields,
+      1);
+  histogram_tester.ExpectTotalCount(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.Preconnect.Unused", 0);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Unused",
+      QuicSessionEstablishmentReason::kNoSessionExisted, 1);
+}
+
+TEST_P(QuicChromiumClientSessionTest,
+       GoogleSearchSessionMetricsNonReuseReason_MultipleReasons) {
+  base::HistogramTester histogram_tester;
+  QuicConnectionReuseDetails reuse_details;
+  reuse_details.establishment_reason =
+      QuicSessionEstablishmentReason::kSessionExistedBoth;
+  reuse_details.non_reuse_reason =
+      QuicSessionNonReuseReason::kSessionExisted_MultipleReasons;
+  Initialize(MultiplexedSessionCreationInitiator::kUnknown, reuse_details);
+  QuicChromiumClientSessionPeer::SetHostname(session_.get(), "www.google.com");
+  session_.reset();
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.Unused",
+      QuicSessionNonReuseReason::kSessionExisted_MultipleReasons, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.NonPreconnect.Unused",
+      QuicSessionNonReuseReason::kSessionExisted_MultipleReasons, 1);
+  histogram_tester.ExpectTotalCount(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.Preconnect.Unused", 0);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Unused",
+      QuicSessionEstablishmentReason::kSessionExistedBoth, 1);
+}
+
+TEST_P(QuicChromiumClientSessionTest,
+       GoogleSearchSessionMetricsNonReuseReason_PreconnectUsed) {
+  base::HistogramTester histogram_tester;
+  QuicConnectionReuseDetails reuse_details;
+  reuse_details.establishment_reason =
+      QuicSessionEstablishmentReason::kSessionExistedAndWasPreconnect;
+  reuse_details.non_reuse_reason =
+      QuicSessionNonReuseReason::kSessionExisted_ServerGoaway;
+  Initialize(MultiplexedSessionCreationInitiator::kPreconnect, reuse_details);
+  QuicChromiumClientSessionPeer::SetHostname(session_.get(), "www.google.com");
+  QuicChromiumClientSessionPeer::SetNumTotalStreamsForTesting(session_.get(),
+                                                              1);
+  session_.reset();
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.Used",
+      QuicSessionNonReuseReason::kSessionExisted_ServerGoaway, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.Preconnect.Used",
+      QuicSessionNonReuseReason::kSessionExisted_ServerGoaway, 1);
+  histogram_tester.ExpectTotalCount(
+      "Net.QuicSession.GoogleSearch.NonReuseReason.NonPreconnect.Used", 0);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Used",
+      QuicSessionEstablishmentReason::kSessionExistedAndWasPreconnect, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Preconnect.Used",
+      QuicSessionEstablishmentReason::kSessionExistedAndWasPreconnect, 1);
+  histogram_tester.ExpectTotalCount(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.NonPreconnect.Used",
+      0);
+}
+
+TEST_P(QuicChromiumClientSessionTest,
+       GoogleSearchSessionMetricsInflightSessionPreconnect) {
+  base::HistogramTester histogram_tester;
+  QuicConnectionReuseDetails reuse_details;
+  reuse_details.establishment_reason =
+      QuicSessionEstablishmentReason::kInflightSessionAndWasPreconnect;
+  Initialize(MultiplexedSessionCreationInitiator::kUnknown, reuse_details);
+  QuicChromiumClientSessionPeer::SetHostname(session_.get(), "www.google.com");
+  session_.reset();
+
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Unused",
+      QuicSessionEstablishmentReason::kInflightSessionAndWasPreconnect, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.NonPreconnect.Unused",
+      QuicSessionEstablishmentReason::kInflightSessionAndWasPreconnect, 1);
+  histogram_tester.ExpectTotalCount(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Preconnect.Unused", 0);
+}
+
+TEST_P(QuicChromiumClientSessionTest,
+       GoogleSearchSessionMetricsInflightSessionNonPreconnect) {
+  base::HistogramTester histogram_tester;
+  QuicConnectionReuseDetails reuse_details;
+  reuse_details.establishment_reason =
+      QuicSessionEstablishmentReason::kInflightSessionButNotPreconnect;
+  Initialize(MultiplexedSessionCreationInitiator::kPreconnect, reuse_details);
+  QuicChromiumClientSessionPeer::SetHostname(session_.get(), "www.google.com");
+  QuicChromiumClientSessionPeer::SetNumTotalStreamsForTesting(session_.get(),
+                                                              1);
+  session_.reset();
+
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Used",
+      QuicSessionEstablishmentReason::kInflightSessionButNotPreconnect, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.Preconnect.Used",
+      QuicSessionEstablishmentReason::kInflightSessionButNotPreconnect, 1);
+  histogram_tester.ExpectTotalCount(
+      "Net.QuicSession.GoogleSearch.EstablishmentReason2.NonPreconnect.Used",
+      0);
 }
 
 }  // namespace

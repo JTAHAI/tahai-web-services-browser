@@ -29,7 +29,6 @@
 #include "chrome/browser/ui/lens/lens_overlay_colors.h"
 #include "chrome/browser/ui/lens/lens_overlay_gen204_controller.h"
 #include "chrome/browser/ui/lens/lens_overlay_languages_controller.h"
-#include "chrome/browser/ui/lens/lens_overlay_query_controller.h"
 #include "chrome/browser/ui/lens/lens_overlay_translate_options.h"
 #include "chrome/browser/ui/lens/lens_query_flow_router.h"
 #include "chrome/browser/ui/lens/overlay_base_controller.h"
@@ -249,6 +248,19 @@ class LensOverlayController : public OverlayBaseController,
       bool is_zero_prefix_suggestion,
       std::map<std::string, std::string> additional_query_params);
 
+  // Gets the invocation source enum.
+  lens::LensOverlayInvocationSource invocation_source() const {
+    return invocation_source_;
+  }
+
+  // Returns true if the CoBrowse panel with Lens overlay is enabled.
+  bool CoBrowsePanelWithLensOverlayEnabled() const;
+
+  // Returns true if the non-blocking privacy notice should be hidden. Note that
+  // non-blocking permission flows may still apply if this is true; the notice
+  // is just not displayed.
+  bool ShouldHideNonBlockingPrivacyNotice() const;
+
   // Gets string for invocation source enum, used for logging metrics.
   std::string GetInvocationSourceString();
 
@@ -436,6 +448,9 @@ class LensOverlayController : public OverlayBaseController,
   // on the live page.
   void ReshowOverlay() override;
 
+  // OverlayBaseController overrides allowed for testing:
+  bool IsResultsSidePanelShowing() override;
+
  private:
   // Data class for constructing overlay and storing overlay state for
   // kSuspended state.
@@ -594,11 +609,10 @@ class LensOverlayController : public OverlayBaseController,
   // Returns true if the searchbox is a CONTEXTUAL_SEARCHBOX.
   bool IsContextualSearchbox();
 
-  // Returns true if the CoBrowse panel with Lens overlay is enabled.
-  bool CoBrowsePanelWithLensOverlayEnabled() const;
+  // Returns true if the current query flow is in region-only mode.
+  bool IsSelectedRegionOnlyMode();
 
   // OverlayBaseController overrides:
-  bool IsResultsSidePanelShowing() override;
   void RequestSyncClose(DismissalSource source) override;
   GURL GetInitialURL() override;
   void NotifyIsOverlayShowing(bool is_showing) override;

@@ -413,8 +413,6 @@ component("gl") {
       "android/scoped_java_surface_control.h",
       "android/surface_texture.cc",
       "android/surface_texture.h",
-      "android/surface_texture_listener.cc",
-      "android/surface_texture_listener.h",
       "gl_surface_egl_surface_control.cc",
       "gl_surface_egl_surface_control.h",
     ]
@@ -617,6 +615,10 @@ test("gl_unittests") {
       "os_compositor_tree_base_unittest.cc",
       "solid_color_pool_base_unittest.cc",
     ]
+  }
+
+  if (is_android) {
+    sources += [ "gl_surface_egl_surface_control_unittest.cc" ]
   }
 
   deps = [

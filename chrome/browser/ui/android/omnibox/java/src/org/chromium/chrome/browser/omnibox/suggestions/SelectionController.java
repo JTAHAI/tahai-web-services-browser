@@ -42,24 +42,31 @@ public abstract class SelectionController {
      *         <li>forward: ∅- -> A -> B -> C -> ∅- -> A
      *         <li>backward: ∅- -> C -> B -> A -> ∅- -> C
      *       </ul>
+     *   <li>SENTINEL_THEN_WRAPPING:
+     *       <ul>
+     *         <li>forward: ∅- -> A -> B -> C -> A -> B
+     *         <li>backward: ∅- -> C -> B -> A -> C -> B
+     *       </ul>
      * </ul>
      */
     @IntDef({
-        Mode.SATURATING,
-        Mode.SATURATING_WITH_SENTINEL,
-        Mode.WRAPPING,
-        Mode.WRAPPING_WITH_SENTINEL
+        TraversalMode.SATURATING,
+        TraversalMode.SATURATING_WITH_SENTINEL,
+        TraversalMode.WRAPPING,
+        TraversalMode.WRAPPING_WITH_SENTINEL,
+        TraversalMode.SENTINEL_THEN_WRAPPING
     })
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.TYPE_USE)
-    public @interface Mode {
+    public @interface TraversalMode {
         int SATURATING = 0;
         int SATURATING_WITH_SENTINEL = 1;
         int WRAPPING = 2;
         int WRAPPING_WITH_SENTINEL = 3;
+        int SENTINEL_THEN_WRAPPING = 4;
     }
 
-    protected @Mode int mMode;
+    protected @TraversalMode int mMode;
     protected int mDefaultPosition;
 
     private int mPosition;
@@ -69,22 +76,23 @@ public abstract class SelectionController {
      *
      * @param mode Selection mode that defines how the controller will behave
      */
-    public SelectionController(@Mode int mode) {
+    public SelectionController(@TraversalMode int mode) {
         mPosition = Integer.MIN_VALUE;
         setSelectionMode(mode);
     }
 
     /** Sets the selection mode that defines how the controller will behave. */
-    public void setSelectionMode(@Mode int mode) {
+    public void setSelectionMode(@TraversalMode int mode) {
         mMode = mode;
         switch (mode) {
-            case Mode.SATURATING:
-            case Mode.WRAPPING:
+            case TraversalMode.SATURATING:
+            case TraversalMode.WRAPPING:
                 mDefaultPosition = 0;
                 break;
 
-            case Mode.SATURATING_WITH_SENTINEL:
-            case Mode.WRAPPING_WITH_SENTINEL:
+            case TraversalMode.SATURATING_WITH_SENTINEL:
+            case TraversalMode.WRAPPING_WITH_SENTINEL:
+            case TraversalMode.SENTINEL_THEN_WRAPPING:
             default:
                 mDefaultPosition = Integer.MIN_VALUE; // Lower-end sentinel.
                 break;
@@ -94,6 +102,14 @@ public abstract class SelectionController {
     /** Resets the controller, making the current position point to default item. */
     public void reset() {
         setPosition(mDefaultPosition);
+    }
+
+    public void selectFirstItem() {
+        setPosition(0);
+    }
+
+    public void selectLastItem() {
+        setPosition(getItemCount() - 1);
     }
 
     /** Returns the maximum valid position the SelectionController can assume. */
@@ -112,7 +128,7 @@ public abstract class SelectionController {
         Integer position = getPosition();
         int newPosition = (position == null ? -1 : position) + 1;
 
-        if (mMode == Mode.SATURATING || mMode == Mode.SATURATING_WITH_SENTINEL) {
+        if (mMode == TraversalMode.SATURATING || mMode == TraversalMode.SATURATING_WITH_SENTINEL) {
             if (mPosition == Integer.MAX_VALUE) return false;
 
             while (newPosition < itemCount) {
@@ -122,11 +138,12 @@ public abstract class SelectionController {
                 newPosition++;
             }
 
-            if (mMode == Mode.SATURATING_WITH_SENTINEL) {
+            if (mMode == TraversalMode.SATURATING_WITH_SENTINEL) {
                 setPosition(Integer.MAX_VALUE);
             }
             return false;
-        } else if (mMode == Mode.WRAPPING) {
+        } else if (mMode == TraversalMode.WRAPPING
+                || mMode == TraversalMode.SENTINEL_THEN_WRAPPING) {
             // Check full list once, with wrapping, to find the next selectable item.
             for (int i = 0; i < itemCount; i++) {
                 if (newPosition >= itemCount) {
@@ -139,7 +156,7 @@ public abstract class SelectionController {
                 newPosition++;
             }
             return false;
-        } else if (mMode == Mode.WRAPPING_WITH_SENTINEL) {
+        } else if (mMode == TraversalMode.WRAPPING_WITH_SENTINEL) {
             while (newPosition < itemCount) {
                 if (isSelectableItem(newPosition)) {
                     return setPosition(newPosition);
@@ -166,7 +183,7 @@ public abstract class SelectionController {
         Integer position = getPosition();
         int newPosition = (position == null ? itemCount : position) - 1;
 
-        if (mMode == Mode.SATURATING || mMode == Mode.SATURATING_WITH_SENTINEL) {
+        if (mMode == TraversalMode.SATURATING || mMode == TraversalMode.SATURATING_WITH_SENTINEL) {
             if (mPosition == Integer.MIN_VALUE) return false;
 
             while (newPosition >= 0) {
@@ -176,11 +193,12 @@ public abstract class SelectionController {
                 newPosition--;
             }
 
-            if (mMode == Mode.SATURATING_WITH_SENTINEL) {
+            if (mMode == TraversalMode.SATURATING_WITH_SENTINEL) {
                 setPosition(Integer.MIN_VALUE);
             }
             return false;
-        } else if (mMode == Mode.WRAPPING) {
+        } else if (mMode == TraversalMode.WRAPPING
+                || mMode == TraversalMode.SENTINEL_THEN_WRAPPING) {
             // Check full list once, with wrapping, to find the previous selectable item.
             for (int i = 0; i < itemCount; i++) {
                 if (newPosition < 0) {
@@ -193,7 +211,7 @@ public abstract class SelectionController {
                 newPosition--;
             }
             return false;
-        } else if (mMode == Mode.WRAPPING_WITH_SENTINEL) {
+        } else if (mMode == TraversalMode.WRAPPING_WITH_SENTINEL) {
             while (newPosition >= 0) {
                 if (isSelectableItem(newPosition)) {
                     return setPosition(newPosition);
@@ -224,7 +242,7 @@ public abstract class SelectionController {
     }
 
     /**
-     * Set the new counter value, saturating it according to @Mode.
+     * Set the new counter value, saturating it according to @TraversalMode.
      *
      * @param newPosition - new value to apply to the mPosition
      * @return whether selection was applied to the new element.
@@ -233,8 +251,8 @@ public abstract class SelectionController {
         // Compute new position.
         int itemCount = getItemCount();
         switch (mMode) {
-            case Mode.SATURATING:
-            case Mode.WRAPPING:
+            case TraversalMode.SATURATING:
+            case TraversalMode.WRAPPING:
                 if (itemCount == 0) {
                     newPosition = Integer.MIN_VALUE;
                 } else {
@@ -242,7 +260,7 @@ public abstract class SelectionController {
                 }
                 break;
 
-            case Mode.SATURATING_WITH_SENTINEL:
+            case TraversalMode.SATURATING_WITH_SENTINEL:
                 // Park outside the valid range, keeping the information which edge we hit.
                 if (newPosition < 0) { // Underflow
                     newPosition = Integer.MIN_VALUE;
@@ -251,9 +269,17 @@ public abstract class SelectionController {
                 }
                 break;
 
-            case Mode.WRAPPING_WITH_SENTINEL:
+            case TraversalMode.WRAPPING_WITH_SENTINEL:
                 if (newPosition < 0 || newPosition >= itemCount) {
                     newPosition = Integer.MIN_VALUE;
+                }
+                break;
+
+            case TraversalMode.SENTINEL_THEN_WRAPPING:
+                if (newPosition == Integer.MIN_VALUE || itemCount == 0) {
+                    newPosition = Integer.MIN_VALUE;
+                } else {
+                    newPosition = MathUtils.clamp(newPosition, 0, itemCount - 1);
                 }
                 break;
         }
@@ -286,7 +312,7 @@ public abstract class SelectionController {
      * Applies selection change at specific position.
      *
      * @param position the index of an element to change the state of
-     * @param state the desired new state
+     * @param isSelected Whether the suggestion item view is currently selected.
      */
     protected abstract void setItemState(int position, boolean isSelected);
 }

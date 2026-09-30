@@ -15,6 +15,7 @@
 #import "base/task/thread_pool.h"
 #import "base/time/default_clock.h"
 #import "components/component_updater/pref_names.h"
+#import "components/download/public/background_service/download_params.h"
 #import "components/optimization_guide/core/delivery/prediction_manager.h"
 #import "components/optimization_guide/core/hints/command_line_top_host_provider.h"
 #import "components/optimization_guide/core/hints/hints_processing_util.h"
@@ -23,7 +24,6 @@
 #import "components/optimization_guide/core/hints/top_host_provider.h"
 #import "components/optimization_guide/core/model_execution/model_execution_features_controller.h"
 #import "components/optimization_guide/core/model_execution/model_execution_manager.h"
-#import "components/optimization_guide/core/model_execution/on_device_model_service_controller.h"
 #import "components/optimization_guide/core/model_execution/remote_model_executor.h"
 #import "components/optimization_guide/core/optimization_guide_features.h"
 #import "components/optimization_guide/core/optimization_guide_logger.h"
@@ -314,6 +314,15 @@ void OptimizationGuideService::RemoveObserverForOptimizationTargetModel(
   }
 }
 
+void OptimizationGuideService::SetModelDownloadSchedulingParams(
+    optimization_guide::proto::OptimizationTarget optimization_target,
+    const download::SchedulingParams& params) {
+  if (optimization_guide::features::IsOptimizationTargetPredictionEnabled()) {
+    GetPredictionManager()->SetModelDownloadSchedulingParams(
+        optimization_target, params);
+  }
+}
+
 #pragma mark - optimization_guide::RemoteModelExecutor implementation
 
 void OptimizationGuideService::ExecuteModel(
@@ -340,4 +349,16 @@ void OptimizationGuideService::ExecuteModel(
       feature, request_metadata, options.execution_timeout,
       /*log_ai_data_request=*/nullptr, options.service_type,
       std::move(callback));
+}
+
+std::unique_ptr<optimization_guide::RemoteModelExecutionSession>
+OptimizationGuideService::StartStreamingSession(
+    optimization_guide::ModelBasedCapabilityKey feature,
+    const optimization_guide::StreamingModelExecutionOptions& options,
+    optimization_guide::OptimizationGuideModelExecutionStreamingCallback
+        callback) {
+  DCHECK_CURRENTLY_ON(web::WebThread::UI);
+  // TODO(crbug.com/553134125): Delegate streaming session creation to
+  // ModelExecutionManager.
+  return nullptr;
 }

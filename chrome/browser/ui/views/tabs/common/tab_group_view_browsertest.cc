@@ -8,16 +8,25 @@
 #include "build/build_config.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/tab_group_attention_indicator.h"
 #include "chrome/browser/ui/tabs/tab_group_features.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
+#include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/tabs/common/root_tab_collection_node.h"
 #include "chrome/browser/ui/views/tabs/common/tab_collection_node.h"
 #include "chrome/browser/ui/views/tabs/common/tab_group_header_view.h"
+#include "chrome/browser/ui/views/tabs/common/tab_group_line_view.h"
+#include "chrome/browser/ui/views/tabs/common/tab_strip_view.h"
 #include "chrome/browser/ui/views/tabs/common/tab_view.h"
+#include "chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h"
 #include "chrome/browser/ui/views/test/vertical_tabs_browser_test_mixin.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/data_sharing/public/features.h"
+#include "components/tabs/public/tab_collection_types.h"
 #include "components/tabs/public/tab_group.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
@@ -26,6 +35,7 @@
 #include "ui/base/ui_base_features.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/event_constants.h"
+#include "ui/gfx/animation/animation_test_api.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/view_utils.h"
 
@@ -38,22 +48,21 @@ class TabGroupViewTest
  public:
   const std::vector<base::test::FeatureRefAndParams> GetEnabledFeatures()
       override {
-    return {{tabs::kVerticalTabs, {}},
-            {data_sharing::features::kDataSharingFeature, {}}};
+    return {{data_sharing::features::kDataSharingFeature, {}},
+            {features::kTabGroupsFocusing, {}}};
   }
 
   RootTabCollectionNode* root_node() {
     VerticalTabStripRegionView* region_view =
-        browser()
-            ->GetBrowserView()
-            .vertical_tab_strip_region_view_for_testing();
+        BrowserView::GetBrowserViewForBrowser(browser())
+            ->vertical_tab_strip_region_view_for_testing();
     return region_view->root_node_for_testing();
   }
 
   void ActivateTab(const tabs::TabInterface* tab) {
-    int index = browser()->tab_strip_model()->GetIndexOfTab(tab);
+    int index = browser()->GetTabStripModel()->GetIndexOfTab(tab);
     CHECK(index != TabStripModel::kNoTab);
-    browser()->tab_strip_model()->ActivateTabAt(
+    browser()->GetTabStripModel()->ActivateTabAt(
         index, TabStripUserGestureDetails(
                    TabStripUserGestureDetails::GestureType::kOther));
     RunScheduledLayouts();
@@ -63,12 +72,12 @@ class TabGroupViewTest
     AppendTab();
     AppendTab();
 
-    browser()->tab_strip_model()->ActivateTabAt(
+    browser()->GetTabStripModel()->ActivateTabAt(
         1, TabStripUserGestureDetails(
                TabStripUserGestureDetails::GestureType::kOther));
 
     tab_groups::TabGroupId group_id =
-        browser()->tab_strip_model()->AddToNewGroup({1});
+        browser()->GetTabStripModel()->AddToNewGroup({1});
     RunScheduledLayouts();
     return group_id;
   }
@@ -78,9 +87,9 @@ class TabGroupViewTest
     AppendTab();
 
     tab_groups::TabGroupId group_id =
-        browser()->tab_strip_model()->AddToNewGroup({1});
+        browser()->GetTabStripModel()->AddToNewGroup({1});
 
-    browser()->tab_strip_model()->ActivateTabAt(
+    browser()->GetTabStripModel()->ActivateTabAt(
         2, TabStripUserGestureDetails(
                TabStripUserGestureDetails::GestureType::kOther));
     RunScheduledLayouts();
@@ -89,7 +98,7 @@ class TabGroupViewTest
 
   void UngroupTabGroup(tab_groups::TabGroupId group_id) {
     const gfx::Range tab_range = browser()
-                                     ->tab_strip_model()
+                                     ->GetTabStripModel()
                                      ->group_model()
                                      ->GetTabGroup(group_id)
                                      ->ListTabs();
@@ -100,7 +109,7 @@ class TabGroupViewTest
       tab_indices.push_back(i);
     }
 
-    browser()->tab_strip_model()->RemoveFromGroup(tab_indices);
+    browser()->GetTabStripModel()->RemoveFromGroup(tab_indices);
     RunScheduledLayouts();
   }
 
@@ -128,7 +137,8 @@ class TabGroupViewTest
 
   const tabs::TabInterface* GetTabInterfaceForNode(
       const TabCollectionNode* node) {
-    return std::get<const tabs::TabInterface*>(node->GetNodeData());
+    return std::get<tabs::ConstDanglingUntriagedTabInterface>(
+        node->GetNodeData());
   }
 };
 
@@ -218,7 +228,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupViewTest,
 
 IN_PROC_BROWSER_TEST_F(TabGroupViewTest,
                        CollapsingGroupWithOnlyTabInStripAddsNewTab) {
-  browser()->tab_strip_model()->AddToNewGroup({0});
+  browser()->GetTabStripModel()->AddToNewGroup({0});
 
   // The unpinned collection should only have one child, the tab group.
   EXPECT_EQ(unpinned_collection_node()->children().size(), 1u);
@@ -366,7 +376,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupViewTest, AttentionIndicator) {
   EXPECT_TRUE(base::test::RunUntil([&]() { return !tab->GetVisible(); }));
   // Set the attention indicator to true and verify its visibility.
   browser()
-      ->tab_strip_model()
+      ->GetTabStripModel()
       ->group_model()
       ->GetTabGroup(group_id)
       ->GetTabGroupFeatures()
@@ -382,7 +392,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupViewTest, AttentionIndicator) {
 }
 
 IN_PROC_BROWSER_TEST_F(TabGroupViewTest, ShiftGroupUp_PastSingleTab) {
-  TabStripModel* model = browser()->tab_strip_model();
+  TabStripModel* model = browser()->GetTabStripModel();
 
   AppendTab();
   AppendTab();
@@ -406,7 +416,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupViewTest, ShiftGroupUp_PastSingleTab) {
 }
 
 IN_PROC_BROWSER_TEST_F(TabGroupViewTest, ShiftGroupDown_PastTabGroup) {
-  TabStripModel* model = browser()->tab_strip_model();
+  TabStripModel* model = browser()->GetTabStripModel();
 
   AppendTab();
   AppendTab();
@@ -434,7 +444,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupViewTest, ShiftGroupDown_PastTabGroup) {
 }
 
 IN_PROC_BROWSER_TEST_F(TabGroupViewTest, ShiftGroupUp_AlreadyAtTop) {
-  TabStripModel* model = browser()->tab_strip_model();
+  TabStripModel* model = browser()->GetTabStripModel();
 
   AppendTab();
   AppendTab();
@@ -459,7 +469,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupViewTest, ShiftGroupUp_AlreadyAtTop) {
 }
 
 IN_PROC_BROWSER_TEST_F(TabGroupViewTest, ShiftGroupDown_AlreadyAtBottom) {
-  TabStripModel* model = browser()->tab_strip_model();
+  TabStripModel* model = browser()->GetTabStripModel();
 
   AppendTab();
   AppendTab();
@@ -481,6 +491,198 @@ IN_PROC_BROWSER_TEST_F(TabGroupViewTest, ShiftGroupDown_AlreadyAtBottom) {
   EXPECT_FALSE(model->GetTabGroupForTab(0).has_value());
   EXPECT_EQ(group, model->GetTabGroupForTab(1));
   EXPECT_EQ(group, model->GetTabGroupForTab(2));
+}
+
+IN_PROC_BROWSER_TEST_F(TabGroupViewTest,
+                       GroupLineHiddenAndTabsAlignedInFocusMode) {
+  auto animation_mode_reset = gfx::AnimationTestApi::SetRichAnimationRenderMode(
+      gfx::Animation::RichAnimationRenderMode::FORCE_DISABLED);
+
+  tab_groups::TabGroupId group_id = CreateInactiveTabGroup();
+
+  TabCollectionNode* group_node =
+      unpinned_collection_node()->GetChildNodeOfType(
+          TabCollectionNode::Type::GROUP);
+  TabGroupView* group_view =
+      views::AsViewClass<TabGroupView>(group_node->view());
+  ASSERT_TRUE(group_view);
+
+  TabCollectionNode* tab_node = group_node->children()[0].get();
+  TabView* tab = views::AsViewClass<TabView>(tab_node->view());
+  ASSERT_TRUE(tab);
+
+  // Initially in expanded mode (not focused), group line is visible and tab is
+  // indented.
+  EXPECT_TRUE(group_view->group_line()->GetVisible());
+  EXPECT_EQ(tab->x(), TabGroupView::kTabLeadingPadding);
+
+  // Focus the group.
+  browser()->GetTabStripModel()->SetFocusedGroup(group_id);
+  RunScheduledLayouts();
+
+  // In focus mode, group line should be hidden and tab should be aligned at x =
+  // 0.
+  EXPECT_FALSE(group_view->group_line()->GetVisible());
+  EXPECT_EQ(tab->x(), 0);
+
+  // Unfocus the group.
+  browser()->GetTabStripModel()->SetFocusedGroup(std::nullopt);
+  RunScheduledLayouts();
+
+  // Group line should be restored and tab indented again.
+  EXPECT_TRUE(group_view->group_line()->GetVisible());
+  EXPECT_EQ(tab->x(), TabGroupView::kTabLeadingPadding);
+}
+
+class HorizontalTabGroupViewBrowserTest : public InProcessBrowserTest {
+ public:
+  HorizontalTabGroupViewBrowserTest()
+      : animation_mode_reset_(gfx::AnimationTestApi::SetRichAnimationRenderMode(
+            gfx::Animation::RichAnimationRenderMode::FORCE_DISABLED)) {
+    feature_list_.InitAndEnableFeature(tabs::kTabStripUnification);
+  }
+
+ protected:
+  RootTabCollectionNode* root_node() {
+    auto* base_region_view = views::AsViewClass<BaseTabStripRegionView>(
+        BrowserView::GetBrowserViewForBrowser(browser())->tab_strip_view());
+    return base_region_view ? base_region_view->root_node_for_testing()
+                            : nullptr;
+  }
+
+  TabStripModel* GetTabStripModel() { return browser()->GetTabStripModel(); }
+
+  void AppendTab() {
+    chrome::AddTabAt(browser(), GURL(url::kAboutBlankURL), /*index=*/-1,
+                     /*foreground=*/true);
+  }
+
+ private:
+  std::unique_ptr<base::AutoReset<gfx::Animation::RichAnimationRenderMode>>
+      animation_mode_reset_;
+  base::test::ScopedFeatureList feature_list_;
+};
+
+// TODO(crbug.com/555304805): Fix failure.
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_UnboundedLayoutQueryDoesNotClearAvailableSpace \
+  DISABLED_UnboundedLayoutQueryDoesNotClearAvailableSpace
+#else
+#define MAYBE_UnboundedLayoutQueryDoesNotClearAvailableSpace \
+  UnboundedLayoutQueryDoesNotClearAvailableSpace
+#endif
+IN_PROC_BROWSER_TEST_F(HorizontalTabGroupViewBrowserTest,
+                       MAYBE_UnboundedLayoutQueryDoesNotClearAvailableSpace) {
+  AppendTab();
+  AppendTab();
+  tab_groups::TabGroupId group_id = GetTabStripModel()->AddToNewGroup({1, 2});
+
+  auto* base_region_view = views::AsViewClass<BaseTabStripRegionView>(
+      BrowserView::GetBrowserViewForBrowser(browser())->tab_strip_view());
+  ASSERT_NE(base_region_view, nullptr);
+
+  auto* tab_strip_view =
+      views::AsViewClass<TabStripView>(base_region_view->GetTabStripView());
+  ASSERT_NE(tab_strip_view, nullptr);
+
+  auto* unpinned_container = tab_strip_view->GetUnpinnedTabsContainer();
+  ASSERT_NE(unpinned_container, nullptr);
+
+  auto* group_node = root_node()->GetNodeForHandle(GetTabStripModel()
+                                                       ->group_model()
+                                                       ->GetTabGroup(group_id)
+                                                       ->GetCollectionHandle());
+  ASSERT_NE(group_node, nullptr);
+  auto* group_view = views::AsViewClass<TabGroupView>(group_node->view());
+  ASSERT_NE(group_view, nullptr);
+
+  // Perform a standard layout pass so bounded available space is established.
+  tab_strip_view->GetWidget()->LayoutRootViewIfNecessary();
+
+  EXPECT_TRUE(unpinned_container->available_space().is_bounded());
+  const int original_unpinned_available =
+      unpinned_container->available_space().value();
+  EXPECT_GT(original_unpinned_available, 0);
+
+  EXPECT_TRUE(group_view->available_space().is_bounded());
+  const int original_group_available = group_view->available_space().value();
+  EXPECT_GT(original_group_available, 0);
+
+  // Perform unconstrained layout measurement queries on TabStripView and
+  // UnpinnedTabContainerView.
+  tab_strip_view->GetPreferredSize(views::SizeBounds());
+  unpinned_container->GetPreferredSize(views::SizeBounds());
+
+  // Verify that unbounded size queries did not clear or overwrite the bounded
+  // available space on either container.
+  EXPECT_TRUE(unpinned_container->available_space().is_bounded());
+  EXPECT_EQ(unpinned_container->available_space().value(),
+            original_unpinned_available);
+
+  EXPECT_TRUE(group_view->available_space().is_bounded());
+  EXPECT_EQ(group_view->available_space().value(), original_group_available);
+}
+
+IN_PROC_BROWSER_TEST_F(HorizontalTabGroupViewBrowserTest,
+                       UncollapsingGroupInHorizontalStripRestoresTabWidths) {
+  AppendTab();
+  AppendTab();
+  AppendTab();
+  tab_groups::TabGroupId group_id = GetTabStripModel()->AddToNewGroup({2, 3});
+  GetTabStripModel()->ActivateTabAt(0);
+
+  auto* base_region_view = views::AsViewClass<BaseTabStripRegionView>(
+      BrowserView::GetBrowserViewForBrowser(browser())->tab_strip_view());
+  ASSERT_NE(base_region_view, nullptr);
+
+  auto* tab_strip_view =
+      views::AsViewClass<TabStripView>(base_region_view->GetTabStripView());
+  ASSERT_NE(tab_strip_view, nullptr);
+
+  auto* group_node = root_node()->GetNodeForHandle(GetTabStripModel()
+                                                       ->group_model()
+                                                       ->GetTabGroup(group_id)
+                                                       ->GetCollectionHandle());
+  ASSERT_NE(group_node, nullptr);
+  auto* group_view = views::AsViewClass<TabGroupView>(group_node->view());
+  ASSERT_NE(group_view, nullptr);
+
+  tab_strip_view->GetWidget()->LayoutRootViewIfNecessary();
+
+  // Collapse the group.
+  group_view->ToggleCollapsedState(ToggleTabGroupCollapsedStateOrigin::kMouse);
+  EXPECT_TRUE(
+      base::test::RunUntil([&]() { return group_view->IsCollapsed(); }));
+  tab_strip_view->GetWidget()->LayoutRootViewIfNecessary();
+
+  // Uncollapse the group.
+  group_view->ToggleCollapsedState(ToggleTabGroupCollapsedStateOrigin::kMouse);
+  EXPECT_TRUE(
+      base::test::RunUntil([&]() { return !group_view->IsCollapsed(); }));
+  tab_strip_view->GetWidget()->LayoutRootViewIfNecessary();
+
+  // Tabs within the group should be restored to the same width as ungrouped
+  // tabs, allowing a 1px difference for proportional space allocation.
+  auto* unpinned_node =
+      root_node()->GetChildNodeOfType(TabCollectionNode::Type::UNPINNED);
+  ASSERT_NE(unpinned_node, nullptr);
+  ASSERT_GE(unpinned_node->children().size(), 2u);
+  auto* ungrouped_tab_node = unpinned_node->children()[1].get();
+  auto* grouped_tab_node = group_node->children()[0].get();
+
+  auto* ungrouped_tab_view =
+      views::AsViewClass<TabView>(ungrouped_tab_node->view());
+  auto* grouped_tab_view =
+      views::AsViewClass<TabView>(grouped_tab_node->view());
+  ASSERT_NE(ungrouped_tab_view, nullptr);
+  ASSERT_NE(grouped_tab_view, nullptr);
+
+  EXPECT_TRUE(base::test::RunUntil([&]() {
+    RunScheduledLayouts();
+    return std::abs(grouped_tab_view->width() - ungrouped_tab_view->width()) <=
+           1;
+  }));
+  EXPECT_GT(grouped_tab_view->width(), 50);
 }
 
 // TODO(crbug.com/490428062): Create Tests to Verify Focus Order of Tab Group

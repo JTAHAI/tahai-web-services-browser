@@ -17,11 +17,9 @@ import android.os.Process;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
 
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-
 import androidx.annotation.GuardedBy;
 import androidx.annotation.IntDef;
+import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.CalledByNativeForTesting;
@@ -34,6 +32,9 @@ import org.chromium.build.NativeLibraries;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
 /**
  * Caches device info during app start-up. For values that might change during the lifetime of the
  * app, refer to @see org.chromium.ui.base.DeviceFormFactor.java
@@ -42,6 +43,9 @@ import org.chromium.build.annotations.Nullable;
 @NullMarked
 public final class DeviceInfo {
     private static final String TAG = "DeviceInfo";
+
+    @VisibleForTesting
+    static final String XR_OPENXR_FEATURE_NAME = "android.software.xr.api.openxr";
 
     private static @Nullable String sGmsVersionCodeForTesting;
     private static @Nullable Boolean sIsAutomotiveForTesting;
@@ -74,6 +78,50 @@ public final class DeviceInfo {
 
     private static boolean sIsNativeLoaded;
 
+    @VisibleForTesting
+    static final class SystemFeatureSnapshot {
+        final boolean mHasAutomotive;
+        final boolean mHasPc;
+        final boolean mHasHingeAngle;
+        final boolean mHasXr;
+        final int mVulkanDeqpLevel;
+
+        SystemFeatureSnapshot(FeatureInfo[] features) {
+            boolean hasAutomotive = false;
+            boolean hasPc = false;
+            boolean hasHingeAngle = false;
+            boolean hasXr = false;
+            boolean hasVulkanDeqpLevel = false;
+            int vulkanDeqpLevel = 0;
+
+            for (FeatureInfo feature : features) {
+                if (feature == null || feature.name == null) {
+                    continue;
+                }
+                String name = feature.name;
+                if (PackageManager.FEATURE_AUTOMOTIVE.equals(name)) {
+                    hasAutomotive = true;
+                } else if (PackageManager.FEATURE_PC.equals(name)) { // nocheck
+                    hasPc = true;
+                } else if (PackageManager.FEATURE_SENSOR_HINGE_ANGLE.equals(name)) {
+                    hasHingeAngle = true;
+                } else if (XR_OPENXR_FEATURE_NAME.equals(name)) {
+                    hasXr = true;
+                } else if (!hasVulkanDeqpLevel
+                        && PackageManager.FEATURE_VULKAN_DEQP_LEVEL.equals(name)) {
+                    vulkanDeqpLevel = feature.version;
+                    hasVulkanDeqpLevel = true;
+                }
+            }
+
+            mHasAutomotive = hasAutomotive;
+            mHasPc = hasPc;
+            mHasHingeAngle = hasHingeAngle;
+            mHasXr = hasXr;
+            mVulkanDeqpLevel = vulkanDeqpLevel;
+        }
+    }
+
     // Called by the native code to retrieve field values. There is no easy way to
     // return several fields from Java to native, so instead this calls back into
     // native, passing the fields as parameters to a native function.
@@ -94,7 +142,9 @@ public final class DeviceInfo {
                         /* isFoldable= */ (sIsFoldableForTesting != null)
                                 ? sIsFoldableForTesting
                                 : info.isFoldable,
-                        /* isDesktop= */ info.isDesktop,
+                        /* isDesktop= */ (sIsDesktopForTesting != null)
+                                ? sIsDesktopForTesting
+                                : info.isDesktop,
                         /* vulkanDeqpLevel= */ info.vulkanDeqpLevel,
                         /* isXr= */ (sIsXrForTesting != null) ? sIsXrForTesting : info.isXr,
                         /* wasLaunchedOnLargeDisplay= */ info.wasLaunchedOnLargeDisplay);
@@ -174,7 +224,9 @@ public final class DeviceInfo {
     }
 
     public static boolean isDesktop() {
-        return getInstance().mIDeviceInfo.isDesktop;
+        return (sIsDesktopForTesting != null)
+                ? sIsDesktopForTesting
+                : getInstance().mIDeviceInfo.isDesktop;
     }
 
     public static int getVulkanDeqpLevel() {
@@ -185,6 +237,7 @@ public final class DeviceInfo {
         return (sIsXrForTesting != null) ? sIsXrForTesting : getInstance().mIDeviceInfo.isXr;
     }
 
+    @CalledByNative
     public static boolean isRetailDemoMode() {
         if (sIsRetailDemoModeForTesting != null) {
             return sIsRetailDemoModeForTesting;
@@ -207,7 +260,7 @@ public final class DeviceInfo {
     }
 
     @CalledByNative
-    public static String getDeviceName() {
+    public static @JniType("std::string") @Nullable String getDeviceName() {
         return Settings.Global.getString(
                 ContextUtils.getApplicationContext().getContentResolver(), "device_name");
     }
@@ -322,6 +375,17 @@ public final class DeviceInfo {
         return (int) (displayMetrics.widthPixels / displayMetrics.density);
     }
 
+    @VisibleForTesting
+    static @Nullable SystemFeatureSnapshot getSystemFeatureSnapshot(PackageManager pm) {
+        try {
+            FeatureInfo[] features = pm.getSystemAvailableFeatures();
+            return features == null ? null : new SystemFeatureSnapshot(features);
+        } catch (SecurityException e) {
+            Log.e(TAG, "Unable to query available system features", e);
+            return null;
+        }
+    }
+
     private DeviceInfo() {
         mIDeviceInfo = new IDeviceInfo();
         sInitialized = true;
@@ -348,16 +412,27 @@ public final class DeviceInfo {
             mIDeviceInfo.isTv = sIsTVForTesting;
         }
 
-        boolean isAutomotive;
-        try {
-            isAutomotive = pm.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE);
-        } catch (SecurityException e) {
-            Log.e(TAG, "Unable to query for Automotive system feature", e);
+        // On Android T+, reuse the feature list that is already needed for the Vulkan deQP level
+        // rather than making separate PackageManager calls for each form-factor feature.
+        SystemFeatureSnapshot systemFeatures =
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                        ? getSystemFeatureSnapshot(pm)
+                        : null;
 
-            // `hasSystemFeature` can possibly throw an exception on modified instances of
-            // Android. In this case, assume the device is not a car since automotive vehicles
-            // should not have such a modification.
-            isAutomotive = false;
+        boolean isAutomotive;
+        if (systemFeatures != null) {
+            isAutomotive = systemFeatures.mHasAutomotive;
+        } else {
+            try {
+                isAutomotive = pm.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE);
+            } catch (SecurityException e) {
+                Log.e(TAG, "Unable to query for Automotive system feature", e);
+
+                // `hasSystemFeature` can possibly throw an exception on modified instances of
+                // Android. In this case, assume the device is not a car since automotive vehicles
+                // should not have such a modification.
+                isAutomotive = false;
+            }
         }
         mIDeviceInfo.isAutomotive = isAutomotive;
 
@@ -369,7 +444,10 @@ public final class DeviceInfo {
                 (sIsDesktopForTesting != null)
                         ? sIsDesktopForTesting
                         : (BuildConfig.IS_DESKTOP_ANDROID
-                                        && pm.hasSystemFeature(PackageManager.FEATURE_PC))
+                                        && (systemFeatures != null
+                                                ? systemFeatures.mHasPc
+                                                : pm.hasSystemFeature(
+                                                        PackageManager.FEATURE_PC))) // nocheck
                                 || CommandLine.getInstance()
                                         .hasSwitch(BaseSwitches.FORCE_DESKTOP_ANDROID);
 
@@ -377,29 +455,22 @@ public final class DeviceInfo {
         mIDeviceInfo.isFoldable =
                 !mIDeviceInfo.isDesktop
                         && Build.VERSION.SDK_INT >= VERSION_CODES.R
-                        && pm.hasSystemFeature(PackageManager.FEATURE_SENSOR_HINGE_ANGLE);
+                        && (systemFeatures != null
+                                ? systemFeatures.mHasHingeAngle
+                                : pm.hasSystemFeature(PackageManager.FEATURE_SENSOR_HINGE_ANGLE));
         if (sIsFoldableForTesting != null) {
             mIDeviceInfo.isFoldable = sIsFoldableForTesting;
         }
 
-        int vulkanLevel = 0;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            FeatureInfo[] features = pm.getSystemAvailableFeatures();
-            if (features != null) {
-                for (FeatureInfo feature : features) {
-                    if (PackageManager.FEATURE_VULKAN_DEQP_LEVEL.equals(feature.name)) {
-                        vulkanLevel = feature.version;
-                        break;
-                    }
-                }
-            }
-        }
-        mIDeviceInfo.vulkanDeqpLevel = vulkanLevel;
+        mIDeviceInfo.vulkanDeqpLevel = systemFeatures == null ? 0 : systemFeatures.mVulkanDeqpLevel;
 
         mIDeviceInfo.wasLaunchedOnLargeDisplay =
                 getDeviceWidthInDp() >= LARGE_DISPLAY_MIN_SCREEN_WIDTH_600_DP;
 
-        mIDeviceInfo.isXr = pm.hasSystemFeature("android.software.xr.api.openxr");
+        mIDeviceInfo.isXr =
+                systemFeatures != null
+                        ? systemFeatures.mHasXr
+                        : pm.hasSystemFeature(XR_OPENXR_FEATURE_NAME);
         if (sIsXrForTesting != null) {
             mIDeviceInfo.isXr = sIsXrForTesting;
         }

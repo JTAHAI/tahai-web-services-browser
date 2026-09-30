@@ -118,7 +118,12 @@ import java.io.IOException;
 @RunWith(ParameterizedRunner.class)
 @UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@DisableFeatures({SigninFeatures.SIGNIN_LEVEL_UP_BUTTON, ChromeFeatureList.ANDROID_BOTTOM_BAR})
+@DisableFeatures({
+    SigninFeatures.SIGNIN_LEVEL_UP_BUTTON,
+    ChromeFeatureList.ANDROID_BOTTOM_BAR,
+    ChromeFeatureList.SETTINGS_IN_TAB, // crbug.com/521895796
+    ChromeFeatureList.USE_WEB_UI_NTP_ANDROID // crbug.com/555414915
+})
 @DisableLeakChecks("crbug.com/527131198")
 public class IdentityDiscControllerTest {
 
@@ -139,6 +144,7 @@ public class IdentityDiscControllerTest {
     @Rule
     public final ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
+                    .setRevision(1)
                     .setBugComponent(ChromeRenderTestRule.Component.SERVICES_SIGN_IN)
                     .build();
 
@@ -508,7 +514,7 @@ public class IdentityDiscControllerTest {
         mSigninTestRule.addAccountThenSignin(TestAccounts.ACCOUNT1);
         ViewUtils.waitForVisibleView(withId(R.id.optional_toolbar_button));
 
-        var incognitoNewTabPageStation = mPage.openAppMenu().openNewIncognitoTab();
+        var incognitoNewTabPageStation = mPage.openNewIncognitoTabOrWindowFast();
 
         // When switched from sign in state to incognito NTP, Identity Disc shouldn't be seen.
         var chromeTabbedActivity = incognitoNewTabPageStation.getActivity();

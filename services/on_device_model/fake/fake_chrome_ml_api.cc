@@ -50,6 +50,10 @@ std::string PieceToString(const ml::InputPiece& piece) {
           [](const ml::ToolDeclaration& decl) -> std::string {
             return base::StrCat({kToolDeclPrefix, decl.name, "]"});
           },
+          [](const ml::ToolCall& call) -> std::string {
+            return base::StrCat({kToolCallPrefix, call.call_id, ":", call.name,
+                                 "=", call.arguments_json, "]"});
+          },
           [](const ml::ToolResponse& resp) -> std::string {
             return base::StrCat(
                 {kToolRespPrefix, resp.name, "=", resp.result_json, "]"});
@@ -127,6 +131,10 @@ size_t TokenizeBytes(const void* user_data,
   }
   return bytes_len;
 }
+
+// TODO(crbug.com/540118700): Remove once the legacy engine has been removed and
+// all of these unittests use context_usage by default.
+bool g_calculate_tokens_decoded = false;
 
 }  // namespace
 
@@ -276,6 +284,7 @@ bool SessionAppend(ChromeMLSession session,
                     << "Tool declaration ignored outside system prompt.";
               }
             },
+            [](const ml::ToolCall&) {},
             [&](const ml::ToolResponse&) {
               instance->awaiting_tool_responses = false;
             },
@@ -302,17 +311,22 @@ bool SessionGenerate(ChromeMLSession session,
                      const ChromeMLGenerateOptions* options,
                      ChromeMLCancel cancel) {
   auto* instance = reinterpret_cast<FakeSessionInstance*>(session);
-  auto OutputChunk = [output_fn =
-                          *options->output_fn](const std::string& chunk) {
+  int output_chunks = 0;
+  auto OutputChunk = [&](const std::string& chunk) {
     ChromeMLExecutionOutput output = {};
     if (chunk.empty()) {
       output.status = ChromeMLExecutionStatus::kComplete;
-      output_fn(&output);
+      if (g_calculate_tokens_decoded) {
+        constexpr int kEosTokenCount = 1;
+        output.tokens_decoded = output_chunks + kEosTokenCount;
+      }
+      (*options->output_fn)(&output);
       return;
     }
     output.status = ChromeMLExecutionStatus::kInProgress;
     output.text = chunk.c_str();
-    output_fn(&output);
+    output_chunks++;
+    (*options->output_fn)(&output);
   };
 
   if (instance->model_instance->backend_type ==
@@ -404,7 +418,8 @@ void SessionSizeInTokensInputPiece(ChromeMLSession session,
     // SAFETY: `input_size` describes how big `input` is.
     const ml::InputPiece& piece = UNSAFE_BUFFERS(input[i]);
     if (!std::holds_alternative<std::string>(piece) &&
-        !std::holds_alternative<ml::Token>(piece)) {
+        !std::holds_alternative<ml::Token>(piece) &&
+        !std::holds_alternative<ml::ToolCall>(piece)) {
       continue;
     }
 
@@ -555,6 +570,10 @@ const ChromeMLAPI g_api = {
 const ChromeMLAPI* GetFakeMlApi() {
   g_api.SetConstraintFns(ml::GetConstraintFns());
   return &g_api;
+}
+
+base::AutoReset<bool> EnableCalculateTokensDecodedForTesting() {
+  return {&g_calculate_tokens_decoded, true};
 }
 
 }  // namespace fake_ml

@@ -14,6 +14,7 @@
 #include "chrome/browser/skills/skills_ui_tab_controller_interface.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toasts/api/toast_id.h"
 #include "chrome/browser/ui/toasts/toast_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -39,7 +40,8 @@ namespace skills {
 class SkillsUiTabControllerBrowserTest : public InProcessBrowserTest {
  public:
   SkillsUiTabControllerBrowserTest() {
-    feature_list_.InitAndEnableFeature(features::kSkillsEnabled);
+    feature_list_.InitWithFeatures({features::kSkillsEnabled},
+                                   {features::kSkillsWebViewV2Enabled});
   }
 
   SkillsUiTabController* skills_ui_tab_controller() {
@@ -53,7 +55,7 @@ class SkillsUiTabControllerBrowserTest : public InProcessBrowserTest {
 
   // Helper to determine if a dialog is visible on the current active tab.
   bool IsDialogVisible() {
-    auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
+    auto* web_contents = browser()->GetTabStripModel()->GetActiveWebContents();
     auto* manager =
         web_modal::WebContentsModalDialogManager::FromWebContents(web_contents);
     return manager && manager->IsDialogActive();
@@ -200,7 +202,7 @@ IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest, TabCloseDoesNotCrash) {
   // This destroys the Controller (SkillsUiTabController) AND
   // the View (SkillsUI) simultaneously.
   // The test passes if this line does not trigger an ASAN crash / Segfault.
-  browser()->tab_strip_model()->CloseAllTabs();
+  browser()->GetTabStripModel()->CloseAllTabs();
 }
 
 // Verify Tab Switching Isolation
@@ -231,7 +233,7 @@ IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest, DialogIsTabScoped) {
   EXPECT_TRUE(IsDialogVisible());
 
   // Switch back to A to prove the dialog is still there.
-  browser()->tab_strip_model()->ActivateTabAt(0);
+  browser()->GetTabStripModel()->ActivateTabAt(0);
   EXPECT_TRUE(IsDialogVisible());
 }
 
@@ -239,7 +241,7 @@ IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest, DialogIsTabScoped) {
 IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest, VerifyWebUIPlumbing) {
   // Enable Glic late to avoid a crash in GlicTabIndicatorHelper during tab
   // creation.
-  glic::GlicEnabling::SetBypassEnablementChecksForTesting(true);
+  glic::GlicEnabling::ScopedBypassEnablementChecksForTesting scoped_glic_bypass;
 
   // Show the dialog.
   skills::Skill test_skill("id", "skill_name", "icon", "Test Prompt");
@@ -265,7 +267,6 @@ IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest, VerifyWebUIPlumbing) {
   EXPECT_TRUE(skills_ui->GetDelegateForTesting());
   EXPECT_EQ(skills_ui->GetInitialSkillForTesting().name, "skill_name");
   EXPECT_EQ(skills_ui->GetInitialSkillForTesting().icon, "icon");
-  glic::GlicEnabling::SetBypassEnablementChecksForTesting(false);
 }
 
 // Verify that clicking the Cancel button closes the dialog.
@@ -273,7 +274,7 @@ IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest,
                        CancelButtonClosesDialog) {
   // Enable Glic late to avoid a crash in GlicTabIndicatorHelper during tab
   // creation.
-  glic::GlicEnabling::SetBypassEnablementChecksForTesting(true);
+  glic::GlicEnabling::ScopedBypassEnablementChecksForTesting scoped_glic_bypass;
   skills::Skill test_skill("", "name", "icon", "prompt");
   skills_ui_tab_controller()->ShowDialog(
       std::move(test_skill), SkillsDialogEntryPoint::kWebClientPrefilled,
@@ -313,7 +314,6 @@ IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest,
   histogram_tester_.ExpectBucketCount(
       "Skills.Dialog.Creation.WebClient.Prefilled.Action",
       SkillsDialogAction::kCancelled, 1);
-  glic::GlicEnabling::SetBypassEnablementChecksForTesting(false);
 }
 
 // Verify that the Skill data passed to ShowDialog correctly populates the
@@ -325,7 +325,7 @@ IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest,
 #endif
 IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest,
                        MAYBE_SkillPopulatesUIFields) {
-  glic::GlicEnabling::SetBypassEnablementChecksForTesting(true);
+  glic::GlicEnabling::ScopedBypassEnablementChecksForTesting scoped_glic_bypass;
 
   // Setup a specific test skill.
   const std::string kTestName = "Vegan for 3";
@@ -384,13 +384,11 @@ IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest,
   EXPECT_EQ(*name, kTestName);
   EXPECT_EQ(*prompt, kTestPrompt);
   EXPECT_EQ(*icon, kTestIcon);
-
-  glic::GlicEnabling::SetBypassEnablementChecksForTesting(false);
 }
 
 IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest,
                        KeyboardShortcutsAreRouted) {
-  glic::GlicEnabling::SetBypassEnablementChecksForTesting(true);
+  glic::GlicEnabling::ScopedBypassEnablementChecksForTesting scoped_glic_bypass;
 
   skills::Skill test_skill("id", "name", "icon", "prompt");
   skills_ui_tab_controller()->ShowDialog(
@@ -459,15 +457,13 @@ IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest,
         (nativeInput.selectionEnd - nativeInput.selectionStart) : 0;
     })()
   )");
-  glic::GlicEnabling::SetBypassEnablementChecksForTesting(false);
 }
 
 // Verify that OnSkillDeleted triggers the deleted toast.
 IN_PROC_BROWSER_TEST_F(SkillsUiTabControllerBrowserTest,
                        OnSkillDeletedTriggersToast) {
   // Ensure no toast is initially showing.
-  const auto* toast_controller =
-      browser()->browser_window_features()->toast_controller();
+  const auto* toast_controller = browser()->GetFeatures().toast_controller();
   EXPECT_FALSE(toast_controller->IsShowingToast());
 
   // Trigger the deletion notification on the Tab Controller.

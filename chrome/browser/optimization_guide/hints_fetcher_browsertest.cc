@@ -29,7 +29,7 @@
 #include "chrome/browser/preloading/prefetch/no_state_prefetch/no_state_prefetch_test_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -42,12 +42,14 @@
 #include "components/optimization_guide/core/filters/hints_component_util.h"
 #include "components/optimization_guide/core/filters/optimization_hints_component_update_listener.h"
 #include "components/optimization_guide/core/filters/test_hints_component_creator.h"
+#include "components/optimization_guide/core/hints/command_line_top_host_provider.h"
 #include "components/optimization_guide/core/hints/fake_hints_fetcher.h"
 #include "components/optimization_guide/core/hints/hints_manager.h"
 #include "components/optimization_guide/core/hints/optimization_guide_store.h"
 #include "components/optimization_guide/core/hints/top_host_provider.h"
 #include "components/optimization_guide/core/optimization_guide_enums.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
+#include "components/optimization_guide/core/optimization_guide_permissions_util.h"
 #include "components/optimization_guide/core/optimization_guide_prefs.h"
 #include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/optimization_guide/proto/hints.pb.h"
@@ -190,13 +192,14 @@ class HintsFetcherDisabledBrowserTest : public InProcessBrowserTest {
   void SetUpCommandLine(base::CommandLine* cmd) override {
     cmd->AppendSwitch("purge_hint_cache_store");
 
-    cmd->AppendSwitch(optimization_guide::switches::
-                          kDisableCheckingUserPermissionsForTesting);
+    cmd->AppendSwitch(
+        optimization_guide::
+            kDisableCheckingUserPermissionsForTestingSwitch);
 
     // Set up OptimizationGuideServiceURL, this does not enable HintsFetching,
     // only provides the URL.
     cmd->AppendSwitchASCII(
-        optimization_guide::switches::kOptimizationGuideServiceGetHintsURL,
+        optimization_guide::kOptimizationGuideServiceGetHintsURLSwitch,
         hints_server_
             ->GetURL(GURL(optimization_guide::
                               kOptimizationGuideServiceGetHintsDefaultURL)
@@ -205,10 +208,10 @@ class HintsFetcherDisabledBrowserTest : public InProcessBrowserTest {
             .spec());
     cmd->AppendSwitchASCII("force-variation-ids", "4");
 
-    cmd->AppendSwitchASCII(optimization_guide::switches::kFetchHintsOverride,
+    cmd->AppendSwitchASCII(optimization_guide::kFetchHintsOverrideSwitch,
                            "example1.com, example2.com");
 
-    cmd->AppendSwitch(optimization_guide::switches::kFetchHintsOverrideTimer);
+    cmd->AppendSwitch(optimization_guide::kFetchHintsOverrideTimerSwitch);
 
     // Ignore the port numbers for the Google Search URL check.
     cmd->AppendSwitch(switches::kIgnoreGooglePortNumbers);
@@ -847,9 +850,9 @@ IN_PROC_BROWSER_TEST_F(HintsFetcherBrowserTest, HintsFetcherOverrideTimer) {
   const base::HistogramTester* histogram_tester = GetHistogramTester();
   GURL url = https_url();
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-      optimization_guide::switches::kFetchHintsOverride, "whatever.com");
+      optimization_guide::kFetchHintsOverrideSwitch, "whatever.com");
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      optimization_guide::switches::kFetchHintsOverrideTimer);
+      optimization_guide::kFetchHintsOverrideTimerSwitch);
 
   // Allowlist NoScript for https_url()'s' host.
   SetUpComponentUpdateHints(https_url());
@@ -1086,7 +1089,8 @@ IN_PROC_BROWSER_TEST_F(HintsFetcherBrowserTest,
             /*create_if_needed=*/true))
         ->RegisterOptimizationTypes({optimization_guide::proto::NOSCRIPT});
 
-    Browser* otr_browser = CreateIncognitoBrowser(browser()->GetProfile());
+    BrowserWindowInterface* otr_browser =
+        CreateIncognitoBrowser(browser()->GetProfile());
     ASSERT_TRUE(ui_test_utils::NavigateToURL(otr_browser, GURL(full_url)));
 
     // Make sure no additional hints requests were received.
@@ -1162,7 +1166,7 @@ IN_PROC_BROWSER_TEST_F(
 
   OptimizationGuideKeyedServiceFactory::GetForProfile(
       Profile::FromBrowserContext(browser()
-                                      ->tab_strip_model()
+                                      ->GetTabStripModel()
                                       ->GetActiveWebContents()
                                       ->GetBrowserContext()))
       ->RegisterOptimizationTypes(
@@ -1254,7 +1258,7 @@ IN_PROC_BROWSER_TEST_F(
 
   OptimizationGuideKeyedServiceFactory::GetForProfile(
       Profile::FromBrowserContext(browser()
-                                      ->tab_strip_model()
+                                      ->GetTabStripModel()
                                       ->GetActiveWebContents()
                                       ->GetBrowserContext()))
       ->RegisterOptimizationTypes(
@@ -1326,8 +1330,9 @@ IN_PROC_BROWSER_TEST_F(HintsFetcherBrowserTest, HintsFetcherDoesntFetchOnNSP) {
 class HintsFetcherSearchPageBrowserTest : public HintsFetcherBrowserTest {
  public:
   void SetUpCommandLine(base::CommandLine* cmd) override {
-    cmd->AppendSwitch(optimization_guide::switches::
-                          kDisableFetchingHintsAtNavigationStartForTesting);
+    cmd->AppendSwitch(
+        optimization_guide::
+            kDisableFetchingHintsAtNavigationStartForTestingSwitch);
     HintsFetcherBrowserTest::SetUpCommandLine(cmd);
   }
 };
@@ -1441,7 +1446,7 @@ class HintsFetcherSearchPagePrerenderingBrowserTest
   }
 
   content::WebContents* web_contents() {
-    return browser()->tab_strip_model()->GetActiveWebContents();
+    return browser()->GetTabStripModel()->GetActiveWebContents();
   }
 
  private:
@@ -1663,8 +1668,9 @@ class HintsFetcherSearchPageLimitedURLsBrowserTest
   }
 
   void SetUpCommandLine(base::CommandLine* cmd) override {
-    cmd->AppendSwitch(optimization_guide::switches::
-                          kDisableFetchingHintsAtNavigationStartForTesting);
+    cmd->AppendSwitch(
+        optimization_guide::
+            kDisableFetchingHintsAtNavigationStartForTestingSwitch);
     HintsFetcherDisabledBrowserTest::SetUpCommandLine(cmd);
   }
 

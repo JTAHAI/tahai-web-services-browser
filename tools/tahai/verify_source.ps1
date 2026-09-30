@@ -33,9 +33,11 @@ try {
                        'local_oi_controls')) {
         Invoke-SourceCheck $name $NodeExecutable @("tools/tahai/${name}_test.js")
     }
-    foreach ($name in @('source_provenance', 'audit_guard_dependencies')) {
+    foreach ($name in @('source_provenance', 'audit_guard_dependencies', 'check_windows_build_prerequisites')) {
         Invoke-SourceCheck $name $PythonExecutable @("tools/tahai/${name}_test.py")
     }
+    Invoke-SourceCheck 'release-runner-rejections' $PythonExecutable @('tools/tahai/verify_upgrade_test.py', '--powershell', $PowerShellExecutable)
+    Invoke-SourceCheck 'guard-source-inventory' $PythonExecutable @('tools/tahai/audit_guard_dependencies.py', '--source-inventory', 'docs/tahai-guard-import-inventory.json')
     Invoke-SourceCheck 'packaged-resource-unit' $PythonExecutable @('chrome/installer/win/tahai_msix/verify_release_resources_test.py')
     Invoke-SourceCheck 'creator-release' $PythonExecutable @('docs/tahai-skins/test_build_skin.py', '--release-gate', '-v')
     Invoke-SourceCheck 'creator-kit' $PythonExecutable @('docs/tahai-skins/build_creator_kit.py', '--check')
@@ -46,7 +48,7 @@ try {
     if ($RenderCss) {
         Invoke-SourceCheck 'source-render-and-command-palette' $PythonExecutable @('tools/tahai/royal_brand_render_test.py')
     }
-    if ($taskResults.Count -ne (20 + [int]$RenderCss.IsPresent)) { throw 'Incomplete or zero source-check selection' }
+    if ($taskResults.Count -ne (23 + [int]$RenderCss.IsPresent)) { throw 'Incomplete or zero source-check selection' }
     $taskExit = 0
 } finally {
     [ordered]@{

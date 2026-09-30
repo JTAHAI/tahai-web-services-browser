@@ -61,6 +61,12 @@ InfoBarSpec::Builder& InfoBarSpec::Builder::SetIcon(
   return *this;
 }
 
+InfoBarSpec::Builder& InfoBarSpec::Builder::SetDarkModeIcon(
+    const gfx::VectorIcon& icon) {
+  spec_.dark_mode_icon_ = &icon;
+  return *this;
+}
+
 InfoBarSpec::Builder& InfoBarSpec::Builder::SetIconId(int icon_id) {
   spec_.icon_id_ = icon_id;
   return *this;
@@ -72,7 +78,7 @@ InfoBarSpec::Builder& InfoBarSpec::Builder::SetScope(InfoBarScope scope) {
 }
 
 InfoBarSpec::Builder& InfoBarSpec::Builder::SetPriority(
-    InfoBarPriority priority) {
+    InfoBarDelegate::InfobarPriority priority) {
   spec_.priority_ = priority;
   return *this;
 }
@@ -86,6 +92,23 @@ InfoBarSpec::Builder& InfoBarSpec::Builder::SetExpireOnNavigation(
 InfoBarSpec::Builder& InfoBarSpec::Builder::SetShouldHideInFullscreen(
     bool should_hide_in_fullscreen) {
   spec_.should_hide_in_fullscreen_ = should_hide_in_fullscreen;
+  return *this;
+}
+
+InfoBarSpec::Builder& InfoBarSpec::Builder::SetShouldAnimate(
+    bool should_animate) {
+  spec_.should_animate_ = should_animate;
+  return *this;
+}
+
+InfoBarSpec::Builder& InfoBarSpec::Builder::SetIsCloseable(bool is_closeable) {
+  spec_.is_closeable_ = is_closeable;
+  return *this;
+}
+
+InfoBarSpec::Builder& InfoBarSpec::Builder::SetCloseOnAccept(
+    bool close_on_accept) {
+  spec_.close_on_accept_ = close_on_accept;
   return *this;
 }
 
@@ -111,6 +134,18 @@ InfoBarSpec::Builder& InfoBarSpec::Builder::SetDismissAction(
   return *this;
 }
 
+InfoBarSpec::Builder& InfoBarSpec::Builder::SetResultCallback(
+    ResultCallback callback) {
+  spec_.result_callback_ = std::move(callback);
+  return *this;
+}
+
+InfoBarSpec::Builder& InfoBarSpec::Builder::SetBrowserFilter(
+    BrowserFilter filter) {
+  spec_.browser_filter_ = std::move(filter);
+  return *this;
+}
+
 InfoBarSpec InfoBarSpec::Builder::Build() {
   return std::move(spec_);
 }
@@ -120,5 +155,13 @@ InfoBarSpec::InfoBarSpec(const InfoBarSpec&) = default;
 InfoBarSpec::InfoBarSpec(InfoBarSpec&&) = default;
 InfoBarSpec::~InfoBarSpec() = default;
 InfoBarSpec& InfoBarSpec::operator=(const InfoBarSpec&) = default;
+
+InfoBarShowParams::InfoBarShowParams() = default;
+InfoBarShowParams::InfoBarShowParams(InfoBarShowParams&&) = default;
+InfoBarShowParams& InfoBarShowParams::operator=(InfoBarShowParams&&) = default;
+InfoBarShowParams::InfoBarShowParams(const InfoBarShowParams&) = default;
+InfoBarShowParams& InfoBarShowParams::operator=(const InfoBarShowParams&) =
+    default;
+InfoBarShowParams::~InfoBarShowParams() = default;
 
 }  // namespace infobars

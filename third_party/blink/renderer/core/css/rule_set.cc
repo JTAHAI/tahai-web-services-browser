@@ -57,8 +57,8 @@
 #include "third_party/blink/renderer/core/css/style_rule_font_palette_values.h"
 #include "third_party/blink/renderer/core/css/style_rule_function_declarations.h"
 #include "third_party/blink/renderer/core/css/style_rule_import.h"
+#include "third_party/blink/renderer/core/css/style_rule_location.h"
 #include "third_party/blink/renderer/core/css/style_rule_nested_declarations.h"
-#include "third_party/blink/renderer/core/css/style_rule_route.h"
 #include "third_party/blink/renderer/core/css/style_rule_view_transition.h"
 #include "third_party/blink/renderer/core/css/style_sheet_contents.h"
 #include "third_party/blink/renderer/core/dom/document.h"
@@ -68,7 +68,6 @@
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/inspector/invalidation_set_to_selector_map.h"
 #include "third_party/blink/renderer/core/route_matching/navigation_state.h"
-#include "third_party/blink/renderer/core/route_matching/route_map.h"
 #include "third_party/blink/renderer/core/style/computed_style_constants.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
@@ -296,6 +295,7 @@ bool ShouldStopExtractingAtPseudoElement(
     case CSSSelector::kPseudoScrollMarkerGroup:
     case CSSSelector::kPseudoOverscrollAreaParent:
     case CSSSelector::kPseudoOverscrollBackdrop:
+    case CSSSelector::kPseudoSkeleton:
       return true;
     case CSSSelector::kPseudoCue:
     case CSSSelector::kPseudoFirstLine:
@@ -392,6 +392,7 @@ static bool ExtractBucketingValues(const CSSSelector* selector,
         case CSSSelector::kPseudoSlotted:
         case CSSSelector::kPseudoRoot:
         case CSSSelector::kPseudoActiveViewTransition:
+        case CSSSelector::kPseudoUnbounded:
           // Pseudo classes.
           values.pseudo_type = selector->GetPseudoType();
           if (values.pseudo_type == CSSSelector::kPseudoSlotted) {
@@ -666,6 +667,16 @@ void RuleSet::FindBestBucketAndAdd(CSSSelector& component,
       });
     }
     AddToBucket(active_view_transition_rules_, rule_data);
+    return;
+  }
+  if (values.pseudo_type == CSSSelector::kPseudoUnbounded) {
+    if (bucket_coverage == BucketCoverage::kCompute) {
+      MarkAsCoveredByBucketing(component, [](const CSSSelector& selector) {
+        return selector.Match() == CSSSelector::kPseudoClass &&
+               selector.GetPseudoType() == CSSSelector::kPseudoUnbounded;
+      });
+    }
+    AddToBucket(unbounded_pseudo_class_rules_, rule_data);
     return;
   }
 
@@ -986,9 +997,9 @@ void RuleSet::AddChildRules(StyleRule* parent_rule,
                    style_scope);
     } else if (auto* page_rule = DynamicTo<StyleRulePage>(rule)) {
       AddPageRule(page_rule, cascade_layer);
-    } else if (auto* route_rule = DynamicTo<StyleRuleRoute>(rule)) {
-      // TODO(crbug.com/436805487): Support removal of @route rules too.
-      route_rule->CreateRouteIfNeeded(medium.GetMediaValues().GetDocument());
+    } else if (auto* location_rule = DynamicTo<StyleRuleLocation>(rule)) {
+      // TODO(crbug.com/436805487): Support removal of @location rules too.
+      location_rule->CreateRouteIfNeeded(medium.GetMediaValues().GetDocument());
     } else if (auto* navigation_rule = DynamicTo<StyleRuleNavigation>(rule)) {
       const NavigationQuery& query = navigation_rule->GetNavigationQuery();
       if (query.Evaluate(medium.GetMediaValues().GetDocument())) {
@@ -1188,6 +1199,18 @@ void RuleSet::ApplyMixin(StyleRule* parent_rule,
                          CascadeLayer* cascade_layer,
                          const StyleScope* style_scope,
                          ApplyMixinsStack& apply_mixins_stack) {
+  if (depends_on_mixins_) {
+    // A RuleSet is only ever built against a single mixin map.
+    CHECK(based_on_mixin_map_identifier_ == mixins.map_identifier);
+  } else {
+    // Mark that we saw an @apply rule, and the identifier of the mixin map it
+    // was resolved against, so that we can invalidate if anything should
+    // change. This must happen for every @apply, so we can distinguish RuleSets
+    // built in scopes with a different set of mixins.
+    depends_on_mixins_ = true;
+    based_on_mixin_map_identifier_ = mixins.map_identifier;
+  }
+
   auto it = mixins.mixins.find(apply_mixin_rule->GetName());
   if (it != mixins.mixins.end()) {
     StyleRuleMixin* mixin_rule = it->value;
@@ -1265,13 +1288,6 @@ void RuleSet::ApplyMixin(StyleRule* parent_rule,
     features_.MutableMediaQueryResultFlags().Add(
         mixins.media_query_result_flags);
     media_query_set_results_.append_range(mixins.media_query_set_results);
-
-    // Mark that we are using some mixin, and which generation of mixin map
-    // it came from, so that we can invalidate if anything should change.
-    if (based_on_mixin_generation_ != std::numeric_limits<uint64_t>::max()) {
-      CHECK_EQ(based_on_mixin_generation_, mixins.generation);
-    }
-    based_on_mixin_generation_ = mixins.generation;
   }
 }
 
@@ -1301,7 +1317,9 @@ void RuleSet::AddRulesFromSheet(const StyleSheetContents* sheet,
     }
   }
 
-  based_on_mixin_generation_ = std::numeric_limits<uint64_t>::max();
+  // NOTE: based_on_mixin_map_identifier_ is deliberately not reset here; this
+  // function is called recursively for @imported sheets, and resetting would
+  // drop a dependency recorded by an earlier @import.
 
   const HeapVector<Member<StyleRuleImport>>& import_rules =
       sheet->ImportRules();
@@ -1330,18 +1348,16 @@ void RuleSet::AddRulesFromSheet(const StyleSheetContents* sheet,
                 kRuleHasNoSpecialState, nullptr /* container_queries */,
                 cascade_layer, style_scope, apply_mixins_stack);
 
-  if (const auto* route_map = RouteMap::Get(medium.GetDocument())) {
-    // Need to do this for every style sheet, since each may add their own
-    // anonymous routes.
-    //
-    // TODO(crbug.com/436805487): See if we can find a better place for this.
-    // Maybe RuleSet isn't the right place. DidRoutesChange() was modeled after
-    // DidMediaQueryResultsChange(), but maybe there's a better way.
-    if (const NavigationState* new_state = route_map->GetNavigationState()) {
-      navigation_state_ = MakeGarbageCollected<NavigationState>(*new_state);
-    } else {
-      navigation_state_ = nullptr;
-    }
+  // Need to do this for every style sheet, since each may add their own
+  // anonymous routes.
+  //
+  // TODO(crbug.com/436805487): See if we can find a better place for this.
+  // Maybe RuleSet isn't the right place. DidRoutesChange() was modeled after
+  // DidMediaQueryResultsChange(), but maybe there's a better way.
+  if (const auto* new_state = NavigationState::Get(medium.GetDocument())) {
+    navigation_state_ = MakeGarbageCollected<NavigationState>(*new_state);
+  } else {
+    navigation_state_ = nullptr;
   }
 }
 
@@ -1418,6 +1434,9 @@ void RuleSet::AddFilteredRulesFromOtherSet(
     AddFilteredRulesFromOtherBucket(other, other.active_view_transition_rules_,
                                     only_include,
                                     &active_view_transition_rules_);
+    AddFilteredRulesFromOtherBucket(other, other.unbounded_pseudo_class_rules_,
+                                    only_include,
+                                    &unbounded_pseudo_class_rules_);
 
     AddFilteredRulesFromOtherBucket(other, other.root_element_rules_,
                                     only_include, &root_element_rules_);
@@ -1760,6 +1779,7 @@ void RuleSet::CompactRules() {
   part_pseudo_rules_.shrink_to_fit();
   slotted_pseudo_element_rules_.shrink_to_fit();
   active_view_transition_rules_.shrink_to_fit();
+  unbounded_pseudo_class_rules_.shrink_to_fit();
 
   page_rules_.shrink_to_fit();
   font_face_rules_.shrink_to_fit();
@@ -1836,6 +1856,7 @@ void RuleSet::AssertRuleListsSorted() const {
   DCHECK(IsRuleListSorted(shadow_host_rules_));
   DCHECK(IsRuleListSorted(part_pseudo_rules_));
   DCHECK(IsRuleListSorted(active_view_transition_rules_));
+  DCHECK(IsRuleListSorted(unbounded_pseudo_class_rules_));
 }
 
 #endif  // EXPENSIVE_DCHECKS_ARE_ON()
@@ -1892,6 +1913,7 @@ void RuleSet::Trace(Visitor* visitor) const {
   visitor->Trace(part_pseudo_rules_);
   visitor->Trace(slotted_pseudo_element_rules_);
   visitor->Trace(active_view_transition_rules_);
+  visitor->Trace(unbounded_pseudo_class_rules_);
 
   visitor->Trace(page_rules_);
   visitor->Trace(font_face_rules_);

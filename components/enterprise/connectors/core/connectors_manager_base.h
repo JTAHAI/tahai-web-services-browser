@@ -5,11 +5,11 @@
 #ifndef COMPONENTS_ENTERPRISE_CONNECTORS_CORE_CONNECTORS_MANAGER_BASE_H_
 #define COMPONENTS_ENTERPRISE_CONNECTORS_CORE_CONNECTORS_MANAGER_BASE_H_
 
-#include <map>
 #include <memory>
 #include <optional>
 #include <vector>
 
+#include "base/containers/flat_map.h"
 #include "components/enterprise/connectors/core/analysis_service_settings_base.h"
 #include "components/enterprise/connectors/core/reporting_service_settings.h"
 #include "components/enterprise/connectors/core/service_provider_config.h"
@@ -27,8 +27,8 @@ class AnalysisServiceSettingsBase;
 class ConnectorsManagerBase {
  public:
   using AnalysisConnectorsSettings =
-      std::map<AnalysisConnector,
-               std::vector<std::unique_ptr<AnalysisServiceSettingsBase>>>;
+      base::flat_map<AnalysisConnector,
+                     std::vector<std::unique_ptr<AnalysisServiceSettingsBase>>>;
 
   ConnectorsManagerBase(PrefService* pref_service,
                         const ServiceProviderConfig* config,
@@ -53,6 +53,14 @@ class ConnectorsManagerBase {
   std::optional<AnalysisSettings> GetAnalysisSettings(
       const GURL& url,
       AnalysisConnector connector);
+
+#if !BUILDFLAG(IS_IOS)
+  // Validates which settings should be applied to the network request analysis
+  // connector against its cached policy.
+  std::optional<AnalysisSettings> GetNetworkRequestAnalysisSettings(
+      const GURL& tab_url,
+      const GURL& request_url);
+#endif  // !BUILDFLAG(IS_IOS)
 
   // Validates which settings should be applied to a reporting event
   // against cached policies. Cache the policy value the first time this is
@@ -86,9 +94,14 @@ class ConnectorsManagerBase {
       const;
 
  protected:
+  // Factory method to create analysis service settings.
+  virtual std::unique_ptr<AnalysisServiceSettingsBase>
+  MakeAnalysisServiceSettings(
+      const base::Value& settings_value,
+      const ServiceProviderConfig& service_provider_config) const;
+
   // Read and cache the policy corresponding to |connector|.
-  virtual void CacheAnalysisConnectorPolicy(
-      AnalysisConnector connector) const = 0;
+  void CacheAnalysisConnectorPolicy(AnalysisConnector connector) const;
 
   virtual DataRegion GetDataRegion(AnalysisConnector connector) const = 0;
 
@@ -136,6 +149,12 @@ class ConnectorsManagerBase {
 
   // Re-cache reporting connector policy.
   void OnReportingPrefChanged();
+
+  // Returns false if `connector` shouldn't be obtained either because it's
+  // unset, set to a bad value or accessed from an incognito profile. This
+  // helper should only be used by `GetAnalysisSettings()` and
+  // `GetNetworkRequestAnalysisSettings()`.
+  bool CanGetAnalysisSettings(AnalysisConnector connector);
 };
 
 }  // namespace enterprise_connectors

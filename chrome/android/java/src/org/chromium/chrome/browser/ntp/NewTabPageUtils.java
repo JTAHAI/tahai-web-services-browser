@@ -12,6 +12,7 @@ import androidx.annotation.IntDef;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -20,14 +21,35 @@ import java.lang.annotation.RetentionPolicy;
 @NullMarked
 public class NewTabPageUtils {
     /** Padding style options for NTP Aurora. */
-    @IntDef({PaddingStyle.DEFAULT, PaddingStyle.TIGHT, PaddingStyle.MEDIUM, PaddingStyle.LARGE})
+    @IntDef({PaddingStyle.DEFAULT, PaddingStyle.SMALL, PaddingStyle.MEDIUM, PaddingStyle.LARGE})
     @Retention(RetentionPolicy.SOURCE)
     public @interface PaddingStyle {
         int DEFAULT = 0;
-        int TIGHT = 1;
+        int SMALL = 1;
         int MEDIUM = 2;
         int LARGE = 3;
         int NUM_ENTRIES = 4;
+    }
+
+    /** Layout type options for NTP Aurora V2. */
+    @IntDef({LayoutType.DEFAULT, LayoutType.BESIDE_MVT, LayoutType.INSIDE_MVT, LayoutType.REMOVE})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface LayoutType {
+        int DEFAULT = 0;
+        int BESIDE_MVT = 1;
+        int INSIDE_MVT = 2;
+        int REMOVE = 3;
+        int NUM_ENTRIES = 4;
+    }
+
+    /** Action chips options for NTP Aurora V2. */
+    @IntDef({ActionChips.DEFAULT, ActionChips.INCOGNITO, ActionChips.CANVAS})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface ActionChips {
+        int DEFAULT = 0;
+        int INCOGNITO = 1;
+        int CANVAS = 2;
+        int NUM_ENTRIES = 3;
     }
 
     /**
@@ -50,5 +72,29 @@ public class NewTabPageUtils {
 
         marginLayoutParams.topMargin = topMargin;
         view.setLayoutParams(marginLayoutParams);
+    }
+
+    /** Returns the {@link PaddingStyle} for NTP Aurora. */
+    public static @PaddingStyle int getPaddingStyleForAurora() {
+        return ChromeFeatureList.sNtpAuroraPaddingStyle.getValue();
+    }
+
+    /** Returns the space in pixels for NTP sections based on the Aurora padding style. */
+    public static int getNtpSectionPaddingPx(Resources resources) {
+        if (NewTabPageUtils.getPaddingStyleForAurora() == PaddingStyle.DEFAULT) {
+            return resources.getDimensionPixelSize(R.dimen.ntp_section_top_margin);
+        } else {
+            return resources.getDimensionPixelSize(R.dimen.ntp_section_top_margin_small);
+        }
+    }
+
+    /** Returns whether the Aurora layout is enabled. */
+    public static boolean isNtpAuroraEnabled() {
+        return ChromeFeatureList.sNtpAurora.isEnabled();
+    }
+
+    /** Returns whether the Aurora layout with updated button colors is enabled. */
+    public static boolean isNtpAuroraButtonColorEnabled() {
+        return isNtpAuroraEnabled() && ChromeFeatureList.sNtpAuroraChangeButtonColor.getValue();
     }
 }

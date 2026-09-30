@@ -24,6 +24,7 @@
 #include "components/optimization_guide/core/delivery/prediction_model_component_configs.h"
 #include "components/optimization_guide/core/delivery/prediction_model_component_update_listener.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
+#include "third_party/zlib/google/zip.h"
 
 namespace component_updater {
 
@@ -60,7 +61,15 @@ class PredictionModelComponentInstallerPolicy
   update_client::CrxInstaller::Result OnCustomInstall(
       const base::DictValue& manifest,
       const base::FilePath& install_dir) override {
-    return update_client::CrxInstaller::Result(0);  // Nothing custom here.
+    base::FilePath model_crx_path = install_dir.AppendASCII("model.crx3");
+    if (base::PathExists(model_crx_path)) {
+      if (!zip::Unzip(model_crx_path, install_dir)) {
+        return update_client::CrxInstaller::Result(
+            update_client::InstallError::GENERIC_ERROR);
+      }
+      base::DeleteFile(model_crx_path);
+    }
+    return update_client::CrxInstaller::Result(0);
   }
 
   void OnCustomUninstall() override {
@@ -106,9 +115,12 @@ class PredictionModelComponentInstallerPolicy
 
   std::string GetName() const override { return config_.component_name(); }
 
+  // LINT.IfChange(TfliteEngineVersion)
   update_client::InstallerAttributes GetInstallerAttributes() const override {
-    return update_client::InstallerAttributes();
+    return update_client::InstallerAttributes{
+        {"tflite_engine_version", "2.22.0"}};
   }
+  // LINT.ThenChange(//components/optimization_guide/core/delivery/prediction_manager.cc:TfliteEngineVersion)
 
   const optimization_guide::proto::OptimizationTarget optimization_target_;
   const optimization_guide::PredictionModelComponentConfig config_;

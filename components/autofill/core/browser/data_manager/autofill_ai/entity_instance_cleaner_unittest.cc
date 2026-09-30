@@ -9,7 +9,7 @@
 #include "base/test/task_environment.h"
 #include "base/version_info/version_info.h"
 #include "components/autofill/core/browser/data_manager/autofill_ai/entity_data_manager.h"
-#include "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
+#include "components/autofill/core/browser/test_utils/entity_data_test_util.h"
 #include "components/autofill/core/browser/webdata/autofill_ai/entity_table.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service_test_helper.h"
 #include "components/autofill/core/common/autofill_features.h"
@@ -60,7 +60,7 @@ class EntityInstanceCleanerTest : public testing::Test {
   base::test::ScopedFeatureList scoped_feature_list_{
       features::kAutofillAiDedupeEntities};
   std::unique_ptr<sync_preferences::TestingPrefServiceSyncable> pref_service_;
-  base::test::SingleThreadTaskEnvironment task_environment_;
+  base::test::TaskEnvironment task_environment_;
   AutofillWebDataServiceTestHelper webdata_helper_{
       std::make_unique<EntityTable>()};
   syncer::TestSyncService sync_service_;

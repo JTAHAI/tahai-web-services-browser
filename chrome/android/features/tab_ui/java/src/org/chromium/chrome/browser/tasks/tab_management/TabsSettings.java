@@ -22,10 +22,14 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.auxiliary_search.AuxiliarySearchConfigManager;
 import org.chromium.chrome.browser.auxiliary_search.AuxiliarySearchControllerFactory;
+import org.chromium.chrome.browser.auxiliary_search.AuxiliarySearchDonationServiceUtils;
 import org.chromium.chrome.browser.auxiliary_search.AuxiliarySearchUtils;
+import org.chromium.chrome.browser.magic_stack.HomeModulesMetricsUtils;
+import org.chromium.chrome.browser.magic_stack.ModuleDelegate.ModuleType;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.segmentation_platform.client_util.HomeModulesRankingHelper;
 import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
 import org.chromium.chrome.browser.settings.search.ChromeBaseSearchIndexProvider;
 import org.chromium.chrome.browser.tab.TabArchiveSettings;
@@ -59,6 +63,10 @@ public class TabsSettings extends ChromeBaseSettingsFragment {
             "share_titles_and_urls_with_os_learn_more";
 
     @VisibleForTesting
+    static final String PREF_CHROME_SUGGESTIONS_IN_OTHER_APPS_SWITCH =
+            "chrome_suggestions_in_other_apps_switch";
+
+    @VisibleForTesting
     static final String LEARN_MORE_URL = "https://support.google.com/chrome/?p=share_titles_urls";
 
     private final SettableMonotonicObservableSupplier<String> mPageTitle =
@@ -71,6 +79,7 @@ public class TabsSettings extends ChromeBaseSettingsFragment {
 
         configureAutoOpenSyncedTabGroupsSwitch();
         configureShareTitlesAndUrlsWithOsSwitch();
+        configureChromeSuggestionsInOtherAppsSwitch();
     }
 
     @Override
@@ -110,8 +119,14 @@ public class TabsSettings extends ChromeBaseSettingsFragment {
     private void configureTabArchiveSettings() {
         Preference tabArchiveSettingsPref = findPreference(PREF_TAB_ARCHIVE_SETTINGS);
 
+        if (TabArchiveSettings.isArchiveForceDisabled()) {
+            tabArchiveSettingsPref.setVisible(false);
+            return;
+        }
+
         TabArchiveSettings archiveSettings =
                 new TabArchiveSettings(ChromeSharedPreferences.getInstance());
+
         if (archiveSettings.getArchiveEnabled()) {
             int tabArchiveTimeDeltaDays = archiveSettings.getArchiveTimeDeltaDays();
             tabArchiveSettingsPref.setSummary(
@@ -148,19 +163,50 @@ public class TabsSettings extends ChromeBaseSettingsFragment {
                 (preference, newValue) -> {
                     boolean enabled = (boolean) newValue;
                     AuxiliarySearchConfigManager.getInstance().notifyShareTabsStateChanged(enabled);
+                    HomeModulesRankingHelper.notifyCardInteracted(
+                            getProfile(),
+                            HomeModulesMetricsUtils.getModuleName(ModuleType.AUXILIARY_SEARCH));
                     return true;
                 });
 
+        String learnMoreText =
+                getResources()
+                        .getString(R.string.share_titles_and_urls_with_os_learn_more_setting_text);
         learnMoreTextMessagePreference.setSummary(
                 SpanApplier.applySpans(
-                        getResources()
-                                .getString(
-                                        R.string
-                                                .share_titles_and_urls_with_os_learn_more_setting_text),
+                        learnMoreText,
                         new SpanApplier.SpanInfo(
                                 "<link>",
                                 "</link>",
                                 new ChromeClickableSpan(getContext(), this::onLearnMoreClicked))));
+    }
+
+    private void configureChromeSuggestionsInOtherAppsSwitch() {
+        ChromeSwitchPreference chromeSuggestionsSwitch =
+                (ChromeSwitchPreference)
+                        findPreference(PREF_CHROME_SUGGESTIONS_IN_OTHER_APPS_SWITCH);
+
+        // LINT.IfChange(isChromeSuggestionsInOtherAppsEnabled)
+        if (!isChromeSuggestionsInOtherAppsEnabled()) {
+            chromeSuggestionsSwitch.setVisible(false);
+            return;
+        }
+        // LINT.ThenChange(:isChromeSuggestionsInOtherAppsEnabledIndex)
+
+        PrefService prefService = UserPrefs.get(getProfile());
+        boolean isEnabled =
+                prefService.getBoolean(Pref.AUXILIARY_SEARCH_BROWSING_DATA_DONATION_ENABLED);
+        chromeSuggestionsSwitch.setChecked(isEnabled);
+        chromeSuggestionsSwitch.setOnPreferenceChangeListener(
+                (preference, newValue) -> {
+                    boolean enabled = (boolean) newValue;
+                    prefService.setBoolean(
+                            Pref.AUXILIARY_SEARCH_BROWSING_DATA_DONATION_ENABLED, enabled);
+                    HomeModulesRankingHelper.notifyCardInteracted(
+                            getProfile(),
+                            HomeModulesMetricsUtils.getModuleName(ModuleType.AUXILIARY_SEARCH));
+                    return true;
+                });
     }
 
     @VisibleForTesting
@@ -186,6 +232,10 @@ public class TabsSettings extends ChromeBaseSettingsFragment {
         return AuxiliarySearchControllerFactory.getInstance().isEnabledAndDeviceCompatible();
     }
 
+    private static boolean isChromeSuggestionsInOtherAppsEnabled() {
+        return AuxiliarySearchDonationServiceUtils.isBrowsingDataDonationEnabled();
+    }
+
     public static final ChromeBaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
             new ChromeBaseSearchIndexProvider(TabsSettings.class.getName(), R.xml.tabs_settings) {
 
@@ -208,6 +258,13 @@ public class TabsSettings extends ChromeBaseSettingsFragment {
                     indexData.removeEntry(
                             getUniqueId(PREF_SHARE_TITLES_AND_URLS_WITH_OS_LEARN_MORE));
                     // LINT.ThenChange(:isShareTitlesAndUrlsEnabled)
+
+                    // LINT.IfChange(isChromeSuggestionsInOtherAppsEnabledIndex)
+                    if (!isChromeSuggestionsInOtherAppsEnabled()) {
+                        String pref = PREF_CHROME_SUGGESTIONS_IN_OTHER_APPS_SWITCH;
+                        indexData.removeEntry(getUniqueId(pref));
+                    }
+                    // LINT.ThenChange(:isChromeSuggestionsInOtherAppsEnabled)
                 }
             };
 }

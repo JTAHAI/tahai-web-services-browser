@@ -21,14 +21,14 @@
 #include "chrome/browser/profiles/profile_key.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_test_util.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/optimization_guide/core/delivery/model_store_metadata_entry.h"
 #include "components/optimization_guide/core/delivery/model_util.h"
 #include "components/optimization_guide/core/delivery/prediction_manager.h"
 #include "components/optimization_guide/core/delivery/prediction_model_fetch_timer.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
-#include "components/optimization_guide/core/optimization_guide_switches.h"
+#include "components/optimization_guide/core/optimization_guide_permissions_util.h"
 #include "components/optimization_guide/proto/models.pb.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -112,9 +112,9 @@ class PredictionModelStoreBrowserTestBase : public InProcessBrowserTest {
   }
 
   void SetUpCommandLine(base::CommandLine* cmd) override {
-    cmd->AppendSwitch(switches::kGoogleApiKeyConfigurationCheckOverride);
+    cmd->AppendSwitch(kGoogleApiKeyConfigurationCheckOverrideSwitch);
     cmd->AppendSwitchASCII(
-        switches::kOptimizationGuideServiceGetModelsURL,
+        features::kOptimizationGuideServiceGetModelsURLSwitch,
         models_server_
             ->GetURL(
                 features::GetOptimizationGuideServiceGetModelsURL().GetHost(),
@@ -305,7 +305,8 @@ IN_PROC_BROWSER_TEST_F(PredictionModelStoreBrowserTest,
 
   base::HistogramTester histogram_tester_otr;
   ModelFileObserver model_file_observer_otr;
-  Browser* otr_browser = CreateIncognitoBrowser(browser()->GetProfile());
+  BrowserWindowInterface* otr_browser =
+      CreateIncognitoBrowser(browser()->GetProfile());
   RegisterAndWaitForModelUpdate(&model_file_observer_otr,
                                 otr_browser->GetProfile());
 

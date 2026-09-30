@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.omnibox.suggestions.base;
 import android.content.Context;
 import android.view.KeyEvent;
 
-import androidx.annotation.Px;
 import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -15,9 +14,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.chromium.build.annotations.CheckDiscard;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.omnibox.R;
-import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.RecyclerViewSelectionController;
-import org.chromium.chrome.browser.omnibox.suggestions.SelectionController;
+import org.chromium.chrome.browser.omnibox.suggestions.SelectionController.TraversalMode;
 import org.chromium.components.browser_ui.widget.chips.ChipView;
 import org.chromium.ui.base.KeyNavigationUtil;
 
@@ -44,7 +42,7 @@ public class ActionChipsView extends RecyclerView {
 
         mSelectionController =
                 new RecyclerViewSelectionController(
-                        layoutManager, SelectionController.Mode.SATURATING_WITH_SENTINEL);
+                        layoutManager, TraversalMode.SATURATING_WITH_SENTINEL);
         addOnChildAttachStateChangeListener(mSelectionController);
 
         setMinimumHeight(
@@ -55,13 +53,6 @@ public class ActionChipsView extends RecyclerView {
                 0,
                 0,
                 getResources().getDimensionPixelSize(R.dimen.omnibox_suggestion_content_padding));
-
-        final @Px int leadInSpace =
-                OmniboxResourceProvider.getSuggestionDecorationIconSizeWidth(context);
-        final @Px int elementSpace =
-                getResources().getDimensionPixelSize(R.dimen.omnibox_action_chip_spacing);
-
-        addItemDecoration(new SpacingRecyclerViewItemDecoration(leadInSpace, elementSpace));
     }
 
     @Override

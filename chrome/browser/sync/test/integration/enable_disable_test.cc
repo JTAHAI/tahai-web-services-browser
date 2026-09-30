@@ -16,6 +16,7 @@
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "chrome/browser/sync/test/integration/updated_progress_marker_checker.h"
 #include "components/bookmarks/browser/bookmark_model.h"
+#include "components/signin/public/base/signin_switches.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/base/features.h"
 #include "components/sync/base/user_selectable_type.h"
@@ -127,7 +128,12 @@ class EnableDisableSingleClientTest
       scoped_feature_list_.InitWithFeatures(
           /*enabled_features=*/
           {syncer::kReplaceSyncPromosWithSignInPromos,
-           syncer::kSpellcheckSeparateLocalAndAccountDictionaries},
+           switches::kEnablePreferencesAccountStorage,
+           syncer::kSeparateLocalAndAccountSearchEngines,
+           syncer::kSpellcheckSeparateLocalAndAccountDictionaries,
+           syncer::kSeparateLocalAndAccountThemes,
+           switches::kSyncEnableBookmarksInTransportMode,
+           syncer::kReadingListEnableSyncTransportModeUponSignIn},
           /*disabled_features=*/{});
     }
   }
@@ -218,8 +224,11 @@ class EnableDisableSingleClientTest
     // Some data types are intentionally not supported in transport mode.
     // TODO(crbug.com/40066949): Simplify (fully removes these types) once
     // Sync-the-feature is gone.
-    return {syncer::AUTOFILL, syncer::AUTOFILL_PROFILE, syncer::APPS,
-            syncer::APP_SETTINGS};
+    DataTypeSet unsupported = {syncer::AUTOFILL, syncer::AUTOFILL_PROFILE};
+#if !BUILDFLAG(IS_CHROMEOS)
+    unsupported.PutAll({syncer::APPS, syncer::APP_SETTINGS});
+#endif
+    return unsupported;
   }
 
   DataTypeSet registered_data_types_;
@@ -246,11 +255,9 @@ IN_PROC_BROWSER_TEST_P(EnableDisableSingleClientTest, PRE_EnableAndRestart) {
   // user types are also excluded in this test, because the account being used
   // isn't supervised. Finally, a few types aren't launched so they should also
   // be excluded.
-  const DataTypeSet types_without_updates =
-      Union(Union(syncer::CommitOnlyTypes(),
-                  {syncer::SUPERVISED_USER_SETTINGS, syncer::PLUS_ADDRESS,
-                   syncer::PLUS_ADDRESS_SETTING}),
-            UnsupportedTypes());
+  const DataTypeSet types_without_updates = Union(
+      Union(syncer::CommitOnlyTypes(), {syncer::SUPERVISED_USER_SETTINGS}),
+      UnsupportedTypes());
 
   // High priority types in this test are a subset of
   // syncer::HighPriorityUserTypes(), excluding those identified earlier.

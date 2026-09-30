@@ -39,6 +39,7 @@
 #include "pdf/pdf_features.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/base/webui/web_ui_util.h"
 #include "url/gurl.h"
 
@@ -86,6 +87,9 @@ base::DictValue GetCommonStrings() {
   dict.Set("presetZoomFactors", zoom::GetPresetZoomFactorsAsJSON());
   dict.Set("pdfOopifEnabled",
            chrome_pdf::features::IsOopifPdfEnabled() ? "pdfOopifEnabled" : "");
+  dict.Set(
+      "webuiRoundedIconsAttribute",
+      features::IsWebUIRoundedIconsEnabled() ? "webui-rounded-icons" : "");
   return dict;
 }
 
@@ -168,6 +172,8 @@ base::DictValue GetPdfViewerStrings() {
       {"annotationRedo", IDS_PDF_ANNOTATION_REDO},
       {"annotationUndo", IDS_PDF_ANNOTATION_UNDO},
       {"cancelButton", IDS_CANCEL},
+      {"ink2AnnotationRedone", IDS_PDF_INK2_ANNOTATION_REDONE},
+      {"ink2AnnotationUndone", IDS_PDF_INK2_ANNOTATION_UNDONE},
       {"ink2BrushColorBlue1", IDS_PDF_INK2_ANNOTATION_COLOR_BLUE_1},
       {"ink2BrushColorBlue2", IDS_PDF_INK2_ANNOTATION_COLOR_BLUE_2},
       {"ink2BrushColorBlue3", IDS_PDF_INK2_ANNOTATION_COLOR_BLUE_3},
@@ -219,6 +225,7 @@ base::DictValue GetPdfViewerStrings() {
       {"ink2TextFontSize", IDS_PDF_INK2_TEXT_FONT_SIZE},
       {"ink2TextStyleBold", IDS_PDF_INK2_TEXT_STYLE_BOLD},
       {"ink2TextStyleItalic", IDS_PDF_INK2_TEXT_STYLE_ITALIC},
+      {"ink2TextStyleStrikethrough", IDS_PDF_INK2_TEXT_STYLE_STRIKETHROUGH},
       {"ink2TextStyles", IDS_PDF_INK2_TEXT_STYLES},
       {"ink2Tool", IDS_PDF_INK2_ANNOTATION_TOOL},
 #endif  // BUILDFLAG(ENABLE_PDF_INK2)
@@ -293,7 +300,6 @@ bool IsPdfInk2AnnotationsEnabled(content::BrowserContext* context) {
 #if BUILDFLAG(ENABLE_PDF_SAVE_TO_DRIVE)
 bool IsPdfSaveToDriveEnabled(content::BrowserContext* context) {
 #if BUILDFLAG(IS_CHROMEOS)
-  // TODO(crbug.com/488428177): Write unit test for this logic.
   // On ChromeOS, only regular user session has accounts associated with the
   // browser.
 
@@ -377,9 +383,13 @@ base::DictValue GetAdditionalData(content::WebContents* web_contents) {
 
 #if BUILDFLAG(ENABLE_PDF_INK2)
   const bool use_ink2 = IsPdfInk2AnnotationsEnabled(context);
+  const bool text_annotations_enabled =
+      use_ink2 && chrome_pdf::features::kPdfInk2TextAnnotations.Get();
   dict.Set("pdfInk2Enabled", use_ink2);
-  dict.Set("pdfTextAnnotationsEnabled",
-           use_ink2 && chrome_pdf::features::kPdfInk2TextAnnotations.Get());
+  dict.Set("pdfTextAnnotationsEnabled", text_annotations_enabled);
+  dict.Set("pdfTextAnnotationsExtraStylesEnabled",
+           text_annotations_enabled &&
+               chrome_pdf::features::kPdfInk2TextAnnotationsExtraStyles.Get());
 #endif  // BUILDFLAG(ENABLE_PDF_INK2)
 
 #if BUILDFLAG(ENABLE_PDF_SAVE_TO_DRIVE)

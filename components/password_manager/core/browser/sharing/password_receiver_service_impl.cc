@@ -18,9 +18,11 @@
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
 #include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
+#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/sharing/incoming_password_sharing_invitation_sync_bridge.h"
 #include "components/sync/model/data_type_controller_delegate.h"
 #include "components/sync/service/sync_service.h"
+#include "url/gurl.h"
 #include "url/origin.h"
 
 namespace password_manager {
@@ -36,8 +38,25 @@ bool IsValidString16(const std::u16string& str) {
   return str.size() <= kMaxString16Length;
 }
 
+bool IsValidString16(crypto::SecureU16String str) {
+  return str.size() <= kMaxString16Length;
+}
+
 bool IsValidString(const std::string& str) {
   return str.size() <= kMaxString16Length;
+}
+
+// Returns true if `icon_url` is empty, or if it is valid, HTTP/HTTPS, and
+// same-origin with `credential_url`. If it is cross-origin or invalid, it is
+// not a valid icon URL for the shared credential and should be stripped to
+// prevent cross-user tracking beacons.
+bool IsValidIconUrlForSharedCredential(const GURL& icon_url,
+                                       const GURL& credential_url) {
+  if (icon_url.is_empty()) {
+    return true;
+  }
+  return icon_url.is_valid() && icon_url.SchemeIsHTTPOrHTTPS() &&
+         url::IsSameOriginWith(icon_url, credential_url);
 }
 
 bool IsValidSharedPasswordForm(const PasswordForm& form) {
@@ -56,7 +75,8 @@ bool IsValidSharedPasswordForm(const PasswordForm& form) {
       !IsValidString16(form.password_element)) {
     return false;
   }
-  if (!IsValidString16(form.password_value) || form.password_value.empty()) {
+  if (!IsValidString16(form.password_value.secure_value()) ||
+      form.password_value.empty()) {
     return false;
   }
   if (!IsValidString(form.signon_realm) || form.signon_realm.empty()) {
@@ -68,6 +88,9 @@ bool IsValidSharedPasswordForm(const PasswordForm& form) {
   }
   if (!form.sender_profile_image_url.is_empty() &&
       !form.sender_profile_image_url.is_valid()) {
+    return false;
+  }
+  if (!IsValidIconUrlForSharedCredential(form.icon_url, form.url)) {
     return false;
   }
   return true;
@@ -127,8 +150,8 @@ std::vector<PasswordForm> IncomingSharingInvitationToPasswordForms(
     PasswordForm form;
     form.username_value =
         base::UTF8ToUTF16(incoming_credentials.username_value());
-    form.password_value =
-        base::UTF8ToUTF16(incoming_credentials.password_value());
+    form.password_value = PasswordString(
+        base::UTF8ToUTF16(incoming_credentials.password_value()));
 
     form.url = GURL(password_group_element_data.origin());
     form.username_element =
@@ -141,6 +164,9 @@ std::vector<PasswordForm> IncomingSharingInvitationToPasswordForms(
     form.display_name =
         base::UTF8ToUTF16(password_group_element_data.display_name());
     form.icon_url = GURL(password_group_element_data.avatar_url());
+    if (!IsValidIconUrlForSharedCredential(form.icon_url, form.url)) {
+      form.icon_url = GURL();
+    }
     form.date_created = base::Time::Now();
     form.type = PasswordForm::Type::kReceivedViaSharing;
     form.skip_zero_click = true;

@@ -47,6 +47,10 @@ export class TestSearchboxBrowserProxy {
         'getSmartTabSharingActive', {active: false});
     this.handler.setPromiseResolveFor<'getPageClassification'>(
         'getPageClassification', {metricSource: 'OMNIBOX_EVERYWHERE'});
+    this.handler.setPromiseResolveFor<'startScreenshare'>(
+        'startScreenshare', {token: null});
+    this.handler.setPromiseResolveFor<'captureRegionScreenshot'>(
+        'captureRegionScreenshot', {token: null});
   }
 
   initVisibilityPrefs() {

@@ -29,8 +29,6 @@ namespace {
 //
 // https://drafts.csswg.org/css-gaps-1/#determine-pairs-of-gap-decoration-endpoints
 bool ShouldMoveIntersectionStartForward(
-    const GridTrackSizingDirection track_direction,
-    wtf_size_t gap_index,
     wtf_size_t start_index,
     const RuleBreak rule_break,
     const RuleVisibilityItems rule_visibility,
@@ -174,8 +172,7 @@ void AdjustIntersectionIndexPair(GridTrackSizingDirection track_direction,
   //  Advance `start` to the first intersection where painting can begin, based
   //  on blocked status from spanners and visibility from empty cells.
   while (start < last_intersection_index &&
-         ShouldMoveIntersectionStartForward(track_direction, gap_index, start,
-                                            rule_break, rule_visibility,
+         ShouldMoveIntersectionStartForward(start, rule_break, rule_visibility,
                                             gap_geometry, intersections)) {
     ++start;
   }
@@ -196,20 +193,22 @@ void AdjustIntersectionIndexPair(GridTrackSizingDirection track_direction,
   }
 }
 
-// Advances `main_gap_index` to the flex line that owns cross gap
-// `cross_gap_index`. Cross gaps are painted in order, so the main gap index
-// should only move forward.
-void AdvanceFlexCrossGapLineCursor(const GapGeometry& gap_geometry,
-                                   wtf_size_t cross_gap_index,
-                                   wtf_size_t& main_gap_index) {
+// Advances `owner_index` to the owner of cross gap `cross_gap_index`. The owner
+// is the flex line for flex, or the lane for grid-lanes. Cross gaps are painted
+// in order, so the owner index should only move forward. If no `MainGap` claims
+// the cross gap, `owner_index == main_gaps.size()` identifies the trailing lane
+// for grid-lanes and the content-end sentinel for flex.
+void AdvanceCrossGapOwnerCursor(const GapGeometry& gap_geometry,
+                                wtf_size_t cross_gap_index,
+                                wtf_size_t& owner_index) {
   const Vector<MainGap>& main_gaps = gap_geometry.GetMainGaps();
-  while (main_gap_index < main_gaps.size()) {
-    const MainGap& main_gap = main_gaps[main_gap_index];
+  while (owner_index < main_gaps.size()) {
+    const MainGap& main_gap = main_gaps[owner_index];
     if (main_gap.HasCrossGapsBefore() &&
         cross_gap_index <= main_gap.GetCrossGapBeforeEnd()) {
       return;
     }
-    ++main_gap_index;
+    ++owner_index;
   }
 }
 
@@ -257,13 +256,16 @@ void GapDecorationsPainter::Paint(GridTrackSizingDirection track_direction,
 
   const bool has_row_gap_fragmentation =
       gap_geometry.HasRowGapFragmentation(box_fragment_, is_main);
-
+  const bool has_fragmented_flex_cross_gap_indices =
+      !is_main && gap_geometry.HasFragmentedFlexCrossGapDecorationIndices();
   wtf_size_t total_gap_count = fragment_relative_gap_count;
-  if (has_row_gap_fragmentation) {
-    const BreakTokenAlgorithmData* first_break_token_data =
+  if (has_fragmented_flex_cross_gap_indices) {
+    total_gap_count = gap_geometry.FragmentedFlexCrossGapCount();
+  } else if (has_row_gap_fragmentation) {
+    const BreakTokenAlgorithmData* first_fragment_data =
         GetFirstFragmentBreakTokenData(box_fragment_);
-    CHECK(first_break_token_data);
-    total_gap_count = first_break_token_data->GetTotalRowGapCount();
+    CHECK(first_fragment_data);
+    total_gap_count = first_fragment_data->GetTotalRowGapCount();
   }
 
   // When `overlap-join` is specified, the decoration extends to meet the
@@ -287,29 +289,47 @@ void GapDecorationsPainter::Paint(GridTrackSizingDirection track_direction,
         cross_rule_widths, cross_gap_count);
   }
 
-  auto width_iterator =
-      GapDataListIterator<int>(rule_widths.GetGapDataList(), total_gap_count);
-  auto style_iterator = GapDataListIterator<EBorderStyle>(
-      rule_styles.GetGapDataList(), total_gap_count);
-  auto color_iterator = GapDataListIterator<StyleColor>(
-      rule_colors.GetGapDataList(), total_gap_count);
+  // Random access is needed when decoration order differs from geometric paint
+  // order.
+  const bool needs_decoration_reversal =
+      gap_geometry.HasNonIdentityDecorationOrder(track_direction);
 
-  // Reused across loop iterations: `GenerateIntersectionListForGap` resets the
-  // size but preserves capacity, so this allocates at most once per Paint call
-  // (or zero times if the loop is fully skipped, e.g. all multicol spanners).
+  // TODO(javiercon): After profiling reversed and fragmented cases, consider
+  // using `GapDataListValueAccessor` for all paths and removing the iterator
+  // path.
+  std::optional<GapDataListValueAccessor<int>> reversal_width_accessor;
+  std::optional<GapDataListValueAccessor<EBorderStyle>> reversal_style_accessor;
+  std::optional<GapDataListValueAccessor<StyleColor>> reversal_color_accessor;
+  std::optional<GapDataListIterator<int>> width_iterator;
+  std::optional<GapDataListIterator<EBorderStyle>> style_iterator;
+  std::optional<GapDataListIterator<StyleColor>> color_iterator;
+  if (needs_decoration_reversal) {
+    reversal_width_accessor.emplace(rule_widths.GetGapDataList(),
+                                    total_gap_count);
+    reversal_style_accessor.emplace(rule_styles.GetGapDataList(),
+                                    total_gap_count);
+    reversal_color_accessor.emplace(rule_colors.GetGapDataList(),
+                                    total_gap_count);
+  } else {
+    width_iterator.emplace(rule_widths.GetGapDataList(), total_gap_count);
+    style_iterator.emplace(rule_styles.GetGapDataList(), total_gap_count);
+    color_iterator.emplace(rule_colors.GetGapDataList(), total_gap_count);
+  }
+
+  // Reused across gaps. Grid and multicol allocate at most once per Paint;
+  // flex grows capacity only when a later gap needs more.
   Vector<GapIntersection> intersections;
 
-  // Reset transient per-paint state. The `GapGeometry` may be reused across
-  // relayouts and repaints, so we must not inherit stale state (e.g. the
-  // multicol spanner-adjacent set) from a previous paint.
-  gap_geometry.InitPaintState();
-
-  // For flex cross gaps, we need to track the flex line that owns the current
-  // cross gap for intersection generation and getting the stitched gap index.
-  std::optional<wtf_size_t> main_gap_index;
-  if (gap_geometry.GetContainerType() == GapGeometry::ContainerType::kFlex &&
-      !is_main) {
-    main_gap_index = 0u;
+  // For flex and grid-lanes cross gaps, track the owner (flex line or grid
+  // lane) of the current cross gap as a forward-only cursor. The owner is
+  // needed to generate the gap's intersections, and for flex it also resolves
+  // the stitched gap index across fragments.
+  std::optional<wtf_size_t> cross_gap_owner_index;
+  if (!is_main &&
+      (gap_geometry.GetContainerType() == GapGeometry::ContainerType::kFlex ||
+       gap_geometry.GetContainerType() ==
+           GapGeometry::ContainerType::kGridLanes)) {
+    cross_gap_owner_index = 0u;
   }
 
   for (wtf_size_t gap_index = 0; gap_index < fragment_relative_gap_count;
@@ -320,37 +340,73 @@ void GapDecorationsPainter::Paint(GridTrackSizingDirection track_direction,
     if (gap_geometry.IsMultiColSpanner(gap_index, track_direction)) {
       continue;
     }
-    // For flex cross gaps, advance the per-line cursor to the flex line that
-    // owns this gap. We need the owning line both to generate the gap's
-    // intersections and to resolve its stitched index across fragments.
-    if (main_gap_index) {
-      AdvanceFlexCrossGapLineCursor(gap_geometry, gap_index, *main_gap_index);
+    // For flex and grid-lanes cross gaps, advance the owner cursor to the flex
+    // line or grid lane that owns this gap. We need the owner to generate the
+    // gap's intersections, and for flex to resolve its stitched index across
+    // fragments.
+    if (cross_gap_owner_index) {
+      AdvanceCrossGapOwnerCursor(gap_geometry, gap_index,
+                                 *cross_gap_owner_index);
     }
-    // Gap decorations can take a list format for their styles, and that order
-    // must be maintained when the container fragments. Resolve this gap's
-    // `stitched_gap_index` (i.e. its index in the global unfragmented context)
-    // and advance the iterators to that point so that the 'color', 'style' and
-    // 'width' patterns are maintained across fragments.
-    if (has_row_gap_fragmentation) {
-      const wtf_size_t stitched_gap_index =
+    // `stitched_geometric_index` is this gap's index in the full container's
+    // geometric paint order. It starts as the fragment-local index and is
+    // updated below when row gaps are fragmented.
+    wtf_size_t stitched_geometric_index = gap_index;
+    if (has_row_gap_fragmentation && !has_fragmented_flex_cross_gap_indices) {
+      stitched_geometric_index =
           box_fragment_.GetLayoutObject()->StitchedRowGapIndex(
-              box_fragment_, gap_index, main_gap_index);
-      color_iterator.AdvanceUpTo(stitched_gap_index);
-      style_iterator.AdvanceUpTo(stitched_gap_index);
-      width_iterator.AdvanceUpTo(stitched_gap_index);
+              box_fragment_, gap_index, cross_gap_owner_index);
     }
-    const StyleColor rule_color = color_iterator.Next();
+    CHECK_LT(stitched_geometric_index, total_gap_count);
+
+    StyleColor rule_color;
+    EBorderStyle rule_style_value;
+    int rule_width_value;
+    if (needs_decoration_reversal) {
+      wtf_size_t decoration_index;
+      if (is_main) {
+        decoration_index = gap_geometry.DecorationIndexForMainGap(
+            stitched_geometric_index, total_gap_count);
+      } else {
+        // Fragmentation can change a `CrossGap`'s local index, so use the index
+        // saved during layout.
+        if (has_fragmented_flex_cross_gap_indices) {
+          decoration_index =
+              gap_geometry.FragmentedFlexCrossGapDecorationIndexAt(gap_index);
+        } else {
+          CHECK(cross_gap_owner_index.has_value());
+          decoration_index = gap_geometry.DecorationIndexForCrossGap(
+              stitched_geometric_index,
+              gap_geometry.FlexLineCrossGapRange(*cross_gap_owner_index),
+              total_gap_count);
+        }
+      }
+      rule_color = reversal_color_accessor->ValueAt(decoration_index);
+      rule_style_value = reversal_style_accessor->ValueAt(decoration_index);
+      rule_width_value = reversal_width_accessor->ValueAt(decoration_index);
+    } else {
+      // Advance the iterators to `stitched_geometric_index` so the 'color',
+      // 'style' and 'width' patterns are maintained across fragments.
+      if (has_row_gap_fragmentation) {
+        color_iterator->AdvanceUpTo(stitched_geometric_index);
+        style_iterator->AdvanceUpTo(stitched_geometric_index);
+        width_iterator->AdvanceUpTo(stitched_geometric_index);
+      }
+      rule_color = color_iterator->Next();
+      rule_style_value = style_iterator->Next();
+      rule_width_value = width_iterator->Next();
+    }
     const Color resolved_rule_color =
         style.VisitedDependentGapColor(rule_color, is_column_gap);
     const EBorderStyle rule_style =
-        ComputedStyle::CollapsedBorderStyle(style_iterator.Next());
-    const LayoutUnit rule_thickness = LayoutUnit(width_iterator.Next());
+        ComputedStyle::CollapsedBorderStyle(rule_style_value);
+    const LayoutUnit rule_thickness = LayoutUnit(rule_width_value);
 
     const LayoutUnit center =
         gap_geometry.GetGapCenterOffset(track_direction, gap_index);
 
-    gap_geometry.GenerateIntersectionListForGap(track_direction, gap_index,
-                                                intersections, main_gap_index);
+    gap_geometry.GenerateIntersectionListForGap(
+        track_direction, gap_index, intersections, cross_gap_owner_index);
 
     const wtf_size_t intersection_count = intersections.size();
 
@@ -416,13 +472,13 @@ void GapDecorationsPainter::Paint(GridTrackSizingDirection track_direction,
       // intersection point.
       // https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-inset
       LayoutUnit start_inset = gap_geometry.ComputeInsetStart(
-          style, gap_index, start, intersections, start_is_cap_intersection,
-          is_column_gap, is_main, start_has_joining_decoration,
-          start_max_inset_width, start_cross_decoration_width);
+          style, start_is_cap_intersection, is_column_gap, is_main,
+          start_has_joining_decoration, start_max_inset_width,
+          start_cross_decoration_width);
       LayoutUnit end_inset = gap_geometry.ComputeInsetEnd(
-          style, gap_index, end, intersections, end_is_cap_intersection,
-          is_column_gap, is_main, end_has_joining_decoration,
-          end_max_inset_width, end_cross_decoration_width);
+          style, end_is_cap_intersection, is_column_gap, is_main,
+          end_has_joining_decoration, end_max_inset_width,
+          end_cross_decoration_width);
 
       // `*_cross_width` is the width of the gap at the intersection point in
       // the cross axis, which is used to compute the gap decoration offset from

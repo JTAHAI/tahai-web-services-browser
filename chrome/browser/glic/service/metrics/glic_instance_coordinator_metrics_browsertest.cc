@@ -7,6 +7,7 @@
 #include "base/test/run_until.h"
 #include "build/build_config.h"
 #include "chrome/browser/glic/actor/glic_actor_task_manager.h"
+#include "chrome/browser/glic/glic_warming_checks.h"
 #include "chrome/browser/glic/host/glic_web_contents_warming_pool.h"
 #include "chrome/browser/glic/public/features.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
@@ -39,15 +40,10 @@ IN_PROC_BROWSER_TEST_F(GlicInstanceCoordinatorMetricsBrowserTest,
   EXPECT_EQ(coordinator().GetVisibleInstanceCount(), 0);
 }
 
-// Detach is not supported on Android, and multiple windows/tabs don't work
-// yet in Android browsertests, preventing concurrent visibility testing.
-#if BUILDFLAG(IS_ANDROID)
-#define MAYBE_ConcurrentVisibility DISABLED_ConcurrentVisibility
-#else
-#define MAYBE_ConcurrentVisibility ConcurrentVisibility
-#endif
+// Detach is not supported on Android.
+#if !BUILDFLAG(IS_ANDROID)
 IN_PROC_BROWSER_TEST_F(GlicInstanceCoordinatorMetricsBrowserTest,
-                       MAYBE_ConcurrentVisibility) {
+                       ConcurrentVisibility) {
   GlicHistogramTester histogram_tester;
 
   // 1. Open Glic for active tab and detach it (making it floating).
@@ -67,6 +63,39 @@ IN_PROC_BROWSER_TEST_F(GlicInstanceCoordinatorMetricsBrowserTest,
   histogram_tester.ExpectUniqueSample("Glic.ConcurrentVisibility.PeakCount", 2,
                                       1);
   histogram_tester.ExpectTotalCount("Glic.ConcurrentVisibility.Duration", 1);
+}
+#endif  // !BUILDFLAG(IS_ANDROID)
+
+IN_PROC_BROWSER_TEST_F(GlicInstanceCoordinatorMetricsBrowserTest,
+                       ConcurrentVisibilityMultiWindow) {
+  GlicHistogramTester histogram_tester;
+
+  // 1. Open Glic side panel for the first window's active tab.
+  ASSERT_OK(OpenGlicForActiveTab());
+
+  // 2. Create a second window/browser.
+  BrowserWindowInterface* browser2 = CreateAdditionalBrowserWindow();
+
+  // 3. Get the active tab in the second window.
+  tabs::TabInterface* tab2 = TabListInterface::From(browser2)->GetActiveTab();
+
+  // 4. Open Glic side panel on the second window's active tab.
+  ASSERT_OK_AND_ASSIGN(GlicInstanceImpl * instance2, OpenGlicForTab(tab2));
+
+  // 5. Close Glic for the second window to end concurrent visibility.
+  PreventDeletionOnClose(instance2);
+  ASSERT_OK(CloseGlicForTabAndWait(tab2));
+
+  // Verify histograms.
+  histogram_tester.ExpectUniqueSample("Glic.ConcurrentVisibility.PeakCount", 2,
+                                      1);
+  histogram_tester.ExpectTotalCount("Glic.ConcurrentVisibility.Duration", 1);
+
+  // Clean up: close Glic for the first window's active tab.
+  ASSERT_OK(CloseGlicForTabAndWait(GetTabListInterface()->GetActiveTab()));
+
+  // Clean up: close the second window.
+  browser2->GetWindow()->Close();
 }
 
 IN_PROC_BROWSER_TEST_F(GlicInstanceCoordinatorMetricsBrowserTest,
@@ -174,9 +203,9 @@ IN_PROC_BROWSER_TEST_F(GlicInstanceCoordinatorMetricsWarmingTest,
   GlicHistogramTester histogram_tester;
 
   // 1. Start initial warming (warmed instance exists) and wait for it to load.
-  ASSERT_TRUE(coordinator()
-                  .GetWebContentsWarmingPoolForTesting()
-                  .MaybeStartInitialWarming());
+  ASSERT_TRUE(
+      coordinator().GetWebContentsWarmingPoolForTesting().MaybeStartWarming(
+          GlicWarmingTrigger::kStartup));
   ASSERT_TRUE(base::test::RunUntil([&]() {
     return coordinator()
                .GetWebContentsWarmingPoolForTesting()

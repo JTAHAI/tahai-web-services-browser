@@ -34,6 +34,7 @@
 #include "content/browser/device_posture/device_posture_provider_impl.h"
 #include "content/browser/eye_dropper_chooser_impl.h"
 #include "content/browser/handwriting/handwriting_recognition_service_factory.h"
+#include "content/browser/haptics/haptics_service_impl.h"
 #include "content/browser/image_capture/image_capture_impl.h"
 #include "content/browser/indexed_db/indexed_db_internals.mojom.h"
 #include "content/browser/indexed_db/indexed_db_internals_ui.h"
@@ -91,6 +92,7 @@
 #include "content/public/browser/web_ui_controller_interface_binder.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_features.h"
+#include "content/public/common/content_switches.h"
 #include "content/public/common/url_constants.h"
 #include "device/gamepad/gamepad_haptics_manager.h"
 #include "device/gamepad/gamepad_monitor.h"
@@ -741,6 +743,20 @@ void BindBatteryMonitor(
   GetDeviceService().BindBatteryMonitor(std::move(receiver));
 }
 
+void BindVibrationManager(
+    RenderFrameHost* host,
+    mojo::PendingReceiver<device::mojom::VibrationManager> receiver) {
+  if (host->IsNestedWithinFencedFrame()) {
+    bad_message::ReceivedBadMessage(
+        host->GetProcess(), bad_message::BadMessageReason::
+                                BIBI_BIND_VIBRATION_MANAGER_FOR_FENCED_FRAME);
+    return;
+  }
+  GetDeviceService().BindVibrationManager(
+      std::move(receiver), static_cast<RenderFrameHostImpl*>(host)
+                               ->CreateVibrationManagerListener());
+}
+
 #if BUILDFLAG(ENABLE_COMPUTE_PRESSURE)
 void BindPressureManager(
     RenderFrameHost* host,
@@ -884,11 +900,8 @@ void PopulateBinderMapWithContext(
   map->Add<blink::mojom::WebInstallService>(
       &EmptyBinderForFrame<blink::mojom::WebInstallService>);
 
-  // Currently defined in content/shell/common/shell_switches.h which we cannot
-  // have a DEPS on.
-  constexpr char kExposeInternalsForTesting[] = "expose-internals-for-testing";
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          kExposeInternalsForTesting)) {
+          switches::kExposeInternalsForTesting)) {
     map->Add<blink::mojom::FrameWidgetHost>(base::BindRepeating(
         [](RenderFrameHost* host,
            mojo::PendingReceiver<blink::mojom::FrameWidgetHost> receiver) {
@@ -1370,6 +1383,7 @@ void PopulateBinderMapWithContext(
   map->Add<device::mojom::BatteryMonitor>(&BindBatteryMonitor);
   map->Add<blink::mojom::ColorChooserFactory>(&BindColorChooserFactoryForFrame);
   map->Add<blink::mojom::EyeDropperChooser>(&EyeDropperChooserImpl::Create);
+  map->Add<blink::mojom::HapticsService>(&HapticsServiceImpl::Create);
   map->Add<blink::mojom::CookieStore>(
       &CookieStoreManager::BindReceiverForFrame);
   map->Add<blink::mojom::ContentIndexService>(
@@ -1434,13 +1448,7 @@ void PopulateBinderMapWithContext(
   map->Add<blink::mojom::AnchorElementInteractionHost>(
       &AnchorElementInteractionHostImpl::Create);
 
-  map->Add<device::mojom::VibrationManager>(
-      [](RenderFrameHost* host,
-         mojo::PendingReceiver<device::mojom::VibrationManager> receiver) {
-        GetDeviceService().BindVibrationManager(
-            std::move(receiver), static_cast<RenderFrameHostImpl*>(host)
-                                     ->CreateVibrationManagerListener());
-      });
+  map->Add<device::mojom::VibrationManager>(&BindVibrationManager);
 
 #if BUILDFLAG(IS_CHROMEOS)
   if (base::FeatureList::IsEnabled(features::kWebLockScreenApi)) {
@@ -1458,7 +1466,7 @@ void PopulateBinderMapWithContext(
     map->Add<vrp_flags::mojom::VrpFlagsFactory>(base::BindRepeating(
         [](content::RenderFrameHost* frame_host,
            mojo::PendingReceiver<vrp_flags::mojom::VrpFlagsFactory> receiver) {
-          VrpFlagsFactoryImpl::Bind(std::move(receiver));
+          VrpFlagsFactoryImpl::Bind(frame_host, std::move(receiver));
         }));
   }
 #endif

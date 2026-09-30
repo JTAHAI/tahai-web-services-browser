@@ -41,7 +41,6 @@ class SharingDeviceRegistrationImpl : public SharingDeviceRegistration {
       std::optional<syncer::DeviceInfo::SharingTargetInfo>)>;
 
   SharingDeviceRegistrationImpl(
-      PrefService* pref_service,
       SharingSyncPreference* prefs,
       instance_id::InstanceIDDriver* instance_id_driver,
       syncer::SyncService* sync_service);
@@ -59,9 +58,6 @@ class SharingDeviceRegistrationImpl : public SharingDeviceRegistration {
   // Un-registers device with sharing sync preferences.
   void UnregisterDevice(RegistrationCallback callback) override;
 
-  // Returns if device can handle receiving of shared clipboard contents.
-  bool IsSharedClipboardSupported() const override;
-
   // Returns if device can handle receiving of sms fetcher requests.
   bool IsSmsFetcherSupported() const override;
 
@@ -78,6 +74,9 @@ class SharingDeviceRegistrationImpl : public SharingDeviceRegistration {
 
   // Returns if device can handle receiving of glic experimental triggering.
   bool IsGlicExperimentalTriggeringSupported() const override;
+
+  // Returns if device can handle receiving of browser actuator.
+  bool IsBrowserActuatorSupported() const override;
 
   // For testing
   void SetEnabledFeaturesForTesting(
@@ -114,7 +113,6 @@ class SharingDeviceRegistrationImpl : public SharingDeviceRegistration {
   // Computes and returns a set of all enabled features on the device.
   std::set<syncer::DeviceInfo::SharingFeature> GetEnabledFeatures() const;
 
-  raw_ptr<PrefService> pref_service_;
   raw_ptr<SharingSyncPreference> sharing_sync_preference_;
   raw_ptr<instance_id::InstanceIDDriver> instance_id_driver_;
   raw_ptr<syncer::SyncService> sync_service_;

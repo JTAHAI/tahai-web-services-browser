@@ -7,15 +7,9 @@ import '/strings.m.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 
+import type {Conflict} from './policy.mojom-webui.js';
 import {getCss} from './policy_conflict.css.js';
 import {getHtml} from './policy_conflict.html.js';
-
-export interface Conflict {
-  level: string;
-  scope: string;
-  source: string;
-  value: unknown;
-}
 
 // Converts a policy value to a JSON string and optionally formats it.
 export function stringifyPolicyValue(value: unknown, format?: boolean): string {
@@ -130,6 +124,12 @@ export class PolicyConflictElement extends CrLitElement {
     if (valueDisplay) {
       copyValue(valueDisplay as HTMLElement);
     }
+  }
+
+  protected getCopyIconSrc(): string {
+    return document.documentElement.hasAttribute('webui-rounded-icons') ?
+        'chrome://resources/images/icon_copy_content.svg' :
+        'chrome://resources/images/icon_copy_content_old.svg';
   }
 }
 

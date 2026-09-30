@@ -48,7 +48,6 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRule;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.RobolectricUtil;
-import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.device_reauth.BiometricStatus;
 import org.chromium.chrome.browser.device_reauth.ReauthenticatorBridge;
@@ -72,10 +71,7 @@ import java.util.List;
 
 /** Tests for {@link PasswordCsvDownloadFlowController} */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(
-        manifest = Config.NONE,
-        shadows = {ShadowToast.class})
-@DoNotBatch(reason = "The ReauthenticationManager setup should not leak between tests.")
+@Config(shadows = {ShadowToast.class})
 public class PasswordCsvDownloadFlowControllerTest {
     private static final String TEST_FILE_DATA =
             "name,url,username,password,note\n"

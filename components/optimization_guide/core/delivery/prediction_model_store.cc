@@ -19,12 +19,15 @@
 #include "components/optimization_guide/core/delivery/model_info.h"
 #include "components/optimization_guide/core/delivery/model_store_metadata_entry.h"
 #include "components/optimization_guide/core/delivery/model_util.h"
+#include "components/optimization_guide/core/delivery/prediction_model_override.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/optimization_guide_prefs.h"
-#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/prefs/pref_service.h"
 
 namespace optimization_guide {
+
+const base::FilePath::CharType kOptimizationGuideModelStoreDirPrefix[] =
+    FILE_PATH_LITERAL("optimization_guide_model_store");
 
 namespace {
 
@@ -161,7 +164,7 @@ void PredictionModelStore::Initialize(const base::FilePath& base_store_dir) {
   // model overrides. For now, we just skip it if any model overrides were
   // specified.
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kModelOverride)) {
+          kModelOverrideSwitch)) {
     background_task_runner_->PostTask(
         FROM_HERE, base::BindOnce(&RemoveInvalidModelDirs, base_store_dir_,
                                   ledger_.GetValidModelDirs()));
@@ -221,7 +224,7 @@ void PredictionModelStore::LoadModel(
   auto metadata =
       ledger_.GetEntryIfExists(optimization_target, model_cache_key);
   if (!metadata) {
-    std::move(callback).Run(nullptr);
+    std::move(callback).Run(std::nullopt);
     return;
   }
   if (!metadata->GetKeepBeyondValidDuration() &&
@@ -229,14 +232,14 @@ void PredictionModelStore::LoadModel(
     RemoveModel(
         optimization_target, model_cache_key,
         PredictionModelStoreModelRemovalReason::kModelExpiredOnLoadModel);
-    std::move(callback).Run(nullptr);
+    std::move(callback).Run(std::nullopt);
     return;
   }
   auto base_model_dir = metadata->GetModelBaseDir();
   if (!base_model_dir || base_model_dir->IsAbsolute()) {
     RemoveModel(optimization_target, model_cache_key,
                 PredictionModelStoreModelRemovalReason::kInvalidModelDir);
-    std::move(callback).Run(nullptr);
+    std::move(callback).Run(std::nullopt);
     return;
   }
 
@@ -253,20 +256,20 @@ void PredictionModelStore::OnModelLoaded(
     proto::OptimizationTarget optimization_target,
     const ClientCacheKey& model_cache_key,
     PredictionModelLoadedCallback callback,
-    std::unique_ptr<proto::PredictionModel> model) {
+    std::optional<ModelInfo> model_info) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   TRACE_EVENT("optimization_guide", "PredictionModelStore::OnModelLoaded",
               "target",
               GetStringNameForOptimizationTarget(optimization_target));
 
-  if (!model) {
+  if (!model_info) {
     RemoveModel(optimization_target, model_cache_key,
                 PredictionModelStoreModelRemovalReason::kModelLoadFailed);
-    std::move(callback).Run(nullptr);
+    std::move(callback).Run(std::nullopt);
     return;
   }
-  std::move(callback).Run(std::move(model));
+  std::move(callback).Run(std::move(model_info));
 }
 
 void PredictionModelStore::UpdateMetadataForExistingModel(

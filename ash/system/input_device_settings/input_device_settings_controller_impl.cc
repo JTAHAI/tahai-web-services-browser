@@ -478,9 +478,6 @@ bool GraphicsTabletSettingsAreValid(
 // fewer than 32 characters.
 bool MouseSettingsAreValid(const mojom::Mouse& mouse,
                            const mojom::MouseSettings& settings) {
-  if (!features::IsPeripheralCustomizationEnabled()) {
-    return true;
-  }
   return ValidateButtonRemappingList(mouse.settings->button_remappings,
                                      settings.button_remappings);
 }
@@ -609,27 +606,6 @@ T* FindDevice(InputDeviceSettingsControllerImpl::DeviceId id,
   return nullptr;
 }
 
-void DeleteLoginScreenButtonRemappingListPrefWhenPeripheralCustomizationDisabled(
-    PrefService* local_state) {
-  // local_state could be null in tests.
-  if (!local_state) {
-    return;
-  }
-  user_manager::KnownUser known_user(local_state);
-  AccountId account_id =
-      Shell::Get()->session_controller()->GetActiveAccountId();
-
-  known_user.SetPath(
-      account_id,
-      prefs::kGraphicsTabletLoginScreenTabletButtonRemappingListPref,
-      std::nullopt);
-  known_user.SetPath(
-      account_id, prefs::kGraphicsTabletLoginScreenPenButtonRemappingListPref,
-      std::nullopt);
-  known_user.SetPath(account_id,
-                     prefs::kMouseLoginScreenButtonRemappingListPref,
-                     std::nullopt);
-}
 
 bool BatteryInfoChanged(const mojom::BatteryInfo& existing_info,
                         const mojom::BatteryInfo& new_info) {
@@ -744,9 +720,7 @@ void InputDeviceSettingsControllerImpl::Init() {
   // Initialize the duplicate id finder first then the notifiers to make sure
   // duplicate ids are up to date before the controller gets updates about
   // connected devices.
-  if (features::IsPeripheralCustomizationEnabled()) {
-    duplicate_id_finder_ = std::make_unique<InputDeviceDuplicateIdFinder>();
-  }
+  duplicate_id_finder_ = std::make_unique<InputDeviceDuplicateIdFinder>();
 
   notification_controller_ =
       std::make_unique<InputDeviceSettingsNotificationController>(
@@ -777,14 +751,12 @@ void InputDeviceSettingsControllerImpl::Init() {
       base::BindRepeating(
           &InputDeviceSettingsControllerImpl::OnPointingStickListUpdated,
           base::Unretained(this)));
-  if (features::IsPeripheralCustomizationEnabled()) {
-    graphics_tablet_notifier_ = std::make_unique<
-        InputDeviceNotifier<mojom::GraphicsTabletPtr, ui::InputDevice>>(
-        &graphics_tablets_,
-        base::BindRepeating(
-            &InputDeviceSettingsControllerImpl::OnGraphicsTabletListUpdated,
-            base::Unretained(this)));
-  }
+  graphics_tablet_notifier_ = std::make_unique<
+      InputDeviceNotifier<mojom::GraphicsTabletPtr, ui::InputDevice>>(
+      &graphics_tablets_,
+      base::BindRepeating(
+          &InputDeviceSettingsControllerImpl::OnGraphicsTabletListUpdated,
+          base::Unretained(this)));
   metrics_manager_ = std::make_unique<InputDeviceSettingsMetricsManager>();
 }
 
@@ -1008,15 +980,6 @@ void InputDeviceSettingsControllerImpl::OnActiveUserPrefServiceChanged(
     pref_service->ClearPref(prefs::kMouseDeviceImpostersListPref);
   }
 
-  // If the flag is disabled, clear the button remapping dictionaries.
-  if (!features::IsPeripheralCustomizationEnabled()) {
-    pref_service->ClearPref(
-        prefs::kGraphicsTabletTabletButtonRemappingsDictPref);
-    pref_service->ClearPref(prefs::kGraphicsTabletPenButtonRemappingsDictPref);
-    pref_service->ClearPref(prefs::kMouseButtonRemappingsDictPref);
-    DeleteLoginScreenButtonRemappingListPrefWhenPeripheralCustomizationDisabled(
-        local_state_);
-  }
 
   if (!features::IsPeripheralNotificationEnabled()) {
     pref_service->ClearPref(prefs::kPeripheralNotificationMiceSeen);
@@ -1062,24 +1025,6 @@ void InputDeviceSettingsControllerImpl::OnActiveUserPrefServiceChanged(
     pref_service->ClearPref(prefs::kSixPackKeyInsertNotificationsRemaining);
   }
 
-  if (!features::IsModifierSplitEnabled()) {
-    pref_service->ClearPref(prefs::kTopRowRemappingNudgeShownCount);
-    pref_service->ClearPref(prefs::kPageUpRemappingNudgeShownCount);
-    pref_service->ClearPref(prefs::kPageDownRemappingNudgeShownCount);
-    pref_service->ClearPref(prefs::kHomeRemappingNudgeShownCount);
-    pref_service->ClearPref(prefs::kEndRemappingNudgeShownCount);
-    pref_service->ClearPref(prefs::kDeleteRemappingNudgeShownCount);
-    pref_service->ClearPref(prefs::kInsertRemappingNudgeShownCount);
-    pref_service->ClearPref(prefs::kCapsLockRemappingNudgeShownCount);
-    pref_service->ClearPref(prefs::kTopRowRemappingNudgeLastShown);
-    pref_service->ClearPref(prefs::kPageUpRemappingNudgeLastShown);
-    pref_service->ClearPref(prefs::kPageDownRemappingNudgeLastShown);
-    pref_service->ClearPref(prefs::kHomeRemappingNudgeLastShown);
-    pref_service->ClearPref(prefs::kEndRemappingNudgeLastShown);
-    pref_service->ClearPref(prefs::kDeleteRemappingNudgeLastShown);
-    pref_service->ClearPref(prefs::kInsertRemappingNudgeLastShown);
-    pref_service->ClearPref(prefs::kCapsLockRemappingNudgeLastShown);
-  }
   active_pref_service_ = pref_service;
   active_account_id_ = Shell::Get()->session_controller()->GetActiveAccountId();
   auto* cache = apps::AppRegistryCacheWrapper::Get().GetAppRegistryCache(
@@ -1186,13 +1131,11 @@ void InputDeviceSettingsControllerImpl::ScheduleDeviceSettingsRefresh() {
 
   // Modifiers must be refreshed before settings so settings are retrieved for
   // the correct modifiers.
-  if (features::IsModifierSplitEnabled()) {
-    sequenced_task_runner_->PostTask(
-        FROM_HERE,
-        base::BindOnce(
-            &InputDeviceSettingsControllerImpl::RefreshMetaAndModifierKeys,
-            weak_ptr_factory_.GetWeakPtr()));
-  }
+  sequenced_task_runner_->PostTask(
+      FROM_HERE,
+      base::BindOnce(
+          &InputDeviceSettingsControllerImpl::RefreshMetaAndModifierKeys,
+          weak_ptr_factory_.GetWeakPtr()));
 
   settings_refresh_pending_ = true;
   sequenced_task_runner_->PostTask(
@@ -1226,13 +1169,11 @@ void InputDeviceSettingsControllerImpl::RefreshAllDeviceSettings() {
   RefreshCachedTouchpadSettings();
   RefreshStoredLoginScreenPointingStickSettings();
 
-  if (features::IsPeripheralCustomizationEnabled()) {
-    for (const auto& [id, graphics_tablet] : graphics_tablets_) {
-      InitializeGraphicsTabletSettings(graphics_tablet.get());
-      DispatchGraphicsTabletSettingsChanged(id);
-    }
-    RefreshStoredLoginScreenGraphicsTabletSettings();
+  for (const auto& [id, graphics_tablet] : graphics_tablets_) {
+    InitializeGraphicsTabletSettings(graphics_tablet.get());
+    DispatchGraphicsTabletSettingsChanged(id);
   }
+  RefreshStoredLoginScreenGraphicsTabletSettings();
 }
 
 void InputDeviceSettingsControllerImpl::
@@ -1431,15 +1372,12 @@ void InputDeviceSettingsControllerImpl::OnLoginScreenFocusedPodChanged(
     DispatchTouchpadSettingsChanged(id);
   }
 
-  if (features::IsPeripheralCustomizationEnabled()) {
-    for (const auto& [id, graphics_tablet] : graphics_tablets_) {
-      graphics_tablet_pref_handler_
-          ->InitializeLoginScreenGraphicsTabletSettings(
-              local_state_, account_id, graphics_tablet.get());
-      PR_LOG(INFO, Feature::IDS) << GetGraphicsTabletSettingsLog(
-          "Login screen default settings initialized", *graphics_tablet.get());
-      DispatchGraphicsTabletSettingsChanged(id);
-    }
+  for (const auto& [id, graphics_tablet] : graphics_tablets_) {
+    graphics_tablet_pref_handler_->InitializeLoginScreenGraphicsTabletSettings(
+        local_state_, account_id, graphics_tablet.get());
+    PR_LOG(INFO, Feature::IDS) << GetGraphicsTabletSettingsLog(
+        "Login screen default settings initialized", *graphics_tablet.get());
+    DispatchGraphicsTabletSettingsChanged(id);
   }
 }
 
@@ -2380,7 +2318,6 @@ mojom::PointingStick* InputDeviceSettingsControllerImpl::FindPointingStick(
 }
 
 void InputDeviceSettingsControllerImpl::StartObservingButtons(DeviceId id) {
-  DCHECK(features::IsPeripheralCustomizationEnabled());
   PeripheralCustomizationEventRewriter* rewriter =
       Shell::Get()
           ->event_rewriter_controller()
@@ -2419,7 +2356,6 @@ void InputDeviceSettingsControllerImpl::StartObservingButtons(DeviceId id) {
 }
 
 void InputDeviceSettingsControllerImpl::StopObservingButtons() {
-  DCHECK(features::IsPeripheralCustomizationEnabled());
   PeripheralCustomizationEventRewriter* rewriter =
       Shell::Get()
           ->event_rewriter_controller()
@@ -2435,7 +2371,6 @@ void InputDeviceSettingsControllerImpl::StopObservingButtons() {
 void InputDeviceSettingsControllerImpl::OnMouseButtonPressed(
     DeviceId device_id,
     const mojom::Button& button) {
-  DCHECK(features::IsPeripheralCustomizationEnabled());
   auto* mouse_ptr = FindMouse(device_id);
   if (!mouse_ptr) {
     return;
@@ -2498,7 +2433,6 @@ void InputDeviceSettingsControllerImpl::ResetNotificationDeviceTracking() {
 void InputDeviceSettingsControllerImpl::OnGraphicsTabletButtonPressed(
     DeviceId device_id,
     const mojom::Button& button) {
-  DCHECK(features::IsPeripheralCustomizationEnabled());
   auto* graphics_tablet_ptr = FindGraphicsTablet(device_id);
   if (!graphics_tablet_ptr) {
     return;
@@ -2920,9 +2854,6 @@ void InputDeviceSettingsControllerImpl::InputMethodChanged(
     input_method::InputMethodManager* manager,
     Profile* profile,
     bool show_message) {
-  if (!features::IsPeripheralCustomizationEnabled()) {
-    return;
-  }
 
   // Must be posted as a task because the data source for key display values is
   // not yet updated right when this is called.

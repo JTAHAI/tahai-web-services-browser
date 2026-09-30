@@ -2,13 +2,14 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import("//extensions/buildflags/buildflags.gni")
+
 source_set("organizer") {
   sources = [
     "layout_constants.h",
     "organizer_panel_controls_view.h",
     "organizer_panel_utils.h",
     "organizer_panel_view.h",
-    "organizer_panel_view_layout.h",
   ]
 
   public_deps = [
@@ -18,6 +19,13 @@ source_set("organizer") {
     "//ui/base",
     "//ui/views",
   ]
+
+  if (enable_extensions) {
+    public_deps += [
+      "//extensions/buildflags",
+      "//extensions/common",
+    ]
+  }
 }
 
 source_set("impl") {
@@ -25,7 +33,6 @@ source_set("impl") {
     "organizer_panel_controls_view.cc",
     "organizer_panel_utils.cc",
     "organizer_panel_view.cc",
-    "organizer_panel_view_layout.cc",
   ]
 
   public_deps = [ ":organizer" ]
@@ -49,15 +56,23 @@ source_set("impl") {
     "//components/saved_tab_groups/public",
     "//ui/actions",
     "//ui/compositor_extra",
+    "//ui/views/controls/webview",
+    "//url",
   ]
+
+  if (enable_extensions) {
+    deps += [
+      "//chrome/browser/extensions",
+      "//chrome/common/extensions/api",
+      "//extensions/browser",
+      "//extensions/common",
+    ]
+  }
 }
 
 source_set("unit_tests") {
   testonly = true
-  sources = [
-    "organizer_panel_view_layout_unittest.cc",
-    "organizer_panel_view_unittest.cc",
-  ]
+  sources = [ "organizer_panel_view_unittest.cc" ]
   deps = [
     ":organizer",
     "//base/test:test_support",
@@ -68,10 +83,20 @@ source_set("unit_tests") {
     "//chrome/test:test_support",
     "//components/omnibox/browser:test_support",
     "//components/prefs:test_support",
+    "//content/test:test_support",
     "//ui/events:test_support",
     "//ui/views",
     "//ui/views:test_support",
   ]
+  if (enable_extensions) {
+    deps += [
+      "//chrome/browser/extensions",
+      "//chrome/common/extensions/api",
+      "//extensions:test_support",
+      "//extensions/browser",
+      "//extensions/common",
+    ]
+  }
 }
 
 source_set("interactive_ui_tests") {
@@ -90,9 +115,18 @@ source_set("interactive_ui_tests") {
     "//components/omnibox/browser:test_support",
     "//components/saved_tab_groups/public",
     "//components/saved_tab_groups/test_support",
-    "//content/test:test_support",
     "//ui/base",
     "//ui/compositor_extra",
     "//ui/views",
   ]
+  if (enable_extensions) {
+    deps += [
+      "//chrome/browser/extensions",
+      "//chrome/browser/extensions:test_support",
+      "//chrome/common/extensions/api",
+      "//extensions:test_support",
+      "//extensions/browser",
+      "//extensions/common",
+    ]
+  }
 }

@@ -14,6 +14,7 @@
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/passkey_credential.h"
 #include "components/password_manager/core/browser/password_form.h"
+#include "components/password_manager/core/browser/password_store/stored_credential.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
@@ -61,7 +62,7 @@ TEST(CredentialUIEntryTest, CredentialUIEntryFromFormRecoveryFlagOn) {
   form.url = GURL(form.signon_realm);
   form.blocked_by_user = false;
   form.username_value = kUsername;
-  form.password_value = kPassword;
+  form.password_value = PasswordString(std::u16string(kPassword));
   form.in_store = PasswordForm::Store::kProfileStore;
   form.SetPasswordBackupNote(kBackupPassword);
   auto backup_creation_timestamp = form.GetPasswordBackupDateCreated();
@@ -95,7 +96,7 @@ TEST(CredentialUIEntryTest,
   form.url = GURL(form.signon_realm);
   form.blocked_by_user = false;
   form.username_value = kUsername;
-  form.password_value = kPassword;
+  form.password_value = PasswordString(std::u16string(kPassword));
   form.SetNoteWithEmptyUniqueDisplayName(kNote);
   form.in_store = PasswordForm::Store::kProfileStore;
   forms.push_back(std::move(form));
@@ -106,7 +107,7 @@ TEST(CredentialUIEntryTest,
   form2.url = GURL(form2.signon_realm);
   form2.blocked_by_user = false;
   form2.username_value = kUsername;
-  form2.password_value = kPassword;
+  form2.password_value = PasswordString(std::u16string(kPassword));
   form2.SetNoteWithEmptyUniqueDisplayName(kNote);
   form2.in_store = PasswordForm::Store::kAccountStore;
   form2.SetPasswordBackupNote(kBackupPassword);
@@ -119,7 +120,7 @@ TEST(CredentialUIEntryTest,
   form3.url = GURL(form3.signon_realm);
   form3.blocked_by_user = false;
   form3.username_value = kUsername;
-  form3.password_value = kPassword;
+  form3.password_value = PasswordString(std::u16string(kPassword));
   form3.in_store = PasswordForm::Store::kAccountStore;
   forms.push_back(std::move(form3));
 
@@ -214,7 +215,7 @@ TEST(CredentialUIEntryTest,
     PasswordForm form;
     form.signon_realm = "https://g.com/";
     form.url = GURL(form.signon_realm);
-    form.password_value = u"pwd";
+    form.password_value = PasswordString(u"pwd");
     form.SetNoteWithEmptyUniqueDisplayName(kNote);
     forms.push_back(std::move(form));
   }
@@ -355,6 +356,59 @@ TEST(CredentialUIEntryTest, PasskeyDifferentSortKeyForDifferentDisplayName) {
   passkey2.user_display_name = u"Display Name 2";
 
   EXPECT_NE(CreateSortKey(passkey1), CreateSortKey(passkey2));
+}
+
+TEST(CredentialUIEntryTest, CredentialUIEntryFromStoredCredential) {
+  const std::u16string kUsername = u"storedUsername";
+  const std::u16string kPassword = u"storedPassword";
+  const std::u16string kNote = u"storedNote";
+
+  StoredCredential cred;
+  cred.app_display_name = "example.com";
+  cred.signon_realm = "https://example.com/";
+  cred.url = GURL(cred.signon_realm);
+  cred.username_value = kUsername;
+  cred.password_value = PasswordString(std::u16string(kPassword));
+  cred.SetPasswordNote(kNote);
+  cred.in_store = PasswordForm::Store::kProfileStore;
+
+  CredentialUIEntry entry(cred);
+
+  EXPECT_EQ(entry.username, kUsername);
+  EXPECT_EQ(entry.password, kPassword);
+  EXPECT_EQ(entry.note, kNote);
+  ASSERT_EQ(entry.facets.size(), 1u);
+  EXPECT_EQ(entry.facets[0].signon_realm, "https://example.com/");
+  EXPECT_TRUE(entry.stored_in.contains(PasswordForm::Store::kProfileStore));
+}
+
+TEST(CredentialUIEntryTest, CredentialUIEntryFromStoredCredentialsVector) {
+  StoredCredential cred1;
+  cred1.app_display_name = "example.com";
+  cred1.signon_realm = "https://example.com/";
+  cred1.url = GURL(cred1.signon_realm);
+  cred1.username_value = u"user";
+  cred1.password_value = PasswordString(std::u16string(u"pass"));
+  cred1.in_store = PasswordForm::Store::kProfileStore;
+
+  StoredCredential cred2;
+  cred2.app_display_name = "example2.com";
+  cred2.signon_realm = "https://example2.com/";
+  cred2.url = GURL(cred2.signon_realm);
+  cred2.username_value = u"user";
+  cred2.password_value = PasswordString(std::u16string(u"pass"));
+  cred2.in_store = PasswordForm::Store::kAccountStore;
+
+  std::vector<StoredCredential> creds;
+  creds.push_back(std::move(cred1));
+  creds.push_back(std::move(cred2));
+
+  CredentialUIEntry entry(creds);
+
+  EXPECT_EQ(entry.facets.size(), 2u);
+  EXPECT_EQ(entry.stored_in.size(), 2u);
+  EXPECT_TRUE(entry.stored_in.contains(PasswordForm::Store::kProfileStore));
+  EXPECT_TRUE(entry.stored_in.contains(PasswordForm::Store::kAccountStore));
 }
 
 }  // namespace password_manager

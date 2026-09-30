@@ -90,6 +90,11 @@ enum class KeepAliveOrigin {
 
   // c/b/ui/omnibox/omnibox_everywhere
   OMNIBOX_EVERYWHERE,
+  OMNIBOX_EVERYWHERE_UI,
+  OMNIBOX_EVERYWHERE_STARTUP,
+
+  // c/b/loader
+  FETCH_KEEPALIVE_REQUEST,
 };
 
 // Restart: Allow Chrome to restart when all the registered KeepAlives allow

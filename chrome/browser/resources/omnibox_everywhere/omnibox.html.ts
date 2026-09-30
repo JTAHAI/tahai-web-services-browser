@@ -15,7 +15,9 @@ export function getHtml(this: OmniboxEverywhereOmniboxElement) {
         @dragleave="${this.dragAndDropHandler.handleDragLeave}"
         @drop="${this.dragAndDropHandler.handleDrop}">
       <search-animated-glow
-        animation-state="${this.animationState}"
+        .animationState="${this.animationState}"
+        .energyEffectAnimationEnabled="${this.energyEffectAnimationEnabled_}"
+        .entrypointName="${this.entrypointName}"
         part="animated-glow">
       </search-animated-glow>
       <cr-searchbox-input id="input"
@@ -27,6 +29,7 @@ export function getHtml(this: OmniboxEverywhereOmniboxElement) {
           searchbox-aria-description="${this.searchboxAriaDescription}"
           searchbox-icon="${this.searchboxIcon_}"
           .selectedMatch="${this.selectedMatch}"
+          .inputKeywordModel="${this.inputKeywordModel}"
           ?input-has-matches="${this.hasMatches()}"
           ?allow-file-paste="${this.fileContextEnabled_}"
           @focusin="${this.onInputFocusin_}"
@@ -38,6 +41,9 @@ export function getHtml(this: OmniboxEverywhereOmniboxElement) {
           <cr-searchbox-compose-button id="composeButton" slot="compose-button"
               ?dynamic="${this.ntpRealboxDynamicAiModeButtonEnabled_}"
               ?has-user-input="${this.hasUserInput_}"
+              ?virtual-focus-enabled="${this.virtualFocusEnabled}"
+              ?has-virtual-focus="${this.isAiModeVirtualFocused()}"
+              ?dropdown-is-visible="${this.dropdownIsVisible}"
               @compose-click="${this.onComposeClick_}">
           </cr-searchbox-compose-button>
         ` :
@@ -48,10 +54,14 @@ export function getHtml(this: OmniboxEverywhereOmniboxElement) {
         <cr-searchbox-dropdown id="matches" part="searchbox-dropdown"
             exportparts="dropdown-content"
             role="listbox" .result="${this.result}"
+            .selection="${this.selection}"
+            .virtualFocusEnabled="${this.virtualFocusEnabled}"
+            @selection-changed="${this.onSelectionChanged}"
             .selectedMatchIndex="${this.selectedMatchIndex}"
             @selected-match-index-changed="${this.onSelectedMatchIndexChanged}"
             @match-focusin="${this.onMatchFocusin}"
             @match-click="${this.onMatchClick}"
+            @keyword-click="${this.onKeywordClick}"
             ?hidden="${!this.dropdownIsVisible}">
         </cr-searchbox-dropdown>
       </div>
@@ -66,13 +76,13 @@ export function getHtml(this: OmniboxEverywhereOmniboxElement) {
                   exportparts="context-menu-entrypoint-icon"
                   class="upload-button"
                   disable-auto-reposition
-                  .glifAnimationState="${this.contextMenuGlifAnimationState}"
                   .inputState="${this.inputState_}"
                   .searchboxLayoutMode="${this.searchboxLayoutMode}"
                   .tabSuggestions="${this.tabSuggestions_}"
                   .tabSuggestionsState="${this.tabSuggestionsState_}"
                   .contextManagementInComposeboxEnabled="${
       this.contextManagementInComposeboxEnabled}"
+                  unbounded-menu-enabled
                   @context-menu-entrypoint-click="${
       this.onContextMenuEntrypointClick_}"
                   @context-menu-opened="${this.onContextMenuOpened_}"
@@ -92,23 +102,23 @@ export function getHtml(this: OmniboxEverywhereOmniboxElement) {
         ` : ''}
         <div id="actionButtons">
           ${
-              this.showVoiceAndLensButtons_(
-                  this.searchboxVoiceSearchEnabled_) ?
-              html`
+              this.showVoiceSearchButton_() ? html`
           <div class="searchbox-icon-button-container voice">
             <button id="voiceSearchButton" class="searchbox-icon-button"
+                tabindex="${this.virtualFocusEnabled &&
+                    this.dropdownIsVisible ? -1 : 0}"
                 @click="${this.onVoiceSearchButtonClick_}"
                 title="${this.i18n('voiceSearchButtonLabel')}">
             </button>
           </div>
           ` :
               ''}
-          ${this.isFuseboxEnabled &&
-              this.showVoiceAndLensButtons_(
-                  this.searchboxLensSearchEnabled_) ?
-              html`
-          <div class="searchbox-icon-button-container lens">
+          ${this.showLensSearchButton_() ? html`
+          <div class="searchbox-icon-button-container lens ${
+              this.isScreenshotMenuOpen ? 'menu-open' : ''}">
             <button id="lensSearchButton" class="searchbox-icon-button"
+                tabindex="${this.virtualFocusEnabled &&
+                    this.dropdownIsVisible ? -1 : 0}"
                 @click="${this.onLensSearchClick_}"
                 title="${this.i18n('lensSearchButtonLabel')}">
             </button>

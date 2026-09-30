@@ -4,6 +4,9 @@
 
 #include "chrome/browser/ui/views/tabs/common/split_tab_view.h"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <limits>
 #include <vector>
 
@@ -18,6 +21,7 @@
 #include "chrome/browser/ui/views/tabs/hovercard/tab_hover_card_controller.h"
 #include "chrome/browser/ui/views/tabs/tab/glow_hover_controller.h"
 #include "components/tabs/public/tab_collection.h"
+#include "components/tabs/public/tab_collection_types.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/geometry/rect.h"
@@ -131,7 +135,10 @@ gfx::Size SplitTabView::GetMinimumSize() const {
     for (views::View* child : children()) {
       min_width += child->GetMinimumSize().width();
     }
-    return gfx::Size(min_width, GetLayoutConstant(LayoutConstant::kTabHeight));
+    const int tab_overlap = TabStyle::Get()->GetTabOverlap();
+    const int overlaps = std::max(0, static_cast<int>(children().size()) - 1);
+    return gfx::Size(std::max(0, min_width - tab_overlap * overlaps),
+                     TabStyle::Get()->GetStandardHeight());
   }
   return views::View::GetMinimumSize();
 }
@@ -188,7 +195,8 @@ void SplitTabView::ResetCollectionNode() {
 
 void SplitTabView::OnDataChanged() {
   const tabs::TabCollection* tab_collection =
-      std::get<const tabs::TabCollection*>(collection_node_->GetNodeData());
+      std::get<tabs::ConstDanglingUntriagedTabCollection>(
+          collection_node_->GetNodeData());
   const std::vector<tabs::TabInterface*> tabs =
       tab_collection->GetTabsRecursive();
   pinned_ = tabs[0]->IsPinned();
@@ -248,8 +256,14 @@ views::ProposedLayout SplitTabView::CalculateHorizontalLayout(
     return layouts;
   }
 
-  const int height = size_bounds.height().value_or(
-      GetLayoutConstant(LayoutConstant::kTabHeight));
+  const int height = TabStyle::Get()->GetStandardHeight();
+  // Preserve upstream's shared tab borders for every native pane count. Tiny
+  // bounded widths must not create negative positions or reverse pane order.
+  const int tab_overlap = size_bounds.width().is_bounded()
+      ? std::min(TabStyle::Get()->GetTabOverlap(),
+                 std::max(0, size_bounds.width().value()) /
+                     static_cast<int>(children.size() - 1u))
+      : TabStyle::Get()->GetTabOverlap();
 
   // Layout children horizontally side-by-side in order.
   int x = 0;
@@ -262,11 +276,17 @@ views::ProposedLayout SplitTabView::CalculateHorizontalLayout(
     // Fill available width evenly if bounded.
     if (size_bounds.width().is_bounded()) {
       const int width = std::max(0, size_bounds.width().value());
-      const int next_x = static_cast<int>(static_cast<int64_t>(width) *
-                                          (i + 1u) / children.size());
-      bounds.set_width(next_x - x);
+      const int64_t available_width = static_cast<int64_t>(width) +
+          tab_overlap * static_cast<int64_t>(children.size() - 1u);
+      const int64_t prior_width = available_width * i / children.size();
+      const int64_t next_width = available_width * (i + 1u) / children.size();
+      bounds.set_width(static_cast<int>(next_width - prior_width));
     }
-    x += bounds.width();
+    if (i < children.size() - 1) {
+      x += bounds.width() - tab_overlap;
+    } else {
+      x += bounds.width();
+    }
     layouts.child_layouts.emplace_back(child, child->GetVisible(), bounds);
   }
 

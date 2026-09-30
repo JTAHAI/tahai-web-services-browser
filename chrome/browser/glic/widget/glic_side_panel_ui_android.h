@@ -12,12 +12,15 @@
 #include "chrome/browser/glic/common/local_hotkey_manager.h"
 #include "chrome/browser/glic/host/context/glic_screenshot_capturer.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
+#include "chrome/browser/glic/host/glic_webui.mojom.h"
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/public/glic_side_panel_coordinator.h"
 #include "chrome/browser/glic/service/glic_ui_embedder.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "components/embedder_support/android/delegate/web_contents_delegate_android.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
+#include "content/public/browser/media_stream_request.h"
+#include "third_party/blink/public/mojom/mediastream/media_stream.mojom-forward.h"
 #include "ui/base/accelerators/accelerator.h"
 
 class BrowserWindowInterface;
@@ -35,6 +38,7 @@ class FileChooserParams;
 namespace content {
 class FileSelectListener;
 class RenderFrameHost;
+struct DropData;
 }  // namespace content
 
 namespace input {
@@ -61,7 +65,6 @@ class GlicSidePanelUi
   ~GlicSidePanelUi() override;
 
   // GlicUiEmbedder:
-  void OnClientReady() override;
   Host::EmbedderDelegate* GetHostEmbedderDelegate() override;
   void Show(const ShowOptions& options) override;
   void Close(const CloseOptions& options) override;
@@ -90,6 +93,21 @@ class GlicSidePanelUi
   void OnMicrophoneStatusChanged(mojom::MicrophoneStatus status) override {}
 
   // web_contents_delegate_android::WebContentsDelegateAndroid:
+  content::KeyboardEventProcessingResult PreHandleKeyboardEvent(
+      content::WebContents* source,
+      const input::NativeWebKeyboardEvent& event) override;
+  bool HandleKeyboardEvent(content::WebContents* source,
+                           const input::NativeWebKeyboardEvent& event) override;
+  bool CanDragEnter(content::WebContents* source,
+                    const content::DropData& data,
+                    blink::DragOperationsMask operations_allowed) override;
+  void RequestMediaAccessPermission(
+      content::WebContents* web_contents,
+      const content::MediaStreamRequest& request,
+      content::MediaResponseCallback callback) override;
+  bool CheckMediaAccessPermission(content::RenderFrameHost* render_frame_host,
+                                  const url::Origin& security_origin,
+                                  blink::mojom::MediaStreamType type) override;
   void RunFileChooser(content::RenderFrameHost* render_frame_host,
                       scoped_refptr<content::FileSelectListener> listener,
                       const blink::mojom::FileChooserParams& params) override;
@@ -108,7 +126,7 @@ class GlicSidePanelUi
   // LocalHotkeyManager::Panel:
   void FocusIfOpen() override;
   bool ActivateBrowser() override;
-  void Zoom(mojom::ZoomAction action) override;
+  void Zoom(mojom::ZoomAction action, ZoomSource source) override;
   BrowserWindowInterface* GetBrowserWindowInterface() override;
 
   PanelFocusDependentHotkeyManager*

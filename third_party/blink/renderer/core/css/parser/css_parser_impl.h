@@ -42,13 +42,14 @@ class StyleRuleFontFeature;
 class StyleRuleImport;
 class StyleRuleKeyframe;
 class StyleRuleKeyframes;
+class StyleRuleLocation;
 class StyleRuleMedia;
 class StyleRuleNamespace;
 class StyleRuleNavigation;
 class StyleRulePage;
 class StyleRulePositionTry;
 class StyleRuleProperty;
-class StyleRuleRoute;
+class StyleRulePrivate;
 class StyleRuleSupports;
 class StyleSheetContents;
 class Element;
@@ -82,7 +83,7 @@ class CORE_EXPORT CSSParserImpl {
           CSSAtRuleID::kCSSAtRulePage,
           CSSAtRuleID::kCSSAtRulePositionTry,
           CSSAtRuleID::kCSSAtRuleProperty,
-          CSSAtRuleID::kCSSAtRuleRoute,
+          CSSAtRuleID::kCSSAtRuleLocation,
           CSSAtRuleID::kCSSAtRuleNavigation,
           CSSAtRuleID::kCSSAtRuleContainer,
           CSSAtRuleID::kCSSAtRuleCounterStyle,
@@ -324,7 +325,7 @@ class CORE_EXPORT CSSParserImpl {
                                            CSSParserTokenStream&);
   StyleRulePage* ConsumePageRule(CSSParserTokenStream&);
   StyleRuleProperty* ConsumePropertyRule(CSSParserTokenStream&);
-  StyleRuleRoute* ConsumeRouteRule(CSSParserTokenStream&);
+  StyleRuleLocation* ConsumeLocationRule(CSSParserTokenStream&);
   StyleRuleNavigation* ConsumeNavigationRule(
       CSSParserTokenStream&,
       CSSNestingType,
@@ -348,6 +349,7 @@ class CORE_EXPORT CSSParserImpl {
   ConsumeFunctionParameters(CSSParserTokenStream& stream);
   StyleRuleMixin* ConsumeMixinRule(CSSParserTokenStream& stream);
   StyleRuleResult* ConsumeResultRule(CSSParserTokenStream& stream);
+  StyleRulePrivate* ConsumePrivateRule(CSSParserTokenStream& stream);
   StyleRuleApplyMixin* ConsumeApplyMixinRule(CSSParserTokenStream& stream);
   StyleRuleContentsStatement* ConsumeContentsRule(CSSParserTokenStream& stream);
   StyleRuleCustomMedia* ConsumeCustomMediaRule(CSSParserTokenStream& stream);

@@ -144,6 +144,10 @@ chromium-metrics-reviews@google.com.
   <int value="74"
       label="Pages with web locks in bfcache encountered a lock contention"/>
   <int value="75" label="Forward cache is disabled"/>
+  <int value="76" label="Rfh EnforceInsecureNavigationsSet"/>
+  <int value="77" label="Rfh EnforceInsecureRequestPolicy"/>
+  <int value="78" label="Rfh HadStickyUserActivationBeforeNavigationChanged"/>
+  <int value="79" label="Rfh UpdateIsAdFrame"/>
 </enum>
 
 <!-- LINT.ThenChange(//content/public/browser/back_forward_cache.h:NotRestoredReason) -->
@@ -334,9 +338,13 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="Omnibox Direct URL Input"/>
   <int value="4" label="Omnibox Default Search Engine"/>
   <int value="5" label="Link Click"/>
+  <int value="6" label="Forward"/>
+  <int value="7" label="Backward"/>
+  <int value="8" label="Reload"/>
+  <int value="9" label="Context Menu Search"/>
 </enum>
 
-<!-- LINT.ThenChange(//chrome/browser/page_load_metrics/chrome_initiator_location.h:NavigationInitiatorType) -->
+<!-- LINT.ThenChange(//chrome/browser/page_load_metrics/chrome_initiator_location.h:ChromeInitiatorLocation) -->
 
 <enum name="NavigationIsGuest">
   <int value="0" label="Not a guest navigation"/>
@@ -482,6 +490,7 @@ chromium-metrics-reviews@google.com.
   <int value="18" label="Captured Empty Bitmap From Embedder"/>
   <int value="19" label="Forward transition animation not supported"/>
   <int value="20" label="Failed read back"/>
+  <int value="21" label="Size Exceeds Limit"/>
 </enum>
 
 <!-- LINT.ThenChange(//content/browser/renderer_host/navigation_transitions/navigation_transition_data.h:CacheHitOrMissReason)-->

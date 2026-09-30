@@ -19,7 +19,6 @@ class AppMenu;
 class ActionAppMenu;
 class AppMenuButtonObserver;
 class AppMenuModel;
-class Browser;
 class BrowserWindowInterface;
 
 namespace views {
@@ -53,7 +52,7 @@ class AppMenuButton : public ToolbarButton, public AppMenuControl {
   void Focus(views::AccessiblePaneView* pane) override;
   void SetTypeAndSeverity(
       AppMenuIconController::TypeAndSeverity type_and_severity) override;
-  void SetTrailingMargin(int margin) override;
+  void SetIsMaximizedOrFullscreen(bool maximized_or_fullscreen) override;
   views::View* GetFocusablePaneView() override;
 
   views::MenuButtonController* menu_button_controller() const {
@@ -71,7 +70,7 @@ class AppMenuButton : public ToolbarButton, public AppMenuControl {
 
  protected:
   void RunMenu(std::unique_ptr<AppMenuModel> menu_model,
-               Browser* browser,
+               BrowserWindowInterface* browser,
                int run_flags);
   // Not using an AppMenuModel because the new Block Style menu hierarchy
   // is managed by the Actions framework.

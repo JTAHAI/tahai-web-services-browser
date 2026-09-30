@@ -18,6 +18,7 @@
 #include "base/test/bind.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/test/scoped_feature_list.h"
+#include "base/test/scoped_locale.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
 #include "build/build_config.h"
@@ -30,6 +31,7 @@
 #include "content/browser/file_system_access/mock_file_system_access_permission_grant.h"
 #include "content/public/browser/file_system_access_permission_context.h"
 #include "content/public/test/browser_task_environment.h"
+#include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "storage/browser/quota/quota_manager_proxy.h"
 #include "storage/browser/test/test_file_system_context.h"
@@ -41,6 +43,10 @@
 #include "third_party/blink/public/common/features_generated.h"
 #include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "url/gurl.h"
+
+#if BUILDFLAG(IS_ANDROID)
+#include "base/test/android/content_uri_test_utils.h"
+#endif
 
 namespace content {
 namespace {
@@ -471,6 +477,123 @@ TEST_F(FileSystemAccessDirectoryHandleImplTest, GetEntries_NoReadAccess) {
   EXPECT_TRUE(entries.empty());
 }
 
+TEST_F(FileSystemAccessDirectoryHandleImplTest, InvalidPathComponent) {
+  constexpr const char* kInvalidNames[] = {"", "..", "../a", "a/b", "a\\b"};
+  for (const char* name : kInvalidNames) {
+    SCOPED_TRACE(name);
+    {
+      base::test::TestFuture<
+          blink::mojom::FileSystemAccessErrorPtr,
+          mojo::PendingRemote<blink::mojom::FileSystemAccessFileHandle>>
+          future;
+      handle_->GetFile(name, /*create=*/false, future.GetCallback());
+      EXPECT_EQ(future.Get<0>()->status,
+                blink::mojom::FileSystemAccessStatus::kInvalidArgument);
+      EXPECT_FALSE(future.Get<1>().is_valid());
+    }
+    {
+      base::test::TestFuture<
+          blink::mojom::FileSystemAccessErrorPtr,
+          mojo::PendingRemote<blink::mojom::FileSystemAccessDirectoryHandle>>
+          future;
+      handle_->GetDirectory(name, /*create=*/false, future.GetCallback());
+      EXPECT_EQ(future.Get<0>()->status,
+                blink::mojom::FileSystemAccessStatus::kInvalidArgument);
+      EXPECT_FALSE(future.Get<1>().is_valid());
+    }
+    {
+      base::test::TestFuture<blink::mojom::FileSystemAccessErrorPtr> future;
+      handle_->RemoveEntry(name, /*recurse=*/false, future.GetCallback());
+      EXPECT_EQ(future.Get()->status,
+                blink::mojom::FileSystemAccessStatus::kInvalidArgument);
+    }
+  }
+}
+
+#if BUILDFLAG(IS_ANDROID)
+// Verifies that `GetFile`, `GetDirectory` and `RemoveEntry` reject names that
+// are not valid path components when the directory handle is backed by a
+// content URI.
+TEST_F(FileSystemAccessDirectoryHandleImplTest, ContentUri_InvalidName) {
+  std::optional<base::FilePath> content_uri =
+      base::test::android::GetInMemoryContentTreeUriFromCacheDirDirectory(
+          dir_.GetPath());
+  EXPECT_TRUE(content_uri.has_value());
+  if (!content_uri.has_value()) {
+    return;
+  }
+  EXPECT_TRUE(content_uri->IsContentUri());
+  if (!content_uri->IsContentUri()) {
+    return;
+  }
+  auto handle =
+      GetHandleWithPermissions(*content_uri, /*read=*/true, /*write=*/true);
+  EXPECT_TRUE(handle);
+  if (!handle) {
+    return;
+  }
+
+  constexpr const char* kInvalidNames[] = {"", "..", "../a", "a/b", "a\\b"};
+  for (const char* name : kInvalidNames) {
+    SCOPED_TRACE(name);
+    {
+      base::test::TestFuture<
+          blink::mojom::FileSystemAccessErrorPtr,
+          mojo::PendingRemote<blink::mojom::FileSystemAccessFileHandle>>
+          future;
+      handle->GetFile(name, /*create=*/false, future.GetCallback());
+      EXPECT_EQ(future.Get<0>()->status,
+                blink::mojom::FileSystemAccessStatus::kInvalidArgument);
+      EXPECT_FALSE(future.Get<1>().is_valid());
+    }
+    {
+      base::test::TestFuture<
+          blink::mojom::FileSystemAccessErrorPtr,
+          mojo::PendingRemote<blink::mojom::FileSystemAccessDirectoryHandle>>
+          future;
+      handle->GetDirectory(name, /*create=*/false, future.GetCallback());
+      EXPECT_EQ(future.Get<0>()->status,
+                blink::mojom::FileSystemAccessStatus::kInvalidArgument);
+      EXPECT_FALSE(future.Get<1>().is_valid());
+    }
+    {
+      base::test::TestFuture<blink::mojom::FileSystemAccessErrorPtr> future;
+      handle->RemoveEntry(name, /*recurse=*/false, future.GetCallback());
+      EXPECT_EQ(future.Get()->status,
+                blink::mojom::FileSystemAccessStatus::kInvalidArgument);
+    }
+  }
+}
+#endif  // BUILDFLAG(IS_ANDROID)
+
+// A write-only source directory handle (e.g. one whose read grant was revoked
+// by remove()) must not be moved into a directory the site can read.
+// See crbug.com/523741272.
+TEST_F(FileSystemAccessDirectoryHandleImplTest, MoveNoReadAccess) {
+  base::FilePath source_dir = dir_.GetPath().AppendASCII("source");
+  ASSERT_TRUE(base::CreateDirectory(source_dir));
+  base::FilePath dest_dir = dir_.GetPath().AppendASCII("dest");
+  ASSERT_TRUE(base::CreateDirectory(dest_dir));
+  base::FilePath moved_dir = dest_dir.AppendASCII("moved");
+
+  auto dest_dir_handle =
+      GetHandleWithPermissions(dest_dir, /*read=*/true, /*write=*/true);
+  auto handle =
+      GetHandleWithPermissions(source_dir, /*read=*/false, /*write=*/true);
+
+  mojo::PendingRemote<blink::mojom::FileSystemAccessTransferToken> dest_token;
+  manager_->CreateTransferToken(*dest_dir_handle,
+                                dest_token.InitWithNewPipeAndPassReceiver());
+
+  base::test::TestFuture<blink::mojom::FileSystemAccessErrorPtr> future;
+  handle->Move(std::move(dest_token), moved_dir.BaseName().AsUTF8Unsafe(),
+               future.GetCallback());
+  EXPECT_EQ(future.Get()->status,
+            blink::mojom::FileSystemAccessStatus::kPermissionDenied);
+  EXPECT_TRUE(base::DirectoryExists(source_dir));
+  EXPECT_FALSE(base::DirectoryExists(moved_dir));
+}
+
 // Tests for `FileSystemAccessDirectoryHandleImpl::Remove()`.
 class FileSystemAccessDirectoryHandleImplRemoveTest
     : public FileSystemAccessDirectoryHandleImplPermissionTestBase,
@@ -846,6 +969,80 @@ TEST_F(FileSystemAccessDirectoryHandleImplTest, GetChildURL_CustomBucket) {
   EXPECT_TRUE(file_url.bucket());
   EXPECT_EQ(file_url.bucket().value(), custom_bucket);
 }
+
+#if BUILDFLAG(IS_LINUX)
+TEST_F(FileSystemAccessDirectoryHandleImplTest,
+       GetChildURL_NonAsciiNameInCLocale) {
+  const base::FilePath parent_path("probe");
+  storage::FileSystemURL parent_url =
+      file_system_context_->CreateCrackedFileSystemURL(
+          test_src_storage_key_, storage::kFileSystemTypeTemporary,
+          parent_path);
+  parent_url.SetBucket(storage::BucketLocator(
+      storage::BucketId(1), test_src_storage_key_, /*is_default=*/true));
+  auto handle = std::make_unique<FileSystemAccessDirectoryHandleImpl>(
+      manager_.get(), kBindingContext, parent_url,
+      FileSystemAccessManagerImpl::SharedHandleState(allow_grant_,
+                                                     allow_grant_));
+
+  storage::FileSystemURL child_url;
+  {
+    base::ScopedLocale locale("C");
+    ASSERT_EQ(handle->GetChildURL("テスト用の本", &child_url)->file_error,
+              base::File::FILE_OK);
+  }
+  EXPECT_NE(child_url, parent_url);
+  EXPECT_EQ(child_url.virtual_path(), base::FilePath("probe/テスト用の本"));
+}
+
+TEST_F(FileSystemAccessDirectoryHandleImplTest,
+       GetEntries_PreservesNonAsciiOPFSName) {
+  constexpr char kDirectoryName[] = "テスト用の本";
+
+  storage::FileSystemURL root_url =
+      file_system_context_->CreateCrackedFileSystemURL(
+          test_src_storage_key_, storage::kFileSystemTypeTemporary,
+          base::FilePath());
+  root_url.SetBucket(storage::BucketLocator(
+      storage::BucketId(1), test_src_storage_key_, /*is_default=*/true));
+  auto handle = std::make_unique<FileSystemAccessDirectoryHandleImpl>(
+      manager_.get(), kBindingContext, root_url,
+      FileSystemAccessManagerImpl::SharedHandleState(allow_grant_,
+                                                     allow_grant_));
+
+  std::vector<blink::mojom::FileSystemAccessEntryPtr> entries;
+  blink::mojom::FileSystemAccessErrorPtr result;
+  {
+    base::ScopedLocale locale("C");
+
+    base::test::TestFuture<
+        blink::mojom::FileSystemAccessErrorPtr,
+        mojo::PendingRemote<blink::mojom::FileSystemAccessDirectoryHandle>>
+        create_future;
+    handle->GetDirectory(kDirectoryName, /*create=*/true,
+                         create_future.GetCallback());
+    ASSERT_EQ(create_future.Get<0>()->status,
+              blink::mojom::FileSystemAccessStatus::kOk);
+    ASSERT_TRUE(create_future.Get<1>().is_valid());
+
+    base::RunLoop loop;
+    mojo::PendingRemote<blink::mojom::FileSystemAccessDirectoryEntriesListener>
+        listener;
+    mojo::MakeSelfOwnedReceiver(
+        std::make_unique<TestFileSystemAccessDirectoryEntriesListener>(
+            &entries, &result, loop.QuitClosure()),
+        listener.InitWithNewPipeAndPassReceiver());
+    handle->GetEntries(std::move(listener));
+    loop.Run();
+  }
+
+  ASSERT_TRUE(result);
+  ASSERT_EQ(result->status, blink::mojom::FileSystemAccessStatus::kOk);
+  ASSERT_EQ(entries.size(), 1u);
+  ASSERT_TRUE(entries[0]->entry_handle->is_directory());
+  EXPECT_EQ(entries[0]->name, kDirectoryName);
+}
+#endif  // BUILDFLAG(IS_LINUX)
 
 // Tests for `FileSystemAccessDirectoryHandleImpl::GetPermissionStatus()`.
 class FileSystemAccessDirectoryHandleImplGetPermissionStatusTest

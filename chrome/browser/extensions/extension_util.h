@@ -103,12 +103,10 @@ bool AreExtensionsDisabled(const base::CommandLine& command_line,
 // main extensions page.
 GURL GetExtensionsPageUrl(const ExtensionId& extension_id);
 
-// Returns true if the extension with the given ID is allowed to use MojoJS
-// bindings.
-bool IsMojoJsEnabledForExtension(const ExtensionId& extension_id,
+// Returns true if `extension` is allowed to use MojoJS bindings.
+bool IsMojoJsEnabledForExtension(const Extension* extension,
                                  content::BrowserContext* context);
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 // Represents the type of settings override configured by the extension.
 // DSE = Default Search Engine.
 // NTP = New Tab Page.
@@ -117,10 +115,27 @@ enum class DseNtpOverrideType {
   kDse = 1,
   kNtp = 2,
   kBoth = 3,
+  kMaxValue = kBoth,
 };
 
+constexpr bool IsValidDseNtpOverrideType(int value) {
+  return value >= static_cast<int>(DseNtpOverrideType::kNone) &&
+         value <= static_cast<int>(DseNtpOverrideType::kMaxValue);
+}
+
 DseNtpOverrideType GetDseNtpOverrideType(const Extension& extension);
-#endif
+
+// Sources from which the CWS write review dialog can be launched.
+enum class CWSReviewSource {
+  kExtensionsMenu,
+  kExtensionsPage,
+  kContextMenu,
+};
+
+// Returns the URL to the Chrome Web Store's write review dialog for a specific
+// `extension_id` and `source`.
+GURL GetCWSWritingReviewUrl(const ExtensionId& extension_id,
+                            CWSReviewSource source);
 
 }  // namespace util
 }  // namespace extensions

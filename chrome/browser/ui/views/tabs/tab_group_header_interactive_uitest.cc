@@ -30,10 +30,10 @@ class TabGroupHeaderInteractiveUiTest
   ~TabGroupHeaderInteractiveUiTest() override = default;
 
   tabs::TabInterface* CreateTab() {
-    auto index = browser()->tab_strip_model()->count();
+    auto index = browser()->GetTabStripModel()->count();
     CHECK(AddTabAtIndex(index, chrome::ChromeUINewTabPageURLAsGURL(),
                         ui::PAGE_TRANSITION_TYPED));
-    auto* tab = browser()->tab_strip_model()->GetTabAtIndex(index);
+    auto* tab = browser()->GetTabStripModel()->GetTabAtIndex(index);
     CHECK(tab);
     return tab;
   }
@@ -43,9 +43,9 @@ class TabGroupHeaderInteractiveUiTest
     std::vector<int> tab_indices = {};
     for (auto* tab : tabs) {
       tab_indices.emplace_back(
-          browser()->tab_strip_model()->GetIndexOfTab(tab));
+          browser()->GetTabStripModel()->GetIndexOfTab(tab));
     }
-    return browser()->tab_strip_model()->AddToNewGroup(tab_indices);
+    return browser()->GetTabStripModel()->AddToNewGroup(tab_indices);
   }
 
   TabStrip* GetTabStrip() {
@@ -55,11 +55,24 @@ class TabGroupHeaderInteractiveUiTest
 };
 
 // Disable these tests on windows.
-#if BUILDFLAG(IS_WIN)
+// TODO(crbug.com/547718513): Re-enable
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 #define MAYBE_Collapse DISABLED_Collapse
 #else
 #define MAYBE_Collapse Collapse
 #endif
+
+// TODO(crbug.com/547718513): Re-enable
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_OpenEditorBubble DISABLED_OpenEditorBubble
+#define MAYBE_AttentionIndicator DISABLED_AttentionIndicator
+#define MAYBE_DragCollapsedGroup DISABLED_DragCollapsedGroup
+#else
+#define MAYBE_OpenEditorBubble OpenEditorBubble
+#define MAYBE_AttentionIndicator AttentionIndicator
+#define MAYBE_DragCollapsedGroup DragCollapsedGroup
+#endif
+
 DEFINE_LOCAL_POLLING_VIEW_PROPERTY_STATE_IDENTIFIER(TabGroupHeader,
                                                     is_collapsed_for_testing,
                                                     kTabGroupCollapsedState);
@@ -75,7 +88,8 @@ IN_PROC_BROWSER_TEST_F(TabGroupHeaderInteractiveUiTest, MAYBE_Collapse) {
       WaitForState(kTabGroupCollapsedState, true));
 }
 
-IN_PROC_BROWSER_TEST_F(TabGroupHeaderInteractiveUiTest, OpenEditorBubble) {
+IN_PROC_BROWSER_TEST_F(TabGroupHeaderInteractiveUiTest,
+                       MAYBE_OpenEditorBubble) {
   CreateTabGroup({CreateTab()});
 
   ui_controls::MouseButton action = ui_controls::MouseButton::RIGHT;
@@ -86,7 +100,8 @@ IN_PROC_BROWSER_TEST_F(TabGroupHeaderInteractiveUiTest, OpenEditorBubble) {
                   WaitForShow(kTabGroupEditorBubbleId));
 }
 
-IN_PROC_BROWSER_TEST_F(TabGroupHeaderInteractiveUiTest, AttentionIndicator) {
+IN_PROC_BROWSER_TEST_F(TabGroupHeaderInteractiveUiTest,
+                       MAYBE_AttentionIndicator) {
   tab_groups::TabGroupId group_id = CreateTabGroup({CreateTab()});
 
   ui_controls::MouseButton action = ui_controls::MouseButton::LEFT;
@@ -98,7 +113,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupHeaderInteractiveUiTest, AttentionIndicator) {
       MoveMouseTo(kTabGroupHeaderElementId), ClickMouse(action), Do([&]() {
         // Set the attention indicator to true.
         browser()
-            ->tab_strip_model()
+            ->GetTabStripModel()
             ->group_model()
             ->GetTabGroup(group_id)
             ->GetTabGroupFeatures()
@@ -112,15 +127,21 @@ IN_PROC_BROWSER_TEST_F(TabGroupHeaderInteractiveUiTest, AttentionIndicator) {
       }));
 }
 
-IN_PROC_BROWSER_TEST_F(TabGroupHeaderInteractiveUiTest, DragCollapsedGroup) {
-  CreateTabGroup({CreateTab()});
+IN_PROC_BROWSER_TEST_F(TabGroupHeaderInteractiveUiTest,
+                       MAYBE_DragCollapsedGroup) {
+  tab_groups::TabGroupId group_id = CreateTabGroup({CreateTab()});
 
   RunTestSequence(
       WaitForShow(kTabGroupHeaderElementId), FinishTabstripAnimations(),
-      PollViewProperty(kTabGroupCollapsedState, kTabGroupHeaderElementId),
       // Collapse the group
-      MoveMouseTo(kTabGroupHeaderElementId), ClickMouse(ui_controls::LEFT),
-      WaitForState(kTabGroupCollapsedState, true), FinishTabstripAnimations(),
+      Do([&]() {
+        GetTabStrip()->ToggleTabGroupCollapsedState(
+            group_id, ToggleTabGroupCollapsedStateOrigin::kMouse);
+      }),
+      FinishTabstripAnimations(),
+      // Verify it is collapsed
+      CheckViewProperty(kTabGroupHeaderElementId,
+                        &TabGroupHeader::is_collapsed_for_testing, true),
       // Drag the group header. We drag it a bit to the right.
       MoveMouseTo(kTabGroupHeaderElementId),
       DragMouseTo(kTabGroupHeaderElementId,

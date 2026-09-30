@@ -16,6 +16,7 @@
 
 #include "base/check_op.h"
 #include "base/debug/crash_logging.h"
+#include "base/feature_list.h"
 #include "base/memory/ptr_util.h"
 #include "base/numerics/checked_math.h"
 #include "base/numerics/safe_conversions.h"
@@ -33,6 +34,7 @@
 #include "components/viz/common/frame_sinks/copy_output_request.h"
 #include "ui/gfx/geometry/outsets_f.h"
 #include "ui/gfx/geometry/point_conversions.h"
+#include "ui/gfx/geometry/rrect_f.h"
 #include "ui/gfx/geometry/transform_util.h"
 #include "ui/gfx/geometry/vector2d.h"
 #include "ui/gfx/geometry/vector2d_conversions.h"
@@ -79,7 +81,8 @@ TransformTree::TransformTree(PropertyTrees* property_trees)
     : PropertyTree<TransformNode>(property_trees),
       page_scale_factor_(1.f),
       device_scale_factor_(1.f),
-      device_transform_scale_factor_(1.f) {
+      device_transform_scale_factor_(1.f),
+      external_page_scale_factor_(1.f) {
   cached_data_.push_back(TransformCachedNodeData());
 }
 
@@ -173,6 +176,7 @@ void TransformTree::clear() {
   page_scale_factor_ = 1.f;
   device_scale_factor_ = 1.f;
   device_transform_scale_factor_ = 1.f;
+  external_page_scale_factor_ = 1.f;
   nodes_affected_by_outer_viewport_bounds_delta_.clear();
   nodes_affected_by_safe_area_inset_bottom_.clear();
   cached_data_.clear();
@@ -255,6 +259,7 @@ void TransformTree::CopyFromPreservingNodes(const TransformTree& other) {
   page_scale_factor_ = other.page_scale_factor_;
   device_scale_factor_ = other.device_scale_factor_;
   device_transform_scale_factor_ = other.device_transform_scale_factor_;
+  external_page_scale_factor_ = other.external_page_scale_factor_;
   nodes_affected_by_outer_viewport_bounds_delta_ =
       other.nodes_affected_by_outer_viewport_bounds_delta_;
   nodes_affected_by_safe_area_inset_bottom_ =
@@ -650,6 +655,18 @@ gfx::Vector2dF TransformTree::AnchorPositionOffset(
   // anchor position in chrome ui.
   CHECK(update_data);
 
+  auto get_transformed_offset = [&](gfx::Vector2dF offset,
+                                    int container_transform_id) {
+    if (offset.IsZero()) {
+      return offset;
+    }
+    gfx::Transform mapper = ToScreen(container_transform_id);
+    mapper.PostConcat(FromScreen(node.parent_id));
+    gfx::PointF transformed_offset =
+        mapper.MapPoint(gfx::PointF(offset.x(), offset.y()));
+    return transformed_offset - mapper.MapPoint(gfx::PointF());
+  };
+
   gfx::Vector2dF accumulated_offset(0, 0);
   for (ElementId container_id : data->adjustment_container_ids) {
     int container_transform_id = kInvalidNodeId;
@@ -661,20 +678,22 @@ gfx::Vector2dF TransformTree::AnchorPositionOffset(
       // We don't ever expect that an anchor node or any of its scrolling
       // containers should have an invalid transform_id.
       DCHECK(container_transform_id != kInvalidPropertyNodeId);
-      accumulated_offset += transform_node.scroll_offset().OffsetFromOrigin();
+      accumulated_offset += get_transformed_offset(
+          transform_node.scroll_offset().OffsetFromOrigin(),
+          transform_node.parent_id);
       // TODO(crbug.com/325613705): Should we consider snap_amount here?
     } else if (TransformNode* container_transform =
                    property_trees()
                        ->transform_tree_mutable()
                        .MutableFindNodeFromElementId(container_id)) {
       container_transform_id = container_transform->id;
-      accumulated_offset -= StickyPositionOffset(*container_transform);
-      // Adjust for chained anchor positioned offset. Note that "-=" here is
-      // different from the blink version in anchor_position_scroll_data.cc
-      // because AnchorPositionOffset() is the opposite of
-      // blink::AnchorPositionScrollData::AccmulatedOffset().
-      accumulated_offset -= AnchorPositionOffset(
+      gfx::Vector2dF adjustment = StickyPositionOffset(*container_transform);
+      // Adjust for chained anchor positioned offset.
+      adjustment += AnchorPositionOffset(
           *container_transform, max_updated_node_id, update_data, visited);
+
+      accumulated_offset -=
+          get_transformed_offset(adjustment, container_transform_id);
     }
     if (container_transform_id > max_updated_node_id) {
       // The adjustment depends on a later transform node that may contain
@@ -1074,6 +1093,7 @@ bool TransformTree::operator==(const TransformTree& other) const {
          device_scale_factor_ == other.device_scale_factor() &&
          device_transform_scale_factor_ ==
              other.device_transform_scale_factor() &&
+         external_page_scale_factor_ == other.external_page_scale_factor() &&
          nodes_affected_by_outer_viewport_bounds_delta_ ==
              other.nodes_affected_by_outer_viewport_bounds_delta() &&
          cached_data_ == other.cached_data() &&
@@ -1263,6 +1283,23 @@ void EffectTree::UpdateSurfaceContentsScale(EffectNode* effect_node) {
   const gfx::Vector2dF old_scale = effect_node->surface_contents_scale;
   effect_node->surface_contents_scale = gfx::ComputeTransform2dScaleComponents(
       transform_tree.ToScreen(transform_node.id), layer_scale_factor);
+
+  // external_page_scale_factor is the embedder's magnification of this OOPIF
+  // (like page_scale_factor for the main frame): it raises raster/backing
+  // resolution, not on-screen geometry. surface_contents_scale is a backing
+  // resolution too, so scaling it here only sharpens the effect surface's
+  // backing without changing where or how large it draws. Do this for non-root
+  // effect surfaces (mirroring PictureLayerImpl::UpdateIdealScales) so their
+  // backing matches raster density; otherwise the crisp tiles are downsampled
+  // into an un-magnified backing and upsampled when composited, blurring text.
+  // The root surface is left un-magnified: it defines the OOPIF's submitted
+  // frame size, which the embedder magnifies.
+  if (effect_node->id != kContentsRootPropertyNodeId &&
+      base::FeatureList::IsEnabled(
+          features::kSizeOopifEffectSurfacesAtExternalScale)) {
+    effect_node->surface_contents_scale.Scale(
+        transform_tree.external_page_scale_factor());
+  }
 
   // To avoid seams we apply only scale as draw transform instead of raster
   // content transform.
@@ -1630,6 +1667,105 @@ bool EffectTree::ClippedHitTestRegionIsRectangle(int effect_id) const {
   return true;
 }
 
+EffectTree::RoundedCornersHitTestInfo EffectTree::GetRoundedCornersForHitTest(
+    int effect_tree_index,
+    int transform_tree_index,
+    const gfx::RectF& hit_test_rect_in_transform_space) const {
+  RoundedCornersHitTestInfo result;
+  // Track if we cross a render surface boundary while traversing the effect
+  // tree. Cross-surface traversal introduces additional complexity that we do
+  // not support for hit testing with rounded corners.
+  bool crossed_render_surface_boundary = false;
+  bool found_rounded_corner_mask = false;
+  int rounded_corner_transform_id = kInvalidPropertyNodeId;
+  gfx::RRectF rounded_corner_bounds;
+
+  for (int id = effect_tree_index; id != kContentsRootPropertyNodeId;
+       id = Node(id).parent_id) {
+    const EffectNode& effect_node = Node(id);
+    if (effect_node.has_masking_child) {
+      // A masking child can apply alpha geometry beyond rounded corners. For
+      // example, a kDstIn child for a star shaped mask would be a non-rounded
+      // mask shape.
+      return {/*requires_async_hit_test=*/true};
+    }
+
+    if (!effect_node.mask_filter_info.IsEmpty()) {
+      if (crossed_render_surface_boundary ||
+          effect_node.mask_filter_info.HasGradientMask()) {
+        return {/*requires_async_hit_test=*/true};
+      }
+      // Clearing rounded corners can retain non-empty mask bounds on an
+      // existing effect node, fall back to async to maintain existing behavior.
+      // TODO(crbug.com/553479922): We should be able to remove this check in
+      // one of two ways: a) eliminate this as a potential MaskFilterInfo state
+      // or b) handle the remaining mask rect as a clip and then support it as
+      // synchronous hit testing in viz.
+      if (!effect_node.mask_filter_info.HasRoundedCorners()) {
+        return {/*requires_async_hit_test=*/true};
+      }
+
+      // The HitTestRegion transform maps input points into
+      // `transform_tree_index`'s space. It does not carry a separate
+      // transform from an ancestor mask's space into that hit-test space, so
+      // only use rounded corners whose bounds are already expressed in the
+      // same transform node's space.
+      int used_transform_id = effect_node.transform_id;
+      if (effect_node.mask_filter_info.clip_id()) {
+        const ClipNode& clip_node = property_trees()->clip_tree().Node(
+            effect_node.mask_filter_info.clip_id().value());
+        used_transform_id = clip_node.transform_id;
+      }
+      if (used_transform_id != transform_tree_index) {
+        return {/*requires_async_hit_test=*/true};
+      }
+
+      const gfx::RRectF& current_rounded_corner_bounds =
+          effect_node.mask_filter_info.rounded_corner_bounds();
+
+      // As the rounded corners are offsets relative to the hit-test rect, the
+      // bounds of the rounded corners source rect must match to avoid changing
+      // the shape of the hit-test region when applying the rounded corners.
+      if (current_rounded_corner_bounds.rect() !=
+          hit_test_rect_in_transform_space) {
+        return {/*requires_async_hit_test=*/true};
+      }
+
+      if (found_rounded_corner_mask) {
+        // We only support a single set of rounded corners for hit testing
+        // unless the 2nd+ set of rounded corners is coincident.
+        if (used_transform_id != rounded_corner_transform_id ||
+            current_rounded_corner_bounds != rounded_corner_bounds) {
+          return {/*requires_async_hit_test=*/true};
+        }
+      } else {
+        found_rounded_corner_mask = true;
+        rounded_corner_transform_id = used_transform_id;
+        rounded_corner_bounds = current_rounded_corner_bounds;
+        result.corner_radii = RoundedCornersHitTestInfo::CornerRadii{
+            current_rounded_corner_bounds.GetCornerRadii(
+                gfx::RRectF::Corner::kUpperLeft),
+            current_rounded_corner_bounds.GetCornerRadii(
+                gfx::RRectF::Corner::kUpperRight),
+            current_rounded_corner_bounds.GetCornerRadii(
+                gfx::RRectF::Corner::kLowerRight),
+            current_rounded_corner_bounds.GetCornerRadii(
+                gfx::RRectF::Corner::kLowerLeft)};
+      }
+    }
+
+    // Crossing a render surface boundary increases the set of concerns that
+    // need to be evaluated to safely apply rounded border clipping in viz. We
+    // do not support this to keep the overall complexity down while enabling
+    // common scenarios.
+    if (effect_node.HasRenderSurface()) {
+      crossed_render_surface_boundary = true;
+    }
+  }
+
+  return result;
+}
+
 bool EffectTree::HitTestMayBeAffectedByMask(int effect_id) const {
   for (int id = effect_id; id != kContentsRootPropertyNodeId;
        id = Node(id).parent_id) {
@@ -1753,29 +1889,17 @@ void ScrollTree::CopyCompleteTreeState(const ScrollTree& other) {
 
 bool ScrollTree::CanRealizeScrollsOnActiveTree(const ScrollNode& node) const {
   return node.transform_id != kInvalidPropertyNodeId && node.is_composited &&
-         GetMainThreadRepaintReasons(node) ==
-             MainThreadScrollingReason::kNotScrollingOnMain;
+         node.main_thread_repaint_reasons.empty();
 }
 
 bool ScrollTree::CanRealizeScrollsOnPendingTree(const ScrollNode& node) const {
   return node.transform_id != kInvalidPropertyNodeId && !node.is_composited &&
-         GetMainThreadRepaintReasons(node) ==
-             MainThreadScrollingReason::kNotScrollingOnMain;
+         node.main_thread_repaint_reasons.empty();
 }
 
 bool ScrollTree::ShouldRealizeScrollsOnMain(const ScrollNode& node) const {
   return node.transform_id != kInvalidPropertyNodeId &&
-         GetMainThreadRepaintReasons(node) !=
-             MainThreadScrollingReason::kNotScrollingOnMain;
-}
-
-uint32_t ScrollTree::GetMainThreadRepaintReasons(const ScrollNode& node) const {
-  uint32_t reasons = node.main_thread_repaint_reasons;
-  if (!MainThreadScrollingReason::AreRepaintReasons(reasons)) {
-    SCOPED_CRASH_KEY_NUMBER("NotRepaint", "reasons", reasons);
-    NOTREACHED();
-  }
-  return reasons;
+         !node.main_thread_repaint_reasons.empty();
 }
 
 void ScrollTree::clear() {

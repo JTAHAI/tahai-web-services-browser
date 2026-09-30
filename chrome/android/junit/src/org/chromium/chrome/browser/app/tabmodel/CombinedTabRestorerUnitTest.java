@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -17,10 +18,13 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.tab.StorageLoadedData;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.chrome.browser.tabmodel.TabOrchestratorType;
+import org.chromium.components.browser_ui.notifications.NotificationProxyUtils;
 
 /** Unit tests for {@link CombinedTabRestorer}. */
 @RunWith(BaseRobolectricTestRunner.class)
@@ -36,31 +40,41 @@ public class CombinedTabRestorerUnitTest {
 
     @Before
     public void setUp() {
+        NotificationProxyUtils.setNotificationEnabledForTest(false);
         when(mStorageLoadedData.getLoadedTabStates())
                 .thenReturn(new StorageLoadedData.LoadedTabState[0]);
+    }
+
+    @After
+    public void tearDown() {
+        NotificationProxyUtils.setNotificationEnabledForTest(null);
     }
 
     private CombinedTabRestorer createRestorer(
             boolean restoreIncognitoTabs, boolean restoreRegularTabs) {
         return new CombinedTabRestorer(
+                TabOrchestratorType.TABBED,
                 restoreIncognitoTabs,
                 restoreRegularTabs,
                 mDelegate,
                 mTabCreatorManager,
-                () -> null,
+                SupplierUtils.ofNull(),
                 mTabModelSelector,
                 /* logRestoreDuration= */ false,
-                /* isFromRecreating= */ false);
+                /* isFromRecreating= */ false,
+                /* isAuthoritative= */ true);
     }
 
     @Test
     public void testRestoreNone() {
-        mRestorer = createRestorer(/* restoreIncognitoTabs= */ false, /* restoreRegularTabs= */ false);
+        mRestorer =
+                createRestorer(/* restoreIncognitoTabs= */ false, /* restoreRegularTabs= */ false);
     }
 
     @Test
     public void testRestoreOnlyIncognito() {
-        mRestorer = createRestorer(/* restoreIncognitoTabs= */ true, /* restoreRegularTabs= */ false);
+        mRestorer =
+                createRestorer(/* restoreIncognitoTabs= */ true, /* restoreRegularTabs= */ false);
 
         mRestorer.onDataLoaded(mStorageLoadedData, /* incognito= */ true);
 
@@ -69,7 +83,8 @@ public class CombinedTabRestorerUnitTest {
 
     @Test
     public void testRestoreOnlyRegular() {
-        mRestorer = createRestorer(/* restoreIncognitoTabs= */ false, /* restoreRegularTabs= */ true);
+        mRestorer =
+                createRestorer(/* restoreIncognitoTabs= */ false, /* restoreRegularTabs= */ true);
 
         mRestorer.onDataLoaded(mStorageLoadedData, /* incognito= */ false);
 
@@ -78,7 +93,8 @@ public class CombinedTabRestorerUnitTest {
 
     @Test
     public void testRestoreBoth() {
-        mRestorer = createRestorer(/* restoreIncognitoTabs= */ true, /* restoreRegularTabs= */ true);
+        mRestorer =
+                createRestorer(/* restoreIncognitoTabs= */ true, /* restoreRegularTabs= */ true);
 
         mRestorer.onDataLoaded(mStorageLoadedData, /* incognito= */ false);
         verify(mDelegate, never()).onLoadFinished(/* loadedTabCount= */ anyInt());

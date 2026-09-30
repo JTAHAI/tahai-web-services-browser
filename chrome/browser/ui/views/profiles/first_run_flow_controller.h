@@ -113,9 +113,9 @@ class FirstRunFlowController : public ProfileManagementFlowControllerImpl {
  private:
   bool is_feature_showcase_eligible() const;
 
-  void HandleIntroSigninChoice(IntroChoice choice);
+  void OnWelcomeCompleted();
 
-  void PlaySignInCelebrationSound();
+  void HandleIntroSigninChoice(IntroChoice choice);
 
   void StartBrowsing();
 
@@ -130,10 +130,6 @@ class FirstRunFlowController : public ProfileManagementFlowControllerImpl {
 
   void ToggleFeatureShowcaseAmbientSound(bool active);
 
-  void PlayFeatureShowcaseProgressSound();
-
-  void PlayAllSetSound();
-
   bool AreEffectsEnabled() const;
 
   void MaybeTriggerHatsSurvey();
@@ -141,8 +137,14 @@ class FirstRunFlowController : public ProfileManagementFlowControllerImpl {
   void OnFlowFinished(PostHostClearedCallback post_host_cleared_callback);
   void OnFinishOrContinueChoice(FinishOrContinueChoice choice);
 
+  void PlaySound(audio::SoundsManager::SoundKey sound_key);
+
+  void RegisterAndSwitchToIntroStep(bool effects_button_shown_by_default);
+
   const raw_ptr<Profile> profile_;
   ProfilePicker::FirstRunExitedCallback first_run_exited_callback_;
+  ProfilePicker::FirstRunFinishReason finish_reason_ =
+      ProfilePicker::FirstRunFinishReason::kFinishedFlow;
 
   FinishOrContinueChoice finish_or_continue_choice_ =
       FinishOrContinueChoice::kStartBrowsing;

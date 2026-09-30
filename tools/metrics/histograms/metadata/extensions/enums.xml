@@ -96,31 +96,17 @@ chromium-metrics-reviews@google.com.
   <int value="2" label="Other MainFrame Redirects"/>
 </enum>
 
+<enum name="DefaultPinnedExtensionState">
+  <int value="0" label="Pinned"/>
+  <int value="1" label="Unpinned"/>
+</enum>
+
 <enum name="ExtensionActionInvocationSource">
   <int value="0" label="Keyboard Shortcut"/>
   <int value="1" label="Toolbar Button"/>
   <int value="2" label="Extensions Menu Entry"/>
   <int value="3" label="Legacy Overflow Menu Entry"/>
   <int value="4" label="Programmatic API Call"/>
-</enum>
-
-<enum name="ExtensionAlarmsNameLength">
-  <int value="0" label="Up to 10"/>
-  <int value="1" label="From 11 to 25"/>
-  <int value="2" label="From 26 to 50"/>
-  <int value="3" label="From 51 to 75"/>
-  <int value="4" label="From 76 to 100"/>
-  <int value="5" label="From 101 to 125"/>
-  <int value="6" label="From 126 to 250"/>
-  <int value="7" label="From 251 to 500"/>
-  <int value="8" label="From 501 to 1000"/>
-  <int value="9" label="From 1001 to 2000"/>
-  <int value="10" label="From 2001 to 5000"/>
-  <int value="11" label="From 5001 to 10K"/>
-  <int value="12" label="From 10K+1 to 100K"/>
-  <int value="13" label="From 100K+1 to 1M"/>
-  <int value="14" label="From 1M+1 to 100M"/>
-  <int value="15" label="Over 100M"/>
 </enum>
 
 <enum name="ExtensionAllowlistOmahaAttributeValue">
@@ -153,6 +139,7 @@ chromium-metrics-reviews@google.com.
   <int value="13" label="kViewWebPermissions"/>
   <int value="14" label="kPolicyInstalled"/>
   <int value="15" label="kToggleSidePanelVisibility"/>
+  <int value="16" label="kRateExtension"/>
 </enum>
 
 <enum name="ExtensionDisableReason">
@@ -806,7 +793,7 @@ Called by update_extension_histograms.py.-->
   <int value="566"
       label="ENTERPRISE_REPORTING_PRIVATE_ON_DATA_MASKING_RULES_TRIGGERED"/>
   <int value="567"
-      label="PASSWORDS_PRIVATE_ON_SHOULD_SHOW_ACCOUNT_STORAGE_SETTING_TOGGLE_CHANGED"/>
+      label="DELETED_PASSWORDS_PRIVATE_ON_SHOULD_SHOW_ACCOUNT_STORAGE_SETTING_TOGGLE_CHANGED"/>
   <int value="568" label="PDF_VIEWER_PRIVATE_ON_SAVE_TO_DRIVE_PROGRESS"/>
   <int value="569" label="SIDE_PANEL_ON_OPENED"/>
   <int value="570" label="SIDE_PANEL_ON_CLOSED"/>
@@ -2314,7 +2301,7 @@ Called by update_extension_histograms.py.-->
   <int value="1415" label="TERMINALPRIVATE_GETSETTINGS"/>
   <int value="1416" label="TERMINALPRIVATE_SETSETTINGS"/>
   <int value="1417" label="DELETED_WEBSTOREPRIVATE_REQUESTEXTENSION"/>
-  <int value="1418" label="AUTOTESTPRIVATE_INSTALLPLUGINVM"/>
+  <int value="1418" label="DELETED_AUTOTESTPRIVATE_INSTALLPLUGINVM"/>
   <int value="1419" label="CRASHREPORTPRIVATE_REPORTERROR"/>
   <int value="1420" label="AUTOTESTPRIVATE_SETMETRICSENABLED"/>
   <int value="1421" label="ENTERPRISEREPORTINGPRIVATE_GETPERSISTENTSECRET"/>
@@ -2370,8 +2357,8 @@ Called by update_extension_histograms.py.-->
   <int value="1471" label="DECLARATIVENETREQUEST_UPDATEENABLEDRULESETS"/>
   <int value="1472" label="DECLARATIVENETREQUEST_GETENABLEDRULESETS"/>
   <int value="1473" label="TERMINALPRIVATE_OPENWINDOW"/>
-  <int value="1474" label="AUTOTESTPRIVATE_SETPLUGINVMPOLICY"/>
-  <int value="1475" label="AUTOTESTPRIVATE_SHOWPLUGINVMINSTALLER"/>
+  <int value="1474" label="DELETED_AUTOTESTPRIVATE_SETPLUGINVMPOLICY"/>
+  <int value="1475" label="DELETED_AUTOTESTPRIVATE_SHOWPLUGINVMINSTALLER"/>
   <int value="1476" label="DELETED_PASSWORDSPRIVATE_REMOVESAVEDPASSWORDS"/>
   <int value="1477" label="DELETED_PASSWORDSPRIVATE_REMOVEPASSWORDEXCEPTIONS"/>
   <int value="1478" label="AUTOTESTPRIVATE_WAITFORAMBIENTPHOTOANIMATION"/>
@@ -2919,8 +2906,13 @@ Called by update_extension_histograms.py.-->
   <int value="1975" label="CONTEXTUALTASKSPRIVATE_LAUNCHPANELINNEWTAB"/>
   <int value="1976" label="DICTATIONPRIVATE_UPDATETRANSCRIPTION"/>
   <int value="1977" label="DICTATIONPRIVATE_SETSTREAMSTATE"/>
-  <int value="1978" label="WEBREQUESTINTERNAL_EVENTHANDLINGDONE"/>
+  <int value="1978" label="DELETED_WEBREQUESTINTERNAL_EVENTHANDLINGDONE"/>
   <int value="1979" label="DICTATIONPRIVATE_UPDATEAUDIOLEVEL"/>
+  <int value="1980"
+      label="ENTERPRISEREPORTINGPRIVATE_REPORTFORCESAVETOCLOUDEVENTHANDLED"/>
+  <int value="1981" label="AUTOFILLPRIVATE_FETCHUSERDATAPROCESSINGCONSENT"/>
+  <int value="1982" label="DEVELOPERPRIVATE_OPENREVIEWPAGE"/>
+  <int value="1983" label="TABS_CREATESPLIT"/>
 </enum>
 
 <!-- LINT.ThenChange(//extensions/browser/extension_function_histogram_value.h:HistogramValue) -->
@@ -3314,6 +3306,7 @@ Called by update_extension_permission.py.-->
   <int value="270" label="kBluetoothSocket"/>
   <int value="271" label="kBluetoothLowEnergy"/>
   <int value="272" label="kBluetoothPeripheral"/>
+  <int value="273" label="kPublicSuffix"/>
 </enum>
 
 <enum name="ExtensionPinReason">
@@ -3337,6 +3330,14 @@ Called by update_extension_permission.py.-->
   </int>
   <int value="4" label="Not pinned (No action)">
     The extension does not have a toolbar action, so pinning is not applicable.
+  </int>
+  <int value="5" label="Not pinned (Enterprise extension)">
+    The extension was not pinned by default because it is an
+    enterprise-installed extension.
+  </int>
+  <int value="6" label="Not pinned (Installed from sync)">
+    The extension was not pinned by default because it was installed via Chrome
+    Sync.
   </int>
 </enum>
 
@@ -3588,6 +3589,14 @@ Called by update_extension_permission.py.-->
   <int value="2" label="Re-enabled by user"/>
   <int value="3" label="Other (e.g. disabled for another reason)"/>
   <int value="4" label="Hard-disabled by Chrome"/>
+</enum>
+
+<enum name="NativeMessagingAndroidDisconnectionReason">
+  <int value="0" label="CleanUnbind"/>
+  <int value="1" label="ServiceDisconnected"/>
+  <int value="2" label="BindingDied"/>
+  <int value="3" label="NullBinding"/>
+  <int value="4" label="ServiceConnectionTimedOut"/>
 </enum>
 
 <enum name="OpenChannelMessagePipelineResult">

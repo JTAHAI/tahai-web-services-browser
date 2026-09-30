@@ -26,6 +26,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/api/passwords_private/passwords_private_event_router.h"
 #include "chrome/browser/extensions/api/passwords_private/passwords_private_utils.h"
+#include "chrome/browser/password_manager/password_change/features.h"
 #include "chrome/common/extensions/api/passwords_private.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/affiliations/core/browser/affiliation_utils.h"
@@ -202,6 +203,8 @@ std::vector<api::passwords_private::CompromiseType> GetCompromiseType(
   return types;
 }
 
+}  // namespace
+
 api::passwords_private::CompromisedInfo CreateCompromiseInfo(
     const CredentialUIEntry& credential) {
   api::passwords_private::CompromisedInfo compromise_info;
@@ -217,8 +220,6 @@ api::passwords_private::CompromisedInfo CreateCompromiseInfo(
   compromise_info.compromise_types = GetCompromiseType(credential);
   return compromise_info;
 }
-
-}  // namespace
 
 PasswordCheckDelegate::PasswordCheckDelegate(
     PrefService* prefs,
@@ -523,7 +524,7 @@ PasswordCheckDelegate::ConstructInsecureCredentialUiEntry(
   }
   api_credential.is_automatic_password_change_supported =
       base::FeatureList::IsEnabled(
-          password_manager::features::kPasswordCheckupPrototype);
+          password_change::features::kPasswordChangeWithGlic);
 
   CredentialUIEntry copy(std::move(entry));
   // Weak and reused flags should be cleaned before obtaining id. Otherwise

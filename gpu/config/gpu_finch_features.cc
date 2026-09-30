@@ -109,6 +109,11 @@ void InitSkiaGraphiteFeatureParams(const base::Feature* feature) {
           g_skia_graphite_feature_params
               .flush_d3d11_tile_raster_commands_to_driver)
           .Get();
+  g_skia_graphite_feature_params.triple_buffered_dcomp_root_surface =
+      base::FeatureParam<bool>(
+          feature, "triple_buffered_dcomp_root_surface",
+          g_skia_graphite_feature_params.triple_buffered_dcomp_root_surface)
+          .Get();
 #endif
 
   GetGraphiteParamsInitFlag().Set();
@@ -141,7 +146,7 @@ BASE_FEATURE(kAndroidSurfaceControl, base::FEATURE_ENABLED_BY_DEFAULT);
 // Hardware Overlays for WebView.
 BASE_FEATURE(kWebViewSurfaceControl, base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kWebViewSurfaceControlForTV, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kWebViewSurfaceControlForTV, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // This is used as default state because it's different for webview and chrome.
 // WebView hardcodes this as enabled in AwMainDelegate.
@@ -172,7 +177,7 @@ const base::FeatureParam<std::string>
     kRelaxLimitAImageReaderMaxSizeToOneManufacturerBlocklist{
         &kRelaxLimitAImageReaderMaxSizeToOne,
         "RelaxLimitAImageReaderMaxSizeToOneManufacturerBlocklist",
-        "*Broadcom*"};
+        "*Broadcom*|*Google*"};
 const base::FeatureParam<std::string>
     kRelaxLimitAImageReaderMaxSizeToOneDeviceBlocklist{
         &kRelaxLimitAImageReaderMaxSizeToOne,
@@ -398,6 +403,17 @@ BASE_FEATURE(kUseDynamicBackingAllocations, base::FEATURE_DISABLED_BY_DEFAULT);
 // scoped_refptr to SharedImageInterface, instead of the raw_ptr as used in
 // SharedImageInterfaceHolder.
 BASE_FEATURE(kUseStrongRefToSharedImageInterface,
+#if BUILDFLAG(IS_CHROMEOS)
+             base::FEATURE_DISABLED_BY_DEFAULT
+#else
+             base::FEATURE_ENABLED_BY_DEFAULT
+#endif
+);
+
+// When enabled, this feature lets ClientSharedImage handle all SyncToken
+// management (i.e. generation, waiting and storing) internally. All SyncTokens
+// that clients obtain from ClientSharedImage will be empty in this situation.
+BASE_FEATURE(kUseAutomaticSyncTokenManagement,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Enable atlasing of small paths on Skia Graphite. Only meaningful if
@@ -434,6 +450,10 @@ bool SkiaGraphiteUsesPersistentCache() {
   return base::FeatureList::IsEnabled(kSkiaGraphiteUsePersistentCache);
 }
 
+// Enables switching Graphite from the sort-based draw ordering to the
+// layer-based system.
+BASE_FEATURE(kSkiaGraphiteDrawListLayer, base::FEATURE_DISABLED_BY_DEFAULT);
+
 BASE_FEATURE(kConditionallySkipGpuChannelFlush,
 // To enable on ChromeOS, test failures must be investigated
 // (crrev.com/c/5435673).
@@ -455,10 +475,6 @@ void InitSkiaGraphiteDefaultParamsForTesting() {
 
 const base::FeatureParam<int> kSkiaGraphiteMinPathSizeForMsaa{
     &kSkiaGraphiteSmallPathAtlas, "min_path_size_for_msaa", 0};
-
-#if BUILDFLAG(IS_WIN)
-BASE_FEATURE(kSkiaGraphiteDawnUseD3D12, base::FEATURE_DISABLED_BY_DEFAULT);
-#endif
 
 // Whether to use the GpuPersistentCache for caching GPU process shader blobs.
 // Usage for Graphite is controlled independently with
@@ -489,13 +505,6 @@ BASE_FEATURE(kPruneOldTransferCacheEntries, base::FEATURE_ENABLED_BY_DEFAULT);
 BASE_FEATURE(kDeferredOverlaysRelease,
              "DeferredOverlayRelease",
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Use d3d11 UpdateSubresource() (instead of a staging texture) to upload pixels
-// to textures.
-#if BUILDFLAG(IS_WIN)
-BASE_FEATURE(kD3DBackingUploadWithUpdateSubresource,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-#endif
 
 // This feature allows enabling specific entries in
 // software_rendering_list.json, via experimentation. The entries must have
@@ -704,13 +713,6 @@ bool ShouldEnableDrDc() {
                       kDrDcBlockListByAndroidBuildFP.Get())) {
     return false;
   }
-
-  // Chrome on Android desktop aims to be Vulkan-only, which can result
-  // in crashes when enabled together with DrDc. Re-enable DrDc after
-  // crbug.com/380295059 is fixed if it is shown beneficial on desktop.
-  if (base::android::device_info::is_desktop()) {
-    return false;
-  }
 #endif
 
   return base::FeatureList::IsEnabled(kEnableDrDc);
@@ -850,7 +852,7 @@ bool IncreaseBufferCountForHighFrameRate() {
   // of buffers. So these checks, espeically the RAM one, is to limit the impact
   // of more buffers to devices that can handle them.
   // 8GB of ram with large margin for error.
-  constexpr base::ByteSize RAM_8GB_CUTOFF = base::MiBU(7200);
+  constexpr base::ByteSize RAM_8GB_CUTOFF = base::MiB(7200);
   static bool increase =
       base::android::android_info::sdk_int() >=
           base::android::android_info::SDK_VERSION_R &&
@@ -875,10 +877,6 @@ bool IsSyncPointGraphValidationEnabled() {
 }
 
 BASE_FEATURE(kANGLEPerContextBlobCache, base::FEATURE_DISABLED_BY_DEFAULT);
-
-#if BUILDFLAG(IS_APPLE)
-BASE_FEATURE(kIOSurfaceMultiThreading, base::FEATURE_ENABLED_BY_DEFAULT);
-#endif
 
 // Support thread safety for graphite::context by sharing the same
 // graphite::context as well as its wrapper class GraphiteSharedContext between

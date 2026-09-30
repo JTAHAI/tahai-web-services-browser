@@ -243,11 +243,6 @@ struct StructTraits<autofill::mojom::FormFieldDataDataView,
     return r.is_autofilled_according_to_renderer();
   }
 
-  static autofill::FormFieldData::CheckStatus check_status(
-      const autofill::FormFieldData& r) {
-    return r.check_status();
-  }
-
   static bool is_focusable(const autofill::FormFieldData& r) {
     return r.is_focusable();
   }
@@ -606,7 +601,7 @@ struct StructTraits<autofill::mojom::PasswordFormFillDataDataView,
     return r.wait_for_username;
   }
 
-  static std::vector<autofill::FieldRendererId> suggestion_banned_fields(
+  static const std::vector<autofill::FieldRendererId>& suggestion_banned_fields(
       const autofill::PasswordFormFillData& r) {
     return r.suggestion_banned_fields;
   }

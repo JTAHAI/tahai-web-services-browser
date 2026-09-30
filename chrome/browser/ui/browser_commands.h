@@ -213,24 +213,24 @@ enum class TahaiTriViewLayout {
 };
 
 bool OpenTahaiDualView(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     TahaiDualViewLayout layout = TahaiDualViewLayout::kSideBySide);
 bool OpenTahaiTriView(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     TahaiTriViewLayout layout = TahaiTriViewLayout::kTwoOverOne);
-bool OpenTahaiQuadView(Browser* browser);
-bool SetTahaiMultiViewFocusMode(Browser* browser, bool enabled);
-bool IsTahaiMultiViewFocusMode(const Browser* browser);
-bool ExitTahaiMultiView(Browser* browser);
-bool IsTahaiMultiView(const Browser* browser);
-bool IsTahaiDualView(const Browser* browser);
-bool IsTahaiTriView(const Browser* browser);
-bool IsTahaiQuadView(const Browser* browser);
+bool OpenTahaiQuadView(BrowserWindowInterface* browser);
+bool SetTahaiMultiViewFocusMode(BrowserWindowInterface* browser, bool enabled);
+bool IsTahaiMultiViewFocusMode(const BrowserWindowInterface* browser);
+bool ExitTahaiMultiView(BrowserWindowInterface* browser);
+bool IsTahaiMultiView(const BrowserWindowInterface* browser);
+bool IsTahaiDualView(const BrowserWindowInterface* browser);
+bool IsTahaiTriView(const BrowserWindowInterface* browser);
+bool IsTahaiQuadView(const BrowserWindowInterface* browser);
 
 // Compatibility wrappers retained for existing Quad View callers.
-bool SetTahaiQuadFocusMode(Browser* browser, bool enabled);
-bool ExitTahaiQuadView(Browser* browser);
-bool IsTahaiQuadFocusMode(const Browser* browser);
+bool SetTahaiQuadFocusMode(BrowserWindowInterface* browser, bool enabled);
+bool ExitTahaiQuadView(BrowserWindowInterface* browser);
+bool IsTahaiQuadFocusMode(const BrowserWindowInterface* browser);
 
 // Tab group commands
 // These values are persisted to logs. Entries should not be renumbered
@@ -267,7 +267,8 @@ bool CanGroupAllUngroupedTabs(BrowserWindowInterface* browser);
 // Creates a new tab at the end of the group which last had the active tab.
 void AddNewTabToRecentGroup(BrowserWindowInterface* browser);
 // Unfocuses the currently focused tab group, if any.
-void UnfocusTabGroup(BrowserWindowInterface* browser);
+void UnfocusTabGroup(BrowserWindowInterface* browser,
+                     TabGroupFocusExitReason exit_reason);
 
 void MuteSiteForKeyboardFocusedTab(BrowserWindowInterface* browser);
 bool HasKeyboardFocusedTab(const BrowserWindowInterface* browser);
@@ -333,6 +334,7 @@ void FindInPage(BrowserWindowInterface* browser,
 void ShowTabSearch(BrowserWindowInterface* browser);
 void CloseTabSearch(BrowserWindowInterface* browser);
 void ToggleTabSearchPin(BrowserWindowInterface* browser);
+void ToggleTabScrollButtonsPin(BrowserWindowInterface* browser);
 void ToggleContextualTasksSidePanel(BrowserWindowInterface* browser);
 void ToggleContextualTasksSidePanelZeroState(BrowserWindowInterface* browser);
 void ToggleVerticalTabs(BrowserWindowInterface* browser);

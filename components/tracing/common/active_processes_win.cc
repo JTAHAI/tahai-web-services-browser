@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "absl/container/flat_hash_map.h"
 #include "base/base_paths.h"
 #include "base/command_line.h"
 #include "base/path_service.h"
@@ -42,6 +43,19 @@ bool IsSameOrParent(const base::FilePath& one, const base::FilePath& two) {
 
 }  // namespace
 
+ActiveProcesses::Image::Image(base::FilePath path,
+                              uint64_t base_address,
+                              uint64_t size,
+                              std::optional<std::string> debug_id)
+    : path_(std::move(path)),
+      base_address_(base_address),
+      size_(size),
+      debug_id_(debug_id) {}
+
+ActiveProcesses::Image::Image() = default;
+ActiveProcesses::Image::Image(const Image& other) = default;
+ActiveProcesses::Image::~Image() = default;
+
 ActiveProcesses::Process::Process(uint32_t pid,
                                   uint32_t parent_pid,
                                   uint32_t session_id,
@@ -58,9 +72,12 @@ ActiveProcesses::Process::Process(uint32_t pid,
 
 ActiveProcesses::Process::~Process() = default;
 
-ActiveProcesses::ActiveProcesses(base::ProcessId client_pid)
+ActiveProcesses::ActiveProcesses(
+    base::ProcessId client_pid,
+    absl::flat_hash_map<base::FilePath, std::string> known_debug_ids)
     : client_pid_(client_pid),
-      application_dir_(DetermineApplicationDirectory()) {
+      application_dir_(DetermineApplicationDirectory()),
+      known_debug_ids_(std::move(known_debug_ids)) {
   DETACH_FROM_SEQUENCE(sequence_checker_);
 }
 
@@ -212,6 +229,61 @@ void ActiveProcesses::RemoveThread(uint32_t pid, uint32_t tid) {
   threads_.erase(iter);
 }
 
+void ActiveProcesses::AddLoadedImage(uint32_t pid,
+                                     uint64_t base_address,
+                                     uint64_t size,
+                                     base::FilePath path) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  auto iter = processes_.find(pid);
+  if (iter == processes_.end()) {
+    // Cannot track the address space of a process that is unknown. Its start
+    // event must have been lost.
+    return;
+  }
+  std::optional<std::string> debug_id;
+  const auto debug_id_iter = known_debug_ids_.find(path);
+  if (debug_id_iter != known_debug_ids_.end()) {
+    debug_id = debug_id_iter->second;
+  }
+  const Image image(std::move(path), base_address, size, debug_id);
+  iter->second.loaded_images.insert_or_assign(base_address, std::move(image));
+}
+
+void ActiveProcesses::RemoveLoadedImage(uint32_t pid,
+                                        uint64_t base_address,
+                                        uint64_t size,
+                                        base::FilePath path) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  auto iter = processes_.find(pid);
+  if (iter == processes_.end()) {
+    // Cannot track the address space of a process that is unknown. Its start
+    // event must have been lost.
+    return;
+  }
+  iter->second.loaded_images.erase(base_address);
+}
+
+std::optional<ActiveProcesses::Image> ActiveProcesses::GetImageForAddress(
+    uint32_t pid,
+    uint64_t address) {
+  auto iter = processes_.find(pid);
+  if (iter == processes_.end()) {
+    return std::nullopt;
+  }
+  const auto& loaded_images = iter->second.loaded_images;
+  auto upper_bound_iter = loaded_images.upper_bound(address);
+  if (upper_bound_iter != loaded_images.begin()) {
+    // Find the image with the highest base address that's below `address`, and
+    // return it if `address` is within its address range.
+    const auto& image = (upper_bound_iter - 1)->second;
+    if (address - image.base_address_ < image.size_) {
+      return image;
+    }
+  }
+  // An image containing `address` was not found.
+  return std::nullopt;
+}
+
 ActiveProcesses::Category ActiveProcesses::GetThreadCategory(
     uint32_t tid) const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -220,6 +292,13 @@ ActiveProcesses::Category ActiveProcesses::GetThreadCategory(
     return iter->second.second->category;
   }
   return Category::kOther;
+}
+
+ActiveProcesses::Category ActiveProcesses::GetProcessCategory(
+    uint32_t pid) const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  const auto iter = processes_.find(pid);
+  return iter != processes_.end() ? iter->second.category : Category::kOther;
 }
 
 std::wstring_view ActiveProcesses::GetThreadName(uint32_t tid) const {

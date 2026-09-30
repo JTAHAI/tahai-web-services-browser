@@ -154,54 +154,6 @@ TEST_F(MatchedPropertiesCacheTest, EnsuredInDisplayNone) {
   EXPECT_TRUE(cache.Find(key1, style, *ensured_parent));
 }
 
-TEST_F(MatchedPropertiesCacheTest, EnsuredOutsideFlatTree) {
-  TestCache cache(GetDocument());
-
-  const auto& style = InitialStyle();
-  const auto& parent = InitialStyle();
-  auto builder = CreateStyleBuilder();
-  builder.SetIsEnsuredOutsideFlatTree();
-  const auto* ensured_style = builder.TakeStyle();
-
-  TestKey key1("display:block", 1, GetDocument());
-  StyleRecalcContext context;
-  context.is_outside_flat_tree = true;
-
-  cache.Add(key1, *ensured_style, parent);
-  EXPECT_FALSE(cache.Find(key1, style, parent));
-  EXPECT_TRUE(cache.Find(key1, *ensured_style, parent, nullptr, &context));
-
-  cache.Add(key1, style, parent);
-  EXPECT_TRUE(cache.Find(key1, style, parent));
-  EXPECT_TRUE(cache.Find(key1, *ensured_style, parent, nullptr, &context));
-}
-
-TEST_F(MatchedPropertiesCacheTest, EnsuredOutsideFlatTreeAndDisplayNone) {
-  TestCache cache(GetDocument());
-
-  const auto& parent = InitialStyle();
-  const auto& style = InitialStyle();
-
-  auto builder = CreateStyleBuilder();
-  builder.SetIsEnsuredInDisplayNone();
-  const auto* parent_none = builder.TakeStyle();
-
-  builder = CreateStyleBuilder();
-  builder.SetIsEnsuredOutsideFlatTree();
-  const auto* style_flat = builder.TakeStyle();
-
-  StyleRecalcContext context;
-  context.is_outside_flat_tree = true;
-
-  TestKey key1("display:block", 1, GetDocument());
-
-  cache.Add(key1, style, *parent_none);
-  EXPECT_TRUE(cache.Find(key1, *style_flat, parent, nullptr, &context));
-
-  cache.Add(key1, *style_flat, parent);
-  EXPECT_TRUE(cache.Find(key1, style, *parent_none, nullptr, &context));
-}
-
 TEST_F(MatchedPropertiesCacheTest, WritingModeDependency) {
   TestCache cache(GetDocument());
 
@@ -339,6 +291,34 @@ TEST_F(MatchedPropertiesCacheTest, HighlightStyleGetsVariablesFromOriginating) {
                           kPseudoIdHighlight));
   EXPECT_FALSE(cache.Find(key, *style_a, *parent_b, originating_b, nullptr,
                           kPseudoIdHighlight));
+}
+
+TEST_F(MatchedPropertiesCacheTest,
+       NonInheritedDependencyWithExplicitInheritance) {
+  TestCache cache(GetDocument());
+
+  auto parent_builder_a = CreateStyleBuilder();
+  parent_builder_a.SetOpacity(0.5f);
+  auto parent_builder_b = CreateStyleBuilder();
+  parent_builder_b.SetOpacity(0.8f);
+
+  const auto* parent_a = parent_builder_a.TakeStyle();
+  const auto* parent_b = parent_builder_b.TakeStyle();
+
+  EXPECT_NE(parent_a->Opacity(), parent_b->Opacity());
+
+  auto child_builder = CreateStyleBuilder();
+  child_builder.SetHasExplicitInheritance();
+  const auto* child_style = child_builder.TakeStyle();
+
+  EXPECT_TRUE(child_style->HasExplicitInheritance());
+
+  TestKey key("opacity:inherit", 1, GetDocument());
+
+  cache.Add(key, *child_style, *parent_a);
+
+  EXPECT_TRUE(cache.Find(key, *child_style, *parent_a));
+  EXPECT_FALSE(cache.Find(key, *child_style, *parent_b));
 }
 
 }  // namespace blink

@@ -83,6 +83,7 @@ TestRenderFrameHost::TestRenderFrameHost(
     const blink::LocalFrameToken& frame_token,
     const blink::DocumentToken& document_token,
     base::UnguessableToken devtools_frame_token,
+    const base::UnguessableToken& initiator_state_token,
     RenderFrameHostImpl::LifecycleStateImpl lifecycle_state,
     scoped_refptr<BrowsingContextState> browsing_context_state)
     : RenderFrameHostImpl(site_instance,
@@ -95,6 +96,7 @@ TestRenderFrameHost::TestRenderFrameHost(
                           frame_token,
                           document_token,
                           devtools_frame_token,
+                          initiator_state_token,
                           /*renderer_initiated_creation_of_main_frame=*/false,
                           lifecycle_state,
                           browsing_context_state,
@@ -206,7 +208,7 @@ TestRenderFrameHost* TestRenderFrameHost::AppendChildWithPolicy(
       CreateStubAssociatedInterfaceProviderReceiver(),
       blink::mojom::TreeScopeType::kDocument, frame_name, frame_unique_name,
       false, blink::LocalFrameToken(), base::UnguessableToken::Create(),
-      blink::DocumentToken(),
+      blink::DocumentToken(), base::UnguessableToken::Create(),
       blink::FramePolicy({network::mojom::WebSandboxFlags::kNone,
                           allow,
                           {},
@@ -276,6 +278,14 @@ void TestRenderFrameHost::SimulateUserActivation() {
   std::ignore = frame_tree_node()->UpdateUserActivationState(
       blink::mojom::UserActivationUpdateType::kNotifyActivation,
       blink::mojom::UserActivationNotificationType::kTest);
+}
+
+void TestRenderFrameHost::SimulateFocusedElementChanged(
+    bool is_editable_element,
+    bool is_richly_editable_element) {
+  FocusedElementChanged(is_editable_element, is_richly_editable_element,
+                        gfx::Rect(), blink::mojom::FocusType::kNone,
+                        blink::DOMNodeIdType());
 }
 
 const std::vector<std::string>& TestRenderFrameHost::GetConsoleMessages() {
@@ -475,8 +485,10 @@ void TestRenderFrameHost::SendRendererInitiatedNavigationRequest(
 
   blink::mojom::BeginNavigationParamsPtr begin_params =
       blink::mojom::BeginNavigationParams::New(
-          std::nullopt /* initiator_frame_token */, std::string() /* headers */,
-          net::LOAD_NORMAL, false /* skip_service_worker */,
+          std::nullopt /* initiator_frame_token */,
+          current_initiator_state_token(), GetDocumentToken(),
+          std::string() /* headers */, net::LOAD_NORMAL,
+          false /* skip_service_worker */,
           blink::mojom::RequestContextType::HYPERLINK,
           blink::mojom::MixedContentContextType::kBlockable,
           false /* is_form_submission */,

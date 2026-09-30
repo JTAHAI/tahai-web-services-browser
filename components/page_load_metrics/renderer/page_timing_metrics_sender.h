@@ -70,7 +70,12 @@ class PageTimingMetricsSender {
   void DidObserveNewFeatureUsage(const blink::UseCounterFeature& feature);
   void DidObserveSoftNavigation(
       blink::SoftNavigationMetricsForReporting metrics);
-  void DidObserveLayoutShift(double score, bool after_input_or_scroll);
+  void DidObserveSoftNavigationFirstContentfulPaint(
+      uint64_t performance_timeline_navigation_id,
+      base::TimeDelta first_contentful_paint);
+  void DidObserveLayoutShift(double score,
+                             bool after_input_or_scroll,
+                             uint64_t performance_timeline_navigation_id);
 
   void DidStartResponse(const url::SchemeHostPort& final_response_url,
                         int resource_id,
@@ -96,7 +101,8 @@ class PageTimingMetricsSender {
                                  base::TimeTicks max_event_processing_start,
                                  base::TimeTicks max_event_commit_finish,
                                  base::TimeTicks max_event_end,
-                                 uint64_t interaction_offset);
+                                 uint64_t interaction_offset,
+                                 uint64_t performance_timeline_navigation_id);
   // Updates the timing information. Buffers |timing| to be sent over mojo
   // sometime 'soon'.
   void Update(

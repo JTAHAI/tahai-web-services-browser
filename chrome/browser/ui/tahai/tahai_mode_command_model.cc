@@ -6,16 +6,15 @@
 #include <algorithm>
 #include <map>
 
-#include "base/no_destructor.h"
-#include "base/json/json_writer.h"
 #include "base/containers/span.h"
+#include "base/json/json_writer.h"
+#include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
-
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tahai/tahai_operational_skin_controller.h"
 #include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
 #include "crypto/sha2.h"
@@ -122,8 +121,10 @@ std::optional<std::u16string_view> GetOperationalCommandLabel(int command_id) {
   }
 }
 
-std::optional<WindowModeActionSet> ResolveOperationalWindowActions(Browser* browser) {
-  if (!browser || !browser->is_type_normal() ||
+std::optional<WindowModeActionSet> ResolveOperationalWindowActions(
+    BrowserWindowInterface* browser) {
+  if (!browser ||
+      !(browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
       !browser->GetProfile()->IsRegularProfile() ||
       browser->GetProfile()->IsOffTheRecord()) {
     return std::nullopt;
@@ -134,7 +135,7 @@ std::optional<WindowModeActionSet> ResolveOperationalWindowActions(Browser* brow
     return std::nullopt;
   }
   WindowModeActionSet result;
-  result.context.browser = browser->AsWeakPtr();
+  result.context.browser = browser->GetWeakPtr();
   result.context.custom_mode_id = controller->active_custom_mode_id();
   result.context.operational_mode_id = controller->active_operational_mode_id();
   if (!result.context.custom_mode_id.empty()) {
@@ -216,7 +217,7 @@ std::optional<WindowModeActionSet> ResolveOperationalWindowActions(Browser* brow
   return result;
 }
 
-bool CanExecuteWindowModeAction(Browser* browser,
+bool CanExecuteWindowModeAction(BrowserWindowInterface* browser,
                                 const WindowModeActionContext& context,
                                 int command_id) {
   if (!browser || context.browser.get() != browser) {
@@ -233,7 +234,7 @@ bool CanExecuteWindowModeAction(Browser* browser,
          }) && chrome::IsCommandEnabled(browser, command_id);
 }
 
-bool ExecuteWindowModeAction(Browser* browser,
+bool ExecuteWindowModeAction(BrowserWindowInterface* browser,
                              const WindowModeActionContext& context,
                              int command_id) {
   return CanExecuteWindowModeAction(browser, context, command_id) &&

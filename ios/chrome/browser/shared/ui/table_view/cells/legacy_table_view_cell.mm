@@ -37,7 +37,7 @@ const CGFloat kTableViewCustomSeparatorHeight = 0.5;
           constraintEqualToAnchor:self.trailingAnchor],
       [_customSeparator.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
       [_customSeparator.heightAnchor
-          constraintEqualToConstant:AlignValueToPixel(
+          constraintEqualToConstant:AlignValueToLowerPixel(
                                         kTableViewCustomSeparatorHeight)],
       [_customSeparator.leadingAnchor
           constraintEqualToAnchor:self.leadingAnchor
@@ -97,6 +97,17 @@ const CGFloat kTableViewCustomSeparatorHeight = 0.5;
     accessibilityTraits |= UIAccessibilityTraitNotEnabled;
   }
   return accessibilityTraits;
+}
+
+- (NSString*)accessibilityValue {
+  if (self.contentView.accessibilityValue) {
+    return self.contentView.accessibilityValue;
+  }
+  NSObject* contentConfiguration = self.contentConfiguration;
+  if (contentConfiguration.accessibilityValue) {
+    return contentConfiguration.accessibilityValue;
+  }
+  return [super accessibilityValue];
 }
 
 - (NSArray<NSString*>*)accessibilityUserInputLabels {

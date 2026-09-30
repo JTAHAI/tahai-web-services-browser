@@ -13,6 +13,7 @@ import androidx.annotation.IntDef;
 import com.google.android.gms.location.Priority;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ResettersForTesting;
 import org.chromium.base.SysUtils;
 import org.chromium.base.TimeUtils;
 import org.chromium.base.metrics.RecordHistogram;
@@ -88,10 +89,15 @@ public class OmniboxFeatures {
                     OmniboxFeatureList.OMNIBOX_TOUCH_DOWN_TRIGGER_FOR_PREFETCH,
                     FeatureState.ENABLED_IN_PROD);
 
+    public static final CachedFlag sPrefetchSelectedSuggestionsOmtAndroid =
+            newFlag(
+                    OmniboxFeatureList.OMNIBOX_PREFETCH_SELECTED_SUGGESTIONS_OMT_ANDROID,
+                    FeatureState.DISABLED);
+
     public static final CachedFlag sOmniboxSearchPrefetchOnEnterKeyDown =
             newFlag(
                     OmniboxFeatureList.OMNIBOX_SEARCH_PREFETCH_ON_ENTER_KEY_DOWN,
-                    FeatureState.DISABLED);
+                    FeatureState.ENABLED_IN_TEST);
 
     public static final CachedFlag sUrlBarWithoutLigatures =
             newFlag(OmniboxFeatureList.URL_BAR_WITHOUT_LIGATURES, FeatureState.ENABLED_IN_PROD);
@@ -110,10 +116,10 @@ public class OmniboxFeatures {
                     FeatureState.ENABLED_IN_PROD);
 
     public static final CachedFlag sPlatformAgnosticXGeo =
-            newFlag(OmniboxFeatureList.PLATFORM_AGNOSTIC_X_GEO, FeatureState.DISABLED);
+            newFlag(OmniboxFeatureList.PLATFORM_AGNOSTIC_X_GEO, FeatureState.ENABLED_IN_TEST);
 
     public static final CachedFlag sInlineLocationSignaling =
-            newFlag(OmniboxFeatureList.INLINE_LOCATION_SIGNALING, FeatureState.DISABLED);
+            newFlag(OmniboxFeatureList.INLINE_LOCATION_SIGNALING, FeatureState.ENABLED_IN_TEST);
 
     public static final CachedFlag sAsyncViewInflation =
             newFlag(OmniboxFeatureList.OMNIBOX_ASYNC_VIEW_INFLATION, FeatureState.ENABLED_IN_TEST);
@@ -132,6 +138,11 @@ public class OmniboxFeatures {
     public static final CachedFlag sForceAndroidRealbox =
             newFlag(OmniboxFeatureList.FORCE_ANDROID_REALBOX, FeatureState.DISABLED);
 
+    public static final CachedFlag sDebounceKeyboardVisibility =
+            newFlag(
+                    OmniboxFeatureList.OMNIBOX_DEBOUNCE_KEYBOARD_VISIBILITY,
+                    FeatureState.ENABLED_IN_PROD);
+
     public static final CachedFlag sPostDelayedTaskFocusTab =
             newFlag(OmniboxFeatureList.POST_DELAYED_TASK_FOCUS_TAB, FeatureState.ENABLED_IN_PROD);
 
@@ -146,8 +157,13 @@ public class OmniboxFeatures {
                     OmniboxFeatureList.OMNIBOX_SESSIONLESS_VOICE_SEARCH,
                     FeatureState.ENABLED_IN_PROD);
 
+    public static final CachedFlag sSuppressStatusIconDuringHttpNavigation =
+            newFlag(
+                    OmniboxFeatureList.SUPPRESS_STATUS_ICON_DURING_HTTP_NAVIGATION,
+                    FeatureState.ENABLED_IN_PROD);
+
     private static final CachedFlag sOmniboxMultimodalInput =
-            newFlag(OmniboxFeatureList.OMNIBOX_MULTIMODAL_INPUT, FeatureState.ENABLED_IN_TEST);
+            newFlag(OmniboxFeatureList.OMNIBOX_MULTIMODAL_INPUT, FeatureState.ENABLED_IN_PROD);
 
     public static final BooleanCachedFeatureParam sMultiattachmentFusebox =
             newBooleanParam(sOmniboxMultimodalInput, "multi_context", true);
@@ -166,6 +182,9 @@ public class OmniboxFeatures {
      */
     public static final BooleanCachedFeatureParam sShowModelPicker =
             newBooleanParam(sOmniboxMultimodalInput, "show_model_picker", false);
+
+    public static final BooleanCachedFeatureParam sModelPickerOptimizations =
+            newBooleanParam(sOmniboxMultimodalInput, "model_picker_optimizations", true);
 
     /**
      * Whether the bottom sheet popup should be shown. This is private to ensure that callers use
@@ -186,12 +205,6 @@ public class OmniboxFeatures {
     public static final CachedFlag sAndroidDesktopAimGate =
             newFlag(OmniboxFeatureList.ANDROID_DESKTOP_AIM_GATE, FeatureState.ENABLED_IN_PROD);
 
-    public static final CachedFlag sMultilineEditField =
-            newFlag(OmniboxFeatureList.MULTILINE_EDIT_FIELD, FeatureState.ENABLED_IN_PROD);
-
-    public static final BooleanCachedFeatureParam sWrapAutocompleteText =
-            newBooleanParam(sOmniboxMultimodalInput, "wrap_autocomplete_text", false);
-
     public static final CachedFlag sAIMSuppressVerbatimMatch =
             newFlag(OmniboxFeatureList.AIM_SUPPRESS_VERBATIM_MATCH, FeatureState.ENABLED_IN_PROD);
 
@@ -208,9 +221,9 @@ public class OmniboxFeatures {
     public static final CachedFlag sResetSuggestionsScroll =
             newFlag(OmniboxFeatureList.RESET_SUGGESTIONS_SCROLL, FeatureState.DISABLED);
 
-    public static final CachedFlag sOmniboxListMenuContextMenu =
+    public static final CachedFlag sOmniboxDisableTabsForCanvas =
             newFlag(
-                    OmniboxFeatureList.OMNIBOX_LIST_MENU_CONTEXT_MENU,
+                    OmniboxFeatureList.OMNIBOX_DISABLE_TABS_FOR_CANVAS,
                     FeatureState.ENABLED_IN_PROD);
 
     public static final IntCachedFeatureParam sGeolocationRequestTimeoutMinutes =
@@ -347,6 +360,30 @@ public class OmniboxFeatures {
     }
 
     /**
+     * Returns whether off-main-thread (OMT) prefetch of search suggestions upon touch down is
+     * enabled on Android.
+     */
+    public static boolean isPrefetchSelectedSuggestionsOmtAndroidEnabled() {
+        return sPrefetchSelectedSuggestionsOmtAndroid.isEnabled();
+    }
+
+    private static @Nullable Boolean sDebounceKeyboardVisibilityForTesting;
+
+    /** Returns whether keyboard visibility transitions should be debounced. */
+    public static boolean isDebounceKeyboardVisibilityEnabled() {
+        if (sDebounceKeyboardVisibilityForTesting != null) {
+            return sDebounceKeyboardVisibilityForTesting;
+        }
+        return sDebounceKeyboardVisibility.isEnabled();
+    }
+
+    /** Modifies the output of {@link #isDebounceKeyboardVisibilityEnabled()} for testing. */
+    public static void setDebounceKeyboardVisibilityForTesting(@Nullable Boolean value) {
+        sDebounceKeyboardVisibilityForTesting = value;
+        ResettersForTesting.register(() -> sDebounceKeyboardVisibilityForTesting = null);
+    }
+
+    /**
      * Returns the maximum number of prefetches that can be triggered by touch down events within an
      * omnibox session.
      */
@@ -387,6 +424,9 @@ public class OmniboxFeatures {
      * flag state, disabling the fusebox on unsupported device and experience configurations.
      */
     public static boolean isMultimodalInputEnabled(Context context) {
+        if (!OmniboxCapabilities.isFuseboxSupportedDeviceType()) {
+            return false;
+        }
         if (OmniboxCapabilities.isDesktopPlatform()
                 || OmniboxCapabilities.hasDesktopExperience(context)) {
             return sAndroidDesktopAimGate.isEnabled() && sOmniboxMultimodalInput.isEnabled();

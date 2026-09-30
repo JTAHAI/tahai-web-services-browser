@@ -8,6 +8,7 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.content.Context;
 import android.content.res.Configuration;
+import android.graphics.Color;
 import android.graphics.Rect;
 import android.os.Build;
 import android.view.Gravity;
@@ -18,7 +19,9 @@ import android.view.WindowManager;
 import android.widget.FrameLayout;
 
 import androidx.activity.ComponentDialog;
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.VisibleForTesting;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.OnApplyWindowInsetsListener;
 import androidx.core.view.ViewCompat;
@@ -28,6 +31,8 @@ import androidx.core.view.WindowInsetsCompat;
 import org.chromium.base.Callback;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.StrictModeContext;
+import org.chromium.base.TriState;
+import org.chromium.base.TriStateUtils;
 import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -65,7 +70,7 @@ public class AppModalPresenter extends ModalDialogManager.Presenter {
 
     // Whether the currently showing dialog is a fullscreen dialog. This is cleared when the dialog
     // is dismissed.
-    private @Nullable Boolean mIsFullscreenDialog;
+    private @TriState int mIsFullscreenDialog;
     private int mFixedMargin;
 
     private class ViewBinder extends ModalDialogViewBinder {
@@ -159,6 +164,13 @@ public class AppModalPresenter extends ModalDialogManager.Presenter {
             if (window != null) {
                 window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
             }
+        } else if (ModalDialogFeatureMap.isLargeFormFactorUiEnabled(mContext)) {
+            Window window = mDialog.getWindow();
+            if (window != null) {
+                int scrimColor =
+                        ContextCompat.getColor(mContext, R.color.modal_dialog_scrim_color_lff);
+                window.setDimAmount(Color.alpha(scrimColor) / 255.0f);
+            }
         }
 
         // Cancel on touch outside should be disabled by default. The ModelChangeProcessor wouldn't
@@ -215,6 +227,14 @@ public class AppModalPresenter extends ModalDialogManager.Presenter {
 
     @Override
     protected void removeDialogView(@Nullable PropertyModel model) {
+        if (model != null) {
+            OnBackPressedCallback callback =
+                    model.get(ModalDialogProperties.APP_MODAL_DIALOG_BACK_PRESS_HANDLER);
+            if (callback != null) {
+                callback.remove();
+            }
+        }
+
         if (mModelChangeProcessor != null) {
             mModelChangeProcessor.destroy();
             mModelChangeProcessor = null;
@@ -230,7 +250,7 @@ public class AppModalPresenter extends ModalDialogManager.Presenter {
             mDialog = null;
             mDialogView = null;
             mModel = null;
-            mIsFullscreenDialog = null;
+            mIsFullscreenDialog = TriState.NOT_SET;
         }
 
         if (mEdgeToEdgeStateSupplier != null) {
@@ -315,7 +335,12 @@ public class AppModalPresenter extends ModalDialogManager.Presenter {
                             .getDimensionPixelSize(R.dimen.modal_dialog_view_external_margin);
         }
         int horizontalMargin = mFixedMargin;
-        int verticalMargin = mFixedMargin;
+        int verticalMargin =
+                ModalDialogFeatureMap.isLargeFormFactorUiEnabled(mContext)
+                        ? mContext.getResources()
+                                .getDimensionPixelSize(
+                                        R.dimen.modal_dialog_view_vertical_margin_lff)
+                        : mFixedMargin;
 
         // Recalculate the margins to account for system insets if applicable.
         if (mInsetObserver != null && isEdgeToEdgeActive()) {
@@ -323,9 +348,9 @@ public class AppModalPresenter extends ModalDialogManager.Presenter {
             if (windowInsets != null) {
                 var systemInsets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
                 horizontalMargin =
-                        Math.max(Math.max(systemInsets.left, systemInsets.right), mFixedMargin);
+                        Math.max(Math.max(systemInsets.left, systemInsets.right), horizontalMargin);
                 verticalMargin =
-                        Math.max(Math.max(systemInsets.top, systemInsets.bottom), mFixedMargin);
+                        Math.max(Math.max(systemInsets.top, systemInsets.bottom), verticalMargin);
             }
         }
 
@@ -379,19 +404,22 @@ public class AppModalPresenter extends ModalDialogManager.Presenter {
         assert model != null : "Model should not be null.";
         // Check cached value on whether the dialog is fullscreen or not to keep a consistent value
         // even if its dimensions are changed by the user.
-        if (mIsFullscreenDialog != null) return mIsFullscreenDialog;
+        if (mIsFullscreenDialog != TriState.NOT_SET) {
+            return mIsFullscreenDialog == TriState.TRUE;
+        }
 
         int dialogStyle = model.get(ModalDialogProperties.DIALOG_STYLES);
 
         int screenSize =
                 context.getResources().getConfiguration().screenLayout
                         & Configuration.SCREENLAYOUT_SIZE_MASK;
-        mIsFullscreenDialog =
+        boolean isFullscreen =
                 (dialogStyle == DialogStyles.DIALOG_WHEN_LARGE
                                 && screenSize < Configuration.SCREENLAYOUT_SIZE_LARGE)
                         || dialogStyle == DialogStyles.FULLSCREEN_DIALOG
                         || dialogStyle == DialogStyles.FULLSCREEN_DARK_DIALOG;
-        return mIsFullscreenDialog;
+        mIsFullscreenDialog = TriStateUtils.from(isFullscreen);
+        return isFullscreen;
     }
 
     @VisibleForTesting
@@ -403,6 +431,10 @@ public class AppModalPresenter extends ModalDialogManager.Presenter {
 
     public @Nullable ModalDialogView getDialogViewForTesting() {
         return mDialogView;
+    }
+
+    public @Nullable ComponentDialog getDialogForTesting() {
+        return mDialog;
     }
 
     @Nullable OnApplyWindowInsetsListener getWindowInsetsListenerForTesting() {

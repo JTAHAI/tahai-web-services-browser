@@ -72,6 +72,7 @@ class CORE_EXPORT WebRemoteFrameImpl final
       const LocalFrameToken& frame_token,
       WebFrame* opener,
       const DocumentToken& document_token,
+      const base::UnguessableToken& initiator_state_token,
       CrossVariantMojoRemote<mojom::BrowserInterfaceBrokerInterfaceBase>,
       std::unique_ptr<blink::WebPolicyContainer> policy_container) override;
   void SetReplicatedOrigin(
@@ -144,7 +145,7 @@ class CORE_EXPORT WebRemoteFrameImpl final
   // Oilpan: WebRemoteFrameImpl must remain alive until close() is called.
   // Accomplish that by keeping a self-referential Persistent<>. It is
   // cleared upon close().
-  SelfKeepAlive<WebRemoteFrameImpl> self_keep_alive_{this};
+  SelfKeepAlive<WebRemoteFrameImpl> self_keep_alive_{{}, this};
 };
 
 template <>

@@ -13,7 +13,6 @@
 #include "base/strings/string_util.h"
 #include "chrome/browser/metrics/variations/google_groups_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/extensions/extension_settings_overridden_dialog.h"
 #include "chrome/common/chrome_features.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/lens/lens_features.h"
@@ -21,8 +20,9 @@
 #include "components/page_info/core/features.h"
 #include "components/permissions/features.h"
 #include "components/permissions/permission_hats_trigger_helper.h"
-#include "components/plus_addresses/core/common/features.h"
 #include "components/privacy_sandbox/privacy_sandbox_features.h"
+#include "components/safe_browsing/core/common/features.h"
+#include "components/safe_browsing/core/common/safebrowsing_constants.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/variations/service/google_groups_manager.h"
 #include "extensions/common/extension_features.h"
@@ -36,8 +36,6 @@
 #include "components/password_manager/core/browser/features/password_manager_features_util.h"  // nogncheck
 #include "components/performance_manager/public/features.h"  // nogncheck
 #include "components/permissions/constants.h"                // nogncheck
-#include "components/safe_browsing/core/common/features.h"   // nogncheck
-#include "components/safe_browsing/core/common/safebrowsing_constants.h"  // nogncheck
 #else
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #endif  // #if !BUILDFLAG(IS_ANDROID)
@@ -123,6 +121,11 @@ constexpr char kHatsSurveyTriggerFirstRunDesktopRevampCompleted[] =
 constexpr char
     kHatsSurveyTriggerFirstRunDesktopRevampNoFeatureShowcaseCompleted[] =
         "identity-revamp-no-feature-showcase-first-run-completed";
+constexpr char kHatsSurveyTriggerPreFirstRunDesktopRefreshCompleted[] =
+    "identity-pre-first-run-desktop-refresh-completed";
+constexpr char
+    kHatsSurveyTriggerPreFirstRunDesktopRefreshNoFeatureShowcaseCompleted[] =
+        "identity-pre-first-run-desktop-refresh-no-feature-showcase-completed";
 constexpr char kHatsSurveyTriggerIdentitySigninInterceptProfileSeparation[] =
     "identity-signin-intercept-profile-separation";
 constexpr char kHatsSurveyTriggerIdentitySigninPromoBubbleDismissed[] =
@@ -180,6 +183,7 @@ constexpr char kHatsSurveyTriggerWallpaperSearch[] = "wallpaper-search";
 
 #else   // BUILDFLAG(IS_ANDROID)
 constexpr char kHatsSurveyTriggerAndroidStartupSurvey[] = "startup_survey";
+constexpr char kHatsSurveyTriggerRedWarningAndroid[] = "red-warning-android";
 constexpr char kHatsSurveyTriggerSigninFirstRun[] = "signin-first-run";
 constexpr char kHatsSurveyTriggerSigninWeb[] = "signin-web";
 constexpr char kHatsSurveyTriggerSigninNtpSigninButton[] =
@@ -189,6 +193,8 @@ constexpr char kHatsSurveyTriggerSigninNtpAccountAvatarTap[] =
 constexpr char kHatsSurveyTriggerSigninNtpPromo[] = "signin-ntp-promo";
 constexpr char kHatsSurveyTriggerSigninBookmarkPromo[] =
     "signin-bookmark-promo";
+constexpr char kHatsSurveyTriggerSuspiciousSiteWarning[] =
+    "suspicious-site-warning";
 #endif  // #if !BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(ENABLE_COMPOSE)
@@ -703,6 +709,28 @@ std::vector<hats::SurveyConfig> GetAllSurveyConfigs() {
       /*log_responses_to_ukm=*/false,
       hats::SurveyConfig::ProfileAgeRequirement::kAnyAge);
 
+  survey_configs.emplace_back(
+      &switches::kPreFirstRunDesktopRefreshSurvey,
+      kHatsSurveyTriggerPreFirstRunDesktopRefreshCompleted,
+      "rgsmp9eR40ugnJ3q1cK0W7736JPw",
+      /*product_specific_bits_data_fields=*/std::vector<std::string>{},
+      /*product_specific_string_data_fields=*/
+      std::vector<std::string>{"Channel"},
+      /*log_responses_to_uma=*/false,
+      /*log_responses_to_ukm=*/false,
+      hats::SurveyConfig::ProfileAgeRequirement::kAnyAge);
+
+  survey_configs.emplace_back(
+      &switches::kPreFirstRunDesktopRefreshNoFeatureShowcaseSurvey,
+      kHatsSurveyTriggerPreFirstRunDesktopRefreshNoFeatureShowcaseCompleted,
+      "ogAXyULef0ugnJ3q1cK0PYjDMTYs",
+      /*product_specific_bits_data_fields=*/std::vector<std::string>{},
+      /*product_specific_string_data_fields=*/
+      std::vector<std::string>{"Channel"},
+      /*log_responses_to_uma=*/false,
+      /*log_responses_to_ukm=*/false,
+      hats::SurveyConfig::ProfileAgeRequirement::kAnyAge);
+
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 
 #if BUILDFLAG(ENABLE_COMPOSE)
@@ -879,6 +907,32 @@ std::vector<hats::SurveyConfig> GetAllSurveyConfigs() {
       kHatsSurveyTriggerSigninBookmarkPromo, "o2YBX3ZJc0tK1KeaPYj0UveLWhmf",
       std::vector<std::string>{}, signin_string_psd_fields);
 
+  // Red Warning Android surveys.
+  survey_configs.emplace_back(
+      &safe_browsing::kRedWarningSurveyAndroid,
+      kHatsSurveyTriggerRedWarningAndroid,
+      safe_browsing::kRedWarningSurveyAndroidTriggerId.Get(),
+      std::vector<std::string>{safe_browsing::kLearnMoreClicked,
+                               safe_browsing::kOpenDiagnostic,
+                               safe_browsing::kRepeatVisit,
+                               safe_browsing::kReportPhishingErrorClicked,
+                               safe_browsing::kShowMoreClicked},
+      std::vector<std::string>{
+          safe_browsing::kFlaggedUrl, safe_browsing::kMainFrameUrl,
+          safe_browsing::kReferrerUrl, safe_browsing::kReferringApp,
+          safe_browsing::kReportType, safe_browsing::kTimeWarningVisible,
+          safe_browsing::kUserAction, safe_browsing::kUserActivityWithUrls});
+
+  // Suspicious Site Warning surveys.
+  survey_configs.emplace_back(
+      &safe_browsing::kSuspiciousSiteWarningSurvey,
+      kHatsSurveyTriggerSuspiciousSiteWarning,
+      safe_browsing::kSuspiciousSiteWarningSurveyTriggerId.Get(),
+      std::vector<std::string>{"did_proceed", "learn_more_clicked",
+                               "repeat_visit"},
+      std::vector<std::string>{"site_origin", "user_choice",
+                               "time_prompt_visible", "referrer_origin",
+                               "referring_app"});
 #endif  // #if !BUILDFLAG(IS_ANDROID)
 
   survey_configs.emplace_back(

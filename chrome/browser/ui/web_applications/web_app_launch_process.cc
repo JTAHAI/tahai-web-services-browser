@@ -7,18 +7,20 @@
 #include "base/debug/crash_logging.h"
 #include "base/files/file_path.h"
 #include "base/memory/values_equivalent.h"
+#include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "build/build_config.h"
 #include "chrome/browser/apps/app_service/launch_utils.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/share_target_utils.h"
@@ -142,8 +144,8 @@ WebAppLaunchProcess::WebAppLaunchProcess(
       web_app_(registrar_->GetAppById(params.app_id)) {}
 
 content::WebContents* WebAppLaunchProcess::Run() {
-  if (Browser::GetCreationStatusForProfile(&profile_.get()) !=
-          Browser::CreationStatus::kOk ||
+  if (GetBrowserWindowCreationStatusForProfile(profile_.get()) !=
+          BrowserWindowInterface::CreationStatus::kOk ||
       !registrar_->AppMatches(params_->app_id,
                               WebAppFilter::IsAppSurfaceableToUser())) {
     return nullptr;
@@ -231,7 +233,11 @@ content::WebContents* WebAppLaunchProcess::Run() {
     browser = CreateBrowserForLaunch();
     is_new_browser = true;
   }
+  base::WeakPtr<BrowserWindowInterface> browser_weak = browser->GetWeakPtr();
   browser->GetWindow()->Show();
+  if (!browser_weak) {
+    return nullptr;
+  }
 
   WindowOpenDisposition navigation_disposition =
       GetNavigationDisposition(is_new_browser);
@@ -446,14 +452,14 @@ BrowserWindowInterface* WebAppLaunchProcess::MaybeFindBrowserForLaunch() const {
   return AppBrowserController::FindForWebApp(*profile_, params_->app_id);
 }
 
-Browser* WebAppLaunchProcess::CreateBrowserForLaunch() {
+BrowserWindowInterface* WebAppLaunchProcess::CreateBrowserForLaunch() {
   if (params_->container == apps::LaunchContainer::kLaunchContainerTab) {
-    return Browser::Create(Browser::CreateParams(Browser::TYPE_NORMAL,
-                                                 &profile_.get(),
-                                                 /*user_gesture=*/true));
+    return CreateBrowserWindow(BrowserWindowCreateParams(
+        BrowserWindowInterface::TYPE_NORMAL, &profile_.get(),
+        /*from_user_gesture=*/true));
   }
 
-  Browser::CreateParams browser_params = web_app::CreateParamsForApp(
+  BrowserWindowCreateParams browser_params = web_app::CreateParamsForApp(
       params_->app_id,
       /*is_popup=*/params_->disposition == WindowOpenDisposition::NEW_POPUP,
       /*trusted_source=*/true, /*window_bounds=*/gfx::Rect(),
@@ -462,7 +468,8 @@ Browser* WebAppLaunchProcess::CreateBrowserForLaunch() {
 #if BUILDFLAG(IS_CHROMEOS)
   browser_params.restore_id = params_->restore_id;
 #endif
-  return CreateWebAppWindowMaybeWithHomeTab(params_->app_id, browser_params);
+  return CreateWebAppWindowMaybeWithHomeTab(params_->app_id,
+                                            std::move(browser_params));
 }
 
 }  // namespace web_app

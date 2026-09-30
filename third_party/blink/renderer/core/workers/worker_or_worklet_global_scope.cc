@@ -99,7 +99,10 @@ class OutsideSettingsCSPDelegate final
   // SecurityContext of either parent context or WorkerOrWorkletGlobalScope.
   void SetSandboxFlags(network::mojom::blink::WebSandboxFlags) override {}
   void SetRequireTrustedTypes() override {}
-  void AddInsecureRequestPolicy(mojom::blink::InsecureRequestPolicy) override {}
+  void ApplyInsecureRequestPolicy(
+      mojom::blink::InsecureRequestPolicy) override {}
+  void NotifyBrowserOfInsecureRequestPolicy(
+      mojom::blink::InsecureRequestPolicy) override {}
   void DisableEval(const String& error_message) override {}
   void SetWasmEvalErrorMessage(const String& error_message) override {}
 
@@ -633,11 +636,16 @@ String WorkerOrWorkletGlobalScope::GetAcceptLanguages() const {
   return web_worker_fetch_context_->GetAcceptLanguages();
 }
 
+const RendererPreferences& WorkerOrWorkletGlobalScope::GetRendererPreferences()
+    const {
+  return web_worker_fetch_context_->GetRendererPreferences();
+}
+
 void WorkerOrWorkletGlobalScope::OnConsoleApiMessage(
     mojom::ConsoleMessageLevel level,
     const String& message,
     SourceLocation* location) {
-  reporting_proxy_.ReportConsoleMessage(
+  reporting_proxy_->ReportConsoleMessage(
       mojom::ConsoleMessageSource::kConsoleApi, level, message, location);
 }
 

@@ -149,20 +149,11 @@ enum DataType {
   // the client.
   COLLABORATION_GROUP,
 
-  // Origin-specific email addresses forwarded from the user's account.
-  // Read-only on the client.
-  PLUS_ADDRESS,
-
   // Product comparison groups.
   PRODUCT_COMPARISON,
 
   // Browser cookies, ChromeOS only.
   COOKIES,
-
-  // Settings for PLUS_ADDRESS forwarded from the user's account. Since the
-  // settings originate from the user's account, this is not reusing any of the
-  // standard syncable prefs.
-  PLUS_ADDRESS_SETTING,
 
   // Valuables stored in the Google Wallet.
   // Read-only on the client.
@@ -210,7 +201,10 @@ enum DataType {
   // Information about a notebook.
   NOTEBOOK,
 
-  LAST_USER_DATA_TYPE = NOTEBOOK,
+  // Information about a history journey.
+  JOURNEY,
+
+  LAST_USER_DATA_TYPE = JOURNEY,
 
   // ---- Control Types ----
   // An object representing a set of Nigori keys.
@@ -304,10 +298,10 @@ enum class DataTypeForHistograms {
   kWebApks = 62,
   kSharedTabGroupData = 63,
   kCollaborationGroup = 64,
-  kPlusAddresses = 65,
+  // kDeprecatedPlusAddresses = 65,
   kProductComparison = 66,
   kCookies = 67,
-  kPlusAddressSettings = 68,
+  // kDeprecatedPlusAddressSettings = 68,
   kAutofillValuable = 69,
   kSharedTabGroupAccountData = 70,
   kSharedComment = 71,
@@ -323,7 +317,8 @@ enum class DataTypeForHistograms {
   kEncryptedTabContextContainer = 81,
   kEncryptedTabContextItem = 82,
   kNotebook = 83,
-  kMaxValue = kNotebook,
+  kJourney = 84,
+  kMaxValue = kJourney,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/sync/enums.xml:SyncDataTypes)
 
@@ -351,8 +346,6 @@ inline constexpr DataTypeSet AlwaysPreferredUserTypes() {
   return {ACCOUNT_SETTING,
           DEVICE_INFO,
           USER_CONSENTS,
-          PLUS_ADDRESS,
-          PLUS_ADDRESS_SETTING,
           PRIORITY_PREFERENCES,
           SECURITY_EVENTS,
           SEND_TAB_TO_SELF,

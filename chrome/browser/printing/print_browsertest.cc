@@ -44,6 +44,7 @@
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_browsertest_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/webui/print_preview/print_preview_ui.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
@@ -61,6 +62,7 @@
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
+#include "content/public/browser/web_ui.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/test/back_forward_cache_util.h"
@@ -101,6 +103,7 @@
 #include "chrome/browser/printing/printer_query_oop.h"
 #include "chrome/services/printing/public/mojom/print_backend_service.mojom.h"
 #endif
+
 
 #if BUILDFLAG(IS_WIN)
 #include "printing/printing_utils.h"
@@ -1264,8 +1267,8 @@ IN_PROC_BROWSER_TEST_F(PrintBrowserTest,
   client->CompositeDocument(
       kDefaultDocumentCookie, *main_frame,
       *TestPrintRenderFrame::GetDefaultDidPrintContentParams(),
-      ui::AXTreeUpdate(), mojom::GenerateDocumentOutline::kNone,
-      base::DoNothing());
+      /*is_pdf=*/false, ui::AXTreeUpdate(),
+      mojom::GenerateDocumentOutline::kNone, base::DoNothing());
   ASSERT_TRUE(client->GetCompositeRequest(kDefaultDocumentCookie));
   // `requested_subframes_` should be empty.
   ASSERT_TRUE(client->requested_subframes_.empty());
@@ -1279,6 +1282,16 @@ IN_PROC_BROWSER_TEST_F(PrintBrowserTest,
 IN_PROC_BROWSER_TEST_F(SitePerProcessPrintBrowserTest, BasicPrint) {
   ASSERT_NO_FATAL_FAILURE(
       StartEmbeddedTestServerAndNavigate("/printing/test1.html"));
+
+  PrintAndWaitUntilPreviewIsReady();
+}
+
+// Printing preview a PDF file when site per process is enabled.
+// Test that PrintPreviewUI can properly route the PDF to the print compositor
+// and it doesn't cause a crash or timeout.
+IN_PROC_BROWSER_TEST_F(SitePerProcessPrintBrowserTest, BasicPdfPrint) {
+  ASSERT_NO_FATAL_FAILURE(
+      StartEmbeddedTestServerAndNavigate("/pdf/test.pdf"));
 
   PrintAndWaitUntilPreviewIsReady();
 }

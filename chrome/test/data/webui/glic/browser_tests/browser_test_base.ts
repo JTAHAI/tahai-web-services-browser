@@ -18,6 +18,7 @@ export const longWaitTimeMs = 120000;
 
 export interface TestInitData {
   embeddedTestServerUrl: string;
+  embeddedHttpsTestServerUrl?: string;
 }
 
 export function getTestName(): string|null {
@@ -169,6 +170,7 @@ export class WebClient implements GlicWebClient {
   panelOpenStateKind = ObservableValue.withNoValue<PanelStateKind>();
   panelOpenData = ObservableValue.withNoValue<PanelOpeningData>();
   invokeData = ObservableValue.withNoValue<InvokeOptions>();
+  onCheckResponsive: () => Promise<void> = () => Promise.resolve();
 
   async invoke(options: InvokeOptions): Promise<void> {
     this.invokeData.assignAndSignal(options);
@@ -206,6 +208,10 @@ export class WebClient implements GlicWebClient {
 
   async stopMicrophone(): Promise<void> {
     this.onStopMicrophone();
+  }
+
+  checkResponsive(): Promise<void> {
+    return Promise.resolve();
   }
 
   waitForFirstOpen(): Promise<void> {
@@ -399,17 +405,14 @@ export class ApiTestFixtureBase {
     return new URL(path, this.initData!.embeddedTestServerUrl).href;
   }
 
-  getTestUrl(path: string): string {
-    return this.getUrl('/test_data/' + path);
+  getHttpsUrl(path: string): string {
+    const baseUrl = this.initData?.embeddedHttpsTestServerUrl ??
+        this.initData!.embeddedTestServerUrl;
+    return new URL(path, baseUrl).href;
   }
 
-  async testAllTestsAreRegistered() {
-    const allNames = [];
-    for (const fixture of testRunner.testFixtures) {
-      allNames.push(...Object.getOwnPropertyNames(fixture.prototype)
-                        .filter(name => name.startsWith('test')));
-    }
-    await this.advanceToNextStep(allNames);
+  getTestUrl(path: string): string {
+    return this.getUrl('/test_data/' + path);
   }
 
   protected async doBrowserCommand(command: BrowserCommand) {
@@ -424,10 +427,6 @@ function findTestFixture(
     if (Object.getOwnPropertyNames(fixture.prototype).includes(testName)) {
       return fixture;
     }
-  }
-  // testAllTestsAreRegistered is provided by the fixture base class.
-  if (testName === 'testAllTestsAreRegistered') {
-    return testFixtures[0];
   }
   return undefined;
 }

@@ -36,7 +36,7 @@
 #include "chrome/browser/safe_browsing/download_protection/deep_scanning_request.h"
 #include "chrome/browser/safe_browsing/download_protection/download_protection_service.h"
 #include "chrome/browser/safe_browsing/test_safe_browsing_service.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/omnibox/omnibox_next_features.h"
 #include "chrome/browser/ui/views/file_system_access/file_system_access_test_utils.h"
 #include "chrome/common/chrome_paths.h"
@@ -704,7 +704,7 @@ IN_PROC_BROWSER_TEST_P(DownloadDeepScanningBrowserTest, DataURLDownloadIsTruncat
 
   // Needs to be an octet-stream to trigger download
   std::string data_url_string = "data:application/octet-stream;base64,";
-  data_url_string.append(3000, 'A');
+  data_url_string.append(10000, 'A');
   GURL url(data_url_string);
 
   ui_test_utils::NavigateToURLWithDisposition(
@@ -716,17 +716,19 @@ IN_PROC_BROWSER_TEST_P(DownloadDeepScanningBrowserTest, DataURLDownloadIsTruncat
   EXPECT_EQ(last_request().reason(),
             enterprise_connectors::ContentAnalysisRequest::NORMAL_DOWNLOAD);
 
-  // The truncate limit is 1024 characters, but may be less to ensure a valid
+  // The truncate limit is 8192 characters, but may be less to ensure a valid
   // base64 encoding.
-  EXPECT_LE(last_request().request_data().url().size(), 1024u);
+  EXPECT_LE(last_request().request_data().url().size(), 8192u);
   EXPECT_GT(last_request().request_data().referrer_chain_size(), 0);
-  EXPECT_LE(last_request().request_data().referrer_chain(0).url().size(), 1024u);
+  EXPECT_LE(last_request().request_data().referrer_chain(0).url().size(),
+            8192u);
 
   ASSERT_TRUE(last_request().request_data().has_csd());
   ASSERT_GT(last_request().request_data().csd().referrer_chain_size(), 0);
   ASSERT_GT(last_request().request_data().csd().resources_size(), 0);
-  EXPECT_LE(last_request().request_data().csd().resources(0).url().size(), 1024u);
-  EXPECT_LE(last_request().request_data().csd().url().size(), 1024u);
+  EXPECT_LE(last_request().request_data().csd().resources(0).url().size(),
+            8192u);
+  EXPECT_LE(last_request().request_data().csd().url().size(), 8192u);
 
   WaitForDownloadToFinish();
 
@@ -973,31 +975,48 @@ IN_PROC_BROWSER_TEST_P(DownloadDeepScanningBrowserTest,
                                      "application/x-zip-compressed"};
   enterprise_connectors::test::EventReportValidator validator(client());
   validator.SetDoneClosure(run_loop.QuitClosure());
-  validator.ExpectSensitiveDataEventAndDangerousDeepScanningResult(
-      /*url*/ url.spec(),
-      /*tab_url*/ url.spec(),
-      /*source*/ "",
-      /*destination*/ "",
-      /*filename*/
+  chrome::cros::reporting::proto::SafeBrowsingDangerousDownloadEvent
+      dangerous_event;
+  dangerous_event.set_url(url.spec());
+  dangerous_event.set_tab_url(url.spec());
+  dangerous_event.set_file_name(
       connectors_machine_scope()
           ? (*download_items().begin())->GetTargetFilePath().AsUTF8Unsafe()
-          : "zipfile_two_archives.zip",
-      // sha256sum chrome/test/data/safe_browsing/download_protection/\
-      // zipfile_two_archives.zip |  tr '[:lower:]' '[:upper:]'
-      /*sha*/
-      "339C8FFDAE735C4F1846D0E6FF07FBD85CAEE6D96045AAEF5B30F3220836643C",
-      /*threat_type*/ "POTENTIALLY_UNWANTED",
-      /*trigger*/
-      enterprise_connectors::kFileDownloadDataTransferEventTrigger,
-      /*dlp_verdict*/ *dlp_result,
-      /*mimetypes*/ &zip_types,
-      /*size*/ is_obfuscated() ? 276 + kSingleChunkObfuscationOverhead : 276,
-      /*result*/
-      enterprise_connectors::EventResultToString(
-          enterprise_connectors::EventResult::WARNED),
-      /*username*/ kUserName,
-      /*profile_identifier*/ GetProfileIdentifier(),
-      /*scan_id*/ last_request().request_token());
+          : "zipfile_two_archives.zip");
+  dangerous_event.set_download_digest_sha256(
+      "339C8FFDAE735C4F1846D0E6FF07FBD85CAEE6D96045AAEF5B30F3220836643C");
+  dangerous_event.set_threat_type(
+      chrome::cros::reporting::proto::SafeBrowsingDangerousDownloadEvent::
+          POTENTIALLY_UNWANTED);
+  dangerous_event.set_trigger(chrome::cros::reporting::proto::FILE_DOWNLOAD);
+  dangerous_event.set_content_size(
+      is_obfuscated() ? 276 + kSingleChunkObfuscationOverhead : 276);
+  dangerous_event.set_event_result(
+      chrome::cros::reporting::proto::EventResult::EVENT_RESULT_WARNED);
+  dangerous_event.set_profile_user_name(kUserName);
+  dangerous_event.set_profile_identifier(GetProfileIdentifier());
+  dangerous_event.set_scan_id(last_request().request_token());
+
+  chrome::cros::reporting::proto::DlpSensitiveDataEvent dlp_event;
+  dlp_event.set_url(url.spec());
+  dlp_event.set_tab_url(url.spec());
+  dlp_event.set_file_name(
+      connectors_machine_scope()
+          ? (*download_items().begin())->GetTargetFilePath().AsUTF8Unsafe()
+          : "zipfile_two_archives.zip");
+  dlp_event.set_download_digest_sha_256(
+      "339C8FFDAE735C4F1846D0E6FF07FBD85CAEE6D96045AAEF5B30F3220836643C");
+  dlp_event.set_trigger(chrome::cros::reporting::proto::FILE_DOWNLOAD);
+  dlp_event.set_content_size(
+      is_obfuscated() ? 276 + kSingleChunkObfuscationOverhead : 276);
+  dlp_event.set_event_result(
+      chrome::cros::reporting::proto::EventResult::EVENT_RESULT_WARNED);
+  dlp_event.set_profile_user_name(kUserName);
+  dlp_event.set_profile_identifier(GetProfileIdentifier());
+  dlp_event.set_scan_id(last_request().request_token());
+
+  validator.ExpectDangerousDeepScanningResultAndSensitiveDataEvent(
+      std::move(dangerous_event), std::move(dlp_event), &zip_types);
   WaitForDownloadToFinish();
 
   // The file should be blocked.
@@ -1301,7 +1320,7 @@ IN_PROC_BROWSER_TEST_F(SavePackageDeepScanningBrowserTest, Allowed) {
       browser()->GetProfile()->GetDownloadManager(), run_loop.QuitClosure());
   base::FilePath main_file = GetSaveDir().AppendASCII("text.htm");
   base::FilePath extra_files_dir = GetSaveDir().AppendASCII("text_files");
-  ASSERT_TRUE(browser()->tab_strip_model()->GetActiveWebContents()->SavePage(
+  ASSERT_TRUE(browser()->GetTabStripModel()->GetActiveWebContents()->SavePage(
       main_file, extra_files_dir, content::SAVE_PAGE_TYPE_AS_ONLY_HTML));
   WaitForDeepScanRequest();
 
@@ -1351,7 +1370,7 @@ IN_PROC_BROWSER_TEST_F(SavePackageDeepScanningBrowserTest, Blocked) {
       {download::DownloadItem::INTERRUPTED});
   base::FilePath main_file = GetSaveDir().AppendASCII("text.htm");
   base::FilePath extra_files_dir = GetSaveDir().AppendASCII("text_files");
-  ASSERT_TRUE(browser()->tab_strip_model()->GetActiveWebContents()->SavePage(
+  ASSERT_TRUE(browser()->GetTabStripModel()->GetActiveWebContents()->SavePage(
       main_file, extra_files_dir, content::SAVE_PAGE_TYPE_AS_ONLY_HTML));
   WaitForDeepScanRequest();
 
@@ -1439,7 +1458,7 @@ IN_PROC_BROWSER_TEST_F(SavePackageDeepScanningBrowserTest, KeepAfterWarning) {
       save_package_run_loop.QuitClosure(), {download::DownloadItem::COMPLETE});
   base::FilePath main_file = GetSaveDir().AppendASCII("text.htm");
   base::FilePath extra_files_dir = GetSaveDir().AppendASCII("text_files");
-  ASSERT_TRUE(browser()->tab_strip_model()->GetActiveWebContents()->SavePage(
+  ASSERT_TRUE(browser()->GetTabStripModel()->GetActiveWebContents()->SavePage(
       main_file, extra_files_dir, content::SAVE_PAGE_TYPE_AS_ONLY_HTML));
   WaitForDeepScanRequest();
 
@@ -1586,7 +1605,7 @@ IN_PROC_BROWSER_TEST_F(SavePackageDeepScanningBrowserTest,
       save_package_run_loop.QuitClosure(), {download::DownloadItem::CANCELLED});
   base::FilePath main_file = GetSaveDir().AppendASCII("text.htm");
   base::FilePath extra_files_dir = GetSaveDir().AppendASCII("text_files");
-  ASSERT_TRUE(browser()->tab_strip_model()->GetActiveWebContents()->SavePage(
+  ASSERT_TRUE(browser()->GetTabStripModel()->GetActiveWebContents()->SavePage(
       main_file, extra_files_dir, content::SAVE_PAGE_TYPE_AS_ONLY_HTML));
   WaitForDeepScanRequest();
 
@@ -1690,7 +1709,7 @@ IN_PROC_BROWSER_TEST_F(SavePackageDeepScanningBrowserTest, OpenNow) {
       save_package_run_loop.QuitClosure(), {download::DownloadItem::COMPLETE});
   base::FilePath main_file = GetSaveDir().AppendASCII("text.htm");
   base::FilePath extra_files_dir = GetSaveDir().AppendASCII("text_files");
-  ASSERT_TRUE(browser()->tab_strip_model()->GetActiveWebContents()->SavePage(
+  ASSERT_TRUE(browser()->GetTabStripModel()->GetActiveWebContents()->SavePage(
       main_file, extra_files_dir, content::SAVE_PAGE_TYPE_AS_ONLY_HTML));
   WaitForDeepScanRequest();
 
@@ -1834,7 +1853,7 @@ IN_PROC_BROWSER_TEST_F(FileSystemAccessDeepScanningBrowserTest, BlockedWrite) {
 
   // Setup message queue for JS responses.
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(web_contents);
   content::DOMMessageQueue message_queue(web_contents);
 
@@ -1927,7 +1946,7 @@ IN_PROC_BROWSER_TEST_F(FileSystemAccessDeepScanningBrowserTest, AllowedWrite) {
 
   // Setup message queue for JS responses.
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(web_contents);
   content::DOMMessageQueue message_queue(web_contents);
 
@@ -1973,7 +1992,7 @@ IN_PROC_BROWSER_TEST_F(FileSystemAccessDeepScanningBrowserTest, WarnedWrite) {
 
   // Setup message queue for JS responses.
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(web_contents);
   content::DOMMessageQueue message_queue(web_contents);
 
@@ -2061,7 +2080,7 @@ IN_PROC_BROWSER_TEST_F(FileSystemAccessDeepScanningBrowserTest,
 
   // Setup message queue for JS responses.
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(web_contents);
   content::DOMMessageQueue message_queue(web_contents);
 

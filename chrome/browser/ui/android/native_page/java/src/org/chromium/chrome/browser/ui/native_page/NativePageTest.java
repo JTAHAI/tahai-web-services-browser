@@ -14,16 +14,15 @@ import org.junit.runner.RunWith;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.components.extensions.ExtensionsBuildflags;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.ui.native_page.NativePage.NativePageType;
+import org.chromium.components.extensions.ExtensionsBuildflags;
 import org.chromium.url.GURL;
 
 /** Tests public methods in NativePage. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class NativePageTest {
     public static class UrlCombo {
         public String url;
@@ -102,6 +101,7 @@ public class NativePageTest {
 
     @Test
     @EnableFeatures(ChromeFeatureList.SETTINGS_IN_TAB)
+    @Config(qualifiers = "sw600dp")
     public void testNativePageType_Settings() {
         String url = "chrome://settings";
         GURL gurl = new GURL(url);
@@ -112,7 +112,32 @@ public class NativePageTest {
     }
 
     @Test
+    @EnableFeatures(ChromeFeatureList.SETTINGS_IN_TAB)
+    @Config(qualifiers = "sw600dp")
+    public void testNativePageType_SettingsInIncognito() {
+        String url = "chrome://settings";
+        GURL gurl = new GURL(url);
+        Assert.assertEquals(
+                "Settings page should not exist in incognito",
+                NativePageType.NONE,
+                NativePage.nativePageType(gurl, null, /* isIncognito= */ true, false, false));
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.SETTINGS_IN_TAB)
+    @Config(qualifiers = "sw320dp")
+    public void testNativePageType_SettingsOnPhone() {
+        String url = "chrome://settings";
+        GURL gurl = new GURL(url);
+        Assert.assertEquals(
+                "Settings page should not be a native page on phone",
+                NativePageType.NONE,
+                NativePage.nativePageType(gurl, null, false, false, false));
+    }
+
+    @Test
     @DisableFeatures(ChromeFeatureList.SETTINGS_IN_TAB)
+    @Config(qualifiers = "sw600dp")
     public void testNativePageType_SettingsDisabled() {
         String url = "chrome://settings";
         GURL gurl = new GURL(url);

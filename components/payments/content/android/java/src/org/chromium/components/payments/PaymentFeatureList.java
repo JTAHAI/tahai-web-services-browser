@@ -23,6 +23,8 @@ public abstract class PaymentFeatureList {
             "AndroidPaymentIntentsOmitDeprecatedParameters";
 
     public static final String DEDUPLICATE_NATIVE_PAYMENT_APPS = "DeduplicateNativePaymentApps";
+    public static final String DELAY_NATIVE_PAYMENT_APP_SCRIM_SHOW =
+            "DelayNativePaymentAppScrimShow";
     public static final String ENFORCE_FULL_DELEGATION = "EnforceFullDelegation";
     public static final String GOOGLE_PAY_VIA_ANDROID_INTENTS = "GooglePayViaAndroidIntents";
     public static final String OMIT_PARAMETERS_IN_READY_TO_PAY = "OmitParametersInReadyToPay";
@@ -43,6 +45,7 @@ public abstract class PaymentFeatureList {
     public static final String PAYMENT_HANDLER_DIALOG_USE_INITIATOR_IN_URL_LOAD =
             "PaymentHandlerDialogUseInitiatorInUrlLoad";
     public static final String SECURE_PAYMENT_CONFIRMATION = "SecurePaymentConfirmationBrowser";
+    public static final String THREE_D_SECURE_TELEMETRY = "ThreeDSecureTelemetry";
 
     /**
      * Returns whether the specified feature is enabled or not.

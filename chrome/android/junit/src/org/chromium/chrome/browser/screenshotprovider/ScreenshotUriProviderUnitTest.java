@@ -27,9 +27,9 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.build.annotations.Nullable;
@@ -42,7 +42,6 @@ import java.util.function.Supplier;
 
 /** Unit tests for {@link ScreenshotUriProvider}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class ScreenshotUriProviderUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -167,7 +166,7 @@ public class ScreenshotUriProviderUnitTest {
                         "Android.ScreenshotUriProvider.Events",
                         ScreenshotContentProviderMetrics.ScreenshotUriProviderEvent
                                 .GET_CONTENT_URI_FAILED);
-        ScreenshotUriProvider.getScreenshotUriForCurrentTab(() -> null, TARGET_PACKAGE);
+        ScreenshotUriProvider.getScreenshotUriForCurrentTab(SupplierUtils.ofNull(), TARGET_PACKAGE);
         watcher.assertExpected();
     }
 }

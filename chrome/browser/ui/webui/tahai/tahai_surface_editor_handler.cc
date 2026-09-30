@@ -6,7 +6,6 @@
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -75,9 +74,11 @@ class SurfaceEditorHandler final : public content::WebUIMessageHandler,
       return nullptr;
     }
     auto* window = GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
-    auto* browser = window ? window->GetBrowserForMigrationOnly() : nullptr;
-    if (!browser || !browser->is_type_normal() || browser->GetProfile() != profile_ ||
-        browser->tab_strip_model()->GetActiveWebContents() != contents) {
+    auto* browser = window ? window : nullptr;
+    if (!browser ||
+        !(browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
+        browser->GetProfile() != profile_ ||
+        browser->GetTabStripModel()->GetActiveWebContents() != contents) {
       return nullptr;
     }
     return WindowModeController::GetForBrowser(browser);

@@ -61,7 +61,7 @@
 }
 
 #aimIcon {
-  -webkit-mask-image: url(//resources/cr_components/searchbox/icons/search_spark.svg);
+  -webkit-mask-image: url(//resources/cr_components/searchbox/icons/search_spark_old.svg);
   -webkit-mask-position: center;
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-size: cover;
@@ -107,7 +107,7 @@
   position: absolute;
   top: 0;
   user-select: none;
-  white-space: pre-wrap;
+  white-space: break-spaces;
   word-break: break-word;
 }
 
@@ -131,6 +131,14 @@
   outline: none;
   position: relative;
   resize: none;
+  white-space: break-spaces;
+}
+
+:host([composebox-skills-enabled]) #input {
+  display: inline-block;
+  min-height: 24px;
+  white-space: break-spaces;
+  word-break: break-word;
 }
 
 :host(:not([disable-caret-color-animation])) #input {
@@ -208,11 +216,15 @@
   }
 }
 
-#input::placeholder {
+#input::placeholder,
+#input:empty::before {
+  content: attr(placeholder);
   color: var(--cr-composebox-input-placeholder-color, var(--color-composebox-type-ahead));
+  pointer-events: none;
 }
 
-:host-context([searchbox-next-enabled]) #input::placeholder {
+:host-context([searchbox-next-enabled]) #input::placeholder,
+:host-context([searchbox-next-enabled]) #input:empty::before {
   font-size: var(--cr-composebox-input-placeholder-font-size, 16px);
   font-weight: 400;
 }
@@ -231,12 +243,12 @@
 
 #invisibleText {
   color: transparent;
-  white-space: pre-wrap;
+  white-space: break-spaces;
 }
 
 #ghostText {
   color: var(--color-composebox-type-ahead);
-  white-space: pre-wrap;
+  white-space: break-spaces;
 }
 
 #tabChip {
@@ -318,3 +330,10 @@
     border: var(--composebox-outline-hcm);
   }
 }
+
+:host-context([webui-rounded-icons]) {
+  #aimIcon {
+    -webkit-mask-image: url(//resources/cr_components/searchbox/icons/search_spark.svg);
+  }
+}
+

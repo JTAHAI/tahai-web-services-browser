@@ -194,9 +194,12 @@ class Extension final : public base::RefCountedThreadSafe<Extension> {
     return GetResourceURL(url(), relative_url);
   }
 
-  // Returns true if the resource matches a pattern in the pattern_set.
+  // Returns true if the resource matches a pattern in the pattern_set. If
+  // `case_sensitive` is false, matching is performed case-insensitively using
+  // Unicode case folding.
   bool ResourceMatches(const URLPatternSet& pattern_set,
-                       std::string_view resource) const;
+                       std::string_view resource,
+                       bool case_sensitive) const;
 
   // Returns an extension resource object. `relative_path` should be UTF8
   // encoded.
@@ -236,10 +239,8 @@ class Extension final : public base::RefCountedThreadSafe<Extension> {
   // Returns true if this extension or app includes areas within `origin`.
   bool OverlapsWithOrigin(const GURL& origin) const;
 
-  // Get the manifest data associated with the key, or NULL if there is none.
-  // Can only be called after Init is finished.
-  const ManifestData* GetManifestData(std::string_view key) const;
-
+  // Gets the manifest data associated with the key, or null if there is none.
+  // Can only be called after Init() is finished.
   template <class T>
   const T* GetManifestData() const {
     static_assert(std::is_base_of_v<ManifestData, T>,
@@ -293,9 +294,6 @@ class Extension final : public base::RefCountedThreadSafe<Extension> {
   // In pseudocode, returns
   // base::Base64Encode(RSAPrivateKey(pem_file).ExportPublicKey()).
   const std::string& public_key() const { return public_key_; }
-  // An optional longer description of the extension.
-  // TODO(crbug.com/324534603): Remove this.
-  const std::string& description() const;
   int manifest_version() const { return manifest_version_; }
   bool converted_from_user_script() const {
     return converted_from_user_script_;
@@ -381,6 +379,10 @@ class Extension final : public base::RefCountedThreadSafe<Extension> {
   bool LoadSharedFeatures(std::u16string* error);
   bool LoadManifestVersion(std::u16string* error);
   bool LoadShortName(std::u16string* error);
+
+  // Internal variant to get the ManifestData associated with `key`.
+  // External callers should use the templated versions.
+  const ManifestData* GetManifestData(std::string_view key) const;
 
   // The extension's human-readable name. Name is used for display purpose. It
   // might be wrapped with unicode bidi control characters so that it is

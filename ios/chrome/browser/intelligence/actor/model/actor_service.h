@@ -7,6 +7,7 @@
 
 #import <map>
 #import <memory>
+#import <optional>
 #import <string>
 #import <vector>
 
@@ -69,8 +70,13 @@ class ActorService : public KeyedService {
                              web::WebState* web_state,
                              TabObservationCallback callback);
 
-  // Pauses a task.
+  // Pauses a task, cancelling in-progress actions and returning control of the
+  // WebState to the user.
   void PauseTask(ActorTaskId task_id, bool from_actor);
+
+  // Interrupts a task to wait for user input, suspending ongoing actions
+  // without cancelling them.
+  void InterruptTask(ActorTaskId task_id, ActorTaskInterruptReason reason);
 
   // Stops a task.
   void StopTask(ActorTaskId task_id, ActorTaskStoppedReason reason);
@@ -82,6 +88,10 @@ class ActorService : public KeyedService {
 
   // Returns the aggregated journal for this service.
   AggregatedJournal* GetJournal() { return journal_.get(); }
+
+  // Returns the execution state of the currently active task, or `std::nullopt`
+  // if there are no active tasks.
+  std::optional<ActorTaskState> GetActiveTaskState() const;
 
   // Returns the WebState associated with the given ActorTask by its ID, or
   // nullptr if not found or is not in the set of the task's controlled

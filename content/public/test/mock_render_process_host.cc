@@ -13,6 +13,7 @@
 #include "base/functional/callback_helpers.h"
 #include "base/lazy_instance.h"
 #include "base/location.h"
+#include "base/no_destructor.h"
 #include "base/notimplemented.h"
 #include "base/process/process_handle.h"
 #include "base/task/single_thread_task_runner.h"
@@ -98,6 +99,7 @@ MockRenderProcessHost::~MockRenderProcessHost() {
       observer.RenderProcessHostDestroyed(this);
     RenderProcessHostImpl::UnregisterHost(GetID());
   }
+  ClearAllUserData();
 }
 
 void MockRenderProcessHost::SimulateCrash() {
@@ -207,6 +209,10 @@ bool MockRenderProcessHost::IsForGuestsOnly() {
   return is_for_guests_only_;
 }
 
+bool MockRenderProcessHost::IsPrivileged() {
+  return GetProcessLock().is_privileged();
+}
+
 bool MockRenderProcessHost::IsJitDisabled() {
   return false;
 }
@@ -295,8 +301,12 @@ bool MockRenderProcessHost::FastShutdownStarted() {
 }
 
 const base::Process& MockRenderProcessHost::GetProcess() {
-  if (process.IsValid())
-    return process;
+  if (process_still_launching_) {
+    // Matches RenderProcessHostImpl::GetProcess() while the launcher is still
+    // starting: a sentinel for "no process".
+    static const base::NoDestructor<base::Process> null_process;
+    return *null_process;
+  }
 
   static const base::Process current_process(base::Process::Current());
   return current_process;

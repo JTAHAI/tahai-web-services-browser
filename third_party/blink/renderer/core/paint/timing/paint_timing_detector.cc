@@ -7,7 +7,6 @@
 #include "base/check_deref.h"
 #include "base/metrics/histogram_functions.h"
 #include "third_party/blink/public/common/features.h"
-#include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/common/performance/largest_contentful_paint_type.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
@@ -133,23 +132,6 @@ void ReportImagePixelInaccuracy(HTMLImageElement* image_element) {
   }
 }
 
-const char* ScrollTypeToString(mojom::blink::ScrollType scroll_type) {
-  switch (scroll_type) {
-    case mojom::blink::ScrollType::kUser:
-      return "user";
-    case mojom::blink::ScrollType::kProgrammatic:
-      return "programmatic";
-    case mojom::blink::ScrollType::kClamping:
-      return "clamping";
-    case mojom::blink::ScrollType::kCompositor:
-      return "compositor";
-    case mojom::blink::ScrollType::kAnchoring:
-      return "anchoring";
-    case mojom::blink::ScrollType::kScrollStart:
-      return "scrollstart";
-  }
-}
-
 }  // namespace
 
 PaintTimingDetector::PaintTimingDetector(PaintTiming* paint_timing)
@@ -192,7 +174,7 @@ bool PaintTimingDetector::NotifyBackgroundImagePaint(
   }
 
   auto& paint_timing = PaintTiming::From(object->GetDocument());
-  paint_timing.GetImageElementTiming()->NotifyBackgroundImagePainted(
+  paint_timing.GetImageElementTiming()->NotifyBackgroundImagePaint(
       node, style_image, current_paint_chunk_properties, image_border);
 
   if (!IsBackgroundImageContentful(*object, image)) {
@@ -271,20 +253,12 @@ void PaintTimingDetector::NotifyInteractionTriggeredVideoSrcChange(
 
 void PaintTimingDetector::NotifyImageFinished(const LayoutObject& object,
                                               const MediaTiming* media_timing) {
-  paint_timing_->GetImageElementTiming()->NotifyImageFinished(object,
-                                                              media_timing);
-  if (IgnorePaintTimingScope::ShouldIgnore()) {
-    return;
-  }
   image_paint_timing_detector_->NotifyImageFinished(object, media_timing);
 }
 
 void PaintTimingDetector::NotifyBackgroundImageFinished(
     const StyleFetchedImage* image) {
-  // TODO(crbug.com/535432431): Paint Timing (ImagePaintTimingDetector)
-  // currently gets the background image timestamp information from Element
-  // Timing. This should be inverted.
-  paint_timing_->GetImageElementTiming()->NotifyBackgroundImageFinished(image);
+  image_paint_timing_detector_->NotifyBackgroundImageFinished(image);
 }
 
 void PaintTimingDetector::NotifyImageRemoved(
@@ -293,54 +267,6 @@ void PaintTimingDetector::NotifyImageRemoved(
   paint_timing_->GetImageElementTiming()->NotifyImageRemoved(object,
                                                              cached_image);
   image_paint_timing_detector_->NotifyImageRemoved(object, cached_image);
-}
-
-void PaintTimingDetector::OnInputOrScroll() {
-  LocalDOMWindow* window = DomWindow();
-  if (SoftNavigationHeuristics* heuristics =
-          window ? window->GetSoftNavigationHeuristics() : nullptr) {
-    heuristics->OnInputOrScroll();
-  }
-
-  if (did_notify_first_input_or_scroll_) {
-    return;
-  }
-  did_notify_first_input_or_scroll_ = true;
-
-  // Notify `PaintTiming` so it can shut down hard navigation LCP.
-  if (window) {
-    PaintTiming::From(CHECK_DEREF(window->document())).OnInputOrScroll();
-  }
-
-  // TODO(crbug.com/454082773): We should compare the presentation
-  // time to the input time to avoid ignoring candidates that were presented
-  // before this input arrived.
-  image_paint_timing_detector_->StopRecordEntries();
-}
-
-void PaintTimingDetector::NotifyInputEvent(WebInputEvent::Type type) {
-  // A single keyup event should be ignored. It could be caused by user actions
-  // such as refreshing via Ctrl+R.
-  if (type == WebInputEvent::Type::kMouseMove ||
-      type == WebInputEvent::Type::kMouseEnter ||
-      type == WebInputEvent::Type::kMouseLeave ||
-      type == WebInputEvent::Type::kKeyUp ||
-      WebInputEvent::IsPinchGestureEventType(type)) {
-    return;
-  }
-  OnInputOrScroll();
-}
-
-void PaintTimingDetector::NotifyScroll(mojom::blink::ScrollType scroll_type) {
-  // TODO(crbug.com/330709851): Remove once we're sure scroll restoration is
-  // handled properly for soft navs.
-  TRACE_EVENT("loading", "PaintTimingDetector::NotifyScroll", "type",
-              ScrollTypeToString(scroll_type));
-  if (scroll_type != mojom::blink::ScrollType::kUser &&
-      scroll_type != mojom::blink::ScrollType::kCompositor) {
-    return;
-  }
-  OnInputOrScroll();
 }
 
 void PaintTimingDetector::DidChangePerformanceTiming() {

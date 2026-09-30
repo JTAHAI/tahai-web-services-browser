@@ -68,15 +68,14 @@ bool IsLocalWebApprovalsEnabledForSubframes() {
   return base::FeatureList::IsEnabled(kAllowSubframeLocalWebApprovals);
 }
 
+#if BUILDFLAG(IS_ANDROID)
+BASE_FEATURE(kSupervisedUserVerificationPageOnAndroid,
+             "SupervisedUserVerificationPageOnAndroid",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+#endif
+
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 BASE_FEATURE(kEnableSupervisedUserVersionSignOutDialog,
              base::FEATURE_ENABLED_BY_DEFAULT);
 #endif
-
-BASE_FEATURE(kSupervisedUserUseUrlFilteringService,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-BASE_FEATURE(kSupervisedUserMergeDeviceParentalControlsAndFamilyLinkPrefs,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-BASE_FEATURE(kSupervisedUserEmitLogRecordSeparately,
-             base::FEATURE_ENABLED_BY_DEFAULT);
 }  // namespace supervised_user

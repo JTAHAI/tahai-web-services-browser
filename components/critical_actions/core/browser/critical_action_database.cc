@@ -11,6 +11,7 @@
 #include "base/logging.h"
 #include "base/time/time.h"
 #include "sql/error_delegate_util.h"
+#include "sql/sqlite_result_code.h"
 #include "sql/statement.h"
 #include "sql/transaction.h"
 #include "url/gurl.h"
@@ -203,6 +204,22 @@ std::vector<CriticalActionEntry> CriticalActionDatabase::GetCriticalActions(
     condition += ")";
     conditions.push_back(condition);
   }
+
+  // TODO(b/543797083): Critical actions are currently stored locally and
+  // not synced between devices. As a result, visits that occurred on
+  // other devices will not have matching critical actions in the local
+  // database.
+  if (!options.visit_ids.empty()) {
+    std::string condition = "visit_id IN (";
+    for (size_t i = 0; i < options.visit_ids.size(); ++i) {
+      if (i > 0) {
+        condition += ", ";
+      }
+      condition += "?";
+    }
+    condition += ")";
+    conditions.push_back(condition);
+  }
   if (options.conversation_id.has_value()) {
     conditions.push_back("conversation_id = ?");
   }
@@ -238,6 +255,11 @@ std::vector<CriticalActionEntry> CriticalActionDatabase::GetCriticalActions(
   if (!options.action_types.empty()) {
     for (ActionType type : options.action_types) {
       statement.BindInt(bind_index++, static_cast<int>(type));
+    }
+  }
+  if (!options.visit_ids.empty()) {
+    for (int64_t visit_id : options.visit_ids) {
+      statement.BindInt64(bind_index++, visit_id);
     }
   }
   if (options.conversation_id.has_value()) {
@@ -326,6 +348,8 @@ void CriticalActionDatabase::Close() {
 void CriticalActionDatabase::DatabaseErrorCallback(int extended_error,
                                                    sql::Statement* statement) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  sql::UmaHistogramSqliteResult("CriticalActions.Database.SqliteError",
+                                extended_error);
   if (sql::IsErrorCatastrophic(extended_error)) {
     db_.RazeAndPoison();
   } else if (!sql::Database::IsExpectedSqliteError(extended_error)) {

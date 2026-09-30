@@ -105,10 +105,8 @@ std::string_view SuggestionTypeToStringView(SuggestionType type) {
       return "kTitle";
     case SuggestionType::kSeparator:
       return "kSeparator";
-    case SuggestionType::kUndoOrClear:
-      return "kUndoOrClear";
-    case SuggestionType::kMixedFormMessage:
-      return "kMixedFormMessage";
+    case SuggestionType::kUndo:
+      return "kUndo";
     case SuggestionType::kDevtoolsTestAddresses:
       return "kDevtoolsTestAddresses";
     case SuggestionType::kDevtoolsTestAddressByCountry:
@@ -135,10 +133,10 @@ std::string_view SuggestionTypeToStringView(SuggestionType type) {
       return "kBnplFootnote";
     case SuggestionType::kAutocompleteAtMemoryButton:
       return "kAutocompleteAtMemoryButton";
-    case SuggestionType::kOpenGemini:
-      return "kOpenGemini";
     case SuggestionType::kAtMemoryNoConnection:
       return "kAtMemoryNoConnection";
+    case SuggestionType::kAtMemoryOpenGemini:
+      return "kAtMemoryOpenGemini";
     case SuggestionType::kAtMemorySearchAffordance:
       return "kAtMemorySearchAffordance";
     case SuggestionType::kPersonalContextNotice:
@@ -159,6 +157,12 @@ std::string_view SuggestionTypeToStringView(SuggestionType type) {
       return "kAtMemoryAiDisclosure";
     case SuggestionType::kAtMemorySourceAttribution:
       return "kAtMemorySourceAttribution";
+    case SuggestionType::kAtMemoryFetching:
+      return "kAtMemoryFetching";
+    case SuggestionType::kRemoveAutofillAi:
+      return "kRemoveAutofillAi";
+    case SuggestionType::kAutofillAiSourceAttribution:
+      return "kAutofillAiSourceAttribution";
   }
   NOTREACHED();
 }

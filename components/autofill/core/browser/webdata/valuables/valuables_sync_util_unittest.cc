@@ -4,10 +4,11 @@
 
 #include "components/autofill/core/browser/webdata/valuables/valuables_sync_util.h"
 
+#include <ranges>
+
 #include "base/strings/utf_string_conversions.h"
-#include "base/types/zip.h"
-#include "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
-#include "components/autofill/core/browser/webdata/valuables/valuables_sync_test_utils.h"
+#include "components/autofill/core/browser/test_utils/entity_data_test_util.h"
+#include "components/autofill/core/browser/webdata/valuables/valuables_sync_test_util.h"
 #include "components/sync/protocol/autofill_valuable_specifics.pb.h"
 #include "components/sync/protocol/entity_data.h"
 #include "components/sync/test/unknown_field_util.h"
@@ -41,8 +42,8 @@ TEST(LoyaltyCardSyncUtilTest, CreateEntityDataFromLoyaltyCard) {
   ASSERT_EQ(card.merchant_domains().size(),
             (size_t)specifics.loyalty_card().merchant_domains().size());
   for (auto [merchant_domain, loyalty_card_domain] :
-       base::zip(card.merchant_domains(),
-                 specifics.loyalty_card().merchant_domains())) {
+       std::views::zip(card.merchant_domains(),
+                       specifics.loyalty_card().merchant_domains())) {
     EXPECT_EQ(merchant_domain, loyalty_card_domain);
   }
 }
@@ -133,6 +134,25 @@ TEST(FlightReservationSyncUtilTest,
       ->set_departure_airport_utc_offset_seconds(123456789);
   specifics.mutable_flight_reservation()
       ->set_arrival_airport_utc_offset_seconds(987654321);
+
+  EXPECT_EQ(
+      TrimAutofillValuableSpecificsDataForCaching(specifics).ByteSizeLong(),
+      0u);
+}
+
+TEST(OfferSyncUtilTest, TrimAutofillValuableSpecificsDataForCaching) {
+  sync_pb::AutofillValuableSpecifics specifics;
+  specifics.set_id("some_id");
+  specifics.set_is_editable(true);
+  specifics.mutable_offer()->set_issuer_name("Safeway");
+  specifics.mutable_offer()->set_provider_name("coupon.com");
+  specifics.mutable_offer()->set_offer_short_title("50% off");
+  specifics.mutable_offer()->set_expiration_time_unix_epoch_micros(123456789);
+  specifics.mutable_offer()->set_offer_code("12345");
+  specifics.mutable_offer()->set_offer_title_image_url(
+      "https://image.com/logo.png");
+  specifics.mutable_offer()->add_issuer_domains("safeway.com");
+  specifics.mutable_offer()->set_description("50% off your next purchase");
 
   EXPECT_EQ(
       TrimAutofillValuableSpecificsDataForCaching(specifics).ByteSizeLong(),

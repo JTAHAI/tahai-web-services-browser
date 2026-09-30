@@ -781,7 +781,7 @@ targets.mixin(
     swarming = targets.swarming(
         dimensions = {
             "device_type": "s5e9945",
-            "device_os": "UP1A.231005.007",
+            "device_os": "AP3A.240905.015.A2",
             "device_os_type": "user",
             "os": "Android",
             "pool": "chromium.tests.gpu",
@@ -1029,18 +1029,6 @@ targets.mixin(
 )
 
 targets.mixin(
-    name = "ios_runtime_cache_18_2",
-    swarming = targets.swarming(
-        named_caches = [
-            swarming.cache(
-                name = "runtime_ios_18_2",
-                path = "Runtime-ios-18.2",
-            ),
-        ],
-    ),
-)
-
-targets.mixin(
     name = "ios_runtime_cache_18_4",
     swarming = targets.swarming(
         named_caches = [
@@ -1059,18 +1047,6 @@ targets.mixin(
             swarming.cache(
                 name = "runtime_ios_18_5",
                 path = "Runtime-ios-18.5",
-            ),
-        ],
-    ),
-)
-
-targets.mixin(
-    name = "ios_runtime_cache_26_0",
-    swarming = targets.swarming(
-        named_caches = [
-            swarming.cache(
-                name = "runtime_ios_26_0",
-                path = "Runtime-ios-26.0",
             ),
         ],
     ),
@@ -1184,6 +1160,51 @@ targets.mixin(
 )
 
 targets.mixin(
+    name = "linux-ubuntu",
+    swarming = targets.swarming(
+        dimensions = {
+            "os": "Ubuntu",
+        },
+    ),
+)
+
+# Restricts Linux GPU High Tier AI WPT tasks to NVIDIA, AMD, or modern Intel GPUs
+# (Intel UHD 770 / Iris Xe) to avoid execution stalls on low-end Intel UHD 630
+# integrated graphics (lin-90-g582 and lin-91-g582).
+targets.mixin(
+    name = "linux_gpu_high_tier_ai_wpt_dimensions",
+    swarming = targets.swarming(
+        dimensions = {
+            "gpu": "10de|1002|8086:4680|8086:a780|8086:a7a0",
+        },
+    ),
+)
+
+# Restricts Linux GPU High Tier Gemma 4 AI WPT tasks to NVIDIA and AMD discrete
+# GPUs to prevent VK_ERROR_DEVICE_LOST failures on Intel integrated graphics
+# (see https://crbug.com/547936735).
+targets.mixin(
+    name = "linux_gpu_high_tier_gemma4_ai_wpt_dimensions",
+    swarming = targets.swarming(
+        dimensions = {
+            "gpu": "10de|1002",
+        },
+    ),
+)
+
+# Restricts Windows GPU Gemma 4 AI WPT tasks to NVIDIA discrete GPUs
+# to prevent D3D12 vision compilation crashes on AMD integrated graphics
+# (see https://crbug.com/547946848).
+targets.mixin(
+    name = "win_gpu_gemma4_ai_wpt_dimensions",
+    swarming = targets.swarming(
+        dimensions = {
+            "gpu": "10de",
+        },
+    ),
+)
+
+targets.mixin(
     name = "linux_amd_780m_experimental",
     swarming = targets.swarming(
         dimensions = {
@@ -1217,6 +1238,19 @@ targets.mixin(
             "os": "Ubuntu-24.04",
             "display_attached": "1",
             "display_server": "x11",
+            "pool": "chromium.tests.gpu",
+        },
+    ),
+)
+
+targets.mixin(
+    name = "linux_amd_rx_5500_xt_wayland_stable",
+    swarming = targets.swarming(
+        dimensions = {
+            "gpu": "1002:7340-25.2.8",
+            "os": "Ubuntu-24.04",
+            "display_attached": "1",
+            "display_server": "wayland",
             "pool": "chromium.tests.gpu",
         },
     ),
@@ -1278,8 +1312,8 @@ targets.mixin(
     swarming = targets.swarming(
         dimensions = {
             "display_server": "x11",
-            "gpu": "10de:2184-535.183.01",
-            "os": "Ubuntu-22.04",
+            "gpu": "10de:2184-595.91.07",
+            "os": "Ubuntu-24.04",
             "pool": "chromium.tests.gpu",
         },
     ),
@@ -1330,23 +1364,6 @@ targets.mixin(
             "cpu": "Apple_(Virtual)",
             "os": "Mac",
             "pool": "chromium.tests.macvm",
-        },
-    ),
-)
-
-targets.mixin(
-    name = "mac_15_vm_optional",
-    swarming = targets.swarming(
-        dimensions = {
-            "cpu": "arm64",  # fallback on bare metal if no VMs are available
-            # TODO(crbug.com/521856600): Remove OR when Mac-26 once upgrade
-            # process is complete and CQ migrates to mac26-arm64-rel-tests.
-            "os": "Mac-15|Mac-26",
-        },
-        optional_dimensions = {
-            30: {
-                "cpu": "Apple_(Virtual)",
-            },
         },
     ),
 )
@@ -1580,16 +1597,6 @@ targets.mixin(
 )
 
 targets.mixin(
-    name = "mac_beta_arm64",
-    swarming = targets.swarming(
-        dimensions = {
-            "cpu": "arm64",
-            "os": "Mac-15",
-        },
-    ),
-)
-
-targets.mixin(
     name = "mac_beta_x64",
     swarming = targets.swarming(
         dimensions = {
@@ -1607,7 +1614,7 @@ targets.mixin(
     swarming = targets.swarming(
         dimensions = {
             "cpu": "arm64",
-            "os": "Mac-15|Mac-26",
+            "os": "Mac-26",
         },
     ),
 )
@@ -2266,12 +2273,12 @@ targets.mixin(
     name = "xcode_27_beta",
     args = [
         "--xcode-build-version",
-        "27a5228h",
+        "27a5252f",
     ],
     swarming = targets.swarming(
         named_caches = [
             swarming.cache(
-                name = "xcode_ios_27a5228h",
+                name = "xcode_ios_27a5252f",
                 path = "Xcode.app",
             ),
         ],
@@ -2279,31 +2286,15 @@ targets.mixin(
 )
 
 targets.mixin(
-    name = "xcode_17a400",
+    name = "xcode_27_main",
     args = [
         "--xcode-build-version",
-        "17a400",
+        "27a5252f",
     ],
     swarming = targets.swarming(
         named_caches = [
             swarming.cache(
-                name = "xcode_ios_17a400",
-                path = "Xcode.app",
-            ),
-        ],
-    ),
-)
-
-targets.mixin(
-    name = "xcode_26_main",
-    args = [
-        "--xcode-build-version",
-        "17f42",
-    ],
-    swarming = targets.swarming(
-        named_caches = [
-            swarming.cache(
-                name = "xcode_ios_17f42",
+                name = "xcode_ios_27a5252f",
                 path = "Xcode.app",
             ),
         ],

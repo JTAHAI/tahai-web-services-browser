@@ -6,6 +6,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/task/single_thread_task_runner.h"
+#include "chrome/browser/dictation/features.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/chrome_typography.h"
 #include "chrome/browser/ui/views/dictation/waveform_view.h"
@@ -57,6 +58,8 @@ class DictationToastView : public views::View {
   void Init();
   void UpdateForState(UiState state);
   void UpdateAudioLevel(float audio_level);
+
+  views::MdTextButton* toggle_button() { return toggle_button_; }
 
  private:
   base::RepeatingClosure close_callback_;
@@ -148,6 +151,7 @@ void DictationToastView::Init() {
   close_button->SetBorder(views::CreateEmptyBorder(insets));
   views::InstallCircleHighlightPathGenerator(close_button);
   close_button->SetAccessibleName(l10n_util::GetStringUTF16(IDS_ACCNAME_CLOSE));
+  close_button->SetTooltipText(l10n_util::GetStringUTF16(IDS_CLOSE));
   close_button->SetProperty(
       views::kMarginsKey,
       gfx::Insets::TLBR(
@@ -165,10 +169,13 @@ void DictationToastView::UpdateForState(UiState state) {
   if (toggle_button_) {
     switch (state) {
       case UiState::kInactive:
+        // Note that when `kSessionEndsOnStreamEnd` is enabled, the button does
+        // not toggle streams, it can only end both the stream and session.
         // TODO(b/510738735): Finalize placeholder strings.
-        toggle_button_->SetText(
-            l10n_util::GetStringUTF16(IDS_DICTATION_BUTTON_START));
-        toggle_button_->SetEnabled(true);
+        toggle_button_->SetText(l10n_util::GetStringUTF16(
+            kSessionEndsOnStreamEnd.Get() ? IDS_DONE
+                                          : IDS_DICTATION_BUTTON_START));
+        toggle_button_->SetEnabled(!kSessionEndsOnStreamEnd.Get());
         break;
       case UiState::kInitializing:
       case UiState::kTranscribing:
@@ -207,16 +214,6 @@ DictationBubbleUi::DictationBubbleUi(
   set_close_on_deactivate(false);
   SetContentsView(std::make_unique<DictationToastView>(
       std::move(close_callback), std::move(toggle_active_stream_callback)));
-
-  // Make this not activatable during creation, so that it does not steal focus
-  // from the page.
-  SetCanActivate(false);
-  // After creation, we need to make this activatable again. Otherwise, we would
-  // discard mouse activation messages from Windows and the buttons in this
-  // bubble wouldn't be clickable. See https://crbug.com/542199776
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(&DictationBubbleUi::SetCanActivate,
-                                weak_ptr_factory_.GetWeakPtr(), true));
 
   // TODO(crbug.com/509983464): Update this to call an undeprecated factory
   // function when this bug is fixed.
@@ -261,6 +258,8 @@ void DictationBubbleUi::Init() {
   toast_view->Init();
   toast_view->UpdateForState(state_);
 
+  SetInitiallyFocusedView(toast_view->toggle_button());
+
   const auto* const layout_provider = ChromeLayoutProvider::Get();
   const gfx::Insets insets = layout_provider->GetInsetsMetric(
       views::InsetsMetric::INSETS_VECTOR_IMAGE_BUTTON);
@@ -282,6 +281,11 @@ void DictationBubbleUi::Init() {
       total_vertical_margins - top_margin,
       layout_provider->GetDistanceMetric(
           DISTANCE_TOAST_BUBBLE_MARGIN_RIGHT_CLOSE_BUTTON)));
+}
+
+views::View* DictationBubbleUi::GetInitiallyFocusedView() {
+  auto* toast_view = views::AsViewClass<DictationToastView>(GetContentsView());
+  return toast_view ? toast_view->toggle_button() : nullptr;
 }
 
 gfx::Rect DictationBubbleUi::GetBubbleBounds() {

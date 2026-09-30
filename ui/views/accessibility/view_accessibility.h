@@ -42,6 +42,7 @@ class AXAuraObjWrapper;
 class AXVirtualView;
 class ScopedAccessibilityEventBlocker;
 class View;
+class ViewAccessibilityAXTreeSource;
 class Widget;
 
 using RoleCallbackList = base::RepeatingCallbackList<void(ax::mojom::Role)>;
@@ -570,6 +571,9 @@ class VIEWS_EXPORT ViewAccessibility : public WidgetObserver {
   // noticeable; the screen reader may say something like "Alert: hello"
   // instead of just "hello", and may interrupt any existing text being spoken.
   // However, the screen reader may also treat the two calls the same.
+  // With ViewsAX, both methods use the same serialized ARIA notification
+  // pipeline as web content.
+  // TODO(crbug.com/40672441): Clean this up once ViewsAX is enabled by default.
   // AnnounceText() is a deprecated alias for AnnounceAlert().
   // TODO(crbug.com/40287811) - Migrate all callers of AnnounceText() to
   // one of the other two methods.
@@ -588,6 +592,8 @@ class VIEWS_EXPORT ViewAccessibility : public WidgetObserver {
   virtual AtomicViewAXTreeManager* GetAtomicViewAXTreeManagerForTesting() const;
 
   virtual Widget* GetWidget() const;
+
+  bool IsRootViewForWidget() const;
 
   // Gets or creates a wrapper suitable for use with tree sources.
   // Returns nullptr if the view is null or on platforms that don't use Aura.
@@ -647,6 +653,8 @@ class VIEWS_EXPORT ViewAccessibility : public WidgetObserver {
   // higher priority than real children (views), this function returns them
   // first if any. If there are no virtual children, it returns the
   // ViewAccessibility objects associated with the children of the `view_`.
+  // The root view also appends the hosts of the child Widget trees, which
+  // stand for separate Widgets rather than for content of this view.
   std::vector<raw_ptr<ViewAccessibility>> GetChildren() const;
 
   virtual std::string GetDebugString() const;
@@ -784,6 +792,12 @@ class VIEWS_EXPORT ViewAccessibility : public WidgetObserver {
 
   void UpdateOffsetContainerId();
 
+  // Recursively notifies that all virtual children were added.
+  void OnVirtualViewAddedToWidget();
+
+  // Recursively notifies that all virtual children were removed.
+  void OnVirtualViewRemovedFromWidget();
+
   // Contains data that is populated by the accessibility attributes setters.
   ui::AXNodeData data_;
 
@@ -833,6 +847,7 @@ class VIEWS_EXPORT ViewAccessibility : public WidgetObserver {
   FRIEND_TEST_ALL_PREFIXES(ViewTest,
                            WidgetObserverViewWidgetClosedViewReparented);
   friend class ScopedAccessibilityEventBlocker;
+  friend class ViewAccessibilityAXTreeSource;
 
   // Fully initialize the cache.
   void CompleteCacheInitializationRecursive();
@@ -859,15 +874,16 @@ class VIEWS_EXPORT ViewAccessibility : public WidgetObserver {
 
   void SetBlockNotifyEvents(bool block);
 
+  void Announce(std::u16string_view text,
+                ax::mojom::AriaNotificationPriority priority);
+  void AddAriaNotification(std::u16string_view text,
+                           ax::mojom::AriaNotificationPriority priority);
+  void ClearPendingAriaNotifications();
+
   ui::AXAttributeChangedCallbacks* GetOrCreateAXAttributeChangedCallbacks();
 
-  // Called from OnViewAddedToWidget. Recursively calls
-  // OnVirtualViewAddedToWidget for all virtual children.
-  void OnVirtualViewAddedToWidget();
-
-  // Inverse of OnVirtualViewAddedToWidget. Called from OnViewRemovedFromWidget.
-  // Recursively calls OnVirtualViewRemovedFromWidget for all virtual children.
-  void OnVirtualViewRemovedFromWidget();
+  void NotifyChildrenAdded();
+  void NotifyChildrenRemoved();
 
   virtual void NotifyDataChanged();
 

@@ -20,6 +20,37 @@ class OmniboxClient;
 
 namespace searchbox {
 
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// LINT.IfChange(FocusResultedInNavigationType)
+enum class FocusResultedInNavigationType {
+  kNoNavigationNoAttachments = 0,
+  kNavigationNoAttachments = 1,
+  kNoNavigationWithAttachments = 2,
+  kNavigationWithAttachments = 3,
+  kMaxValue = kNavigationWithAttachments
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/omnibox/enums.xml:FocusResultedInNavigationTypes)
+
+// Display names for a keyword search provider chip or button.
+struct KeywordLabelNames {
+  // The short name of the keyword or search provider (e.g. "google.com"),
+  // adjusted for locale text direction. Used in compact UI and accessibility
+  // labels (e.g. "Press Tab to search google.com").
+  std::u16string short_name;
+
+  // The full user-facing label describing the keyword search action
+  // (e.g. "Search google.com", "Ask Google"), used as the chip label.
+  std::u16string full_name;
+};
+
+// Returns the short and long names that can be used to describe keyword
+// behavior, e.g. "Search google.com" or an equivalent translation, with
+// consideration for bidirectional text safety using `service`. Empty names
+// are returned if `service` is null.
+KeywordLabelNames GetKeywordLabelNames(const std::u16string& keyword,
+                                       const TemplateURLService* service);
+
 // Tracks searchbox-related metrics and focus state.
 class InteractionMetricsTracker {
  public:
@@ -101,6 +132,15 @@ void OpenMatch(AutocompleteController* autocomplete_controller,
                metrics::OmniboxEventProto::KeywordModeEntryMethod
                    keyword_mode_entry_method,
                const std::u16string& pasted_text);
+
+// Classifies `text` using the AutocompleteClassifier to generate a match and an
+// optional alternate navigation URL.
+void ClassifyString(OmniboxClient* client,
+                    const std::u16string& text,
+                    bool in_keyword_mode,
+                    bool allow_exact_keyword_match,
+                    AutocompleteMatch* match,
+                    GURL* alternate_nav_url = nullptr);
 
 // Determines whether the user can "paste and go", given the specified text.
 bool CanPasteAndGo(OmniboxClient* client, const std::u16string& text);

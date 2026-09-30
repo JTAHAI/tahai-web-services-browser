@@ -12,7 +12,6 @@
 #include "base/time/clock.h"
 #include "base/time/default_clock.h"
 #include "base/time/time.h"
-#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "components/user_education/common/feature_promo/feature_promo_precondition.h"
 #include "components/user_education/common/feature_promo/feature_promo_result.h"
 #include "components/user_education/common/feature_promo/impl/typed_data_collection.h"
@@ -22,6 +21,9 @@
 #include "ui/views/event_monitor.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
+
+class BrowserView;
+class BrowserWindowInterface;
 
 DECLARE_FEATURE_PROMO_PRECONDITION_IDENTIFIER_VALUE(kWindowActivePrecondition);
 DECLARE_FEATURE_PROMO_PRECONDITION_IDENTIFIER_VALUE(
@@ -56,7 +58,7 @@ class WindowActivePrecondition
 class ContentNotFullscreenPrecondition
     : public user_education::FeaturePromoPreconditionBase {
  public:
-  explicit ContentNotFullscreenPrecondition(Browser& browser);
+  explicit ContentNotFullscreenPrecondition(BrowserWindowInterface& browser);
   ~ContentNotFullscreenPrecondition() override;
 
   // FeaturePromoPreconditionBase:
@@ -64,7 +66,7 @@ class ContentNotFullscreenPrecondition
       user_education::UnownedTypedDataCollection& data) const override;
 
  private:
-  const raw_ref<Browser> browser_;
+  const raw_ref<BrowserWindowInterface> browser_;
 };
 
 // Precondition that the Omnibox isn't open.

@@ -75,7 +75,6 @@ import java.util.List;
 
 /** Unit tests for {@link StaticLayout}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 @EnableFeatures({ChromeFeatureList.REMOVE_TAB_FOCUS_ON_SHOWING_AND_SELECT})
 public class StaticLayoutUnitTest {
 
@@ -243,6 +242,7 @@ public class StaticLayoutUnitTest {
         RenderWidgetHostView rwhv = mock(RenderWidgetHostView.class);
         doReturn(rwhv).when(webContents).getRenderWidgetHostView();
         doReturn(BACKGROUND_COLOR).when(rwhv).getBackgroundColor();
+        doReturn(BACKGROUND_COLOR).when(tab).getBackgroundColor();
         doReturn(webContents).when(tab).getWebContents();
         doReturn(true).when(tab).isInitialized();
         doReturn(TOOLBAR_BACKGROUND_COLOR).when(tab).getThemeColor();
@@ -356,8 +356,7 @@ public class StaticLayoutUnitTest {
         mModel.set(LayoutTab.BACKGROUND_COLOR, Color.WHITE);
 
         // Index 0 is the TabObserver for mTab1.
-        RenderWidgetHostView rwhv = mTab1.getWebContents().getRenderWidgetHostView();
-        doReturn(Color.RED).when(rwhv).getBackgroundColor();
+        doReturn(Color.RED).when(mTab1).getBackgroundColor();
         mTabObserverCaptor.getAllValues().get(0).onBackgroundColorChanged(mTab1, Color.RED);
 
         assertEquals(Color.RED, mModel.get(LayoutTab.BACKGROUND_COLOR));

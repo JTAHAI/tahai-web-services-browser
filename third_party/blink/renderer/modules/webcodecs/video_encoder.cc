@@ -94,6 +94,7 @@
 #include "third_party/blink/renderer/platform/wtf/cross_thread_copier_base.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_copier_std.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
+#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/perfetto/include/perfetto/tracing/track.h"
 
 #if BUILDFLAG(ENABLE_LIBAOM)
@@ -189,17 +190,29 @@ media::EncoderStatus IsAcceleratedConfigurationSupported(
     return media::EncoderStatus::Codes::kEncoderAccelerationSupportMissing;
   }
 
-  // Hardware encoders don't currently support high bit depths or subsamplings
-  // other than 4:2:0, except for AV1 profile 1 we require 4:4:4.
-  media::VideoChromaSampling required_sampling =
-      (profile == media::AV1PROFILE_PROFILE_HIGH)
-          ? media::VideoChromaSampling::k444
-          : media::VideoChromaSampling::k420;
+  // Hardware encoders only support subsamplings other than 4:2:0 for AV1
+  // profile 1, where we require 4:4:4.
+  // High bit depths are supported by HEVC Main10 and AV1 Main only; AV1
+  // profile 1 is deliberately left out because the 4:4:4 hardware input format
+  // is 8 bit AYUV, and 10b lacks hardware support for now.
+  // TODO(crbug.com/537818862): Advertise chroma_sampling and bit_depth on every
+  // SupportedProfile and drop this hardcoded allowlist.
+  if (profile != media::HEVCPROFILE_REXT) {
+    media::VideoChromaSampling required_sampling =
+        (profile == media::AV1PROFILE_PROFILE_HIGH)
+            ? media::VideoChromaSampling::k444
+            : media::VideoChromaSampling::k420;
 
-  if ((options.subsampling.has_value() &&
-       options.subsampling.value() != required_sampling) ||
-      options.bit_depth.value_or(8) != 8) {
-    return media::EncoderStatus::Codes::kEncoderUnsupportedConfig;
+    const int bit_depth = options.bit_depth.value_or(8);
+    const bool bit_depth_supported =
+        bit_depth == 8 ||
+        (bit_depth == 10 && (profile == media::HEVCPROFILE_MAIN10 ||
+                             profile == media::AV1PROFILE_PROFILE_MAIN));
+    if ((options.subsampling.has_value() &&
+         options.subsampling.value() != required_sampling) ||
+        !bit_depth_supported) {
+      return media::EncoderStatus::Codes::kEncoderUnsupportedConfig;
+    }
   }
 
   auto supported_profiles =
@@ -255,6 +268,16 @@ media::EncoderStatus IsAcceleratedConfigurationSupported(
       if (!(mode & supported_profile.rate_control_modes)) {
         continue;
       }
+    }
+
+    if (supported_profile.chroma_sampling.has_value() &&
+        supported_profile.chroma_sampling.value() !=
+            options.subsampling.value_or(media::VideoChromaSampling::k420)) {
+      continue;
+    }
+    if (supported_profile.bit_depth.has_value() &&
+        supported_profile.bit_depth.value() != options.bit_depth.value_or(8)) {
+      continue;
     }
 
     found_supported_profile = true;
@@ -342,8 +365,9 @@ VideoEncoderTraits::ParsedConfig* ParseConfigStatic(
     if (std::isnan(config->framerate()) ||
         config->framerate() < kMinFramerate ||
         config->framerate() > kMaxFramerate) {
-      result->not_supported_error_message = String::Format(
-          "Unsupported framerate; expected range from %f to %f, received %f.",
+      result->not_supported_error_message = Format(
+          "Unsupported framerate; expected range from {:f} to {:f}, received "
+          "{:f}.",
           kMinFramerate, kMaxFramerate, config->framerate());
       return result;
     }
@@ -443,23 +467,21 @@ bool VerifyCodecSupportStatic(VideoEncoderTraits::ParsedConfig* config,
 
   const auto& frame_size = config->options.frame_size;
   if (frame_size.height() > media::limits::kMaxDimension) {
-    *js_error_message = String::Format(
-        "Invalid height; expected range from %d to %d, received %d.", 1,
-        media::limits::kMaxDimension, frame_size.height());
+    *js_error_message =
+        Format("Invalid height; expected range from {} to {}, received {}.", 1,
+               media::limits::kMaxDimension, frame_size.height());
     return false;
   }
   if (frame_size.width() > media::limits::kMaxDimension) {
-    *js_error_message = String::Format(
-        "Invalid width; expected range from %d to %d, received %d.", 1,
-        media::limits::kMaxDimension, frame_size.width());
+    *js_error_message =
+        Format("Invalid width; expected range from {} to {}, received {}.", 1,
+               media::limits::kMaxDimension, frame_size.width());
     return false;
   }
   if (frame_size.Area64() > media::limits::kMaxCanvas) {
-    *js_error_message = String::Format(
-        "Invalid resolution; expected range from %d to %d, "
-        "received %" PRIu64
-        " (%d * "
-        "%d).",
+    *js_error_message = Format(
+        "Invalid resolution; expected range from {} to {}, received {} ({} * "
+        "{}).",
         1, media::limits::kMaxCanvas, frame_size.Area64(), frame_size.width(),
         frame_size.height());
     return false;
@@ -472,7 +494,9 @@ bool VerifyCodecSupportStatic(VideoEncoderTraits::ParsedConfig* config,
       break;
 #if BUILDFLAG(ENABLE_PLATFORM_HEVC)
     case media::VideoCodec::kHEVC:
-      if (config->profile != media::VideoCodecProfile::HEVCPROFILE_MAIN) {
+      if (config->profile != media::VideoCodecProfile::HEVCPROFILE_MAIN &&
+          config->profile != media::VideoCodecProfile::HEVCPROFILE_MAIN10 &&
+          config->profile != media::VideoCodecProfile::HEVCPROFILE_REXT) {
         *js_error_message = "Unsupported hevc profile.";
         return false;
       }
@@ -496,13 +520,12 @@ bool VerifyCodecSupportStatic(VideoEncoderTraits::ParsedConfig* config,
       uint64_t max_coded_area =
           media::H264LevelToMaxFS(config->level) * 16ull * 16ull;
       if (coded_area > max_coded_area) {
-        *js_error_message = String::Format(
-            "The provided resolution (%s) has a coded area "
-            "(%d*%d=%" PRIu64 ") which exceeds the maximum coded area (%" PRIu64
-            ") supported by the AVC level (%1.1f) indicated "
-            "by the codec string (0x%02X). You must either "
-            "specify a lower resolution or higher AVC level.",
-            config->options.frame_size.ToString().c_str(), coded_size.width(),
+        *js_error_message = Format(
+            "The provided resolution ({}) has a coded area ({}*{}={}) which "
+            "exceeds the maximum coded area ({}) supported by the AVC level "
+            "({:1.1f}) indicated by the codec string (0x{:02X}). You must "
+            "either specify a lower resolution or higher AVC level.",
+            config->options.frame_size.ToString(), coded_size.width(),
             coded_size.height(), coded_area, max_coded_area,
             config->level / 10.0f, config->level);
         return false;
@@ -595,7 +618,50 @@ EncoderType GetRequiredEncoderType(media::VideoCodecProfile profile,
   return EncoderType::kHardware;
 }
 
+gfx::ColorSpace::MatrixID GetYuvMatrixForPrimaries(
+    gfx::ColorSpace::PrimaryID primaries) {
+  switch (primaries) {
+    case gfx::ColorSpace::PrimaryID::BT470M:
+      return gfx::ColorSpace::MatrixID::FCC;
+    case gfx::ColorSpace::PrimaryID::BT470BG:
+      return gfx::ColorSpace::MatrixID::BT470BG;
+    case gfx::ColorSpace::PrimaryID::SMPTE170M:
+      return gfx::ColorSpace::MatrixID::SMPTE170M;
+    case gfx::ColorSpace::PrimaryID::SMPTE240M:
+      return gfx::ColorSpace::MatrixID::SMPTE240M;
+    case gfx::ColorSpace::PrimaryID::BT2020:
+      return gfx::ColorSpace::MatrixID::BT2020_NCL;
+    default:
+      // Primaries without a corresponding YCbCr matrix, such as P3 and XYZ,
+      // use BT.709 as the conversion matrix.
+      return gfx::ColorSpace::MatrixID::BT709;
+  }
+}
+
 }  // namespace
+
+gfx::ColorSpace GetReadbackYuvColorSpace(
+    const gfx::ColorSpace& source_color_space) {
+  if (!source_color_space.IsValid()) {
+    return gfx::ColorSpace::CreateREC709();
+  }
+
+  const gfx::ColorSpace::MatrixID source_matrix =
+      source_color_space.GetMatrixID();
+  // If the source already declares a YCbCr matrix, preserve it. The readback
+  // frame is always video range.
+  if (source_matrix != gfx::ColorSpace::MatrixID::RGB &&
+      source_matrix != gfx::ColorSpace::MatrixID::GBR) {
+    return source_color_space.GetWithMatrixAndRange(
+        source_matrix, gfx::ColorSpace::RangeID::LIMITED);
+  }
+
+  // RGB/GBR are identity matrices. Select a YCbCr matrix from the primaries
+  // before RGB-to-YUV readback.
+  return source_color_space.GetWithMatrixAndRange(
+      GetYuvMatrixForPrimaries(source_color_space.GetPrimaryID()),
+      gfx::ColorSpace::RangeID::LIMITED);
+}
 
 // static
 const char* VideoEncoderTraits::GetName() {
@@ -603,14 +669,12 @@ const char* VideoEncoderTraits::GetName() {
 }
 
 String VideoEncoderTraits::ParsedConfig::ToString() {
-  return UNSAFE_TODO(
-      String::Format("{codec: %s, profile: %s, level: %d, hw_pref: %s, "
-                     "options: {%s}, codec_string: %s, display_size: %s}",
-                     media::GetCodecName(codec).c_str(),
-                     media::GetProfileName(profile).c_str(), level,
-                     HardwarePreferenceToIdlEnum(hw_pref).AsCStr(),
-                     options.ToString().c_str(), codec_string.Utf8().c_str(),
-                     display_size ? display_size->ToString().c_str() : ""));
+  return Format(
+      "{{codec: {}, profile: {}, level: {}, hw_pref: {}, options: {{{}}}, "
+      "codec_string: {}, display_size: {}}}",
+      media::GetCodecName(codec), media::GetProfileName(profile), level,
+      HardwarePreferenceToIdlEnum(hw_pref).AsCStr(), options.ToString(),
+      codec_string, display_size ? display_size->ToString() : "");
 }
 
 // static
@@ -983,9 +1047,20 @@ bool VideoEncoder::StartReadback(scoped_refptr<media::VideoFrame> frame,
     auto metadata_fix_lambda = [](scoped_refptr<media::VideoFrame> txt_frame,
                                   scoped_refptr<media::VideoFrame> result_frame)
         -> scoped_refptr<media::VideoFrame> {
-      if (!result_frame)
+      if (!result_frame) {
         return result_frame;
+      }
+      if (txt_frame->visible_rect() != gfx::Rect(txt_frame->coded_size()) ||
+          txt_frame->natural_size() != txt_frame->coded_size()) {
+        result_frame = media::VideoFrame::WrapVideoFrame(
+            result_frame, result_frame->format(), txt_frame->visible_rect(),
+            txt_frame->natural_size());
+        if (!result_frame) {
+          return nullptr;
+        }
+      }
       result_frame->set_timestamp(txt_frame->timestamp());
+      result_frame->set_hdr_metadata(txt_frame->hdr_metadata());
       result_frame->metadata().MergeMetadataFrom(txt_frame->metadata());
       result_frame->metadata().ClearTextureFrameMetadata();
       return result_frame;
@@ -994,6 +1069,8 @@ bool VideoEncoder::StartReadback(scoped_refptr<media::VideoFrame> frame,
     auto callback_chain = ConvertToBaseOnceCallback(
                               CrossThreadBindOnce(metadata_fix_lambda, frame))
                               .Then(std::move(pool_result_cb));
+    const gfx::ColorSpace readback_color_space =
+        GetReadbackYuvColorSpace(frame->ColorSpace());
 
     TRACE_EVENT_BEGIN(
         "media", "CopyRGBATextureToVideoFrame",
@@ -1001,7 +1078,7 @@ bool VideoEncoder::StartReadback(scoped_refptr<media::VideoFrame> frame,
         "timestamp", frame->timestamp());
     if (accelerated_frame_pool_->CopyRGBATextureToVideoFrame(
             frame->coded_size(), frame->shared_image(),
-            frame->acquire_sync_token(), gfx::ColorSpace::CreateREC709(),
+            frame->acquire_sync_token(), readback_color_space,
             std::move(callback_chain))) {
       return true;
     }

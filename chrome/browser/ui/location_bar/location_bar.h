@@ -10,6 +10,7 @@
 #include <string_view>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/scoped_observation_traits.h"
 #include "base/time/time.h"
@@ -25,7 +26,9 @@ class CommandUpdater;
 class LocationBarModel;
 class LocationBarTesting;
 class OmniboxController;
+class PermissionDashboardController;
 class OmniboxView;
+class OmniboxPopupPresenterDelegate;
 class OmniboxPopupView;
 class Profile;
 
@@ -66,6 +69,7 @@ class LocationBar {
     ~Observer() override;
 
     virtual void OnLocationBarBoundsChanged();
+    virtual void OnLocationBarFocusChanged();
   };
 
   explicit LocationBar(CommandUpdater* command_updater);
@@ -109,6 +113,8 @@ class LocationBar {
 
   virtual OmniboxPopupView* GetOmniboxPopupView() = 0;
 
+  virtual OmniboxPopupPresenterDelegate* GetPresenterDelegate();
+
   // Returns the OmniboxController owned by this LocationBar.
   virtual OmniboxController* GetOmniboxController() = 0;
 
@@ -128,6 +134,12 @@ class LocationBar {
 
   // Controls the chip in the LocationBar.
   virtual ChipController* GetChipController() = 0;
+
+  // Controls the permission dashboard in the LocationBar.
+  virtual PermissionDashboardController* GetPermissionDashboardController();
+
+  // Announces an alert for accessibility screen readers.
+  virtual void AnnounceAlert(const std::u16string& announcement) = 0;
 
   // Called when anything has changed that might affect the layout or contents
   // of the views around the edit, including the text of the edit and the
@@ -216,15 +228,24 @@ class LocationBar {
   void AddLocationBarObserver(Observer* observer);
   void RemoveLocationBarObserver(Observer* observer);
 
+  base::WeakPtr<LocationBar> GetWeakPtr() {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
+  base::WeakPtr<const LocationBar> GetWeakPtr() const {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
+
  protected:
   virtual ~LocationBar();
 
   void NotifyBoundsChanged();
+  void NotifyFocusChanged();
 
  private:
   NavigationParams navigation_params_;
   const raw_ptr<CommandUpdater, DanglingUntriaged> command_updater_;
   base::ObserverList<Observer> observers_;
+  base::WeakPtrFactory<LocationBar> weak_ptr_factory_{this};
 };
 
 class LocationBarTesting {

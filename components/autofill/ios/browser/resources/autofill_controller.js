@@ -6,7 +6,7 @@ import * as fill_constants from '//components/autofill/ios/form_util/resources/f
 import * as inferenceUtil from '//components/autofill/ios/form_util/resources/fill_element_inference_util.js';
 import * as fillUtil from '//components/autofill/ios/form_util/resources/fill_util.js';
 import {fieldWasEditedByUser, unownedFormElementsAndFieldSetsToFormData, wasEditedByUser, webFormElementToFormData} from '//components/autofill/ios/form_util/resources/fill_web_form.js';
-import {getFormControlElements, getFormElementFromIdentifier, getFormElementFromRendererId, getIframeElements} from '//components/autofill/ios/form_util/resources/form_utils.js';
+import {clipRect, getFormControlElements, getFormElementFromIdentifier, getIframeElements, getVisibleRectRespectingClips} from '//components/autofill/ios/form_util/resources/form_utils.js';
 import {getElementByUniqueID} from '//components/autofill/ios/form_util/resources/renderer_id.js';
 import {CrWebApi, gCrWeb} from '//ios/web/public/js_messaging/resources/gcrweb.js';
 import {isTextField, sendWebKitMessage, trim} from '//ios/web/public/js_messaging/resources/utils.js';
@@ -76,13 +76,6 @@ const autofillFormFeaturesApi =
     gCrWeb.getRegisteredApi('autofill_form_features');
 
 /**
- * Returns true if the undo autofill feature is enabled.
- */
-function isAutofillUndoEnabled() {
-  return window.gCrWebPlaceholderAutofillUndo;
-}
-
-/**
  * Determines whether the form is interesting enough to send to the browser for
  * further operations.
  *
@@ -94,40 +87,8 @@ function isAutofillUndoEnabled() {
  * @return {boolean} Whether the form is sufficiently interesting.
  */
 function isFormInteresting_(form) {
-  if (form.child_frames && form.child_frames.length > 0) {
-    return true;
-  }
-
-  // If the form has at least one field with an autocomplete attribute, or one
-  // non-checkable field, it is a candidate for autofill.
-  for (let i = 0; i < form.fields.length; ++i) {
-    if (form.fields[i]['autocomplete_attribute'] != null &&
-        form.fields[i]['autocomplete_attribute'].length > 0) {
-      return true;
-    }
-
-    if (!form.fields[i].is_checkable) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/**
- * Returns the number of editable elements in `elements`.
- *
- * @param {Array<FormControlElement>} elements The elements to scan.
- * @return {number} The number of editable elements.
- */
-function countEditableElements_(elements) {
-  let numEditableElements = 0;
-  for (const element of elements) {
-    if (!inferenceUtil.isCheckableElement(element)) {
-      ++numEditableElements;
-    }
-  }
-  return numEditableElements;
+  return form.fields.length > 0 ||
+      (form.child_frames && form.child_frames.length > 0);
 }
 
 /**
@@ -164,12 +125,8 @@ function extractUnownedFields(restrictUnownedFieldsToFormlessCheckout) {
   const fieldsets = [];
   const unownedControlElements =
       fillUtil.getUnownedAutofillableFormFieldElements(fieldsets);
-  const numEditableUnownedElements =
-      countEditableElements_(unownedControlElements);
-  const iframeElements =
-      autofillFormFeaturesApi.getFunction('isAutofillAcrossIframesEnabled')() ?
-      getUnownedIframes() :
-      [];
+  const numEditableUnownedElements = unownedControlElements.length;
+  const iframeElements = getUnownedIframes();
   if (numEditableUnownedElements > 0 || iframeElements.length > 0) {
     const unownedForm = new fillUtil.AutofillFormData();
     const hasUnownedForm = unownedFormElementsAndFieldSetsToFormData(
@@ -198,16 +155,47 @@ function extractForms(restrictUnownedFieldsToFormlessCheckout) {
 }
 
 /**
+ * Resolves the target element matching `fieldID`, checking activeElement,
+ * closest contenteditable container, or looking up by renderer ID.
+ *
+ * @param {number|string} fieldID Renderer ID of the target element.
+ * @return {Element|null} The resolved target element, or null if not found.
+ */
+function resolveActiveFieldOrEditableContainer(fieldID) {
+  if (fieldID == null) {
+    return null;
+  }
+
+  const activeElement = document.activeElement;
+  if (activeElement &&
+      fieldID.toString() === fillUtil.getUniqueID(activeElement)) {
+    return activeElement;
+  }
+
+  // If activeElement is a child node inside a contenteditable host, resolve the
+  // parent contenteditable container matching fieldID.
+  const container = activeElement?.closest?.('[contenteditable]');
+  if (container && fillUtil.isContentEditable(container) &&
+      fieldID.toString() === fillUtil.getUniqueID(container)) {
+    return container;
+  }
+
+  return null;
+}
+
+/**
  * Fills data into the active form field.
  *
  * @param {AutofillFormFieldData} data The data to fill in.
  * @return {boolean} Whether the field was filled successfully.
  */
 function fillActiveFormField(data) {
-  const activeElement = document.activeElement;
   const fieldID = data['renderer_id'];
-  if (typeof fieldID === 'undefined' ||
-      fieldID.toString() !== fillUtil.getUniqueID(activeElement)) {
+  if (typeof fieldID === 'undefined') {
+    return false;
+  }
+  const activeElement = resolveActiveFieldOrEditableContainer(fieldID);
+  if (!activeElement) {
     return false;
   }
   lastAutoFilledElement = activeElement;
@@ -233,6 +221,44 @@ function fillSpecificFormField(data) {
   }
   lastAutoFilledElement = field;
   return fillFormField(data, field);
+}
+
+/**
+ * Scrolls the form field identified by `fieldId` into view.
+ *
+ * @param {number} fieldId The renderer ID of the field to scroll into view.
+ */
+function scrollFieldIntoView(fieldId) {
+  const element = getElementByUniqueID(fieldId);
+  if (!element) {
+    return;
+  }
+
+  // Perform a virtual scroll check first to verify if it is scrollable into
+  // view.
+  let visibleRect = getVisibleRectRespectingClips(
+      element, /*shouldAdjustRectForScroll=*/ true);
+  if (!visibleRect) {
+    return;
+  }
+
+  const viewportWidth =
+      window.innerWidth || document.documentElement.clientWidth;
+  const viewportHeight =
+      window.innerHeight || document.documentElement.clientHeight;
+  const viewportBox = {
+    left: 0,
+    top: 0,
+    right: viewportWidth,
+    bottom: viewportHeight,
+  };
+  visibleRect = clipRect(visibleRect, viewportBox);
+  if (!visibleRect) {
+    return;
+  }
+
+  // Actually scroll the element into view.
+  element.scrollIntoView({block: 'nearest', inline: 'nearest'});
 }
 
 // Remove Autofill styling when control element is edited by the user.
@@ -277,11 +303,6 @@ function fillForm(data) {
       continue;
     }
 
-    // TODO(crbug.com/40573146): Investigate autofilling checkable elements.
-    if (inferenceUtil.isCheckableElement(element)) {
-      continue;
-    }
-
     // Skip non-empty fields unless:
     // a) The element's identifier matches |forceFillFieldIdentifier|; or
     // b) The element is a 'select-one' element. 'select-one' elements are
@@ -302,13 +323,12 @@ function fillForm(data) {
 
     modifiedForms.add(fieldData.hostFormId);
 
-    (function(_element, _value, _section, _isAutofilled, _delay) {
+    (function(_element, _value, _isAutofilled, _delay) {
       window.setTimeout(function() {
         fillUtil.setInputElementValue(_value, _element, function() {
           if (_isAutofilled) {
             _element.setAttribute('chrome-autofilled', '');
             _element.isAutofilled = true;
-            _element.autofillSection = _section;
             _element.addEventListener('input', controlElementInputListener_);
           } else {
             _element.removeAttribute('chrome-autofilled');
@@ -317,8 +337,7 @@ function fillForm(data) {
           }
         });
       }, _delay);
-    })(element, fieldData.value, fieldData.section, fieldData.isAutofilled,
-       delay);
+    })(element, fieldData.value, fieldData.isAutofilled, delay);
     delay += delayBetweenFieldFillingMs;
     filledElements[fillUtil.getUniqueID(element)] = fieldData.value;
   }
@@ -375,74 +394,6 @@ function fillForm(data) {
 }
 
 /**
- * Clear autofilled fields of the specified form section. Fields that are not
- * currently autofilled or do not belong to the same section as that of the
- * field with |fieldIdentifier| are not modified. If the field identified by
- * |fieldIdentifier| cannot be found all autofilled form fields get cleared.
- * Field contents are cleared, and Autofill flag and styling are removed.
- * 'change' events are sent for fields whose contents changed.
- *
- * @param {string} formUniqueID Unique ID of the form element.
- * @param {string} fieldUniqueID Unique ID of the field initiating the
- *     clear action.
- * @return {string} JSON encoded list of renderer IDs of cleared elements.
- */
-function clearAutofilledFields(formUniqueID, fieldUniqueID) {
-  const clearedElements = [];
-
-  const form = getFormElementFromRendererId(formUniqueID);
-
-  const controlElements = form ?
-      getFormControlElements(form) :
-      fillUtil.getUnownedAutofillableFormFieldElements(/*fieldsets=*/[]);
-
-  let formField = null;
-  for (let i = 0; i < controlElements.length; ++i) {
-    if (fillUtil.getUniqueID(controlElements[i]) ===
-        fieldUniqueID.toString()) {
-      formField = controlElements[i];
-      break;
-    }
-  }
-
-  for (let i = 0, delay = 0; i < controlElements.length; ++i) {
-    const element = controlElements[i];
-    if (!element.isAutofilled || element.disabled) {
-      continue;
-    }
-
-    if (formField && formField.autofillSection !== element.autofillSection) {
-      continue;
-    }
-
-    let value = null;
-    if (isTextField(element) || inferenceUtil.isTextAreaElement(element)) {
-      value = '';
-    } else if (inferenceUtil.isSelectElement(element)) {
-      // Reset to the first index.
-      // TODO(bondd): Store initial values and reset to the correct one here.
-      value = element.options[0].value;
-    } else if (inferenceUtil.isCheckableElement(element)) {
-      // TODO(crbug.com/40573146): Investigate autofilling checkable elements.
-    }
-    if (value !== null) {
-      (function(_element, _value, _delay) {
-        window.setTimeout(function() {
-          fillUtil.setInputElementValue(_value, _element, function(changed) {
-            _element.removeAttribute('chrome-autofilled');
-            _element.isAutofilled = false;
-            _element.removeEventListener('input', controlElementInputListener_);
-          });
-        }, _delay);
-      })(element, value, delay);
-      delay += delayBetweenFieldFillingMs;
-      clearedElements.push(fillUtil.getUniqueID(element));
-    }
-  }
-  return fillUtil.stringify(clearedElements);
-}
-
-/**
  * Scans the DOM in |frame| extracting and storing forms. Fills |forms| with
  * extracted forms.
  *
@@ -484,11 +435,9 @@ function extractNewForms(restrictUnownedFieldsToFormlessCheckout) {
     /** @type {HTMLFormElement} */
     const formElement = webForms[formIndex];
     const controlElements = extractAutofillableElementsInForm(formElement);
-    const numEditableElements = countEditableElements_(controlElements);
-    const hasChildFrames = autofillFormFeaturesApi.getFunction(
-                               'isAutofillAcrossIframesEnabled')() ?
-        formElement.getElementsByTagName('iframe').length > 0 :
-        false;
+    const numEditableElements = controlElements.length;
+    const hasChildFrames =
+        formElement.getElementsByTagName('iframe').length > 0;
 
     if (numEditableElements === 0 && !hasChildFrames) {
       continue;
@@ -568,7 +517,15 @@ function fillFormField(data, field) {
   }
 
   let filled = false;
-  if (isTextField(field) || inferenceUtil.isTextAreaElement(field) ||
+  if (fillUtil.isContentEditable(field)) {
+    // Default `should_insert_at_cursor` to true if the field is
+    // omitted/undefined.
+    const insertAtCursor = data['should_insert_at_cursor'] ?? true;
+    filled =
+        fillUtil.setContentEditableValue(data['value'], field, insertAtCursor);
+    wasEditedByUser.set(field, true);
+  } else if (
+      isTextField(field) || inferenceUtil.isTextAreaElement(field) ||
       (inferenceUtil.isDateField(field) &&
        autofillFormFeaturesApi.getFunction(
            'isAutofillSupportDateInputEnabled')())) {
@@ -584,17 +541,21 @@ function fillFormField(data, field) {
       sanitizedValue = data['value'].substr(0, maxLength);
     }
 
-    filled = fillUtil.setInputElementValue(sanitizedValue, field);
-    // If kAutofillUndoIos is enabled, avoid showing the Clear/Undo button.
-    if (isAutofillUndoEnabled()) {
-      wasEditedByUser.set(field, true);
+    if (data['should_insert_at_cursor']) {
+      filled = fillUtil.insertInputElementValueAtCursor(sanitizedValue, field);
     } else {
-      field.isAutofilled = true;
+      filled = fillUtil.setInputElementValue(sanitizedValue, field);
     }
+
+    // This is a hack to avoid showing Undo autofill when a field is filled with
+    // manual fallback sheet, as this path does not path by
+    // `components/autofill/core/browser/` and therefore data required to
+    // correctly Undo is not populated in `FormAutofillHistory`.
+    // TODO(crbug.com/487617428): Remove after fixing the filling paths.
+    wasEditedByUser.set(field, true);
+
   } else if (inferenceUtil.isSelectElement(field)) {
     filled = fillUtil.setInputElementValue(data['value'], field);
-  } else if (inferenceUtil.isCheckableElement(field)) {
-    filled = fillUtil.setInputElementValue(data['is_checked'], field);
   }
   return filled;
 }
@@ -688,7 +649,6 @@ function sanitizedFieldIsEmpty(value) {
 
 const autofillAPI = new CrWebApi('autofill');
 
-autofillAPI.addFunction('clearAutofilledFields', clearAutofilledFields);
 autofillAPI.addFunction(
     'extractAutofillableElementsInForm', extractAutofillableElementsInForm);
 autofillAPI.addFunction('extractForms', extractForms);
@@ -699,5 +659,6 @@ autofillAPI.addFunction('fillFormField', fillFormField);
 autofillAPI.addFunction('fillPredictionData', fillPredictionData);
 autofillAPI.addFunction('fillSpecificFormField', fillSpecificFormField);
 autofillAPI.addFunction('sanitizedFieldIsEmpty', sanitizedFieldIsEmpty);
+autofillAPI.addFunction('scrollFieldIntoView', scrollFieldIntoView);
 
 gCrWeb.registerApi(autofillAPI);

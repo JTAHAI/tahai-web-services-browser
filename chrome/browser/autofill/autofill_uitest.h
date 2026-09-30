@@ -16,7 +16,7 @@
 #include "components/autofill/content/browser/content_autofill_driver_factory.h"
 #include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
 #include "components/autofill/core/browser/foundations/browser_autofill_manager_test_delegate.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
 #include "components/autofill/core/browser/test_utils/test_event_waiter.h"
 #include "components/autofill/core/common/dense_set.h"
 #include "content/public/browser/render_widget_host.h"
@@ -138,11 +138,7 @@ class AutofillUiTest : public InProcessBrowserTest,
 
   bool HandleKeyPressEvent(const input::NativeWebKeyboardEvent& event);
 
-  // DoNothingAndWait() violates an assertion if during the time an event
-  // happens. Delayed events during DoNothingAndWait() may therefore cause
-  // flakiness. DoNothingAndWaitAndIgnoreEvents() ignores any events.
-  void DoNothingAndWait(base::TimeDelta timeout,
-                        base::Location location = FROM_HERE);
+  // Sleeps for `timeout` while ignoring any events.
   void DoNothingAndWaitAndIgnoreEvents(base::TimeDelta timeout);
 
   content::WebContents* GetWebContents();

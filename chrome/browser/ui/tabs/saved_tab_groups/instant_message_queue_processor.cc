@@ -11,7 +11,6 @@
 #include "chrome/browser/data_sharing/data_sharing_service_factory.h"
 #include "chrome/browser/image_fetcher/image_fetcher_service_factory.h"
 #include "chrome/browser/profiles/profile_key.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
@@ -184,7 +183,7 @@ void InstantMessageQueueProcessor::MaybeShowInstantMessage() {
       FROM_HERE,
       base::BindOnce(
           &InstantMessageQueueProcessor::ProcessQueueAfterMessageShown,
-          base::Unretained(this)),
+          weak_factory_.GetWeakPtr()),
       GetMessageInterval());
 }
 
@@ -282,15 +281,13 @@ base::TimeDelta InstantMessageQueueProcessor::GetMessageInterval() {
   // Take the maximum time a toast can show and add a second to ensure
   // that we wait until a message has completely timed out before trying
   // to show the next message.
-  // TODO(crbug.com/390814333): Determine the correct heuristic for
-  // time-between-messages.
   return base::Seconds(1) + std::max(ToastController::kToastDefaultTimeout,
                                      ToastController::kToastWithActionTimeout);
 }
 
 void InstantMessageQueueProcessor::ProcessQueueAfterMessageShown() {
   // This function is only entered if a toast was successfully shown and is
-  // solely responsible for resetting the |is_showing_instant_message_| bool.
+  // solely responsible for resetting the `is_showing_instant_message_` bool.
   CHECK(IsMessageShowing());
   is_showing_instant_message_ = false;
   ProceedToNextQueueMessage();

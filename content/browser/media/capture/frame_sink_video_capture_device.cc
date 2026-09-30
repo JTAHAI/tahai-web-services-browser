@@ -613,6 +613,11 @@ void FrameSinkVideoCaptureDevice::CreateCapturerViaGlobalManager(
           std::move(receiver), capture_version_source));
 }
 
+void FrameSinkVideoCaptureDevice::SetBufferFormatPreference(
+    viz::mojom::BufferFormatPreference preference) {
+  buffer_format_preference_ = preference;
+}
+
 void FrameSinkVideoCaptureDevice::MaybeStartConsuming() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
@@ -621,7 +626,9 @@ void FrameSinkVideoCaptureDevice::MaybeStartConsuming() {
   }
 
   capturer_->Start(
-      this, viz::mojom::BufferFormatPreference::kPreferMappableSharedImage);
+      this,
+      buffer_format_preference_.value_or(
+          viz::mojom::BufferFormatPreference::kPreferMappableSharedImage));
 }
 
 void FrameSinkVideoCaptureDevice::MaybeStopConsuming() {
@@ -676,4 +683,13 @@ void FrameSinkVideoCaptureDevice::RequestWakeLock() {
   wake_lock_->RequestWakeLock();
 }
 
+}  // namespace content
+
+namespace content {
+void FrameSinkVideoCaptureDevice::InvalidateBuffers() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (capturer_) {
+    capturer_->InvalidateBuffers();
+  }
+}
 }  // namespace content

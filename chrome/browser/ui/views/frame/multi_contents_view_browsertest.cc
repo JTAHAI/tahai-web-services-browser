@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <memory>
 #include <span>
 #include <string>
 #include <utility>
@@ -24,12 +25,13 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
@@ -73,15 +75,15 @@
 #include "content/public/test/test_navigation_observer.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "third_party/blink/public/mojom/frame/fullscreen.mojom.h"
+#include "ui/base/clipboard/clipboard.h"
+#include "ui/base/clipboard/clipboard_buffer.h"
+#include "ui/base/clipboard/scoped_clipboard_writer.h"
+#include "ui/base/clipboard/test/clipboard_test_util.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/base/dragdrop/drop_target_event.h"
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
 #include "ui/base/dragdrop/os_exchange_data.h"
 #include "ui/base/dragdrop/os_exchange_data_provider.h"
-#include "ui/base/clipboard/clipboard.h"
-#include "ui/base/clipboard/clipboard_buffer.h"
-#include "ui/base/clipboard/scoped_clipboard_writer.h"
-#include "ui/base/clipboard/test/clipboard_test_util.h"
 #include "ui/base/interaction/element_tracker.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/ozone_buildflags.h"
@@ -89,8 +91,8 @@
 #include "ui/events/event.h"
 #include "ui/ozone/public/ozone_platform.h"
 #include "ui/views/controls/button/label_button.h"
-#include "ui/views/controls/separator.h"
 #include "ui/views/controls/scroll_view.h"
+#include "ui/views/controls/separator.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/interaction/element_tracker_views.h"
@@ -192,8 +194,9 @@ void CompareLayouts(const std::vector<views::ChildLayout>& expected,
 // Populate a browser with blank tabs before creating a Quad View. This keeps
 // the layout tests focused on native tab collection and pane behavior, rather
 // than allowing asynchronous New Tab Page work to outlive fixture teardown.
-void AddBlankTabsUntilCount(Browser* browser, size_t target_count) {
-  TabStripModel* model = browser->tab_strip_model();
+void AddBlankTabsUntilCount(BrowserWindowInterface* browser,
+                            size_t target_count) {
+  TabStripModel* model = browser->GetTabStripModel();
   while (static_cast<size_t>(model->count()) < target_count) {
     chrome::AddSelectedTabWithURL(browser, GURL(url::kAboutBlankURL),
                                   ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
@@ -218,7 +221,7 @@ class MultiContentsViewBrowserTest
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                        TahaiNamedWorkspaceRestoresIntoIndependentWindow) {
   AddBlankTabsUntilCount(browser(), 6u);
-  auto* model = browser()->tab_strip_model();
+  auto* model = browser()->GetTabStripModel();
   model->SetTabPinned(0, true);
   const auto group = model->AddToNewGroup({1, 2, 3, 4});
   model->ChangeTabGroupVisuals(
@@ -243,7 +246,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   ASSERT_TRUE(restored);
   EXPECT_NE(browser(), restored);
   EXPECT_EQ(browser()->GetProfile(), restored->GetProfile());
-  auto* restored_model = restored->tab_strip_model();
+  auto* restored_model = restored->GetTabStripModel();
   ASSERT_EQ(6, restored_model->count());
   EXPECT_TRUE(restored_model->GetTabAtIndex(0)->IsPinned());
   EXPECT_EQ(2, restored_model->active_index());
@@ -311,7 +314,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   ASSERT_TRUE(controller->SetCustomModePresentation(custom_id));
 
   // The custom presentation is a local window choice, not a profile default.
-  Browser* sibling = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* sibling = CreateBrowser(browser()->GetProfile());
   auto* sibling_controller =
       tahai::WindowModeController::GetForBrowser(sibling);
   ASSERT_TRUE(sibling_controller);
@@ -333,7 +336,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   auto* mode_service = tahai::ModeServiceFactory::GetForProfile(browser()->GetProfile());
   ASSERT_TRUE(first);
   ASSERT_TRUE(mode_service);
-  Browser* sibling = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* sibling = CreateBrowser(browser()->GetProfile());
   auto* second = tahai::WindowModeController::GetForBrowser(sibling);
   ASSERT_TRUE(second);
   const auto original = second->active_configuration();
@@ -356,20 +359,20 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                        TahaiNativeModesAreIndependentRestorableAndRevocable) {
   auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
   auto* first = tahai::WindowModeController::GetForBrowser(browser());
-  Browser* sibling = CreateBrowser(GetProfile());
+  BrowserWindowInterface* sibling = CreateBrowser(GetProfile());
   auto* second = tahai::WindowModeController::GetForBrowser(sibling);
   ASSERT_TRUE(service);
   ASSERT_TRUE(first);
   ASSERT_TRUE(second);
   const auto sibling_before = second->CapturePresentation();
-  const int tab_count = browser()->tab_strip_model()->count();
+  const int tab_count = browser()->GetTabStripModel()->count();
   ASSERT_TRUE(service->SetConfigurationValueForMode("research", "accent", "amber"));
   ASSERT_TRUE(service->CreateNativeCustomMode("Independent research",
       {.fixed_mode = "research", .rail_state = "expanded", .rail_width = 360},
       {"mission.open", "layout.quad"}, ""));
   const std::string id = service->custom_modes()[0].id;
   ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
-  EXPECT_EQ(tab_count, browser()->tab_strip_model()->count());
+  EXPECT_EQ(tab_count, browser()->GetTabStripModel()->count());
   EXPECT_FALSE(chrome::IsTahaiMultiView(browser()));
   EXPECT_EQ("Independent research", first->active_mode_title());
   EXPECT_EQ(sibling_before, second->CapturePresentation());
@@ -393,14 +396,17 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   ASSERT_TRUE(actions);
   ASSERT_TRUE(tahai::ExecuteWindowModeAction(browser(), actions->context,
                                              IDC_TAHAI_MISSION_CONTROL));
-  ASSERT_TRUE(content::WaitForLoadStop(browser()->tab_strip_model()->GetActiveWebContents()));
-  EXPECT_EQ(GURL(tahai::kTahaiMissionURL),
-            browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
+  ASSERT_TRUE(content::WaitForLoadStop(
+      browser()->GetTabStripModel()->GetActiveWebContents()));
+  EXPECT_EQ(
+      GURL(tahai::kTahaiMissionURL),
+      browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL());
   const auto saved = tahai::CaptureNamedWorkspace(browser(), "Independent saved workspace");
   ASSERT_TRUE(saved.workspace);
   const auto workspace_id = tahai::NamedWorkspaceStore(GetProfile()).Add(*saved.workspace);
   ASSERT_TRUE(workspace_id);
-  Browser* restored = tahai::OpenNamedWorkspace(browser(), *workspace_id);
+  BrowserWindowInterface* restored =
+      tahai::OpenNamedWorkspace(browser(), *workspace_id);
   ASSERT_TRUE(restored);
   auto* restored_mode = tahai::WindowModeController::GetForBrowser(restored);
   ASSERT_TRUE(restored_mode);
@@ -451,7 +457,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
       {"mission.open", "workspaces.open"}, ""));
   const std::string id = service->custom_modes()[0].id;
   ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
-  Browser* sibling = CreateBrowser(GetProfile());
+  BrowserWindowInterface* sibling = CreateBrowser(GetProfile());
   ASSERT_EQ(sibling, tahai::ActivateNativeCustomMode(sibling, id));
   auto* first = tahai::WindowModeController::GetForBrowser(browser());
   auto* second = tahai::WindowModeController::GetForBrowser(sibling);
@@ -483,10 +489,10 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
             browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
   ASSERT_TRUE(service->RemoveCustomMode(id));
   EXPECT_FALSE(rail->module_button_for_testing(0)->GetVisible());
-  const int count = browser()->tab_strip_model()->count();
+  const int count = browser()->GetTabStripModel()->count();
   rail->SelectModule(1);
   rail->OpenSelectedModule();
-  EXPECT_EQ(count, browser()->tab_strip_model()->count());
+  EXPECT_EQ(count, browser()->GetTabStripModel()->count());
   EXPECT_TRUE(rail->selected_module_id().empty());
   // Recovery presentation stays usable after deletion without granting an action.
   rail->HideRail();
@@ -510,10 +516,12 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   auto* view = BrowserView::GetBrowserViewForBrowser(browser());
   auto* rail = view->tahai_workspace_rail();
   ASSERT_TRUE(rail);
+  ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(browser()));
   auto* scroll = rail->scroll_view_for_testing();
   ASSERT_TRUE(scroll);
   const int count = browser()->tab_strip_model()->count();
-  const auto url = browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL();
+  const auto url =
+      browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL();
   for (const auto& size : {gfx::Size(960, 640), gfx::Size(1280, 800)}) {
     browser()->GetWindow()->SetBounds(gfx::Rect(gfx::Point(), size));
     for (int state : {IDC_TAHAI_RAIL_EXPANDED, IDC_TAHAI_RAIL_ICONS}) {
@@ -525,7 +533,9 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
       EXPECT_EQ(collapsed ? views::ScrollView::ScrollBarMode::kHiddenButEnabled
                            : views::ScrollView::ScrollBarMode::kEnabled,
                 scroll->GetVerticalScrollBarMode());
+      size_t focused_controls = 0;
       for (size_t index = 0; index < actions.size(); ++index) {
+        SCOPED_TRACE(actions[index]);
         auto* button = rail->module_button_for_testing(index);
         ASSERT_TRUE(button);
         ASSERT_TRUE(button->GetVisible());
@@ -536,8 +546,18 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
         } else {
           EXPECT_EQ(tahai::GetNativeModeActionCatalog()[index].label, button->GetText());
         }
+        // Disabled actions (for example Exit multi-view without a split) stay
+        // visible, but native Tab traversal must not focus or execute them.
+        EXPECT_EQ(chrome::IsCommandEnabled(
+                      browser(),
+                      tahai::GetNativeModeActionCatalog()[index].command_id),
+                  button->GetEnabled());
+        if (!button->GetEnabled()) {
+          EXPECT_FALSE(button->IsFocusable());
+          continue;
+        }
         // Tab traversal must include controls outside the original viewport.
-        if (index == 0) {
+        if (focused_controls++ == 0) {
           button->RequestFocus();
         } else {
           view->GetFocusManager()->AdvanceFocus(false);
@@ -547,10 +567,16 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
         EXPECT_EQ(button->height(), button->GetVisibleBounds().height());
         EXPECT_GE(button->GetVisibleBounds().width(), 36);
       }
+      EXPECT_GE(focused_controls, actions.size() - 2u);
+      EXPECT_EQ(rail->module_button_for_testing(actions.size() - 1),
+                view->GetFocusManager()->GetFocusedView());
       EXPECT_GT(scroll->CurrentOffset().y(), 0);
       EXPECT_FALSE(rail->collapse_button_for_testing()->GetVisibleBounds().IsEmpty());
-      EXPECT_EQ(count, browser()->tab_strip_model()->count());
-      EXPECT_EQ(url, browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
+      EXPECT_EQ(count, browser()->GetTabStripModel()->count());
+      EXPECT_EQ(url, browser()
+                         ->GetTabStripModel()
+                         ->GetActiveWebContents()
+                         ->GetVisibleURL());
     }
   }
   EXPECT_EQ(nullptr, rail->module_button_for_testing(actions.size()));
@@ -584,7 +610,9 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   // Direct notification exercises the binding guard even if normal native
   // button state would cancel release when its focus/presentation changes.
   views::test::ButtonTestApi(button).NotifyClick(release);
-  EXPECT_EQ(url, browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL());
+  EXPECT_EQ(
+      url,
+      browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL());
   const ui::KeyEvent key(ui::EventType::kKeyPressed, ui::VKEY_SPACE, ui::EF_NONE);
   button->OnKeyPressed(key);
   ASSERT_TRUE(service->UpdateNativeCustomMode(id, "Second replacement", {"mission.open"}, ""));
@@ -620,7 +648,8 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   auto id =
       tahai::NamedWorkspaceStore(browser()->GetProfile()).Add(*snapshot.workspace);
   ASSERT_TRUE(id);
-  Browser* private_browser = CreateIncognitoBrowser(browser()->GetProfile());
+  BrowserWindowInterface* private_browser =
+      CreateIncognitoBrowser(browser()->GetProfile());
   ASSERT_TRUE(private_browser);
   const auto private_snapshot =
       tahai::CaptureNamedWorkspace(private_browser, "Do not persist");
@@ -631,8 +660,8 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   EXPECT_FALSE(
       chrome::IsCommandEnabled(private_browser, IDC_TAHAI_NAMED_WORKSPACES));
   EXPECT_EQ(nullptr, tahai::OpenNamedWorkspace(browser(), "missing"));
-  EXPECT_EQ(2, browser()->tab_strip_model()->count());
-  EXPECT_EQ(1, private_browser->tab_strip_model()->count());
+  EXPECT_EQ(2, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(1, private_browser->GetTabStripModel()->count());
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
@@ -752,11 +781,12 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
       browser(), chrome::TahaiDualViewLayout::kSideBySide));
   auto* model = browser()->tab_strip_model();
   const auto split_id = *model->GetActiveTab()->GetSplit();
-  Browser* private_browser = CreateIncognitoBrowser(browser()->GetProfile());
+  BrowserWindowInterface* private_browser =
+      CreateIncognitoBrowser(browser()->GetProfile());
   ASSERT_TRUE(private_browser);
   for (auto* contents :
        {model->GetActiveWebContents(),
-        private_browser->tab_strip_model()->GetActiveWebContents()}) {
+        private_browser->GetTabStripModel()->GetActiveWebContents()}) {
     auto create = base::BindLambdaForTesting(
         [contents](int, std::optional<tab_groups::TabGroupId>, bool) {
           return contents;
@@ -764,7 +794,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
     EXPECT_FALSE(tahai::ApplyNativePaneLayout(
         browser(), 3, split_tabs::SplitTabLayout::kStacked, create));
     EXPECT_EQ(2, model->count());
-    EXPECT_EQ(1, private_browser->tab_strip_model()->count());
+    EXPECT_EQ(1, private_browser->GetTabStripModel()->count());
     EXPECT_EQ(split_id, model->GetActiveTab()->GetSplit());
   }
 }
@@ -994,12 +1024,12 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   RunScheduledLayouts();
   auto* view = multi_contents_view();
   ASSERT_TRUE(view->BeginTahaiSurfaceResize(0));
-  browser()->tab_strip_model()->ActivateTabAt(3);
+  browser()->GetTabStripModel()->ActivateTabAt(3);
   RunScheduledLayouts();
   view->ResizeTahaiSurface(0, 100, true);
   EXPECT_EQ(30, controller->surface_design()->nodes[0].percent);
   EXPECT_FALSE(view->HasTahaiSurfaceDesign());
-  browser()->tab_strip_model()->ActivateTabAt(0);
+  browser()->GetTabStripModel()->ActivateTabAt(0);
   RunScheduledLayouts();
   ASSERT_TRUE(view->BeginTahaiSurfaceResize(0));
   browser()->GetWindow()->SetBounds(gfx::Rect(0, 0, 1180, 900));
@@ -1062,7 +1092,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   AddBlankTabsUntilCount(browser(), 3u);
   ASSERT_TRUE(chrome::OpenTahaiTriView(
       browser(), chrome::TahaiTriViewLayout::kTwoOverOne));
-  auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* contents = browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiSkinStudioURL,
                                            "TAHAI Skin Studio", "Surface canvas"));
   ASSERT_TRUE(content::ExecJs(contents, R"JS(
@@ -1186,7 +1216,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
       {.fixed_mode = "research", .rail_state = "expanded", .surface_design = design},
       {"mission.open"}, ""));
   const std::string id = service->custom_modes()[0].id;
-  Browser* sibling = CreateBrowser(GetProfile());
+  BrowserWindowInterface* sibling = CreateBrowser(GetProfile());
   ASSERT_EQ(browser(), tahai::ActivateNativeCustomMode(browser(), id));
   ASSERT_EQ(sibling, tahai::ActivateNativeCustomMode(sibling, id));
   auto* first = tahai::WindowModeController::GetForBrowser(browser());
@@ -1194,8 +1224,8 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   EXPECT_EQ(design, first->surface_design());
   EXPECT_EQ(design, second->surface_design());
   // Restoring a layout never creates tabs to match its declared pane count.
-  EXPECT_EQ(1, browser()->tab_strip_model()->count());
-  EXPECT_EQ(1, sibling->tab_strip_model()->count());
+  EXPECT_EQ(1, browser()->GetTabStripModel()->count());
+  EXPECT_EQ(1, sibling->GetTabStripModel()->count());
   ASSERT_TRUE(first->SetSurfaceDividerPercent(0, 40));
   ASSERT_TRUE(service->SetNativeCustomModeConfiguration(id, "accent", "amber"));
   EXPECT_EQ(40, first->surface_design()->nodes[0].percent);
@@ -1369,7 +1399,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                        TahaiQuadLayoutFocusAndRestore) {
   AddBlankTabsUntilCount(browser(), 4u);
-  TabStripModel* model = browser()->tab_strip_model();
+  TabStripModel* model = browser()->GetTabStripModel();
   ASSERT_TRUE(chrome::OpenTahaiQuadView(browser()));
   RunScheduledLayouts();
 
@@ -1465,11 +1495,12 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                        TahaiQuadWorksInIncognitoWithoutCrossProfileTabs) {
-  Browser* incognito = CreateIncognitoBrowser(browser()->GetProfile());
+  BrowserWindowInterface* incognito =
+      CreateIncognitoBrowser(browser()->GetProfile());
   ASSERT_TRUE(incognito);
   AddBlankTabsUntilCount(incognito, 4u);
   ASSERT_TRUE(chrome::OpenTahaiQuadView(incognito));
-  TabStripModel* model = incognito->tab_strip_model();
+  TabStripModel* model = incognito->GetTabStripModel();
   ASSERT_EQ(model->count(), 4);
   ASSERT_TRUE(model->GetActiveTab()->IsSplit());
   EXPECT_EQ(model->GetSplitData(model->GetActiveTab()->GetSplit().value())
@@ -1492,7 +1523,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
       model->GetSplitData(*model->GetActiveTab()->GetSplit())->visual_data();
   EXPECT_DOUBLE_EQ(0.35, private_data->tahai_row_ratio());
   EXPECT_DOUBLE_EQ(0.65, private_data->tahai_column_ratio());
-  EXPECT_FALSE(browser()->tab_strip_model()->GetActiveTab()->IsSplit());
+  EXPECT_FALSE(browser()->GetTabStripModel()->GetActiveTab()->IsSplit());
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
@@ -1568,7 +1599,8 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                        TahaiDualAndTriRemainProfileIsolated) {
-  Browser* incognito = CreateIncognitoBrowser(browser()->GetProfile());
+  BrowserWindowInterface* incognito =
+      CreateIncognitoBrowser(browser()->GetProfile());
   ASSERT_TRUE(incognito);
   AddBlankTabsUntilCount(incognito, 3u);
   ASSERT_TRUE(chrome::OpenTahaiTriView(
@@ -1634,14 +1666,15 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   ASSERT_EQ(tahai::TahaiSkinStudioDraftStatus::kOk,
             tahai::SaveTahaiSkinStudioDraft(profile->GetPrefs(), *json).status);
   const auto before = profile->GetPrefs()->GetDict(prefs::kTahaiSkinStudioDraft).Clone();
-  auto* regular = browser()->tab_strip_model()->GetActiveWebContents();
+  auto* regular = browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(regular, tahai::kTahaiSkinStudioURL,
       "TAHAI Skin Studio", "Build an operational skin without granting it power."));
   EXPECT_TRUE(content::EvalJs(regular,
       "document.querySelector('#skin-studio-source').value.includes('Regular-only draft privacy sentinel')").ExtractBool());
   auto* private_browser = CreateIncognitoBrowser(profile);
   ASSERT_TRUE(private_browser);
-  auto* private_contents = private_browser->tab_strip_model()->GetActiveWebContents();
+  auto* private_contents =
+      private_browser->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(private_contents, tahai::kTahaiSkinStudioURL,
       "TAHAI Skin Studio", "Build an operational skin without granting it power."));
   EXPECT_TRUE(content::EvalJs(private_contents,
@@ -1814,7 +1847,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
 IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
                        TahaiSkinStudioSavesOnlyValidatedDraftSource) {
   content::WebContents* contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(contents);
   Profile* profile = browser()->GetProfile();
   ASSERT_TRUE(profile);
@@ -2942,7 +2975,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
                        TahaiMissionRepeatAssignmentsStayExplicitAndRetainIndependentProgress) {
-  auto* contents=browser()->tab_strip_model()->GetActiveWebContents();
+  auto* contents = browser()->GetTabStripModel()->GetActiveWebContents();
   auto* service=tahai::MissionServiceFactory::GetForProfile(browser()->GetProfile()); ASSERT_TRUE(service);
   tahai::TahaiOperationalWorkflow workflow; workflow.id="repeat-flow";workflow.name="Repeat flow";
   workflow.variables={{"total","Total",tahai::TahaiOperationalWorkflowInputType::kNumber,false,{}}};
@@ -3822,7 +3855,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
       contents, tahai::kTahaiMissionURL, "Mission Control",
       "Real tabs. Real WebContents. Bounded mission state."));
-  const auto tab_count = browser()->tab_strip_model()->count();
+  const auto tab_count = browser()->GetTabStripModel()->count();
   const GURL mission_url = contents->GetVisibleURL();
   EXPECT_EQ("date", content::EvalJs(contents,
       "document.querySelector('[data-tahai-input-id=review-day]').type"));
@@ -3845,7 +3878,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
     EXPECT_EQ(value, content::EvalJs(contents, content::JsReplace(
         "document.querySelector('[data-tahai-input-id=' + $1 + ']').value", input)));
     EXPECT_EQ(mission_url, contents->GetVisibleURL());
-    EXPECT_EQ(tab_count, browser()->tab_strip_model()->count());
+    EXPECT_EQ(tab_count, browser()->GetTabStripModel()->count());
   }
   ASSERT_EQ(2u, service->missions().back().workflow_inputs.size());
   EXPECT_EQ("2032-02-29", service->missions().back().workflow_inputs[0].value);
@@ -3892,7 +3925,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   ASSERT_TRUE(ready.Get());
   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
       "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
-  const int tabs = browser()->tab_strip_model()->count();
+  const int tabs = browser()->GetTabStripModel()->count();
   const GURL mission_url = contents->GetVisibleURL();
   const std::string reference = "https://example.test/local-result?q=private-review#notes";
   const std::string secret = "password=fixture-only:@/private-output";
@@ -3926,7 +3959,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
     [...document.querySelectorAll('[data-tahai-evidence-preview=true]')].every(view => !view.textContent.includes($3))
   )", secret, cipher, reference)).ExtractBool());
   EXPECT_EQ(mission_url, contents->GetVisibleURL());
-  EXPECT_EQ(tabs, browser()->tab_strip_model()->count());
+  EXPECT_EQ(tabs, browser()->GetTabStripModel()->count());
   EXPECT_FALSE(service->SetOperationalWorkflowInputValue(created->id, "reference", "https://other.test/"));
   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
       "Mission Control", "Real tabs. Real WebContents. Bounded mission state."));
@@ -4225,13 +4258,14 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   EXPECT_EQ(cipher,service->missions().back().workflow_inputs[1].protected_value);
   // A genuine activation on a background Mission is not active-pane routing.
   chrome::AddTabAt(browser(),GURL(url::kAboutBlankURL),-1,true);
-  ASSERT_NE(contents,browser()->tab_strip_model()->GetActiveWebContents());
+  ASSERT_NE(contents, browser()->GetTabStripModel()->GetActiveWebContents());
   ASSERT_TRUE(content::ExecJs(contents,content::JsReplace(
       "chrome.send('setTahaiOperationalWorkflowInput',[$1,'private-input','',$2])",created->id,service->missions().back().mutation_token)));
   ASSERT_TRUE(base::test::RunUntil([&]{return content::EvalJs(contents,
       "document.querySelector('#mission-status').textContent.includes('That value was not stored')").ExtractBool();}));
   EXPECT_EQ(cipher,service->missions().back().workflow_inputs[1].protected_value);
-  browser()->tab_strip_model()->ActivateTabAt(browser()->tab_strip_model()->GetIndexOfWebContents(contents));
+  browser()->GetTabStripModel()->ActivateTabAt(
+      browser()->GetTabStripModel()->GetIndexOfWebContents(contents));
   {
     content::TestNavigationObserver reload(contents,1);
     ASSERT_TRUE(content::ExecJs(contents,"document.querySelector('[data-tahai-protected-clear][data-tahai-input-id=private-input]').click()"));
@@ -4957,7 +4991,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
                        TahaiNativeModeSkinEditsRequirePinnedWindowAndReactivation) {
   auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
   auto* controller = tahai::WindowModeController::GetForBrowser(browser());
-  Browser* sibling = CreateBrowser(GetProfile());
+  BrowserWindowInterface* sibling = CreateBrowser(GetProfile());
   auto* sibling_mode = tahai::WindowModeController::GetForBrowser(sibling);
   const auto sibling_before = sibling_mode->CapturePresentation();
   auto* contents = browser()->tab_strip_model()->GetActiveWebContents();
@@ -5067,7 +5101,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
   ASSERT_TRUE(service);
   EXPECT_TRUE(service->custom_modes().empty());
-  const int original_count = browser()->tab_strip_model()->count();
+  const int original_count = browser()->GetTabStripModel()->count();
   content::TestNavigationObserver saved(contents);
   ASSERT_TRUE(content::ExecJs(contents, R"JS(
     const form = document.querySelector('#tahai-native-mode-form');
@@ -5096,7 +5130,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
     return controller->active_custom_mode_id() == service->custom_modes()[0].id;
   }));
   EXPECT_EQ("operator", controller->active_mode_id());
-  EXPECT_EQ(original_count, browser()->tab_strip_model()->count());
+  EXPECT_EQ(original_count, browser()->GetTabStripModel()->count());
   EXPECT_FALSE(chrome::IsTahaiMultiView(browser()));
   const auto stored = GetProfile()->GetPrefs()->GetDict(prefs::kTahaiCustomModeDefinitions).Clone();
   EXPECT_TRUE(content::EvalJs(contents, R"JS(
@@ -5159,7 +5193,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
             scheme_classifier.GetInputTypeForScheme(tahai::kTahaiScheme));
   content::WebContents* contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  const int original_tab_count = browser()->tab_strip_model()->count();
+  const int original_tab_count = browser()->GetTabStripModel()->count();
   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(
       contents, tahai::kTahaiModesURL, "Work Modes", "Choose a work mode."));
   ASSERT_EQ(3u, contents->GetWebUI()->GetHandlersForTesting()->size());
@@ -5288,7 +5322,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
       content::EvalJs(contents,
                       "document.body.textContent.includes('Creative brief')")
           .ExtractBool());
-  EXPECT_EQ(original_tab_count, browser()->tab_strip_model()->count());
+  EXPECT_EQ(original_tab_count, browser()->GetTabStripModel()->count());
 }
 
 // TAHAI's operational surfaces must be browser commands, not merely pages that
@@ -5388,7 +5422,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   rail->OpenSelectedModule();
   ASSERT_TRUE(base::test::RunUntil([&] {
     content::WebContents* active =
-        browser()->tab_strip_model()->GetActiveWebContents();
+        browser()->GetTabStripModel()->GetActiveWebContents();
     return active && active->GetVisibleURL() == GURL(tahai::kTahaiLocalOiURL);
   }));
   rail->CyclePreferredWidth();
@@ -5409,7 +5443,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
 
   // A mode selection changes the current Browser window only. A sibling
   // starts from the profile default and retains its own independent state.
-  Browser* browser2 = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* browser2 = CreateBrowser(browser()->GetProfile());
   BrowserView* browser_view2 = BrowserView::GetBrowserViewForBrowser(browser2);
   ASSERT_TRUE(browser_view2);
   tahai::WindowModeController* controller2 =
@@ -5444,7 +5478,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   EXPECT_EQ("tri-one-over-two",
             mode_service->active_configuration().layout_variant_id);
 
-  Browser* browser3 = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* browser3 = CreateBrowser(browser()->GetProfile());
   BrowserView* browser_view3 = BrowserView::GetBrowserViewForBrowser(browser3);
   ASSERT_TRUE(browser_view3);
   tahai::WindowModeController* controller3 =
@@ -5457,6 +5491,84 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   ASSERT_TRUE(mode_service->SetActiveMode("research"));
   EXPECT_EQ("operator", controller->active_mode_id());
   EXPECT_EQ("research", controller3->active_mode_id());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiPresentationObserverCanDestroyController) {
+  class DestructiveObserver : public tahai::WindowModeController::Observer {
+   public:
+    base::OnceClosure on_change;
+    void OnTahaiWindowModeChanged() override { std::move(on_change).Run(); }
+  } observer;
+  // A controller can be torn down synchronously by a native observer. Exercise
+  // both notification and the subsequent theme/skin-restore continuation.
+  auto controller = std::make_unique<tahai::WindowModeController>(browser());
+  auto presentation = controller->CapturePresentation();
+  observer.on_change = base::BindLambdaForTesting([&] {
+    controller->RemoveObserver(&observer);
+    controller.reset();
+  });
+  controller->AddObserver(&observer);
+  EXPECT_FALSE(controller->RestorePresentation(presentation));
+  EXPECT_FALSE(controller);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiPresentationRestorePreservesObserverReplacement) {
+  class ReplacementObserver : public tahai::WindowModeController::Observer {
+   public:
+    base::OnceClosure on_change;
+    void OnTahaiWindowModeChanged() override { std::move(on_change).Run(); }
+  } observer;
+  class Counter : public tahai::WindowModeController::Observer {
+   public:
+    base::RepeatingClosure on_change;
+    void OnTahaiWindowModeChanged() override { on_change.Run(); }
+  } counter;
+  auto controller = std::make_unique<tahai::WindowModeController>(browser());
+  auto presentation = controller->CapturePresentation();
+  int changes = 0;
+  counter.on_change = base::BindLambdaForTesting([&] {
+    ++changes;
+    EXPECT_EQ("creator", controller->active_mode_id());
+  });
+  observer.on_change = base::BindLambdaForTesting([&] {
+    controller->RemoveObserver(&observer);
+    EXPECT_TRUE(controller->SetActiveMode("creator"));
+  });
+  controller->AddObserver(&observer);
+  controller->AddObserver(&counter);
+  EXPECT_FALSE(controller->RestorePresentation(presentation));
+  EXPECT_EQ("creator", controller->active_mode_id());
+  EXPECT_EQ(1, changes);
+  EXPECT_TRUE(base::test::RunUntil([&] { return changes == 2; }));
+  controller->RemoveObserver(&counter);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiCustomModeResetObserverCanDestroyController) {
+  auto* service = tahai::ModeServiceFactory::GetForProfile(GetProfile());
+  ASSERT_TRUE(service);
+  ASSERT_TRUE(service->CreateNativeCustomMode(
+      "Reset lifetime", {.fixed_mode = "daily", .rail_state = "expanded"},
+      {"mission.open"}, ""));
+  ASSERT_FALSE(service->custom_modes().empty());
+  const std::string custom_id = service->custom_modes().back().id;
+  auto controller = std::make_unique<tahai::WindowModeController>(browser());
+  ASSERT_TRUE(controller->SetActiveMode("daily"));
+  ASSERT_TRUE(controller->SetCustomModePresentation(custom_id));
+  class DestructiveObserver : public tahai::WindowModeController::Observer {
+   public:
+    base::OnceClosure on_change;
+    void OnTahaiWindowModeChanged() override { std::move(on_change).Run(); }
+  } observer;
+  observer.on_change = base::BindLambdaForTesting([&] {
+    controller->RemoveObserver(&observer);
+    controller.reset();
+  });
+  controller->AddObserver(&observer);
+  EXPECT_FALSE(controller->ResetActiveConfiguration());
+  EXPECT_FALSE(controller);
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
@@ -5477,7 +5589,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
       observation(&counter);
   observation.Observe(controller);
   const auto initial = controller->active_configuration();
-  const int tabs_before = browser()->tab_strip_model()->count();
+  const int tabs_before = browser()->GetTabStripModel()->count();
   const auto* contents_before =
       browser()->tab_strip_model()->GetActiveWebContents();
   const auto& other = service->configuration_for_mode("creator");
@@ -5492,9 +5604,9 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   EXPECT_EQ(next, controller->active_configuration().rail_state);
   ASSERT_TRUE(controller->SetActiveConfigurationValue("rail_state", next));
   EXPECT_EQ(1, counter.changes);
-  EXPECT_EQ(tabs_before, browser()->tab_strip_model()->count());
+  EXPECT_EQ(tabs_before, browser()->GetTabStripModel()->count());
   EXPECT_EQ(contents_before,
-            browser()->tab_strip_model()->GetActiveWebContents());
+            browser()->GetTabStripModel()->GetActiveWebContents());
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
@@ -5559,7 +5671,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
       .NotifyDefaultMouseClick();
   ASSERT_TRUE(base::test::RunUntil([&] {
     return browser()
-               ->tab_strip_model()
+               ->GetTabStripModel()
                ->GetActiveWebContents()
                ->GetVisibleURL() == GURL(chrome::kChromeUIBookmarksURL);
   }));
@@ -5580,7 +5692,8 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   ASSERT_TRUE(focused_view);
   EXPECT_FALSE(rail->Contains(focused_view));
   EXPECT_TRUE(browser_view->toolbar()->Contains(focused_view));
-  Browser* second_browser = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* second_browser =
+      CreateBrowser(browser()->GetProfile());
   auto* second_view = BrowserView::GetBrowserViewForBrowser(second_browser);
   ASSERT_TRUE(second_view);
   EXPECT_TRUE(second_view->tahai_workspace_rail()->is_hidden());
@@ -5594,10 +5707,13 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                        HandleDropTargetViewLinkDrop_IsSupported) {
   EXPECT_TRUE(multi_contents_view()->IsDragAndDropEnabled());
 
-  Browser::CreateParams app_browser_params =
-      Browser::CreateParams::CreateForApp("AppName", true, gfx::Rect(),
-                                          browser()->GetProfile(), false);
-  Browser* app_browser = Browser::Create(app_browser_params);
+  BrowserWindowCreateParams app_browser_params =
+      BrowserWindowCreateParams::CreateForApp(
+          "AppName",
+          /*trusted_source=*/true, gfx::Rect(), browser()->GetProfile(),
+          /*user_gesture=*/false);
+  BrowserWindowInterface* app_browser =
+      CreateBrowserWindow(std::move(app_browser_params));
 
   EXPECT_FALSE(BrowserView::GetBrowserViewForBrowser(app_browser)
                    ->multi_contents_view()
@@ -5626,11 +5742,11 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
 
   // After the drop, a new tab should be created in the split view.
   // The original tab is at index 0, the new tab from the drop is at index 1.
-  ASSERT_EQ(2, browser()->tab_strip_model()->count());
+  ASSERT_EQ(2, browser()->GetTabStripModel()->count());
   EXPECT_EQ(GURL(url::kAboutBlankURL),
-            browser()->tab_strip_model()->GetWebContentsAt(0)->GetURL());
+            browser()->GetTabStripModel()->GetWebContentsAt(0)->GetURL());
   EXPECT_EQ(kDropUrl,
-            browser()->tab_strip_model()->GetWebContentsAt(1)->GetURL());
+            browser()->GetTabStripModel()->GetWebContentsAt(1)->GetURL());
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
@@ -5655,16 +5771,16 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
 
   // After the drop, a new tab should be created in the split view.
   // The original tab is at index 0, the new tab from the drop is at index 1.
-  ASSERT_EQ(2, browser()->tab_strip_model()->count());
+  ASSERT_EQ(2, browser()->GetTabStripModel()->count());
   EXPECT_EQ(kDropUrl,
-            browser()->tab_strip_model()->GetWebContentsAt(0)->GetURL());
+            browser()->GetTabStripModel()->GetWebContentsAt(0)->GetURL());
   EXPECT_EQ(GURL(url::kAboutBlankURL),
-            browser()->tab_strip_model()->GetWebContentsAt(1)->GetURL());
+            browser()->GetTabStripModel()->GetWebContentsAt(1)->GetURL());
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                        HandleDropTargetViewLinkDrop_PinnedWithStartDropTarget) {
-  browser()->tab_strip_model()->SetTabPinned(0, true);
+  browser()->GetTabStripModel()->SetTabPinned(0, true);
 
   ui::OSExchangeData data;
   const GURL kDropUrl("http://www.chromium.org/");
@@ -5687,18 +5803,18 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   // After the drop, a new tab should be created in the split view. The original
   // tab is at index 0, the new tab from the drop is at index 1. Both tabs
   // should be pinned.
-  ASSERT_EQ(2, browser()->tab_strip_model()->count());
+  ASSERT_EQ(2, browser()->GetTabStripModel()->count());
   EXPECT_EQ(kDropUrl,
-            browser()->tab_strip_model()->GetWebContentsAt(0)->GetURL());
+            browser()->GetTabStripModel()->GetWebContentsAt(0)->GetURL());
   EXPECT_EQ(GURL(url::kAboutBlankURL),
-            browser()->tab_strip_model()->GetWebContentsAt(1)->GetURL());
-  EXPECT_TRUE(browser()->tab_strip_model()->GetTabAtIndex(0)->IsPinned());
-  EXPECT_TRUE(browser()->tab_strip_model()->GetTabAtIndex(1)->IsPinned());
+            browser()->GetTabStripModel()->GetWebContentsAt(1)->GetURL());
+  EXPECT_TRUE(browser()->GetTabStripModel()->GetTabAtIndex(0)->IsPinned());
+  EXPECT_TRUE(browser()->GetTabStripModel()->GetTabAtIndex(1)->IsPinned());
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                        HandleDropTargetViewLinkDrop_GroupedWithEndDropTarget) {
-  browser()->tab_strip_model()->AddToNewGroup({0});
+  browser()->GetTabStripModel()->AddToNewGroup({0});
 
   ui::OSExchangeData data;
   const GURL kDropUrl("http://www.chromium.org/");
@@ -5721,15 +5837,15 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   // After the drop, a new tab should be created in the split view. The original
   // tab is at index 0, the new tab from the drop is at index 1. Both tabs
   // should be in a group.
-  ASSERT_EQ(2, browser()->tab_strip_model()->count());
+  ASSERT_EQ(2, browser()->GetTabStripModel()->count());
   EXPECT_EQ(GURL(url::kAboutBlankURL),
-            browser()->tab_strip_model()->GetWebContentsAt(0)->GetURL());
+            browser()->GetTabStripModel()->GetWebContentsAt(0)->GetURL());
   EXPECT_EQ(kDropUrl,
-            browser()->tab_strip_model()->GetWebContentsAt(1)->GetURL());
+            browser()->GetTabStripModel()->GetWebContentsAt(1)->GetURL());
   EXPECT_TRUE(
-      browser()->tab_strip_model()->GetTabAtIndex(0)->GetGroup().has_value());
+      browser()->GetTabStripModel()->GetTabAtIndex(0)->GetGroup().has_value());
   EXPECT_TRUE(
-      browser()->tab_strip_model()->GetTabAtIndex(1)->GetGroup().has_value());
+      browser()->GetTabStripModel()->GetTabAtIndex(1)->GetGroup().has_value());
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
@@ -5754,16 +5870,16 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
 
   // After the drop, a new tab should be created in the split view.
   // The original tab is at index 0, the new tab from the drop is at index 1.
-  ASSERT_EQ(2, browser()->tab_strip_model()->count());
+  ASSERT_EQ(2, browser()->GetTabStripModel()->count());
   EXPECT_EQ(GURL(content::kBlockedURL),
-            browser()->tab_strip_model()->GetWebContentsAt(0)->GetURL());
+            browser()->GetTabStripModel()->GetWebContentsAt(0)->GetURL());
   EXPECT_EQ(GURL(url::kAboutBlankURL),
-            browser()->tab_strip_model()->GetWebContentsAt(1)->GetURL());
+            browser()->GetTabStripModel()->GetWebContentsAt(1)->GetURL());
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                        HandleTabDrop_EndDropTarget) {
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   ASSERT_EQ(1, tab_strip_model->count());
   EXPECT_FALSE(multi_contents_view()->IsInSplitView());
 
@@ -5773,7 +5889,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                            MultiContentsDropTargetView::DragType::kLink);
 
   // Create a second browser with a tab to be dragged.
-  Browser* browser2 = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* browser2 = CreateBrowser(browser()->GetProfile());
   content::WebContents* contents_to_drop =
       browser2->GetTabStripModel()->GetActiveWebContents();
 
@@ -5798,7 +5914,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                        HandleTabDrop_StartDropTarget) {
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   content::WebContents* original_contents =
       tab_strip_model->GetActiveWebContents();
   ASSERT_EQ(1, tab_strip_model->count());
@@ -5810,7 +5926,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
                            MultiContentsDropTargetView::DragType::kLink);
 
   // Create a second browser with a tab to be dragged.
-  Browser* browser2 = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* browser2 = CreateBrowser(browser()->GetProfile());
   content::WebContents* contents_to_drop =
       browser2->GetTabStripModel()->GetActiveWebContents();
 
@@ -5880,7 +5996,7 @@ class MultiContentsViewWebContentsReLayoutBrowserTest
   }
 
   void CheckNoResizeHappened() {
-    auto* tab_strip_model = browser()->tab_strip_model();
+    auto* tab_strip_model = browser()->GetTabStripModel();
     const GURL test_url = embedded_test_server()->GetURL(kReLayoutTestURL);
     for (int i = 0; i < tab_strip_model->count(); i++) {
       auto* web_contents = tab_strip_model->GetWebContentsAt(i);
@@ -5902,7 +6018,7 @@ class MultiContentsViewWebContentsReLayoutBrowserTest
   }
 
   void CreateSplitView() {
-    auto* tab_strip_model = browser()->tab_strip_model();
+    auto* tab_strip_model = browser()->GetTabStripModel();
     const int active_index = tab_strip_model->active_index();
 
     RunScheduledLayouts();
@@ -5914,7 +6030,7 @@ class MultiContentsViewWebContentsReLayoutBrowserTest
   }
 
   void LoadReLayoutTestPageInActiveSplitTabs() {
-    auto* tab_strip_model = browser()->tab_strip_model();
+    auto* tab_strip_model = browser()->GetTabStripModel();
     const int active_index = tab_strip_model->active_index();
     split_tabs::SplitTabId split_id =
         tab_strip_model->GetSplitForTab(active_index).value();
@@ -5935,7 +6051,7 @@ class MultiContentsViewWebContentsReLayoutBrowserTest
 IN_PROC_BROWSER_TEST_F(
     MultiContentsViewWebContentsReLayoutBrowserTest,
     SwitchingTabsShouldNotTriggerWebContentsReLayout_SplitNoSplit) {
-  auto* tab_strip_model = browser()->tab_strip_model();
+  auto* tab_strip_model = browser()->GetTabStripModel();
 
   const GURL test_url = embedded_test_server()->GetURL(kReLayoutTestURL);
 
@@ -5971,7 +6087,7 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     MultiContentsViewWebContentsReLayoutBrowserTest,
     SwitchingTabsShouldNotTriggerWebContentsReLayout_SplitSplit) {
-  auto* tab_strip_model = browser()->tab_strip_model();
+  auto* tab_strip_model = browser()->GetTabStripModel();
 
   const GURL test_url = embedded_test_server()->GetURL(kReLayoutTestURL);
 
@@ -6015,7 +6131,7 @@ IN_PROC_BROWSER_TEST_F(
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewWebContentsReLayoutBrowserTest,
                        EnterAndExitFullscreenInSplitTabShouldResizeTwoTimes) {
-  auto* tab_strip_model = browser()->tab_strip_model();
+  auto* tab_strip_model = browser()->GetTabStripModel();
 
   const GURL test_url = embedded_test_server()->GetURL(kReLayoutTestURL);
 
@@ -6040,8 +6156,18 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewWebContentsReLayoutBrowserTest,
   ui_test_utils::FullscreenWaiter(browser(), {.tab_fullscreen = true}).Wait();
   RunScheduledLayouts();
 
-  EXPECT_TRUE(base::test::RunUntil(
-      [this, split_tab]() { return GetResizeCount(split_tab) >= 1; }));
+  int expected_entering_resize = 1;
+#if BUILDFLAG(IS_OZONE)
+  // On Wayland, the 2nd resize is for xdg_toplevel.set_fullscreen, so 2 is
+  // required to enter fullscreen.
+  if (ui::OzonePlatform::RunningOnWaylandForTest()) {
+    expected_entering_resize = 2;
+  }
+#endif
+  EXPECT_TRUE(
+      base::test::RunUntil([this, split_tab, expected_entering_resize]() {
+        return GetResizeCount(split_tab) >= expected_entering_resize;
+      }));
 
   // Exit fullscreen in the split tab.
   split_tab->GetDelegate()->ExitFullscreenModeForTab(split_tab);
@@ -6085,7 +6211,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewWebContentsReLayoutBrowserTest,
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest, OnlyFocusTabsInSplitView) {
   // Set up tab strip with a regular tab and two split views with the last split
   // view being active.
-  auto* tab_strip_model = browser()->tab_strip_model();
+  auto* tab_strip_model = browser()->GetTabStripModel();
 
   EXPECT_TRUE(
       AddTabAtIndex(1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
@@ -6096,7 +6222,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest, OnlyFocusTabsInSplitView) {
   chrome::NewSplitTab(browser(), split_tabs::SplitTabLayout::kSideBySide,
                       split_tabs::SplitTabCreatedSource::kToolbarButton);
 
-  ASSERT_EQ(5, browser()->tab_strip_model()->count());
+  ASSERT_EQ(5, browser()->GetTabStripModel()->count());
   const int active_index = tab_strip_model->active_index();
   ASSERT_EQ(4, active_index);
   EXPECT_TRUE(tab_strip_model->GetActiveTab()->IsSplit());

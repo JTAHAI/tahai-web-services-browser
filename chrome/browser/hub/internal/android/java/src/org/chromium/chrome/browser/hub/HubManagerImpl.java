@@ -20,13 +20,16 @@ import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.build.annotations.EnsuresNonNull;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.back_press.BackPressManager;
+import org.chromium.chrome.browser.hub.HubColorMixer.ColorBlendProgress;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabId;
 import org.chromium.chrome.browser.toolbar.menu_button.MenuButtonCoordinator;
 import org.chromium.chrome.browser.ui.bottombar.BottomBarConfigUtils;
 import org.chromium.chrome.browser.ui.bottombar.BottomBarHostManager;
@@ -37,7 +40,6 @@ import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityClient;
 import org.chromium.chrome.browser.ui.vertical_tabs.VerticalTabUtils;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
-import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.widget.MenuOrKeyboardActionController;
 import org.chromium.components.browser_ui.widget.MenuOrKeyboardActionController.MenuOrKeyboardActionHandler;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
@@ -66,7 +68,7 @@ public class HubManagerImpl implements HubManager, HubController {
     private final SettableNonNullObservableSupplier<Integer> mSnackbarMarginSupplier =
             ObservableSuppliers.createNonNull(0);
     private final BottomSheetObserver mBottomSheetObserver =
-            new EmptyBottomSheetObserver() {
+            new BottomSheetObserver() {
                 @Override
                 public void onSheetOffsetChanged(float heightFraction, float offsetPx) {
                     mSnackbarMarginSupplier.set(Math.round(offsetPx));
@@ -77,6 +79,8 @@ public class HubManagerImpl implements HubManager, HubController {
     private final HubShowPaneHelper mHubShowPaneHelper;
     private final MonotonicObservableSupplier<EdgeToEdgeController> mEdgeToEdgeSupplier;
     private final SearchActivityClient mSearchActivityClient;
+    private final SettableNullableObservableSupplier<ColorBlendProgress>
+            mSwipeAnimationProgressSupplier = ObservableSuppliers.createNullable();
     private final HubColorMixer mHubColorMixer;
     private final @Nullable BottomBarHostManager mBottomBarHostManager;
     private final NonNullObservableSupplier<Boolean> mXrSpaceModeObservableSupplier;
@@ -133,7 +137,10 @@ public class HubManagerImpl implements HubManager, HubController {
                 .addSyncObserverAndPostIfNonNull(mOnFocusedPaneChanged);
         mHubColorMixer =
                 new HubColorMixerImpl(
-                        mActivity, mHubVisibilitySupplier, mPaneManager.getFocusedPaneSupplier());
+                        mActivity,
+                        mHubVisibilitySupplier,
+                        mPaneManager.getFocusedPaneSupplier(),
+                        mSwipeAnimationProgressSupplier);
         mHubColorMixer.registerBlend(
                 new SingleHubViewColorBlend(
                         HubAnimationConstants.PANE_COLOR_BLEND_ANIMATION_DURATION_MS,
@@ -170,6 +177,13 @@ public class HubManagerImpl implements HubManager, HubController {
     @Override
     public NonNullObservableSupplier<Boolean> getHubVisibilitySupplier() {
         return mHubVisibilitySupplier;
+    }
+
+    @Override
+    public void selectTabAndHideHub(@TabId int tabId) {
+        if (mHubLayoutController != null) {
+            mHubLayoutController.selectTabAndHideHubLayout(tabId);
+        }
     }
 
     @Override
@@ -295,6 +309,7 @@ public class HubManagerImpl implements HubManager, HubController {
                         mSearchActivityClient,
                         mEdgeToEdgeSupplier,
                         mHubColorMixer,
+                        mSwipeAnimationProgressSupplier,
                         mXrSpaceModeObservableSupplier,
                         mDefaultPaneId);
         mBackPressManager.addHandler(mHubCoordinator, BackPressHandler.Type.HUB);

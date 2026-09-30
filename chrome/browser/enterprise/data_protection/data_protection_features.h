@@ -12,9 +12,12 @@ namespace enterprise_data_protection {
 
 BASE_DECLARE_FEATURE(kEnableForceDownloadToCloud);
 
-BASE_DECLARE_FEATURE(kEnableForceDownloadToOneDrive);
 
 BASE_DECLARE_FEATURE(kEnableTabSharingProtection);
+
+BASE_DECLARE_FEATURE(kEnterpriseTabTitleReporting);
+
+BASE_DECLARE_FEATURE(kEnableForceSaveToCloudDeferredReporting);
 
 }  // namespace enterprise_data_protection
 

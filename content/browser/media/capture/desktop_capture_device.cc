@@ -22,6 +22,7 @@
 #include "base/message_loop/message_pump_type.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
+#include "base/numerics/checked_math.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/synchronization/lock.h"
@@ -65,8 +66,8 @@
 #include "third_party/webrtc/modules/desktop_capture/desktop_capturer.h"
 #include "third_party/webrtc/modules/desktop_capture/fake_desktop_capturer.h"
 #include "third_party/webrtc/modules/desktop_capture/mouse_cursor_monitor.h"
+#include "skia/ext/color_profile.h"
 #include "third_party/webrtc_overrides/rtc_base/diagnostic_logging.h"
-#include "ui/gfx/icc_profile.h"
 
 #if BUILDFLAG(IS_WIN)
 #include <windows.h>
@@ -305,6 +306,7 @@ class DesktopCaptureDevice::Core : public webrtc::DesktopCapturer::Callback {
   void SetMockTimeForTesting(
       scoped_refptr<base::SingleThreadTaskRunner> task_runner,
       const base::TickClock* tick_clock);
+  void InvalidateBuffers();
 
   base::WeakPtr<Core> GetWeakPtr() { return weak_factory_.GetWeakPtr(); }
 
@@ -585,6 +587,11 @@ void DesktopCaptureDevice::Core::SetMockTimeForTesting(
   capture_timer_->SetTaskRunner(task_runner);
 }
 
+void DesktopCaptureDevice::Core::InvalidateBuffers() {
+  CHECK(client_);
+  client_->InvalidateBuffers();
+}
+
 void DesktopCaptureDevice::Core::OnCaptureResult(
     webrtc::DesktopCapturer::Result result,
     std::unique_ptr<webrtc::DesktopFrame> frame) {
@@ -819,9 +826,11 @@ void DesktopCaptureDevice::Core::OnCaptureResultZeroCopy(
   // Set color space correctly.
   gfx::ColorSpace frame_color_space;
   if (!frame->icc_profile().empty()) {
-    gfx::ICCProfile icc_profile = gfx::ICCProfile::FromData(
-        frame->icc_profile().data(), frame->icc_profile().size());
-    frame_color_space = icc_profile.GetColorSpace();
+    if (auto color_profile =
+            skia::ColorProfile::Make(base::as_byte_span(frame->icc_profile()))) {
+      frame_color_space =
+          gfx::ColorSpace(color_profile->GetSkColorSpace().get());
+    }
     // Conversion ARGB->I420 will switch the color space.
     frame_color_space = frame_color_space.GetWithMatrixAndRange(
         gfx::ColorSpace::MatrixID::SMPTE170M,
@@ -878,10 +887,7 @@ void DesktopCaptureDevice::Core::OnCaptureResultLegacy(
   VLOG(2) << __func__ << " [output_size=(" << output_size.width() << "x"
           << output_size.height() << ")]";
 
-  size_t output_bytes = output_size.width() * output_size.height() *
-                        webrtc::DesktopFrame::kBytesPerPixel;
-  const uint8_t* output_data = nullptr;
-  webrtc::FourCC output_format = frame->pixel_format();
+  webrtc::DesktopFrame* returned_frame = nullptr;
 
   if (frame->size().width() <= 1 || frame->size().height() <= 1) {
     // On OSX We receive a 1x1 frame when the shared window is minimized. It
@@ -898,6 +904,7 @@ void DesktopCaptureDevice::Core::OnCaptureResultLegacy(
       output_frame_->SetFrameDataToBlack();
       output_frame_is_black_ = true;
     }
+    returned_frame = output_frame_.get();
   } else {
     // Scaling frame with odd dimensions to even dimensions will cause
     // blurring. See https://crbug.com/737278.
@@ -1032,8 +1039,7 @@ void DesktopCaptureDevice::Core::OnCaptureResultLegacy(
                         output_stride_v, output_rect.width(),
                         output_rect.height(), libyuv::kFilterBox);
 
-      output_data = output_frame_->data();
-      output_format = output_frame_->pixel_format();
+      returned_frame = output_frame_.get();
       output_frame_is_black_ = false;
     } else if (IsFrameUnpackedOrInverted(frame.get())) {
       // If |frame| is not packed top-to-bottom then create a packed
@@ -1047,23 +1053,32 @@ void DesktopCaptureDevice::Core::OnCaptureResultLegacy(
       output_frame_->CopyPixelsFrom(
           *frame, webrtc::DesktopVector(),
           webrtc::DesktopRect::MakeSize(frame->size()));
-      output_data = output_frame_->data();
-      output_format = output_frame_->pixel_format();
+      returned_frame = output_frame_.get();
       output_frame_is_black_ = false;
     } else {
       // If the captured frame matches the output size, we can return the pixel
       // data directly.
-      output_data = frame->data();
-      output_format = frame->pixel_format();
+      returned_frame = frame.get();
       output_frame_is_black_ = false;
     }
   }
 
+  CHECK(returned_frame);
+  const webrtc::FourCC output_format = returned_frame->pixel_format();
+  // SAFETY: DesktopFrame is backed by a contiguous buffer of stride * height
+  // bytes.
+  base::span<const uint8_t> output_data = UNSAFE_BUFFERS(base::span(
+      returned_frame->data(),
+      base::CheckMul(returned_frame->stride(), returned_frame->size().height())
+          .ValueOrDie<size_t>()));
+
   gfx::ColorSpace frame_color_space;
   if (!frame->icc_profile().empty()) {
-    gfx::ICCProfile icc_profile = gfx::ICCProfile::FromData(
-        frame->icc_profile().data(), frame->icc_profile().size());
-    frame_color_space = icc_profile.GetColorSpace();
+    if (auto color_profile =
+            skia::ColorProfile::Make(base::as_byte_span(frame->icc_profile()))) {
+      frame_color_space =
+          gfx::ColorSpace(color_profile->GetSkColorSpace().get());
+    }
     if (frame->pixel_format() != output_format &&
         output_format == webrtc::FOURCC_I420) {
       // Conversion ARGB->I420 will switch the color space.
@@ -1085,7 +1100,7 @@ void DesktopCaptureDevice::Core::OnCaptureResultLegacy(
   metadata.device_scale_factor = frame->device_scale_factor();
 
   client_->OnIncomingCapturedData(
-      output_data, output_bytes,
+      output_data,
       media::VideoCaptureFormat(
           gfx::Size(output_size.width(), output_size.height()),
           requested_frame_rate_, FourCCToVideoPixelFormat(output_format)),
@@ -1484,6 +1499,14 @@ void DesktopCaptureDevice::RequestRefreshFrame() {
   thread_.task_runner()->PostTask(
       FROM_HERE,
       base::BindOnce(&Core::RequestRefreshFrame, core_->GetWeakPtr()));
+}
+
+void DesktopCaptureDevice::InvalidateBuffers() {
+  if (!core_) {
+    return;
+  }
+  thread_.task_runner()->PostTask(
+      FROM_HERE, base::BindOnce(&Core::InvalidateBuffers, core_->GetWeakPtr()));
 }
 
 void DesktopCaptureDevice::SetNotificationWindowId(

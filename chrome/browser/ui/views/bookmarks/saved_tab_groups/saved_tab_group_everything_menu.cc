@@ -15,12 +15,12 @@
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/tab_group_theme.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/bookmarks/saved_tab_groups/saved_tab_group_tabs_menu_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/browser/ui/views/toolbar/app_menu.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/saved_tab_groups/public/tab_group_sync_service.h"
@@ -103,7 +103,7 @@ class STGEverythingMenu::AppMenuSubMenuModelDelegate
 };
 
 STGEverythingMenu::STGEverythingMenu(views::MenuButtonController* controller,
-                                     Browser* browser,
+                                     BrowserWindowInterface* browser,
                                      MenuContext menu_context)
     : menu_button_controller_(controller),
       browser_(browser),
@@ -310,11 +310,8 @@ bool STGEverythingMenu::ShouldShowSubmenu() {
     case MenuContext::kAppMenu:
       return true;
     case MenuContext::kSavedTabGroupBar:
-      return base::FeatureList::IsEnabled(
-          features::kTabGroupMenuMoreEntryPoints);
     case MenuContext::kVerticalTabStrip:
-      return base::FeatureList::IsEnabled(
-          features::kTabGroupMenuMoreEntryPoints);
+      return false;
   }
 }
 
@@ -352,7 +349,8 @@ void STGEverythingMenu::ExecuteCommand(int command_id, int event_flags) {
         break;
     }
 
-    browser_->command_controller()->ExecuteCommand(command_id);
+    chrome::BrowserCommandController::From(browser_)->ExecuteCommand(
+        command_id);
   } else {
     const auto group_id = GetTabGroupIdFromCommandId(command_id);
     if (!group_id.is_valid()) {
@@ -421,7 +419,7 @@ void STGEverythingMenu::WillShowMenu(views::MenuItemView* menu) {
   // This works because the only submenus in the everything menu are
   // for the tab group items. Will need to change if we add
   // more unbounded submenus to the everything menu.
-  if (base::FeatureList::IsEnabled(features::kTabGroupMenuMoreEntryPoints) &&
+  if (menu_context_ == MenuContext::kAppMenu &&
       menu->GetCommand() >= kMinCommandId) {
     PopulateTabGroupSubMenu(menu);
   }

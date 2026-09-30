@@ -14,6 +14,7 @@
 #include "base/test/mock_callback.h"
 #include "base/win/scoped_bstr.h"
 #include "base/win/scoped_com_initializer.h"
+#include "build/branding_buildflags.h"
 #include "chrome/elevation_service/elevation_service_delegate.h"
 #include "chrome/elevation_service/elevation_service_idl.h"
 #include "chrome/install_static/install_util.h"
@@ -56,6 +57,19 @@ class ServiceMainTest : public testing::Test {
   elevation_service::Delegate service_delegate_;
   base::HeapArray<DWORD> cookies_;
 };
+
+#if BUILDFLAG(TAHAI_BRANDING)
+TEST_F(ServiceMainTest, TahaiConfiguredInterfaceMatchesTypeLibrary) {
+  ScopedMockContext mock_context;
+  ASSERT_TRUE(mock_context.Succeeded());
+  EXPECT_TRUE(::IsEqualIID(install_static::GetElevatorIid(),
+                           __uuidof(IElevator2Chromium)));
+  Microsoft::WRL::ComPtr<IElevator2> elevator;
+  ASSERT_HRESULT_SUCCEEDED(::CoCreateInstance(
+      install_static::GetElevatorClsid(), nullptr, CLSCTX_LOCAL_SERVER,
+      install_static::GetElevatorIid(), IID_PPV_ARGS_Helper(&elevator)));
+}
+#endif
 
 TEST_F(ServiceMainTest, ExitSignalTest) {
   auto& module_released_callback = mock_module_released_callback();
@@ -121,12 +135,13 @@ TEST_F(ServiceMainTest, EncryptDecryptTest) {
                    output.ByteLength());
 
   BSTR input2 = ::SysAllocStringByteLen(nullptr, encrypted.length());
+  ASSERT_TRUE(input2);
   UNSAFE_TODO(memcpy(input2, encrypted.data(), encrypted.length()));
   base::win::ScopedBstr original;
 
   hr = elevator->DecryptData(input2, original.Receive(), &last_error);
 
-  ::SysFreeString(input);
+  ::SysFreeString(input2);
 
   ASSERT_HRESULT_SUCCEEDED(hr);
 

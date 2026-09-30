@@ -10,13 +10,13 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <ranges>
 #include <set>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
-#include "base/containers/adapters.h"
 #include "base/containers/flat_set.h"
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
@@ -1561,6 +1561,11 @@ Status ProcessInputActionSequence(Session* session,
               return Status(kInvalidArgument,
                             "if 'origin' is a string, it must be either "
                             "'viewport' or 'pointer'");
+            if (*subtype == "scroll" && origin == "pointer") {
+              return Status(kInvalidArgument,
+                            "'pointer' origin is not supported for wheel "
+                            "scroll actions");
+            }
             action_dict.Set("origin", origin);
           }
         } else {
@@ -2001,7 +2006,7 @@ Status ExecuteReleaseActions(Session* session,
                              std::unique_ptr<base::Value>* value,
                              Timeout* timeout) {
   for (const InputCancelListEntry& entry :
-       base::Reversed(session->input_cancel_list)) {
+       std::views::reverse(session->input_cancel_list)) {
     if (entry.key_event) {
       base::DictValue* pressed = entry.input_state->FindDict("pressed");
       if (!pressed->Find(entry.key_event->key))
@@ -3046,4 +3051,28 @@ Status ExecuteClearDisplayFeatures(Session* session,
                                    Timeout* timeout) {
   return web_view->SendCommand("Emulation.clearDisplayFeaturesOverride",
                                base::DictValue());
+}
+
+Status ExecuteGetGlobalPrivacyControl(Session* session,
+                                      WebView* web_view,
+                                      const base::DictValue& params,
+                                      std::unique_ptr<base::Value>* value,
+                                      Timeout* timeout) {
+  base::DictValue result;
+  const Status status = session->chrome->Client()->SendCommandAndGetResult(
+      "Browser.getGlobalPrivacyControl", params, &result);
+  *value = std::make_unique<base::Value>(std::move(result));
+  return status;
+}
+
+Status ExecuteSetGlobalPrivacyControl(Session* session,
+                                      WebView* web_view,
+                                      const base::DictValue& params,
+                                      std::unique_ptr<base::Value>* value,
+                                      Timeout* timeout) {
+  base::DictValue result;
+  const Status status = session->chrome->Client()->SendCommandAndGetResult(
+      "Browser.setGlobalPrivacyControl", params, &result);
+  *value = std::make_unique<base::Value>(std::move(result));
+  return status;
 }

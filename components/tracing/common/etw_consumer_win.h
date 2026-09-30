@@ -9,9 +9,12 @@
 
 #include <atomic>
 #include <memory>
+#include <string>
 #include <unordered_map>
 
+#include "absl/container/flat_hash_map.h"
 #include "base/containers/span.h"
+#include "base/files/file_path.h"
 #include "base/memory/raw_ptr.h"
 #include "base/process/process_handle.h"
 #include "base/sequence_checker.h"
@@ -23,6 +26,7 @@
 #include "services/tracing/public/cpp/perfetto/interning_index.h"
 #include "third_party/perfetto/include/perfetto/ext/tracing/core/trace_writer.h"
 #include "third_party/perfetto/include/perfetto/tracing/trace_writer_base.h"
+#include "third_party/perfetto/protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 
 namespace perfetto::protos::pbzero {
 class EtwTraceEvent;
@@ -47,9 +51,11 @@ class TRACING_EXPORT EtwConsumer
   // process identified by `client_pid` and emit Perfetto events via
   // `trace_writer`. If `privacy_filtering_enabled` is true, omits strings from
   // the trace.
-  EtwConsumer(base::ProcessId client_pid,
-              std::unique_ptr<perfetto::TraceWriterBase> trace_writer,
-              bool privacy_filtering_enabled);
+  EtwConsumer(
+      base::ProcessId client_pid,
+      std::unique_ptr<perfetto::TraceWriterBase> trace_writer,
+      bool privacy_filtering_enabled,
+      absl::flat_hash_map<base::FilePath, std::string> known_debug_ids = {});
   EtwConsumer(const EtwConsumer&) = delete;
   EtwConsumer& operator=(const EtwConsumer&) = delete;
   ~EtwConsumer();
@@ -118,6 +124,11 @@ class TRACING_EXPORT EtwConsumer
                           const ETW_BUFFER_CONTEXT& buffer_context,
                           size_t pointer_size,
                           base::span<const uint8_t> packet_data)
+      VALID_CONTEXT_REQUIRED(sequence_checker_);
+  void HandleImageLoadEvent(const EVENT_HEADER& header,
+                            const ETW_BUFFER_CONTEXT& buffer_context,
+                            size_t pointer_size,
+                            base::span<const uint8_t> packet_data)
       VALID_CONTEXT_REQUIRED(sequence_checker_);
   void HandleStackWalkEvent(const EVENT_HEADER& header,
                             const ETW_BUFFER_CONTEXT& buffer_context,
@@ -320,8 +331,17 @@ class TRACING_EXPORT EtwConsumer
 
   // Call stacks, each interned by a hash of the entire call stack.
   InterningIndex<TypeList<size_t>, SizeList<1024>> interned_callstacks_;
-  // Stack frames, each interned by the address on the stack.
-  InterningIndex<TypeList<uint64_t>, SizeList<1024>> interned_frames_;
+  // Stack frames, each interned by a [process ID, address] pair.
+  InterningIndex<TypeList<std::pair<uint32_t, uint64_t>>, SizeList<1024>>
+      interned_frames_;
+  // Filenames for loaded modules.
+  InterningIndex<TypeList<std::wstring>, SizeList<1024>> interned_module_names_;
+  // Debug IDs for loaded modules.
+  InterningIndex<TypeList<std::string>, SizeList<1024>>
+      interned_module_debug_ids_;
+  // Loaded modules, each interned by a [process ID, base address] pair.
+  InterningIndex<TypeList<std::pair<uint32_t, uint64_t>>, SizeList<1024>>
+      interned_modules_;
 
   // If true, interned data will be reset before the next event is processed.
   std::atomic<bool> reset_emitted_state_{true};

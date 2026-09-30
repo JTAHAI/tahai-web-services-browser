@@ -26,6 +26,7 @@ import android.text.style.CharacterStyle;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.SuggestionSpan;
 import android.text.style.UnderlineSpan;
+import android.util.LongSparseArray;
 import android.util.SparseArray;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
@@ -87,7 +88,6 @@ import org.chromium.content_public.common.ContentFeatures;
 import org.chromium.mojo.system.MessagePipeHandle;
 import org.chromium.mojo.system.MojoException;
 import org.chromium.mojo.system.impl.CoreImpl;
-import org.chromium.ui.base.DeviceInput;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.base.ime.TextInputAction;
@@ -100,13 +100,9 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -149,8 +145,8 @@ public class ImeAdapterImpl
     // of tabs. The UserDataHost owns the ImeAdapterImpl objects. This is used since
     // UserData#destroy() is not always called when the WebContents are destroyed, leading to memory
     // leaks.
-    private static final Map<Long, WeakReference<ImeAdapterImpl>> sNativeHelperMap =
-            new HashMap<>();
+    private static final LongSparseArray<WeakReference<ImeAdapterImpl>> sNativeHelperMap =
+            new LongSparseArray<>();
 
     private long mNativeImeAdapterAndroid;
     private InputMethodManagerWrapper mInputMethodManagerWrapper;
@@ -209,7 +205,8 @@ public class ImeAdapterImpl
     // keyboard from Direct writing toolbar.
     private boolean mForceShowKeyboardDuringStylusWriting;
 
-    private final ArrayDeque<KeyEvent> mKeyDownEvents = new ArrayDeque<>();
+    private final ImeKeyEventReplayer mImeKeyEventReplayer =
+            new ImeKeyEventReplayer(this::sendReplayedKeyEvent);
 
     private String[] mSupportedMimeTypes = {};
 
@@ -218,8 +215,8 @@ public class ImeAdapterImpl
     private @Nullable ImeRenderWidgetHostImpl mBoundImeRenderWidgetHost;
 
     /**
-     * {@ResultReceiver} passed in InputMethodManager#showSoftInput}. We need this to scroll to the
-     * editable node at the right timing, which is after input method window shows up.
+     * {@link ResultReceiver} passed in InputMethodManager#showSoftInput}. We need this to scroll to
+     * the editable node at the right timing, which is after input method window shows up.
      */
     private static class ShowKeyboardResultReceiver extends ResultReceiver {
         // Unfortunately, the memory life cycle of ResultReceiver object, once passed in
@@ -271,14 +268,6 @@ public class ImeAdapterImpl
         public void close() {
             mHandle.close();
         }
-    }
-
-    public static boolean isAccessibilityMagnificationFollowsFocusEnabled() {
-        if (DeviceInput.supportsKeyboard(ContextUtils.getApplicationContext())) {
-            return ContentFeatureList.sAccessibilityMagnificationFollowsFocusKeyboardAttached
-                    .isEnabled();
-        }
-        return ContentFeatureList.sAccessibilityMagnificationFollowsFocusNoKeyboard.isEnabled();
     }
 
     /**
@@ -471,33 +460,7 @@ public class ImeAdapterImpl
 
     @Override
     public void onKeyPreIme(int keyCode, KeyEvent event) {
-        // HACK: Remember key down events to use it later in sendCompositionToNative().
-        // TODO(b/432367402): Use a new Android API to replace this hack with a proper solution.
-        if (ContentFeatureMap.isEnabled(ContentFeatureList.ANDROID_CAPTURE_KEY_EVENTS)
-                && Build.VERSION.SDK_INT <= 38) {
-            int unicodeChar = event.getUnicodeChar();
-            int action = event.getAction();
-            if (action == KeyEvent.ACTION_DOWN
-                    && unicodeChar != 0
-                    && (unicodeChar & KeyCharacterMap.COMBINING_ACCENT) == 0) {
-                removeOldKeyDownEvents();
-                mKeyDownEvents.add(new KeyEvent(event));
-                long maxQueueSize = 1000;
-                if (mKeyDownEvents.size() > maxQueueSize) {
-                    mKeyDownEvents.remove();
-                }
-            }
-        }
-    }
-
-    private void removeOldKeyDownEvents() {
-        // Remove events that happened more than a second ago.
-        long timestampMs = SystemClock.uptimeMillis();
-        long thresholdMs = 1000;
-        while (!mKeyDownEvents.isEmpty()
-                && timestampMs - mKeyDownEvents.element().getEventTime() >= thresholdMs) {
-            mKeyDownEvents.remove();
-        }
+        mImeKeyEventReplayer.maybeCaptureKeyEventOnKeyPreIme(keyCode, event);
     }
 
     /** Whether the focused node is editable or not. */
@@ -1063,6 +1026,16 @@ public class ImeAdapterImpl
 
     @Override
     public void onWindowFocusChanged(boolean gainFocus) {
+        if (DEBUG_LOGS) Log.i(TAG, "onWindowFocusChanged: gainFocus [%b]", gainFocus);
+
+        if (!gainFocus) resetAndHideKeyboard();
+        if (gainFocus
+                && isValid()
+                && ContentFeatureMap.isEnabled(
+                        ContentFeatureList.ANDROID_FORCE_TEXT_INPUT_STATE_UPDATE_UPON_FOCUS)) {
+            requestTextInputStateUpdate();
+        }
+
         if (mInputConnectionFactory != null) {
             mInputConnectionFactory.onWindowFocusChanged(gainFocus);
         }
@@ -1154,7 +1127,8 @@ public class ImeAdapterImpl
             mBoundImeRenderWidgetHost = null;
         }
 
-        WeakReference<ImeAdapterImpl> oldValue = sNativeHelperMap.remove(mNativeImeAdapterAndroid);
+        WeakReference<ImeAdapterImpl> oldValue = sNativeHelperMap.get(mNativeImeAdapterAndroid);
+        sNativeHelperMap.remove(mNativeImeAdapterAndroid);
         assert oldValue != null;
         assert oldValue.get() == this;
         mNativeImeAdapterAndroid = 0;
@@ -1310,49 +1284,8 @@ public class ImeAdapterImpl
         // Ideally Gboard should be fixed to send the consumed key events back to chrome using the
         // sendKeyEvent() API, but as a workaround here we send the corresponding key down event
         // captured in onKeyPreIme() if any.
-        if (isCommit && !mKeyDownEvents.isEmpty() && text.length() == 1) {
-            removeOldKeyDownEvents();
-            // Look for a key down event that matches with the committed text.
-            KeyEvent lastKeyDownEvent = null;
-            for (KeyEvent event : mKeyDownEvents) {
-                if (Character.toString(event.getUnicodeChar()).contentEquals(text)) {
-                    lastKeyDownEvent = event;
-                    // If there is a matching event, remove all events before it.
-                    Iterator<KeyEvent> it = mKeyDownEvents.iterator();
-                    while (it.hasNext()) {
-                        KeyEvent currentEvent = it.next();
-                        it.remove();
-                        if (currentEvent == event) {
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
-
-            if (lastKeyDownEvent != null) {
-                if (DEBUG_LOGS) {
-                    Log.i(
-                            TAG,
-                            "sendCompositionToNative: Found a key down event " + lastKeyDownEvent);
-                }
-                ImeAdapterImplJni.get()
-                        .sendKeyEvent(
-                                mNativeImeAdapterAndroid,
-                                lastKeyDownEvent,
-                                EventType.KEY_DOWN,
-                                getModifiers(lastKeyDownEvent.getMetaState()),
-                                lastKeyDownEvent.getEventTime(),
-                                lastKeyDownEvent.getKeyCode(),
-                                lastKeyDownEvent.getScanCode(),
-                                false,
-                                lastKeyDownEvent.getUnicodeChar());
-
-                if (mAutocorrectManager != null) {
-                    mAutocorrectManager.onCommitTextOrSendKeyEvent();
-                }
-                return true;
-            }
+        if (isCommit && mImeKeyEventReplayer.willReplayKeyDownEventWithMatchingCommitText(text)) {
+            return true;
         }
 
         ImeAdapterImplJni.get()
@@ -1451,17 +1384,42 @@ public class ImeAdapterImpl
                         event.getUnicodeChar());
     }
 
+    private void sendReplayedKeyEvent(KeyEvent event) {
+        ImeAdapterImplJni.get()
+                .sendKeyEvent(
+                        mNativeImeAdapterAndroid,
+                        event,
+                        EventType.KEY_DOWN,
+                        getModifiers(event.getMetaState()),
+                        event.getEventTime(),
+                        event.getKeyCode(),
+                        event.getScanCode(),
+                        /* isSystemKey= */ false,
+                        event.getUnicodeChar());
+
+        if (mAutocorrectManager != null) {
+            mAutocorrectManager.onCommitTextOrSendKeyEvent();
+        }
+    }
+
     /**
      * Send a request to the native counterpart to delete a given range of characters.
+     *
      * @param beforeLength Number of characters to extend the selection by before the existing
-     *                     selection.
+     *     selection.
      * @param afterLength Number of characters to extend the selection by after the existing
-     *                    selection.
+     *     selection.
      * @return Whether the native counterpart of ImeAdapter received the call.
      */
     boolean deleteSurroundingText(int beforeLength, int afterLength) {
         onImeEvent();
         if (!isValid()) return false;
+
+        if (mImeKeyEventReplayer.willReplayBackspaceKeyDownEventWithMatchingDeleteSurroundingText(
+                beforeLength, afterLength)) {
+            return true;
+        }
+
         ImeAdapterImplJni.get()
                 .sendKeyEvent(
                         mNativeImeAdapterAndroid,
@@ -1500,6 +1458,12 @@ public class ImeAdapterImpl
     boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
         onImeEvent();
         if (!isValid()) return false;
+
+        if (mImeKeyEventReplayer.willReplayBackspaceKeyDownEventWithMatchingDeleteSurroundingText(
+                beforeLength, afterLength)) {
+            return true;
+        }
+
         ImeAdapterImplJni.get()
                 .sendKeyEvent(
                         mNativeImeAdapterAndroid,
@@ -1631,7 +1595,7 @@ public class ImeAdapterImpl
         // Note: `SDK_INT_FULL` added in `BAKLAVA`, hence two checks.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
                 && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1
-                && isAccessibilityMagnificationFollowsFocusEnabled()) {
+                && ContentFeatureList.isAccessibilityMagnificationFollowsFocusEnabled()) {
             Rect nodePix =
                     fromViewportDipToViewContentPix(
                             nodeLeftDip, nodeTopDip, nodeRightDip, nodeBottomDip, containerView);
@@ -1731,9 +1695,12 @@ public class ImeAdapterImpl
      */
     boolean commitContent(byte[] bytes, String extension) {
         onImeEvent();
-        return isValid()
-                && ImeAdapterImplJni.get()
-                        .insertMediaFromBytes(mNativeImeAdapterAndroid, bytes, extension);
+        boolean result =
+                isValid()
+                        && ImeAdapterImplJni.get()
+                                .insertMediaFromBytes(mNativeImeAdapterAndroid, bytes, extension);
+        ImeMetricsUtils.recordCommitContentSuccess(extension, result);
+        return result;
     }
 
     /** Lazily creates/returns a StylusWritingImeCallback object. */
@@ -1876,7 +1843,7 @@ public class ImeAdapterImpl
         // Request view system keep caret on screen when moved.
         if (isSelectionMove
                 && cursorAnchorInfo.insertionMarker != null
-                && isAccessibilityMagnificationFollowsFocusEnabled()) {
+                && ContentFeatureList.isAccessibilityMagnificationFollowsFocusEnabled()) {
             // Convert caret bounds from CSS pixels to device pixels relative to root view.
             var caretCss = cursorAnchorInfo.insertionMarker;
             Rect caretPix =

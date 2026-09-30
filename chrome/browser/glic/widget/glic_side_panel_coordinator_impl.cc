@@ -14,7 +14,6 @@
 #include "chrome/browser/glic/widget/glic_view.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry.h"
@@ -22,8 +21,11 @@
 #include "chrome/browser/ui/side_panel/side_panel_enums.h"
 #include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
 #include "chrome/common/chrome_features.h"
+#include "components/critical_actions/core/browser/features.h"
+#include "components/feature_engagement/public/feature_constants.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/actions/actions.h"
 #include "ui/compositor/layer.h"
@@ -229,6 +231,15 @@ GlicSidePanelCoordinatorImpl::GetWindowSidePanelCoordinator() const {
 void GlicSidePanelCoordinatorImpl::SetState(State new_state) {
   state_ = new_state;
   state_changed_callbacks_.Notify(state_);
+  if (new_state == State::kClosed && tab_ &&
+      base::FeatureList::IsEnabled(
+          critical_actions::features::kCriticalActionHistory)) {
+    if (auto* interface = BrowserUserEducationInterface::From(
+            tab_->GetBrowserWindowInterface())) {
+      interface->MaybeShowFeaturePromo(
+          feature_engagement::kIPHCriticalActionAppMenuFeature);
+    }
+  }
 }
 
 }  // namespace glic

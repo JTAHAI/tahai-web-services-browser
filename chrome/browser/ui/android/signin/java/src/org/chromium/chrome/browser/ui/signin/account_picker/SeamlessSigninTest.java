@@ -49,8 +49,11 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
+import org.chromium.chrome.browser.signin.services.AccountPreviewDataService;
 import org.chromium.chrome.browser.signin.services.SigninFlowTimestampsLogger.Event;
 import org.chromium.chrome.browser.signin.services.SigninFlowTimestampsLogger.FlowVariant;
 import org.chromium.chrome.browser.signin.services.SigninManager;
@@ -73,6 +76,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Tests for the seamless sign-in coordinator. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@DisableFeatures(ChromeFeatureList.ACCOUNT_PICKER_DIALOG)
 @Batch(Batch.PER_CLASS)
 public class SeamlessSigninTest {
     private static final String TEST_DOMAIN = "test.com";
@@ -96,6 +100,7 @@ public class SeamlessSigninTest {
     @Mock private AccountPickerDelegate mAccountPickerDelegateMock;
 
     @Mock private SigninManager mSigninManagerMock;
+    @Mock private AccountPreviewDataService mAccountPreviewDataServiceMock;
 
     private final FakeIdentityManager mIdentityManager = new FakeIdentityManager();
     private final AtomicReference<Boolean> mIsNextSigninSuccessful = new AtomicReference<>(true);
@@ -758,6 +763,8 @@ public class SeamlessSigninTest {
                                     mActivityTestRule.getActivity(),
                                     mIdentityManager,
                                     mSigninManagerMock,
+                                    mAccountPreviewDataServiceMock,
+                                    mActivityTestRule.getActivity().getModalDialogManager(),
                                     mBottomSheetController,
                                     mAccountPickerDelegateMock,
                                     AccountPickerBottomSheetTestUtil.getBottomSheetStrings(

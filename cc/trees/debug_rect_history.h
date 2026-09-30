@@ -10,6 +10,7 @@
 
 #include "cc/cc_export.h"
 #include "cc/debug/debug_colors.h"
+#include "cc/input/main_thread_scrolling_reason.h"
 #include "cc/input/touch_action.h"
 #include "cc/layers/layer_collections.h"
 #include "ui/gfx/geometry/rect.h"
@@ -60,7 +61,7 @@ struct DebugRect {
   DebugRect(DebugRectType new_type,
             const gfx::Rect& new_rect,
             TouchAction new_touch_action = TouchAction::kNone,
-            uint32_t main_thread_scroll_repaint_reasons = 0,
+            MainThreadRepaintReasons main_thread_scroll_repaint_reasons = {},
             int fade_step = 1)
       : type(new_type),
         rect(new_rect),
@@ -70,15 +71,15 @@ struct DebugRect {
     DCHECK(type == DebugRectType::kTouchEventHandler ||
            touch_action == TouchAction::kNone);
     DCHECK(type != DebugRectType::kMainThreadScrollRepaint ||
-           !main_thread_scroll_repaint_reasons);
+           main_thread_scroll_repaint_reasons.empty());
   }
   DebugRectType type;
   gfx::Rect rect;
   // Valid when `type` is `kTouchEventHandler`, otherwise default to
   // `TouchAction::kNone`.
   TouchAction touch_action;
-  // Valid when `type` is `kMainThreadScrollRepaint`, otherwise 0.
-  uint32_t main_thread_scroll_repaint_reasons;
+  // Valid when `type` is `kMainThreadScrollRepaint`, otherwise empty.
+  MainThreadRepaintReasons main_thread_scroll_repaint_reasons;
   int fade_step;
 };
 
@@ -111,8 +112,10 @@ class CC_EXPORT DebugRectHistory {
   void SaveWebVitalsDebugRects(HeadsUpDisplayLayerImpl* hud);
   void SavePaintRects(LayerTreeImpl* tree_impl);
   void SavePropertyChangedRects(LayerTreeImpl* tree_impl, LayerImpl* hud_layer);
-  void SaveSurfaceDamageRects(const RenderSurfaceList& render_surface_list);
-  void SaveScreenSpaceRects(const RenderSurfaceList& render_surface_list);
+  void SaveSurfaceDamageRects(LayerTreeImpl* tree_impl,
+                              const RenderSurfaceList& render_surface_list);
+  void SaveScreenSpaceRects(LayerTreeImpl* tree_impl,
+                            const RenderSurfaceList& render_surface_list);
   void SaveTouchEventHandlerRects(LayerTreeImpl* tree_impl);
   void SaveWheelEventHandlerRects(LayerTreeImpl* tree_impl);
   void SaveScrollEventHandlerRects(LayerTreeImpl* tree_impl);

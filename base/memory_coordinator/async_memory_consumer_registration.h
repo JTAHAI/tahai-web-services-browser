@@ -6,13 +6,13 @@
 #define BASE_MEMORY_COORDINATOR_ASYNC_MEMORY_CONSUMER_REGISTRATION_H_
 
 #include <memory>
-#include <optional>
 #include <string_view>
 
 #include "base/base_export.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/memory_coordinator/memory_consumer.h"
+#include "base/memory_coordinator/memory_limit.h"
 #include "base/memory_coordinator/traits.h"
 #include "base/sequence_checker.h"
 
@@ -28,7 +28,7 @@ class BASE_EXPORT AsyncMemoryConsumerRegistration {
 
   AsyncMemoryConsumerRegistration(
       std::string_view consumer_name,
-      std::optional<MemoryConsumerTraits> traits,
+      MemoryConsumerTraits traits,
       MemoryConsumer* consumer,
       CheckUnregister check_unregister = CheckUnregister::kEnabled);
   ~AsyncMemoryConsumerRegistration();
@@ -36,7 +36,7 @@ class BASE_EXPORT AsyncMemoryConsumerRegistration {
  private:
   class MainThread;
 
-  void NotifyUpdateMemoryLimit(int percentage);
+  void NotifyUpdateMemoryLimit(MemoryLimit memory_limit);
   void NotifyReleaseMemory();
 
   // A pointer to the actual consumer. Must outlive `this`.

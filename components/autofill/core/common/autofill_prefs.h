@@ -49,9 +49,9 @@ inline constexpr char kAutofillAiOptInStatus[] =
 // clicking Ok/Got it.
 inline constexpr char kAutofillAiPrivateInferenceNoticeAcknowledgedTimestamp[] =
     "autofill.autofill_ai.private_inference_notice_acknowledged_timestamp";
-// Timestamp when the user first saw the private inference notice UI.
-inline constexpr char kAutofillAiPrivateInferenceNoticeFirstShownTimestamp[] =
-    "autofill.autofill_ai.private_inference_notice_first_shown_timestamp";
+// Timestamp when the user last saw the private inference notice UI.
+inline constexpr char kAutofillAiPrivateInferenceNoticeShownTimestamp[] =
+    "autofill.autofill_ai.private_inference_notice_shown_timestamp";
 // Boolean that is true if the user is opted-in to private inference in Autofill
 // AI.
 inline constexpr char kAutofillAiPrivateInferenceOptInStatus[] =
@@ -248,6 +248,8 @@ inline constexpr char kAutofillThirdPartyPackageUsedForPlatformAutofill[] =
     "autofill.third_party_package_used_for_platform_autofill";
 inline constexpr char kFacilitatedPaymentsEwallet[] =
     "facilitated_payments.ewallet";
+inline constexpr char kFacilitatedPaymentsEwalletAccountLinking[] =
+    "facilitated_payments.ewallet_account_linking_enabled";
 inline constexpr char kFacilitatedPaymentsPix[] = "facilitated_payments.pix";
 inline constexpr char kFacilitatedPaymentsPixAccountLinking[] =
     "facilitated_payments.pix_account_linking_enabled";
@@ -268,10 +270,23 @@ inline constexpr char kAutofillSilentUpdatesToHomeAddress[] =
 inline constexpr char kAutofillSilentUpdatesToWorkAddress[] =
     "autofill.silent_updates.work";
 
+// The generation of the label-sensitive Autocomplete table migration.
+// If this is less than the expected migration generation
+// (features::kAutofillLabelSensitiveAutocompleteMigrationGeneration), the
+// migration logic should be run.
+inline constexpr char kAutofillAutocompleteLabelSensitiveMigrationGeneration[] =
+    "autofill.autocomplete.label_sensitive_migration_generation";
+
 // The maximum value for the
 // `kAutofillPaymentMethodsMandatoryReauthPromoShownCounter` pref. If this
 // value is reached, we should not show a mandatory re-auth promo.
 const int kMaxValueForMandatoryReauthPromoShownCounter = 2;
+
+// Boolean indicating whether the user has been shown the Wallet reminder
+// notice. This pref is synced and is written only to the account store, so is
+// effectively tied to a GAIA id.
+inline constexpr char kAutofillWalletReminderNoticeShown[] =
+    "autofill.wallet_reminder_notice_shown";
 
 namespace sync_transport_opt_in {
 enum Flags {
@@ -303,8 +318,6 @@ void SetAutofillHasSeenIban(PrefService* prefs);
 bool IsAutofillProfileManaged(const PrefService* prefs);
 
 bool IsAutofillCreditCardManaged(const PrefService* prefs);
-
-bool IsAutofillTypesBlockedManaged(const PrefService* prefs);
 
 bool IsAutofillProfileEnabled(const PrefService* prefs);
 
@@ -353,9 +366,19 @@ void ClearEmailVerificationState(PrefService* prefs,
                                  const base::Time& delete_begin,
                                  const base::Time& delete_end);
 
+// Migrates email verification preferences to lowercase and deduplicates
+// existing entries.
+void DeduplicateEmailVerificationState(PrefService* prefs);
+
 void SetFacilitatedPaymentsEwallet(PrefService* prefs, bool value);
 
 bool IsFacilitatedPaymentsEwalletEnabled(const PrefService* prefs);
+
+void SetFacilitatedPaymentsEwalletAccountLinking(PrefService* prefs,
+                                                 bool value);
+
+bool IsFacilitatedPaymentsEwalletAccountLinkingEnabled(
+    const PrefService* prefs);
 
 void SetFacilitatedPaymentsPix(PrefService* prefs, bool value);
 
@@ -380,6 +403,14 @@ bool HasSeenBnpl(const PrefService* prefs);
 void SetAutofillAmountExtractionAiTermsSeen(PrefService* prefs);
 
 bool AmountExtractionAiTermsSeen(const PrefService* prefs);
+
+// Records that the user has been shown the Wallet reminder notice in `prefs`.
+void SetHasShownWalletReminderNotice(PrefService* prefs);
+
+// Returns `true` if the user has already been shown the Wallet reminder notice
+// according to `prefs`, `false` otherwise.
+bool HasShownWalletReminderNotice(const PrefService* prefs);
+
 }  // namespace autofill::prefs
 
 #endif  // COMPONENTS_AUTOFILL_CORE_COMMON_AUTOFILL_PREFS_H_

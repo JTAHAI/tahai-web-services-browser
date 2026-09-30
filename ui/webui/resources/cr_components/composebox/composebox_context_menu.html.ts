@@ -48,9 +48,9 @@ export function getHtml(this: ComposeboxElement) {
         .tabSuggestionsState="${this.tabSuggestionsState}"
         .recentTabId="${this.recentTabId}"
         .hasImageFiles="${this.hasImageFiles()}"
-        .disabledTabIds="${this.addedTabsIds}"
+        .selectedTabIds="${this.addedTabsIds}"
         .aimThreadRestoredTabs="${this.aimThreadRestoredTabs}"
-        .fileNum="${this.files.size}"
+        .fileNum="${this.attachedContext.size}"
         .nonTabFileNum="${this.getNonTabFileNum()}"
         .sharedTabs="${this.getSharedTabs()}"
         .isSidePanel="${this.isSidePanel}"
@@ -81,7 +81,7 @@ export function getHtml(this: ComposeboxElement) {
   ` : '')}
   ${this.searchboxLayoutMode === 'Compact' && this.shouldShowVoiceSearch() ? html`
     <cr-icon-button id="voiceSearchButton" class="voice-icon"
-        part="voice-icon" iron-icon="cr:mic"
+        part="voice-icon" iron-icon="cr:mic-filled"
         @click="${this.onVoiceSearchButtonClick}"
         title="${this.i18n('voiceSearchButtonLabel')}">
     </cr-icon-button>

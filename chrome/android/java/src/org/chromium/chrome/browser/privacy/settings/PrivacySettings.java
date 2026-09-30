@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.privacy.settings;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.privacy.settings.UniversalOptOutSettings.shouldShowUniversalOptOutSettings;
 import static org.chromium.components.content_settings.PrefNames.COOKIE_CONTROLS_MODE;
 
 import android.content.Context;
@@ -43,9 +44,6 @@ import org.chromium.chrome.browser.prefetch.settings.PreloadPagesSettingsFragmen
 import org.chromium.chrome.browser.privacy.secure_dns.SecureDnsSettings;
 import org.chromium.chrome.browser.privacy_guide.PrivacyGuideFragment;
 import org.chromium.chrome.browser.privacy_guide.PrivacyGuideInteractions;
-import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxBridge;
-import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxReferrer;
-import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxSettingsBaseFragment;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.safe_browsing.AdvancedProtectionStatusManagerAndroidBridge;
 import org.chromium.chrome.browser.safe_browsing.metrics.SettingsAccessPoint;
@@ -98,11 +96,11 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
     private static final String PREF_SAFE_BROWSING = "safe_browsing";
     private static final String PREF_PASSWORD_LEAK_DETECTION = "password_leak_detection";
     private static final String PREF_SYNC_AND_SERVICES_LINK = "sync_and_services_link";
-    private static final String PREF_PRIVACY_SANDBOX = "privacy_sandbox";
     private static final String PREF_PRIVACY_GUIDE = "privacy_guide";
     private static final String PREF_INCOGNITO_LOCK = "incognito_lock";
     private static final String PREF_JAVASCRIPT_OPTIMIZER = "javascript_optimizer";
     @VisibleForTesting static final String PREF_DO_NOT_TRACK = "do_not_track";
+    @VisibleForTesting static final String PREF_UNIVERSAL_OPT_OUT = "universal_opt_out";
     @VisibleForTesting static final String PREF_THIRD_PARTY_COOKIES = "third_party_cookies";
     private static final String PREF_ADVANCED_PROTECTION_INFO = "advanced_protection_info";
     private static final int SECURE_CONNECTIONS_MESSAGE_ID =
@@ -145,22 +143,6 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
 
         SettingsUtils.addPreferencesFromResource(this, R.xml.privacy_preferences);
 
-        Preference sandboxPreference = findPreference(PREF_PRIVACY_SANDBOX);
-        // Overwrite the click listener to pass a correct referrer to the fragment.
-        sandboxPreference.setOnPreferenceClickListener(
-                preference -> {
-                    PrivacySandboxSettingsBaseFragment.launchPrivacySandboxSettings(
-                            getContext(), PrivacySandboxReferrer.PRIVACY_SETTINGS);
-                    return true;
-                });
-
-        PrivacySandboxBridge privacySandboxBridge = new PrivacySandboxBridge(getProfile());
-        boolean restricted = isRestrictedSandboxEnabled(privacySandboxBridge);
-        sandboxPreference.setSummary(
-                getContext().getString(getPrivacySandboxSummaryId(restricted)));
-        if (shouldHideSandboxPref(privacySandboxBridge)) {
-            getPreferenceScreen().removePreference(sandboxPreference);
-        }
         Preference privacyGuidePreference = findPreference(PREF_PRIVACY_GUIDE);
         // Record the launch of PG from the S&P link-row entry point
         privacyGuidePreference.setOnPreferenceClickListener(
@@ -169,7 +151,7 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
                     RecordHistogram.recordEnumeratedHistogram(
                             "Settings.PrivacyGuide.EntryExit",
                             PrivacyGuideInteractions.SETTINGS_LINK_ROW_ENTRY,
-                            PrivacyGuideInteractions.MAX_VALUE);
+                            PrivacyGuideInteractions.MAX_VALUE + 1);
                     UserPrefs.get(getProfile()).setBoolean(Pref.PRIVACY_GUIDE_VIEWED, true);
 
                     // Explicitly launch PrivacyGuideFragment from here. Because the fragment
@@ -298,34 +280,11 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
             scrollToPreference(PREF_ADVANCED_PROTECTION_INFO);
         }
 
+        if (!shouldShowUniversalOptOutSettings(getProfile())) {
+            getPreferenceScreen().removePreference(findPreference(PREF_UNIVERSAL_OPT_OUT));
+        }
+
         updatePreferences();
-    }
-
-    private static boolean isRestrictedSandboxEnabled(PrivacySandboxBridge bridge) {
-        return bridge.isPrivacySandboxRestricted() && bridge.isRestrictedNoticeEnabled();
-    }
-
-    private static int getPrivacySandboxSummaryId(boolean restricted) {
-        if (restricted) {
-            // Update the summary to one that describes only ad measurement if ad-measurement
-            // is available to restricted users.
-            return R.string.settings_ad_privacy_restricted_link_row_sub_label;
-        } else {
-            return R.string.ad_privacy_link_row_sub_label;
-        }
-    }
-
-    private static boolean shouldHideSandboxPref(PrivacySandboxBridge bridge) {
-        // Hide the Privacy Sandbox if the Ad Privacy UX Deprecation feature is enabled.
-        if (ChromeFeatureList.isEnabled(
-                ChromeFeatureList.PRIVACY_SANDBOX_AD_PRIVACY_UX_DEPRECATION)) {
-            return true;
-        }
-        // Hide the Privacy Sandbox if it is restricted and the restricted notice is NOT enabled.
-        if (bridge.isPrivacySandboxRestricted()) {
-            return !bridge.isRestrictedNoticeEnabled();
-        }
-        return false;
     }
 
     private static boolean isAdvancedProtectionEnabled() {
@@ -434,6 +393,16 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
                     UserPrefs.get(getProfile()).getBoolean(Pref.ENABLE_DO_NOT_TRACK)
                             ? R.string.text_on
                             : R.string.text_off);
+        }
+
+        if (shouldShowUniversalOptOutSettings(getProfile())) {
+            Preference universalOptOutPref = findPreference(PREF_UNIVERSAL_OPT_OUT);
+            if (universalOptOutPref != null) {
+                universalOptOutPref.setSummary(
+                        UserPrefs.get(getProfile()).getBoolean(Pref.UNIVERSAL_OPT_OUT_ENABLED)
+                                ? R.string.text_on
+                                : R.string.text_off);
+            }
         }
 
         Preference preloadPagesPreference = findPreference(PREF_PRELOAD_PAGES);
@@ -648,18 +617,10 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
                 public void updateDynamicPreferences(
                         Context context, SettingsIndexData indexData, Profile profile) {
                     String frag = PrivacySettings.class.getName();
-                    PrivacySandboxBridge bridge = new PrivacySandboxBridge(profile);
-                    boolean restricted = isRestrictedSandboxEnabled(bridge);
-                    var summaryId = getPrivacySandboxSummaryId(restricted);
-                    indexData.updateEntrySummaryForKey(frag, PREF_PRIVACY_SANDBOX, summaryId);
 
                     // Remove the summary text as it will be replaced by current status.
                     indexData.updateEntrySummaryForKey(
                             frag, PREF_PRELOAD_PAGES, /* summaryId= */ 0);
-
-                    if (shouldHideSandboxPref(bridge)) {
-                        indexData.removeEntry(getUniqueId(PREF_PRIVACY_SANDBOX));
-                    }
 
                     if (ChromeFeatureList.isEnabled(ChromeFeatureList.HTTPS_FIRST_BALANCED_MODE)) {
                         indexData.removeEntry(getUniqueId(PREF_HTTPS_FIRST_MODE_LEGACY));
@@ -668,6 +629,10 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
                         var textId = httpsFirstLegacySummaryId(isAdvancedProtectionEnabled());
                         indexData.updateEntrySummaryForKey(
                                 frag, PREF_HTTPS_FIRST_MODE_LEGACY, textId);
+                    }
+
+                    if (!shouldShowUniversalOptOutSettings(profile)) {
+                        indexData.removeEntry(getUniqueId(PREF_UNIVERSAL_OPT_OUT));
                     }
 
                     if (shouldHideAdvancedProtectionInfoPref()) {

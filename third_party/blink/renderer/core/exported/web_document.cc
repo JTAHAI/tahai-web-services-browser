@@ -266,10 +266,9 @@ WebElement WebDocument::ScrollingElement() {
   return WebElement(Unwrap<Document>()->scrollingElement());
 }
 
-std::vector<WebFormElement> WebDocument::GetTopLevelForms() const {
-  Vector<WebFormElement> web_forms;
+std::vector<WebFormElement> WebDocument::GetOutermostForms() const {
   HeapVector<Member<HTMLFormElement>> forms =
-      const_cast<Document*>(ConstUnwrap<Document>())->GetTopLevelForms();
+      const_cast<Document*>(ConstUnwrap<Document>())->GetOutermostForms();
   return base::ToVector(
       forms, [](HTMLFormElement* element) { return WebFormElement(element); });
 }
@@ -445,8 +444,9 @@ bool WebDocument::ExecuteScriptTool(
     web_tool_declaration->read_only = script_tool_declaration->read_only;
     web_tool_declaration->untrusted_content =
         script_tool_declaration->untrusted_content;
+    web_tool_declaration->consequential =
+        script_tool_declaration->consequential;
   }
-  // TODO(481899636): PLUMB SIGNAL TO THE BROWSER SIDE!
   return model_context->ExecuteTool(
       invocation_id, name, input_arguments,
       blink::BindOnce(

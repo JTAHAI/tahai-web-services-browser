@@ -17,12 +17,10 @@
 #include "ash/system/tray/tray_constants.h"
 #include "ash/system/tray/tray_event_filter.h"
 #include "ash/system/tray/tray_utils.h"
-#include "ash/system/unified/quick_settings_metrics_util.h"
 #include "ash/system/unified/unified_system_tray.h"
 #include "ash/system/unified/unified_system_tray_controller.h"
 #include "ash/wm/container_finder.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
-#include "base/debug/crash_logging.h"
 #include "base/metrics/histogram_macros.h"
 #include "ui/aura/window.h"
 #include "ui/compositor/layer.h"
@@ -77,14 +75,6 @@ UnifiedSystemTrayBubble::UnifiedSystemTrayBubble(UnifiedSystemTray* tray)
 }
 
 UnifiedSystemTrayBubble::~UnifiedSystemTrayBubble() {
-  // Record the number of quick settings pages.
-  auto page_count = unified_system_tray_controller()
-                        ->model()
-                        ->pagination_model()
-                        ->total_pages();
-  DCHECK_GT(page_count, 0);
-  quick_settings_metrics_util::RecordQsPageCountOnClose(page_count);
-
   if (controller_->showing_calendar_view()) {
     unified_system_tray_->NotifyLeavingCalendarView();
   }
@@ -274,20 +264,7 @@ void UnifiedSystemTrayBubble::UpdateBubbleHeight(bool is_showing_detiled_view) {
 }
 
 void UnifiedSystemTrayBubble::UpdateBubbleBounds() {
-  // USTB_UBB stands for `UnifiedSystemTrayBubble::UpdateBubbleBounds`. Here
-  // using the short version since the log method has a character count limit
-  // of 40.
-  SCOPED_CRASH_KEY_BOOL("USTB_UBB", "bubble_view_", !!bubble_view_);
-  SCOPED_CRASH_KEY_BOOL("USTB_UBB", "unified_system_tray_",
-                        !!unified_system_tray_);
-  SCOPED_CRASH_KEY_BOOL(
-      "USTB_UBB", "unified_system_tray_->shelf()",
-      !!unified_system_tray_ && !!unified_system_tray_->shelf());
-  SCOPED_CRASH_KEY_BOOL("USTB_UBB", "bubble_widget_", !!bubble_widget_);
-  SCOPED_CRASH_KEY_BOOL("USTB_UBB", "bubble_widget_->IsClosed()",
-                        !!bubble_widget_ && !!bubble_widget_->IsClosed());
-
-  // `bubble_view_` or `Shelf` may be null, see https://b/293264371,
+  // `bubble_view_` or `Shelf` may be null, see https://crbug.com/293264371.
   if (!bubble_view_ || !quick_settings_view_) {
     return;
   }

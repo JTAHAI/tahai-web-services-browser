@@ -18,10 +18,6 @@
 #include "ui/gfx/native_ui_types.h"
 #include "url/origin.h"
 
-namespace content {
-class WebContents;
-}  // namespace content
-
 namespace password_manager {
 class PasskeyCredential;
 class UiCredential;
@@ -68,8 +64,8 @@ class TouchToFillPasswordManagerWebAuthnDelegate
   void OnHybridSignInSelected(base::OnceClosure action_completed) override;
   void OnDismiss(base::OnceClosure action_completed) override;
   void OnCredManDismissed(base::OnceClosure action_completed) override;
-  GURL GetFrameUrl() override;
-  url::Origin GetFrameOrigin() override;
+  GURL GetFrameUrl() const override;
+  url::Origin GetFrameOrigin() const override;
   bool ShouldShowTouchToFill() override;
   bool ShouldTriggerSubmission() override;
   bool ShouldShowHybridOption() override;

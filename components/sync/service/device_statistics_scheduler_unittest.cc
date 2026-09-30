@@ -38,9 +38,9 @@ class DeviceStatisticsSchedulerTest
     return request;
   }
 
-  std::vector<std::string> GetCurrentDeviceCacheGuidsForDeviceStatistics()
+  base::flat_set<std::string> GetCurrentDeviceCacheGuidsForDeviceStatistics()
       override {
-    return std::vector<std::string>{"test_guid"};
+    return base::flat_set<std::string>{"test_guid"};
   }
 
  protected:
@@ -165,7 +165,7 @@ TEST_F(DeviceStatisticsSchedulerTest, StartsTrackerPeriodically) {
       kSyncRecordDeviceStatisticsMetricsDelay.Get());
 
   ASSERT_EQ(fake_requests_.size(), 1u);
-  fake_requests_[primary.gaia]->SimulateSuccess({});
+  fake_requests_[primary.GetGaiaId()]->SimulateSuccess({});
   fake_requests_.clear();
 
   // The periodic recording triggers at noon on every day. The original
@@ -174,7 +174,7 @@ TEST_F(DeviceStatisticsSchedulerTest, StartsTrackerPeriodically) {
   task_environment_.FastForwardBy(base::Hours(24));
 
   ASSERT_EQ(fake_requests_.size(), 1u);
-  fake_requests_[primary.gaia]->SimulateSuccess({});
+  fake_requests_[primary.GetGaiaId()]->SimulateSuccess({});
   fake_requests_.clear();
 
   // Another 10 hours later, it'll be 23:00 - not recording time yet.

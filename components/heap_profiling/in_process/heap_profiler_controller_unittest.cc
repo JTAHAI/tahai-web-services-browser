@@ -29,8 +29,8 @@
 #include "base/metrics/metrics_hashes.h"
 #include "base/process/launch.h"
 #include "base/process/process.h"
-#include "base/sampling_heap_profiler/lock_free_address_hash_set.h"
 #include "base/sampling_heap_profiler/poisson_allocation_sampler.h"
+#include "base/sampling_heap_profiler/sampling_heap_churn_profiler.h"
 #include "base/sampling_heap_profiler/sampling_heap_profiler.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/bind_post_task.h"
@@ -196,15 +196,21 @@ class TestCallStackProfileCollector final
 
   // metrics::mojom::CallStackProfileCollector
   void Collect(base::TimeTicks start_timestamp,
-               metrics::mojom::ProfileType profile_type,
+               metrics::mojom::TriggerEvent trigger_event,
                metrics::mojom::SampledProfilePtr profile) final {
     metrics::SampledProfile sampled_profile;
     ASSERT_TRUE(profile);
     ASSERT_TRUE(base::OptionalUnwrapTo(
         profile->contents.As<metrics::SampledProfile>(), sampled_profile));
-    EXPECT_EQ(profile_type == metrics::mojom::ProfileType::kHeap,
-              sampled_profile.trigger_event() ==
-                  metrics::SampledProfile::PERIODIC_HEAP_COLLECTION);
+    EXPECT_TRUE(
+        (trigger_event ==
+             metrics::mojom::TriggerEvent::kPeriodicHeapCollection &&
+         sampled_profile.trigger_event() ==
+             metrics::SampledProfile::PERIODIC_HEAP_COLLECTION) ||
+        (trigger_event ==
+             metrics::mojom::TriggerEvent::kPeriodicHeapChurnCollection &&
+         sampled_profile.trigger_event() ==
+             metrics::SampledProfile::PERIODIC_HEAP_CHURN_COLLECTION));
     collector_callback_.Run(start_timestamp, std::move(sampled_profile));
   }
 
@@ -348,10 +354,6 @@ class ProfilerSetUpMixin {
     // threads are started.
     feature_list_.InitWithFeaturesAndParameters(enabled_features,
                                                 disabled_features);
-    if (!base::FeatureList::IsEnabled(kHeapProfilerReporting)) {
-      // Set the sampling rate manually since there's no feature param to read.
-      base::SamplingHeapProfiler::Get()->SetSamplingInterval(kSamplingRate);
-    }
   }
 
   ~ProfilerSetUpMixin() = default;
@@ -685,8 +687,6 @@ struct FeatureTestParams {
   int network_snapshot_prob = 100;
   int renderer_snapshot_prob = 100;
   int utility_snapshot_prob = 100;
-  // Whether the UseLockFreeBloomFilter optimization is enabled.
-  bool bloom_filter_enabled = false;
 
   base::FieldTrialParams ToFieldTrialParams() const;
 
@@ -731,10 +731,9 @@ std::vector<FeatureRefAndParams> FeatureTestParams::GetEnabledFeatures() const {
   std::vector<FeatureRefAndParams> enabled_features;
   if (feature_enabled) {
     enabled_features.emplace_back(kHeapProfilerReporting, ToFieldTrialParams());
-  }
-  if (bloom_filter_enabled) {
-    enabled_features.emplace_back(base::kUseLockFreeBloomFilter,
-                                  base::FieldTrialParams());
+    enabled_features.emplace_back(
+        kHeapProfilerChurnReporting,
+        base::FieldTrialParams{{"subsampling-chance", "1.0"}});
   }
   return enabled_features;
 }
@@ -743,9 +742,7 @@ std::vector<FeatureRef> FeatureTestParams::GetDisabledFeatures() const {
   std::vector<FeatureRef> disabled_features;
   if (!feature_enabled) {
     disabled_features.emplace_back(kHeapProfilerReporting);
-  }
-  if (!bloom_filter_enabled) {
-    disabled_features.emplace_back(base::kUseLockFreeBloomFilter);
+    disabled_features.emplace_back(kHeapProfilerChurnReporting);
   }
   return disabled_features;
 }
@@ -1002,7 +999,7 @@ TEST_P(HeapProfilerControllerTest, ProfileCollectionsScheduler) {
   // The profiler should continue to collect snapshots as long as this memory is
   // allocated. If not the test will time out.
   while (profile_count < kSnapshotsToCollect) {
-    task_env().FastForwardBy(base::Days(1));
+    task_env().FastForwardBy(kCollectionInterval.Get());
   }
 
   // Free all recorded memory so the address list is empty for the next test.
@@ -1035,6 +1032,40 @@ TEST_P(HeapProfilerControllerTest, EmptyProfile) {
       callbacks.collector_callback());
   task_env().RunUntilQuit();
   EXPECT_TRUE(sample_received_);
+}
+
+TEST_P(HeapProfilerControllerTest, HeapChurnProfile) {
+  int heap_profiles_received = 0;
+  int churn_profiles_received = 0;
+  auto check_profile = [&](base::TimeTicks time,
+                           metrics::SampledProfile profile) {
+    if (profile.trigger_event() ==
+        metrics::SampledProfile::PERIODIC_HEAP_COLLECTION) {
+      heap_profiles_received++;
+    } else if (profile.trigger_event() ==
+               metrics::SampledProfile::PERIODIC_HEAP_CHURN_COLLECTION) {
+      churn_profiles_received++;
+    }
+  };
+
+  StartHeapProfiling(version_info::Channel::STABLE,
+                     ProfilerProcessType::kBrowser,
+                     /*expect_enabled=*/true,
+                     /*first_snapshot_callback=*/base::DoNothing(),
+                     base::BindLambdaForTesting(check_profile));
+  base::SamplingHeapProfiler::Get()->churn_profiler().SetSubsamplingChance(1.0);
+
+  auto* sampler = base::PoissonAllocationSampler::Get();
+  void* const kAddress = reinterpret_cast<void*>(0x1234);
+  sampler->OnAllocation(
+      AllocationNotificationData(kAddress, kAllocationSize, nullptr,
+                                 AllocationSubsystem::kManualForTesting));
+  sampler->OnFree(
+      FreeNotificationData(kAddress, AllocationSubsystem::kManualForTesting));
+
+  task_env().FastForwardBy(kCollectionInterval.Get());
+  EXPECT_EQ(heap_profiles_received, 1);
+  EXPECT_EQ(churn_profiles_received, 1);
 }
 
 TEST_P(HeapProfilerControllerTest, SamplingIntervalVariance) {
@@ -1093,14 +1124,6 @@ constexpr FeatureTestParams kChannelConfigs[] = {
         .feature_enabled = true,
         .stable = {.probability = 0.0, .expect_browser_sample = false},
         .nonstable = {.probability = 1.0, .expect_browser_sample = true},
-    },
-    // Enabled on all channels, with the LockFreeBloomFilter optimization.
-    // Ensures test coverage of the code that calculates bloom filter metrics.
-    {
-        .feature_enabled = true,
-        .stable = {.probability = 1.0, .expect_browser_sample = true},
-        .nonstable = {.probability = 1.0, .expect_browser_sample = true},
-        .bloom_filter_enabled = true,
     },
 };
 
@@ -1547,7 +1570,10 @@ TEST_P(HeapProfilerControllerMultipleChildTest, EndToEnd) {
                  GetProfileMetadataFunc("process_index"),
                  // Processes can be sampled in any order, so just check the
                  // range of "process_index".
-                 Optional(AllOf(Ge(0), Lt(sampled_processes)))));
+                 Optional(AllOf(Ge(0), Lt(sampled_processes)))),
+        ResultOf("sampling_interval metadata",
+                 GetProfileMetadataFunc("sampling_interval"),
+                 Optional(testing::Gt(0))));
   };
 
   // GMock matcher that tests that the given SampledProfile is a heap snapshot

@@ -6,13 +6,12 @@
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/location_bar/cookie_controls/cookie_controls_bubble_coordinator.h"
 #include "chrome/browser/ui/views/location_bar/cookie_controls/cookie_controls_bubble_view_controller.h"
 #include "chrome/browser/ui/views/location_bar/cookie_controls/cookie_controls_bubble_view_impl.h"
-#include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/content_settings/core/browser/cookie_settings.h"
@@ -91,15 +90,16 @@ class CookieControlsBubbleViewBrowserTest : public InProcessBrowserTest {
 
  protected:
   void ShowBubble() {
-    coordinator()->ShowBubble(
-        browser()->GetBrowserView().toolbar_button_provider(),
-        active_web_contents(), controller_.get());
+    coordinator()->ShowBubble(BrowserView::GetBrowserViewForBrowser(browser())
+                                  ->toolbar_button_provider(),
+                              active_web_contents(), controller_.get());
   }
 
   void ShowIncognitoBubble() {
-    coordinator()->ShowBubble(
-        browser()->GetBrowserView().toolbar_button_provider(),
-        active_web_contents(), incognito_controller_.get());
+    coordinator()->ShowBubble(BrowserView::GetBrowserViewForBrowser(browser())
+                                  ->toolbar_button_provider(),
+                              active_web_contents(),
+                              incognito_controller_.get());
   }
 
   void WaitForBubbleClose() {
@@ -148,7 +148,7 @@ class CookieControlsBubbleViewBrowserTest : public InProcessBrowserTest {
         browser()->GetProfile());
   }
   content::WebContents* active_web_contents() {
-    return browser()->tab_strip_model()->GetActiveWebContents();
+    return browser()->GetTabStripModel()->GetActiveWebContents();
   }
 
   Profile* incognito_profile() {

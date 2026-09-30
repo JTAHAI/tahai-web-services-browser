@@ -37,9 +37,30 @@ enum class ShareEntryPoint {
   kTabMenu = 6,
   // A physical gesture.
   kGesture = 7,
-  kMaxValue = kGesture,
+  // A DirectShare target on the OS-level Share Sheet.
+  kShareSheetDirectShare = 8,
+  kMaxValue = kShareSheetDirectShare,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/sharing/enums.xml:SendTabToSelfShareEntryPoint)
+
+// Status of received STTS notifications.
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+//
+// GENERATED_JAVA_ENUM_PACKAGE: (
+//   org.chromium.chrome.browser.share.send_tab_to_self)
+// LINT.IfChange(SendTabToSelfNotificationStatus)
+enum class NotificationStatus {
+  kShown = 0,
+  kDismissed = 1,
+  kOpened = 2,
+  kTimedOut = 3,
+  // kSent = 4,
+  // kDismissReasonUnknown = 5,
+  kThrottled = 6,
+  kMaxValue = kThrottled,
+};
+// LINT.ThenChange(/tools/metrics/histograms/enums.xml:SendTabToSelfNotificationStatus)
 
 // Records the entry point from which the Send Tab to Self feature was invoked.
 void RecordEntryPointInvoked(ShareEntryPoint entry_point);
@@ -51,23 +72,8 @@ void RecordEntryPointSent(ShareEntryPoint entry_point);
 // Records the result of attempting to send a tab.
 void RecordSendResult(SendTabToSelfResult result);
 
-// Records when a received STTS notification is shown.
-void RecordNotificationShown();
-
-// Records when a received STTS notification is dismissed.
-void RecordNotificationDismissed();
-
-// Records when a received STTS notification is opened.
-void RecordNotificationOpened();
-
-// Records when a received STTS notification is shown and times out.
-void RecordNotificationTimedOut();
-
-// Records when a received STTS notification is dismissed for an unknown reason.
-void RecordNotificationDismissReasonUnknown();
-
-// Records when a received STTS notification is throttled from being sent.
-void RecordNotificationThrottled();
+// Records the status of a received STTS notification.
+void RecordNotificationStatus(NotificationStatus status);
 
 // Status of the auto-open attempt for a received STTS tab.
 // These values are persisted to logs. Entries should not be renumbered and
@@ -98,7 +104,13 @@ enum class AutoOpenOutcome {
   // click.
   kTabOpenedViaNotification = 4,
 
-  kMaxValue = kTabOpenedViaNotification,
+  // Deprecated: kOpenedInNativeAppImmediately = 5,
+  // Deprecated: kOpenedInNativeAppUponActivation = 6,
+
+  // Note: Not commented out because it's still needed for kMaxValue.
+  kDeprecatedUnopenedUponActivation = 7,
+
+  kMaxValue = kDeprecatedUnopenedUponActivation,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/sharing/enums.xml:SendTabToSelfAutoOpenOutcome)
 
@@ -136,7 +148,9 @@ enum class ShareActivatedEntryPoint {
   kTabOrBrowserClosedWithoutActivation = 6,
   // The entry expired in the database before it was activated.
   kSTTSEntryExpiredWithoutActivation = 7,
-  kMaxValue = kSTTSEntryExpiredWithoutActivation,
+  // Activated via the mobile message banner.
+  kMobileMessageBanner = 8,
+  kMaxValue = kMobileMessageBanner,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/sharing/enums.xml:SendTabToSelfShareActivatedEntryPoint)
 

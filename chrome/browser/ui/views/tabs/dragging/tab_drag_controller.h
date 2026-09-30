@@ -14,20 +14,21 @@
 
 #include "base/callback_list.h"
 #include "base/functional/callback.h"
-#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/timer/timer.h"
-#include "base/uuid.h"
-#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/tabs/dragging/drag_session_data.h"
 #include "chrome/browser/ui/views/tabs/dragging/dragging_tabs_session.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_context.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_target.h"
 #include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
 #include "components/saved_tab_groups/public/tab_group_sync_service.h"
-#include "components/tab_groups/tab_group_visual_data.h"
+// Not used directly in this header, but required: without it, some other
+// //chrome/browser/ui:ui translation unit that never itself includes this
+// header (see split_tabs_button_interactive_ui_test.cc) fails to compile.
+// Verified via a real, from-scratch build -- do not remove based on grep or
+// IWYU alone.
 #include "components/tabs/public/split_tab_data.h"
 #include "components/webapps/common/web_app_id.h"
 #include "content/public/browser/render_widget_host_view.h"
@@ -56,7 +57,7 @@ class ViewTracker;
 namespace tabs {
 class TabModel;
 }
-class Browser;
+class BrowserWindowInterface;
 class EventTracker;
 class Tab;
 class TabDragControllerTest;
@@ -508,10 +509,12 @@ class TabDragController : public views::WidgetObserver,
   // If the user is dragging a single tab that is controlled by one web app,
   // and features::kTearOffWebAppTabOpensWebAppWindow is enabled,
   // returns the app id of that web app, nullopt otherwise.
-  std::optional<webapps::AppId> GetControllingAppForDrag(Browser* browser);
+  std::optional<webapps::AppId> GetControllingAppForDrag(
+      BrowserWindowInterface* browser);
 
-  // Creates and returns a new Browser to handle the drag.
-  Browser* CreateBrowserForDrag(TabDragContext* source, gfx::Size initial_size);
+  // Creates and returns a new BrowserWindowInterface to handle the drag.
+  BrowserWindowInterface* CreateBrowserForDrag(TabDragContext* source,
+                                               gfx::Size initial_size);
 
   // Returns the location of the cursor. This is either the location of the
   // mouse or the location of the current touch point.
@@ -638,6 +641,11 @@ class TabDragController : public views::WidgetObserver,
 
   // Last location used in screen coordinates.
   gfx::Point last_point_in_screen_ = gfx::Point();
+
+#if BUILDFLAG(IS_MAC)
+  // The ID of the display the window was last sized for during a drag.
+  int64_t last_sized_display_id_ = display::kInvalidDisplayId;
+#endif
 
   // The following are needed when detaching into a browser
   // (`detach_into_browser_` is true).

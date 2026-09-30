@@ -102,6 +102,7 @@ enum class Channel;
 namespace personal_context {
 enum class PersonalContextEligibilityState;
 class PersonalContextEligibilityService;
+class PersonalContextFirstRunService;
 }
 
 namespace subscription_eligibility {
@@ -114,9 +115,10 @@ class ProfileMetricsService;
 
 namespace autofill {
 
-class ActorKeyMetricsRecorder;
+class ActorAutofillManager;
 class AutofillManager;
 class AddressNormalizer;
+class AtMemoryManager;
 class AtMemoryQueryService;
 class AutocompleteHistoryManager;
 class AutofillAblationStudy;
@@ -141,6 +143,7 @@ class FormDataImporter;
 class FormFieldData;
 class LogManager;
 class OtpFieldDetector;
+class OtpMetricsTracker;
 class OtpPhishGuardDelegate;
 class FormPredictionsTracker;
 struct PasswordFormClassification;
@@ -154,6 +157,7 @@ class SingleFieldFillRouter;
 class TouchToFillAutofillDelegate;
 class ValuablesDataManager;
 class AutofillAiPersonalContextAccessManager;
+class EntitySuppressionManager;
 class VotesUploader;
 class PasswordManagerAutofillHelperDelegate;
 class WalletPassAccessManager;
@@ -166,9 +170,6 @@ namespace payments {
 class PaymentsAutofillClient;
 }
 
-// Fills the focused field with the string passed to it.
-using PlusAddressCallback = base::OnceCallback<void(const std::string&)>;
-
 // A client interface that needs to be supplied to the Autofill component by the
 // embedder.
 //
@@ -180,6 +181,7 @@ class AutofillClient {
  public:
   // Categories of Autofill data that can be blocked or allowed on specific GURL
   // patterns by enterprise policies.
+  // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.autofill
   // LINT.IfChange(AutofillPolicyDataCategory)
   enum class AutofillPolicyDataCategory {
     // Address, name, email, phone, and profile configuration details.
@@ -253,17 +255,28 @@ class AutofillClient {
     kMaxValue = kEditAccepted
   };
 
-  // Represents the user's decision or outcome in response to the email
-  // verification prompt.
-  enum class EmailVerificationPermissionUiResult {
-    kAccepted = 0,
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.autofill
+  // LINT.IfChange(EvpPermissionUiStatus)
+  enum class EmailVerificationPermissionUiStatus {
+    kAllowed = 0,
     kDeclined = 1,
-    kIgnored = 2,
+    kUserAborted = 2,            // e.g. ESC key or clicking outside
+    kNavigation = 3,             // page navigated
+    kTabGone = 4,                // tab closed or hidden
+    kWidgetChanged = 5,          // e.g. window resized
+    kOverlappingPrompt = 6,      // overlapped by another prompt/pip
+    kOther = 7,                  // any other reason
+    kViewDestroyedDirectly = 8,  // view destroyed without explicit Hide()
+    kMaxValue = kViewDestroyedDirectly,
   };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/blink/enums.xml:EvpPermissionUiStatus)
 
   // Describes the types of Iph shown by Autofill and anchored to a field.
   enum class IphFeature {
     kAutofillAi,
+    kWalletDirectOffers,
   };
 
   // Required arguments to create a dropdown showing autofill suggestions.
@@ -277,7 +290,8 @@ class AutofillClient {
                   int32_t form_control_ax_id,
                   PopupAnchorType anchor_type,
                   bool show_tabbed_popup = false,
-                  bool prefer_prev_arrow_side_on_suggestions_update = false);
+                  bool prefer_prev_arrow_side_on_suggestions_update = false,
+                  std::u16string search_bar_initial_value = {});
     PopupOpenArgs(const PopupOpenArgs&);
     PopupOpenArgs(PopupOpenArgs&&);
     PopupOpenArgs& operator=(const PopupOpenArgs&);
@@ -302,6 +316,8 @@ class AutofillClient {
     // are updated. This avoids unnecessary jumping when the popup is updated,
     // unless the popup would otherwise go out of bounds.
     bool prefer_prev_arrow_side_on_suggestions_update = false;
+    // Initial value for the search bar.
+    std::u16string search_bar_initial_value;
   };
 
   // Details about the UI that was shown to the user in an entity import bubble.
@@ -437,18 +453,10 @@ class AutofillClient {
   // Autocomplete and merchant promo codes.
   virtual SingleFieldFillRouter& GetSingleFieldFillRouter() = 0;
 
-  // Returns true if Autofill suggestions should include the Personal Context
-  // notice.
-  virtual bool ShouldShowPersonalContextAmbientAutofillNotice() const;
-
-  // Marks the Personal Context notice as acknowledged.
-  virtual void MarkPersonalContextAmbientAutofillNoticeAsAcknowledged();
-
-  // Returns true if AtMemory UI should include the Personal Context notice.
-  virtual bool ShouldShowPersonalContextAtMemoryNotice() const;
-
-  // Marks the AtMemory Personal Context notice as acknowledged.
-  virtual void MarkPersonalContextAtMemoryNoticeAsAcknowledged();
+  // Returns the PersonalContextFirstRunService instance associated with the
+  // client.
+  virtual personal_context::PersonalContextFirstRunService*
+  GetPersonalContextFirstRunService();
 
   // Gets the AutocompleteHistoryManager instance associated with the client.
   virtual AutocompleteHistoryManager* GetAutocompleteHistoryManager() = 0;
@@ -476,6 +484,11 @@ class AutofillClient {
   const AutofillAiPersonalContextAccessManager*
   GetAutofillAiPersonalContextAccessManager() const;
 
+  // Returns the per-profile `EntitySuppressionManager` associated with the
+  // client.
+  virtual EntitySuppressionManager* GetEntitySuppressionManager();
+  const EntitySuppressionManager* GetEntitySuppressionManager() const;
+
   // Returns the per-profile `AutofillAiModelCache`. Returns `nullptr` if the
   // `kAutofillAiServerModel` is not enabled.
   virtual AutofillAiModelCache* GetAutofillAiModelCache();
@@ -502,6 +515,10 @@ class AutofillClient {
   // Returns the `AtMemoryQueryService` associated with the profile of
   // the window of this tab.
   virtual AtMemoryQueryService* GetAtMemoryQueryService();
+
+  // Returns the `AtMemoryManager`.
+  virtual AtMemoryManager* GetAtMemoryManager();
+  const AtMemoryManager* GetAtMemoryManager() const;
 
   // Returns the enablement state of the Accessibility Annotator.
   // TODO(crbug.com/524193567) Delete this method once all the invocations are
@@ -697,8 +714,11 @@ class AutofillClient {
   // one exists).
   virtual bool IsTabInActorMode() const;
 
-  // Returns the `ActorKeyMetricsRecorder` for the current tab (if one exists).
-  virtual ActorKeyMetricsRecorder* GetActorKeyMetricsRecorder();
+  // Returns the `ActorAutofillManager` for the current tab (if one exists).
+  virtual ActorAutofillManager* GetActorAutofillManager();
+
+  // Returns the navigation ID associated with the main frame of the client.
+  virtual int64_t GetNavigationId() const;
 
   // Returns true if either Profile or CreditCard Autofill is enabled.
   virtual bool IsAutofillEnabled() const = 0;
@@ -748,12 +768,6 @@ class AutofillClient {
   virtual const AutofillAblationStudy& GetAblationStudy() const;
 
 #if BUILDFLAG(IS_ANDROID)
-  // Shows the @memory bottom sheet. Triggered by keyboard accessory controller.
-  virtual void ShowAtMemoryBottomSheet(
-      base::span<const Suggestion> suggestions,
-      base::WeakPtr<AutofillSuggestionDelegate> delegate);
-  virtual void HideAtMemoryBottomSheet() {}
-
   // Shows the Personal Context ambient autofill notice. Returns whether the
   // notice was successfully shown.
   virtual bool ShowAmbientAutoFillNotice(
@@ -765,6 +779,14 @@ class AutofillClient {
   // The AutofillSnackbarController is used to show a snackbar notification
   // on Android.
   virtual AutofillSnackbarControllerImpl* GetAutofillSnackbarController();
+
+  // Notifies the user that their data is being fetched from the server to fill
+  // the form.
+  virtual void ShowAutofillAiLoadingDialog();
+
+  // Closes the dialog that informs the user that their data is being fetched
+  // from the server to fill the form.
+  virtual void DismissAutofillAiLoadingDialog();
 #endif
 
 #if BUILDFLAG(IS_IOS)
@@ -776,11 +798,6 @@ class AutofillClient {
   // Whether we can add more information to the contents of suggestions text due
   // to the use of a large keyboard accessory view. See b/40942168.
   virtual bool ShouldFormatForLargeKeyboardAccessory() const;
-
-  // Returns true if the device is considered a large form factor for the
-  // purposes of the keyboard accessory. On Android, this considers screen
-  // dimensions and physical keyboard status.
-  virtual bool IsAndroidLargeFormFactor() const;
 
   // Returns a pointer to a DeviceAuthenticator. Might be nullptr if the given
   // platform is not supported.
@@ -860,6 +877,12 @@ class AutofillClient {
   // Notifies the user that operation to fetch data failed.
   virtual void ShowAutofillAiFetchEntityFailureNotification();
 
+  // Notifies the user that an AtMemory operation to fetch PII data failed. If
+  // `message_override` is provided, it is displayed instead of the generic
+  // error message.
+  virtual void ShowAtMemoryFetchFailureNotification(
+      std::optional<std::u16string> message_override);
+
   // Notifies the user that prefetching Autofill AI entities failed.
   virtual void ShowAutofillAiPreFetchFailureNotification();
 
@@ -872,15 +895,20 @@ class AutofillClient {
   // Shows a yes/no prompt asking the user to confirm that they want to verify
   // their email. The prompt is anchored on the field at `element_bounds`.
   // `issuer_site` is the site that issued the assertion.
-  // `callback` is called with the user's decision (accept, decline, or ignore).
+  // `callback` is called with the permission UI status
+  // (`EmailVerificationPermissionUiStatus`).
   virtual void ShowEmailVerificationPopup(
       const gfx::RectF& element_bounds,
       const net::SchemefulSite& issuer_site,
       const std::u16string& email,
-      base::OnceCallback<void(EmailVerificationPermissionUiResult)> callback);
+      base::OnceCallback<void(EmailVerificationPermissionUiStatus)> callback);
 
   // May return null on platforms where OTPs are not supported.
   virtual OtpFieldDetector* GetOtpFieldDetector();
+
+  // Returns the OtpMetricsTracker for the current tab. May return null on
+  // platforms where it is not supported or when the feature is disabled.
+  virtual OtpMetricsTracker* GetOtpMetricsTracker();
 
   // Returns the delegate for OTP phish guard, which can be used to perform
   // security checks before offering an OTP. May return nullptr.

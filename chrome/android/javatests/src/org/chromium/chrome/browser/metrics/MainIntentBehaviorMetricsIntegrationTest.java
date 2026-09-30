@@ -28,6 +28,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.base.test.util.UserActionTester;
 import org.chromium.chrome.R;
@@ -38,8 +39,7 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.history.HistoryActivity;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
-import org.chromium.chrome.browser.settings.SettingsActivity;
-import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
+import org.chromium.chrome.browser.settings.SettingsTestRule;
 import org.chromium.chrome.test.ChromeActivityTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
@@ -52,6 +52,7 @@ import org.chromium.ui.base.DeviceFormFactor;
 /** Tests the metrics recording for main intent behaviours. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@DoNotBatch(reason = "Tests start and intent metrics for cold and warm process lifecycles.")
 @SuppressLint({"ApplySharedPref", "CommitPrefEdits"})
 public class MainIntentBehaviorMetricsIntegrationTest {
     private static final long HOURS_IN_MS = 60 * 60 * 1000L;
@@ -61,8 +62,8 @@ public class MainIntentBehaviorMetricsIntegrationTest {
             ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     @Rule
-    public SettingsActivityTestRule<PlaceholderSettingsForTest> mSettingsActivityTestRule =
-            new SettingsActivityTestRule<>(PlaceholderSettingsForTest.class);
+    public SettingsTestRule<PlaceholderSettingsForTest> mSettingsActivityTestRule =
+            new SettingsTestRule<>(PlaceholderSettingsForTest.class);
 
     private UserActionTester mActionTester;
 
@@ -166,8 +167,8 @@ public class MainIntentBehaviorMetricsIntegrationTest {
 
             mActivityTestRule.startFromLauncherAtNtp();
 
-            SettingsActivity settingsActivity = mSettingsActivityTestRule.startSettingsActivity();
-            settingsActivity.finish();
+            mSettingsActivityTestRule.startSettingsActivity();
+            mSettingsActivityTestRule.getActivity().finish();
             ChromeActivityTestRule.waitForActivityNativeInitializationComplete(
                     ChromeActivityTestRule.waitFor(ChromeTabbedActivity.class));
 

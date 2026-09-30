@@ -31,12 +31,13 @@ import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.search_engines.R;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.settings.MainSettings;
-import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
+import org.chromium.chrome.browser.settings.SettingsTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.settings.ManagedPreferenceDelegate;
 import org.chromium.components.omnibox.OmniboxFeatureList;
@@ -50,12 +51,13 @@ import java.util.List;
 
 /** Tests for Search Engine Settings. */
 @RunWith(ChromeJUnit4ClassRunner.class)
+@DisableFeatures(ChromeFeatureList.SETTINGS_IN_TAB) // crbug.com/521895796
 public class SearchEngineSettingsTest {
-    private final SettingsActivityTestRule<SearchEngineSettings> mSearchEngineSettingsTestRule =
-            new SettingsActivityTestRule<>(SearchEngineSettings.class);
+    private final SettingsTestRule<SearchEngineSettings> mSearchEngineSettingsTestRule =
+            new SettingsTestRule<>(SearchEngineSettings.class);
 
-    private final SettingsActivityTestRule<MainSettings> mMainSettingsTestRule =
-            new SettingsActivityTestRule<>(MainSettings.class);
+    private final SettingsTestRule<MainSettings> mMainSettingsTestRule =
+            new SettingsTestRule<>(MainSettings.class);
 
     @Rule
     public final RuleChain mRuleChain =

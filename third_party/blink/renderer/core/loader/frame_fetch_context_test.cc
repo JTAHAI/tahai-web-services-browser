@@ -35,6 +35,7 @@
 
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/memory/raw_ptr.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
@@ -140,6 +141,8 @@ class DummyFrameOwner final : public GarbageCollected<DummyFrameOwner>,
   bool IsRemote() const override { return false; }
 };
 
+constexpr char kEmptyQuotedHeader[] = "\"\"";
+
 }  // namespace
 
 using Checkpoint = testing::StrictMock<testing::MockFunction<void(int)>>;
@@ -195,7 +198,7 @@ class FixedPolicySubresourceFilter : public WebDocumentSubresourceFilter {
 
  private:
   const LoadPolicy policy_;
-  int* filtered_load_counter_;
+  raw_ptr<int, UnprotectedInRelease | DanglingUntriaged> filtered_load_counter_;
 };
 
 class TestResourceRequestContext : public ResourceRequestContext {
@@ -689,21 +692,10 @@ TEST_P(FrameFetchContextModifyRequestTest, SendUpgradeInsecureRequestHeader) {
 
 class FrameFetchContextHintsTest
     : public FrameFetchContextTestBase,
-      public testing::WithParamInterface<std::tuple<bool, bool>> {
+      public testing::WithParamInterface<bool> {
  public:
   FrameFetchContextHintsTest()
-      : preload_link_rel_data_urls_(std::get<1>(GetParam())) {
-    std::vector<base::test::FeatureRef> enabled_features = {};
-    std::vector<base::test::FeatureRef> disabled_features = {};
-    if (std::get<0>(GetParam())) {
-      enabled_features.push_back(
-          blink::features::kQuoteEmptySecChUaStringHeadersConsistently);
-    } else {
-      disabled_features.push_back(
-          blink::features::kQuoteEmptySecChUaStringHeadersConsistently);
-    }
-    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
-  }
+      : preload_link_rel_data_urls_(GetParam()) {}
 
   void SetUp() override {
     // Set the document URL to a secure document.
@@ -736,18 +728,6 @@ class FrameFetchContextHintsTest
               resource_request.HttpHeaderField(AtomicString(header_name)));
   }
 
-  // Returns the expected value for a header containing an empty string. This
-  // should be `""`, but if !kQuoteEmptySecChUaStringHeadersConsistently then
-  // it is instead an empty string.
-  const char* EmptyString() {
-    if (base::FeatureList::IsEnabled(
-            blink::features::kQuoteEmptySecChUaStringHeadersConsistently)) {
-      return "\"\"";
-    } else {
-      return "";
-    }
-  }
-
   String GetHeaderValue(const char* input, const char* header_name) {
     const KURL input_url(input);
     ResourceRequest resource_request(input_url);
@@ -757,14 +737,12 @@ class FrameFetchContextHintsTest
   }
 
  private:
-  base::test::ScopedFeatureList scoped_feature_list_;
   ScopedPreloadLinkRelDataUrlsForTest preload_link_rel_data_urls_;
 };
 
 INSTANTIATE_TEST_SUITE_P(All,
                          FrameFetchContextHintsTest,
-                         testing::Combine(testing::ValuesIn({false, true}),
-                                          testing::Bool()));
+                         testing::Bool());
 // Verify that the client hints should be attached for subresources fetched
 // over secure transport. Tests when the persistent client hint feature is
 // enabled.
@@ -989,7 +967,7 @@ TEST_P(FrameFetchContextHintsTest, MonitorUAHints) {
     document->GetFrame()->GetClientHintsPreferences().UpdateFrom(preferences);
 
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Arch", true,
-                 EmptyString());
+                 kEmptyQuotedHeader);
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Platform-Version",
                  false, "");
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Model", false, "");
@@ -1010,7 +988,7 @@ TEST_P(FrameFetchContextHintsTest, MonitorUAHints) {
 
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Arch", false, "");
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Platform", true,
-                 EmptyString());
+                 kEmptyQuotedHeader);
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Platform-Version",
                  false, "");
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Model", false, "");
@@ -1033,7 +1011,7 @@ TEST_P(FrameFetchContextHintsTest, MonitorUAHints) {
 
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Arch", false, "");
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Platform-Version",
-                 true, EmptyString());
+                 true, kEmptyQuotedHeader);
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Model", false, "");
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Form-Factors",
                  false, "");
@@ -1055,7 +1033,7 @@ TEST_P(FrameFetchContextHintsTest, MonitorUAHints) {
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Platform-Version",
                  false, "");
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Model", true,
-                 EmptyString());
+                 kEmptyQuotedHeader);
     ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Form-Factors",
                  false, "");
 
@@ -1230,13 +1208,13 @@ TEST_P(FrameFetchContextHintsTest, MonitorAllHints) {
 
   ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA", true, "");
   ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Arch", true,
-               EmptyString());
+               kEmptyQuotedHeader);
   ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Platform", true,
-               EmptyString());
+               kEmptyQuotedHeader);
   ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Platform-Version",
-               true, EmptyString());
+               true, kEmptyQuotedHeader);
   ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Model", true,
-               EmptyString());
+               kEmptyQuotedHeader);
   ExpectHeader("https://www.example.com/1.gif", "Sec-CH-UA-Form-Factors", true,
                "");
   ExpectHeader("https://www.example.com/1.gif", "Sec-CH-Prefers-Color-Scheme",
@@ -1317,13 +1295,13 @@ TEST_P(FrameFetchContextHintsTest, MonitorAllHintsPermissionsPolicy) {
 
   ExpectHeader("https://www.example.net/1.gif", "Sec-CH-UA", true, "");
   ExpectHeader("https://www.example.net/1.gif", "Sec-CH-UA-Arch", true,
-               EmptyString());
+               kEmptyQuotedHeader);
   ExpectHeader("https://www.example.net/1.gif", "Sec-CH-UA-Platform", true,
-               EmptyString());
+               kEmptyQuotedHeader);
   ExpectHeader("https://www.example.net/1.gif", "Sec-CH-UA-Platform-Version",
-               true, EmptyString());
+               true, kEmptyQuotedHeader);
   ExpectHeader("https://www.example.net/1.gif", "Sec-CH-UA-Model", true,
-               EmptyString());
+               kEmptyQuotedHeader);
   ExpectHeader("https://www.example.net/1.gif", "Width", true, "400", 400);
   ExpectHeader("https://www.example.net/1.gif", "Sec-CH-Width", true, "400",
                400);

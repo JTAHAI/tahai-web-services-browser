@@ -4,31 +4,11 @@
 
 #include "components/actor/core/actor_features.h"
 
-#include <string>
-
-#include "base/feature_list.h"
+#include "base/feature.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/time/time.h"
 
 namespace actor {
-
-BASE_FEATURE(kGlicActionAllowlist, base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE_PARAM(std::string,
-                   kAllowlist,
-                   &kGlicActionAllowlist,
-                   "allowlist",
-                   "");
-BASE_FEATURE_PARAM(std::string,
-                   kAllowlistExact,
-                   &kGlicActionAllowlist,
-                   "allowlist_exact",
-                   "");
-BASE_FEATURE_PARAM(bool,
-                   kAllowlistOnly,
-                   &kGlicActionAllowlist,
-                   "allowlist_only",
-                   true);
 
 BASE_FEATURE(kActorBypassTOUValidationForGuestView,
              base::FEATURE_ENABLED_BY_DEFAULT);
@@ -36,8 +16,6 @@ BASE_FEATURE(kActorBypassTOUValidationForGuestView,
 BASE_FEATURE(kGlicActionUseOptimizationGuide, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kGlicExternalProtocolActionResultCode,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-BASE_FEATURE(kGlicGranularBlockingActionResultCodes,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kGlicBlockNavigationToDangerousContentTypes,
@@ -47,6 +25,8 @@ BASE_FEATURE(kGlicBlockFileSystemAccessApiFilePicker,
 
 BASE_FEATURE(kGlicDeferDownloadFilePickerToUserTakeover,
              base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kGlicActorLocalhostIsSensitive, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kGlicCrossOriginNavigationGating,
              base::FEATURE_ENABLED_BY_DEFAULT);
@@ -85,6 +65,11 @@ BASE_FEATURE_PARAM(bool,
                    &kGlicCrossOriginNavigationGating,
                    "allow_implicit_tool_origin_grants",
                    true);
+
+BASE_FEATURE(kGlicAttachNavigationThrottleToPausedTasks,
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kGlicPageActivationGating, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kGlicSkipAwaitVisualStateForNewTabs,
              base::FEATURE_ENABLED_BY_DEFAULT);
@@ -151,6 +136,12 @@ BASE_FEATURE(kGlicActorSkipScreenshot, base::FEATURE_DISABLED_BY_DEFAULT);
 BASE_FEATURE(kActorRestartObservationDelayControllerOnNavigate,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
+BASE_FEATURE(kActorLoginObservationStartDelay,
+             base::FEATURE_ENABLED_BY_DEFAULT);
+const base::FeatureParam<base::TimeDelta>
+    kActorLoginObservationStartDelayDuration{&kActorLoginObservationStartDelay,
+                                             "start_delay", base::Seconds(3)};
+
 BASE_FEATURE(kActorSendBrowserSignalForAction,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
@@ -186,15 +177,14 @@ const base::FeatureParam<int> kActorScriptToolDelayObservationMillis{
 
 BASE_FEATURE(kActorFormScriptToolInterrupt, base::FEATURE_ENABLED_BY_DEFAULT);
 
-BASE_FEATURE(kGlicActorTabObservationController,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 BASE_FEATURE(kActorObserveScreenshotDefault, base::FEATURE_ENABLED_BY_DEFAULT);
 BASE_FEATURE(kActorObservePageContentDefault, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kActorScriptToolSkipScreenshot, base::FEATURE_DISABLED_BY_DEFAULT);
 BASE_FEATURE(kActorScriptToolSkipPageContent,
              base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kActorScriptToolTransientUserActivation,
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kActorRecordInvocationSourceCompletionMetrics,
              base::FEATURE_ENABLED_BY_DEFAULT);

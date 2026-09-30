@@ -29,6 +29,7 @@ import android.window.TrustedPresentationThresholds;
 
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 
+import org.chromium.base.hid.HidManager;
 import org.chromium.base.serial.SerialManager;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -348,22 +349,9 @@ public interface AconfigFlaggedApiDelegate {
         return false;
     }
 
-    /** Whether the feature to split the Android setting 'Show passwords' is enabled. */
-    default boolean isShowPasswordsSplitEnabled() {
-        return false;
-    }
-
     /** Whether temporal layer encoding is enabled. */
     default boolean isTemporalLayerEncodingEnabled() {
         return false;
-    }
-
-    /**
-     * Returns the {@link PasswordEchoSettingDelegate} if the feature to split the Android setting
-     * 'Show passwords' is enabled. the feature is enabled. Returns null otherwise.
-     */
-    default @Nullable PasswordEchoSettingDelegate getPasswordEchoSettingDelegate() {
-        return null;
     }
 
     /**
@@ -460,6 +448,11 @@ public interface AconfigFlaggedApiDelegate {
 
     /** Gets an Android SerialManager wrapped in an intermediary object. */
     default @Nullable SerialManager getSerialManager() {
+        return null;
+    }
+
+    /** Gets an Android HidManager wrapped in an intermediary object. */
+    default @Nullable HidManager getHidManager() {
         return null;
     }
 

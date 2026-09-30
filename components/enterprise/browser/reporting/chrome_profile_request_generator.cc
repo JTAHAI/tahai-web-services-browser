@@ -331,14 +331,26 @@ void ChromeProfileRequestGenerator::OnAggregatedSignalsReceived(
     }
 
 #if BUILDFLAG(IS_ANDROID)
-    os_report->set_has_potentially_harmful_apps(
-        os_signals.has_potentially_harmful_apps);
-    os_report->set_verified_apps_enabled(os_signals.verified_apps_enabled);
+    if (os_signals.has_potentially_harmful_apps.has_value()) {
+      os_report->set_has_potentially_harmful_apps(
+          os_signals.has_potentially_harmful_apps.value());
+    }
+    if (os_signals.verified_apps_enabled.has_value()) {
+      os_report->set_verified_apps_enabled(
+          os_signals.verified_apps_enabled.value());
+    }
 
     if (os_signals.security_patch_ms) {
       os_report->set_security_patch_ms(os_signals.security_patch_ms.value());
     }
 #endif  // BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(IS_IOS)
+    if (os_signals.vendor_id) {
+      auto* ios_attributes = os_report->mutable_ios_specific_attributes();
+      ios_attributes->set_vendor_id(os_signals.vendor_id.value());
+    }
+#endif  // BUILDFLAG(IS_IOS)
 
     browser_report->set_browser_version(os_signals.browser_version);
   }

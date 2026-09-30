@@ -24,7 +24,7 @@
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
 #include "components/autofill/core/browser/field_types.h"
-#include "components/autofill/core/browser/webdata/autofill_table_utils.h"
+#include "components/autofill/core/browser/webdata/autofill_table_util.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/dense_set.h"
 #include "components/os_crypt/async/common/encryptor.h"
@@ -143,7 +143,7 @@ bool EntityTable::CreateTablesIfNecessary() {
 //
 // Type 1 migration can usually be handled with the functions from
 // sql/table_management_helpers.h (e.g., sql::AddColumn() or sql::DropColumn())
-// or autofill_table_utils.h.
+// or autofill_table_util.h.
 //
 // Type 2 migration may need to migrate the database's tuples. This can follow
 // the pattern
@@ -686,9 +686,21 @@ std::optional<EntityInstance> EntityTable::ValidateInstance(
     return std::nullopt;
   }
 
+  auto record_type_data = [&] -> EntityInstance::RecordTypeData {
+    switch (*record_type) {
+      case EntityInstance::RecordType::kLocal:
+        return EntityInstance::LocalRecordTypePayload{};
+      case EntityInstance::RecordType::kServerWallet:
+        return EntityInstance::WalletRecordTypePayload{};
+      case EntityInstance::RecordType::kPersonalContext:
+        // pContext entities are not stored in `EntityTable`.
+        NOTREACHED();
+    }
+    NOTREACHED();
+  }();
   return EntityInstance(*entity_type, std::move(attributes), std::move(guid),
                         std::move(nickname), date_modified, use_count, use_date,
-                        *record_type, are_attributes_read_only,
+                        std::move(record_type_data), are_attributes_read_only,
                         frecency_override);
 }
 

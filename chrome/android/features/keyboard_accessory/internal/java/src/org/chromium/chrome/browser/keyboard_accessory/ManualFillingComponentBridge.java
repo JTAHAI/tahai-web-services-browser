@@ -71,25 +71,6 @@ class ManualFillingComponentBridge {
     }
 
     @CalledByNative
-    private static boolean isLargeFormFactor(WebContents webContents) {
-        if (webContents == null) {
-            return false;
-        }
-        WindowAndroid windowAndroid = webContents.getTopLevelNativeWindow();
-        if (windowAndroid == null) {
-            return false;
-        }
-
-        android.app.Activity activity = windowAndroid.getActivity().get();
-        if (activity == null) {
-            return false;
-        }
-
-        return KeyboardAccessoryUtils.isLargeFormFactor(
-                activity, windowAndroid.getKeyboardDelegate());
-    }
-
-    @CalledByNative
     private void onItemsAvailable(AccessorySheetData accessorySheetData) {
         assertOnUiThread();
         Provider<AccessorySheetData> provider =
@@ -104,10 +85,13 @@ class ManualFillingComponentBridge {
     }
 
     @CalledByNative
-    void show(boolean waitForKeyboard, boolean isCredentialFieldOrHasAutofillSuggestions) {
+    void show(
+            boolean waitForKeyboard,
+            boolean shouldShowOnLargeFormFactor,
+            boolean isContentEditable) {
         if (getManualFillingComponent() != null) {
             getManualFillingComponent()
-                    .show(waitForKeyboard, isCredentialFieldOrHasAutofillSuggestions);
+                    .show(waitForKeyboard, shouldShowOnLargeFormFactor, isContentEditable);
         }
     }
 
@@ -367,6 +351,10 @@ class ManualFillingComponentBridge {
                                 }));
     }
 
+    public static boolean isAtMemoryEnabled(WebContents webContents) {
+        return ManualFillingComponentBridgeJni.get().isAtMemoryEnabled(webContents);
+    }
+
     @VisibleForTesting
     public static void cachePasswordSheetData(
             WebContents webContents,
@@ -451,6 +439,10 @@ class ManualFillingComponentBridge {
                 .onOptionSelectedForWebContents(webContents, accessoryAction);
     }
 
+    static void hideAtMemoryBottomSheet(WebContents webContents) {
+        ManualFillingComponentBridgeJni.get().hideAtMemoryBottomSheet(webContents);
+    }
+
     @NativeMethods
     interface Natives {
         void onFillingTriggered(
@@ -484,5 +476,9 @@ class ManualFillingComponentBridge {
         void signalAutoGenerationStatusForTesting(WebContents webContents, boolean available);
 
         void disableServerPredictionsForTesting();
+
+        boolean isAtMemoryEnabled(WebContents webContents);
+
+        void hideAtMemoryBottomSheet(WebContents webContents);
     }
 }

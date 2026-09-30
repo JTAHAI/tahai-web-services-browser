@@ -15,12 +15,17 @@ class GURL;
 
 namespace endpoint_fetcher {
 class EndpointFetcher;
+enum class HttpMethod;
 struct EndpointResponse;
 }  // namespace endpoint_fetcher
 
 namespace signin {
 class IdentityManager;
 }  // namespace signin
+
+namespace net {
+struct NetworkTrafficAnnotationTag;
+}  // namespace net
 
 namespace notebooks {
 
@@ -43,15 +48,25 @@ class NotebooksNetworkServiceImpl : public NotebooksNetworkService {
   void CreateNotebookSource(std::string_view notebook_id,
                             std::string_view source_id,
                             NetworkLoaderCallback callback) override;
+  void ListNotebooksForUser(NetworkLoaderCallback callback) override;
 
  protected:
   // This method could be overridden in tests.
   virtual std::unique_ptr<endpoint_fetcher::EndpointFetcher>
   CreateEndpointFetcher(const GURL& url,
+                        const endpoint_fetcher::HttpMethod& http_method,
                         const std::string& post_data,
                         const net::NetworkTrafficAnnotationTag& annotation_tag);
 
+  virtual GURL ConstructServiceURL(std::string_view path);
+
  private:
+  void FetchInternal(const GURL& url,
+                     const endpoint_fetcher::HttpMethod& http_method,
+                     const std::string& post_data,
+                     const net::NetworkTrafficAnnotationTag& annotation_tag,
+                     NetworkLoaderCallback callback);
+
   // Called when response is received
   void OnDownloadComplete(
       NetworkLoaderCallback callback,

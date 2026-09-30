@@ -95,7 +95,7 @@ void RemoteFrameView::AttachToLayout() {
       IsHiddenForThrottling(),
       ParentFrameView()->CanThrottleRenderingForPropagation(),
       IsDisplayLocked());
-  needs_frame_rect_propagation_ = true;
+  SetNeedsFrameRectPropagation();
   ParentFrameView()->SetNeedsUpdateGeometries();
 }
 
@@ -156,7 +156,7 @@ void RemoteFrameView::SetViewportIntersection(
   if (needs_update) {
     last_intersection_state_ = new_state;
     remote_frame_->SetViewportIntersection(new_state);
-  } else if (needs_frame_rect_propagation_) {
+  } else if (NeedsFrameRectPropagation()) {
     PropagateFrameRects();
   }
 }
@@ -193,8 +193,9 @@ gfx::Rect RemoteFrameView::ComputeCompositingRect() const {
       TransformState::kApplyTransformDirection);
   local_root_transform_state.Move(
       owner_layout_object->PhysicalContentBoxRect().offset);
-  owner_layout_object->MapLocalToAncestor(nullptr, local_root_transform_state,
-                                          kTraverseDocumentBoundaries);
+  owner_layout_object->MapLocalToAncestor(
+      nullptr, local_root_transform_state,
+      {MapCoordinatesMode::kTraverseDocumentBoundaries});
   gfx::Transform matrix =
       local_root_transform_state.AccumulatedTransform().InverseOrIdentity();
   PhysicalRect local_viewport_rect = PhysicalRect::EnclosingRect(
@@ -232,7 +233,7 @@ void RemoteFrameView::UpdateCompositingRect() {
   LayoutEmbeddedContent* owner_layout_object =
       remote_frame_->OwnerLayoutObject();
   if (!local_root_view || !owner_layout_object) {
-    needs_frame_rect_propagation_ = true;
+    SetNeedsFrameRectPropagation();
     return;
   }
 
@@ -250,8 +251,9 @@ void RemoteFrameView::UpdateCompositingRect() {
     compositing_rect_ = ComputeCompositingRect();
   }
 
-  if (compositing_rect_ != previous_rect)
-    needs_frame_rect_propagation_ = true;
+  if (compositing_rect_ != previous_rect) {
+    SetNeedsFrameRectPropagation();
+  }
 }
 
 void RemoteFrameView::UpdateCompositingScaleFactor() {
@@ -267,8 +269,9 @@ void RemoteFrameView::UpdateCompositingScaleFactor() {
       TransformState::kApplyTransformDirection);
   local_root_transform_state.Move(
       owner_layout_object->PhysicalContentBoxRect().offset);
-  owner_layout_object->MapLocalToAncestor(nullptr, local_root_transform_state,
-                                          kTraverseDocumentBoundaries);
+  owner_layout_object->MapLocalToAncestor(
+      nullptr, local_root_transform_state,
+      {MapCoordinatesMode::kTraverseDocumentBoundaries});
 
   float frame_to_local_root_scale_factor = 1.0f;
   gfx::Transform local_root_transform =
@@ -316,13 +319,14 @@ void RemoteFrameView::Dispose() {
 void RemoteFrameView::SetFrameRect(const gfx::Rect& rect) {
   const std::optional<gfx::Size> old_frozen_size = frozen_size_;
   UpdateFrozenSize();
-  const bool frame_rect_changed = FrameRect() != rect;
+  const bool frame_rect_changed = DeprecatedFrameRect() != rect;
   EmbeddedContentView::SetFrameRect(rect);
   if (frame_rect_changed || old_frozen_size != frozen_size_) {
     UpdateCompositingRect();
   }
-  if (needs_frame_rect_propagation_)
+  if (NeedsFrameRectPropagation()) {
     PropagateFrameRects();
+  }
 }
 
 void RemoteFrameView::UpdateFrozenSize() {
@@ -336,34 +340,45 @@ void RemoteFrameView::UpdateFrozenSize() {
   const gfx::Size rounded_frozen_size(frozen_phys_size->width.Ceil(),
                                       frozen_phys_size->height.Ceil());
   frozen_size_ = rounded_frozen_size;
-  needs_frame_rect_propagation_ = true;
+  SetNeedsFrameRectPropagation();
 }
 
 void RemoteFrameView::ZoomFactorChanged(float zoom_factor) {
   remote_frame_->ZoomFactorChanged(zoom_factor);
 }
 
-void RemoteFrameView::PropagateFrameRects() {
+void RemoteFrameView::PropagateFrameRectsInternal() {
   // Update the rect to reflect the position of the frame relative to the
   // containing local frame root. The position of the local root within
   // any remote frames, if any, is accounted for by the embedder.
-  needs_frame_rect_propagation_ = false;
-  gfx::Rect frame_rect(FrameRect());
-  gfx::Rect rect_in_local_root = frame_rect;
+  gfx::Rect rect_in_local_root;
 
-  if (LocalFrameView* parent = ParentFrameView()) {
-    rect_in_local_root = parent->ConvertToRootFrame(rect_in_local_root);
+  if (RuntimeEnabledFeatures::AvoidEmbeddedContentViewLocationEnabled()) {
+    rect_in_local_root = gfx::Rect(Size());
+    if (const auto* owner_layout_object = GetLayoutEmbeddedContent()) {
+      rect_in_local_root =
+          ToPixelSnappedRect(owner_layout_object->LocalToAbsoluteRect(
+              owner_layout_object->ReplacedContentRect(),
+              {MapCoordinatesMode::kTraverseDocumentBoundaries}));
+    }
+  } else {
+    rect_in_local_root = DeprecatedFrameRect();
+    if (LocalFrameView* parent = ParentFrameView()) {
+      rect_in_local_root = parent->ConvertToRootFrame(rect_in_local_root);
+    }
   }
 
-  gfx::Size frame_size = frozen_size_.value_or(frame_rect.size());
+  gfx::Size frame_size = frozen_size_.value_or(Size());
   remote_frame_->FrameRectsChanged(frame_size, rect_in_local_root);
 }
 
 void RemoteFrameView::Paint(const PaintInfo& paint_info,
-                            const CullRect& rect,
+                            const CullRect& cull_rect,
                             const gfx::Vector2d& paint_offset) const {
-  if (!rect.Intersects(FrameRect()))
+  if (!RuntimeEnabledFeatures::AvoidEmbeddedContentViewLocationEnabled() &&
+      !cull_rect.Rect().Intersects(DeprecatedFrameRect())) {
     return;
+  }
 
   GraphicsContext& context = paint_info.context;
 
@@ -376,14 +391,18 @@ void RemoteFrameView::Paint(const PaintInfo& paint_info,
     DCHECK(context.Canvas());
 
     uint32_t content_id = 0;
+    gfx::Rect rect(Size());
+    if (!RuntimeEnabledFeatures::AvoidEmbeddedContentViewLocationEnabled()) {
+      rect.set_origin(DeprecatedLocation());
+    }
     if (owner_layout_object.GetDocument().Printing()) {
       // Inform the remote frame to print.
-      content_id = Print(FrameRect(), context.Canvas());
+      content_id = Print(rect, context.Canvas());
     } else {
       DCHECK_NE(Document::kNotPaintingPreview,
                 owner_layout_object.GetDocument().GetPaintPreviewState());
       // Inform the remote frame to capture a paint preview.
-      content_id = CapturePaintPreview(FrameRect(), context.Canvas());
+      content_id = CapturePaintPreview(rect, context.Canvas());
     }
     // Record the place holder id on canvas.
     context.Canvas()->recordCustomData(content_id);
@@ -391,9 +410,13 @@ void RemoteFrameView::Paint(const PaintInfo& paint_info,
   }
 
   if (GetFrame().GetCcLayer() && !paint_info.IsPrivacyPreserving()) {
-    RecordForeignLayer(
-        context, owner_layout_object, DisplayItem::kForeignLayerRemoteFrame,
-        GetFrame().GetCcLayer(), FrameRect().origin() + paint_offset);
+    gfx::Point origin = gfx::PointAtOffsetFromOrigin(paint_offset);
+    if (!RuntimeEnabledFeatures::AvoidEmbeddedContentViewLocationEnabled()) {
+      origin += DeprecatedLocation().OffsetFromOrigin();
+    }
+    RecordForeignLayer(context, owner_layout_object,
+                       DisplayItem::kForeignLayerRemoteFrame,
+                       GetFrame().GetCcLayer(), origin);
   }
 }
 

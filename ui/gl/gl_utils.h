@@ -7,6 +7,8 @@
 #ifndef UI_GL_GL_UTILS_H_
 #define UI_GL_GL_UTILS_H_
 
+#include <string_view>
+
 #include "base/command_line.h"
 #include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
@@ -56,9 +58,6 @@ GL_EXPORT const GlWorkarounds& GetGlWorkarounds();
 GL_EXPORT void SetGlWorkarounds(const GlWorkarounds& workarounds);
 
 #if BUILDFLAG(IS_WIN)
-// BufferCount for the root surface swap chain.
-GL_EXPORT unsigned int DirectCompositionRootSurfaceBufferCount();
-
 // Labels swapchain with the name_prefix and its buffers with the string
 // name_prefix + _Buffer_ + <buffer_number>.
 GL_EXPORT void LabelSwapChainAndBuffers(IDXGISwapChain3* swap_chain,
@@ -142,9 +141,9 @@ class GL_EXPORT ScopedPixelStore {
   const int value_;
 };
 
-GL_EXPORT const char* GetDebugSourceString(unsigned int source);
-GL_EXPORT const char* GetDebugTypeString(unsigned int type);
-GL_EXPORT const char* GetDebugSeverityString(unsigned int severity);
+GL_EXPORT std::string_view GetDebugSourceString(unsigned int source);
+GL_EXPORT std::string_view GetDebugTypeString(unsigned int type);
+GL_EXPORT std::string_view GetDebugSeverityString(unsigned int severity);
 }  // namespace gl
 
 #endif  // UI_GL_GL_UTILS_H_

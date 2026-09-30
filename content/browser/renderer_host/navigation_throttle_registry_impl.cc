@@ -7,11 +7,11 @@
 #include <algorithm>
 
 #include "base/check_deref.h"
-#include "base/debug/dump_without_crashing.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
+#include "components/vrp_flags/buildflags.h"
 #include "content/browser/back_forward_cache/back_forward_cache_subframe_navigation_throttle.h"
 #include "content/browser/devtools/devtools_instrumentation.h"
 #include "content/browser/picture_in_picture/document_picture_in_picture_navigation_throttle.h"
@@ -37,6 +37,11 @@
 #if BUILDFLAG(IS_ANDROID)
 #include "content/browser/renderer_host/android_spare_renderer_navigation_throttle.h"
 #endif  // BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(ENABLE_VRP_FLAGS)
+#include "components/vrp_flags/vrp_flags.h"                     // nogncheck
+#include "content/browser/vrp_flags/vrp_navigation_throttle.h"  // nogncheck
+#endif
 
 namespace content {
 
@@ -87,6 +92,12 @@ void NavigationThrottleRegistryImpl::RegisterNavigationThrottles() {
   // The NavigationRequest associated with the NavigationThrottles this
   // NavigationThrottleRunner manages.
   navigation_request_->GetDelegate()->CreateThrottlesForNavigation(*this);
+
+#if BUILDFLAG(ENABLE_VRP_FLAGS)
+  if (vrp_flags::IsEnabled()) {
+    VrpNavigationThrottle::MaybeCreateAndAdd(*this);
+  }
+#endif
 
   // Check for renderer-initiated main frame navigations to blocked URL schemes
   // (data, filesystem). This is done early as it may block the main frame
@@ -182,6 +193,11 @@ void NavigationThrottleRegistryImpl::
   std::vector<std::unique_ptr<NavigationThrottle>> testing_throttles =
       std::move(throttles_);
 
+  // Let the embedder register throttles that want to observe navigations that
+  // commit without a URL loader (via WillCommitWithoutUrlLoader()).
+  navigation_request_->GetDelegate()->CreateThrottlesForCommitWithoutUrlLoader(
+      *this);
+
   // Defer any same-document subframe history navigations if there is an
   // associated main-frame same-document history navigation in progress, until
   // the main frame has had an opportunity to fire a navigate event in the
@@ -233,21 +249,7 @@ void NavigationThrottleRegistryImpl::ProcessNavigationEvent(
 void NavigationThrottleRegistryImpl::ResumeProcessingNavigationEvent(
     NavigationThrottle* resuming_throttle) {
   auto it = deferring_throttles_.find(resuming_throttle);
-  if (it == deferring_throttles_.end()) {
-    // TODO(https://crbug.com/411238078): Upgrade to CHECK_EQ once remaining
-    // known cases are fixed. Until then, collect dump data and ignore the
-    // resume request to avoid bypassing required throttle checks.
-    const char* deferring_throttle_name =
-        deferring_throttles_.empty()
-            ? "null"
-            : (*deferring_throttles_.begin())->GetNameForLogging();
-    SCOPED_CRASH_KEY_STRING32("Bug411238078", "expected_throttle",
-                              deferring_throttle_name);
-    SCOPED_CRASH_KEY_STRING32("Bug411238078", "actual_throttle",
-                              resuming_throttle->GetNameForLogging());
-    base::debug::DumpWithoutCrashing();
-    return;
-  }
+  CHECK(it != deferring_throttles_.end());
   deferring_throttles_.erase(it);
 
   navigation_throttle_runner_->ResumeProcessingNavigationEvent(

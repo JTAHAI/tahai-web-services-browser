@@ -88,11 +88,14 @@ OpenXrDevice::OpenXrDevice(
         mojom::XRSessionFeature::LAYERS);
   }
 
-  // Only support WebGPU sessions if feature flag is enabled.
+  // Only support WebGPU sessions if the feature flag is enabled; the Linux
+  // Vulkan binding does not support WebGPU sessions yet.
+#if !BUILDFLAG(IS_LINUX)
   if (base::FeatureList::IsEnabled(features::kWebXRWebGPUBinding)) {
     device_data.supported_features.emplace_back(
         mojom::XRSessionFeature::WEBGPU);
   }
+#endif
 
   // Only support Plane Detection if the feature flag is enabled.
   if (base::FeatureList::IsEnabled(features::kWebXRPlaneDetection)) {
@@ -147,8 +150,6 @@ void OpenXrDevice::RequestSession(
         options->renderer_information->render_frame_id;
   }
 #endif
-  create_info.needs_separate_activity =
-      OpenXrApiWrapper::NeedsSeparateActivity();
   platform_helper_->CreateInstanceWithCreateInfo(
       create_info,
       base::BindOnce(&OpenXrDevice::OnCreateInstanceResult,

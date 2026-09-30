@@ -12,7 +12,6 @@ import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -29,10 +28,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.UserDataHost;
@@ -73,13 +72,11 @@ import java.util.function.Supplier;
 
 /** Unit tests for the "edit url" omnibox suggestion. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public final class EditUrlSuggestionProcessorUnitTest {
     private static final String TAB_TITLE = "Tab Title";
     private static final String MATCH_TITLE = "Match Title";
     private static final int ACTION_SHARE = 0;
     private static final int ACTION_COPY = 1;
-    private static final int ACTION_EDIT = 2;
     private static final GURL SEARCH_URL_1 = JUnitTestGURLs.SEARCH_URL;
     private static final GURL SEARCH_URL_2 = JUnitTestGURLs.SEARCH_2_URL;
     private static final GURL INVALID_ESCAPED_PATH_URL =
@@ -89,24 +86,25 @@ public final class EditUrlSuggestionProcessorUnitTest {
     private static final GURL CHROME_DISTILLER_ORIGINAL_URL =
             new GURL("https://www.originalurl.com/test/path");
 
-    public static final String ESCAPED_PATH_URL_STRING = "https://pl.wikipedia.org/wiki/Gżegżółka";
     public static final GURL ESCAPED_PATH_URL =
             new GURL("https://pl.wikipedia.org/wiki/G%C5%BCeg%C5%BC%C3%B3%C5%82ka");
 
-    public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
-    private @Mock ShareDelegate mShareDelegate;
-    private @Mock Tab mTab;
-    private @Mock OmniboxImageSupplier mImageSupplier;
-    private @Mock SuggestionHost mSuggestionHost;
-    private @Mock ClipboardManager mClipboardManager;
-    private @Mock WebContents mWebContents;
-    private @Mock UrlBarEditingTextStateProvider mTextProvider;
-    private @Mock BookmarkState mBookmarkState;
-    private @Mock OmniboxActionDelegate mActionDelegate;
-    private @Mock UkmRecorder.Natives mUkmRecorderJniMock;
-    private @Mock AutocompleteInput mInput;
-    private @Mock DomDistillerUrlUtilsJni mDomDistillerUrlUtilsJni;
+    @Mock private ShareDelegate mShareDelegate;
+    @Mock private Tab mTab;
+    @Mock private OmniboxImageSupplier mImageSupplier;
+    @Mock private SuggestionHost mSuggestionHost;
+    @Mock private ClipboardManager mClipboardManager;
+    @Mock private WebContents mWebContents;
+    @Mock private UrlBarEditingTextStateProvider mTextProvider;
+    @Mock private BookmarkState mBookmarkState;
+    @Mock private OmniboxActionDelegate mActionDelegate;
+    @Mock private UkmRecorder.Natives mUkmRecorderJniMock;
+    @Mock private AutocompleteInput mInput;
+    @Mock private DomDistillerUrlUtilsJni mDomDistillerUrlUtilsJni;
+    @Mock private SadTab mSadTab;
+    @Captor private ArgumentCaptor<ClipData> mClipDataCaptor;
 
     private final UserDataHost mTabUserData = new UserDataHost();
     private final Supplier<Tab> mTabSupplier = () -> mTab;
@@ -229,17 +227,19 @@ public final class EditUrlSuggestionProcessorUnitTest {
     }
 
     @Test
-    public void doesProcessSuggestion_rejectMatchForNativeTab() {
-        doReturn(true).when(mTab).isNativePage();
+    public void doesProcessSuggestion_rejectMatchForUnacceptableUrl() {
+        mMatch =
+                new AutocompleteMatchBuilder(OmniboxSuggestionType.URL_WHAT_YOU_TYPED)
+                        .setUrl(new GURL("content://12345"))
+                        .build();
         assertFalse(mProcessor.doesProcessSuggestion(mMatch, 0));
         verifyNoMoreInteractions(mSuggestionHost, mShareDelegate, mClipboardManager);
     }
 
     @Test
     public void doesProcessSuggestion_rejectMatchForSadTab() {
-        SadTab mockSadTab = mock(SadTab.class);
-        doReturn(true).when(mockSadTab).isShowing();
-        mTabUserData.setUserData(SadTab.class, mockSadTab);
+        doReturn(true).when(mSadTab).isShowing();
+        mTabUserData.setUserData(SadTab.class, mSadTab);
         assertFalse(mProcessor.doesProcessSuggestion(mMatch, 0));
         verifyNoMoreInteractions(mSuggestionHost, mShareDelegate, mClipboardManager);
     }
@@ -367,8 +367,7 @@ public final class EditUrlSuggestionProcessorUnitTest {
         var monitor = new UserActionTester();
         mModel.get(BaseSuggestionViewProperties.ACTION_BUTTONS).get(ACTION_COPY).callback.run();
 
-        ArgumentCaptor<ClipData> argument = ArgumentCaptor.forClass(ClipData.class);
-        verify(mClipboardManager, times(1)).setPrimaryClip(argument.capture());
+        verify(mClipboardManager, times(1)).setPrimaryClip(mClipDataCaptor.capture());
 
         // ClipData doesn't implement equals, but their string representations matching should be
         // good enough.
@@ -377,7 +376,7 @@ public final class EditUrlSuggestionProcessorUnitTest {
                         "url",
                         new String[] {"text/x-moz-url", "text/plain"},
                         new ClipData.Item(SEARCH_URL_1.getSpec()));
-        assertEquals(clip.toString(), argument.getValue().toString());
+        assertEquals(clip.toString(), mClipDataCaptor.getValue().toString());
         verifyNoMoreInteractions(mSuggestionHost, mShareDelegate, mClipboardManager);
 
         assertEquals(1, monitor.getActionCount("Omnibox.EditUrlSuggestion.Copy"));
@@ -394,8 +393,7 @@ public final class EditUrlSuggestionProcessorUnitTest {
         var monitor = new UserActionTester();
         mModel.get(BaseSuggestionViewProperties.ACTION_BUTTONS).get(ACTION_COPY).callback.run();
 
-        ArgumentCaptor<ClipData> argument = ArgumentCaptor.forClass(ClipData.class);
-        verify(mClipboardManager, times(1)).setPrimaryClip(argument.capture());
+        verify(mClipboardManager, times(1)).setPrimaryClip(mClipDataCaptor.capture());
 
         // ClipData doesn't implement equals, but their string representations matching should be
         // good enough.
@@ -404,7 +402,7 @@ public final class EditUrlSuggestionProcessorUnitTest {
                         "url",
                         new String[] {"text/x-moz-url", "text/plain"},
                         new ClipData.Item(CHROME_DISTILLER_ORIGINAL_URL.getSpec()));
-        assertEquals(clip.toString(), argument.getValue().toString());
+        assertEquals(clip.toString(), mClipDataCaptor.getValue().toString());
         verifyNoMoreInteractions(mSuggestionHost, mShareDelegate, mClipboardManager);
 
         assertEquals(1, monitor.getActionCount("Omnibox.EditUrlSuggestion.Copy"));

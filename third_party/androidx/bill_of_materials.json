@@ -32,12 +32,12 @@
     {
         "name": "appcompat",
         "group": "androidx.appcompat",
-        "version": "1.8.0-SNAPSHOT"
+        "version": "1.8.0"
     },
     {
         "name": "appcompat-resources",
         "group": "androidx.appcompat",
-        "version": "1.8.0-SNAPSHOT"
+        "version": "1.8.0"
     },
     {
         "name": "appsearch",
@@ -77,32 +77,32 @@
     {
         "name": "benchmark-common",
         "group": "androidx.benchmark",
-        "version": "1.5.0-SNAPSHOT"
+        "version": "1.6.0-SNAPSHOT"
     },
     {
         "name": "benchmark-junit4",
         "group": "androidx.benchmark",
-        "version": "1.5.0-SNAPSHOT"
+        "version": "1.6.0-SNAPSHOT"
     },
     {
         "name": "benchmark-macro",
         "group": "androidx.benchmark",
-        "version": "1.5.0-SNAPSHOT"
+        "version": "1.6.0-SNAPSHOT"
     },
     {
         "name": "benchmark-macro-junit4",
         "group": "androidx.benchmark",
-        "version": "1.5.0-SNAPSHOT"
+        "version": "1.6.0-SNAPSHOT"
     },
     {
         "name": "benchmark-traceprocessor",
         "group": "androidx.benchmark",
-        "version": "1.5.0-SNAPSHOT"
+        "version": "1.6.0-SNAPSHOT"
     },
     {
         "name": "benchmark-traceprocessor-android",
         "group": "androidx.benchmark",
-        "version": "1.5.0-SNAPSHOT"
+        "version": "1.6.0-SNAPSHOT"
     },
     {
         "name": "biometric",
@@ -507,12 +507,12 @@
     {
         "name": "emoji2",
         "group": "androidx.emoji2",
-        "version": "1.6.0"
+        "version": "1.7.0-SNAPSHOT"
     },
     {
         "name": "emoji2-views-helper",
         "group": "androidx.emoji2",
-        "version": "1.6.0"
+        "version": "1.7.0-SNAPSHOT"
     },
     {
         "name": "emoji",
@@ -527,27 +527,27 @@
     {
         "name": "fragment",
         "group": "androidx.fragment",
-        "version": "1.9.0-SNAPSHOT"
+        "version": "1.10.0-SNAPSHOT"
     },
     {
         "name": "fragment-compose",
         "group": "androidx.fragment",
-        "version": "1.9.0-SNAPSHOT"
+        "version": "1.10.0-SNAPSHOT"
     },
     {
         "name": "fragment-ktx",
         "group": "androidx.fragment",
-        "version": "1.9.0-SNAPSHOT"
+        "version": "1.10.0-SNAPSHOT"
     },
     {
         "name": "fragment-testing",
         "group": "androidx.fragment",
-        "version": "1.9.0-SNAPSHOT"
+        "version": "1.10.0-SNAPSHOT"
     },
     {
         "name": "fragment-testing-manifest",
         "group": "androidx.fragment",
-        "version": "1.9.0-SNAPSHOT"
+        "version": "1.10.0-SNAPSHOT"
     },
     {
         "name": "graphics-core",
@@ -797,7 +797,7 @@
     {
         "name": "loader",
         "group": "androidx.loader",
-        "version": "1.2.0-SNAPSHOT"
+        "version": "1.2.0"
     },
     {
         "name": "localbroadcastmanager",
@@ -867,32 +867,32 @@
     {
         "name": "navigation-common",
         "group": "androidx.navigation",
-        "version": "2.10.0-SNAPSHOT"
+        "version": "2.11.0-SNAPSHOT"
     },
     {
         "name": "navigation-common-android",
         "group": "androidx.navigation",
-        "version": "2.10.0-SNAPSHOT"
+        "version": "2.11.0-SNAPSHOT"
     },
     {
         "name": "navigation-compose",
         "group": "androidx.navigation",
-        "version": "2.10.0-SNAPSHOT"
+        "version": "2.11.0-SNAPSHOT"
     },
     {
         "name": "navigation-compose-android",
         "group": "androidx.navigation",
-        "version": "2.10.0-SNAPSHOT"
+        "version": "2.11.0-SNAPSHOT"
     },
     {
         "name": "navigation-runtime",
         "group": "androidx.navigation",
-        "version": "2.10.0-SNAPSHOT"
+        "version": "2.11.0-SNAPSHOT"
     },
     {
         "name": "navigation-runtime-android",
         "group": "androidx.navigation",
-        "version": "2.10.0-SNAPSHOT"
+        "version": "2.11.0-SNAPSHOT"
     },
     {
         "name": "navigationevent",
@@ -1062,22 +1062,22 @@
     {
         "name": "sqlite",
         "group": "androidx.sqlite",
-        "version": "2.7.0"
+        "version": "2.8.0-SNAPSHOT"
     },
     {
         "name": "sqlite-android",
         "group": "androidx.sqlite",
-        "version": "2.7.0"
+        "version": "2.8.0-SNAPSHOT"
     },
     {
         "name": "sqlite-framework",
         "group": "androidx.sqlite",
-        "version": "2.7.0"
+        "version": "2.8.0-SNAPSHOT"
     },
     {
         "name": "sqlite-framework-android",
         "group": "androidx.sqlite",
-        "version": "2.7.0"
+        "version": "2.8.0-SNAPSHOT"
     },
     {
         "name": "startup-runtime",
@@ -1132,17 +1132,17 @@
     {
         "name": "uiautomator",
         "group": "androidx.test.uiautomator",
-        "version": "2.4.0"
+        "version": "2.5.0-SNAPSHOT"
     },
     {
         "name": "uiautomator-shell",
         "group": "androidx.test.uiautomator",
-        "version": "2.4.0"
+        "version": "2.5.0-SNAPSHOT"
     },
     {
         "name": "uiautomator-shell-android",
         "group": "androidx.test.uiautomator",
-        "version": "2.4.0"
+        "version": "2.5.0-SNAPSHOT"
     },
     {
         "name": "annotation",
@@ -1172,17 +1172,17 @@
     {
         "name": "tracing",
         "group": "androidx.tracing",
-        "version": "2.0.0-SNAPSHOT"
+        "version": "2.1.0-SNAPSHOT"
     },
     {
         "name": "tracing-android",
         "group": "androidx.tracing",
-        "version": "2.0.0-SNAPSHOT"
+        "version": "2.1.0-SNAPSHOT"
     },
     {
         "name": "tracing-ktx",
         "group": "androidx.tracing",
-        "version": "2.0.0-SNAPSHOT"
+        "version": "2.1.0-SNAPSHOT"
     },
     {
         "name": "tracing-perfetto",
@@ -1235,9 +1235,14 @@
         "version": "1.1.0"
     },
     {
+        "name": "web",
+        "group": "androidx.web",
+        "version": "1.0.0-SNAPSHOT"
+    },
+    {
         "name": "webkit",
         "group": "androidx.webkit",
-        "version": "1.17.0-SNAPSHOT"
+        "version": "1.18.0-SNAPSHOT"
     },
     {
         "name": "sidecar",
@@ -1267,12 +1272,12 @@
     {
         "name": "work-multiprocess",
         "group": "androidx.work",
-        "version": "2.12.0-SNAPSHOT"
+        "version": "2.13.0-SNAPSHOT"
     },
     {
         "name": "work-runtime",
         "group": "androidx.work",
-        "version": "2.12.0-SNAPSHOT"
+        "version": "2.13.0-SNAPSHOT"
     },
     {
         "name": "arcore",
@@ -1392,7 +1397,7 @@
     {
         "name": "play-services-identity-credentials",
         "group": "com.google.android.gms",
-        "version": "16.0.0-alpha11"
+        "version": "16.0.0-alpha12"
     },
     {
         "name": "play-services-tasks",
@@ -1482,12 +1487,12 @@
     {
         "name": "wire-runtime",
         "group": "com.squareup.wire",
-        "version": "6.4.0"
+        "version": "6.4.7"
     },
     {
         "name": "wire-runtime-jvm",
         "group": "com.squareup.wire",
-        "version": "6.4.0"
+        "version": "6.4.7"
     },
     {
         "name": "javawriter",

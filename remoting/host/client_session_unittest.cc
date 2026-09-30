@@ -22,6 +22,7 @@
 #include "remoting/base/auto_thread_task_runner.h"
 #include "remoting/base/errors.h"
 #include "remoting/base/local_session_policies_provider.h"
+#include "remoting/base/session_options_constants.h"
 #include "remoting/base/session_policies.h"
 #include "remoting/host/base/desktop_environment_options.h"
 #include "remoting/host/fake_desktop_environment.h"
@@ -74,10 +75,6 @@ class ClientSessionTest : public testing::Test {
   // Used to run `task_environment_` after each test, until no objects remain
   // that require it.
   base::RunLoop run_loop_;
-
-  // HostExtensions to pass when creating the ClientSession. Caller retains
-  // ownership of the HostExtensions themselves.
-  std::vector<raw_ptr<HostExtension, VectorExperimental>> extensions_;
 
   SessionPolicies initial_local_policies_;
   LocalSessionPoliciesProvider local_session_policies_provider_;
@@ -139,7 +136,8 @@ void ClientSessionTest::CreateClientSession(
       .WillByDefault([this](protocol::ErrorCode error,
                             std::string_view error_details,
                             const SourceLocation& error_location) {
-        client_session_->OnSessionClosed(error, error_details, error_location);
+        client_session_->OnSessionClosed(error, std::string(error_details),
+                                         error_location);
       });
 
   EXPECT_CALL(mock_peer_session_factory_, Create())
@@ -148,8 +146,7 @@ void ClientSessionTest::CreateClientSession(
 
   client_session_ = std::make_unique<ClientSession>(
       &session_event_handler_, std::move(session), &mock_peer_session_factory_,
-      desktop_environment_options_, extensions_,
-      &local_session_policies_provider_);
+      desktop_environment_options_, &local_session_policies_provider_);
 }
 
 void ClientSessionTest::CreateClientSession() {
@@ -183,7 +180,7 @@ TEST_F(ClientSessionTest,
 
   EXPECT_CALL(
       *mock_peer_session_,
-      Start(_, _, _, _,
+      Start(_, _, _,
             testing::Field(&SessionPolicies::allow_file_transfer, std::nullopt),
             _));
 
@@ -198,7 +195,7 @@ TEST_F(ClientSessionTest,
   CreateClientSession();
 
   EXPECT_CALL(*mock_peer_session_,
-              Start(_, _, _, _,
+              Start(_, _, _,
                     testing::Field(&SessionPolicies::allow_file_transfer,
                                    std::optional<bool>(true)),
                     _));
@@ -214,7 +211,7 @@ TEST_F(ClientSessionTest,
   CreateClientSession();
 
   EXPECT_CALL(*mock_peer_session_,
-              Start(_, _, _, _,
+              Start(_, _, _,
                     testing::Field(&SessionPolicies::allow_file_transfer,
                                    std::optional<bool>(false)),
                     _));
@@ -234,7 +231,7 @@ TEST_F(ClientSessionTest, ApplyPoliciesFromRemotePolicies) {
   CreateClientSession();
 
   EXPECT_CALL(*mock_peer_session_,
-              Start(_, _, _, _,
+              Start(_, _, _,
                     testing::AllOf(
                         testing::Field(&SessionPolicies::allow_file_transfer,
                                        std::optional<bool>(false)),
@@ -249,34 +246,101 @@ TEST_F(ClientSessionTest, ForwardHostSessionOptions1) {
   auto session = std::make_unique<protocol::FakeSession>();
   Attachment attachment;
   attachment.host_config.emplace();
-  attachment.host_config->settings["Detect-Updated-Region"] = "true";
+  attachment.host_config->settings[kSessionOptionDetectUpdatedRegion] = "true";
   session->SetAttachment(0, attachment);
 
   CreateClientSession(std::move(session));
 
   SessionOptions options;
-  EXPECT_CALL(*mock_peer_session_, Start(_, _, _, _, _, _))
-      .WillOnce(testing::SaveArg<5>(&options));
+  EXPECT_CALL(*mock_peer_session_, Start(_, _, _, _, _))
+      .WillOnce(testing::SaveArg<4>(&options));
 
   ConnectClientSession();
-  EXPECT_EQ(options.Get("Detect-Updated-Region"), "true");
+  EXPECT_EQ(options.detect_updated_region, true);
 }
 
 TEST_F(ClientSessionTest, ForwardHostSessionOptions2) {
   auto session = std::make_unique<protocol::FakeSession>();
   Attachment attachment;
   attachment.host_config.emplace();
-  attachment.host_config->settings["Detect-Updated-Region"] = "false";
+  attachment.host_config->settings[kSessionOptionDetectUpdatedRegion] = "false";
   session->SetAttachment(0, attachment);
 
   CreateClientSession(std::move(session));
 
   SessionOptions options;
-  EXPECT_CALL(*mock_peer_session_, Start(_, _, _, _, _, _))
-      .WillOnce(testing::SaveArg<5>(&options));
+  EXPECT_CALL(*mock_peer_session_, Start(_, _, _, _, _))
+      .WillOnce(testing::SaveArg<4>(&options));
 
   ConnectClientSession();
-  EXPECT_EQ(options.Get("Detect-Updated-Region"), "false");
+  EXPECT_EQ(options.detect_updated_region, false);
+}
+
+TEST_F(ClientSessionTest, ForwardHostSessionOptionsAllFields) {
+  auto session = std::make_unique<protocol::FakeSession>();
+  Attachment attachment;
+  attachment.host_config.emplace();
+  attachment.host_config->settings[kSessionOptionDetectUpdatedRegion] = "true";
+  attachment.host_config
+      ->settings[kSessionOptionCaptureVideoOnDedicatedThread] = "false";
+  attachment.host_config->settings[kSessionOptionDisableUdp] = "true";
+  attachment.host_config->settings[kSessionOptionVp9EncoderSpeed] = "3";
+  attachment.host_config->settings[kSessionOptionAv1ActiveMap] = "1";
+  attachment.host_config->settings[kSessionOptionAv1EncoderSpeed] = "4";
+  session->SetAttachment(0, attachment);
+
+  CreateClientSession(std::move(session));
+
+  SessionOptions options;
+  EXPECT_CALL(*mock_peer_session_, Start(_, _, _, _, _))
+      .WillOnce(testing::SaveArg<4>(&options));
+
+  ConnectClientSession();
+  EXPECT_EQ(options.detect_updated_region, true);
+  EXPECT_EQ(options.capture_video_on_dedicated_thread, false);
+  EXPECT_EQ(options.disable_udp, true);
+  EXPECT_EQ(options.vp9_encoder_speed, 3);
+  EXPECT_EQ(options.av1_active_map, true);
+  EXPECT_EQ(options.av1_encoder_speed, 4);
+}
+
+TEST_F(ClientSessionTest, ForwardHostSessionOptionsIgnoresUnsupportedKey) {
+  auto session = std::make_unique<protocol::FakeSession>();
+  Attachment attachment;
+  attachment.host_config.emplace();
+  attachment.host_config->settings[kSessionOptionDetectUpdatedRegion] = "true";
+  attachment.host_config->settings["Unsupported-Key"] = "foo";
+  session->SetAttachment(0, attachment);
+
+  CreateClientSession(std::move(session));
+
+  SessionOptions options;
+  EXPECT_CALL(*mock_peer_session_, Start(_, _, _, _, _))
+      .WillOnce(testing::SaveArg<4>(&options));
+
+  ConnectClientSession();
+  EXPECT_EQ(options.detect_updated_region, true);
+}
+
+TEST_F(ClientSessionTest, AppliesSessionPoliciesToDesktopEnvironmentOptions) {
+  SessionPolicies remote_policies;
+  remote_policies.curtain_required = true;
+  remote_policies.allow_webauthn_forwarding = true;
+  remote_policies.allow_gnubby_forwarding = false;
+
+  desktop_environment_options_.set_enable_remote_webauthn(true);
+  desktop_environment_options_.set_enable_security_key(true);
+
+  CreateClientSession();
+
+  DesktopEnvironmentOptions options;
+  EXPECT_CALL(*mock_peer_session_, Start(_, _, _, _, _))
+      .WillOnce(testing::SaveArg<2>(&options));
+
+  ConnectClientSession(&remote_policies);
+  EXPECT_TRUE(options.enable_curtaining());
+  EXPECT_TRUE(options.enable_remote_webauthn());
+  EXPECT_FALSE(options.enable_security_key());
 }
 
 TEST_F(
@@ -330,6 +394,42 @@ TEST_F(ClientSessionTest, DisconnectsIfOnSessionPoliciesReceivedReturnsError) {
 
   EXPECT_FALSE(client_session_->is_authenticated());
   EXPECT_EQ(session_->error(), ErrorCode::DISALLOWED_BY_POLICY);
+}
+
+TEST_F(ClientSessionTest, DisconnectsAfterMaxSessionDurationIsReached) {
+  SessionPolicies policies;
+  policies.maximum_session_duration = base::Hours(10);
+  CreateClientSession();
+
+  EXPECT_CALL(*mock_peer_session_,
+              DisconnectSession(ErrorCode::MAX_SESSION_LENGTH, _, _));
+  EXPECT_CALL(*mock_peer_session_, DisconnectSession(ErrorCode::OK, _, _))
+      .Times(testing::AnyNumber());
+
+  ConnectClientSession(&policies);
+  EXPECT_TRUE(client_session_->is_authenticated());
+
+  task_environment_.FastForwardBy(*policies.maximum_session_duration);
+}
+
+TEST_F(ClientSessionTest, MaximumSessionDurationIsClampedTo30Minutes) {
+  SessionPolicies policies;
+  policies.maximum_session_duration = base::Minutes(10);
+  CreateClientSession();
+
+  ConnectClientSession(&policies);
+  EXPECT_TRUE(client_session_->is_authenticated());
+
+  // Advancing by 20 minutes should not disconnect the session since 10 minutes
+  // is clamped to the minimum duration of 30 minutes.
+  task_environment_.FastForwardBy(base::Minutes(20));
+
+  EXPECT_CALL(*mock_peer_session_,
+              DisconnectSession(ErrorCode::MAX_SESSION_LENGTH, _, _));
+  EXPECT_CALL(*mock_peer_session_, DisconnectSession(ErrorCode::OK, _, _))
+      .Times(testing::AnyNumber());
+
+  task_environment_.FastForwardBy(base::Minutes(10));
 }
 
 }  // namespace remoting

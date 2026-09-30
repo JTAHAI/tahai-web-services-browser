@@ -57,8 +57,8 @@
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_util.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
-#import "ios/chrome/browser/shared/coordinator/scene/state/layout_state.h"
 #import "ios/chrome/browser/shared/coordinator/scene/state/lens_overlay_state_notifier.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/scene_layout_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
@@ -109,17 +109,17 @@ const base::TimeDelta kSearchWithCameraTooltipHintDelay = base::Seconds(2.0);
 
 }  // namespace
 
-@interface LensOverlayCoordinator () <LayoutStateObserver,
+@interface LensOverlayCoordinator () <LensOverlayCommands,
                                       LensOverlayConsentPresenterDelegate,
                                       LensOverlayConsentViewControllerDelegate,
-                                      LensOverlayCommands,
-                                      LensOverlayNetworkIssuePresenterDelegate,
+                                      LensOverlayContainerPresenterDelegate,
                                       LensOverlayMediatorDelegate,
+                                      LensOverlayNetworkIssuePresenterDelegate,
                                       LensOverlayOverflowMenuDelegate,
                                       LensOverlayResultConsumer,
-                                      LensOverlayContainerPresenterDelegate,
                                       LensOverlayResultsPagePresenterDelegate,
-                                      LensOverlayTabChangeAudience>
+                                      LensOverlayTabChangeAudience,
+                                      SceneLayoutStateObserver>
 
 /// Whether the `_containerViewController` is currently presented.
 @property(nonatomic, assign, readonly, getter=isLensOverlayVisible)
@@ -351,10 +351,14 @@ const base::TimeDelta kSearchWithCameraTooltipHintDelay = base::Seconds(2.0);
     return;
   }
   _presentationBaseViewController = initialPresentationBase;
+
+  base::RecordAction(
+      base::UserMetricsAction("Mobile.LensOverlay.CameraSearch.Performed"));
   // Even if the image is already prepared at this point, the snapshotting
   // infrastructure still needs to be built to allow the restoration window to
   // be displayed when exiting and re-entering the experience.
   [self prepareSnapshotCapturingInfrastructure];
+  // C2PA: LensImageMetadata provides its own C2PA support. b/541315801
   LensImageSource* imageSource =
       [[LensImageSource alloc] initWithImageMetadata:metadata];
   [self handleOverlayImageSourceFound:imageSource
@@ -363,6 +367,7 @@ const base::TimeDelta kSearchWithCameraTooltipHintDelay = base::Seconds(2.0);
 }
 
 - (void)searchImageWithLens:(UIImage*)image
+               rawImageData:(NSData*)rawImageData
                  entrypoint:(LensOverlayEntrypoint)entrypoint
     initialPresentationBase:(UIViewController*)initialPresentationBase
     resultsPresenterFactory:(LensResultsPresenterFactory)presenterFactory
@@ -381,7 +386,8 @@ const base::TimeDelta kSearchWithCameraTooltipHintDelay = base::Seconds(2.0);
   // be displayed when exiting and re-entering the experience.
   [self prepareSnapshotCapturingInfrastructure];
   LensImageSource* imageSource =
-      [[LensImageSource alloc] initWithSnapshot:image];
+      rawImageData ? [[LensImageSource alloc] initWithRawImageData:rawImageData]
+                   : [[LensImageSource alloc] initWithSnapshot:image];
   [self handleOverlayImageSourceFound:imageSource
                              animated:YES
                            completion:completion];
@@ -402,6 +408,7 @@ const base::TimeDelta kSearchWithCameraTooltipHintDelay = base::Seconds(2.0);
   [self captureSnapshotWithCompletion:^(UIImage* snapshot) {
     LensImageSource* imageSource =
         [[LensImageSource alloc] initWithSnapshot:snapshot];
+    // C2PA: Snapshots should not have C2PA metadata. b/541315801
     [weakSelf handleOverlayImageSourceFound:imageSource
                                    animated:animated
                                  completion:completion];
@@ -1790,9 +1797,9 @@ const base::TimeDelta kSearchWithCameraTooltipHintDelay = base::Seconds(2.0);
       indicateLensOverlayVisible:lensOverlayVisible];
 }
 
-#pragma mark - LayoutStateObserver
+#pragma mark - SceneLayoutStateObserver
 
-- (void)layoutState:(LayoutState*)layoutState
+- (void)layoutState:(SceneLayoutState*)layoutState
     didChangeAppBarPosition:(AppBarPosition)appBarPosition {
   [self updateInitialVisibleAreaLayoutGuide];
 }

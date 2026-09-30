@@ -30,6 +30,7 @@
 #include "components/password_manager/core/browser/import/import_results.h"
 #include "components/password_manager/core/browser/password_manager_test_utils.h"
 #include "components/password_manager/core/browser/password_store/test_password_store.h"
+#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/browser/ui/credential_provider_interface.h"
 #include "components/password_manager/core/browser/ui/saved_passwords_presenter.h"
 #include "content/public/browser/browser_context.h"
@@ -226,10 +227,10 @@ class PasswordImportControllerTest : public ChromeRenderViewHostTestHarness {
     // associated with a new factory.
     ui::SelectFileDialog::SetFactory(
         std::make_unique<TestSelectFileDialogFactory>(temp_file_path()));
-    controller_ = std::make_unique<PasswordImportController>(&presenter());
+    controller_ = std::make_unique<PasswordImportController>(presenter());
 
     auto importer =
-        std::make_unique<password_manager::PasswordImporter>(&presenter_);
+        std::make_unique<password_manager::PasswordImporter>(presenter());
     mojo::PendingRemote<password_manager::mojom::CSVPasswordParser>
         pending_remote{receiver.BindNewPipeAndPassRemote()};
     importer->SetServiceForTesting(std::move(pending_remote));
@@ -277,7 +278,7 @@ class PasswordImportControllerTest : public ChromeRenderViewHostTestHarness {
     form.url = url;
     form.signon_realm = url.spec();
     form.username_value = username;
-    form.password_value = password;
+    form.password_value = password_manager::PasswordString(std::move(password));
     form.in_store = password_manager::PasswordForm::Store::kProfileStore;
     return form;
   }

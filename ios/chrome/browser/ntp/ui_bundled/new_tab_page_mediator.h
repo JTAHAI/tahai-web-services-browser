@@ -21,6 +21,9 @@ class RegionalCapabilitiesService;
 namespace signin {
 class IdentityManager;
 }  // namespace signin
+namespace subscription_eligibility {
+class SubscriptionEligibilityService;
+}  // namespace subscription_eligibility
 namespace syncer {
 class SyncService;
 }  // namespace syncer
@@ -37,6 +40,7 @@ class DiscoverFeedVisibilityBrowserAgent;
 @protocol DiscoverFeedVisibilityObserver;
 @protocol FeedControlDelegate;
 @class FeedMetricsRecorder;
+class FullscreenBrowserAgent;
 class HomeBackgroundCustomizationService;
 @protocol NewTabPageConsumer;
 @protocol NewTabPageContentDelegate;
@@ -65,6 +69,9 @@ class UserUploadedImageManager;
                   (id<UserAccountImageUpdateDelegate>)imageUpdater
                    discoverFeedService:(DiscoverFeedService*)discoverFeedService
                            prefService:(PrefService*)prefService
+        subscriptionEligibilityService:
+            (subscription_eligibility::SubscriptionEligibilityService*)
+                subscriptionEligibilityService
                            syncService:(syncer::SyncService*)syncService
            regionalCapabilitiesService:
                (regional_capabilities::RegionalCapabilitiesService*)
@@ -85,6 +92,8 @@ class UserUploadedImageManager;
               featureEngagementTracker:(feature_engagement::Tracker*)tracker
                  aimEligibilityService:
                      (AimEligibilityService*)aimEligibilityService
+                fullscreenBrowserAgent:
+                    (FullscreenBrowserAgent*)fullscreenBrowserAgent
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;

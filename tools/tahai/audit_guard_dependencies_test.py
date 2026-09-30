@@ -5,6 +5,7 @@
 """Synthetic tests for source import integrity; not Chromium runtime tests."""
 
 import io
+import json
 from pathlib import Path
 import tarfile
 import tempfile
@@ -73,6 +74,74 @@ class GuardDependencyAuditTest(unittest.TestCase):
         self.assertEqual("v0_0_7", audit.epoch("0.0.7"))
         self.assertEqual("v0_12", audit.epoch("0.12.6"))
         self.assertEqual("v1", audit.epoch("1.0.3+wasi"))
+
+
+class RecordedSourceInventoryTest(unittest.TestCase):
+    def setUp(self):
+        self.inventory = {"schema_version": 1, "packages": [{
+            "name": "adblock", "version": audit.PIN,
+            "upstream_revision": audit.PIN_REVISION,
+            "crates_io_archive_sha256": audit.PIN_SHA256,
+            "vendored_tree_sha256": "reviewed-source",
+            "archive_files_verified": 2,
+        }]}
+        self.lock = f'[[package]]\nname = "adblock"\nversion = "{audit.PIN}"\n'
+        self.description = {k: v for k, v in self.inventory["packages"][0].items()
+                            if k != "archive_files_verified"}
+        for name, value in (
+                ("IMPORTED", {"adblock"}),
+                ("read_bounded", self.read_fixture)):
+            fixture = patch.object(audit, name, value)
+            fixture.start()
+            self.addCleanup(fixture.stop)
+        fixture = patch.object(audit, "describe", side_effect=lambda _: self.description)
+        fixture.start()
+        self.addCleanup(fixture.stop)
+
+    def read_fixture(self, path):
+        if path.name == "Cargo.lock":
+            return self.lock.encode()
+        return json.dumps(self.inventory).encode()
+
+    def test_source_only_does_not_claim_archive_verification(self):
+        result = audit.verify_recorded_sources(Path("inventory.json"))
+        self.assertEqual(1, result["packages"])
+        self.assertFalse(result["original_archives_verified"])
+        self.assertFalse(result["native_build_or_runtime_validation"])
+        self.assertEqual(0, result["archive_files"])
+
+    def test_archive_mode_checks_recorded_file_count(self):
+        with patch.object(audit, "verify_import_archive", return_value=2) as verify:
+            result = audit.verify_recorded_sources(Path("inventory.json"), Path("cache"))
+            verify.assert_called_once()
+            self.assertTrue(result["original_archives_verified"])
+            self.assertEqual(2, result["archive_files"])
+        with patch.object(audit, "verify_import_archive", return_value=1):
+            with self.assertRaisesRegex(ValueError, "file count mismatch"):
+                audit.verify_recorded_sources(Path("inventory.json"), Path("cache"))
+
+    def test_source_tree_change_is_not_accepted(self):
+        self.description["vendored_tree_sha256"] = "changed-source"
+        with self.assertRaisesRegex(ValueError, "inventory mismatch"):
+            audit.verify_recorded_sources(Path("inventory.json"))
+
+    def test_current_lock_must_include_reviewed_version(self):
+        self.lock = '[[package]]\nname = "adblock"\nversion = "0.0.1"\n'
+        with self.assertRaisesRegex(ValueError, "missing from current lock"):
+            audit.verify_recorded_sources(Path("inventory.json"))
+
+    def test_incomplete_inventory_is_rejected(self):
+        self.inventory["packages"] = []
+        with self.assertRaisesRegex(ValueError, "package set differs"):
+            audit.verify_recorded_sources(Path("inventory.json"))
+
+    def test_pin_and_checksum_changes_are_rejected(self):
+        self.inventory["packages"][0]["crates_io_archive_sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "pin changed"):
+            audit.verify_recorded_sources(Path("inventory.json"))
+        self.inventory["packages"][0]["crates_io_archive_sha256"] = "../invalid"
+        with self.assertRaisesRegex(ValueError, "identity/checksum"):
+            audit.verify_recorded_sources(Path("inventory.json"))
 
 
 if __name__ == "__main__":

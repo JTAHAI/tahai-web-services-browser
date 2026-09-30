@@ -37,7 +37,6 @@
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/history/history_tab_helper.h"
 #include "chrome/browser/metrics/profile_metrics_service_factory.h"
-#include "chrome/browser/password_manager/android/first_cct_page_load_marker.h"
 #include "chrome/browser/password_manager/chrome_password_change_service.h"
 #include "chrome/browser/password_manager/chrome_webauthn_credentials_delegate.h"
 #include "chrome/browser/password_manager/chrome_webauthn_credentials_delegate_factory.h"
@@ -47,6 +46,7 @@
 #include "chrome/browser/password_manager/factories/password_reuse_manager_factory.h"
 #include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
 #include "chrome/browser/password_manager/password_change_service_factory.h"
+#include "chrome/browser/password_manager/password_manager_critical_action_logger.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
@@ -75,6 +75,7 @@
 #include "components/autofill/core/common/password_generation_util.h"
 #include "components/browsing_data/content/browsing_data_helper.h"
 #include "components/critical_actions/core/browser/critical_action_service.h"
+#include "components/critical_actions/core/browser/features.h"
 #include "components/device_reauth/device_authenticator.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/no_state_prefetch/browser/no_state_prefetch_contents.h"
@@ -106,6 +107,7 @@
 #include "components/password_manager/core/browser/password_store/password_form_converters.h"
 #include "components/password_manager/core/browser/password_store/password_store_backend_error.h"
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
+#include "components/password_manager/core/browser/password_store/password_store_util.h"
 #include "components/password_manager/core/browser/password_sync_util.h"
 #include "components/password_manager/core/common/password_manager_features.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
@@ -162,6 +164,7 @@
 #include "chrome/browser/password_manager/android/auto_signin_prompt_controller.h"
 #include "chrome/browser/password_manager/android/cred_man_controller.h"
 #include "chrome/browser/password_manager/android/credential_leak_controller_android.h"
+#include "chrome/browser/password_manager/android/first_cct_page_load_marker.h"
 #include "chrome/browser/password_manager/android/grouped_affiliations/acknowledge_grouped_credential_sheet_bridge.h"
 #include "chrome/browser/password_manager/android/grouped_affiliations/acknowledge_grouped_credential_sheet_controller.h"
 #include "chrome/browser/password_manager/android/password_checkup_launcher_helper_impl.h"
@@ -179,7 +182,6 @@
 #include "components/webauthn/android/webauthn_cred_man_delegate_factory.h"
 #else  // BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/password_manager/factories/password_counter_factory.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/hats/hats_service.h"
@@ -653,7 +655,7 @@ void ChromePasswordManagerClient::ContinueShowKeyboardReplacingSurface(
   // without being called.
   auto split_delay_callback =
       base::SplitOnceCallback(std::move(delay_callback));
-  if (!weak_driver) {
+  if (!weak_driver || !weak_driver->CanShowAutofillUi()) {
     return;
   }
   password_manager::ContentPasswordManagerDriver* driver =
@@ -1038,6 +1040,12 @@ const syncer::SyncService* ChromePasswordManagerClient::GetSyncService() const {
   return nullptr;
 }
 
+password_manager::ActionableError
+ChromePasswordManagerClient::GetActionableError() const {
+  return password_manager::GetActionableErrorFromPasswordStores(
+      GetAccountPasswordStore(), GetProfilePasswordStore());
+}
+
 affiliations::AffiliationService*
 ChromePasswordManagerClient::GetAffiliationService() {
   return AffiliationServiceFactory::GetForProfile(GetProfile());
@@ -1376,38 +1384,15 @@ void ChromePasswordManagerClient::NavigateToManagePasswordsPage(
   if (!browser) {
     browser = GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
   }
-  ::NavigateToManagePasswordsPage(browser->GetBrowserForMigrationOnly(),
-                                  referrer);
+  ::NavigateToManagePasswordsPage(browser, referrer);
 #endif
 }
 
 void ChromePasswordManagerClient::OnPasswordFilled(
     password_manager::PasswordManagerDriver* driver,
-    const GURL& url,
-    PasswordFillTrigger trigger_type) {
-  critical_actions::CriticalActionEntry entry;
-  entry.critical_action_id = base::Uuid::GenerateRandomV4().AsLowercaseString();
-  entry.timestamp = base::Time::Now();
-  entry.action_type = critical_actions::ActionType::kFormFill;
-  entry.action_source = critical_actions::ActionSource::kPasswordManager;
-  entry.url = url;
-
-  std::string type = trigger_type == PasswordFillTrigger::kAgentTask
-                         ? "agent_task"
-                         : "password_manager_autofill";
-
-  base::DictValue metadata_dict;
-  metadata_dict.Set("type", type);
-  std::string metadata_json;
-  if (base::JSONWriter::Write(metadata_dict, &metadata_json)) {
-    entry.metadata = std::move(metadata_json);
-  }
-
-  int64_t navigation_id = GetNavigationIdForDriver(driver);
-  critical_actions::CriticalActionService* service =
-      critical_actions::CriticalActionFactory::GetForProfile(GetProfile());
-  if (service) {
-    service->AddCriticalActionWithNavigationId(entry, navigation_id);
+    const GURL& url) {
+  if (critical_action_logger_) {
+    critical_action_logger_->MaybeLogCriticalAction(driver, url);
   }
 }
 
@@ -1911,6 +1896,13 @@ ChromePasswordManagerClient::ChromePasswordManagerClient(
       helper_(this) {
   ContentPasswordManagerDriverFactory::CreateForWebContents(web_contents, this);
 
+  if (base::FeatureList::IsEnabled(
+          critical_actions::features::kCriticalActionHistory)) {
+    critical_action_logger_ =
+        std::make_unique<password_manager::PasswordManagerCriticalActionLogger>(
+            web_contents, GetProfile());
+  }
+
   autofill_managers_observation_.Observe(
       autofill::ContentAutofillClient::FromWebContents(web_contents),
       autofill::ScopedAutofillManagersObservation::InitializationPolicy::
@@ -1960,33 +1952,6 @@ void ChromePasswordManagerClient::PrimaryPageChanged(content::Page& page) {
       page.GetMainDocument().GetPageUkmSourceId());
 }
 
-void ChromePasswordManagerClient::DidFinishNavigation(
-    content::NavigationHandle* navigation_handle) {
-  if (navigation_handle->HasCommitted()) {
-    if (navigation_handle->IsInPrimaryMainFrame()) {
-      rfh_to_navigation_id_[navigation_handle->GetRenderFrameHost()] =
-          navigation_handle->GetNavigationId();
-    }
-  } else if (auto* service =
-                 critical_actions::CriticalActionFactory::GetForProfile(
-                     GetProfile())) {
-    service->OnNavigationDiscarded(navigation_handle->GetNavigationId());
-  }
-}
-
-void ChromePasswordManagerClient::RenderFrameDeleted(
-    content::RenderFrameHost* render_frame_host) {
-  auto it = rfh_to_navigation_id_.find(render_frame_host);
-  if (it != rfh_to_navigation_id_.end()) {
-    int64_t nav_id = it->second;
-    rfh_to_navigation_id_.erase(it);
-    if (auto* service = critical_actions::CriticalActionFactory::GetForProfile(
-            GetProfile())) {
-      service->OnNavigationDiscarded(nav_id);
-    }
-  }
-}
-
 void ChromePasswordManagerClient::WebContentsDestroyed() {
   // crbug.com/40133549
   // Drop the connection before the WebContentsObserver destructors are invoked.
@@ -1995,7 +1960,7 @@ void ChromePasswordManagerClient::WebContentsDestroyed() {
   content_credential_manager_.DisconnectBinding();
 
 #if BUILDFLAG(IS_ANDROID)
-  save_update_password_message_delegate_.DismissSaveUpdatePasswordPrompt();
+  save_update_password_message_delegate_.DismissAllActiveUI();
   if (password_manager_error_message_delegate_) {
     password_manager_error_message_delegate_
         ->DismissPasswordManagerErrorMessage(
@@ -2332,37 +2297,5 @@ void ChromePasswordManagerClient::ResetErrorMessageDelegate() {
   password_manager_error_message_delegate_.reset();
 }
 #endif
-
-int64_t ChromePasswordManagerClient::GetNavigationIdForDriver(
-    password_manager::PasswordManagerDriver* driver) const {
-  content::RenderFrameHost* rfh = nullptr;
-  if (driver) {
-    rfh = static_cast<password_manager::ContentPasswordManagerDriver*>(driver)
-              ->render_frame_host();
-  } else if (web_contents()) {
-    rfh = web_contents()->GetPrimaryMainFrame();
-  }
-
-  if (!rfh) {
-    return 0;
-  }
-
-  if (const int64_t* nav_id = base::FindOrNull(rfh_to_navigation_id_, rfh)) {
-    return *nav_id;
-  }
-
-  // Fall back to the primary main frame's navigation ID if this frame
-  // belongs to the active frame tree.
-  content::RenderFrameHost* main_rfh =
-      web_contents() ? web_contents()->GetPrimaryMainFrame() : nullptr;
-  if (const int64_t* nav_id =
-          (main_rfh && rfh->GetOutermostMainFrame() == main_rfh)
-              ? base::FindOrNull(rfh_to_navigation_id_, main_rfh)
-              : nullptr) {
-    return *nav_id;
-  }
-
-  return 0;
-}
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ChromePasswordManagerClient);

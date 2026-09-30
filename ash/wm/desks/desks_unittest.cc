@@ -97,6 +97,7 @@
 #include "ash/wm/workspace/workspace_layout_manager.h"
 #include "ash/wm/workspace_controller.h"
 #include "base/i18n/rtl.h"
+#include "base/i18n/test/scoped_rtl_for_testing.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/scoped_observation.h"
@@ -8932,7 +8933,9 @@ class DeskBarTest : public AshTestBase,
   DeskBarTest()
       : test_close_all_window_close_timeout_(
             DesksTestApi::SetCloseAllWindowCloseTimeout(
-                base::Milliseconds(20))) {}
+                base::Milliseconds(20))) {
+    set_add_default_shelf_icon(false);
+  }
   DeskBarTest(const DeskBarTest&) = delete;
   DeskBarTest& operator=(const DeskBarTest&) = delete;
   ~DeskBarTest() override = default;
@@ -10572,7 +10575,7 @@ class DeskButtonTest
     : public AshTestBase,
       public ::testing::WithParamInterface<DeskButtonTestParams> {
  public:
-  DeskButtonTest() = default;
+  DeskButtonTest() { set_add_default_shelf_icon(false); }
   DeskButtonTest(const DeskButtonTest&) = delete;
   DeskButtonTest& operator=(const DeskButtonTest&) = delete;
   ~DeskButtonTest() override = default;

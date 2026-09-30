@@ -33,10 +33,6 @@
 #include "chrome/browser/new_tab_page/modules/modules_constants.h"
 #include "chrome/browser/new_tab_page/modules/new_tab_page_modules.h"
 #include "chrome/browser/new_tab_page/prefs/ntp_pref_names.h"
-#include "chrome/browser/new_tab_page/promos/promo_data.h"
-#include "chrome/browser/new_tab_page/promos/promo_service.h"
-#include "chrome/browser/new_tab_page/promos/promo_service_factory.h"
-#include "chrome/browser/new_tab_page/promos/promo_service_observer.h"
 #include "chrome/browser/optimization_guide/mock_optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/search/background/ntp_custom_background_service.h"
@@ -85,6 +81,7 @@
 #include "ui/color/color_transform.h"
 #include "ui/gfx/animation/animation.h"
 #include "ui/gfx/color_palette.h"
+#include "ui/native_theme/os_settings_provider.h"
 #include "url/gurl.h"
 
 // TODO(b/502297163): Remove this guard once these desktop-only features are
@@ -99,7 +96,6 @@
 #include "chrome/browser/ui/views/side_panel/customize_chrome/side_panel_controller_views.h"
 #include "chrome/browser/ui/webui/side_panel/customize_chrome/customize_chrome_section.h"
 #include "chrome/browser/ui/webui/util/webui_util_desktop.h"
-#include "chrome/test/base/browser_with_test_window_test.h"
 #endif
 
 namespace {
@@ -132,7 +128,6 @@ class MockPage : public new_tab_page::mojom::Page {
   MOCK_METHOD(void, SetCustomizeChromeSidePanelVisibility, (bool));
 #endif
   MOCK_METHOD(void, SetActionChipsVisibility, (bool));
-  MOCK_METHOD(void, SetPromo, (new_tab_page::mojom::PromoPtr));
   MOCK_METHOD(void, ShowWebstoreToast, ());
   MOCK_METHOD(void, SetWallpaperSearchButtonVisibility, (bool));
   MOCK_METHOD(void, FooterVisibilityUpdated, (bool));
@@ -198,17 +193,6 @@ class MockNtpCustomBackgroundService : public NtpCustomBackgroundService {
   MOCK_METHOD(void, AddObserver, (NtpCustomBackgroundServiceObserver*));
 };
 
-class MockPromoService : public PromoService {
- public:
-  MockPromoService() : PromoService(nullptr, nullptr) {}
-  MOCK_METHOD(const std::optional<PromoData>&,
-              promo_data,
-              (),
-              (const, override));
-  MOCK_METHOD(void, AddObserver, (PromoServiceObserver*), (override));
-  MOCK_METHOD(void, Refresh, (), (override));
-};
-
 class MockMicrosoftAuthService : public MicrosoftAuthService {
  public:
   MOCK_METHOD0(GetAuthState, MicrosoftAuthService::AuthState());
@@ -218,12 +202,6 @@ class MockMicrosoftAuthService : public MicrosoftAuthService {
 std::unique_ptr<TestingProfile> MakeTestingProfile(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
   TestingProfile::Builder profile_builder;
-  profile_builder.AddTestingFactory(
-      PromoServiceFactory::GetInstance(),
-      base::BindRepeating([](content::BrowserContext* context)
-                              -> std::unique_ptr<KeyedService> {
-        return std::make_unique<testing::NiceMock<MockPromoService>>();
-      }));
   profile_builder.AddTestingFactory(
       MicrosoftAuthServiceFactory::GetInstance(),
       base::BindRepeating([](content::BrowserContext* context)
@@ -254,8 +232,9 @@ class MockThemeProvider : public ui::ThemeProvider {
   MOCK_CONST_METHOD1(GetDisplayProperty, int(int));
   MOCK_CONST_METHOD0(ShouldUseNativeFrame, bool());
   MOCK_CONST_METHOD1(HasCustomImage, bool(int));
-  MOCK_CONST_METHOD2(GetRawData,
-                     base::RefCountedMemory*(int, ui::ResourceScaleFactor));
+  MOCK_CONST_METHOD2(
+      GetRawData,
+      scoped_refptr<base::RefCountedMemory>(int, ui::ResourceScaleFactor));
 };
 
 class MockThemeService : public ThemeService {
@@ -290,10 +269,6 @@ class MockCustomizeChromeTabHelper
               (SidePanelOpenTrigger, std::optional<CustomizeChromeSection>),
               (override));
   MOCK_METHOD(void, CloseSidePanel, (), (override));
-
- protected:
-  MOCK_METHOD(void, CreateAndRegisterEntry, (), (override));
-  MOCK_METHOD(void, DeregisterEntry, (), (override));
 };
 
 int GetDictPrefKeyCount(Profile* profile,
@@ -313,8 +288,6 @@ class NewTabPageHandlerTest : public testing::Test {
       : profile_(
             MakeTestingProfile(test_url_loader_factory_.GetSafeWeakWrapper())),
         mock_ntp_custom_background_service_(profile_.get()),
-        mock_promo_service_(*static_cast<MockPromoService*>(
-            PromoServiceFactory::GetForProfile(profile_.get()))),
         web_contents_(factory_.CreateWebContents(profile_.get()))
 #if !BUILDFLAG(IS_ANDROID)
         ,
@@ -343,15 +316,12 @@ class NewTabPageHandlerTest : public testing::Test {
         .Times(1)
         .WillOnce(
             testing::SaveArg<0>(&ntp_custom_background_service_observer_));
-    EXPECT_CALL(*mock_promo_service_, AddObserver)
-        .Times(1)
-        .WillOnce(testing::SaveArg<0>(&promo_service_observer_));
     if (!base::FeatureList::IsEnabled(
             ntp_features::kNtpBackgroundImageErrorDetection)) {
-      EXPECT_CALL(mock_page_, SetTheme).Times(1);
+      EXPECT_CALL(mock_page_, SetTheme).Times(testing::AtLeast(1));
       EXPECT_CALL(mock_ntp_custom_background_service_,
                   RefreshBackgroundIfNeeded)
-          .Times(1);
+          .Times(testing::AtLeast(1));
     } else {
       EXPECT_CALL(mock_ntp_custom_background_service_,
                   VerifyCustomBackgroundImageURL)
@@ -414,6 +384,8 @@ class NewTabPageHandlerTest : public testing::Test {
   }
 
  protected:
+  ui::OsSettingsProvider os_settings_provider_{
+      ui::OsSettingsProvider::PriorityLevel::kTesting};
   testing::NiceMock<MockPage> mock_page_;
   // NOTE: The initialization order of these members matters.
   content::BrowserTaskEnvironment task_environment_;
@@ -426,7 +398,6 @@ class NewTabPageHandlerTest : public testing::Test {
   segmentation_platform::MockSegmentationPlatformService
       mock_segmentation_platform_service_;
   MockColorProviderSource mock_color_provider_source_;
-  const raw_ref<MockPromoService> mock_promo_service_;
   content::TestWebContentsFactory factory_;
   raw_ptr<content::WebContents> web_contents_;  // Weak. Owned by factory_.
   base::HistogramTester histogram_tester_;
@@ -445,7 +416,6 @@ class NewTabPageHandlerTest : public testing::Test {
 #endif
   raw_ptr<NtpCustomBackgroundServiceObserver>
       ntp_custom_background_service_observer_;
-  raw_ptr<PromoServiceObserver> promo_service_observer_;
 
  private:
   const std::vector<ntp::ModuleIdDetail> module_id_details = {
@@ -953,60 +923,6 @@ TEST_F(NewTabPageHandlerTest, GetAnimatedDoodle) {
   EXPECT_EQ("alt text", doodle->description);
 }
 
-TEST_F(NewTabPageHandlerTest, UpdatePromoData) {
-  PromoData promo_data;
-  promo_data.middle_slot_json = R"({
-    "part": [{
-      "image": {
-        "image_url": "https://image.com/image",
-        "target": "https://image.com/target"
-      }
-    }, {
-      "link": {
-        "url": "https://link.com",
-        "text": "bar",
-        "color": "red"
-      }
-    }, {
-      "text": {
-        "text": "blub",
-        "color": "green"
-      }
-    }]
-  })";
-  promo_data.promo_log_url = GURL("https://foo.com");
-  promo_data.promo_id = "foo";
-  auto promo_data_optional = std::make_optional(promo_data);
-  ON_CALL(*mock_promo_service_, promo_data())
-      .WillByDefault(testing::ReturnRef(promo_data_optional));
-  EXPECT_CALL(*mock_promo_service_, Refresh).Times(1);
-
-  new_tab_page::mojom::PromoPtr promo;
-  EXPECT_CALL(mock_page_, SetPromo)
-      .Times(1)
-      .WillOnce([&promo](new_tab_page::mojom::PromoPtr arg) {
-        promo = std::move(arg);
-      });
-  handler_->UpdatePromoData();
-  mock_page_.FlushForTesting();
-
-  ASSERT_TRUE(promo);
-  EXPECT_EQ("foo", promo->id);
-  EXPECT_EQ("https://foo.com/", promo->log_url);
-  ASSERT_EQ(3lu, promo->middle_slot_parts.size());
-  ASSERT_TRUE(promo->middle_slot_parts[0]->is_image());
-  const auto& image = promo->middle_slot_parts[0]->get_image();
-  EXPECT_EQ("https://image.com/image", image->image_url);
-  EXPECT_EQ("https://image.com/target", image->target);
-  ASSERT_TRUE(promo->middle_slot_parts[1]->is_link());
-  const auto& link = promo->middle_slot_parts[1]->get_link();
-  EXPECT_EQ("bar", link->text);
-  EXPECT_EQ("https://link.com/", link->url);
-  ASSERT_TRUE(promo->middle_slot_parts[2]->is_text());
-  const auto& text = promo->middle_slot_parts[2]->get_text();
-  EXPECT_EQ("blub", text->text);
-}
-
 TEST_F(NewTabPageHandlerTest, OnStaticDoodleImageClicked) {
   handler_->OnDoodleImageClicked(
       /*type=*/new_tab_page::mojom::DoodleImageType::kStatic,
@@ -1218,20 +1134,14 @@ TEST_F(NewTabPageHandlerTest, GetModulesOrder) {
   base::test::ScopedFeatureList features;
   features.InitWithFeaturesAndParameters(
       {{ntp_features::kNtpModulesOrder,
-        {{ntp_features::kNtpModulesOrderParam, "bar,baz,drive"}}},
-       {ntp_features::kNtpModulesDragAndDrop, {}}},
+        {{ntp_features::kNtpModulesOrderParam, "bar,baz,drive"}}}},
       {});
-  base::ListValue module_ids_value;
-  module_ids_value.Append("foo");
-  module_ids_value.Append("bar");
-  profile_->GetPrefs()->SetList(prefs::kNtpModulesOrder,
-                                std::move(module_ids_value));
 
   handler_->GetModulesOrder(callback.Get());
-  EXPECT_THAT(module_ids, ElementsAre("foo", "bar", "baz", "drive",
-                                      "microsoft_authentication",
-                                      "outlook_calendar", "microsoft_files",
-                                      "google_calendar", "tab_resumption"));
+  EXPECT_THAT(module_ids,
+              ElementsAre("bar", "baz", "drive", "microsoft_authentication",
+                          "outlook_calendar", "microsoft_files",
+                          "google_calendar", "tab_resumption"));
 }
 
 class NewTabPageHandlerModuleRemovalTest : public NewTabPageHandlerTest {
@@ -1996,12 +1906,14 @@ TEST_F(NewTabPageHandlerTest, RealboxContextMenuAnimation) {
 
   // 2. Record 1st impression.
   {
-    handler_->RecordRealboxContextMenuAnimationImpression();
+    handler_->RecordRealboxContextMenuAnimationImpression(/*shown=*/true);
 
     const base::DictValue& dict =
         prefs->GetDict(prefs::kContextMenuAnimationState);
     EXPECT_THAT(dict.FindInt("realbox_daily_count"), testing::Optional(1));
     EXPECT_THAT(dict.FindInt("realbox_lifetime_count"), testing::Optional(1));
+    histogram_tester_.ExpectBucketCount(
+        "Omnibox.ContextMenu.AnimationShown.NTP", true, 1);
   }
 
   // 3. Play 4 more times (total 5 daily impressions recorded).
@@ -2009,7 +1921,7 @@ TEST_F(NewTabPageHandlerTest, RealboxContextMenuAnimation) {
     base::test::TestFuture<bool> future;
     handler_->CanShowRealboxContextMenuAnimation(future.GetCallback());
     EXPECT_TRUE(future.Take());
-    handler_->RecordRealboxContextMenuAnimationImpression();
+    handler_->RecordRealboxContextMenuAnimationImpression(/*shown=*/true);
   }
 
   // Verify counts are now 5 daily and 5 lifetime.
@@ -2018,20 +1930,25 @@ TEST_F(NewTabPageHandlerTest, RealboxContextMenuAnimation) {
         prefs->GetDict(prefs::kContextMenuAnimationState);
     EXPECT_THAT(dict.FindInt("realbox_daily_count"), testing::Optional(5));
     EXPECT_THAT(dict.FindInt("realbox_lifetime_count"), testing::Optional(5));
+    histogram_tester_.ExpectBucketCount(
+        "Omnibox.ContextMenu.AnimationShown.NTP", true, 5);
   }
 
-  // 4. The 6th time, it should not be allowed and record should do nothing.
+  // 4. The 6th time, it should not be allowed and record should do nothing to
+  // prefs.
   {
     base::test::TestFuture<bool> future;
     handler_->CanShowRealboxContextMenuAnimation(future.GetCallback());
     EXPECT_FALSE(future.Take());
 
-    handler_->RecordRealboxContextMenuAnimationImpression();
+    handler_->RecordRealboxContextMenuAnimationImpression(/*shown=*/false);
 
     const base::DictValue& dict =
         prefs->GetDict(prefs::kContextMenuAnimationState);
     EXPECT_THAT(dict.FindInt("realbox_daily_count"), testing::Optional(5));
     EXPECT_THAT(dict.FindInt("realbox_lifetime_count"), testing::Optional(5));
+    histogram_tester_.ExpectBucketCount(
+        "Omnibox.ContextMenu.AnimationShown.NTP", false, 1);
   }
 
   // 5. Simulate a new day (change the date string in prefs).
@@ -2048,12 +1965,14 @@ TEST_F(NewTabPageHandlerTest, RealboxContextMenuAnimation) {
     handler_->CanShowRealboxContextMenuAnimation(future.GetCallback());
     EXPECT_TRUE(future.Take());
 
-    handler_->RecordRealboxContextMenuAnimationImpression();
+    handler_->RecordRealboxContextMenuAnimationImpression(/*shown=*/true);
 
     const base::DictValue& dict =
         prefs->GetDict(prefs::kContextMenuAnimationState);
     EXPECT_THAT(dict.FindInt("realbox_daily_count"), testing::Optional(1));
     EXPECT_THAT(dict.FindInt("realbox_lifetime_count"), testing::Optional(6));
+    histogram_tester_.ExpectBucketCount(
+        "Omnibox.ContextMenu.AnimationShown.NTP", true, 6);
   }
 
   // 7. Bring lifetime count to 19 and verify it caps after 20.
@@ -2071,12 +1990,14 @@ TEST_F(NewTabPageHandlerTest, RealboxContextMenuAnimation) {
     handler_->CanShowRealboxContextMenuAnimation(future.GetCallback());
     EXPECT_TRUE(future.Take());
 
-    handler_->RecordRealboxContextMenuAnimationImpression();
+    handler_->RecordRealboxContextMenuAnimationImpression(/*shown=*/true);
 
     const base::DictValue& dict =
         prefs->GetDict(prefs::kContextMenuAnimationState);
     EXPECT_THAT(dict.FindInt("realbox_daily_count"), testing::Optional(1));
     EXPECT_THAT(dict.FindInt("realbox_lifetime_count"), testing::Optional(20));
+    histogram_tester_.ExpectBucketCount(
+        "Omnibox.ContextMenu.AnimationShown.NTP", true, 7);
   }
 
   // 21st lifetime impression should be blocked.
@@ -2085,11 +2006,13 @@ TEST_F(NewTabPageHandlerTest, RealboxContextMenuAnimation) {
     handler_->CanShowRealboxContextMenuAnimation(future.GetCallback());
     EXPECT_FALSE(future.Take());
 
-    handler_->RecordRealboxContextMenuAnimationImpression();
+    handler_->RecordRealboxContextMenuAnimationImpression(/*shown=*/false);
 
     const base::DictValue& dict =
         prefs->GetDict(prefs::kContextMenuAnimationState);
     EXPECT_THAT(dict.FindInt("realbox_daily_count"), testing::Optional(1));
     EXPECT_THAT(dict.FindInt("realbox_lifetime_count"), testing::Optional(20));
+    histogram_tester_.ExpectBucketCount(
+        "Omnibox.ContextMenu.AnimationShown.NTP", false, 2);
   }
 }

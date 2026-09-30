@@ -26,14 +26,6 @@ class CORE_EXPORT ValueWrapperSyntheticModuleScript final
   CreateCSSWrapperSyntheticModuleScript(const ModuleScriptCreationParams&,
                                         Modulator* settings_object);
 
-  // Update a CSS module script with source text by calling replaceSync on its
-  // CSSStyleSheet. Returns the same module_script on success, or a new error
-  // module script on failure.
-  static ValueWrapperSyntheticModuleScript* UpdateCSSModuleScript(
-      ValueWrapperSyntheticModuleScript* module_script,
-      const String& source_text,
-      Modulator* settings_object);
-
   static ValueWrapperSyntheticModuleScript*
   CreateJSONWrapperSyntheticModuleScript(const ModuleScriptCreationParams&,
                                          Modulator* settings_object);
@@ -79,10 +71,9 @@ class CORE_EXPORT ValueWrapperSyntheticModuleScript final
   // taking the Synthetic Module Record as its sole argument. These will usually
   // set up the exported values, by using SetSyntheticModuleExport. They must
   // not modify [[ExportNames]]. They may return an abrupt completion.
-  static v8::MaybeLocal<v8::Value> EvaluationSteps(
+  static v8::MaybeLocal<v8::Promise> EvaluationSteps(
       v8::Local<v8::Context> context,
       v8::Local<v8::Module> module);
-
 };
 
 }  // namespace blink

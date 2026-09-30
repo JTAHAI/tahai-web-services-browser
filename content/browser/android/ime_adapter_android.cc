@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/android/jni_android.h"
-#include "base/android/jni_array.h"
 #include "base/android/jni_bytebuffer.h"
 #include "base/android/jni_string.h"
 #include "base/android/scoped_java_ref.h"
@@ -424,14 +423,13 @@ bool ImeAdapterAndroid::InsertMediaFromBytes(
     return false;
   }
 
-  size_t size = base::android::SafeGetArrayLength(env, bytes);
-
+  size_t size = bytes.GetSize(env);
   if (size == 0) {
     return false;
   }
 
   mojo_base::BigBuffer big_buffer(size);
-  base::android::JavaByteArrayToByteSpan(env, bytes, big_buffer);
+  bytes.CopyTo(env, big_buffer.data(), size);
 
   input_handler->PasteFromImageBytes(
       std::move(big_buffer),

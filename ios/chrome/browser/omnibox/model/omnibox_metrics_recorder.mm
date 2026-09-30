@@ -92,7 +92,7 @@ constexpr base::TimeDelta kDefaultTimeDelta = base::Milliseconds(-1);
     base::UmaHistogramExactLinear("IOS.Omnibox.NumberOfLines", _numberOfLines,
                                   20);
   }
-  const base::TimeTicks& now(base::TimeTicks::Now());
+  base::TimeTicks now(base::TimeTicks::Now());
   base::TimeDelta elapsedTimeSinceUserFirstModifiedOmnibox = [self
       elapsedTimeSinceUserFirstModifiedOmniboxWithPastedText:isPastedText];
 
@@ -192,7 +192,6 @@ constexpr base::TimeDelta kDefaultTimeDelta = base::Milliseconds(-1);
   OmniboxEventGlobalTracker::GetInstance()->OnURLOpened(&log);
 
   LOCAL_HISTOGRAM_BOOLEAN("Omnibox.EventCount", true);
-  omnibox::answer_data_parser::LogAnswerUsed(match.answer_type);
 
   TemplateURLService* service = _omniboxClient->GetTemplateURLService();
   TemplateURL* templateURL = match.GetTemplateURL(service);
@@ -248,7 +247,7 @@ constexpr base::TimeDelta kDefaultTimeDelta = base::Milliseconds(-1);
 
 - (base::TimeDelta)elapsedTimeSinceUserFirstModifiedOmniboxWithPastedText:
     (BOOL)isPastedText {
-  const base::TimeTicks& now(base::TimeTicks::Now());
+  base::TimeTicks now(base::TimeTicks::Now());
   base::TimeDelta elapsedTimeSinceUserFirstModifiedOmnibox(
       now - _omniboxTextModel->time_user_first_modified_omnibox);
   // These elapsed times don't really make sense for matches that come from

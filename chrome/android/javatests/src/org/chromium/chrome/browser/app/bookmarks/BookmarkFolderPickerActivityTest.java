@@ -10,6 +10,7 @@ import static androidx.test.espresso.matcher.ViewMatchers.hasDescendant;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -37,7 +38,9 @@ import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
+import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.bookmarks.BookmarkFolderPickerMetrics.BookmarkFolderPickerOutcome;
 import org.chromium.chrome.browser.bookmarks.BookmarkManagerOpener;
 import org.chromium.chrome.browser.bookmarks.BookmarkManagerOpenerImpl;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
@@ -114,6 +117,12 @@ public class BookmarkFolderPickerActivityTest {
     @MediumTest
     @Feature({"Bookmark"})
     public void testMoveBookmark() throws ExecutionException, TimeoutException, Exception {
+        var histogramWatcher =
+                HistogramWatcher.newBuilder()
+                        .expectIntRecord(
+                                "Bookmarks.FolderPicker.Outcome", BookmarkFolderPickerOutcome.MOVED)
+                        .build();
+
         BookmarkId bookmark =
                 addBookmark(mMobileFolderId, 0, "bookmark", new GURL("https://google.com"));
         BookmarkId folder = addFolder(mMobileFolderId, 1, "folder");
@@ -122,8 +131,8 @@ public class BookmarkFolderPickerActivityTest {
 
         ThreadUtils.runOnUiThreadBlocking(() -> mBookmarkModel.addObserver(mBookmarkModelObserver));
 
-        onView(withText("Mobile bookmarks")).perform(click());
-        onView(withText("folder")).perform(click());
+        onView(withText(startsWith("Mobile bookmarks"))).perform(click());
+        onView(withText(startsWith("folder"))).perform(click());
         onView(withText("Move here")).perform(click());
 
         BookmarkItem oldParent = getBookmarkItem(mMobileFolderId);
@@ -132,6 +141,7 @@ public class BookmarkFolderPickerActivityTest {
         verifyNoMoreInteractions(mBookmarkModelObserver);
 
         CriteriaHelper.pollUiThread(() -> mActivity.isFinishing());
+        histogramWatcher.assertExpected();
     }
 
     @Test
@@ -139,6 +149,12 @@ public class BookmarkFolderPickerActivityTest {
     @Feature({"Bookmark"})
     public void testMoveBookmarkToReadingList()
             throws ExecutionException, TimeoutException, Exception {
+        var histogramWatcher =
+                HistogramWatcher.newBuilder()
+                        .expectIntRecord(
+                                "Bookmarks.FolderPicker.Outcome", BookmarkFolderPickerOutcome.MOVED)
+                        .build();
+
         String title = "bookmark";
         GURL url = new GURL("https://google.com");
 
@@ -148,8 +164,10 @@ public class BookmarkFolderPickerActivityTest {
         ThreadUtils.runOnUiThreadBlocking(() -> mBookmarkModel.addObserver(mBookmarkModelObserver));
 
         onView(withId(R.id.folder_recycler_view))
-                .perform(RecyclerViewActions.scrollTo(hasDescendant(withText("Reading list"))));
-        onView(withText("Reading list")).perform(click());
+                .perform(
+                        RecyclerViewActions.scrollTo(
+                                hasDescendant(withText(startsWith("Reading list")))));
+        onView(withText(startsWith("Reading list"))).perform(click());
         onView(withText("Move here")).perform(click());
 
         BookmarkItem oldParent = getBookmarkItem(mMobileFolderId);
@@ -158,6 +176,7 @@ public class BookmarkFolderPickerActivityTest {
         verifyNoMoreInteractions(mBookmarkModelObserver);
 
         CriteriaHelper.pollUiThread(() -> mActivity.isFinishing());
+        histogramWatcher.assertExpected();
     }
 
     @Test
@@ -165,6 +184,13 @@ public class BookmarkFolderPickerActivityTest {
     @Feature({"Bookmark"})
     public void testCancelButton()
             throws ExecutionException, TimeoutException, InterruptedException {
+        var histogramWatcher =
+                HistogramWatcher.newBuilder()
+                        .expectIntRecord(
+                                "Bookmarks.FolderPicker.Outcome",
+                                BookmarkFolderPickerOutcome.CLOSED)
+                        .build();
+
         BookmarkId bookmark =
                 addBookmark(mMobileFolderId, 0, "bookmark", new GURL("https://google.com"));
         startFolderPickerActivity(bookmark);
@@ -172,6 +198,7 @@ public class BookmarkFolderPickerActivityTest {
         onView(withText("Cancel")).perform(click());
 
         CriteriaHelper.pollUiThread(() -> mActivity.isFinishing());
+        histogramWatcher.assertExpected();
     }
 
     private BookmarkItem getBookmarkItem(BookmarkId bookmarkId) throws ExecutionException {

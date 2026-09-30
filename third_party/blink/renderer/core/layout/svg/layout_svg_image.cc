@@ -25,6 +25,7 @@
 
 #include "third_party/blink/renderer/core/layout/svg/layout_svg_image.h"
 
+#include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
 #include "third_party/blink/renderer/core/layout/hit_test_location.h"
 #include "third_party/blink/renderer/core/layout/hit_test_result.h"
 #include "third_party/blink/renderer/core/layout/layout_image_resource.h"
@@ -48,8 +49,6 @@ namespace blink {
 
 LayoutSVGImage::LayoutSVGImage(SVGImageElement* impl)
     : LayoutSVGModelObject(impl),
-      needs_transform_update_(true),
-      transform_uses_reference_box_(false),
       image_resource_(MakeGarbageCollected<LayoutImageResource>()) {
   image_resource_->Initialize(this);
 }
@@ -64,32 +63,33 @@ void LayoutSVGImage::Trace(Visitor* visitor) const {
 void LayoutSVGImage::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
+    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
   TransformHelper::UpdateOffsetPath(*GetElement(), old_style);
   transform_uses_reference_box_ =
-      TransformHelper::DependsOnReferenceBox(StyleRef());
+      TransformHelper::DependsOnReferenceBox(new_style);
 
   if (old_style && EverHadLayout()) {
-    const ComputedStyle& style = StyleRef();
-    bool length_attribute_changed = old_style->X() != style.X() ||
-                                    old_style->Y() != style.Y() ||
-                                    old_style->Width() != style.Width() ||
-                                    old_style->Height() != style.Height();
+    bool length_attribute_changed = old_style->X() != new_style.X() ||
+                                    old_style->Y() != new_style.Y() ||
+                                    old_style->Width() != new_style.Width() ||
+                                    old_style->Height() != new_style.Height();
     if (length_attribute_changed) {
       LayoutSVGResourceContainer::MarkForLayoutAndParentResourceInvalidation(
           *this);
     }
   }
 
-  LayoutSVGModelObject::StyleDidChange(diff, old_style, style_change_context);
+  LayoutSVGModelObject::StyleDidChange(diff, old_style, new_style,
+                                       style_change_context);
 }
 
-void LayoutSVGImage::WillBeDestroyed() {
+void LayoutSVGImage::WillBeDestroyed(const ComputedStyle* style) {
   NOT_DESTROYED();
   image_resource_->Shutdown();
 
-  LayoutSVGModelObject::WillBeDestroyed();
+  LayoutSVGModelObject::WillBeDestroyed(style);
 }
 
 gfx::SizeF LayoutSVGImage::CalculateObjectSize() const {
@@ -238,8 +238,9 @@ bool LayoutSVGImage::NodeAtPoint(HitTestResult& result,
     if (local_location->Intersects(bounds)) {
       UpdateHitTestResult(result, PhysicalOffset::FromPointFRound(
                                       local_location->TransformedPoint()));
-      if (result.AddNodeToListBasedTestResult(GetElement(), *local_location) ==
-          kStopHitTesting) {
+      if (result.AddNodeToListBasedTestResult(
+              GetElement(), *local_location,
+              PhysicalRect::EnclosingRect(bounds)) == kStopHitTesting) {
         return true;
       }
     }

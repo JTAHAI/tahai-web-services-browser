@@ -74,14 +74,14 @@ class FakeSendTabToSelfModel final : public SendTabToSelfModel {
     GURL url;
     std::string title;
     std::string target_device_cache_guid;
-    PageContext context = PageContext();
-    NavigationHistory navigation_history = {};
-    base::Time shared_time = base::Time();
+    PageContext context;
+    NavigationHistory navigation_history;
+    base::Time shared_time;
   };
 
   // Simulates an entry being added from a remote device.
-  // TODO(crbug.com/488072250): Optionally, use RemoteEntryParams instead of
-  // individual parameters, or an overload that does.
+  const SendTabToSelfEntry* AddEntryRemotely(RemoteEntryParams params);
+
   const SendTabToSelfEntry* AddEntryRemotely(
       const GURL& url,
       const std::string& title,
@@ -94,8 +94,9 @@ class FakeSendTabToSelfModel final : public SendTabToSelfModel {
   std::vector<const SendTabToSelfEntry*> AddEntriesRemotely(
       std::vector<RemoteEntryParams> entries_params);
 
-  // Simulates an entry being removed from a remote device.
-  void RemoveEntryRemotely(const std::string& guid);
+  // Removes the entry corresponding to the `guid` from the local model and
+  // notify observers that the entry was removed remotely.
+  void RemoveEntryRemotely(std::string guid);
 
   const std::string& last_opened_guid() const { return last_opened_guid_; }
   const std::string& last_dismissed_guid() const {

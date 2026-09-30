@@ -19,6 +19,7 @@
 #import "components/password_manager/core/browser/password_manager_client.h"
 #import "components/password_manager/core/browser/password_manager_util.h"
 #import "components/password_manager/core/browser/password_store/password_form_converters.h"
+#import "components/password_manager/core/browser/password_string.h"
 #import "components/password_manager/core/browser/ui/credential_ui_entry.h"
 #import "components/password_manager/core/browser/ui/saved_passwords_presenter.h"
 #import "components/sync/base/data_type.h"
@@ -55,6 +56,7 @@
 
 using password_manager::CredentialUIEntry;
 using password_manager::PasswordForm;
+using password_manager::PasswordString;
 
 namespace {
 
@@ -520,7 +522,9 @@ std::vector<ManualFillCredentialAndPasswordForm> GetFilteredCredentials(
 
   for (const auto& credential : credentials) {
     std::vector<PasswordForm> correspondingPasswordForms =
-        _savedPasswordsPresenter->GetCorrespondingPasswordForms(credential);
+        password_manager::ToPasswordForms(
+            _savedPasswordsPresenter->GetCorrespondingStoredCredentials(
+                credential));
     passwordforms.insert(passwordforms.end(),
                          correspondingPasswordForms.begin(),
                          correspondingPasswordForms.end());
@@ -545,7 +549,8 @@ std::vector<ManualFillCredentialAndPasswordForm> GetFilteredCredentials(
         passwordForm.GetPasswordBackup();
     if (backupPassword) {
       PasswordForm tempPasswordForm = passwordForm;
-      tempPasswordForm.password_value = backupPassword.value();
+      tempPasswordForm.password_value =
+          PasswordString(std::move(backupPassword.value()));
       ManualFillCredential* backupManualFillCredential =
           [[ManualFillCredential alloc] initWithPasswordForm:tempPasswordForm
                                                     isBackup:YES];
@@ -668,11 +673,15 @@ std::vector<ManualFillCredentialAndPasswordForm> GetFilteredCredentials(
 
 - (void)userDidPickContent:(NSString*)content
              passwordField:(BOOL)passwordField
-             requiresHTTPS:(BOOL)requiresHTTPS {
+             requiresHTTPS:(BOOL)requiresHTTPS
+           jumpToNextField:(BOOL)jumpToNextField
+                actionType:(autofill::mojom::FieldActionType)actionType {
   [self.delegate manualFillCredentialsMediatorWillInjectContent:self];
   [self.contentInjector userDidPickContent:content
                              passwordField:passwordField
-                             requiresHTTPS:requiresHTTPS];
+                             requiresHTTPS:requiresHTTPS
+                           jumpToNextField:jumpToNextField
+                                actionType:actionType];
 }
 
 - (void)autofillFormWithCredential:(ManualFillCredential*)credential
@@ -718,9 +727,11 @@ std::vector<ManualFillCredentialAndPasswordForm> GetFilteredCredentials(
     _webAuthnDelegate = delegate ? delegate->AsWeakPtr() : nullptr;
   }
   if (_activeFieldIsObfuscated !=
-      (params.field_type == autofill::kObfuscatedFieldType)) {
+      (params.field_type ==
+       autofill::FormActivityParams::FieldType::kObfuscated)) {
     _activeFieldIsObfuscated =
-        params.field_type == autofill::kObfuscatedFieldType;
+        params.field_type ==
+        autofill::FormActivityParams::FieldType::kObfuscated;
     [self postActionsToConsumer];
   }
 }

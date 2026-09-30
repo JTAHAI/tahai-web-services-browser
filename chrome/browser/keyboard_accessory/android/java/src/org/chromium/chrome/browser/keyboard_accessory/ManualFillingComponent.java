@@ -89,7 +89,7 @@ public interface ManualFillingComponent extends BackPressHandler {
     /** A delegate that can be used to request updates for accessory sheets. */
     interface UpdateAccessorySheetDelegate {
         /**
-         * Requests a timely update to the accessory sheet of the given {@param sheetType}. If any
+         * Requests a timely update to the accessory sheet of the given {@code sheetType}. If any
          * sheet can be constructed, the native side will push it, even if it was pushed before.
          *
          * @param sheetType The {@link AccessoryTabType} of the sheet that should be updated.
@@ -189,10 +189,14 @@ public interface ManualFillingComponent extends BackPressHandler {
      * Signals that the accessory has permission to show.
      *
      * @param waitForKeyboard signals if the keyboard is requested.
-     * @param isCredentialFieldOrHasAutofillSuggestions signals if the form field is either a
-     *     username/password field or it has autofill suggestions.
+     * @param shouldShowOnLargeFormFactor signals if the accessory should be shown on Large Form
+     *     Factors.
+     * @param isContentEditable signals if the currently focused field is a contenteditable element.
      */
-    void show(boolean waitForKeyboard, boolean isCredentialFieldOrHasAutofillSuggestions);
+    void show(
+            boolean waitForKeyboard,
+            boolean shouldShowOnLargeFormFactor,
+            boolean isContentEditable);
 
     /**
      * Requests to close the active tab in the keyboard accessory. If there is no active tab, this

@@ -8,13 +8,14 @@
 #import "base/test/bind.h"
 #import "base/test/run_until.h"
 #import "components/affiliations/core/browser/fake_affiliation_service.h"
-#import "components/autofill/core/common/autofill_test_utils.h"
+#import "components/autofill/core/common/autofill_test_util.h"
 #import "components/keyed_service/core/service_access_type.h"
 #import "components/password_manager/core/browser/fake_form_fetcher.h"
 #import "components/password_manager/core/browser/password_manager_test_utils.h"
 #import "components/password_manager/core/browser/password_store/password_form_converters.h"
 #import "components/password_manager/core/browser/password_store/test_password_store.h"
 #import "components/password_manager/core/browser/ui/saved_passwords_presenter.h"
+#import "crypto/process_bound_string.h"
 #import "ios/chrome/browser/affiliations/model/ios_chrome_affiliation_service_factory.h"
 #import "ios/chrome/browser/autofill/manual_fill/coordinator/form_fetcher_consumer_bridge.h"
 #import "ios/chrome/browser/autofill/manual_fill/coordinator/manual_fill_credentials_mediator+Testing.h"
@@ -43,7 +44,7 @@ namespace {
 password_manager::StoredCredential CreateStoredCredential() {
   password_manager::StoredCredential cred;
   cred.username_value = u"test@gmail.com";
-  cred.password_value = u"strongPa55w0rd";
+  cred.password_value = password_manager::PasswordString(u"strongPa55w0rd");
   cred.signon_realm = "http://www.example.com/";
   cred.in_store = PasswordForm::Store::kProfileStore;
   return cred;

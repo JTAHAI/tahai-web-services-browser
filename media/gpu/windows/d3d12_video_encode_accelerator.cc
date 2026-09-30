@@ -460,11 +460,9 @@ EncoderStatus D3D12VideoEncodeAccelerator::Initialize(
            << config.AsHumanReadableString();
 
   config_ = config;
-  // A NV12 format frame consists of a Y-plane which occupies the same
-  // size as the frame itself, and an UV-plane which is half the size
-  // of the frame. Reserving a buffer of 1 + 1/2 = 3/2 times the size
-  // of the frame bytes should be enough for a compressed bitstream.
-  bitstream_buffer_size_ = config.input_visible_size.GetArea() * 3 / 2;
+  bitstream_buffer_size_ = EstimateBitstreamBufferSize(
+      config.bitrate, config.framerate, config.input_format,
+      config.input_visible_size);
   client_ptr_factory_ = std::make_unique<base::WeakPtrFactory<Client>>(client);
   client_ = client_ptr_factory_->GetWeakPtr();
   media_log_ = std::move(media_log);
@@ -924,9 +922,17 @@ bool D3D12VideoEncodeAccelerator::DoEncodeTask(
 
   scoped_refptr<VideoFrame> frame = input_frame.frame;
   D3D12PictureBuffer picture_buffer;
+  // The region of |picture_buffer| that holds the picture content. For textures
+  // handed to the encoder untouched, that is the frame's own visible rect. For
+  // the shared memory path, CreateResourceForSharedMemoryVideoFrame() already
+  // cropped the frame to its visible rect and wrote the result over the whole
+  // of the upload texture, so the content covers |config_.input_visible_size|
+  // starting at the origin and the frame's visible rect no longer applies.
+  gfx::Rect input_visible_rect;
   if (frame->HasMappableSharedImage()) {
     if (frame->HasNativeMappableSharedImage()) {
       picture_buffer = CreateResourceForDXGIHandleBackedVideoFrame(*frame);
+      input_visible_rect = frame->visible_rect();
     } else {
       frame = ConvertToMemoryMappedFrame(std::move(frame));
       if (!frame) {
@@ -936,11 +942,14 @@ bool D3D12VideoEncodeAccelerator::DoEncodeTask(
         return false;
       }
       picture_buffer = CreateResourceForSharedMemoryVideoFrame(*frame);
+      input_visible_rect = gfx::Rect(config_.input_visible_size);
     }
   } else if (frame->storage_type() == VideoFrame::STORAGE_SHMEM) {
     picture_buffer = CreateResourceForSharedMemoryVideoFrame(*frame);
+    input_visible_rect = gfx::Rect(config_.input_visible_size);
   } else if (frame->HasSharedImage()) {
     picture_buffer = input_frame.resolved_picture;
+    input_visible_rect = frame->visible_rect();
   } else {
     NotifyError({EncoderStatus::Codes::kInvalidInputFrame,
                  "Unsupported frame storage type for encoding"});
@@ -952,9 +961,9 @@ bool D3D12VideoEncodeAccelerator::DoEncodeTask(
     return false;
   }
 
-  auto result_or_error =
-      encoder_->Encode(picture_buffer, frame->ColorSpace(), bitstream_buffer,
-                       input_frame.options);
+  auto result_or_error = encoder_->Encode(
+      picture_buffer, input_visible_rect, frame->ColorSpace(), bitstream_buffer,
+      input_frame.options, frame->hdr_metadata());
   if (!result_or_error.has_value()) {
     NotifyError(std::move(result_or_error).error());
     return false;

@@ -4,7 +4,8 @@
 
 #include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
 
-#include "base/containers/flat_set.h"
+#include <algorithm>
+
 #include "base/feature_list.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
@@ -17,12 +18,15 @@
 #include "chrome/browser/contextual_tasks/contextual_tasks_panel_host.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_interface.h"
+#include "chrome/browser/contextual_tasks/entry_point_eligibility_manager.h"
 #include "chrome/browser/contextual_tasks/site_exclusion_detail.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/search.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/themes/theme_service.h"
+#include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.h"
@@ -33,6 +37,7 @@
 #include "components/contextual_search/contextual_search_session_handle.h"
 #include "components/contextual_tasks/public/features.h"
 #include "components/contextual_tasks/public/prefs.h"
+#include "components/contextual_tasks/public/utils.h"
 #include "components/omnibox/browser/aim_eligibility_service.h"
 #include "components/omnibox/browser/location_bar_model_util.h"
 #include "content/public/browser/web_contents.h"
@@ -212,7 +217,7 @@ PrepareClientToAimRequestInfo(
     info->context_turn_metadata.push_back(active_tab_context_turn_metadata);
   }
 
-  base::flat_set<base::UnguessableToken> file_tokens;
+  std::vector<base::UnguessableToken> file_tokens;
   if (session_handle) {
     file_tokens = session_handle->GetUploadedContextTokens();
   }
@@ -227,7 +232,9 @@ PrepareClientToAimRequestInfo(
   }
 
   if (overlay_token.has_value()) {
-    file_tokens.insert(*overlay_token);
+    if (!std::ranges::contains(file_tokens, *overlay_token)) {
+      file_tokens.push_back(*overlay_token);
+    }
     // When an overlay token is present, it implies a recent Lens Overlay
     // interaction, such as a region search. Setting this flag forces the
     // inclusion of that interaction's data in the request. This is required
@@ -237,7 +244,7 @@ PrepareClientToAimRequestInfo(
     info->force_include_latest_interaction_request_data = true;
   }
 
-  info->file_tokens = std::move(file_tokens).extract();
+  info->file_tokens = std::move(file_tokens);
 
   return info;
 }
@@ -331,14 +338,13 @@ bool GetEffectivePinState(Profile* profile) {
 }
 
 #if !BUILDFLAG(IS_ANDROID)
-void UpdatePinButtonVisibilityState(BrowserWindowInterface* browser_window,
-                                    bool eligible) {
-  if (!browser_window || !browser_window->GetActions()) {
+void UpdatePinButtonVisibilityState(BrowserWindowInterface* browser_window) {
+  if (!browser_window || !BrowserActions::From(browser_window)) {
     return;
   }
 
   actions::ActionItem* const scope_action =
-      browser_window->GetActions()->root_action_item();
+      BrowserActions::From(browser_window)->root_action_item();
   if (!scope_action) {
     return;
   }
@@ -355,12 +361,69 @@ void UpdatePinButtonVisibilityState(BrowserWindowInterface* browser_window,
         if (auto* model =
                 PinnedToolbarActionsModel::Get(browser_window->GetProfile())) {
           if (model->Contains(kActionSidePanelShowContextualTasks)) {
-            action_item->SetVisible(eligible);
+            action_item->SetVisible(
+                contextual_tasks::EntryPointEligibilityManager::
+                    IsPinningEligible(browser_window->GetProfile()));
           }
         }
       }
   }
 }
 #endif
+
+lens::ClientToAimMessage GetHandshakeMessageProto() {
+  lens::ClientToAimMessage message;
+  lens::HandshakePing* ping = message.mutable_handshake_ping();
+  ping->add_capabilities(lens::FeatureCapability::DEFAULT);
+  ping->add_capabilities(lens::FeatureCapability::OPEN_THREADS_VIEW);
+  ping->add_capabilities(lens::FeatureCapability::COBROWSING_DISPLAY_CONTROL);
+  if (base::FeatureList::IsEnabled(kContextualTasksContextLibrary)) {
+    ping->add_capabilities(lens::FeatureCapability::THREAD_CONTEXT_LIBRARY);
+  }
+  if (base::FeatureList::IsEnabled(kEnableNotifyZeroStateRenderedCapability)) {
+    ping->add_capabilities(lens::FeatureCapability::NOTIFY_ZERO_STATE_RENDERED);
+  }
+  if (ShouldEnableLockAndUnlockInputCapability()) {
+    ping->add_capabilities(lens::FeatureCapability::UNLOCK_INPUT);
+    ping->add_capabilities(lens::FeatureCapability::LOCK_INPUT);
+  }
+  return message;
+}
+
+std::vector<uint8_t> GetSerializedHandshakeMessage() {
+  lens::ClientToAimMessage message = GetHandshakeMessageProto();
+  const size_t size = message.ByteSizeLong();
+  std::vector<uint8_t> serialized_message(size);
+  message.SerializeToArray(serialized_message.data(), size);
+  return serialized_message;
+}
+
+bool ShouldUseDarkMode(Profile* profile, const GURL& url) {
+  std::optional<bool> url_dark_mode = GetDarkModeFromUrl(url);
+  if (url_dark_mode.has_value()) {
+    return *url_dark_mode;
+  }
+  return ShouldUseDarkMode(profile);
+}
+
+bool ShouldUseDarkMode(Profile* profile) {
+#if !BUILDFLAG(IS_ANDROID)
+  // Assume light mode as fallback.
+  if (!profile) {
+    return false;
+  }
+
+  // Always use dark mode in incognito.
+  if (profile->IsOffTheRecord()) {
+    return true;
+  }
+
+  // In all other cases, respect the theme service dark mode preferences.
+  ThemeService* theme_service = ThemeServiceFactory::GetForProfile(profile);
+  return theme_service && theme_service->BrowserUsesDarkColors();
+#else
+  return false;
+#endif
+}
 
 }  // namespace contextual_tasks

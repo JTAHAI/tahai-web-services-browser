@@ -73,6 +73,17 @@ public class XrFactoryImplTest {
     }
 
     @Test
+    public void testCreateQuaternionFromYaw() {
+        float yaw = (float) Math.PI / 2.0f; // 90 degrees yaw
+        XrQuaternion quaternion = mFactory.createQuaternionFromYaw(yaw);
+        assertNotNull(quaternion);
+        assertEquals(0.0f, quaternion.getX(), DELTA);
+        assertEquals((float) Math.sin(Math.PI / 4.0f), quaternion.getY(), DELTA);
+        assertEquals(0.0f, quaternion.getZ(), DELTA);
+        assertEquals((float) Math.cos(Math.PI / 4.0f), quaternion.getW(), DELTA);
+    }
+
+    @Test
     public void testCreatePose() {
         XrVector3 trans = mFactory.createVector3(1.0f, 2.0f, 3.0f);
         XrQuaternion rot = mFactory.createQuaternion(0.0f, 0.0f, 0.0f, 1.0f);
@@ -99,8 +110,29 @@ public class XrFactoryImplTest {
 
     @Test
     public void testCreateSurfaceEntity() {
-        XrSurfaceEntityHolder holder =
+        XrSurfaceEntityHolder quadHolder =
                 mFactory.createSurfaceEntity(mSession, XrSurfaceEntityShape.QUAD);
-        assertNotNull(holder);
+        assertNotNull(quadHolder);
+        assertEquals(XrSurfaceEntityShape.QUAD, quadHolder.getSurfaceShape());
+
+        XrSurfaceEntityHolder sphereHolder =
+                mFactory.createSurfaceEntity(mSession, XrSurfaceEntityShape.SPHERE);
+        assertNotNull(sphereHolder);
+        assertEquals(XrSurfaceEntityShape.SPHERE, sphereHolder.getSurfaceShape());
+
+        XrSurfaceEntityHolder hemiHolder =
+                mFactory.createSurfaceEntity(mSession, XrSurfaceEntityShape.HEMISPHERE);
+        assertNotNull(hemiHolder);
+        assertEquals(XrSurfaceEntityShape.HEMISPHERE, hemiHolder.getSurfaceShape());
+
+        XrSurfaceEntityHolder seamlessSphereHolder =
+                mFactory.createSurfaceEntity(mSession, XrSurfaceEntityShape.SEAMLESS_SPHERE);
+        assertNotNull(seamlessSphereHolder);
+        assertEquals(XrSurfaceEntityShape.SEAMLESS_SPHERE, seamlessSphereHolder.getSurfaceShape());
+
+        XrSurfaceEntityHolder roundedQuadHolder =
+                mFactory.createSurfaceEntity(mSession, XrSurfaceEntityShape.ROUNDED_QUAD);
+        assertNotNull(roundedQuadHolder);
+        assertEquals(XrSurfaceEntityShape.ROUNDED_QUAD, roundedQuadHolder.getSurfaceShape());
     }
 }

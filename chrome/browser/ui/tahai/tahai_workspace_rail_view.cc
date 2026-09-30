@@ -21,8 +21,8 @@
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/tahai_skins/skin_profile_service.h"
 #include "chrome/browser/tahai_skins/skin_profile_service_factory.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/tahai/tahai_mode_command_model.h"
 #include "components/vector_icons/vector_icons.h"
@@ -37,9 +37,9 @@
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/label_button.h"
+#include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/resize_area.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/scrollbar/overlay_scroll_bar.h"
@@ -620,7 +620,7 @@ void WorkspaceRailView::OpenSelectedModule() {
     return;
   }
   const ModuleAction action = GetModuleAction(selected_module_id_);
-  Browser* const browser = mode_controller_->browser();
+  BrowserWindowInterface* const browser = mode_controller_->browser();
   if (browser && chrome::IsCommandEnabled(browser, action.command_id)) {
     chrome::ExecuteCommand(browser, action.command_id);
   }

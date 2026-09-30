@@ -257,30 +257,6 @@ TEST(AutofillValidation, IsUPIVirtualPaymentAddress_Others) {
   EXPECT_TRUE(IsUPIVirtualPaymentAddress(u"1234123412341234@rupay.npci"));
 }
 
-class AutofillIsInternationalBankAccountNumber
-    : public testing::TestWithParam<std::u16string> {};
-
-INSTANTIATE_TEST_SUITE_P(InternationalBankAccountNumber,
-                         AutofillIsInternationalBankAccountNumber,
-                         testing::Values(u"MT84MALT011000012345MTLCAST001S",
-                                         u"SC18SSCB11010000000000001497USD",
-                                         u"MD24AG000225100013104168",
-                                         u"BH67BMAG00001299123456",
-                                         u"LI21088100002324013AA",
-                                         u"NO9386011117947",
-                                         u"FR1420041010050500013M02606",
-                                         u"LB62099900000001001901229114"));
-
-TEST_P(AutofillIsInternationalBankAccountNumber,
-       IsInternationalBankAccountNumber) {
-  EXPECT_TRUE(IsInternationalBankAccountNumber(GetParam())) << GetParam();
-  EXPECT_TRUE(IsInternationalBankAccountNumber(u" " + GetParam() + u" "));
-  EXPECT_FALSE(IsInternationalBankAccountNumber(u"DE" + GetParam()));
-  EXPECT_FALSE(IsInternationalBankAccountNumber(GetParam() + u"."));
-  EXPECT_FALSE(IsInternationalBankAccountNumber(
-      GetParam() + u"0000000000000000000000000000000000000"));
-}
-
 TEST(AutofillValidation, IsValidAchRoutingTransitNumber) {
   // Must be 9 digits, cannot have text:
   EXPECT_FALSE(IsAchRoutingTransitNumber(u"12345678"));
@@ -338,6 +314,36 @@ TEST_P(AutofillIsValidZipTest, IsValidZip) {
       IsValidZip(test_case.text, AddressCountryCode(test_case.country_code),
                  test_case.extended_validation),
       test_case.is_valid);
+}
+
+TEST(AutofillValidation, IsSSN) {
+  const char16_t* const kValidSSNs[] = {
+      u"078-05-1120",           u"078051120",
+      u"078 05 1120",           u"078.05.1120",
+      u"078\u00A005\u202F1120", u"078\u300005\u20021120",
+  };
+  for (const char16_t* ssn : kValidSSNs) {
+    SCOPED_TRACE(base::UTF16ToUTF8(ssn));
+    EXPECT_TRUE(IsSSN(ssn));
+  }
+
+  const char16_t* const kInvalidSSNs[] = {
+      u"",
+      u"000-05-1120",
+      u"666-05-1120",
+      u"900.05.1120",
+      u"999-05-1120",
+      u"078-00-1120",
+      u"078.05.0000",
+      u"078-05-112",
+      u"078-05-11201",
+      u"078-05-112a",
+      u"078-05-1120*",
+  };
+  for (const char16_t* ssn : kInvalidSSNs) {
+    SCOPED_TRACE(base::UTF16ToUTF8(ssn));
+    EXPECT_FALSE(IsSSN(ssn));
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(ValidZip,

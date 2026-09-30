@@ -64,7 +64,6 @@ class TestTitleObserver : public TabStripModelObserver {
 
   // TabstripModelObserver:
   void OnTabChangedAt(tabs::TabInterface* tab,
-                      int index,
                       TabChangeType change_type) override {
     content::NavigationEntry* entry =
         tab->GetContents()->GetController().GetVisibleEntry();
@@ -89,7 +88,8 @@ class TestTitleObserver : public TabStripModelObserver {
 
 // Opens a new popup window from |web_contents| on |target_url| and returns
 // the Browser it opened in.
-Browser* OpenPopup(content::WebContents* web_contents, const GURL& target_url) {
+BrowserWindowInterface* OpenPopup(content::WebContents* web_contents,
+                                  const GURL& target_url) {
   ui_test_utils::BrowserCreatedObserver browser_created_observer;
   content::TestNavigationObserver nav_observer(target_url);
   nav_observer.StartWatchingNewWebContents();
@@ -231,7 +231,8 @@ class CustomTabBarViewBrowserTest : public web_app::WebAppBrowserTestBase {
   raw_ptr<BrowserView, AcrossTasksDanglingUntriaged> browser_view_;
   raw_ptr<LocationBarView, AcrossTasksDanglingUntriaged> location_bar_;
   raw_ptr<CustomTabBarView, AcrossTasksDanglingUntriaged> custom_tab_bar_;
-  raw_ptr<Browser, AcrossTasksDanglingUntriaged> app_browser_ = nullptr;
+  raw_ptr<BrowserWindowInterface, AcrossTasksDanglingUntriaged> app_browser_ =
+      nullptr;
   raw_ptr<web_app::AppBrowserController, AcrossTasksDanglingUntriaged>
       app_controller_ = nullptr;
 
@@ -261,14 +262,14 @@ class CustomTabBarViewBrowserTest : public web_app::WebAppBrowserTestBase {
 // Check the custom tab bar is not instantiated for a tabbed browser window.
 IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
                        IsNotCreatedInTabbedBrowser) {
-  EXPECT_TRUE(browser()->is_type_normal());
+  EXPECT_EQ(browser()->GetType(), BrowserWindowInterface::Type::TYPE_NORMAL);
   EXPECT_TRUE(browser_view_->GetIsNormalType());
   EXPECT_FALSE(custom_tab_bar_);
 }
 
 IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, IsNotCreatedInPopup) {
-  Browser* popup = OpenPopup(browser_view_->GetActiveWebContents(),
-                             GURL("http://example.com"));
+  BrowserWindowInterface* popup = OpenPopup(
+      browser_view_->GetActiveWebContents(), GURL("http://example.com"));
   EXPECT_TRUE(popup);
 
   BrowserView* popup_view = BrowserView::GetBrowserViewForBrowser(popup);
@@ -278,7 +279,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, IsNotCreatedInPopup) {
 
   // Popups are not the normal browser view.
   EXPECT_FALSE(popup_view->GetIsNormalType());
-  EXPECT_TRUE(popup->is_type_popup());
+  EXPECT_EQ(popup->GetType(), BrowserWindowInterface::Type::TYPE_POPUP);
   // Popups should not have a custom tab bar view.
   EXPECT_FALSE(popup_view->toolbar()->custom_tab_bar());
 }
@@ -290,13 +291,14 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   const GURL out_of_scope_url = GURL("https://example.com");
 
   InstallBookmark(app_url);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
 
-  Browser* popup_browser =
+  BrowserWindowInterface* popup_browser =
       OpenPopup(app_view->GetActiveWebContents(), out_of_scope_url);
-  EXPECT_TRUE(popup_browser->is_type_app_popup());
+  EXPECT_EQ(popup_browser->GetType(),
+            BrowserWindowInterface::Type::TYPE_APP_POPUP);
 
   // Out of scope, so custom tab bar should be shown.
   EXPECT_TRUE(web_app::AppBrowserController::From(popup_browser)
@@ -324,7 +326,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, IsUsedForDesktopPWA) {
   EXPECT_NE(app_view, browser_view_);
 
   EXPECT_FALSE(app_view->GetIsNormalType());
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   // Custom tab bar should be created.
   EXPECT_TRUE(app_view->toolbar()->custom_tab_bar());
@@ -340,13 +342,13 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, ShowsWithMixedContent) {
   InstallPWA(url);
 
   ASSERT_TRUE(app_browser_);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   CustomTabBarView* bar = BrowserView::GetBrowserViewForBrowser(app_browser_)
                               ->toolbar()
                               ->custom_tab_bar();
   EXPECT_FALSE(bar->GetVisible());
-  EXPECT_TRUE(ExecJs(app_browser_->tab_strip_model()->GetActiveWebContents(),
+  EXPECT_TRUE(ExecJs(app_browser_->GetTabStripModel()->GetActiveWebContents(),
                      R"(
       let img = document.createElement('img');
       img.src = 'http://not-secure.com';
@@ -376,7 +378,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, TitleAndLocationUpdate) {
   InstallPWA(app_url);
 
   EXPECT_TRUE(app_browser_);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_view, browser_view_);
@@ -399,7 +401,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   InstallPWA(app_url);
 
   EXPECT_TRUE(app_browser_);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_view, browser_view_);
@@ -421,7 +423,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   InstallPWA(app_url);
 
   EXPECT_TRUE(app_browser_);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   auto* web_contents = app_view->GetActiveWebContents();
@@ -454,7 +456,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   const GURL app_url =
       embedded_https_test_server().GetURL("app.com", "/ssl/google.html");
   InstallPWA(app_url);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   auto* web_contents = app_view->GetActiveWebContents();
@@ -490,7 +492,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   InstallPWA(app_url);
 
   EXPECT_TRUE(app_browser_);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   auto* web_contents = app_view->GetActiveWebContents();
@@ -527,7 +529,7 @@ IN_PROC_BROWSER_TEST_F(
   InstallPWA(app_url);
 
   EXPECT_TRUE(app_browser_);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   auto* web_contents = app_view->GetActiveWebContents();
@@ -561,7 +563,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   InstallPWA(app_url);
 
   EXPECT_TRUE(app_browser_);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_view, browser_view_);
@@ -583,7 +585,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   InstallPWA(app_url);
 
   EXPECT_TRUE(app_browser_);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_view, browser_view_);
@@ -610,7 +612,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   InstallPWA(app_url);
 
   EXPECT_TRUE(app_browser_);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_view, browser_view_);
@@ -657,7 +659,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest,
   const GURL out_of_scope_url = GURL("https://example.com");
 
   InstallBookmark(app_url);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_view, browser_view_);
@@ -688,7 +690,7 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, InterstitialCanHideOrigin) {
   InstallPWA(
       embedded_https_test_server().GetURL("app.com", "/ssl/google.html"));
   EXPECT_TRUE(app_browser_);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
 
   BrowserView* app_view = BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_view, browser_view_);
@@ -720,12 +722,12 @@ IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, InterstitialCanHideOrigin) {
 IN_PROC_BROWSER_TEST_F(CustomTabBarViewBrowserTest, BlobUrlLocation) {
   InstallPWA(embedded_https_test_server().GetURL("/simple.html"));
   EXPECT_TRUE(app_browser_);
-  EXPECT_TRUE(app_browser_->is_type_app());
+  EXPECT_EQ(app_browser_->GetType(), BrowserWindowInterface::Type::TYPE_APP);
   BrowserView* app_browser_view =
       BrowserView::GetBrowserViewForBrowser(app_browser_);
   EXPECT_NE(app_browser_view, browser_view_);
   content::WebContents* web_contents =
-      app_browser_->tab_strip_model()->GetActiveWebContents();
+      app_browser_->GetTabStripModel()->GetActiveWebContents();
 
   content::TestNavigationObserver nav_observer(
       web_contents,

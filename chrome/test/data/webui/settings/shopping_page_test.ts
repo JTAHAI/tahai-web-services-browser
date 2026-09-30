@@ -5,7 +5,7 @@
 import 'chrome://settings/settings.js';
 
 import {AiEnterpriseFeaturePrefName, EntityDataManagerProxyImpl} from 'chrome://settings/lazy_load.js';
-import type {SettingsShoppingPageElement} from 'chrome://settings/lazy_load.js';
+import type {SettingsAutofillAiEntriesListElement, SettingsShoppingPageElement} from 'chrome://settings/lazy_load.js';
 import {CrSettingsPrefs, loadTimeData, ModelExecutionEnterprisePolicyValue, resetRouterForTesting, Router} from 'chrome://settings/settings.js';
 import type {SettingsPrefsElement} from 'chrome://settings/settings.js';
 import {MetricsBrowserProxyImpl} from 'chrome://settings/settings.js';
@@ -47,8 +47,7 @@ suite('ShoppingPage', function() {
   ].forEach(({shoppingOptIn}) => {
     test(`Toggle should show current opt-in status`, async function() {
       loadTimeData.overrideValues({
-        userEligibleForAutofillAi: true,
-        autofillAiAvailableByDefault: false,
+        canEnableOrDisableAutofillAi: true,
       });
 
       entityDataManager.setGetOptInStatusResponse(true);
@@ -65,7 +64,7 @@ suite('ShoppingPage', function() {
   });
 
   test(`Toggle should switch opt-in status in prefs`, async function() {
-    loadTimeData.overrideValues({userEligibleForAutofillAi: true});
+    loadTimeData.overrideValues({canEnableOrDisableAutofillAi: true});
 
     entityDataManager.setGetOptInStatusResponse(true);
 
@@ -78,89 +77,39 @@ suite('ShoppingPage', function() {
     assertTrue(settingsPrefs.get(
         'prefs.autofill.autofill_ai.shopping_entities_enabled.value'));
 
+    const entriesList =
+        page.shadowRoot!.querySelector<SettingsAutofillAiEntriesListElement>(
+            'settings-autofill-ai-entries-list')!;
+    assertTrue(!!entriesList);
+    assertTrue(entriesList.allowNewEntitiesAdditionPref!.value);
+
     page.$.optInToggle.click();
+    await flushTasks();
 
     assertFalse(page.$.optInToggle.checked);
     assertFalse(settingsPrefs.get(
         'prefs.autofill.autofill_ai.shopping_entities_enabled.value'));
-  });
-
-  [{enhancedAutofillOptIn: true, shoppingOptIn: true},
-   {enhancedAutofillOptIn: true, shoppingOptIn: false},
-   {enhancedAutofillOptIn: false, shoppingOptIn: true},
-   {enhancedAutofillOptIn: false, shoppingOptIn: false},
-  ].forEach(({enhancedAutofillOptIn, shoppingOptIn}) => {
-    test(
-        'When not elligible for enhanced autofill, toggle should' +
-            'always be disabled and off: ' +
-            `enhancedAutofillOptIn(${enhancedAutofillOptIn}) ` +
-            `shoppingOptIn(${shoppingOptIn})`,
-        async function() {
-          loadTimeData.overrideValues({userEligibleForAutofillAi: false});
-
-          entityDataManager = new TestEntityDataManagerProxy();
-          EntityDataManagerProxyImpl.setInstance(entityDataManager);
-          entityDataManager.setGetOptInStatusResponse(enhancedAutofillOptIn);
-
-          settingsPrefs.set(
-              'prefs.autofill.autofill_ai.shopping_entities_enabled.value',
-              shoppingOptIn);
-
-          const page = await setupPage();
-
-          assertTrue(page.$.optInToggle.disabled);
-          assertFalse(page.$.optInToggle.checked);
-        });
+    assertFalse(entriesList.allowNewEntitiesAdditionPref!.value);
   });
 
   [{canEnableOrDisableAutofillAi: true},
    {canEnableOrDisableAutofillAi: false},
   ].forEach(({canEnableOrDisableAutofillAi}) => {
     test(
-        'When Autofill AI is available by default ' +
-            '(autofillAiAvailableByDefault is true) the toggle ' +
-            'availability depends on ' +
-            'canEnableOrDisableAutofillAi, not on the opt-in status: ' +
+        'Toggle availability depends on canEnableOrDisableAutofillAi: ' +
             `canEnableOrDisableAutofillAi(${canEnableOrDisableAutofillAi})`,
         async function() {
           loadTimeData.overrideValues({
-            userEligibleForAutofillAi: false,
-            autofillAiAvailableByDefault: true,
             canEnableOrDisableAutofillAi: canEnableOrDisableAutofillAi,
           });
 
           entityDataManager = new TestEntityDataManagerProxy();
           EntityDataManagerProxyImpl.setInstance(entityDataManager);
-          entityDataManager.setGetOptInStatusResponse(false);
 
           const page = await setupPage();
 
           assertEquals(
               page.$.optInToggle.disabled, !canEnableOrDisableAutofillAi);
-        });
-  });
-
-  [{shoppingOptIn: true},
-   {shoppingOptIn: false},
-  ].forEach(({shoppingOptIn}) => {
-    test(
-        'When opted out from shopping autofill, toggle should always ' +
-            `be disabled and off, shoppingOptIn(${shoppingOptIn})`,
-        async function() {
-          loadTimeData.overrideValues({userEligibleForAutofillAi: true});
-
-          entityDataManager = new TestEntityDataManagerProxy();
-          EntityDataManagerProxyImpl.setInstance(entityDataManager);
-          entityDataManager.setGetOptInStatusResponse(false);
-
-          settingsPrefs.set(
-              'prefs.autofill.autofill_ai.shopping_entities_enabled.value',
-              shoppingOptIn);
-
-          const page = await setupPage();
-
-          assertTrue(page.$.optInToggle.disabled);
-          assertFalse(page.$.optInToggle.checked);
         });
   });
 
@@ -191,9 +140,8 @@ suite('ShoppingPage', function() {
             `addressAutofillStatus(${addressAutofillStatus})`,
         async function() {
           loadTimeData.overrideValues({
-            userEligibleForAutofillAi: true,
+            canEnableOrDisableAutofillAi: true,
             AutofillSettingsEnterprisePolicyEnabled: experimentEnabled,
-            autofillAiAvailableByDefault: false,
           });
 
           entityDataManager.setGetOptInStatusResponse(true);
@@ -215,9 +163,7 @@ suite('ShoppingPage', function() {
           'controlled by policy',
       async function() {
         loadTimeData.overrideValues({
-          userEligibleForAutofillAi: true,
           AutofillSettingsEnterprisePolicyEnabled: false,
-          autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
 
@@ -245,9 +191,7 @@ suite('ShoppingPage', function() {
           'controlled by extension',
       async function() {
         loadTimeData.overrideValues({
-          userEligibleForAutofillAi: true,
           AutofillSettingsEnterprisePolicyEnabled: false,
-          autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
 
@@ -276,9 +220,7 @@ suite('ShoppingPage', function() {
           'controlled by extension and forced true',
       async function() {
         loadTimeData.overrideValues({
-          userEligibleForAutofillAi: true,
           AutofillSettingsEnterprisePolicyEnabled: false,
-          autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
 
@@ -305,9 +247,7 @@ suite('ShoppingPage', function() {
           'controlled by policy',
       async function() {
         loadTimeData.overrideValues({
-          userEligibleForAutofillAi: true,
           AutofillSettingsEnterprisePolicyEnabled: false,
-          autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
 
@@ -332,9 +272,7 @@ suite('ShoppingPage', function() {
           'allowed by policy',
       async function() {
         loadTimeData.overrideValues({
-          userEligibleForAutofillAi: true,
           AutofillSettingsEnterprisePolicyEnabled: false,
-          autofillAiAvailableByDefault: true,
           canEnableOrDisableAutofillAi: true,
         });
 
@@ -351,6 +289,91 @@ suite('ShoppingPage', function() {
             'cr-policy-pref-indicator');
 
         assertFalse(!!policyIndicator);
+        assertTrue(page.$.optInToggle.checked);
+      });
+
+  test(
+      'Policy controlled icon is shown when shopping is blocked by ' +
+          'types_blocked policy',
+      async function() {
+        loadTimeData.overrideValues({
+          AutofillSettingsEnterprisePolicyEnabled: true,
+          canEnableOrDisableAutofillAi: true,
+        });
+
+        settingsPrefs.set(
+            'prefs.autofill.autofill_ai.shopping_entities_enabled.value', true);
+        settingsPrefs.set('prefs.autofill.types_blocked', {
+          value: [{url_pattern: '*', blocked_types: ['shopping']}],
+        });
+
+        const page = await setupPage();
+        const policyIndicator = page.$.optInToggle.shadowRoot!.querySelector(
+            'cr-policy-pref-indicator');
+
+        assertTrue(!!policyIndicator);
+        assertTrue(page.$.optInToggle.controlDisabled());
+        assertFalse(page.$.optInToggle.checked);
+
+        const entriesList =
+            page.shadowRoot!
+                .querySelector<SettingsAutofillAiEntriesListElement>(
+                    'settings-autofill-ai-entries-list')!;
+        assertTrue(!!entriesList);
+        assertFalse(entriesList.allowNewEntitiesAdditionPref!.value);
+      });
+
+  test(
+      'Policy controlled icon is shown when all is blocked by ' +
+          'types_blocked policy',
+      async function() {
+        loadTimeData.overrideValues({
+          AutofillSettingsEnterprisePolicyEnabled: true,
+          canEnableOrDisableAutofillAi: true,
+        });
+
+        settingsPrefs.set(
+            'prefs.autofill.autofill_ai.shopping_entities_enabled.value', true);
+        settingsPrefs.set('prefs.autofill.types_blocked', {
+          value: [{url_pattern: '*', blocked_types: ['all']}],
+        });
+
+        const page = await setupPage();
+        const policyIndicator = page.$.optInToggle.shadowRoot!.querySelector(
+            'cr-policy-pref-indicator');
+
+        assertTrue(!!policyIndicator);
+        assertTrue(page.$.optInToggle.controlDisabled());
+        assertFalse(page.$.optInToggle.checked);
+
+        const entriesList =
+            page.shadowRoot!
+                .querySelector<SettingsAutofillAiEntriesListElement>(
+                    'settings-autofill-ai-entries-list')!;
+        assertTrue(!!entriesList);
+        assertFalse(entriesList.allowNewEntitiesAdditionPref!.value);
+      });
+
+  test(
+      'types_blocked policy is ignored when enterprise policy flag is disabled',
+      async function() {
+        loadTimeData.overrideValues({
+          AutofillSettingsEnterprisePolicyEnabled: false,
+          canEnableOrDisableAutofillAi: true,
+        });
+
+        settingsPrefs.set(
+            'prefs.autofill.autofill_ai.shopping_entities_enabled.value', true);
+        settingsPrefs.set('prefs.autofill.types_blocked', {
+          value: [{url_pattern: '*', blocked_types: ['shopping']}],
+        });
+
+        const page = await setupPage();
+        const policyIndicator = page.$.optInToggle.shadowRoot!.querySelector(
+            'cr-policy-pref-indicator');
+
+        assertFalse(!!policyIndicator);
+        assertFalse(page.$.optInToggle.controlDisabled());
         assertTrue(page.$.optInToggle.checked);
       });
 

@@ -156,8 +156,12 @@ enum class ProfileSignout {
   // User tapped 'Undo' in a snackbar that is shown right after sign-in through
   // Autofill and Passwords Sign-in promo. Android only.
   kUserTappedUndoRightAfterSignInFromAutofillAndPasswords = 46,
+  // User tapped 'Sign out' on the enterprise signals disclaimer or dismissed it
+  // by sliding down, using back press or by tapping outside of the dialog.
+  // Android only.
+  kUserDeclinedEnterpriseSignalsDisclaimer = 47,
   // Keep this as the last enum.
-  kMaxValue = kUserTappedUndoRightAfterSignInFromAutofillAndPasswords,
+  kMaxValue = kUserDeclinedEnterpriseSignalsDisclaimer,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/signin/enums.xml)
 
@@ -363,10 +367,12 @@ enum class AccessPoint : int {
   // The snackbar is displayed after the user signs out from the account menu,
   // when IdentityAwareness is enabled. iOS only.
   kSignoutUndoSnackbar = 108,
+  // Sign-in promo shown for the Composebox Drive context menu option.
+  kComposeboxDriveContextMenuOptionBubble = 109,
   // Add values above this line with a corresponding label to the
   // "SigninAccessPoint" enum in
   // tools/metrics/histograms/metadata/signin/enums.xml.
-  kMaxValue = kSignoutUndoSnackbar,  // This must be last.
+  kMaxValue = kComposeboxDriveContextMenuOptionBubble,  // This must be last.
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/signin/enums.xml)
 
@@ -614,8 +620,9 @@ enum class FetchAccountCapabilitiesFromSystemLibraryResult {
   // Errors after 20 are reserved for iOS.
   kErrorMissingCapability = 20,
   kErrorUnexpectedValue = 21,
+  kPartialSuccess = 22,
 
-  kMaxValue = kErrorUnexpectedValue
+  kMaxValue = kPartialSuccess
 };
 
 // Tracks type of the button that was presented to the user.

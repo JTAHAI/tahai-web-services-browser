@@ -54,13 +54,15 @@ class LayoutSVGText final : public LayoutSVGBlock {
   gfx::RectF VisualRectInLocalSVGCoordinates() const override;
   void QuadsInAncestorInternal(Vector<gfx::QuadF>&,
                                const LayoutBoxModelObject* ancestor,
-                               MapCoordinatesFlags) const override;
+                               MapCoordinatesFlags,
+                               BoxQuadType) const override;
   gfx::RectF LocalBoundingBoxRectForAccessibility(
       IncludeDescendants include_descendants) const override;
   void StyleDidChange(StyleDifference,
                       const ComputedStyle* old_style,
+                      const ComputedStyle& new_style,
                       const StyleChangeContext&) override;
-  void WillBeDestroyed() override;
+  void WillBeDestroyed(const ComputedStyle*) override;
   bool NodeAtPoint(HitTestResult& result,
                    const HitTestLocation& hit_test_location,
                    const PhysicalOffset& accumulated_offset,
@@ -81,9 +83,9 @@ class LayoutSVGText final : public LayoutSVGBlock {
 
   // bounding_box_* are mutable for on-demand computation in a const method.
   mutable gfx::RectF bounding_box_;
-  mutable bool needs_update_bounding_box_ : 1;
+  mutable bool needs_update_bounding_box_ : 1 = true;
 
-  bool needs_text_metrics_update_ : 1;
+  bool needs_text_metrics_update_ : 1 = true;
 };
 
 template <>

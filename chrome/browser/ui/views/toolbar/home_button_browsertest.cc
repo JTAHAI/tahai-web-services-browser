@@ -6,8 +6,8 @@
 
 #include "base/test/run_until.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/interaction/browser_elements.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/ui_features.h"
@@ -56,8 +56,7 @@ IN_PROC_BROWSER_TEST_F(HomeButtonUiTest, ShowMenu) {
     menu_model = BrowserView::GetBrowserViewForBrowser(browser())
                      ->toolbar()
                      ->GetWebUIToolbarViewForTesting()
-                     ->GetHomeControlForTesting()
-                     ->GetMenuModelForTesting();
+                     ->home_control_.GetMenuModelForTesting();
   } else {
     menu_model = BrowserView::GetBrowserViewForBrowser(browser())
                      ->toolbar()

@@ -20,6 +20,7 @@ import org.jni_zero.NativeMethods;
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.components.autofill.Acceptability;
 import org.chromium.components.autofill.AutofillDelegate;
 import org.chromium.components.autofill.AutofillSuggestion;
 import org.chromium.components.autofill.AutofillSuggestion.Payload;
@@ -32,6 +33,7 @@ import org.chromium.url.GURL;
 
 import java.lang.ref.WeakReference;
 import java.util.List;
+import java.util.Objects;
 
 /** JNI call glue between C++ (AutofillKeyboardAccessoryViewImpl) and Java objects. */
 @JNINamespace("autofill")
@@ -43,6 +45,7 @@ public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
     private @Nullable ManualFillingComponent mManualFillingComponent;
     private final Callback<ManualFillingComponent> mFillingComponentObserver =
             this::connectToFillingComponent;
+    private @Nullable Integer mSelectedListIndex;
 
     private AutofillKeyboardAccessoryViewBridge() {}
 
@@ -53,18 +56,20 @@ public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
 
     @Override
     public void dismissed() {
+        mSelectedListIndex = null;
         if (mNativeAutofillKeyboardAccessory == 0) return;
         AutofillKeyboardAccessoryViewBridgeJni.get()
                 .viewDismissed(mNativeAutofillKeyboardAccessory);
     }
 
     @Override
-    public void suggestionSelected(int listIndex) {
-        suggestionSelected(listIndex, false);
+    public void suggestionAccepted(int listIndex) {
+        suggestionAccepted(listIndex, false);
     }
 
     @Override
-    public void suggestionSelected(int listIndex, boolean showLoadingOnAcceptance) {
+    public void suggestionAccepted(int listIndex, boolean showLoadingOnAcceptance) {
+        mSelectedListIndex = null;
         if (mManualFillingComponent != null) {
             if (showLoadingOnAcceptance) {
                 mManualFillingComponent.setWaitingForFetch(true);
@@ -75,14 +80,36 @@ public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
         }
         if (mNativeAutofillKeyboardAccessory == 0) return;
         AutofillKeyboardAccessoryViewBridgeJni.get()
-                .suggestionSelected(mNativeAutofillKeyboardAccessory, listIndex);
+                .suggestionAccepted(mNativeAutofillKeyboardAccessory, listIndex);
     }
 
     @Override
     public void deleteSuggestion(int listIndex) {
+        mSelectedListIndex = null;
         if (mNativeAutofillKeyboardAccessory == 0) return;
         AutofillKeyboardAccessoryViewBridgeJni.get()
                 .deletionRequested(mNativeAutofillKeyboardAccessory, listIndex);
+    }
+
+    @Override
+    public void suggestionSelectionStateChanged(int listIndex, boolean isSelected) {
+        if (mNativeAutofillKeyboardAccessory == 0) {
+            return;
+        }
+        // Return early if the selection state for this item is already up-to-date.
+        // Ignore if this item is already selected.
+        if (isSelected && Objects.equals(mSelectedListIndex, listIndex)) {
+            return;
+        }
+        // Ignore unhover if this item is not currently selected.
+        if (!isSelected && !Objects.equals(mSelectedListIndex, listIndex)) {
+            return;
+        }
+
+        mSelectedListIndex = isSelected ? listIndex : null;
+        AutofillKeyboardAccessoryViewBridgeJni.get()
+                .suggestionSelectionStateChanged(
+                        mNativeAutofillKeyboardAccessory, listIndex, isSelected);
     }
 
     @Override
@@ -142,6 +169,7 @@ public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
     /** Clears the reference to the native view. */
     @CalledByNative
     private void resetNativeViewPointer() {
+        mSelectedListIndex = null;
         mNativeAutofillKeyboardAccessory = 0;
     }
 
@@ -169,6 +197,7 @@ public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
      */
     @CalledByNative
     private void show(@JniType("std::vector") List<AutofillSuggestion> suggestions, RectF bounds) {
+        mSelectedListIndex = null;
         if (mManualFillingComponent != null) {
             mManualFillingComponent.setFieldBounds(bounds);
             mManualFillingComponent.setSuggestions(suggestions, this);
@@ -226,7 +255,7 @@ public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
      *     </ul>
      *
      * @param sublabel Hint for the suggested text. The text that's going to be filled in the
-     *     unfocused fields of the form. If {@see label} is empty, then this must be empty too.
+     *     unfocused fields of the form. If {@code label} is empty, then this must be empty too.
      * @param voiceOver Voice over text read for the keyboard accessory suggestion.
      * @param iconId The resource ID for the icon associated with the suggestion, or 0 for no icon.
      * @param suggestionType Determines the type of the suggestion.
@@ -236,6 +265,8 @@ public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
      * @param iphDescriptionText If set, it will be used as the help text for the IPH bubble.
      * @param customIconUrl The url used to fetch the custom icon to be displayed in the autofill
      *     suggestion chip.
+     * @param originalIndex The index of the suggestion in the list provided by the C++
+     *     AutofillKeyboardAccessoryController.
      * @return an AutofillSuggestion containing the above information.
      */
     @CalledByNative
@@ -249,9 +280,10 @@ public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
             @JniType("std::string") String featureForIph,
             @JniType("std::u16string") String iphDescriptionText,
             GURL customIconUrl,
-            boolean applyDeactivatedStyle,
+            @Acceptability int acceptability,
             boolean isLoading,
-            @Nullable Payload payload) {
+            @Nullable Payload payload,
+            int originalIndex) {
         int drawableId = iconId == 0 ? DropdownItem.NO_ICON : iconId;
         return new AutofillSuggestion.Builder()
                 .setLabel(label)
@@ -263,9 +295,10 @@ public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
                 .setFeatureForIph(featureForIph)
                 .setIphDescriptionText(iphDescriptionText)
                 .setCustomIconUrl(customIconUrl)
-                .setApplyDeactivatedStyle(applyDeactivatedStyle)
+                .setAcceptability(acceptability)
                 .setIsLoading(isLoading)
                 .setPayload(payload)
+                .setOriginalIndex(originalIndex)
                 .build();
     }
 
@@ -284,7 +317,10 @@ public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
     interface Natives {
         void viewDismissed(long nativeAutofillKeyboardAccessoryViewImpl);
 
-        void suggestionSelected(long nativeAutofillKeyboardAccessoryViewImpl, int listIndex);
+        void suggestionAccepted(long nativeAutofillKeyboardAccessoryViewImpl, int listIndex);
+
+        void suggestionSelectionStateChanged(
+                long nativeAutofillKeyboardAccessoryViewImpl, int listIndex, boolean isSelected);
 
         void deletionRequested(long nativeAutofillKeyboardAccessoryViewImpl, int listIndex);
 

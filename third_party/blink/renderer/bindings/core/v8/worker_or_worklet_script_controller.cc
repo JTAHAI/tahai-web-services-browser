@@ -37,7 +37,7 @@
 #include "base/notreached.h"
 #include "third_party/blink/public/mojom/origin_trials/origin_trial_feature.mojom-blink.h"
 #include "third_party/blink/public/platform/platform.h"
-#include "third_party/blink/renderer/bindings/core/v8/script_controller.h"
+#include "third_party/blink/renderer/bindings/core/v8/script_state_impl.h"
 #include "third_party/blink/renderer/core/execution_context/agent.h"
 #include "third_party/blink/renderer/core/inspector/worker_thread_debugger.h"
 #include "third_party/blink/renderer/core/origin_trials/origin_trial_context.h"
@@ -128,18 +128,13 @@ void WorkerOrWorkletScriptController::Initialize(const KURL& url_for_debugger) {
       global_interface_template->InstanceTemplate();
   v8::Local<v8::Context> context;
   {
-    // Initialize V8 extensions before creating the context.
-    v8::ExtensionConfiguration extension_configuration =
-        ScriptController::ExtensionsFor(global_scope_);
-
     v8::MicrotaskQueue* microtask_queue = global_scope_->GetMicrotaskQueue();
 
     V8PerIsolateData::UseCounterDisabledScope use_counter_disabled(
         V8PerIsolateData::From(isolate_));
-    context = v8::Context::New(isolate_, &extension_configuration,
-                               global_template, v8::MaybeLocal<v8::Value>(),
-                               v8::DeserializeInternalFieldsCallback(),
-                               microtask_queue);
+    context = v8::Context::New(
+        isolate_, nullptr, global_template, v8::MaybeLocal<v8::Value>(),
+        v8::DeserializeInternalFieldsCallback(), microtask_queue);
   }
   // TODO(crbug.com/1501387): Remove temporary crash key when crash is fixed.
   // While this logging involves a lot of string operations, it is only
@@ -176,7 +171,8 @@ void WorkerOrWorkletScriptController::Initialize(const KURL& url_for_debugger) {
   }
   CHECK(!context.IsEmpty());
 
-  script_state_ = ScriptState::Create(context, world_, global_scope_);
+  script_state_ =
+      MakeGarbageCollected<ScriptStateImpl>(context, world_, *global_scope_);
 
   ScriptState::Scope scope(script_state_);
 

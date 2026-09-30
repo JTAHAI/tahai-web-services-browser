@@ -42,12 +42,11 @@ class ManualFillingViewAndroid : public ManualFillingViewInterface {
   void CloseAccessorySheet() override;
   void SwapSheetWithKeyboard() override;
   void Show(WaitForKeyboard wait_for_keyboard,
-            IsCredentialFieldOrHasAutofillSuggestions
-                is_credential_field_or_has_autofill_suggestions) override;
+            ShouldShowOnLargeFormFactor should_show_on_large_form_factor,
+            IsContentEditable is_content_editable) override;
   void Hide() override;
   void ShowAccessorySheetTab(
       const autofill::AccessoryTabType& tab_type) override;
-  bool IsLargeFormFactor() const override;
 
   // Called from Java via JNI:
   void OnFillingTriggered(

@@ -2,10 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/ui/views/tabs/tab_strip.h"
+
 #include "base/scoped_observation.h"
 #include "base/test/run_until.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
@@ -14,8 +17,8 @@
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
 #include "chrome/browser/ui/views/tabs/browser_tab_strip_controller.h"
 #include "chrome/browser/ui/views/tabs/new_tab_button.h"
+#include "chrome/browser/ui/views/tabs/new_tab_button_menu_model.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
-#include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/test/tab_strip_interactive_test_mixin.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
@@ -40,8 +43,8 @@ class TabStripInteractiveUiTest
  public:
   TabStripInteractiveUiTest() {
     scoped_feature_list_.InitWithFeatures(
-        {features::kTabStripNewTabButtonFlickerFix},
-        {tabs::kTabStripUnification});
+        /*enabled_features=*/{},
+        /*disabled_features=*/{tabs::kTabStripUnification});
   }
   ~TabStripInteractiveUiTest() override = default;
 
@@ -93,21 +96,21 @@ DEFINE_LOCAL_STATE_IDENTIFIER_VALUE(ui::test::PollingStateObserver<int>,
 class TestNewTabButtonContextMenu : public TabStripInteractiveUiTest {
  public:
   TestNewTabButtonContextMenu() {
-    scoped_feature_list_.InitWithFeatures(
-        {features::kTabGroupMenuMoreEntryPoints}, {tabs::kTabStripUnification});
+    scoped_feature_list_.InitWithFeatures({}, {tabs::kTabStripUnification});
   }
 
   TabStrip* tabstrip() {
     return views::AsViewClass<HorizontalTabStripRegionView>(
-               browser()->GetBrowserView().tab_strip_view())
+               BrowserView::GetBrowserViewForBrowser(browser())
+                   ->tab_strip_view())
         ->tab_strip();
   }
   TabStripController* controller() { return tabstrip()->controller(); }
 
-  auto WaitForTabCount(Browser* browser, int expected_count) {
+  auto WaitForTabCount(BrowserWindowInterface* browser, int expected_count) {
     return Steps(
         PollState(kTabCountState,
-                  [browser]() { return browser->tab_strip_model()->count(); }),
+                  [browser]() { return browser->GetTabStripModel()->count(); }),
         WaitForState(kTabCountState, expected_count),
         StopObservingState(kTabCountState));
   }
@@ -217,13 +220,13 @@ IN_PROC_BROWSER_TEST_F(TestNewTabButtonContextMenu,
   controller()->CreateNewTab(NewTabTypes::kNewTabCommand);
   controller()->CreateNewTab(NewTabTypes::kNewTabCommand);
 
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   ASSERT_EQ(tab_strip_model->count(), 4);
 
-  browser()->tab_strip_model()->AddToNewGroup({1});
+  browser()->GetTabStripModel()->AddToNewGroup({1});
   tab_groups::TabGroupId group =
-      browser()->tab_strip_model()->AddToNewGroup({2});
-  browser()->tab_strip_model()->AddToNewGroup({3});
+      browser()->GetTabStripModel()->AddToNewGroup({2});
+  browser()->GetTabStripModel()->AddToNewGroup({3});
 
   RunTestSequence(
       FinishTabstripAnimations(), SelectTab(kTabStripElementId, 1),
@@ -300,7 +303,7 @@ class NewTabButtonBoundsObserver : public views::ViewObserver {
 IN_PROC_BROWSER_TEST_F(
     TabStripInteractiveUiTest,
     NewTabButtonPositionStableDuringGroupRenameUnconstrained) {
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   ASSERT_EQ(tab_strip_model->count(), 1);
 
   // Create a tab group containing the single tab.
@@ -340,7 +343,7 @@ IN_PROC_BROWSER_TEST_F(
 // at the right edge without any 1-2px jitter.
 IN_PROC_BROWSER_TEST_F(TabStripInteractiveUiTest,
                        NewTabButtonPositionStableDuringGroupRenameConstrained) {
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   // Add many tabs to fill up the tab strip and force it into a shrunk state.
   for (int i = 0; i < 15; ++i) {
     chrome::NewTab(browser(), NewTabTypes::kNewTabCommand);
@@ -387,7 +390,7 @@ IN_PROC_BROWSER_TEST_F(TabStripInteractiveUiTest,
 // left without any backward jitter (jumping to the right) on any frame.
 IN_PROC_BROWSER_TEST_F(TabStripInteractiveUiTest,
                        NewTabButtonPositionStableDuringTabClose) {
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
 
   // Add a second tab so we can close one.
   chrome::NewTab(browser(), NewTabTypes::kNewTabCommand);

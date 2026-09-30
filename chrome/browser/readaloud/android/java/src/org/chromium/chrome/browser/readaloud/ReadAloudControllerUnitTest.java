@@ -49,7 +49,6 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationState;
@@ -135,12 +134,13 @@ import java.util.Locale;
 
 /** Unit tests for {@link ReadAloudController}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
-@DisableFeatures({ChromeFeatureList.READALOUD_AUDIO_OVERVIEWS, ChromeFeatureList.GLIC})
+@DisableFeatures({
+    ChromeFeatureList.READALOUD_AUDIO_OVERVIEWS,
+    ChromeFeatureList.GLIC,
+    AccessibilityFeatures.READ_ALOUD_NATIVE
+})
 public class ReadAloudControllerUnitTest {
     private static final GURL sTestGURL = JUnitTestGURLs.EXAMPLE_URL;
-    private static final GURL sTestRedirectGURL = JUnitTestGURLs.URL_1_WITH_PATH;
-    private static final Locale EN_US = new Locale("en", "US");
     private static final Locale FR_FR = new Locale("fr", "FR");
 
     private static final ReadAloudController.ReadabilityInfo ALL_SUPPORTED =
@@ -193,6 +193,7 @@ public class ReadAloudControllerUnitTest {
     @Mock private LayoutManager mLayoutManager;
     @Mock private ReadAloudPrefs.Natives mReadAloudPrefsNatives;
     @Mock private ReadAloudFeatures.Natives mReadAloudFeaturesNatives;
+    @Mock private ReadAloudNativeBridge.Natives mNativeBridgeNatives;
     @Mock private UserPrefsJni mUserPrefsNatives;
     @Mock private PrefService mPrefService;
     @Mock private ActorUiTabController mActorUiTabController;
@@ -273,6 +274,7 @@ public class ReadAloudControllerUnitTest {
         TranslateBridgeJni.setInstanceForTesting(mFakeTranslateBridge);
         ReadAloudPrefsJni.setInstanceForTesting(mReadAloudPrefsNatives);
         ReadAloudFeaturesJni.setInstanceForTesting(mReadAloudFeaturesNatives);
+        ReadAloudNativeBridgeJni.setInstanceForTesting(mNativeBridgeNatives);
         UserPrefsJni.setInstanceForTesting(mUserPrefsNatives);
         doReturn(mPrefService).when(mUserPrefsNatives).get(any());
         when(mPrefService.hasPrefPath("readaloud.playback_mode")).thenReturn(true);
@@ -474,6 +476,20 @@ public class ReadAloudControllerUnitTest {
     }
 
     @Test
+    @EnableFeatures(AccessibilityFeatures.READ_ALOUD_NATIVE)
+    public void testCreatePlayback_nativeEnabled_createsNativePlayback() {
+        when(mNativeBridgeNatives.init(any(), any())).thenReturn(12345L);
+        mController.onProfileAvailable(mMockProfile);
+
+        mController.playTab(mTab, ReadAloudController.Entrypoint.MAGIC_TOOLBAR);
+        resolvePromises();
+
+        // Verify Java playback hooks are bypassed when native playback is active.
+        verify(mPlaybackHooks, never()).createPlayback(any(), any());
+        verify(mNativeBridgeNatives).play(eq(12345L), eq(mWebContents));
+    }
+
+    @Test
     public void testIsAvailable_offTheRecord() {
         when(mMockProfile.isOffTheRecord()).thenReturn(true);
         assertFalse(mController.isAvailable());
@@ -630,6 +646,7 @@ public class ReadAloudControllerUnitTest {
     }
 
     @Test
+    @DisableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
     public void testClosingTab() {
         // Close a tab before any playback starts - tests null checks
         mController.getTabModelTabObserverforTests().willCloseTab(mTab);
@@ -656,6 +673,37 @@ public class ReadAloudControllerUnitTest {
     }
 
     @Test
+    @EnableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
+    public void testClosingTab_WillCloseTabs() {
+        // Close a tab before any playback starts - tests null checks
+        mController.getTabModelTabObserverforTests()
+                .willCloseTabs(List.of(mTab), /* isAllTabs= */ false, /* allowUndo= */ false);
+
+        verify(mPlayerCoordinator, never()).dismissPlayers();
+        verify(mPlayback, never()).release();
+
+        // now start playing a tab
+        requestAndStartPlayback();
+
+        // close some other tab, playback should keep going
+        MockTab newTab = mTabModelSelector.addMockTab();
+        newTab.setGurlOverrideForTesting(new GURL("https://en.wikipedia.org/wiki/Alphabet_Inc."));
+        mController.getTabModelTabObserverforTests()
+                .willCloseTabs(List.of(newTab), /* isAllTabs= */ false, /* allowUndo= */ false);
+
+        verify(mPlayerCoordinator, never()).dismissPlayers();
+        verify(mPlayback, never()).release();
+
+        // now close the playing tab
+        mController.getTabModelTabObserverforTests()
+                .willCloseTabs(List.of(mTab), /* isAllTabs= */ false, /* allowUndo= */ false);
+
+        verify(mPlayerCoordinator).dismissPlayers();
+        verify(mPlayback).release();
+    }
+
+    @Test
+    @DisableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
     public void testClosingTab_errorUiDismissed() {
         // start a playback with an error
         mController.playTab(mTab, ReadAloudController.Entrypoint.MAGIC_TOOLBAR);
@@ -667,6 +715,25 @@ public class ReadAloudControllerUnitTest {
 
         // Close this tab
         mController.getTabModelTabObserverforTests().willCloseTab(mTab);
+
+        // No playback but error UI should get dismissed
+        verify(mPlayerCoordinator).dismissPlayers();
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.TAB_CLOSURE_METHOD_REFACTOR)
+    public void testClosingTab_errorUiDismissed_WillCloseTabs() {
+        // start a playback with an error
+        mController.playTab(mTab, ReadAloudController.Entrypoint.MAGIC_TOOLBAR);
+        resolvePromises();
+        verify(mPlaybackHooks, times(1))
+                .createPlayback(Mockito.any(), mPlaybackCallbackCaptor.capture());
+        mPlaybackCallbackCaptor.getValue().onFailure(new Exception("Very bad error"));
+        resolvePromises();
+
+        // Close this tab
+        mController.getTabModelTabObserverforTests()
+                .willCloseTabs(List.of(mTab), /* isAllTabs= */ false, /* allowUndo= */ false);
 
         // No playback but error UI should get dismissed
         verify(mPlayerCoordinator).dismissPlayers();
@@ -751,6 +818,49 @@ public class ReadAloudControllerUnitTest {
                                 new ReadAloudReadabilityHooks.ReadabilityResult(true, false)));
         UnifiedConsentServiceBridge.setUrlKeyedAnonymizedDataCollectionEnabled(false);
         assertFalse(mController.isReadable(mTab));
+    }
+
+    @Test
+    @EnableFeatures(AccessibilityFeatures.READ_ALOUD_NATIVE)
+    public void testCheckReadability_nativeEnabled() {
+        when(mNativeBridgeNatives.init(any(), any())).thenReturn(12345L);
+        mController.onProfileAvailable(mMockProfile);
+
+        mController.maybeCheckReadability(mTab);
+
+        verify(mNativeBridgeNatives).checkReadability(eq(12345L), eq(sTestGURL));
+        verify(mHooksImpl, never())
+                .isPageReadable(
+                        anyString(),
+                        any(ReadAloudReadabilityHooks.ReadabilityPerModeCallback.class));
+    }
+
+    @Test
+    @EnableFeatures(AccessibilityFeatures.READ_ALOUD_NATIVE)
+    public void testOnReadabilityResult_nativeEnabled() {
+        when(mNativeBridgeNatives.init(any(), any())).thenReturn(12345L);
+        mController.onProfileAvailable(mMockProfile);
+
+        assertFalse(mController.isReadable(mTab));
+
+        mController.onReadabilityResult(sTestGURL, true);
+
+        assertTrue(mController.isReadable(mTab));
+        assertEquals(PlaybackMode.CLASSIC, mController.getModeToPlay(mTab));
+    }
+
+    @Test
+    @EnableFeatures(AccessibilityFeatures.READ_ALOUD_NATIVE)
+    public void testIsAllowed_nativeEnabled() {
+        UnifiedConsentServiceBridge.setUrlKeyedAnonymizedDataCollectionEnabled(false);
+        assertTrue(ReadAloudFeatures.isAllowed(mMockProfile));
+
+        when(mMockProfile.isOffTheRecord()).thenReturn(true);
+        assertFalse(ReadAloudFeatures.isAllowed(mMockProfile));
+
+        when(mMockProfile.isOffTheRecord()).thenReturn(false);
+        when(mPrefService.getBoolean(Pref.LISTEN_TO_THIS_PAGE_ENABLED)).thenReturn(false);
+        assertFalse(ReadAloudFeatures.isAllowed(mMockProfile));
     }
 
     @Test

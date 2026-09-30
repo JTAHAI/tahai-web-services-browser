@@ -20,6 +20,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
+#include "base/values.h"
 #include "chrome/browser/android/resource_mapper.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/browser/browser_process.h"
@@ -41,10 +42,11 @@
 #include "components/autofill/core/browser/geo/address_i18n.h"
 #include "components/autofill/core/browser/geo/autofill_country.h"
 #include "components/autofill/core/browser/geo/country_names.h"
+#include "components/autofill/core/browser/permissions/autofill_policy_service.h"
 #include "components/autofill/core/browser/studies/autofill_experiments.h"
 #include "components/autofill/core/browser/suggestions/payments/payments_suggestion_generator_util.h"
 #include "components/autofill/core/browser/ui/addresses/autofill_address_util.h"
-#include "components/autofill/core/browser/ui/autofill_resource_utils.h"
+#include "components/autofill/core/browser/ui/autofill_resource_util.h"
 #include "components/autofill/core/common/autofill_clock.h"
 #include "components/autofill/core/common/autofill_constants.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
@@ -53,6 +55,7 @@
 #include "components/autofill/core/common/credit_card_number_validation.h"
 #include "components/autofill/core/common/dense_set.h"
 #include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
 #include "third_party/jni_zero/default_conversions.h"
 #include "third_party/re2/src/re2/re2.h"
 #include "url/android/gurl_android.h"
@@ -694,12 +697,37 @@ PersonalDataManagerAndroid::GetMaskedBankAccounts(JNIEnv* env) {
                                                   type.obj());
 }
 
+bool PersonalDataManagerAndroid::IsAutofillTypeDisabledByEnterprisePolicy(
+    JNIEnv* env,
+    int category) {
+  return AutofillPolicyService::IsAutofillTypeDisabledByEnterprisePolicy(
+      *prefs_, GURL(),
+      static_cast<AutofillClient::AutofillPolicyDataCategory>(category));
+}
+
 bool PersonalDataManagerAndroid::IsAutofillProfileManaged(JNIEnv* env) {
-  return prefs::IsAutofillProfileManaged(prefs_);
+  // `prefs::IsAutofillProfileManaged` checks the legacy boolean policy.
+  // `AutofillPolicyService::IsAutofillTypeDisabledByEnterprisePolicy` checks
+  // the `kAutofillTypesBlocked` policy, which only specifies blocked (disabled)
+  // categories. Therefore, if this method returns true, Autofill profiles
+  // setting will be disabled.
+  return prefs::IsAutofillProfileManaged(prefs_) ||
+         IsAutofillTypeDisabledByEnterprisePolicy(
+             env,
+             static_cast<int>(
+                 AutofillClient::AutofillPolicyDataCategory::kContactInfo));
 }
 
 bool PersonalDataManagerAndroid::IsAutofillCreditCardManaged(JNIEnv* env) {
-  return prefs::IsAutofillCreditCardManaged(prefs_);
+  // `prefs::IsAutofillCreditCardManaged` checks the legacy boolean policy.
+  // `AutofillPolicyService::IsAutofillTypeDisabledByEnterprisePolicy` checks
+  // the `kAutofillTypesBlocked` policy, which only specifies blocked (disabled)
+  // categories. Therefore, if this method returns true, Autofill payment
+  // methods setting will be disabled.
+  return prefs::IsAutofillCreditCardManaged(prefs_) ||
+         IsAutofillTypeDisabledByEnterprisePolicy(
+             env, static_cast<int>(
+                      AutofillClient::AutofillPolicyDataCategory::kPayments));
 }
 
 // Returns the issuer network string according to PaymentRequest spec, or an
@@ -779,6 +807,41 @@ bool PersonalDataManagerAndroid::
     IsAutofillAmountExtractionAiTermsSeenPrefEnabled(JNIEnv* env) {
   return payments_data_manager()
       .IsAutofillAmountExtractionAiTermsSeenPrefEnabled();
+}
+
+std::vector<std::string>
+PersonalDataManagerAndroid::GetEmailVerificationAddresses(JNIEnv* env) {
+  const base::DictValue& state =
+      prefs_->GetDict(prefs::kAutofillEmailVerificationState);
+  std::vector<std::string> emails;
+  emails.reserve(state.size());
+  for (auto it : state) {
+    emails.push_back(it.first);
+  }
+  return emails;
+}
+
+std::string PersonalDataManagerAndroid::GetEmailVerificationIssuer(
+    JNIEnv* env,
+    const std::string& email) {
+  const base::DictValue& state =
+      prefs_->GetDict(prefs::kAutofillEmailVerificationState);
+  const base::DictValue* email_data = state.FindDict(email);
+  if (!email_data) {
+    return "";
+  }
+  const std::string* issuer = email_data->FindString("issuer_site");
+  if (!issuer) {
+    return "";
+  }
+  return *issuer;
+}
+
+void PersonalDataManagerAndroid::RemoveEmailVerificationAddress(
+    JNIEnv* env,
+    const std::string& email) {
+  ScopedDictPrefUpdate update(prefs_, prefs::kAutofillEmailVerificationState);
+  update->Remove(email);
 }
 
 }  // namespace autofill

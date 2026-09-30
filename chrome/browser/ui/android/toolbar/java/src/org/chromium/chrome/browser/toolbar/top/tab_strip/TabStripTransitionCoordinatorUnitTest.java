@@ -941,6 +941,76 @@ public class TabStripTransitionCoordinatorUnitTest {
     }
 
     @Test
+    public void fadeTransitionThresholdChangedNotInDesktopWindow() {
+        // Start in non-desktop windowing mode with a large window.
+        setUpTabStripTransitionCoordinator(
+                /* isInDesktopWindow= */ false, LARGE_DESKTOP_WINDOW_WIDTH);
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
+
+        // Update the threshold dynamically.
+        mDelegate.thresholdDp = LARGE_DESKTOP_WINDOW_WIDTH + 1;
+
+        // Trigger the callback to notify the coordinator/handler of the threshold change.
+        int count = mDelegate.fadeTransitionCallback.getCallCount();
+        mDelegate.triggerThresholdChanged();
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
+
+        // The fade transition should NOT be requested because we are not in desktop windowing mode.
+        assertEquals(
+                "Fade transition should not be requested when not in a desktop window.",
+                count,
+                mDelegate.fadeTransitionCallback.getCallCount());
+    }
+
+    @Test
+    public void suppressTabStripNotInDesktopWindow() {
+        // Start in non-desktop windowing mode with a large window.
+        setUpTabStripTransitionCoordinator(
+                /* isInDesktopWindow= */ false, LARGE_DESKTOP_WINDOW_WIDTH);
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
+
+        int count = mDelegate.fadeTransitionCallback.getCallCount();
+        mCoordinator.suppressTabStrip(true);
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
+
+        // The fade transition should NOT be requested when tab strip suppression changes in non-DW
+        // mode.
+        assertEquals(
+                "Fade transition should not be requested when suppressing in standard mode.",
+                count,
+                mDelegate.fadeTransitionCallback.getCallCount());
+    }
+
+    @Test
+    public void exitDesktopWindowWithUrlBarFocused_forceFadeInStrip() {
+        // Start in narrow desktop windowing mode.
+        setUpTabStripTransitionCoordinator(
+                /* isInDesktopWindow= */ true, NARROW_DESKTOP_WINDOW_WIDTH);
+        setDeviceWidthDp(NARROW_DESKTOP_WINDOW_WIDTH);
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
+        verifyFadeTransitionState(1f);
+
+        // Focus the URL bar to block the height transition.
+        mCoordinator.onUrlFocusChange(true);
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
+
+        // Switch to a fullscreen window of the same width (exiting DW mode).
+        // Since the height transition is blocked, mForceFadeInStrip will evaluate to true.
+        int count = mDelegate.fadeTransitionCallback.getCallCount();
+        simulateAppHeaderStateChanged(NARROW_DESKTOP_WINDOW_WIDTH, false);
+        simulateLayoutChange(NARROW_DESKTOP_WINDOW_WIDTH);
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
+
+        // The fade transition should be successfully requested to force fade in the strip
+        // despite the unchanged width, verifying the early-return bypass.
+        assertEquals(
+                "Fade transition should be requested to force fade in.",
+                count + 1,
+                mDelegate.fadeTransitionCallback.getCallCount());
+        verifyFadeTransitionState(0f);
+    }
+
+    @Test
     public void transitionUpdatesTopPaddingOnAppThemeChange() {
         // Simulate re-instantiation of the coordinator when the control container hasn't been
         // measured yet, that happens on an app theme change.
@@ -1283,6 +1353,24 @@ public class TabStripTransitionCoordinatorUnitTest {
                 expectedScrimOpacity,
                 mDelegate.scrimOpacityRequested,
                 0f);
+    }
+
+    @Test
+    public void testDesktopWindowingTransitionControlContainerMinHeight() {
+        // Initialize the coordinator in wide normal window (fullscreen)
+        setUpTabStripTransitionCoordinator(true, LARGE_NORMAL_WINDOW_WIDTH);
+
+        // Transition into desktop windowing with a narrow window (narrow desktop window width)
+        simulateAppHeaderStateChanged(NARROW_DESKTOP_WINDOW_WIDTH, true);
+        simulateLayoutChange(NARROW_DESKTOP_WINDOW_WIDTH);
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
+
+        // Control container minHeight should be updated to TEST_TAB_STRIP_HEIGHT +
+        // mReservedTopPadding
+        // and NOT 0 (which would happen if showTabStrip=false caused tabStripHeight=0).
+        int expectedMinHeight = TEST_TAB_STRIP_HEIGHT + mReservedTopPadding;
+        verify(mSpyControlContainer, org.mockito.Mockito.atLeastOnce())
+                .setMinimumHeight(expectedMinHeight);
     }
 
     // Due to the complexity to use the real views for top toolbar in robolectric tests, use view

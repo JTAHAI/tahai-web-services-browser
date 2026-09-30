@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <ranges>
 
 #include "base/android/callback_android.h"
 #include "base/android/jni_android.h"
@@ -14,7 +15,6 @@
 #include "base/check_deref.h"
 #include "base/containers/to_vector.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/types/zip.h"
 #include "chrome/browser/account_settings/account_setting_service_factory.h"
 #include "chrome/browser/autofill/android/entity_instance_android.h"
 #include "chrome/browser/autofill/android/entity_instance_with_labels.h"
@@ -33,14 +33,16 @@
 #include "components/autofill/core/browser/autofill_field.h"
 #include "components/autofill/core/browser/data_manager/autofill_ai/entity_data_manager.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
+#include "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type_names.h"
 #include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_labels.h"
-#include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_wallet_utils.h"
-#include "components/autofill/core/browser/integrators/autofill_ai/management_utils.h"
+#include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_wallet_util.h"
+#include "components/autofill/core/browser/integrators/autofill_ai/management_util.h"
 #include "components/autofill/core/browser/integrators/autofill_ai/metrics/autofill_ai_metrics.h"
 #include "components/autofill/core/browser/integrators/personal_context/personal_context_autofill_util.h"
 #include "components/autofill/core/browser/network/autofill_ai/wallet_pass_access_manager.h"
-#include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_utils.h"
+#include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_util.h"
+#include "components/autofill/core/browser/permissions/autofill_policy_service.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_prefs.h"
 #include "components/consent_auditor/consent_auditor.h"
@@ -95,9 +97,7 @@ EntityDataManagerAndroid::~EntityDataManagerAndroid() = default;
 
 bool EntityDataManagerAndroid::IsPersonalContextPreferenceVisible(JNIEnv* env) {
   return autofill::ShouldShowPersonalContextAutofillSetting(
-#if !BUILDFLAG(IS_FUCHSIA)
       google_groups_manager_,
-#endif
       prefs_, &entity_data_manager(), identity_manager_, sync_service_,
       IsWalletPublicPassStorageEnabledHelper(), is_off_the_record_,
       entity_data_manager_->GetVariationCountryCode(),
@@ -344,7 +344,8 @@ EntityDataManagerAndroid::GetEntitiesWithLabels(JNIEnv* env) {
                              g_browser_process->GetApplicationLocale());
     CHECK_EQ(entities_of_type.size(), labels.size());
 
-    for (const auto [entity, label] : base::zip(entities_of_type, labels)) {
+    for (const auto [entity, label] :
+         std::views::zip(entities_of_type, labels)) {
       const bool stored_in_wallet =
           entity->record_type() == EntityInstance::RecordType::kServerWallet;
       entities_with_labels.emplace_back(
@@ -407,6 +408,39 @@ void EntityDataManagerAndroid::OnEntityInstancesChanged() {
 bool EntityDataManagerAndroid::GetIsAutofillAiDisabledByEnterprisePolicy(
     JNIEnv* env) {
   return IsAutofillAiDisabledByEnterprisePolicy(prefs_);
+}
+
+bool EntityDataManagerAndroid::
+    GetIsAutofillAiEntityTypeDisabledByEnterprisePolicy(JNIEnv* env,
+                                                        int entity_type_name) {
+  if (IsAutofillAiDisabledByEnterprisePolicy(prefs_)) {
+    return true;
+  }
+  std::optional<EntityTypeName> type_name =
+      ToSafeEntityTypeName(entity_type_name);
+  if (!type_name) {
+    return false;
+  }
+  switch (*type_name) {
+    case EntityTypeName::kNationalIdCard:
+    case EntityTypeName::kPassport:
+    case EntityTypeName::kDriversLicense:
+      return AutofillPolicyService::IsAutofillTypeDisabledByEnterprisePolicy(
+          *prefs_, GURL(),
+          AutofillClient::AutofillPolicyDataCategory::kIdentityDocs);
+    case EntityTypeName::kVehicle:
+    case EntityTypeName::kFlightReservation:
+    case EntityTypeName::kRedressNumber:
+    case EntityTypeName::kKnownTravelerNumber:
+      return AutofillPolicyService::IsAutofillTypeDisabledByEnterprisePolicy(
+          *prefs_, GURL(), AutofillClient::AutofillPolicyDataCategory::kTravel);
+    case EntityTypeName::kOrder:
+    case EntityTypeName::kShipment:
+      return AutofillPolicyService::IsAutofillTypeDisabledByEnterprisePolicy(
+          *prefs_, GURL(),
+          AutofillClient::AutofillPolicyDataCategory::kShopping);
+  }
+  return false;
 }
 
 bool EntityDataManagerAndroid::GetIsAutofillAiAllowedByEnterprisePolicy(

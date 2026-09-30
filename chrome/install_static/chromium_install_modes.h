@@ -46,6 +46,24 @@ enum InstallConstantIndex {
   NUM_INSTALL_MODES,
 };
 
+inline constexpr auto kOldTracingServiceIids = std::to_array<IID>({
+#if BUILDFLAG(TAHAI_BRANDING)
+    // The pre-154 string invitation ABI must never use the new handle ABI.
+    // Replaced in 2026-09. Delete after 2028-09.
+    {0x5df5fc8a,
+     0x5921,
+     0x5a3d,
+     {0x84, 0x47, 0x36, 0x7a, 0xea, 0xf4, 0xb8, 0x15}},
+#else
+    // Replaced in 2026-09. Delete after 2028-09.
+    // {A3FD580A-FFD4-4075-9174-75D0B199D3CB}
+    {0xa3fd580a,
+     0xffd4,
+     0x4075,
+     {0x91, 0x74, 0x75, 0xd0, 0xb1, 0x99, 0xd3, 0xcb}},
+#endif
+});
+
 inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
     // The primary (and only) install mode for Chromium.
     {
@@ -66,8 +84,7 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
         .direct_launch_url_scheme = "tahai-browser",
         .pdf_prog_id_prefix = L"TAHAIPDF",
         .pdf_prog_id_description = L"TAHAI Browser PDF Document",
-        .active_setup_guid =
-            L"{DF75B433-1691-5230-B9E4-11C8EE8A842D}",
+        .active_setup_guid = L"{DF75B433-1691-5230-B9E4-11C8EE8A842D}",
         .toast_activator_clsid = {0xC5B6E74A,
                                   0xACE3,
                                   0x5F9E,
@@ -76,23 +93,24 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
         .elevator_clsid = {0xB79472FC,
                            0x4AB5,
                            0x5094,
-                           {0x88, 0x22, 0xF4, 0xD5, 0x92, 0x88, 0x30,
-                            0xB0}},
+                           {0x88, 0x22, 0xF4, 0xD5, 0x92, 0x88, 0x30, 0xB0}},
         .elevator_iid = {0x8D296EFE,
                          0x0DBF,
                          0x5BC7,
-                         {0x9A, 0x25, 0x55, 0x82, 0x3F, 0x18, 0x6D,
-                          0x24}},
+                         {0x9A, 0x25, 0x55, 0x82, 0x3F, 0x18, 0x6D, 0x24}},
         .tracing_service_clsid = {0xEDC64288,
                                   0x10BC,
                                   0x5A45,
                                   {0x9F, 0x64, 0x77, 0x18, 0xE9, 0x83, 0x38,
                                    0xAD}},
-        .tracing_service_iid = {0x5DF5FC8A,
-                                0x5921,
-                                0x5A3D,
-                                {0x84, 0x47, 0x36, 0x7A, 0xEA, 0xF4, 0xB8,
-                                 0x15}},
+        // UUIDv5 of the previous TAHAI IID and
+        // "ISystemTraceSession.AcceptInvitation(UINT32,DWORD*)/Chromium154".
+        .tracing_service_iid = {0xE91BA5EB,
+                                0x59CF,
+                                0x50E3,
+                                {0x8B, 0xC8, 0x17, 0x5F, 0xE3, 0x6F, 0x3E,
+                                 0x79}},
+        .old_tracing_service_iids = kOldTracingServiceIids,
 #else
         .base_app_name = L"Chromium",              // A distinct base_app_name.
         .base_app_id = L"Chromium",                // A distinct base_app_id.
@@ -122,17 +140,19 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
                          {0x94, 0xb2, 0x5a, 0xfe, 0xc6, 0xfe, 0xd9,
                           0x3a}},  // IElevator IID and TypeLib
         // {BB19A0E5-00C6-4966-94B2-5AFEC6FED93A}.
+        .old_elevator_iids = {},
         .tracing_service_clsid = {0x83f69367,
                                   0x442d,
                                   0x447f,
                                   {0x8b, 0xcc, 0x0e, 0x3f, 0x97, 0xbe, 0x9c,
                                    0xf2}},  // SystemTraceSession CLSID.
-        .tracing_service_iid = {0xa3fd580a,
-                                0xffd4,
-                                0x4075,
-                                {0x91, 0x74, 0x75, 0xd0, 0xb1, 0x99, 0xd3,
-                                 0xcb}},  // ISystemTraceSessionChromium IID and
+        .tracing_service_iid = {0xe0b03e2d,
+                                0x7682,
+                                0x4d83,
+                                {0xb9, 0xff, 0x45, 0x74, 0xaf, 0x72, 0x05,
+                                 0x00}},  // ISystemTraceSessionChromium IID and
                                           // TypeLib
+        .old_tracing_service_iids = kOldTracingServiceIids,
 #endif
         .default_channel_name =
             L"",  // Empty default channel name since no update integration.

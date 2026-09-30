@@ -316,7 +316,7 @@ bool MessagePumpKqueue::WatchFileDescriptor(int fd,
   return true;
 }
 
-void MessagePumpKqueue::SetWakeupTimerEvent(const base::TimeTicks& wakeup_time,
+void MessagePumpKqueue::SetWakeupTimerEvent(base::TimeTicks wakeup_time,
                                             base::TimeDelta leeway,
                                             kevent64_s* timer_event) {
   // The ident of the wakeup timer. There's only the one timer as the pair
@@ -437,10 +437,13 @@ bool MessagePumpKqueue::DoInternalWork(Delegate* delegate,
     // No events to dispatch so no need to call ProcessEvents().
     return false;
   }
-  MessagePumpWakeupCounter::GetForCurrentThread().RecordWakeup();
 
   PCHECK(rv > 0) << "kevent64";
-  return ProcessEvents(delegate, static_cast<size_t>(rv));
+  bool did_work = ProcessEvents(delegate, static_cast<size_t>(rv));
+  if (did_work) {
+    MessagePumpWakeupCounter::GetForCurrentThread().RecordWakeup();
+  }
+  return did_work;
 }
 
 bool MessagePumpKqueue::ProcessEvents(Delegate* delegate, size_t count) {
@@ -525,9 +528,8 @@ bool MessagePumpKqueue::ProcessEvents(Delegate* delegate, size_t count) {
   return did_work;
 }
 
-void MessagePumpKqueue::MaybeUpdateWakeupTimer(
-    const base::TimeTicks& wakeup_time,
-    base::TimeDelta leeway) {
+void MessagePumpKqueue::MaybeUpdateWakeupTimer(base::TimeTicks wakeup_time,
+                                               base::TimeDelta leeway) {
   if (wakeup_time == scheduled_wakeup_time_) {
     // No change in the timer setting necessary.
     return;

@@ -1,4 +1,5 @@
 include_rules = [
+  "+components/contextual_cueing",
   "+components/keyed_service/core",
-  "+components/metrics/private_metrics/private_insights",
+  "+components/private_insights",
 ]

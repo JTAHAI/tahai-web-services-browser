@@ -151,6 +151,7 @@ public class AtMemoryBottomSheetViewRenderTest {
 
     @Test
     @Feature({"RenderTest"})
+    @DisabledTest(message = "crbug.com/535897013")
     public void testAtMemoryBottomSheetMainScreen() throws Exception {
         ContextThemeWrapper themeWrapper =
                 new ContextThemeWrapper(mActivity, R.style.Theme_BrowserUI_DayNight);
@@ -272,6 +273,20 @@ public class AtMemoryBottomSheetViewRenderTest {
                                     HomeProperties.ItemType.SUGGESTION_WITH_NO_BACKGROUND,
                                     searchTileModel));
 
+                    PropertyModel disclosureModel =
+                            new PropertyModel.Builder(
+                                            AtMemoryBottomSheetProperties
+                                                    .TextWithClickableLinkProperties.ALL_KEYS)
+                                    .with(
+                                            AtMemoryBottomSheetProperties
+                                                    .TextWithClickableLinkProperties.TEXT,
+                                            mActivity.getString(R.string.at_memory_ai_disclosure))
+                                    .build();
+                    modelList.add(
+                            new ListItem(
+                                    HomeProperties.ItemType.TEXT_WITH_CLICKABLE_LINK,
+                                    disclosureModel));
+
                     mView.getHomeView().setUpSheetItems(modelList);
 
                     mBottomSheetController.requestShowContent(content, false);
@@ -305,7 +320,23 @@ public class AtMemoryBottomSheetViewRenderTest {
 
                     ModelList modelList = new ModelList();
                     modelList.add(
-                            new ListItem(HomeProperties.ItemType.ZERO_STATE, new PropertyModel()));
+                            new ListItem(
+                                    HomeProperties.ItemType.ILLUSTRATION_CARD,
+                                    new PropertyModel.Builder(
+                                                    AtMemoryBottomSheetProperties
+                                                            .IllustrationCardItemProperties
+                                                            .ALL_KEYS)
+                                            .with(
+                                                    AtMemoryBottomSheetProperties
+                                                            .IllustrationCardItemProperties.TITLE,
+                                                    "Search your information")
+                                            .with(
+                                                    AtMemoryBottomSheetProperties
+                                                            .IllustrationCardItemProperties
+                                                            .SUBTITLE,
+                                                    "Check your saved information across Google"
+                                                            + " apps")
+                                            .build()));
 
                     mView.getHomeView().setUpSheetItems(modelList);
 

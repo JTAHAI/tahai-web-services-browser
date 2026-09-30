@@ -175,7 +175,7 @@ class UrlBarViewBinder {
         final Drawable textSelectHandleLeft = assumeNonNull(view.getTextSelectHandleLeft());
         final Drawable textSelectHandleRight = assumeNonNull(view.getTextSelectHandleRight());
 
-        final int color =
+        final @ColorInt int color =
                 useIncognitoColors
                         ? view.getContext().getColor(R.color.default_control_color_active_dark)
                         : MaterialColors.getColor(view, R.attr.colorPrimary);
@@ -185,7 +185,7 @@ class UrlBarViewBinder {
         textSelectHandleRight.mutate().setTint(color);
     }
 
-    private static @Nullable String getHintForModelState(PropertyModel model) {
+    private static @Nullable CharSequence getHintForModelState(PropertyModel model) {
         // Android TextView's set a desired size based on the max of the hint text size and the
         // "regular" size. In small text mode, where we don't intend to show the hint, we set it to
         // null to avoid over-allocating space for text that will never be shown.

@@ -6,7 +6,9 @@
 
 #include <stddef.h>
 
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "base/apple/foundation_util.h"
 #include "base/functional/bind.h"
@@ -259,7 +261,7 @@ const base::FilePath& HistoryMenuBridge::profile_dir() const {
 
 NSMenu* HistoryMenuBridge::HistoryMenu() {
   NSMenu* history_menu =
-      [[[NSApp mainMenu] itemWithTag:kMacHistoryMenuId] submenu];
+      [[[NSApp mainMenu] itemWithTag:IDC_HISTORY_MENU] submenu];
   return history_menu;
 }
 
@@ -443,7 +445,7 @@ bool HistoryMenuBridge::AddSplitEntryToMenu(sessions::tab_restore::Split* split,
   const gfx::VectorIcon* vector_icon = nullptr;
   if (split->visual_data.split_layout() ==
       split_tabs::SplitTabLayout::kStacked) {
-    vector_icon = &kSplitSceneHorizontalCustomIcon;
+    vector_icon = &kSplitScene2Icon;
   } else {
     vector_icon = &(features::IsRoundedIconsEnabled() ? kSplitSceneIcon
                                                       : kSplitSceneOldIcon);

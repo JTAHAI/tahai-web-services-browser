@@ -36,7 +36,7 @@
 #include "components/autofill/core/browser/form_parsing/address_field_parser.h"
 #include "components/autofill/core/browser/form_parsing/address_field_parser_ng.h"
 #include "components/autofill/core/browser/form_parsing/alternative_name_field_parser.h"
-#include "components/autofill/core/browser/form_parsing/autofill_parsing_utils.h"
+#include "components/autofill/core/browser/form_parsing/autofill_parsing_util.h"
 #include "components/autofill/core/browser/form_parsing/autofill_scanner.h"
 #include "components/autofill/core/browser/form_parsing/credit_card_field_parser.h"
 #include "components/autofill/core/browser/form_parsing/email_field_parser.h"
@@ -119,9 +119,8 @@ void MaybePrintMatchLogs(LogManager* log_manager,
 }
 
 bool IsRelevant(const FormFieldData& field) {
-  return !IsCheckable(field.check_status()) &&
-         (field.role() != FormFieldData::RoleAttribute::kPresentation ||
-          field.IsSelectElement());
+  return field.role() != FormFieldData::RoleAttribute::kPresentation ||
+         field.IsSelectElement();
 }
 
 }  // namespace
@@ -288,9 +287,9 @@ void FormFieldParser::ClearCandidatesIfHeuristicsDidNotFindEnoughFields(
   // Set to count distinct field types.
   FieldTypeSet heuristic_types;
   for (const auto& [field_id, candidates] : field_candidates) {
-    if (FieldType heuristic_type = candidates.BestHeuristicType();
-        IsFillableFieldType(heuristic_type)) {
-      heuristic_types.insert(heuristic_type);
+    if (FieldCandidate best_candidate = candidates.BestHeuristicCandidate();
+        IsFillableFieldType(best_candidate.type)) {
+      heuristic_types.insert(best_candidate.type);
     }
   }
 
@@ -332,7 +331,7 @@ void FormFieldParser::ClearCandidatesIfHeuristicsDidNotFindEnoughFields(
   std::vector<WipedField> wiped_fields;
   if (IsLoggingActive(log_manager)) {
     for (const auto& [field_id, candidates] : field_candidates) {
-      FieldType heuristic_type = candidates.BestHeuristicType();
+      FieldType heuristic_type = candidates.BestHeuristicCandidate().type;
       if (!permitted_single_field_types.contains(heuristic_type)) {
         wiped_fields.emplace_back(WipedField{field_id, heuristic_type});
       }
@@ -343,13 +342,12 @@ void FormFieldParser::ClearCandidatesIfHeuristicsDidNotFindEnoughFields(
   // types, we expect field_candidates to be small and don't need to be
   // extremely performant. It's ok to use EraseIf even if in some cases we could
   // clear everything.
-  base::EraseIf(
-      field_candidates,
-      [&permitted_single_field_types](
-          const FieldCandidatesMap::container_type::value_type& candidate) {
-        return !permitted_single_field_types.contains(
-            candidate.second.BestHeuristicType());
-      });
+  base::EraseIf(field_candidates,
+                [&permitted_single_field_types](
+                    const FieldCandidatesMap::value_type& field_candidate) {
+                  return !permitted_single_field_types.contains(
+                      field_candidate.second.BestHeuristicCandidate().type);
+                });
 
   if (IsLoggingActive(log_manager)) {
     LogBuffer table_rows;
@@ -636,8 +634,15 @@ void FormFieldParser::AddClassification(
           MatchInfo::MatchAttribute::kLowQualityLabel,
       /*parser_type=*/parser_type};
 
-  FieldCandidates& candidates = field_candidates[match->field->global_id()];
-  candidates.AddFieldCandidate(type, match->match_info, priority);
+  FieldCandidatesMap::iterator it =
+      field_candidates.find(match->field->global_id());
+  if (it != field_candidates.end()) {
+    it->second.AddFieldCandidate(type, match->match_info, priority);
+  } else {
+    field_candidates.insert(
+        {match->field->global_id(),
+         FieldCandidates(type, match->match_info, priority)});
+  }
 }
 
 std::optional<MatchInfo> FormFieldParser::Match(

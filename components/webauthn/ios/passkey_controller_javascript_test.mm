@@ -44,6 +44,10 @@ const char kNavigatorCredentialsConditionalGetUrl[] =
     "/credentialsConditionalGet";
 const char kNavigatorCredentialsCreateMissingRpIdUrl[] =
     "/credentialsCreateMissingRpId";
+const char kNavigatorCredentialsCreateUnsupportedAlgorithmUrl[] =
+    "/credentialsCreateUnsupportedAlgorithm";
+const char kNavigatorCredentialsCreateMultipleAlgorithmsUrl[] =
+    "/credentialsCreateMultipleAlgorithms";
 const char kNavigatorCredentialsGetWithUserHandleUrl[] =
     "/credentialsGetWithUserHandle";
 const char kNavigatorCredentialsCreateWithResultUrl[] =
@@ -77,6 +81,23 @@ const char kNavigatorCredentialsCreateMissingRpIdPageHtml[] =
     "challenge: new ArrayBuffer(0), "
     "rp: { name: 'My Website' },"
     "user: { id: new ArrayBuffer(0), name: '', displayName: '' } } });"
+    "</script></body></html>";
+const char kNavigatorCredentialsCreateUnsupportedAlgorithmPageHtml[] =
+    "<html><body><script>"
+    "navigator.credentials.create({ publicKey: { "
+    "challenge: new ArrayBuffer(0), "
+    "rp: { id: '127.0.0.1', name: '' },"
+    "user: { id: new ArrayBuffer(0), name: '', displayName: '' },"
+    "pubKeyCredParams: [{ type: 'public-key', alg: -257 }] } });"
+    "</script></body></html>";
+const char kNavigatorCredentialsCreateMultipleAlgorithmsPageHtml[] =
+    "<html><body><script>"
+    "navigator.credentials.create({ publicKey: { "
+    "challenge: new ArrayBuffer(0), "
+    "rp: { id: new ArrayBuffer(0), name: '' },"
+    "user: { id: new ArrayBuffer(0), name: '', displayName: '' },"
+    "pubKeyCredParams: [{ type: 'public-key', alg: -257 }, "
+    "{ type: 'public-key', alg: -7 }] } });"
     "</script></body></html>";
 const char kNavigatorCredentialsGetWithUserHandlePageHtml[] =
     "<html><body><script>"
@@ -257,6 +278,43 @@ const char kModalTestNameSubstring[] = "Modal";
 const char kConditionalTestNameSubstring[] = "Conditional";
 const char kUnsupportedResolvesWithNullTestNameSubstring[] =
     "UnsupportedResolvesWithNull";
+const char kPassthroughNullAttachmentTestNameSubstring[] =
+    "PassthroughNullAttachment";
+
+NSString* const kMockCredentialWithNullAttachmentJs =
+    @"if (typeof PublicKeyCredential === 'undefined') {"
+    @"  window.PublicKeyCredential = class PublicKeyCredential {};"
+    @"}"
+    @"if (typeof AuthenticatorAttestationResponse === 'undefined') {"
+    @"  window.AuthenticatorAttestationResponse = "
+    @"      class AuthenticatorAttestationResponse {};"
+    @"}"
+    @"const mockCredential = {"
+    @"  id: 'credential_id',"
+    @"  type: 'public-key',"
+    @"  authenticatorAttachment: null,"
+    @"  rawId: new ArrayBuffer(8),"
+    @"  response: {"
+    @"    clientDataJSON: new ArrayBuffer(8),"
+    @"    attestationObject: new ArrayBuffer(8),"
+    @"    getAuthenticatorData: () => new ArrayBuffer(128),"
+    @"    getPublicKey: () => new ArrayBuffer(64),"
+    @"    getPublicKeyAlgorithm: () => -7,"
+    @"    getTransports: () => [],"
+    @"  },"
+    @"  getClientExtensionResults: () => ({}),"
+    @"  toJSON: () => ({}),"
+    @"};"
+    @"Object.setPrototypeOf(mockCredential, PublicKeyCredential.prototype);"
+    @"Object.setPrototypeOf(mockCredential.response, "
+    @"AuthenticatorAttestationResponse.prototype);"
+    @"if (!navigator.credentials) {"
+    @"  Object.defineProperty(navigator, 'credentials', {"
+    @"    value: {}, writable: true, configurable: true"
+    @"  });"
+    @"}"
+    @"navigator.credentials.create = async (options) => mockCredential;"
+    @"navigator.credentials.get = async (options) => mockCredential;";
 
 NSString* const kEventKey = @"event";
 NSString* const kFrameIdKey = @"frameId";
@@ -287,6 +345,14 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   } else if (request.relative_url ==
              kNavigatorCredentialsCreateMissingRpIdUrl) {
     http_response->set_content(kNavigatorCredentialsCreateMissingRpIdPageHtml);
+  } else if (request.relative_url ==
+             kNavigatorCredentialsCreateUnsupportedAlgorithmUrl) {
+    http_response->set_content(
+        kNavigatorCredentialsCreateUnsupportedAlgorithmPageHtml);
+  } else if (request.relative_url ==
+             kNavigatorCredentialsCreateMultipleAlgorithmsUrl) {
+    http_response->set_content(
+        kNavigatorCredentialsCreateMultipleAlgorithmsPageHtml);
   } else if (request.relative_url == kNavigatorCredentialsGetUrl) {
     http_response->set_content(kNavigatorCredentialsGetPageHtml);
   } else if (request.relative_url == kNavigatorCredentialsConditionalGetUrl) {
@@ -354,6 +420,15 @@ class PasskeyControllerJavaScriptTest : public web::JavascriptTest {
           forMainFrameOnly:NO];
       [web_view().configuration.userContentController
           addUserScript:disableScript];
+    }
+
+    if (test_name.find(kPassthroughNullAttachmentTestNameSubstring) !=
+        std::string::npos) {
+      WKUserScript* mockScript = [[WKUserScript alloc]
+            initWithSource:kMockCredentialWithNullAttachmentJs
+             injectionTime:WKUserScriptInjectionTimeAtDocumentStart
+          forMainFrameOnly:NO];
+      [web_view().configuration.userContentController addUserScript:mockScript];
     }
 
     // Get the script string directly from PasskeyJavaScriptFeature so that
@@ -470,6 +545,58 @@ TEST_F(PasskeyControllerJavaScriptTest,
   NSDictionary* rpEntity = body[kRpEntityKey];
   EXPECT_TRUE(rpEntity != nil);
   EXPECT_NSEQ(@"127.0.0.1", rpEntity[kIdKey]);
+}
+
+TEST_F(PasskeyControllerJavaScriptTest,
+       NavigatorCredentialsModalCreateUnsupportedAlgorithmPassthrough) {
+  GURL URL =
+      server().GetURL(kNavigatorCredentialsCreateUnsupportedAlgorithmUrl);
+  ASSERT_TRUE(LoadUrl(URL));
+
+  EXPECT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kWaitForPageLoadTimeout, ^{
+        if (message_handler().lastReceivedMessage == nil) {
+          return NO;
+        }
+        NSDictionary* body = message_handler().lastReceivedMessage.body;
+        return [body[kEventKey] isEqualToString:kLogCreateRequestEvent];
+      }));
+
+  NSDictionary* body = message_handler().lastReceivedMessage.body;
+  NSArray* allKeys = body.allKeys;
+  EXPECT_EQ(allKeys.count, 1ul);
+  EXPECT_TRUE([allKeys containsObject:kEventKey]);
+
+  EXPECT_NSEQ(kLogCreateRequestEvent, body[kEventKey]);
+}
+
+TEST_F(PasskeyControllerJavaScriptTest,
+       NavigatorCredentialsModalCreateMultipleAlgorithmsSupported) {
+  GURL URL = server().GetURL(kNavigatorCredentialsCreateMultipleAlgorithmsUrl);
+  ASSERT_TRUE(LoadUrl(URL));
+
+  EXPECT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kWaitForPageLoadTimeout, ^{
+        if (message_handler().lastReceivedMessage == nil) {
+          return NO;
+        }
+        NSDictionary* body = message_handler().lastReceivedMessage.body;
+        return [body[kEventKey] isEqualToString:kHandleCreateRequestEvent];
+      }));
+
+  NSDictionary* body = message_handler().lastReceivedMessage.body;
+  NSArray* allKeys = body.allKeys;
+  EXPECT_EQ(allKeys.count, 8ul);
+  EXPECT_TRUE([allKeys containsObject:kEventKey]);
+  EXPECT_TRUE([allKeys containsObject:kFrameIdKey]);
+  EXPECT_TRUE([allKeys containsObject:kRequestIdKey]);
+  EXPECT_TRUE([allKeys containsObject:kRequestKey]);
+  EXPECT_TRUE([allKeys containsObject:kRpEntityKey]);
+  EXPECT_TRUE([allKeys containsObject:kUserEntityKey]);
+  EXPECT_TRUE([allKeys containsObject:kExcludeCredentialsKey]);
+  EXPECT_TRUE([allKeys containsObject:kExtensionsKey]);
+
+  EXPECT_NSEQ(kHandleCreateRequestEvent, body[kEventKey]);
 }
 
 TEST_F(PasskeyControllerJavaScriptTest,
@@ -1043,6 +1170,46 @@ TEST_F(PasskeyControllerJavaScriptTest,
   id firstByte =
       web::test::ExecuteJavaScript(web_view(), kGetFirstByteOfPublicKeyJs);
   EXPECT_NSEQ(@1, firstByte);
+}
+
+TEST_F(PasskeyControllerJavaScriptTest,
+       PassthroughNullAttachment_RegistrationSucceeds) {
+  GURL create_url = server().GetURL(kNavigatorCredentialsCreateWithResultUrl);
+
+  ASSERT_TRUE(LoadUrl(create_url));
+
+  EXPECT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kWaitForPageLoadTimeout, ^{
+        if (message_handler().lastReceivedMessage == nil) {
+          return NO;
+        }
+        NSDictionary* body = message_handler().lastReceivedMessage.body;
+        return [body[kEventKey] isEqualToString:@"logCreateResolved"];
+      }));
+
+  NSDictionary* body = message_handler().lastReceivedMessage.body;
+  EXPECT_NSEQ(@"logCreateResolved", body[kEventKey]);
+  EXPECT_NSEQ(@NO, body[@"isGpm"]);
+}
+
+TEST_F(PasskeyControllerJavaScriptTest,
+       PassthroughNullAttachment_AssertionSucceeds) {
+  GURL get_url = server().GetURL(kNavigatorCredentialsGetWithResultUrl);
+
+  ASSERT_TRUE(LoadUrl(get_url));
+
+  EXPECT_TRUE(base::test::ios::WaitUntilConditionOrTimeout(
+      base::test::ios::kWaitForPageLoadTimeout, ^{
+        if (message_handler().lastReceivedMessage == nil) {
+          return NO;
+        }
+        NSDictionary* body = message_handler().lastReceivedMessage.body;
+        return [body[kEventKey] isEqualToString:@"logGetResolved"];
+      }));
+
+  NSDictionary* body = message_handler().lastReceivedMessage.body;
+  EXPECT_NSEQ(@"logGetResolved", body[kEventKey]);
+  EXPECT_NSEQ(@"credential_id", body[@"credentialId"]);
 }
 
 }  // namespace webauthn

@@ -195,18 +195,16 @@ std::vector<em::VolumeInfo> GetVolumeInfo(
       continue;
     }
 
-    std::optional<int64_t> free_size =
-        base::SysInfo::AmountOfFreeDiskSpace(mount_path);
-    std::optional<int64_t> total_size =
-        base::SysInfo::AmountOfTotalDiskSpace(mount_path);
-    if (!free_size.has_value() || !total_size.has_value()) {
+    std::optional<base::SysInfo::DiskSpaceInfo> disk_space =
+        base::SysInfo::AmountOfDiskSpace(mount_path);
+    if (!disk_space) {
       LOG(ERROR) << "Unable to get volume status for " << mount_point;
       continue;
     }
     em::VolumeInfo info;
     info.set_volume_id(mount_point);
-    info.set_storage_total(*total_size);
-    info.set_storage_free(*free_size);
+    info.set_storage_total(disk_space->total.InBytes());
+    info.set_storage_free(disk_space->available.InBytes());
     result.push_back(info);
   }
   return result;
@@ -376,24 +374,15 @@ em::DiskLifetimeEstimation ReadDiskLifeTimeEstimation() {
 // Read stateful partition info for user data.
 em::StatefulPartitionInfo ReadStatefulPartitionInfo() {
   em::StatefulPartitionInfo spi;
-  const base::FilePath statefulPartitionPath(kStatefulPartitionPath);
-  const auto available_space =
-      base::SysInfo::AmountOfFreeDiskSpace(statefulPartitionPath);
-  const auto total_space =
-      base::SysInfo::AmountOfTotalDiskSpace(statefulPartitionPath);
-
-  if (!available_space) {
-    LOG(ERROR) << "ReadStatefulPartitionInfo failed fetching available space.";
+  const std::optional<base::SysInfo::DiskSpaceInfo> disk_space =
+      base::SysInfo::AmountOfDiskSpace(base::FilePath(kStatefulPartitionPath));
+  if (!disk_space) {
+    LOG(ERROR) << "ReadStatefulPartitionInfo failed fetching disk space.";
     return spi;
   }
 
-  if (!total_space) {
-    LOG(ERROR) << "ReadStatefulPartitionInfo failed fetching total space.";
-    return spi;
-  }
-
-  spi.set_available_space(*available_space);
-  spi.set_total_space(*total_space);
+  spi.set_available_space(disk_space->available.InBytes());
+  spi.set_total_space(disk_space->total.InBytes());
   return spi;
 }
 
@@ -2513,11 +2502,9 @@ bool DeviceStatusCollector::GetNetworkStatus(
     em::NetworkState::ConnectionState connection_state_enum =
         em::NetworkState::UNKNOWN;
     const std::string connection_state_string(state->connection_state());
-    for (size_t i = 0; i < std::size(kConnectionStateMap); ++i) {
-      if (connection_state_string ==
-          UNSAFE_TODO(kConnectionStateMap[i]).state_string) {
-        connection_state_enum =
-            UNSAFE_TODO(kConnectionStateMap[i]).state_constant;
+    for (const auto& entry : kConnectionStateMap) {
+      if (connection_state_string == entry.state_string) {
+        connection_state_enum = entry.state_constant;
         break;
       }
     }

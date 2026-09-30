@@ -14,8 +14,6 @@ import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.modelutil.PropertyModel;
 
-import java.util.Locale;
-
 /**
  * Internal Mediator for the page zoom feature. Created by the |PageZoomMenuItemCoordinator|, and
  * should not be accessed outside the component.
@@ -44,7 +42,7 @@ class PageZoomMenuItemMediator {
 
     /** Initializes the mediator. */
     @Initializer
-    protected void pushProperties() {
+    void pushProperties() {
         // We must first fetch the current zoom factor for the given web contents.
         double currentZoomFactor = mManager.getZoomLevel();
         mDefaultZoomFactor = mManager.getDefaultZoomLevel();
@@ -79,21 +77,17 @@ class PageZoomMenuItemMediator {
     }
 
     private void updateButtonStates(double newZoomFactor) {
-        // If the new zoom factor is greater than the minimum zoom factor, enable decrease button.
         mModel.set(
                 PageZoomProperties.DECREASE_ZOOM_ENABLED,
-                newZoomFactor > AVAILABLE_ZOOM_FACTORS[0]);
-
-        // If the new zoom factor is less than the maximum zoom factor, enable increase button.
+                PageZoomUtils.canDecreaseZoom(newZoomFactor));
         mModel.set(
                 PageZoomProperties.INCREASE_ZOOM_ENABLED,
-                newZoomFactor < AVAILABLE_ZOOM_FACTORS[AVAILABLE_ZOOM_FACTORS.length - 1]);
+                PageZoomUtils.canIncreaseZoom(newZoomFactor));
     }
 
     private void updateZoomPercentageText(double newZoomFactor) {
-        long readableZoomLevel = PageZoomUtils.getReadableZoomLevel(newZoomFactor);
         mModel.set(
                 PageZoomProperties.ZOOM_PERCENT_TEXT,
-                String.format(Locale.US, "%d%%", readableZoomLevel));
+                PageZoomUtils.formatZoomPercentage(newZoomFactor));
     }
 }

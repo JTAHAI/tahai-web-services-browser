@@ -450,7 +450,8 @@ public class ExternalNavigationHandlerTest {
                     "intent:chrome-urls#Intent;package=com.android.chrome;scheme=CHROME;end;",
                     "intent://com.android.chrome.FileProvider/foo.html#Intent;scheme=content;end;",
                     "intent://com.android.chrome.FileProvider/foo.html#Intent;scheme=CONTENT;end;",
-                    "intent:///x.mhtml#Intent;package=com.android.chrome;action=android.intent.action.VIEW;scheme=file;end;"
+                    "intent:///x.mhtml#Intent;package=com.android.chrome;action="
+                            + "android.intent.action.VIEW;scheme=file;end;"
                 };
         for (String url : urlsToIgnore) {
             checkUrl(url, redirectHandlerForLinkClick())
@@ -2301,6 +2302,116 @@ public class ExternalNavigationHandlerTest {
 
     @Test
     @SmallTest
+    public void testDesktopBrowserSameTabNavigation_blocksCapturing() {
+        // Verifies that same-tab HTTP/HTTPS navigations in a browser tab are blocked from capturing
+        // when in Desktop Windowing Mode, keeping the user in the browser.
+        mUrlHandler = new ExternalNavigationHandlerForTesting(mDelegate);
+        mDelegate.add(new IntentActivity(YOUTUBE_URL, YOUTUBE_PACKAGE_NAME));
+        ExternalNavigationParams params =
+                new ExternalNavigationParams.Builder(new GURL(YOUTUBE_URL), false)
+                        .setIsMainFrame(true)
+                        .setIsRendererInitiated(true)
+                        .setIsInDesktopWindowingMode(true)
+                        .setIsTabInBrowser(true)
+                        .setIsInitialNavigationInFrame(false)
+                        .setRedirectHandler(redirectHandlerForLinkClick())
+                        .build();
+        OverrideUrlLoadingResult result = mUrlHandler.shouldOverrideUrlLoading(params);
+        Assert.assertEquals(OverrideUrlLoadingResultType.NO_OVERRIDE, result.getResultType());
+        Assert.assertNull(mUrlHandler.mStartActivityIntent);
+    }
+
+    @Test
+    @SmallTest
+    public void testDesktopBrowserSameTabNavigation_doesNotBlockIfInitial() {
+        // Verifies that initial navigations (like loading a URL in a new tab) are not blocked from
+        // capturing, even when in Desktop Windowing Mode.
+        mUrlHandler = new ExternalNavigationHandlerForTesting(mDelegate);
+        mDelegate.add(new IntentActivity(YOUTUBE_URL, YOUTUBE_PACKAGE_NAME));
+        ExternalNavigationParams params =
+                new ExternalNavigationParams.Builder(new GURL(YOUTUBE_URL), false)
+                        .setIsMainFrame(true)
+                        .setIsRendererInitiated(true)
+                        .setIsInDesktopWindowingMode(true)
+                        .setIsTabInBrowser(true)
+                        .setIsInitialNavigationInFrame(true)
+                        .setRedirectHandler(redirectHandlerForLinkClick())
+                        .build();
+        OverrideUrlLoadingResult result = mUrlHandler.shouldOverrideUrlLoading(params);
+        Assert.assertEquals(
+                OverrideUrlLoadingResultType.OVERRIDE_WITH_EXTERNAL_INTENT, result.getResultType());
+        Assert.assertNotNull(mUrlHandler.mStartActivityIntent);
+    }
+
+    @Test
+    @SmallTest
+    public void testDesktopBrowserSameTabNavigation_doesNotBlockIfNotDesktop() {
+        // Verifies that standard mobile navigations are not blocked by the same-tab Desktop mode
+        // rule.
+        mUrlHandler = new ExternalNavigationHandlerForTesting(mDelegate);
+        mDelegate.add(new IntentActivity(YOUTUBE_URL, YOUTUBE_PACKAGE_NAME));
+        ExternalNavigationParams params =
+                new ExternalNavigationParams.Builder(new GURL(YOUTUBE_URL), false)
+                        .setIsMainFrame(true)
+                        .setIsRendererInitiated(true)
+                        .setIsInDesktopWindowingMode(false)
+                        .setIsTabInBrowser(true)
+                        .setIsInitialNavigationInFrame(false)
+                        .setRedirectHandler(redirectHandlerForLinkClick())
+                        .build();
+        OverrideUrlLoadingResult result = mUrlHandler.shouldOverrideUrlLoading(params);
+        Assert.assertEquals(
+                OverrideUrlLoadingResultType.OVERRIDE_WITH_EXTERNAL_INTENT, result.getResultType());
+        Assert.assertNotNull(mUrlHandler.mStartActivityIntent);
+    }
+
+    @Test
+    @SmallTest
+    public void testDesktopBrowserSameTabNavigation_doesNotBlockIfNotBrowserTab() {
+        // Verifies that same-tab navigations occurring in non-browser contexts (like PWAs or Custom
+        // Tabs) are not blocked from capturing, even when in Desktop Windowing Mode.
+        mUrlHandler = new ExternalNavigationHandlerForTesting(mDelegate);
+        mDelegate.add(new IntentActivity(YOUTUBE_URL, YOUTUBE_PACKAGE_NAME));
+        ExternalNavigationParams params =
+                new ExternalNavigationParams.Builder(new GURL(YOUTUBE_URL), false)
+                        .setIsMainFrame(true)
+                        .setIsRendererInitiated(true)
+                        .setIsInDesktopWindowingMode(true)
+                        .setIsTabInBrowser(false)
+                        .setIsInitialNavigationInFrame(false)
+                        .setRedirectHandler(redirectHandlerForLinkClick())
+                        .build();
+        OverrideUrlLoadingResult result = mUrlHandler.shouldOverrideUrlLoading(params);
+        Assert.assertEquals(
+                OverrideUrlLoadingResultType.OVERRIDE_WITH_EXTERNAL_INTENT, result.getResultType());
+        Assert.assertNotNull(mUrlHandler.mStartActivityIntent);
+    }
+
+    @Test
+    @SmallTest
+    public void testDesktopBrowserSameTabNavigation_doesNotBlockIfNotHttp() {
+        // Verifies that same-tab navigations to custom schemes (non-HTTP/HTTPS protocols) are not
+        // blocked on Desktop, since the browser cannot render them natively.
+        mUrlHandler = new ExternalNavigationHandlerForTesting(mDelegate);
+        String customUrl = "customscheme://test";
+        mDelegate.add(new IntentActivity(customUrl, "customapp"));
+        ExternalNavigationParams params =
+                new ExternalNavigationParams.Builder(new GURL(customUrl), false)
+                        .setIsMainFrame(true)
+                        .setIsRendererInitiated(true)
+                        .setIsInDesktopWindowingMode(true)
+                        .setIsTabInBrowser(true)
+                        .setIsInitialNavigationInFrame(false)
+                        .setRedirectHandler(redirectHandlerForLinkClick())
+                        .build();
+        OverrideUrlLoadingResult result = mUrlHandler.shouldOverrideUrlLoading(params);
+        Assert.assertEquals(
+                OverrideUrlLoadingResultType.OVERRIDE_WITH_EXTERNAL_INTENT, result.getResultType());
+        Assert.assertNotNull(mUrlHandler.mStartActivityIntent);
+    }
+
+    @Test
+    @SmallTest
     public void testCanExternalAppHandleUrl() {
         mDelegate.setCanResolveActivityForExternalSchemes(false);
         mDelegate.add(new IntentActivity("someapp", "someapp"));
@@ -3352,6 +3463,24 @@ public class ExternalNavigationHandlerTest {
                 "tel:012345678", mDelegate.intentReportedToSafeBrowsing().getDataString());
     }
 
+    @Test
+    @SmallTest
+    public void testHttpBlockBypassedByMarketCategory() {
+        mDelegate.setAllowExternalNavigationForHttpProtocols(false);
+
+        // 1. Resolve to a specialized app (not market). It should be blocked.
+        mDelegate.add(new IntentActivity("https://example.com", "com.example.app"));
+        checkUrl("https://example.com", redirectHandlerForLinkClick())
+                .expecting(OverrideUrlLoadingResultType.NO_OVERRIDE, IGNORE);
+
+        // 2. Resolve to a market app. It should NOT be blocked.
+        mDelegate.setResolvesToMarketApp(true);
+        checkUrl("https://example.com", redirectHandlerForLinkClick())
+                .expecting(
+                        OverrideUrlLoadingResultType.OVERRIDE_WITH_EXTERNAL_INTENT,
+                        START_OTHER_ACTIVITY);
+    }
+
     private static List<ResolveInfo> makeResolveInfos(ResolveInfo... infos) {
         return Arrays.asList(infos);
     }
@@ -3364,6 +3493,13 @@ public class ExternalNavigationHandlerTest {
         ResolveInfo ri = new ResolveInfo();
         ri.activityInfo = ai;
         return ri;
+    }
+
+    private static ResolveInfo newMarketResolveInfo(String packageName) {
+        ResolveInfo info = newResolveInfo(packageName);
+        info.filter = new IntentFilter(Intent.ACTION_VIEW);
+        info.filter.addCategory(Intent.CATEGORY_APP_MARKET);
+        return info;
     }
 
     private static ResolveInfo newSpecializedResolveInfo(
@@ -3557,6 +3693,7 @@ public class ExternalNavigationHandlerTest {
 
     private static class TestExternalNavigationDelegate implements ExternalNavigationDelegate {
         private WindowAndroid mWindowAndroid;
+        private boolean mAllowExternalNavigationForHttpProtocols = true;
 
         public List<ResolveInfo> queryIntentActivities(Intent intent) {
             List<ResolveInfo> list = new ArrayList<>();
@@ -3591,6 +3728,9 @@ public class ExternalNavigationHandlerTest {
             if (mResolvesToOtherBrowser) {
                 list.add(newResolveInfo(OTHER_BROWSER_PACKAGE));
             }
+            if (mResolvesToMarketApp) {
+                list.add(newMarketResolveInfo("com.example.market"));
+            }
             return list;
         }
 
@@ -3600,6 +3740,9 @@ public class ExternalNavigationHandlerTest {
             }
             if (mResolvesToOtherBrowser) {
                 return newResolveInfo(OTHER_BROWSER_PACKAGE);
+            }
+            if (mResolvesToMarketApp) {
+                return newMarketResolveInfo("com.example.market");
             }
 
             List<ResolveInfo> list = queryIntentActivities(intent);
@@ -3770,9 +3913,13 @@ public class ExternalNavigationHandlerTest {
         @Override
         public void setExternalNavigationHelper(ExternalNavigationHelper helper) {}
 
+        public void setAllowExternalNavigationForHttpProtocols(boolean value) {
+            mAllowExternalNavigationForHttpProtocols = value;
+        }
+
         @Override
         public boolean allowExternalNavigationForHttpProtocols(GURL url) {
-            return false;
+            return mAllowExternalNavigationForHttpProtocols;
         }
 
         public void reset() {
@@ -3843,6 +3990,10 @@ public class ExternalNavigationHandlerTest {
             mResolvesToOtherBrowser = value;
         }
 
+        public void setResolvesToMarketApp(boolean value) {
+            mResolvesToMarketApp = value;
+        }
+
         public void setWindowAndroid(WindowAndroid windowAndroid) {
             mWindowAndroid = windowAndroid;
         }
@@ -3879,6 +4030,7 @@ public class ExternalNavigationHandlerTest {
         private boolean mWillResolveToDisambiguationDialog;
         private Context mContext;
         private boolean mResolvesToOtherBrowser;
+        private boolean mResolvesToMarketApp;
         private boolean mShouldDisableAllExternalIntents;
         private boolean mShouldReturnAsActivityResult;
         private Intent mSafeBrowsingIntent;

@@ -19,7 +19,6 @@
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "base/memory/writable_shared_memory_region.h"
-#include "base/notreached.h"
 #include "base/path_service.h"
 #include "base/rand_util.h"
 #include "base/run_loop.h"
@@ -27,7 +26,6 @@
 #include "base/synchronization/waitable_event.h"
 #include "base/test/test_timeouts.h"
 #include "build/build_config.h"
-#include "mojo/buildflags.h"
 #include "mojo/core/embedder/embedder.h"
 #include "mojo/core/ipcz_driver/shared_buffer.h"
 #include "mojo/core/test/mojo_test_base.h"
@@ -38,60 +36,20 @@
 #include "mojo/public/cpp/system/wait.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(MOJO_SUPPORT_LEGACY_CORE)
-#include "mojo/core/core.h"
-#include "mojo/core/shared_buffer_dispatcher.h"
-#endif
-
 namespace mojo::core {
 namespace {
 
 template <typename T>
 MojoResult CreateSharedBufferFromRegion(T&& region, MojoHandle* handle) {
-  if (IsMojoIpczEnabled()) {
-    *handle = ipcz_driver::SharedBuffer::Box(
-        ipcz_driver::SharedBuffer::MakeForRegion(std::move(region)));
-    return MOJO_RESULT_OK;
-  }
-
-#if BUILDFLAG(MOJO_SUPPORT_LEGACY_CORE)
-  scoped_refptr<SharedBufferDispatcher> buffer;
-  MojoResult result =
-      SharedBufferDispatcher::CreateFromPlatformSharedMemoryRegion(
-          T::TakeHandleForSerialization(std::forward<T>(region)), &buffer);
-  if (result != MOJO_RESULT_OK) {
-    return result;
-  }
-
-  *handle = Core::Get()->AddDispatcher(std::move(buffer));
+  *handle = ipcz_driver::SharedBuffer::Box(
+      ipcz_driver::SharedBuffer::MakeForRegion(std::move(region)));
   return MOJO_RESULT_OK;
-#else
-  NOTREACHED();
-#endif
 }
 
 template <typename T>
 MojoResult ExtractRegionFromSharedBuffer(MojoHandle handle, T* region) {
-  base::subtle::PlatformSharedMemoryRegion platform_region;
-  if (IsMojoIpczEnabled()) {
-    platform_region =
-        std::move(ipcz_driver::SharedBuffer::Unbox(handle)->region());
-  } else {
-#if BUILDFLAG(MOJO_SUPPORT_LEGACY_CORE)
-    scoped_refptr<Dispatcher> dispatcher =
-        Core::Get()->GetAndRemoveDispatcher(handle);
-    if (!dispatcher ||
-        dispatcher->GetType() != Dispatcher::Type::SHARED_BUFFER) {
-      return MOJO_RESULT_INVALID_ARGUMENT;
-    }
-
-    auto* buffer = static_cast<SharedBufferDispatcher*>(dispatcher.get());
-    platform_region = buffer->PassPlatformSharedMemoryRegion();
-#else
-    NOTREACHED();
-#endif
-  }
-
+  base::subtle::PlatformSharedMemoryRegion platform_region =
+      std::move(ipcz_driver::SharedBuffer::Unbox(handle)->region());
   *region = T::Deserialize(std::move(platform_region));
   return MOJO_RESULT_OK;
 }

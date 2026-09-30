@@ -57,7 +57,7 @@ class WTF_EXPORT String {
   USING_FAST_MALLOC(String);
 
  public:
-  using size_type = string_size_t;
+  using size_type = wtf_size_t;
   static constexpr size_type npos = kNotFound;
 
   // Factories ------------------------------------------------------
@@ -139,6 +139,8 @@ class WTF_EXPORT String {
   // PRECONDITIONS: `format` must be compatible with subsequent args.
   // Ideally, this would be UNSAFE_BUFFER_USAGE but there are too many
   // callers at present to investigate.
+  //
+  // DEPRECATED: Use blink::StrCat() or blink::Format() instead.
   [[nodiscard]] PRINTF_FORMAT(1, 2) static String
       Format(const char* format, ...);
 

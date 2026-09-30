@@ -350,7 +350,7 @@ AccountInfo IdentityManager::FindExtendedAccountInfoByAccountId(
 }
 
 AccountInfo IdentityManager::FindExtendedAccountInfoByEmailAddress(
-    const std::string& email_address) const {
+    std::string_view email_address) const {
   AccountInfo account_info =
       account_tracker_service_->FindAccountInfoByEmail(email_address);
   // Skip the the token check if the switch is enabled.
@@ -435,7 +435,7 @@ DeviceAccountsSynchronizer* IdentityManager::GetDeviceAccountsSynchronizer() {
 }
 
 #if BUILDFLAG(IS_IOS)
-std::vector<AccountInfo> IdentityManager::GetAccountsOnDevice() {
+std::vector<AccountInfo> IdentityManager::GetAccountsOnDevice() const {
   return token_service_->GetAccountsOnDevice();
 }
 #endif

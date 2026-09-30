@@ -29,6 +29,7 @@ import org.chromium.chrome.browser.omnibox.LocationBarDataProvider;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxLayoutMode;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxState;
+import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.page_info.ChromePageInfoHighlight;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
@@ -68,10 +69,13 @@ public class StatusCoordinator implements LocationBarDataProvider.Observer {
     /**
      * Creates a new {@link StatusCoordinator}.
      *
+     * @param resourceProvider Provides omnibox-specific resources.
      * @param isTablet Whether the UI is shown on a tablet.
      * @param statusView The status view, used to supply and manipulate child views.
+     * @param locationBarDataProvider Provider for location bar and page state.
      * @param templateUrlServiceSupplier A supplier for {@link TemplateUrlService} used to query the
      *     default search engine.
+     * @param profileSupplier Supplier providing the active user Profile.
      * @param windowAndroid The {@link WindowAndroid} that is used by the owning {@link Activity}.
      * @param pageInfoAction Displays page info popup.
      * @param browserControlsVisibilityDelegate Delegate interface allowing control of the
@@ -81,6 +85,7 @@ public class StatusCoordinator implements LocationBarDataProvider.Observer {
      * @param onPlusButtonClicked Toggle the fusebox attachments menu when plus button used.
      */
     public StatusCoordinator(
+            OmniboxResourceProvider resourceProvider,
             boolean isTablet,
             StatusView statusView,
             LocationBarDataProvider locationBarDataProvider,
@@ -113,6 +118,7 @@ public class StatusCoordinator implements LocationBarDataProvider.Observer {
 
         mMediator =
                 new StatusMediator(
+                        resourceProvider,
                         mModel,
                         mStatusView.getContext(),
                         locationBarDataProvider,
@@ -148,11 +154,6 @@ public class StatusCoordinator implements LocationBarDataProvider.Observer {
         mLocationBarDataProvider.addObserver(this);
         mStatusView.setBrowserControlsVisibilityDelegate(browserControlsVisibilityDelegate);
 
-        if (isSearchEngineStatusIconVisible()) {
-            setTooltipText(R.string.accessibility_menu_info);
-        } else {
-            setTooltipText(Resources.ID_NULL);
-        }
         setBackground();
     }
 

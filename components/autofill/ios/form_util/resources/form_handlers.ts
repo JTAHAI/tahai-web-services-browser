@@ -75,6 +75,20 @@ let formControlCollections: Array<HTMLCollectionOf<Element>> = [];
 const FORM_TAGS = new Set(['FORM', 'INPUT', 'SELECT', 'OPTION', 'TEXTAREA']);
 
 /**
+ * Tag names used to compute live HTMLCollection form control counts.
+ *
+ * Unlike `FORM_TAGS`, 'OPTION' can be safely excluded because:
+ * 1. <option> elements are only child items of <select> controls and are not
+ *    independent autofillable form controls themselves. Any addition or
+ *    removal of a select control is already captured by tracking <select>.
+ * 2. Forms (e.g., country or date-of-birth dropdowns) can contain hundreds or
+ *    thousands of <option> elements. Excluding them avoids expensive DOM
+ *    subtree scanning and live HTMLCollection maintenance for large option
+ *    lists.
+ */
+const FORM_CONTROL_TAGS = ['FORM', 'INPUT', 'SELECT', 'TEXTAREA'];
+
+/**
  * A message scheduled to be sent to host on the next runloop.
  */
 let messageToSend: object|null = null;
@@ -141,11 +155,26 @@ function isAutofillTrackFormMutationsOptimizationEnabled(): boolean {
   return (window as any).gCrWebPlaceholderTrackFormMutationsOptimization;
 }
 
+
+
+/**
+ * Returns true if element1 and element2 have an ancestor/descendant
+ * (parent-child) relationship directly or indirectly.
+ */
+function areElementsRelated(
+    element1: Element|null, element2: Element|null): boolean {
+  if (!element1 || !element2) {
+    return false;
+  }
+  return element1.contains(element2) || element2.contains(element1);
+}
+
 /**
  * Returns true if the password fields tracking feature is enabled.
  */
 function isTrackPasswordFieldsEnabled(): boolean {
-  return (window as any).gCrWebPlaceholderAutofillTrackPasswordFieldsIos;
+  return autofillFormFeaturesApi.getFunction(
+      'isAutofillTrackPasswordFieldsEnabled')();
 }
 
 /**
@@ -186,7 +215,7 @@ function formActivity(evt: Event): void {
   }
 
   let target = evt.target as Element;
-  if (!FORM_TAGS.has(target.tagName)) {
+  if (!FORM_TAGS.has(target.tagName) && !fillUtil.isContentEditable(target)) {
     const path = evt.composedPath() as Element[];
     let foundValidTagName = false;
 
@@ -194,7 +223,8 @@ function formActivity(evt: Event): void {
     // of the event target is not valid itself.
     if (path) {
       for (const htmlElement of path) {
-        if (FORM_TAGS.has(htmlElement.tagName)) {
+        if (FORM_TAGS.has(htmlElement.tagName) ||
+            fillUtil.isContentEditable(htmlElement)) {
           target = htmlElement;
           foundValidTagName = true;
           break;
@@ -212,7 +242,9 @@ function formActivity(evt: Event): void {
     wasEditedByUser.set(target, evt.isTrusted);
   }
 
-  if (evt.target !== lastFocusedElement) {
+  const isTargetEditable = fillUtil.isContentEditable(target);
+  if (evt.target !== lastFocusedElement &&
+      (!isTargetEditable || !areElementsRelated(lastFocusedElement, target))) {
     return;
   }
   const form =
@@ -222,8 +254,13 @@ function formActivity(evt: Event): void {
   const formRendererID = fillUtil.getUniqueID(form);
   const fieldRendererID = fillUtil.getUniqueID(field);
 
-  const fieldType = 'type' in target ? target.type : '';
-  const fieldValue = 'value' in target ? target.value : '';
+  let fieldType = 'type' in target ? target.type : '';
+  if (!fieldType && isTargetEditable) {
+    fieldType = 'contenteditable';
+  }
+  const fieldValue = 'value' in target ?
+      target.value :
+      (isTargetEditable ? (target.textContent ?? '') : '');
 
   const msg = {
     'command': 'form.activity',
@@ -330,13 +367,10 @@ function sendFormMutationMessagesAfterDelay(
 }
 
 /**
- * Checks if cross-frame filling is enabled and, if so, forwards messages to
- * the Child Frame Registration lib.
+ * Forwards messages to the Child Frame Registration lib.
  */
 function processInboundMessage(event: MessageEvent<any>): void {
-  if (autofillFormFeaturesApi.getFunction('isAutofillAcrossIframesEnabled')()) {
-    processChildFrameMessage(event);
-  }
+  processChildFrameMessage(event);
 }
 
 function attachListeners(): void {
@@ -366,17 +400,6 @@ function attachListeners(): void {
    * `formActivity` handler, but need to be attached under the same conditions.
    */
   window.addEventListener('message', processInboundMessage);
-}
-
-/**
- * Scan the page for password fields and set the HAS_BEEN_PASSWORD_SYMBOL on
- * them.
- */
-function markPasswordFields(): void {
-  const passwordFields = document.querySelectorAll('input[type="password"]');
-  for (const passwordField of passwordFields) {
-    (passwordField as PasswordTrackedElement)[HAS_BEEN_PASSWORD_SYMBOL] = true;
-  }
 }
 
 // Attach the listeners immediately to try to catch early actions of the user.
@@ -470,18 +493,6 @@ function processFormMutationsStandard(
     // Process mutations to the tree of nodes.
     if (mutation.type === 'childList') {
       const addedFormElements = findAllFormElementsInNodes(mutation.addedNodes);
-
-      // For all password field in the added nodes, set
-      // HAS_BEEN_PASSWORD_SYMBOL.
-      if (isTrackPasswordFieldsEnabled()) {
-        for (const element of addedFormElements) {
-          if (element.tagName === 'INPUT' &&
-              (element as HTMLInputElement).type === 'password') {
-            (element as PasswordTrackedElement)[HAS_BEEN_PASSWORD_SYMBOL] =
-                true;
-          }
-        }
-      }
 
       // Handle added nodes.
       const formWasAdded = addedFormElements.length > 0;
@@ -596,7 +607,7 @@ function processFormMutationsStandard(
 function initializeFormControlCollections(): void {
   if (formControlCollections.length === 0) {
     formControlCollections =
-        [...FORM_TAGS].map(tag => document.getElementsByTagName(tag));
+        FORM_CONTROL_TAGS.map(tag => document.getElementsByTagName(tag));
   }
 }
 
@@ -666,7 +677,7 @@ function processFormMutationsOptimized(): void {
     }
 
     // Mathematically align removedFormControlCount with getFormControlCount()
-    if (FORM_TAGS.has(element.tagName)) {
+    if (FORM_CONTROL_TAGS.includes(element.tagName)) {
       removedFormControlCount++;
     }
 
@@ -706,9 +717,6 @@ function processFormMutationsOptimized(): void {
   if (addedFormControlCount > 0 ||
       removedFormControlCount >
           (removedFormIDs.length + removedFieldIDs.length)) {
-    if (addedFormControlCount > 0 && isTrackPasswordFieldsEnabled()) {
-      markPasswordFields();
-    }
     addedFormMessage = {
       'command': 'form.activity',
       'frameID': gCrWeb.getFrameId(),
@@ -810,7 +818,6 @@ function trackFormMutations(delay: number): void {
 
   // Track password field mutations.
   if (isTrackPasswordFieldsEnabled()) {
-    markPasswordFields();
     initializePasswordFieldTypeObserver();
   }
 

@@ -52,6 +52,8 @@ public class BookmarkPopupViewRenderTest {
     public ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
                     .setBugComponent(ChromeRenderTestRule.Component.UI_BROWSER_BOOKMARKS)
+                    .setRevision(2)
+                    .setDescription("Bookmark popup UI updates")
                     .build();
 
     private BookmarkPopupView mView;
@@ -96,5 +98,75 @@ public class BookmarkPopupViewRenderTest {
                     mView.setFolderName("Mobile bookmarks");
                 });
         mRenderTestRule.render(mView, "bookmark_popup_view");
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"RenderTest"})
+    public void testBookmarkPopupView_LargeFontScale() throws IOException {
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    Activity activity = mActivityTestRule.getActivity();
+                    android.content.res.Configuration config =
+                            new android.content.res.Configuration(
+                                    activity.getResources().getConfiguration());
+                    config.fontScale = 2.0f;
+                    android.content.Context wrappedContext =
+                            activity.createConfigurationContext(config);
+                    wrappedContext.setTheme(R.style.Theme_BrowserUI_DayNight);
+
+                    LinearLayout contentView = new LinearLayout(activity);
+                    contentView.setBackgroundColor(SemanticColorUtils.getDefaultBgColor(activity));
+                    FrameLayout.LayoutParams params =
+                            new FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT);
+
+                    BookmarkPopupView largeFontView =
+                            (BookmarkPopupView)
+                                    LayoutInflater.from(wrappedContext)
+                                            .inflate(R.layout.bookmark_popup, contentView, false);
+                    contentView.addView(largeFontView);
+
+                    largeFontView.setHeaderText("Bookmark added");
+                    largeFontView.setTitle("Test Bookmark");
+                    largeFontView.setFolderName("Mobile bookmarks");
+
+                    activity.setContentView(contentView, params);
+                    mView = largeFontView;
+                });
+        mRenderTestRule.render(mView, "bookmark_popup_view_large_font");
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"RenderTest"})
+    public void testBookmarkPopupView_PriceTrackingUnchecked() throws IOException {
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mView.setHeaderText("Bookmark added");
+                    mView.setTitle("Test Bookmark");
+                    mView.setFolderName("Mobile bookmarks");
+                    mView.setPriceTrackingVisible(true);
+                    mView.setPriceTrackingEnabled(true);
+                    mView.setPriceTrackingSwitchChecked(false);
+                });
+        mRenderTestRule.render(mView, "bookmark_popup_view_price_tracking_unchecked");
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"RenderTest"})
+    public void testBookmarkPopupView_PriceTrackingChecked() throws IOException {
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mView.setHeaderText("Bookmark added");
+                    mView.setTitle("Test Bookmark");
+                    mView.setFolderName("Mobile bookmarks");
+                    mView.setPriceTrackingVisible(true);
+                    mView.setPriceTrackingEnabled(true);
+                    mView.setPriceTrackingSwitchChecked(true);
+                });
+        mRenderTestRule.render(mView, "bookmark_popup_view_price_tracking_checked");
     }
 }

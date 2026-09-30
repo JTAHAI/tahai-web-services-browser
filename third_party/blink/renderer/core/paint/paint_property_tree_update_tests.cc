@@ -2408,7 +2408,7 @@ TEST_P(PaintPropertyTreeUpdateTest, CanvasSubtreePseudoElementFilter) {
   // Initially, the pseudo-element is inside the layoutsubtree canvas,
   // so its filter effect node should have is_in_canvas_subtree set to true.
   const auto* filter_effect = properties->Filter();
-  EXPECT_TRUE(filter_effect->IsInCanvasSubtree());
+  EXPECT_TRUE(filter_effect->IsInDrawableCanvasSubtree());
 
   // Now, dynamically move the target out of the canvas.
   GetDocument().body()->appendChild(target);
@@ -2419,7 +2419,7 @@ TEST_P(PaintPropertyTreeUpdateTest, CanvasSubtreePseudoElementFilter) {
   before_layout = before->GetLayoutObject();
   properties = before_layout->FirstFragment().PaintProperties();
   filter_effect = properties->Filter();
-  EXPECT_FALSE(filter_effect->IsInCanvasSubtree());
+  EXPECT_FALSE(filter_effect->IsInDrawableCanvasSubtree());
 }
 
 TEST_P(PaintPropertyTreeUpdateTest, CanvasScriptsDisabled) {
@@ -2433,6 +2433,84 @@ TEST_P(PaintPropertyTreeUpdateTest, CanvasScriptsDisabled) {
   )HTML");
   UpdateAllLifecyclePhasesForTest();
   // Pass if no crash.
+}
+
+TEST_P(PaintPropertyTreeUpdateTest, CanvasSubtreeScrollbarInIframe) {
+  ScopedCanvasDrawElementForTest forced_canvas_draw_element_feature(true);
+  GetDocument().GetSettings()->SetScriptEnabled(true);
+
+  SetBodyInnerHTML(R"HTML(
+    <style>
+      canvas, iframe {
+        width: 200px;
+        height: 200px;
+      }
+    </style>
+    <canvas id="canvas" layoutsubtree></canvas>
+    <iframe id="iframe"></iframe>
+  )HTML");
+  SetChildFrameHTML(R"HTML(
+    <style>
+      #scroll {
+        width: 100px;
+        height: 100px;
+        overflow: scroll;
+      }
+      .tall { height: 500px; }
+    </style>
+    <div id="scroll">
+      <div class="tall"></div>
+    </div>
+    <div class="tall"></div>
+  )HTML");
+  UpdateAllLifecyclePhasesForTest();
+
+  auto* iframe = To<HTMLIFrameElement>(
+      GetDocument().getElementById(AtomicString("iframe")));
+  auto* canvas = GetDocument().getElementById(AtomicString("canvas"));
+  auto* child_layout_view = ChildDocument().GetLayoutView();
+  auto* child_scroll =
+      ChildDocument().getElementById(AtomicString("scroll"))->GetLayoutObject();
+
+  auto check_scrollbar_items = [&](bool expected_composited) {
+    int scrollbar_count = 0;
+    for (const auto& item :
+         GetDocument().View()->GetPaintArtifact().GetDisplayItemList()) {
+      if (const auto* scrollbar = DynamicTo<ScrollbarDisplayItem>(&item)) {
+        EXPECT_EQ(expected_composited, !!scrollbar->ScrollTranslation());
+        scrollbar_count++;
+      }
+    }
+    EXPECT_EQ(2, scrollbar_count);
+  };
+  auto check_scrollbar_effect_in_canvas_subtree =
+      [&](const LayoutObject* object, bool expected_in_canvas_subtree) {
+        EXPECT_EQ(expected_in_canvas_subtree,
+                  object->FirstFragment()
+                      .PaintProperties()
+                      ->VerticalScrollbarEffect()
+                      ->IsInDrawableCanvasSubtree());
+      };
+
+  // Outside canvas, scrollbar is composited.
+  check_scrollbar_items(true);
+  check_scrollbar_effect_in_canvas_subtree(child_layout_view, false);
+  check_scrollbar_effect_in_canvas_subtree(child_scroll, false);
+
+  const auto* v_scrollbar_effect = child_layout_view->FirstFragment()
+                                       .PaintProperties()
+                                       ->VerticalScrollbarEffect();
+  EXPECT_FALSE(v_scrollbar_effect->IsInDrawableCanvasSubtree());
+
+  // Move the iframe into the canvas subtree.
+  canvas->moveBefore(iframe, nullptr, ASSERT_NO_EXCEPTION);
+  UpdateAllLifecyclePhasesForTest();
+
+  // Inside canvas, composited scrollbars are disabled; the scrollbar must be
+  // repainted without a scroll translation.
+  check_scrollbar_items(false);
+  check_scrollbar_effect_in_canvas_subtree(child_layout_view, true);
+  check_scrollbar_effect_in_canvas_subtree(child_scroll, true);
 }
 
 }  // namespace blink

@@ -37,6 +37,7 @@ bool NativePaintWorkletData::SetStatus(CompositedPaintStatus status) {
             Animation::CompositorPendingReason::kPendingDowngrade);
       }
       animation_ = nullptr;
+      SetAnimationCurve(nullptr);
     }
     return true;
   }
@@ -67,16 +68,78 @@ bool NativePaintWorkletData::UpdateCompositedPaintStatus(
   return changed;
 }
 
+void NativePaintWorkletData::MaybeSetNeedsKeyframeSnapshot(
+    const Element& element,
+    const ComputedStyle& new_style,
+    bool forced_update) {
+  if (forced_update) {
+    SetNeedsKeyframeSnapshot();
+    return;
+  }
+
+  scoped_refptr<CompositorAnimationCurve> curve = GetAnimationCurve();
+  if (curve &&
+      curve->NeedsKeyframeSnapshotUpdate(element.GetDocument(), new_style)) {
+    SetNeedsKeyframeSnapshot();
+  }
+}
+
 void NativePaintWorkletData::SetNeedsKeyframeSnapshot() {
+  if (animation_curve_ && !animation_curve_->HasStyleDependency()) {
+    return;
+  }
   if (composited_paint_status_ == CompositedPaintStatus::kComposited) {
     bool changed = SetStatus(CompositedPaintStatus::kNeedsRepaint);
     if (changed) {
       TriggerPaintInvalidation();
-      // TODO(kevers): Once the worklet input is stored in this case, we'll need
-      // to invalidate the input here as well to ensure we don't used the cached
-      // keyframes.
     }
   }
+  needs_keyframes_snapshot_update_ = true;
+}
+
+void NativePaintWorkletData::SetAnimation(Animation* animation) {
+  if (animation_ != animation) {
+    animation_ = animation;
+    SetAnimationCurve(nullptr);
+  }
+}
+
+scoped_refptr<CompositorAnimationCurve>
+NativePaintWorkletData::GetAnimationCurve() {
+  if (!animation_curve_) {
+    return nullptr;
+  }
+
+#if EXPENSIVE_DCHECKS_ARE_ON()
+  bool update_expected = needs_keyframes_snapshot_update_;
+  needs_keyframes_snapshot_update_ = false;
+#else
+  if (!needs_keyframes_snapshot_update_) {
+    return animation_curve_;
+  }
+
+  needs_keyframes_snapshot_update_ = false;
+
+  if (!animation_curve_->HasStyleDependency()) {
+    return animation_curve_;
+  }
+#endif
+
+  scoped_refptr<CompositorAnimationCurve> updated =
+      animation_curve_->UpdateKeyframeSnapshot(GetAnimation());
+
+#if EXPENSIVE_DCHECKS_ARE_ON()
+  DCHECK(update_expected || animation_curve_.get() == updated.get())
+      << "Unexpected change to a "
+      << (animation_curve_->HasStyleDependency() ? "" : "non-")
+      << "style-dependent keyframe curve.";
+#endif
+
+  if (updated.get() != animation_curve_.get()) {
+    animation_curve_ = updated;
+  }
+
+  return updated;
 }
 
 void NativePaintWorkletData::Trace(Visitor* visitor) const {

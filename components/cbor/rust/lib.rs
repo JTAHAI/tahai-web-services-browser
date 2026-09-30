@@ -29,7 +29,7 @@
 //! parse to `f64` and serialize back as `f64` (changing the byte string).
 //!
 //! ```
-//! let value = cbor::Value::String("hello".to_string());
+//! let value = cbor::Value::String("hello");
 //! let serialized = value.to_bytes();
 //! assert_eq!(serialized, vec![0x65u8, 0x68, 0x65, 0x6c, 0x6c, 0x6f]);
 //! assert_eq!(cbor::parse_with_config(serialized, cbor::Config::default()), Ok((value, 1)));
@@ -43,14 +43,13 @@
 extern crate alloc;
 
 mod constants;
-mod float_conversions;
 mod reader;
 mod values;
 mod writer;
 
 pub use constants::MAX_DEPTH;
-pub use reader::{parse_with_config, parse_with_config_ffi, Config, Error, ErrorCode, ParseResult};
-pub use values::{MapEntryRef, MapKey, MapKeyKind, Value, ValueKind};
+pub use reader::{parse_with_config, Config, Error, ParseResult};
+pub use values::{Map, MapEntry, MapKey, MapKeyKind, Value, ValueKind};
 pub use writer::write;
 
 // This code assumes that `usize` fits in a `u64` because it uses `as u64` in a

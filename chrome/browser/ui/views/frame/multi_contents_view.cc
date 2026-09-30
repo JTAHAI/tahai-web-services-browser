@@ -38,6 +38,7 @@
 #include "chrome/common/webui_url_constants.h"
 #include "components/prefs/pref_service.h"
 #include "components/split_tabs/split_tab_visual_data.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -58,10 +59,6 @@
 
 namespace {
 constexpr int kSnapDistance = 15;
-
-constexpr float kSplitViewContentCornerRadius = 6;
-constexpr gfx::RoundedCornersF kSplitViewContentRoundedCorners{
-    kSplitViewContentCornerRadius};
 }  // namespace
 
 void MultiContentsView::ContentsSeparators::Reset() {
@@ -119,7 +116,7 @@ MultiContentsView::MultiContentsView(
   drop_target_controller_ =
       std::make_unique<MultiContentsViewDropTargetController>(
           *drop_target_view_, *delegate_, g_browser_process->local_state(),
-          browser_view_->browser()->tab_strip_model());
+          browser_view_->browser()->GetTabStripModel());
 
   contents_separators_.top_separator =
       AddChildView(ContentsSeparator::CreateLayerBasedContentsSeparator());
@@ -206,9 +203,10 @@ MultiContentsView::MultiContentsView(
 }
 
 MultiContentsView::~MultiContentsView() {
-  // Clear the map before `RemoveAllChildViews()` to avoid having dangling
-  // pointers.
+  // Clear the map and vectors before `RemoveAllChildViews()` to avoid having
+  // dangling pointers.
   container_focusable_map_.clear();
+  contents_container_views_.clear();
   if (drop_target_controller_) {
     drop_target_controller_.reset();
   }
@@ -315,7 +313,9 @@ void MultiContentsView::SetWebContentsAtIndex(
   }
 
   if (web_contents) {
-    if (auto* sad_tab_helper = SadTabHelper::FromWebContents(web_contents)) {
+    tabs::TabInterface* tab =
+        tabs::TabInterface::MaybeGetFromContents(web_contents);
+    if (auto* sad_tab_helper = tab ? SadTabHelper::From(tab) : nullptr) {
       sad_tab_helper->ReinstallInWebView();
     }
   }
@@ -370,7 +370,9 @@ void MultiContentsView::CloseSplitView() {
   UpdateContentsBorderAndOverlay();
 
   if (auto* active_contents = GetActiveContentsView()->web_contents()) {
-    if (auto* sad_tab_helper = SadTabHelper::FromWebContents(active_contents)) {
+    tabs::TabInterface* tab =
+        tabs::TabInterface::MaybeGetFromContents(active_contents);
+    if (auto* sad_tab_helper = tab ? SadTabHelper::From(tab) : nullptr) {
       sad_tab_helper->ReinstallInWebView();
     }
   }
@@ -1240,8 +1242,16 @@ void MultiContentsView::BeforeApplyLayout(const views::ProposedLayout& layout) {
   //
   // This is a bit more expensive than a normal layout but only happens during
   // animation when the target bounds are set.
-  const auto target_layout = CalculateProposedLayout(
-      views::SizeBounds(target_content_bounds_->actual_size));
+  views::ProposedLayout target_layout;
+  {
+    // Need to temporarily override the split view insets.
+    const auto split_view_insets =
+        gfx::Insets::TLBR(split_view_insets_.top(), kSplitViewContentInset,
+                          kSplitViewContentInset, kSplitViewContentInset);
+    base::AutoReset inset_override(&split_view_insets_, split_view_insets);
+    target_layout = CalculateProposedLayout(
+        views::SizeBounds(target_content_bounds_->actual_size));
+  }
 
   const auto& default_clip = target_content_bounds_->clipped_area;
 

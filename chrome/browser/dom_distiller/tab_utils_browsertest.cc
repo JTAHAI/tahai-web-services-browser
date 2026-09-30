@@ -36,7 +36,6 @@
 #include "components/dom_distiller/core/url_utils.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/favicon/core/favicon_driver_observer.h"
-#include "components/security_state/content/security_state_tab_helper.h"
 #include "components/security_state/core/security_state.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/render_frame_host.h"
@@ -81,7 +80,7 @@ std::unique_ptr<content::WebContents> NewContentsWithSameParamsAs(
 
 // FaviconUpdateWaiter waits for favicons to be changed after navigation.
 // TODO(crbug.com/40123662): Combine with FaviconUpdateWaiter in
-// chrome/browser/chrome_service_worker_browsertest.cc.
+// chrome/browser/service_worker/chrome_service_worker_browsertest.cc.
 class FaviconUpdateWaiter : public favicon::FaviconDriverObserver {
  public:
   explicit FaviconUpdateWaiter(content::WebContents* web_contents) {

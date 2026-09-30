@@ -100,8 +100,20 @@ static_library("extensions") {
   allow_circular_includes_from = [
     "//chrome/browser/ash/app_list",
     "//chrome/browser/ash/app_list/search",
-    "//chrome/browser/ash/login/demo_mode",
     "//chrome/browser/ash/policy/core",
+  ]
+}
+
+static_library("browser_api_provider") {
+  sources = [
+    "chromeos_extensions_browser_api_provider.cc",
+    "chromeos_extensions_browser_api_provider.h",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser/ash/extensions/api:api_registration",
+    "//extensions/browser",
+    "//extensions/buildflags",
   ]
 }
 

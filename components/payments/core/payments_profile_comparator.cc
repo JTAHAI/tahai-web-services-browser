@@ -11,7 +11,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
-#include "components/autofill/core/browser/data_model/addresses/contact_info.h"
+#include "components/autofill/core/browser/data_model/addresses/name_info.h"
 #include "components/autofill/core/browser/data_quality/autofill_data_util.h"
 #include "components/autofill/core/browser/data_quality/validation.h"
 #include "components/autofill/core/browser/field_types.h"
@@ -114,16 +114,22 @@ bool PaymentsProfileComparator::IsContactEqualOrSuperset(
         !super.HasInfo(autofill::PHONE_HOME_WHOLE_NUMBER)) {
       return false;
     }
-    if (!HaveMergeablePhoneNumbers(super, sub))
+    autofill::PhoneNumber phone(&super);
+    if (MergePhoneNumbers(super, sub, phone) ==
+        autofill::AutofillProfile::ProfileMergeResult::kMergeFailed) {
       return false;
+    }
   }
   if (options_->request_payer_email()) {
     if (sub.HasInfo(autofill::EMAIL_ADDRESS) &&
         !super.HasInfo(autofill::EMAIL_ADDRESS)) {
       return false;
     }
-    if (!HaveMergeableEmailAddresses(super, sub))
+    autofill::EmailInfo email;
+    if (MergeEmailAddresses(super, sub, email) ==
+        autofill::AutofillProfile::ProfileMergeResult::kMergeFailed) {
       return false;
+    }
   }
   return true;
 }

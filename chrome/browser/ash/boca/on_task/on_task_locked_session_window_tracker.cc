@@ -25,13 +25,12 @@
 #include "chrome/browser/ash/boca/on_task/on_task_pod_controller_impl.h"
 #include "chrome/browser/ash/browser_delegate/browser_controller.h"
 #include "chrome/browser/ash/browser_delegate/browser_delegate.h"
-#include "chrome/browser/platform_util.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/immersive/immersive_mode_controller.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
-#include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chromeos/ash/components/boca/boca_metrics_util.h"
 #include "chromeos/ash/components/boca/boca_role_util.h"
 #include "chromeos/ash/components/boca/boca_window_observer.h"
 #include "chromeos/ash/components/boca/on_task/activity/active_tab_tracker.h"
@@ -112,6 +111,9 @@ void LockedSessionWindowTracker::RefreshUrlBlocklist() {
 void LockedSessionWindowTracker::set_oauth_in_progress(
     bool in_progress,
     ash::BrowserDelegate* browser) {
+  if (in_progress && !oauth_in_progress_) {
+    ash::boca::RecordOnTaskOAuthTriggered();
+  }
   oauth_in_progress_ = in_progress;
   if (in_progress && browser &&
       browser->GetType() == ash::BrowserType::kAppPopup) {
@@ -156,7 +158,7 @@ void LockedSessionWindowTracker::MaybeCloseBrowser(
       ash::IsBrowserForSystemWebApp(*browser, ash::SystemWebAppType::BOCA);
 
   if (browser_ &&
-      !platform_util::IsBrowserLockedFullscreen(&browser_->GetBrowser()) &&
+      !browser_->IsOnTaskState(ash::BrowserDelegate::OnTaskState::kLocked) &&
       !is_boca_app_instance) {
     // New instance that is not a Boca SWA instance and was spawned when the
     // Boca SWA instance being tracked is not in locked fullscreen mode. Skip
@@ -179,14 +181,13 @@ void LockedSessionWindowTracker::MaybeCloseWebContents(
     return;
   }
   if (browser_->GetWebContentsCount() > 1) {
-    int index =
-        browser_->GetBrowser().GetTabStripModel()->GetIndexOfWebContents(tab);
-    if (index == TabStripModel::kNoTab) {
+    if (browser_->GetBrowser().GetTabStripModel()->GetIndexOfWebContents(tab) ==
+        TabStripModel::kNoTab) {
       return;
     }
     on_task_blocklist()->RemoveChildFilter(tab);
-    browser_->GetBrowser().GetTabStripModel()->CloseWebContentsAt(
-        index, TabCloseTypes::CLOSE_NONE);
+    browser_->GetBrowser().GetTabStripModel()->CloseWebContents(
+        tab, TabCloseTypes::CLOSE_NONE);
   }
 }
 
@@ -267,9 +268,8 @@ void LockedSessionWindowTracker::ShowURLBlockedToast() {
   notifications_manager_->CreateToast(std::move(toast_create_params));
 }
 
-// TabStripModel Implementation
+// TabStripModelObserver Implementation
 void LockedSessionWindowTracker::OnTabChangedAt(tabs::TabInterface* tab,
-                                                int index,
                                                 TabChangeType change_type) {
   if (change_type == TabChangeType::kAll) {
     RefreshUrlBlocklist();
@@ -382,7 +382,9 @@ void LockedSessionWindowTracker::WillCloseAllTabs(
   // TODO (crbug.com/372362860): Add browser tests to test tab unload.
   BrowserWindowInterface* const browser =
       tab_strip_model->delegate()->GetBrowserWindowInterface();
-  UnloadController::From(browser)->set_force_skip_warning_user_on_close(true);
+  ash::BrowserController::GetInstance()
+      ->GetDelegate(browser)
+      ->SetSkipWarningUserOnClose(true);
 }
 
 // ash::BrowserController::Observer Implementation
@@ -436,7 +438,7 @@ void LockedSessionWindowTracker::OnBrowserActivated(
   if (browser != browser_) {
     if (browser->GetType() == ash::BrowserType::kNormal &&
         browser != authorized_oauth_browser_ &&
-        platform_util::IsBrowserLockedFullscreen(&browser_->GetBrowser())) {
+        browser_->IsOnTaskState(ash::BrowserDelegate::OnTaskState::kLocked)) {
       aura::Window* const window = browser->GetNativeWindow();
       if (window) {
         std::unique_ptr<aura::WindowTracker> tracker =

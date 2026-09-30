@@ -22,9 +22,10 @@ BASE_DECLARE_FEATURE(kOnDeviceModelForceCpuBackend);
 COMPONENT_EXPORT(ON_DEVICE_MODEL_CPP)
 BASE_DECLARE_FEATURE(kOnDeviceModelCpuBackend);
 
-// Whether the on-device model should use the LiteRT-LM backend.
+// Whether the on-device model should use the conversation API for LiteRT-LM.
+// Enabling this feature implies usage of the LiteRT-LM backend framework.
 COMPONENT_EXPORT(ON_DEVICE_MODEL_CPP)
-BASE_DECLARE_FEATURE(kOnDeviceModelLitertLmBackend);
+BASE_DECLARE_FEATURE(kOnDeviceModelConversationBackend);
 
 // Whether the GPU program cache is enabled for the on-device model.
 COMPONENT_EXPORT(ON_DEVICE_MODEL_CPP)

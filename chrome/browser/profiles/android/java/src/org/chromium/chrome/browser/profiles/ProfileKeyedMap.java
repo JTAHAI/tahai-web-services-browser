@@ -4,6 +4,9 @@
 
 package org.chromium.chrome.browser.profiles;
 
+import android.util.ArrayMap;
+
+import androidx.annotation.CheckResult;
 import androidx.annotation.IntDef;
 
 import org.chromium.base.Callback;
@@ -14,7 +17,6 @@ import org.chromium.build.annotations.Nullable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -49,7 +51,9 @@ public class ProfileKeyedMap<T> {
         int REDIRECTED_TO_ORIGINAL = 1;
     }
 
-    private final Map<Profile, T> mData = new HashMap<>();
+    // Initial capacity 2 covers the common profile combinations (regular and incognito/OTR)
+    // without incurring HashMap entry node allocations.
+    private final Map<Profile, T> mData = new ArrayMap<>(2);
     @ProfileSelection private final int mProfileSelection;
     private final @Nullable Callback<T> mDestroyAction;
 
@@ -149,6 +153,18 @@ public class ProfileKeyedMap<T> {
             ProfileManager.addObserver(mProfileManagerObserver);
         }
         return obj;
+    }
+
+    /**
+     * Removes and returns the mapped value for the profile without invoking the destroy action.
+     *
+     * @param profile The Profile the object is associated with.
+     * @return The removed object associated with the passed in Profile, or null if none existed.
+     */
+    @CheckResult
+    public @Nullable T removeForProfile(Profile profile) {
+        profile = getProfileToUse(profile, mProfileSelection);
+        return mData.remove(profile);
     }
 
     /** Destroys this object and all objects currently mapped to Profiles. */

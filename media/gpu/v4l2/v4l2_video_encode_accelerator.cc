@@ -92,6 +92,8 @@ static void CopyNALUPrependingStartCode(const uint8_t* src,
 
 namespace media {
 
+BASE_FEATURE(kV4L2VEAUseCorrectColorSpace, base::FEATURE_ENABLED_BY_DEFAULT);
+
 namespace {
 // Convert VideoFrameLayout to ImageProcessor::PortConfig.
 std::optional<ImageProcessor::PortConfig> VideoFrameLayoutToPortConfig(
@@ -584,13 +586,13 @@ bool V4L2VideoEncodeAccelerator::AllocateImageProcessorOutputBuffers(
         CHECK(sii_);
         const VideoPixelFormat output_format =
             output_config.fourcc.ToVideoPixelFormat();
-        auto si_format = VideoPixelFormatToSharedImageFormat(output_format);
-        gfx::ColorSpace color_space;
-        if (si_format) {
-          color_space = si_format->is_multi_plane()
-                            ? gfx::ColorSpace::CreateREC709()
-                            : gfx::ColorSpace::CreateSRGB();
-        }
+        // TODO(crbug.com/425634684): Set default color space for output frames
+        // and remove set_color_space from
+        // LibYUVImageProcessorBackend::Process.
+        gfx::ColorSpace color_space =
+            base::FeatureList::IsEnabled(kV4L2VEAUseCorrectColorSpace)
+                ? input_color_space_
+                : gfx::ColorSpace();
         image_processor_output_buffers_[i] =
             CreateMappableSharedImageVideoFrame(
                 output_format, color_space, output_config.size,
@@ -1031,15 +1033,30 @@ bool V4L2VideoEncodeAccelerator::ReconfigureFormatIfNeeded(
     input_natural_size_ = frame.natural_size();
   }
 
+  bool color_space_changed = false;
+  if (base::FeatureList::IsEnabled(kV4L2VEAUseCorrectColorSpace)) {
+    if (image_processor_ && (input_buffer_map_.empty() ||
+                             frame.ColorSpace() != input_color_space_)) {
+      color_space_changed = true;
+    }
+  }
+
   if (!native_input_mode_) {
     // frame.coded_size() must be the size specified in
     // RequireBitstreamBuffers() in non native-input mode.
-    return frame.coded_size() == input_frame_size_;
+    if (frame.coded_size() != input_frame_size_) {
+      return false;
+    }
+    // For color space changes, we need to recreate the output buffers
+    // (SharedImage) with the correct color space.
+    if (!color_space_changed) {
+      return true;
+    }
   }
 
   if (!input_buffer_map_.empty()) {
     // ReconfigureFormatIfNeeded() has been called with the first VideoFrame.
-    // We checks here we need to (re)create ImageProcessor because the visible
+    // We check here if we need to (re)create ImageProcessor because the visible
     // rectangle of |frame| differs from the first VideoFrame.
     // |frame.natural_size()| must be unchanged during encoding in the same
     // VideoEncodeAccelerator  instance. When it is changed, a client has to
@@ -1050,7 +1067,7 @@ bool V4L2VideoEncodeAccelerator::ReconfigureFormatIfNeeded(
                  << ", input_natural_size_=" << input_natural_size_.ToString();
       return false;
     }
-    if (frame.coded_size() == input_frame_size_) {
+    if (frame.coded_size() == input_frame_size_ && !color_space_changed) {
       return true;
     }
 
@@ -1083,16 +1100,30 @@ bool V4L2VideoEncodeAccelerator::ReconfigureFormatIfNeeded(
     if (image_processor_->input_config().size.height() ==
             buffer_size.height() &&
         image_processor_->input_config().planes[0].stride ==
-            static_cast<size_t>(buffer_size.width())) {
+            static_cast<size_t>(buffer_size.width()) &&
+        !color_space_changed) {
       return true;
     }
   }
 
-  // The |frame| dimension is different from the resolution configured to
-  // V4L2VEA. This is the case that V4L2VEA needs to create ImageProcessor for
-  // cropping and scaling. Update |input_frame_size_| to check if succeeding
-  // frames' dimensions are not different from the current one.
+  // The |frame| dimension or the color space is different from the resolution
+  // configured to V4L2VEA. This is the case that V4L2VEA needs to (re)create
+  // ImageProcessor for cropping, scaling or fixing color space metadata.
+  // Recreating ImageProcessor for color space changes is not efficient as
+  // V4L2's usage of SharedImage buffers does not strictly depend on ColorSpace
+  // metadata being correct. But this should happen infrequently so the
+  // efficiency loss is not a problem. Update |input_frame_size_| to check if
+  // succeeding frames' dimensions are not different from the current one.
   input_frame_size_ = frame.coded_size();
+
+  // Store the color space of the input frame used later for allocating output
+  // buffers.
+  if (base::FeatureList::IsEnabled(kV4L2VEAUseCorrectColorSpace)) {
+    // TODO(crbug.com/425634684): Default to BT.709 if frame ColorSpace is
+    // invalid, as SharedImages should always have a valid ColorSpace on
+    // creation.
+    input_color_space_ = frame.ColorSpace();
+  }
   if (!CreateImageProcessor(frame.layout(), device_input_layout_->format(),
                             device_input_layout_->coded_size(),
                             frame.visible_rect(),

@@ -866,6 +866,9 @@ CSSCustomIdentValue* ConsumeCounterStyleName(CSSParserTokenStream&,
 AtomicString ConsumeCounterStyleNameInPrelude(CSSParserTokenStream&,
                                               const CSSParserContext&);
 
+// https://drafts.csswg.org/css-counter-styles-3/#symbols-function
+CSSValue* ConsumeCounterStyleSymbolsFunction(CSSParserTokenStream&);
+
 CSSValue* ConsumeFontSizeAdjust(CSSParserTokenStream&,
                                 const CSSParserContext&,
                                 CSSParserLocalContext&);
@@ -962,7 +965,7 @@ CSSValueList* ConsumeCommaSeparatedList(Func callback,
                                         Args&&... args) {
   CSSValueList* list = CSSValueList::CreateCommaSeparated();
   do {
-    CSSValue* value = callback(stream, std::forward<Args>(args)...);
+    CSSValue* value = callback(stream, args...);
     if (!value) {
       return nullptr;
     }
@@ -978,7 +981,7 @@ CSSValueList* ConsumeSpaceSeparatedList(Func callback,
                                         Args&&... args) {
   CSSValueList* list = CSSValueList::CreateSpaceSeparated();
   do {
-    CSSValue* value = callback(stream, std::forward<Args>(args)...);
+    CSSValue* value = callback(stream, args...);
     if (!value) {
       return list->length() > 0 ? list : nullptr;
     }

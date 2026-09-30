@@ -5,6 +5,8 @@
 #ifndef COMPONENTS_ONE_TIME_TOKENS_CORE_BROWSER_MOCK_ONE_TIME_TOKEN_SERVICE_H_
 #define COMPONENTS_ONE_TIME_TOKENS_CORE_BROWSER_MOCK_ONE_TIME_TOKEN_SERVICE_H_
 
+#include <vector>
+
 #include "components/one_time_tokens/core/browser/one_time_token_service.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
@@ -14,11 +16,16 @@ class MockOneTimeTokenService : public OneTimeTokenService {
  public:
   MockOneTimeTokenService();
   ~MockOneTimeTokenService() override;
+  MOCK_METHOD(OneTimeTokenLogSink*, log_sink, (), (override));
   MOCK_METHOD(void, GetRecentOneTimeTokens, (Callback callback), (override));
   MOCK_METHOD(std::vector<OneTimeToken>,
               GetCachedOneTimeTokens,
               (),
               (const override));
+  MOCK_METHOD(bool,
+              HasPendingRequests,
+              (OneTimeTokenSource source),
+              (const, override));
   MOCK_METHOD(ExpiringSubscription,
               Subscribe,
               (OneTimeTokenSource source,
@@ -26,10 +33,20 @@ class MockOneTimeTokenService : public OneTimeTokenService {
                Callback callback,
                base::OnceClosure expiration_callback),
               (override));
+  MOCK_METHOD(ExpiringSubscription,
+              SubscribeToTickles,
+              (OneTimeTokenSource source,
+               base::Time expiration,
+               TickleCallback callback),
+              (override));
   MOCK_METHOD(void,
               RequestOneTimeToken,
               (base::TimeDelta timeout,
                base::OnceCallback<void(std::optional<OneTimeToken>)> callback),
+              (override));
+  MOCK_METHOD(void,
+              FetchUserDataProcessingConsent,
+              (FetchUserDataProcessingConsentCallback callback),
               (override));
 };
 

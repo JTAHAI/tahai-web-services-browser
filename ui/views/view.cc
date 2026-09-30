@@ -59,7 +59,7 @@
 #include "ui/color/color_provider.h"
 #include "ui/compositor/clip_recorder.h"
 #include "ui/compositor/compositor.h"
-#include "ui/compositor/layer.h"
+#include "ui/compositor/layer_textured.h"
 #include "ui/compositor/layer_type.h"
 #include "ui/compositor/paint_context.h"
 #include "ui/compositor/paint_recorder.h"
@@ -863,6 +863,20 @@ void View::LayerDestroyed(ui::Layer* layer) {
   // Only layers added with |AddLayerToRegion()| or |AddLayerAboveView()|
   // are observed so |layer| can safely be removed.
   RemoveLayerFromRegions(layer);
+}
+
+void View::OnLayerRecreated(ui::Layer* old_layer, ui::Layer* new_layer) {
+  auto swap_layer =
+      [&](std::vector<raw_ptr<ui::Layer, VectorExperimental>>& layers) {
+        auto it = std::ranges::find(layers, old_layer);
+        if (it != layers.end()) {
+          old_layer->RemoveObserver(this);
+          new_layer->AddObserver(this);
+          *it = new_layer;
+        }
+      };
+  swap_layer(layers_below_);
+  swap_layer(layers_above_);
 }
 
 std::unique_ptr<ui::Layer> View::RecreateLayer() {
@@ -2722,7 +2736,7 @@ void View::AddLayerToRegionImpl(
 
   CreateOrDestroyLayer();
 
-  if (layer()->type() != ui::LAYER_SOLID_COLOR) {
+  if (!layer()->AsSolidColor()) {
     layer()->SetFillsBoundsOpaquely(false);
   }
 }
@@ -2796,13 +2810,25 @@ void View::UpdateLayerClipForVisibleBounds(bool remove_layer_clip) {
 
 void View::ReorderChildLayers(ui::Layer* parent_layer) {
   if (layer() && layer() != parent_layer) {
-    DCHECK_EQ(parent_layer, layer()->parent());
+    // TODO(crbug.com/565603740): Revert back to DCHECK_EQ and remove
+    // DUMP_WILL_BE_CHECK_EQ / early returns once confirmed no parent mismatch
+    // occurs.
+    DUMP_WILL_BE_CHECK_EQ(parent_layer, layer()->parent());
+    if (layer()->parent() != parent_layer) {
+      return;
+    }
     for (ui::Layer* layer_above : layers_above_) {
-      parent_layer->StackAtBottom(layer_above);
+      DUMP_WILL_BE_CHECK_EQ(parent_layer, layer_above->parent());
+      if (layer_above->parent() == parent_layer) {
+        parent_layer->StackAtBottom(layer_above);
+      }
     }
     parent_layer->StackAtBottom(layer());
     for (ui::Layer* layer_below : layers_below_) {
-      parent_layer->StackAtBottom(layer_below);
+      DUMP_WILL_BE_CHECK_EQ(parent_layer, layer_below->parent());
+      if (layer_below->parent() == parent_layer) {
+        parent_layer->StackAtBottom(layer_below);
+      }
     }
   } else {
     // Iterate backwards through the children so that a child with a layer
@@ -2980,19 +3006,33 @@ void View::HandlePropertyChangeEffects(PropertyEffects effects) {
 }
 
 void View::AfterPropertyChange(const void* key, int64_t old_value) {
-  if (key == kElementIdentifierKey) {
-    const ui::ElementIdentifier old_element_id =
-        ui::ElementIdentifier::FromRawValue(
-            base::checked_cast<intptr_t>(old_value));
-    if (old_element_id) {
-      views::ElementTrackerViews::GetInstance()->UnregisterView(old_element_id,
+  if (life_cycle_state_ == LifeCycleState::kAlive) {
+    // Only care about changes to identifiers while the view is alive; when the
+    // view is being destroyed it will naturally be removed from the tracker.
+    if (key == kElementIdentifierKey) {
+      const ui::ElementIdentifier old_element_id =
+          ui::ElementIdentifier::FromRawValue(
+              base::checked_cast<intptr_t>(old_value));
+      if (old_element_id) {
+        views::ElementTrackerViews::GetInstance()->UnregisterView(
+            old_element_id, this);
+      }
+      const ui::ElementIdentifier new_element_id =
+          GetProperty(kElementIdentifierKey);
+      if (new_element_id) {
+        views::ElementTrackerViews::GetInstance()->RegisterView(new_element_id,
                                                                 this);
-    }
-    const ui::ElementIdentifier new_element_id =
-        GetProperty(kElementIdentifierKey);
-    if (new_element_id) {
-      views::ElementTrackerViews::GetInstance()->RegisterView(new_element_id,
-                                                              this);
+      }
+    } else if (key == kElementSecondaryIdentifierKey) {
+      const auto primary_id = GetProperty(kElementIdentifierKey);
+      if (primary_id) {
+        // Since for a tracked element the ids are immutable, need to recreate
+        // it.
+        views::ElementTrackerViews::GetInstance()->UnregisterView(primary_id,
+                                                                  this);
+        views::ElementTrackerViews::GetInstance()->RegisterView(primary_id,
+                                                                this);
+      }
     }
   }
   observers_.Notify(&ViewObserver::OnViewPropertyChanged, this, key, old_value);
@@ -3810,7 +3850,7 @@ void View::ReparentLayer(ui::Layer* parent_layer) {
 void View::CreateMaskLayer() {
   DCHECK(layer());
   mask_layer_ = std::make_unique<views::ViewMaskLayer>(clip_path_, this);
-  layer()->SetMaskLayer(mask_layer_->layer());
+  layer()->SetMaskLayer(mask_layer_->layer()->AsTextured());
 }
 
 // Layout ----------------------------------------------------------------------

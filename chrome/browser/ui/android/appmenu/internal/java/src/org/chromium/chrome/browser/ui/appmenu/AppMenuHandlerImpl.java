@@ -29,6 +29,7 @@ import androidx.annotation.VisibleForTesting;
 import androidx.core.content.ContextCompat;
 
 import org.chromium.base.Callback;
+import org.chromium.base.CallbackUtils;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
@@ -352,7 +353,7 @@ class AppMenuHandlerImpl
         }
 
         mHierarchicalMenuController.setupCallbacks(
-                /* headerModelList= */ null, mModelList, () -> {});
+                /* headerModelList= */ null, mModelList, CallbackUtils.emptyRunnable());
 
         if (mAppMenu == null) {
             mAppMenu =
@@ -513,12 +514,6 @@ class AppMenuHandlerImpl
 
         int itemId = model.get(AppMenuItemProperties.MENU_ITEM_ID);
 
-        // Empty menu items are technically enabled for keyboard navigation, but clicks should be
-        // ignored.
-        if (itemId == R.id.empty_item_menu_id) {
-            return;
-        }
-
         mAppMenu.setSelectedItemBeforeDismiss(true);
         mAppMenu.dismiss();
 
@@ -535,12 +530,6 @@ class AppMenuHandlerImpl
     public boolean onItemLongClick(PropertyModel model, View view) {
         if (mAppMenu == null) return false;
         if (!model.get(AppMenuItemProperties.ENABLED)) return false;
-
-        // Empty menu items are technically enabled for keyboard navigation, but long clicks should
-        // be ignored.
-        if (model.get(AppMenuItemProperties.MENU_ITEM_ID) == R.id.empty_item_menu_id) {
-            return false;
-        }
 
         mAppMenu.setSelectedItemBeforeDismiss(true);
 
@@ -863,6 +852,7 @@ class AppMenuHandlerImpl
 
     @Override
     public void setWindowFocus(AppMenuPopup popupWindow, boolean hasFocus) {
+        popupWindow.setFocusable(hasFocus);
         ViewGroup contentView = (ViewGroup) popupWindow.getContentView();
         if (contentView == null) return;
 

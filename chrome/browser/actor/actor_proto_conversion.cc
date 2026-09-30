@@ -933,6 +933,17 @@ BuildToolRequest(const optimization_guide::proto::Actions& actions) {
   return requests;
 }
 
+bool ValidateActionsAreScriptTools(
+    const optimization_guide::proto::Actions& actions) {
+  for (const auto& action : actions.actions()) {
+    if (action.action_case() !=
+        optimization_guide::proto::Action::kScriptTool) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void FillInTabObservation(
     const page_content_annotations::FetchPageContextResult& fetch_result,
     apc::TabObservation& tab_observation) {
@@ -1584,13 +1595,13 @@ origin_gating::ActorContainerConfig ConvertAgentContainerConfig(
                    std::string_view>
         destination_result = ConvertLocation(rule_proto.location());
     if (!destination_result.has_value()) {
-      DLOG(ERROR) << destination_result.error();
+      VLOG(1) << destination_result.error();
       continue;
     }
     base::expected<origin_gating::ActorContainerConfig::Rule, std::string_view>
         rule = ConvertRule(rule_proto);
     if (!rule.has_value()) {
-      DLOG(ERROR) << rule.error();
+      VLOG(1) << rule.error();
       continue;
     }
     const origin_gating::ActorContainerConfig::Location& destination =
@@ -1598,7 +1609,7 @@ origin_gating::ActorContainerConfig ConvertAgentContainerConfig(
     auto [_, inserted] =
         location_rules.insert_or_assign(destination, std::move(rule.value()));
     if (!inserted) {
-      DLOG(ERROR) << "Duplicate rule for " << destination.ToDebugString();
+      VLOG(1) << "Duplicate rule for " << destination.ToDebugString();
     }
   }
   return origin_gating::ActorContainerConfig(std::move(location_rules));

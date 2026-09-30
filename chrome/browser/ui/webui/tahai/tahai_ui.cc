@@ -31,13 +31,12 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/tahai_skins/skin_profile_service.h"
-#include "chrome/browser/tahai_skins/skin_profile_service_factory.h"
 #include "chrome/browser/tahai_guard/guard_profile_service.h"
 #include "chrome/browser/tahai_guard/guard_profile_service_factory.h"
 #include "chrome/browser/tahai_guard/tahai_guard_configuration.h"
 #include "chrome/browser/tahai_guard/tahai_guard_configuration_registry.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/tahai_skins/skin_profile_service.h"
+#include "chrome/browser/tahai_skins/skin_profile_service_factory.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -52,18 +51,7 @@
 #include "chrome/browser/ui/tahai/tahai_operational_skin_controller.h"
 #include "chrome/browser/ui/tahai/tahai_skin_studio_draft.h"
 #include "chrome/browser/ui/tahai/tahai_window_mode_controller.h"
-#include "chrome/browser/ui/webui/tahai/tahai_native_mode_editor.h"
-#include "chrome/browser/ui/webui/tahai/tahai_royal_brand.h"
 #include "chrome/browser/ui/webui/tahai/tahai_capability_review_ui.h"
-#include "chrome/browser/ui/webui/tahai/tahai_surface_editor_handler.h"
-#include "chrome/browser/ui/webui/tahai/tahai_workflow_native_handler.h"
-#include "chrome/browser/ui/webui/tahai/tahai_surface_designer.h"
-#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_model.h"
-#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_tools.h"
-#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_outline.h"
-#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_condition_tree.h"
-#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_history.h"
-#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_editor.h"
 #include "chrome/browser/ui/webui/tahai/tahai_change_lens_contract.h"
 #include "chrome/browser/ui/webui/tahai/tahai_environment_guard.h"
 #include "chrome/browser/ui/webui/tahai/tahai_local_oi_model.h"
@@ -72,12 +60,23 @@
 #include "chrome/browser/ui/webui/tahai/tahai_local_oi_service_factory.h"
 #include "chrome/browser/ui/webui/tahai/tahai_mission_capsule.h"
 #include "chrome/browser/ui/webui/tahai/tahai_mission_service.h"
+#include "chrome/browser/ui/webui/tahai/tahai_native_mode_editor.h"
 #include "chrome/browser/ui/webui/tahai/tahai_network_inspector.h"
 #include "chrome/browser/ui/webui/tahai/tahai_oi_promotion_contract.h"
 #include "chrome/browser/ui/webui/tahai/tahai_recall_contract.h"
+#include "chrome/browser/ui/webui/tahai/tahai_royal_brand.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_condition_tree.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_editor.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_history.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_model.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_outline.h"
+#include "chrome/browser/ui/webui/tahai/tahai_skin_studio_workflow_tools.h"
+#include "chrome/browser/ui/webui/tahai/tahai_surface_designer.h"
+#include "chrome/browser/ui/webui/tahai/tahai_surface_editor_handler.h"
 #include "chrome/browser/ui/webui/tahai/tahai_sync_contract.h"
 #include "chrome/browser/ui/webui/tahai/tahai_sync_envelope.h"
 #include "chrome/browser/ui/webui/tahai/tahai_sync_key_service.h"
+#include "chrome/browser/ui/webui/tahai/tahai_workflow_native_handler.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/tahai_url_constants.h"
 #include "chrome/grit/chrome_unscaled_resources.h"
@@ -85,8 +84,8 @@
 #include "components/version_info/version_info.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/render_frame_host.h"
-#include "content/public/browser/weak_document_ptr.h"
 #include "content/public/browser/url_data_source.h"
+#include "content/public/browser/weak_document_ptr.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_message_handler.h"
 #include "content/public/common/url_constants.h"
@@ -99,14 +98,14 @@
 namespace tahai {
 namespace {
 
-Browser* FindBrowserForWebContents(content::WebContents* web_contents) {
+BrowserWindowInterface* FindBrowserForWebContents(
+    content::WebContents* web_contents) {
   if (!web_contents) {
     return nullptr;
   }
   BrowserWindowInterface* browser_window =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents);
-  return browser_window ? browser_window->GetBrowserForMigrationOnly()
-                        : nullptr;
+  return browser_window ? browser_window : nullptr;
 }
 
 bool IsTahaiSkinStudioWebContents(content::WebContents* web_contents) {
@@ -118,8 +117,8 @@ bool IsTahaiSkinStudioWebContents(content::WebContents* web_contents) {
          url == GURL(kTahaiTrustedSkinStudioURL);
 }
 
-Browser* BrowserForModeEditor(content::WebContents* web_contents,
-                             Profile* profile) {
+BrowserWindowInterface* BrowserForModeEditor(content::WebContents* web_contents,
+                                             Profile* profile) {
   if (!web_contents || !profile || !profile->IsRegularProfile() ||
       profile->IsOffTheRecord() || profile->IsGuestSession() ||
       profile->IsSystemProfile()) {
@@ -130,8 +129,12 @@ Browser* BrowserForModeEditor(content::WebContents* web_contents,
     return nullptr;
   }
   auto* browser = FindBrowserForWebContents(web_contents);
-  return browser && browser->is_type_normal() && browser->GetProfile() == profile
-             ? browser : nullptr;
+  return browser &&
+                 (browser->GetType() ==
+                  BrowserWindowInterface::Type::TYPE_NORMAL) &&
+                 browser->GetProfile() == profile
+             ? browser
+             : nullptr;
 }
 
 constexpr char kNewTabSurface[] = "newtab";
@@ -242,8 +245,10 @@ bool IsSafeRecipeUrl(const GURL& url) {
          !url.has_username() && !url.has_password() && !url.has_ref();
 }
 
-bool LaunchRecipeWorkspace(Browser* browser, const RecipeDefinition& recipe) {
-  if (!browser || !browser->is_type_normal()) {
+bool LaunchRecipeWorkspace(BrowserWindowInterface* browser,
+                           const RecipeDefinition& recipe) {
+  if (!browser ||
+      !(browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL)) {
     return false;
   }
 
@@ -255,7 +260,7 @@ bool LaunchRecipeWorkspace(Browser* browser, const RecipeDefinition& recipe) {
     }
   }
 
-  TabStripModel* model = browser->tab_strip_model();
+  TabStripModel* model = browser->GetTabStripModel();
   std::vector<int> indices;
   indices.reserve(urls.size());
   for (const GURL& url : urls) {
@@ -4855,10 +4860,10 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       return false;
     }
     auto* frame = contents->GetPrimaryMainFrame();
-    Browser* browser = FindBrowserForWebContents(contents);
+    BrowserWindowInterface* browser = FindBrowserForWebContents(contents);
     return frame && frame->HasTransientUserActivation() && browser &&
            browser->GetProfile() == profile_ &&
-           browser->tab_strip_model()->GetActiveWebContents() == contents;
+           browser->GetTabStripModel()->GetActiveWebContents() == contents;
   }
 
   bool HasActiveSurfaceGesture(const char* public_url, const char* trusted_url) {
@@ -4886,7 +4891,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
           content::NavigationController::LoadURLParams(*surface_url));
       return;
     }
-    Browser* browser = FindBrowserForWebContents(web_ui()->GetWebContents());
+    BrowserWindowInterface* browser =
+        FindBrowserForWebContents(web_ui()->GetWebContents());
     if (command == "dual.open") {
       chrome::OpenTahaiDualView(browser,
                                 chrome::TahaiDualViewLayout::kSideBySide);
@@ -5057,8 +5063,9 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   bool IsActiveMissionInputDocument() {
     auto* contents = web_ui()->GetWebContents();
     auto* browser = FindBrowserForWebContents(contents);
-    return IsMissionInputDocument() && browser && browser->GetProfile() == profile_ &&
-        browser->tab_strip_model()->GetActiveWebContents() == contents;
+    return IsMissionInputDocument() && browser &&
+           browser->GetProfile() == profile_ &&
+           browser->GetTabStripModel()->GetActiveWebContents() == contents;
   }
 
   void PrepareProtectedWorkflowInputs(const base::ListValue& args) {
@@ -5169,7 +5176,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       return;
     }
     const RecipeDefinition* recipe = FindRecipe(args.front().GetString());
-    Browser* browser = FindBrowserForWebContents(web_ui()->GetWebContents());
+    BrowserWindowInterface* browser =
+        FindBrowserForWebContents(web_ui()->GetWebContents());
     if (!recipe || !LaunchRecipeWorkspace(browser, *recipe)) {
       return;
     }
@@ -5913,11 +5921,11 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     auto* contents = web_ui()->GetWebContents();
     auto* frame = web_ui()->GetRenderFrameHost();
     auto* browser = FindBrowserForWebContents(contents);
-    if (!profile_ || !profile_->IsRegularProfile() || profile_->IsOffTheRecord() ||
-        !contents || !frame || !frame->IsActive() ||
-        frame != contents->GetPrimaryMainFrame() || !browser ||
-        browser->GetProfile() != profile_ ||
-        browser->tab_strip_model()->GetActiveWebContents() != contents) {
+    if (!profile_ || !profile_->IsRegularProfile() ||
+        profile_->IsOffTheRecord() || !contents || !frame ||
+        !frame->IsActive() || frame != contents->GetPrimaryMainFrame() ||
+        !browser || browser->GetProfile() != profile_ ||
+        browser->GetTabStripModel()->GetActiveWebContents() != contents) {
       return false;
     }
     const auto& url = contents->GetLastCommittedURL();
@@ -6040,7 +6048,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     // It only affects an existing multi-view workspace and cannot create,
     // close, move, or otherwise mutate tabs on its own.
     if (args[0].GetString() == "focus") {
-      Browser* browser = FindBrowserForWebContents(web_ui()->GetWebContents());
+      BrowserWindowInterface* browser =
+          FindBrowserForWebContents(web_ui()->GetWebContents());
       if (browser && chrome::IsTahaiMultiView(browser)) {
         chrome::SetTahaiMultiViewFocusMode(browser, args[1].GetBool());
       }
@@ -6096,7 +6105,8 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     }
     const std::optional<TahaiOiReferralContext> context =
         ReferralContextFromString(args.front().GetString());
-    Browser* browser = FindBrowserForWebContents(web_ui()->GetWebContents());
+    BrowserWindowInterface* browser =
+        FindBrowserForWebContents(web_ui()->GetWebContents());
     Profile* profile = Profile::FromWebUI(web_ui());
     if (!context || !browser || !profile ||
         !GetTahaiOiPromotionSurfaceState(profile->GetPrefs()).show_referral) {

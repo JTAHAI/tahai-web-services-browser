@@ -61,7 +61,8 @@ class BaseTabStripRegionView : public TabStripRegionView,
   void UpdateLoadingAnimations(const base::TimeDelta& elapsed_time) override;
   std::optional<int> GetFocusedTabIndex() const override;
   const tabs::TabData& GetTabData(const tabs::TabHandle& tab) override;
-  views::View* GetTabAnchorViewAt(int tab_index) override;
+  TabHoverCardController* GetHoverCardController() override;
+  views::View* GetTabAnchorView(const tabs::TabHandle& tab) override;
   views::View* GetTabGroupAnchorView(
       const tab_groups::TabGroupId& group) override;
   void OnTabGroupFocusChanged(
@@ -117,12 +118,16 @@ class BaseTabStripRegionView : public TabStripRegionView,
   virtual gfx::Point GetLinkDropArrowPosition(
       const BrowserRootView::DropIndex& drop_index,
       DropArrow::Direction* direction) = 0;
+  views::View* GetTabViewAt(int tab_index) const;
+  bool IsDropBeforeGroupHeader(const BrowserRootView::DropIndex& drop_index,
+                               const tabs::TabInterface* tab) const;
+  views::View* GetGroupHeaderView(const tab_groups::TabGroupId& group_id) const;
+  bool IsDragging() const;
 
   BrowserView* browser_view() const { return browser_view_; }
   actions::ActionItem* root_action_item() const { return root_action_item_; }
   TabStripModel* tab_strip_model() const { return tab_strip_model_; }
   TabStripView* tab_strip_view() const { return tab_strip_view_; }
-  RootTabCollectionNode* root_node() const { return root_node_.get(); }
   DropArrow* drop_arrow() const { return drop_arrow_.get(); }
   TabHoverCardController* hover_card_controller() const {
     return hover_card_controller_.get();
@@ -152,8 +157,8 @@ class BaseTabStripRegionView : public TabStripRegionView,
   raw_ptr<TabDragHandler> drag_handler_ = nullptr;
   std::unique_ptr<DropArrow> drop_arrow_;
 
-  std::unique_ptr<TabStripCollectionController> tab_strip_controller_;
   std::unique_ptr<RootTabCollectionNode> root_node_;
+  std::unique_ptr<TabStripCollectionController> tab_strip_controller_;
 
   std::unique_ptr<TabHoverCardController> hover_card_controller_;
   std::unique_ptr<HoverTabSelector> hover_tab_selector_;

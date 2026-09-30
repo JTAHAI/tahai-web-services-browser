@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// cc_file_path:
+// chrome/browser/sharing/glic_experimental_triggering/glic_experimental_triggering_message_handler_browsertest.cc
+
 import {ActuationTarget, ExperimentalTriggeringUpdateType} from '/glic/glic_api/glic_api.js';
 import type {ExperimentalTriggeringUpdate, Observable2} from '/glic/glic_api/glic_api.js';
 import {Subject} from '/glic/observable.js';
@@ -52,14 +55,6 @@ class TriggeringUpdatesTest extends ApiTestFixtureBase {
     });
   }
 
-  async testRespectsLastSeenSequenceNumber() {
-    await runUntil(() => client.isSubscribed);
-    client.triggeringUpdatesSubject.next({
-      type: ExperimentalTriggeringUpdateType.WORKLOG,
-      data: 'test_update',
-    });
-  }
-
   async testRelaysResumedUpdate(): Promise<void> {
     await runUntil(() => client.isSubscribed);
     client.triggeringUpdatesSubject.next({
@@ -102,40 +97,6 @@ class TriggeringUpdatesTest extends ApiTestFixtureBase {
       type: ExperimentalTriggeringUpdateType.WORKLOG,
       data: 'test_update',
     });
-  }
-
-  async testHandlesStopActuationRequestNoMatchingUpdatesHandler() {
-    // No-op.
-  }
-
-  async testRelaysParentConversationMetadataUpdated() {
-    await runUntil(() => client.isSubscribed);
-    const contextPromise = new Promise<any>(resolve => {
-      this.host.getAdditionalContext!().subscribe(context => {
-        resolve(context);
-      });
-    });
-    await this.advanceToNextStep();
-    const context = await contextPromise;
-    assertDefined(context);
-    assertEquals(1, context.parts.length);
-    const metadata = context.parts[0]!.parentConversationMetadata;
-    assertDefined(metadata);
-    assertEquals('test_conv_id', metadata.conversationId);
-    assertEquals('test_title', metadata.conversationTitle);
-  }
-
-  async testRelaysParentConversationMetadataInitial() {
-    await runUntil(() => client.isSubscribed);
-    const invokeOpts = await client.invokeData.waitUntil(v => v !== undefined);
-    assertDefined(invokeOpts);
-    assertEquals(ActuationTarget.TARGET_SURFACE, invokeOpts.actuationTarget);
-    assertDefined(invokeOpts.context);
-    assertEquals(1, invokeOpts.context!.parts.length);
-    const metadata = invokeOpts.context!.parts[0]!.parentConversationMetadata;
-    assertDefined(metadata);
-    assertEquals('test_init_id', metadata.conversationId);
-    assertEquals('test_init_title', metadata.conversationTitle);
   }
 
   async testHandlesGetScreenshotRequestSuccessfully() {

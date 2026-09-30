@@ -6,6 +6,7 @@
 #define COMPONENTS_SEARCH_ENGINES_TEMPLATE_URL_PREPOPULATE_DATA_RESOLVER_H_
 
 #include <optional>
+#include <string_view>
 #include <vector>
 
 #include "base/memory/raw_ref.h"
@@ -32,9 +33,10 @@ struct BuiltinKeywordsMetadata {
   // Version of the built-in prepopulated keywords data.
   int data_version;
 
-  // Whether the data is a post-migration version, see
-  // `switches::kPrepopulatedEnginesMigration`.
-  bool prepopulated_engines_migration_enabled;
+  // The migration state of the database, indicating which prepopulated engine
+  // migrations have been applied.
+  KeywordTable::PrepopulatedEngineMigrationSet
+      prepopulated_engines_migration_state;
 };
 
 // Resolves prepopulated engines using on various information from the browser
@@ -61,6 +63,12 @@ class Resolver : public KeyedService {
   // it's not known there.
   std::unique_ptr<TemplateURLData> GetEngineFromFullList(
       int prepopulated_id) const;
+
+  // Returns the prepopulated search engine with the given `keyword` from the
+  // full list of known prepopulated search engines, or `nullptr` if it's not
+  // known there.
+  std::unique_ptr<TemplateURLData> GetEngineFromFullList(
+      std::u16string_view keyword) const;
 
   // Returns the fallback default search provider, currently hardcoded to be
   // Google, or whichever one is the first of the list if Google is not in the

@@ -61,7 +61,6 @@ import org.chromium.net.impl.CronetManifest;
 import org.chromium.net.impl.CronetManifestInterceptor;
 import org.chromium.net.impl.CronetUrlRequestContext;
 import org.chromium.net.impl.ImplVersion;
-import org.chromium.net.impl.NativeCronetEngineBuilderImpl;
 import org.chromium.net.impl.NativeCronetProvider;
 import org.chromium.net.impl.NetworkExceptionImpl;
 
@@ -87,7 +86,6 @@ public class CronetUrlRequestContextTest {
     private static final String TAG = "CronetUrlReqCtxTest";
     // URLs used for tests.
     private static final String MOCK_CRONET_TEST_FAILED_URL = "http://mock.failed.request/-2";
-    private static final String MOCK_CRONET_TEST_SUCCESS_URL = "http://mock.http/success.txt";
     private static final int MAX_FILE_SIZE = 1000000000;
 
     private NativeTestServer mNativeTestServer;
@@ -527,8 +525,9 @@ public class CronetUrlRequestContextTest {
                                 traceNetLogSystemPropertyValue == null
                                         ? Map.of()
                                         : Map.of(
-                                                CronetLibraryLoader
-                                                        .TRACE_NET_LOG_SYSTEM_PROPERTY_KEY,
+                                                // LINT.IfChange(trace_netlog_property)
+                                                "debug.cronet.trace_netlog",
+                                                // LINT.ThenChange(//components/cronet/android/java/src/org/chromium/net/impl/DebugFlags.java:trace_netlog_property)
                                                 traceNetLogSystemPropertyValue));
                 var withBuildOverride =
                         new AndroidOsBuild.WithOverrideForTesting(
@@ -2265,6 +2264,7 @@ public class CronetUrlRequestContextTest {
                         getTestStorage(mTestRule.getTestFramework().getContext()));
     }
 
+    @SuppressWarnings("deprecation")
     public static class TestBadLibraryLoader extends CronetEngine.Builder.LibraryLoader {
         private boolean mWasCalled;
 
@@ -2281,20 +2281,15 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
-    @IgnoreFor(
-            implementations = {CronetImplementation.FALLBACK, CronetImplementation.AOSP_PLATFORM},
-            reason = "LibraryLoader is supported only by the native implementation")
-    public void testSetLibraryLoaderIsIgnoredInNativeCronetEngineBuilderImpl() throws Exception {
-        CronetEngine.Builder builder =
-                new CronetEngine.Builder(
-                        new NativeCronetEngineBuilderImpl(
-                                mTestRule.getTestFramework().getContext()));
+    @SuppressWarnings("deprecation")
+    public void testSetLibraryLoaderIsIgnored() throws Exception {
         TestBadLibraryLoader loader = new TestBadLibraryLoader();
-        builder.setLibraryLoader(loader);
-        CronetEngine engine = builder.build();
+        mTestRule
+                .getTestFramework()
+                .applyEngineBuilderPatch((builder) -> builder.setLibraryLoader(loader));
+        CronetEngine engine = mTestRule.getTestFramework().startEngine();
         assertThat(engine).isNotNull();
         assertThat(loader.wasCalled()).isFalse();
-        engine.shutdown();
     }
 
     @Test
@@ -2567,7 +2562,7 @@ public class CronetUrlRequestContextTest {
     }
 
     /**
-     * @returns the thread priority of {@code engine}'s network thread.
+     * @return the thread priority of {@code engine}'s network thread.
      */
     private static class ApiHelper {
         public static boolean doesContextExistForNetwork(CronetEngine engine, Network network)
@@ -2587,7 +2582,7 @@ public class CronetUrlRequestContextTest {
     }
 
     /**
-     * @returns the thread priority of {@code engine}'s network thread.
+     * @return the thread priority of {@code engine}'s network thread.
      */
     private FutureTask<Integer> getThreadPriorityTask() {
         return new FutureTask<>(

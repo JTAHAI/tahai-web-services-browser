@@ -23,6 +23,7 @@ import java.lang.annotation.Target;
 public class VerticalTabListProperties {
     /** State of the Vertical Tab Rail layout. */
     @IntDef({
+        RailCollapseState.UNKNOWN,
         RailCollapseState.EXPANDED,
         RailCollapseState.COLLAPSED,
         RailCollapseState.EXPANDED_FOR_HOVERING
@@ -30,6 +31,9 @@ public class VerticalTabListProperties {
     @Retention(RetentionPolicy.SOURCE)
     @Target({ElementType.TYPE_USE})
     public @interface RailCollapseState {
+        /** The rail collapse state is unknown. */
+        int UNKNOWN = -1;
+
         /** The rail is fully expanded, showing tab favicons and titles. */
         int EXPANDED = 0;
 
@@ -40,18 +44,20 @@ public class VerticalTabListProperties {
         int EXPANDED_FOR_HOVERING = 2;
     }
 
-    public static final PropertyModel.WritableIntPropertyKey COLLAPSE_STATE =
-            new PropertyModel.WritableIntPropertyKey();
+    public static final PropertyModel.WritableIntDefPropertyKey<RailCollapseState> COLLAPSE_STATE =
+            new PropertyModel.WritableIntDefPropertyKey<>(RailCollapseState.UNKNOWN);
     public static final PropertyModel.WritableBooleanPropertyKey IS_COLLAPSE_BUTTON_ENABLED =
             new PropertyModel.WritableBooleanPropertyKey();
     public static final PropertyModel.WritableBooleanPropertyKey IS_INCOGNITO =
             new PropertyModel.WritableBooleanPropertyKey();
-    public static final PropertyModel.WritableObjectPropertyKey<View.OnClickListener>
-            ON_GRID_CLICK_LISTENER = new PropertyModel.WritableObjectPropertyKey<>();
+    public static final PropertyModel.WritableBooleanPropertyKey IS_INCOGNITO_BUTTON_VISIBLE =
+            new PropertyModel.WritableBooleanPropertyKey();
     public static final PropertyModel.WritableObjectPropertyKey<View.OnClickListener>
             ON_SEARCH_CLICK_LISTENER = new PropertyModel.WritableObjectPropertyKey<>();
     public static final PropertyModel.WritableObjectPropertyKey<View.OnClickListener>
             ON_NEW_TAB_CLICK_LISTENER = new PropertyModel.WritableObjectPropertyKey<>();
+    public static final PropertyModel.WritableObjectPropertyKey<View.OnClickListener>
+            ON_INCOGNITO_CLICK_LISTENER = new PropertyModel.WritableObjectPropertyKey<>();
     public static final PropertyModel.WritableObjectPropertyKey<View.OnClickListener>
             ON_COLLAPSE_CLICK_LISTENER = new PropertyModel.WritableObjectPropertyKey<>();
     public static final PropertyModel.WritableObjectPropertyKey<
@@ -62,9 +68,10 @@ public class VerticalTabListProperties {
                 COLLAPSE_STATE,
                 IS_COLLAPSE_BUTTON_ENABLED,
                 IS_INCOGNITO,
-                ON_GRID_CLICK_LISTENER,
+                IS_INCOGNITO_BUTTON_VISIBLE,
                 ON_SEARCH_CLICK_LISTENER,
                 ON_NEW_TAB_CLICK_LISTENER,
+                ON_INCOGNITO_CLICK_LISTENER,
                 ON_COLLAPSE_CLICK_LISTENER,
                 EXPAND_OR_COLLAPSE_ON_HOVER_LISTENER
             };

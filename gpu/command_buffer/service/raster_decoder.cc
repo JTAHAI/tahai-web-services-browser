@@ -20,6 +20,7 @@
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/containers/flat_map.h"
+#include "base/containers/span.h"
 #include "base/debug/crash_logging.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
@@ -30,6 +31,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/notimplemented.h"
 #include "base/numerics/checked_math.h"
+#include "base/strings/string_view_util.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
@@ -879,7 +881,6 @@ class RasterDecoderImpl final : public RasterDecoder,
   bool lose_context_when_out_of_memory_ = false;
 
   std::unique_ptr<gles2::GPUTracer> gpu_tracer_;
-  raw_ptr<const unsigned char> gpu_decoder_category_;
   static constexpr int gpu_trace_level_ = 2;
   bool gpu_trace_commands_ = false;
   bool gpu_debug_commands_ = false;
@@ -1017,8 +1018,6 @@ RasterDecoderImpl::RasterDecoderImpl(
       validators_(new Validators),
       shared_image_representation_factory_(shared_image_manager,
                                            std::move(memory_tracker)),
-      gpu_decoder_category_(TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(
-          TRACE_DISABLED_BY_DEFAULT("gpu.decoder"))),
       font_manager_(base::MakeRefCounted<ServiceFontManager>(
           this,
           gpu_preferences_.disable_oopr_debug_crash_dump)),
@@ -1428,7 +1427,9 @@ void RasterDecoderImpl::SetIgnoreCachedStateForTest(bool ignore) {
 
 void RasterDecoderImpl::BeginDecoding() {
   gpu_tracer_->BeginDecoding();
-  gpu_trace_commands_ = gpu_tracer_->IsTracing() && *gpu_decoder_category_;
+  gpu_trace_commands_ =
+      gpu_tracer_->IsTracing() &&
+      TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("gpu.decoder"));
   gpu_debug_commands_ = log_commands() || debug() || gpu_trace_commands_;
   query_manager_->BeginProcessingCommands();
 }
@@ -1855,11 +1856,12 @@ error::Error RasterDecoderImpl::HandleSetActiveURLCHROMIUM(
   }
 
   size_t size = url_bucket->size();
-  const char* url_str = url_bucket->GetDataAs<const char*>(0, size);
-  if (!url_str)
+  base::span<const uint8_t> url_bytes = url_bucket->GetDataAsByteSpan(0, size);
+  if (url_bytes.empty()) {
     return error::kInvalidArguments;
+  }
 
-  GURL url(std::string_view(url_str, size));
+  GURL url(base::as_string_view(url_bytes));
   client()->SetActiveURL(std::move(url));
   return error::kNoError;
 }
@@ -1985,6 +1987,15 @@ void RasterDecoderImpl::DoWritePixelsINTERNAL(GLint x_offset,
     return;
   }
 
+  const bool check_gl_upload_errors = !dest_shared_image->IsCleared() &&
+                                      shared_context_state_->GrContextIsGL() &&
+                                      !WasContextLost();
+  gl::GLApi* const gl_api =
+      check_gl_upload_errors ? gl::g_current_gl_context : nullptr;
+  if (gl_api) {
+    DrainGLErrors(gl_api);
+  }
+
   // Try a direct texture upload without using SkSurface.
   if (gfx::Size(src_width, src_height) == dest_shared_image->size() &&
       x_offset == 0 && y_offset == 0 &&
@@ -1996,10 +2007,25 @@ void RasterDecoderImpl::DoWritePixelsINTERNAL(GLint x_offset,
       DoWritePixelsINTERNALDirectTextureUpload(
           dest_shared_image.get(), src_info, pixel_data, row_bytes)) {
     if (!dest_shared_image->IsCleared()) {
+      if (gl_api) {
+        GLenum error = DrainGLErrors(gl_api);
+        if (error != GL_NO_ERROR) {
+          LOCAL_SET_GL_ERROR(
+              error, "glWritePixels",
+              "GL driver reported an error during texture upload");
+          return;
+        }
+      }
       dest_shared_image->SetClearedRect(
           gfx::Rect(src_info.width(), src_info.height()));
     }
     return;
+  }
+
+  // If direct upload was skipped or failed, drain any errors from the attempt
+  // before proceeding with the SkSurface fallback.
+  if (gl_api) {
+    DrainGLErrors(gl_api);
   }
 
   std::vector<GrBackendSemaphore> begin_semaphores;
@@ -2046,6 +2072,14 @@ void RasterDecoderImpl::DoWritePixelsINTERNAL(GLint x_offset,
       dest_scoped_access->NeedGraphiteContextSubmit());
 
   if (success && !dest_shared_image->IsCleared()) {
+    if (gl_api) {
+      GLenum error = DrainGLErrors(gl_api);
+      if (error != GL_NO_ERROR) {
+        LOCAL_SET_GL_ERROR(error, "glWritePixels",
+                           "GL driver reported an error during texture upload");
+        return;
+      }
+    }
     dest_shared_image->SetClearedRect(
         gfx::Rect(x_offset, y_offset, src_width, src_height));
   }
@@ -2679,6 +2713,8 @@ void RasterDecoderImpl::DoReadbackYUVImagePixelsINTERNAL(
 
     // TODO(crbug.com/40106956): Use COMMANDS_COMPLETED query for async readback.
     DoFinish();
+    is_context_lost =
+        !yuv_result.finished && (WasContextLost() || gr_context()->abandoned());
   }
 
   // The call above will sync up gpu and CPU, resulting in callback being run
@@ -2937,13 +2973,10 @@ void RasterDecoderImpl::DoBeginRasterCHROMIUM(GLfloat r,
   // incorrect.
   if (needs_clear) {
     raster_canvas_->drawColor(sk_color_4f, SkBlendMode::kSrc);
-    if (graphite_shared_context()) {
-      should_clear_shared_image_ = true;
-    } else {
-      shared_image_->SetCleared();
-    }
+    // Remember that we can mark the shared image as cleared if the deferred
+    // GPU work is flushed successfully.
+    should_clear_shared_image_ = true;
   }
-  DCHECK(graphite_shared_context() || shared_image_->IsCleared());
 }
 
 scoped_refptr<Buffer> RasterDecoderImpl::GetShmBuffer(uint32_t shm_id) {
@@ -2995,7 +3028,6 @@ void RasterDecoderImpl::DoRasterCHROMIUM(GLuint raster_shm_id,
       .strike_client = font_manager_->strike_client(),
       .scratch_buffer =
           *shared_context_state_->scratch_deserialization_buffer(),
-      .crash_dump_on_failure = !gpu_preferences_.disable_oopr_debug_crash_dump,
       .is_privileged = is_privileged_,
       .shared_image_provider = paint_op_shared_image_provider_.get()};
 

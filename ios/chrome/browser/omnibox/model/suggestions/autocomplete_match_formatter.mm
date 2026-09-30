@@ -18,7 +18,6 @@
 #import "components/omnibox/browser/autocomplete_match.h"
 #import "components/omnibox/browser/autocomplete_provider.h"
 #import "components/omnibox/browser/omnibox_field_trial.h"
-#import "components/omnibox/browser/suggestion_answer.h"
 #import "components/omnibox/common/omnibox_feature_configs.h"
 #import "ios/chrome/browser/net/model/crurl.h"
 #import "ios/chrome/browser/omnibox/model/suggestions/omnibox_icon_formatter.h"
@@ -27,11 +26,8 @@
 #import "ios/chrome/browser/omnibox/public/omnibox_ui_features.h"
 #import "ios/chrome/browser/omnibox/public/omnibox_util.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/url/url_util.h"
-#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/common/NSString+Chromium.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
-#import "ios/web/public/web_client.h"
 
 namespace {
 
@@ -54,13 +50,6 @@ UIColor* DimColor() {
 }
 UIColor* DimColorIncognito() {
   return UIColor.whiteColor;
-}
-
-/// Returns whether the given URL is shareable.
-BOOL IsShareableURL(GURL URL) {
-  return URL.is_valid() &&
-         (UrlIsDownloadedFile(URL) || UrlIsExternalFileReference(URL) ||
-          !web::GetWebClient()->IsAppSpecificURL(URL));
 }
 
 }  // namespace
@@ -168,62 +157,7 @@ BOOL IsShareableURL(GURL URL) {
 }
 
 - (NSAttributedString*)answerDetailText {
-  DCHECK(self.hasAnswer);
-  NSMutableAttributedString* result =
-      [[NSMutableAttributedString alloc] initWithString:@""];
-  NSAttributedString* spacer = [[self class] spacerAttributedString];
-
-  if (_match.answer_type == omnibox::ANSWER_TYPE_DICTIONARY) {
-    auto subheadFragments =
-        _match.answer_template->answers(0).subhead().fragments();
-
-    for (auto fragment : subheadFragments) {
-      NSAttributedString* fragmentText =
-          [self attributedStringForFragment:fragment
-                                      color:SuggestionDetailTextColor()
-                     useDeemphasizedStyling:YES];
-      [result appendAttributedString:fragmentText];
-      [result appendAttributedString:spacer];
-    }
-  } else {
-    auto headLineFragments =
-        _match.answer_template->answers(0).headline().fragments();
-
-    for (NSInteger i = 0; i < headLineFragments.size(); i++) {
-      NSAttributedString* fragmentText;
-      // The first fragment has a html bold tag so we skip it and use the
-      // match contents instead. The match contents has the first fragment
-      // text without the bold tag (eg. match contents : abc , first fragment
-      // : ab<b>c</b>).
-      // TODO(crbug.com/343706167): Follow up on removing the bold tag from
-      // the first fragment.
-      if (i == 0) {
-        fragmentText = [self
-            attributedStringWithString:base::SysUTF16ToNSString(_match.contents)
-                       classifications:&_match.contents_class
-                             smallFont:NO
-                                 color:SuggestionDetailTextColor()
-                              dimColor:DimColor()];
-      } else {
-        fragmentText =
-            [self attributedStringForFragment:headLineFragments[i]
-                                        color:SuggestionDetailTextColor()
-                       useDeemphasizedStyling:YES];
-      }
-
-      [result appendAttributedString:fragmentText];
-      [result appendAttributedString:spacer];
-    }
-  }
-
-  // Remove the extra spacer.
-  if (result.length > 0) {
-    NSRange lastCharacterRange =
-        NSMakeRange(result.length - spacer.length, spacer.length);
-    [result deleteCharactersInRange:lastCharacterRange];
-  }
-
-  return result;
+  return [[NSAttributedString alloc] initWithString:@""];
 }
 
 - (id<OmniboxIcon>)icon {
@@ -234,7 +168,7 @@ BOOL IsShareableURL(GURL URL) {
 }
 
 - (NSInteger)numberOfLines {
-  return _match.answer_type == omnibox::ANSWER_TYPE_DICTIONARY ? 3 : 1;
+  return 1;
 }
 
 - (NSNumber*)suggestionGroupId {
@@ -300,65 +234,7 @@ BOOL IsShareableURL(GURL URL) {
 }
 
 - (NSAttributedString*)answerText {
-  DCHECK(self.hasAnswer);
-  UIColor* suggestionTextColor = SuggestionTextColor();
-  UIColor* dimColor = self.incognito ? DimColorIncognito() : DimColor();
-
-  NSMutableAttributedString* result =
-      [[NSMutableAttributedString alloc] initWithString:@""];
-  NSAttributedString* spacer = [[self class] spacerAttributedString];
-
-  if (_match.answer_type == omnibox::ANSWER_TYPE_DICTIONARY) {
-    auto headlineFragments =
-        _match.answer_template->answers(0).headline().fragments();
-
-    for (NSInteger i = 0; i < headlineFragments.size(); i++) {
-      NSAttributedString* fragmentText;
-      // The first fragment has a html bold tag so we skip it and use the
-      // match contents instead. The match contents has the first fragment
-      // text without the bold tag (eg. match contents : abc , first fragment
-      // : ab<b>c</b>).
-      // TODO(crbug.com/343706167): Follow up on removing the bold tag from
-      // the first fragment.
-      if (i == 0) {
-        fragmentText = [self
-            attributedStringWithString:base::SysUTF16ToNSString(_match.contents)
-                       classifications:&_match.contents_class
-                             smallFont:NO
-                                 color:suggestionTextColor
-                              dimColor:dimColor];
-      } else {
-        fragmentText =
-            [self attributedStringForFragment:headlineFragments[i]
-                                        color:SuggestionDetailTextColor()
-                       useDeemphasizedStyling:NO];
-      }
-
-      [result appendAttributedString:fragmentText];
-      [result appendAttributedString:spacer];
-    }
-  } else {
-    auto subheadFragments =
-        _match.answer_template->answers(0).subhead().fragments();
-
-    for (auto fragment : subheadFragments) {
-      NSAttributedString* fragmentText =
-          [self attributedStringForFragment:fragment
-                                      color:SuggestionDetailTextColor()
-                     useDeemphasizedStyling:NO];
-      [result appendAttributedString:fragmentText];
-      [result appendAttributedString:spacer];
-    }
-  }
-
-  // Remove the extra spacer.
-  if (result.length > 0) {
-    NSRange lastCharacterRange =
-        NSMakeRange(result.length - spacer.length, spacer.length);
-    [result deleteCharactersInRange:lastCharacterRange];
-  }
-
-  return result;
+  return [[NSAttributedString alloc] initWithString:@""];
 }
 
 - (NSAttributedString*)omniboxPreviewText {
@@ -399,17 +275,6 @@ BOOL IsShareableURL(GURL URL) {
 
 - (BOOL)isTabMatch {
   return _match.has_tab_match.value_or(false);
-}
-
-- (BOOL)isShareable {
-  if (!base::FeatureList::IsEnabled(kShareInVerbatimMatch)) {
-    return NO;
-  }
-
-  return _match.IsVerbatimUrlSuggestion() &&
-         (_match.suggestion_group_id ==
-          omnibox::GROUP_MOBILE_SEARCH_READY_OMNIBOX) &&
-         IsShareableURL(_match.destination_url);
 }
 
 - (id<OmniboxPedal>)pedal {
@@ -504,23 +369,18 @@ BOOL IsShareableURL(GURL URL) {
                                                  : SuggestionTextColor();
 
   omnibox::FormattedString::ColorType color = fragment.color();
-  BOOL isFinanceMatch = _match.answer_type == omnibox::ANSWER_TYPE_FINANCE;
   switch (color) {
     case omnibox::FormattedString::COLOR_ON_SURFACE_POSITIVE:
       return @{
         NSFontAttributeName : [UIFont fontWithDescriptor:defaultFontDescriptor
                                                     size:0],
-        NSForegroundColorAttributeName : _isReverseColorLogic && isFinanceMatch
-            ? [UIColor colorNamed:kRedColor]
-            : [UIColor colorNamed:kGreenColor],
+        NSForegroundColorAttributeName : [UIColor colorNamed:kGreenColor],
       };
     case omnibox::FormattedString::COLOR_ON_SURFACE_NEGATIVE:
       return @{
         NSFontAttributeName : [UIFont fontWithDescriptor:defaultFontDescriptor
                                                     size:0],
-        NSForegroundColorAttributeName : _isReverseColorLogic && isFinanceMatch
-            ? [UIColor colorNamed:kGreenColor]
-            : [UIColor colorNamed:kRedColor],
+        NSForegroundColorAttributeName : [UIColor colorNamed:kRedColor],
       };
     case omnibox::FormattedString::COLOR_PRIMARY: {
       // Calculate a slightly smaller font. The ratio here is somewhat
@@ -541,14 +401,10 @@ BOOL IsShareableURL(GURL URL) {
       };
     }
     default:
-      BOOL isFinanceDetailText =
-          _match.answer_type == omnibox::ANSWER_TYPE_FINANCE &&
-          useDeemphasizedStyling;
       return @{
         NSFontAttributeName : [UIFont fontWithDescriptor:defaultFontDescriptor
                                                     size:0],
-        NSForegroundColorAttributeName : isFinanceDetailText ? UIColor.grayColor
-                                                             : defaultColor,
+        NSForegroundColorAttributeName : defaultColor,
       };
   }
 }

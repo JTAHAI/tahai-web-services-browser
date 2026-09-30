@@ -7,7 +7,6 @@
 
 #include <stddef.h>
 
-#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -50,6 +49,7 @@ class RTCAnswerOptionsPlatform;
 class RTCOfferOptionsPlatform;
 class RTCPeerConnectionHandlerClient;
 class RTCSessionDescriptionInit;
+class RTCTrackEvent;
 class RTCVoidRequest;
 class SetLocalDescriptionRequest;
 
@@ -191,6 +191,10 @@ class MODULES_EXPORT RTCPeerConnectionHandler {
   virtual void TrackIceConnectionStateChange(
       webrtc::PeerConnectionInterface::IceConnectionState state);
 
+  // Called by the client when the "track" event is fired for a remote track
+  // added by setRemoteDescription.
+  virtual void TrackOnTrack(const RTCTrackEvent& event);
+
   // Asynchronously calls native_peer_connection_->getStats on the signaling
   // thread. (Future cleanup potential: just use the other GetStats() method?)
   void GetStandardStatsForTracker(
@@ -298,11 +302,6 @@ class MODULES_EXPORT RTCPeerConnectionHandler {
     // video, then false).
     bool rtcp_mux = false;
   };
-
-  // Report to UMA whether an IceConnectionState has occurred. It only records
-  // the first occurrence of a given state.
-  void ReportICEState(
-      webrtc::PeerConnectionInterface::IceConnectionState new_state);
 
   void ReportFirstSessionDescriptions(const FirstSessionDescription& local,
                                       const FirstSessionDescription& remote);
@@ -434,10 +433,6 @@ class MODULES_EXPORT RTCPeerConnectionHandler {
   // unit tests) are ignored.
   std::unique_ptr<FirstSessionDescription> first_local_description_;
   std::unique_ptr<FirstSessionDescription> first_remote_description_;
-
-  // Track which ICE Connection state that this PeerConnection has gone through.
-  std::array<bool, webrtc::PeerConnectionInterface::kIceConnectionMax>
-      ice_state_seen_ = {};
 
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 

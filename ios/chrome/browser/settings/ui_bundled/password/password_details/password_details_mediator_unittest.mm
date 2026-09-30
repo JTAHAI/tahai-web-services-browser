@@ -12,6 +12,7 @@
 #import "components/password_manager/core/browser/password_form.h"
 #import "components/password_manager/core/browser/password_store/password_form_converters.h"
 #import "components/password_manager/core/browser/password_store/test_password_store.h"
+#import "components/password_manager/core/browser/password_string.h"
 #import "components/password_manager/core/browser/ui/credential_ui_entry.h"
 #import "components/sync/test/mock_sync_service.h"
 #import "ios/chrome/browser/affiliations/model/ios_chrome_affiliation_service_factory.h"
@@ -32,6 +33,7 @@ namespace {
 using ::password_manager::CredentialUIEntry;
 using ::password_manager::InsecureType;
 using ::password_manager::PasswordForm;
+using ::password_manager::PasswordString;
 using ::password_manager::TestPasswordStore;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
@@ -50,7 +52,7 @@ std::unique_ptr<PasswordForm> CreatePasswordForm(std::string url,
                                                  std::u16string password) {
   auto form = std::make_unique<PasswordForm>();
   form->username_value = u"test@gmail.com";
-  form->password_value = password;
+  form->password_value = PasswordString(std::move(password));
   form->url = GURL(url);
   form->signon_realm = kExampleSignonRealm;
   form->in_store = PasswordForm::Store::kProfileStore;
@@ -356,10 +358,10 @@ TEST_F(PasswordDetailsMediatorTest, RemoveCredential) {
 // consumer is notified with the expected information after moving the password.
 TEST_F(PasswordDetailsMediatorTest, MoveCredentialToAccountStore) {
   // Get the password form associated with the saved credential.
-  PasswordForm expected_form =
+  PasswordForm expected_form = password_manager::ToPasswordForm(
       password_check_manager()
           ->GetSavedPasswordsPresenter()
-          ->GetCorrespondingPasswordForms(mediator().credentials[0])[0];
+          ->GetCorrespondingStoredCredentials(mediator().credentials[0])[0]);
 
   // Verify that the credential is in the profile password store and that the
   // account password store is empty.
@@ -410,15 +412,15 @@ TEST_F(PasswordDetailsMediatorTest, MoveCredentialToAccountStoreWithConflict) {
   std::vector<CredentialUIEntry> credentials = GetAffiliatedGroupCredentials();
   mediator().credentials = credentials;
 
-  PasswordForm account_store_form =
+  PasswordForm account_store_form = password_manager::ToPasswordForm(
       password_check_manager()
           ->GetSavedPasswordsPresenter()
-          ->GetCorrespondingPasswordForms(mediator().credentials[0])[0];
+          ->GetCorrespondingStoredCredentials(mediator().credentials[0])[0]);
 
-  PasswordForm profile_store_form =
+  PasswordForm profile_store_form = password_manager::ToPasswordForm(
       password_check_manager()
           ->GetSavedPasswordsPresenter()
-          ->GetCorrespondingPasswordForms(mediator().credentials[1])[0];
+          ->GetCorrespondingStoredCredentials(mediator().credentials[1])[0]);
 
   // Check that the mediator's credentials are associated with the expected
   // store.
@@ -487,15 +489,15 @@ TEST_F(PasswordDetailsMediatorTest,
   credentials[1].last_used_time = base::Time::Now() + base::Hours(1);
   mediator().credentials = credentials;
 
-  PasswordForm profile_store_form =
+  PasswordForm profile_store_form = password_manager::ToPasswordForm(
       password_check_manager()
           ->GetSavedPasswordsPresenter()
-          ->GetCorrespondingPasswordForms(mediator().credentials[0])[0];
+          ->GetCorrespondingStoredCredentials(mediator().credentials[0])[0]);
 
-  PasswordForm account_store_form =
+  PasswordForm account_store_form = password_manager::ToPasswordForm(
       password_check_manager()
           ->GetSavedPasswordsPresenter()
-          ->GetCorrespondingPasswordForms(mediator().credentials[1])[0];
+          ->GetCorrespondingStoredCredentials(mediator().credentials[1])[0]);
 
   // Check that the mediator's credentials are associated with the expected
   // store.

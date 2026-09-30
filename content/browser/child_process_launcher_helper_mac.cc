@@ -17,10 +17,10 @@
 #include "content/browser/child_process_launcher_helper_posix.h"
 #include "content/browser/child_process_task_port_provider_mac.h"
 #include "content/browser/sandbox_parameters_mac.h"
+#include "content/browser/sandboxed_process_launcher_delegate.h"
 #include "content/grit/content_resources.h"
 #include "content/public/browser/child_process_launcher_utils.h"
 #include "content/public/browser/content_browser_client.h"
-#include "content/public/browser/sandboxed_process_launcher_delegate.h"
 #include "content/public/common/content_paths.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/result_codes.h"
@@ -59,7 +59,8 @@ class SandboxProfileCache {
   }
 
   void Insert(sandbox::mojom::Sandbox sandbox_type, const std::string& policy) {
-    DCHECK(sandbox::policy::CanCacheSandboxPolicy(sandbox_type));
+    CHECK(sandbox::policy::CanCacheSandboxPolicy(sandbox_type),
+          base::NotFatalUntil::M159);
     base::AutoLock lock(lock_);
     cache_.emplace(sandbox_type, policy);
   }
@@ -73,17 +74,18 @@ class SandboxProfileCache {
 
 std::optional<mojo::NamedPlatformChannel>
 ChildProcessLauncherHelper::CreateNamedPlatformChannelOnLauncherThread() {
-  DCHECK(CurrentlyOnProcessLauncherTaskRunner());
+  CHECK(CurrentlyOnProcessLauncherTaskRunner(), base::NotFatalUntil::M159);
   return std::nullopt;
 }
 
 void ChildProcessLauncherHelper::BeforeLaunchOnClientThread() {
-  DCHECK(client_task_runner_->RunsTasksInCurrentSequence());
+  CHECK(client_task_runner_->RunsTasksInCurrentSequence(),
+        base::NotFatalUntil::M159);
 }
 
 std::unique_ptr<PosixFileDescriptorInfo>
 ChildProcessLauncherHelper::GetFilesToMap() {
-  DCHECK(CurrentlyOnProcessLauncherTaskRunner());
+  CHECK(CurrentlyOnProcessLauncherTaskRunner(), base::NotFatalUntil::M159);
   return CreateDefaultPosixFilesToMap(
       child_process_id(), mojo_channel_->remote_endpoint(),
       /*files_to_preload=*/{}, GetProcessType(), command_line());
@@ -102,7 +104,7 @@ bool ChildProcessLauncherHelper::BeforeLaunchOnLauncherThread(
 
   mojo::PlatformHandle endpoint =
       mojo_channel_->TakeRemoteEndpoint().TakePlatformHandle();
-  DCHECK(endpoint.is_valid_mach_receive());
+  CHECK(endpoint.is_valid_mach_receive(), base::NotFatalUntil::M159);
   options->mach_ports_for_rendezvous.insert(std::make_pair(
       'mojo', base::MachRendezvousPort(endpoint.TakeMachReceiveRight())));
 
@@ -224,7 +226,7 @@ bool ChildProcessLauncherHelper::TerminateProcess(const base::Process& process,
 // static
 void ChildProcessLauncherHelper::ForceNormalProcessTerminationSync(
     ChildProcessLauncherHelper::Process process) {
-  DCHECK(CurrentlyOnProcessLauncherTaskRunner());
+  CHECK(CurrentlyOnProcessLauncherTaskRunner(), base::NotFatalUntil::M159);
   // Client has gone away, so just kill the process.  Using exit code 0 means
   // that UMA won't treat this as a crash.
   process.process.Terminate(RESULT_CODE_NORMAL_EXIT, false);

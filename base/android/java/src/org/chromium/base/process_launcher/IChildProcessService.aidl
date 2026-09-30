@@ -15,10 +15,9 @@ interface IChildProcessService {
   // calling PID and |clazz| matches the recorded values.
   boolean bindToCaller(in String clazz);
 
-  // Returns an array of 2 strings: sourceDir and a colon-separated list of
-  // sharedLibraryFiles, for validating that the parent is talking to a "matching"
+  // Returns sourceDir for validating that the parent is talking to a "matching"
   // process.
-  String[] getAppInfoStrings();
+  String getSourceDir();
 
   // Sets up the initial IPC channel.
   oneway void setupConnection(in IChildProcessArgs args, in IParentProcess parentProcess,
@@ -26,9 +25,6 @@ interface IChildProcessService {
 
   // Forcefully kills the child process.
   oneway void forceKill();
-
-  // Notifies about memory pressure. The argument is MemoryPressureLevel enum.
-  oneway void onMemoryPressure(int pressure);
 
   // Notifies that we should freeze ourselves (as opposed to relying on  App
   // Freezer).

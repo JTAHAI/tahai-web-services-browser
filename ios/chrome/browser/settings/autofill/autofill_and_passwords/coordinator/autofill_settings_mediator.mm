@@ -5,13 +5,14 @@
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/autofill_settings_mediator.h"
 
 #import "base/memory/raw_ptr.h"
-#import "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_utils.h"
+#import "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_util.h"
 #import "components/autofill/core/common/autofill_features.h"
 #import "components/autofill/core/common/autofill_prefs.h"
 #import "components/prefs/ios/pref_observer_bridge.h"
 #import "components/prefs/pref_change_registrar.h"
 #import "components/prefs/pref_service.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
+#import "ios/chrome/browser/autofill/model/autofill_ai_util.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/ui/autofill_settings_consumer.h"
 #import "ios/chrome/common/ui/reauthentication/reauthentication_protocol.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -49,7 +50,7 @@
     // Register to observe any changes on Pref-backed values displayed by the
     // screen.
     _prefObserverBridge->ObserveChangesForPreference(
-        autofill::prefs::kAutofillAiOptInStatus, &_prefChangeRegistrar);
+        autofill::GetAutofillAiOptInPreferenceKeyName(), &_prefChangeRegistrar);
   }
   return self;
 }
@@ -126,7 +127,7 @@
 #pragma mark - PrefObserverDelegate
 
 - (void)onPreferenceChanged:(const std::string&)preferenceName {
-  if (preferenceName == autofill::prefs::kAutofillAiOptInStatus) {
+  if (preferenceName == autofill::GetAutofillAiOptInPreferenceKeyName()) {
     [_consumer setEnhancedAutofillEnabled:[self isEnhancedAutofillEnabled]];
   }
 }

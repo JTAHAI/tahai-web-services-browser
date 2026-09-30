@@ -5,8 +5,8 @@
 #include "chrome/browser/ui/ash/editor_menu/utils/pre_target_handler.h"
 
 #include <cstddef>
+#include <ranges>
 
-#include "base/containers/adapters.h"
 #include "chrome/browser/ui/ash/editor_menu/utils/utils.h"
 #include "ui/aura/env.h"
 #include "ui/events/keycodes/keyboard_codes_posix.h"
@@ -45,10 +45,7 @@ PreTargetHandler::~PreTargetHandler() {
   // Cancel any active context-menus, |view_| was a companion-view of which,
   // unless it had requested otherwise for some cases.
   if (dismiss_anchor_menu_on_view_closed_) {
-    auto* active_menu_instance = views::MenuController::GetActiveInstance();
-    if (active_menu_instance) {
-      active_menu_instance->Cancel(views::MenuController::ExitType::kAll);
-    }
+    views::MenuController::CancelAllActive();
   }
 }
 
@@ -154,7 +151,7 @@ bool PreTargetHandler::DoDispatchEvent(views::View* view,
 
   // Post-order dispatch the event on child views in reverse Z-order.
   auto children = view->GetChildrenInZOrder();
-  for (views::View* child : base::Reversed(children)) {
+  for (views::View* child : std::views::reverse(children)) {
     // Dispatch a fresh event to preserve the |event| for the parent target.
     std::unique_ptr<ui::Event> to_dispatch;
     if (event->IsMouseEvent()) {

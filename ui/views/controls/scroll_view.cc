@@ -266,8 +266,7 @@ class ScrollView::Viewport : public View {
         !this->children().empty() ? this->children()[0] : nullptr;
 
     auto has_textured_layer{[](const View* contents) {
-      return contents->layer() &&
-             contents->layer()->type() == ui::LAYER_TEXTURED;
+      return contents->layer() && contents->layer()->AsTextured();
     }};
 
     if (!contents || has_textured_layer(contents)) {
@@ -1385,6 +1384,9 @@ void ScrollView::ScrollToOffset(const gfx::PointF& offset) {
 }
 
 gfx::PointF ScrollView::CurrentOffset() const {
+  if (!contents_) {
+    return gfx::PointF();
+  }
   return ScrollsWithLayers() ? contents_->layer()->CurrentScrollOffset()
                              : gfx::PointF(-contents_->x(), -contents_->y());
 }
@@ -1623,6 +1625,18 @@ View* ScrollView::GetContentsViewportForTest() const {
   return contents_viewport_;
 }
 
+bool ScrollView::GetUseContentsPreferredSize() const {
+  return use_contents_preferred_size_;
+}
+
+void ScrollView::SetUseContentsPreferredSize(bool use_contents_preferred_size) {
+  if (use_contents_preferred_size == use_contents_preferred_size_) {
+    return;
+  }
+  use_contents_preferred_size_ = use_contents_preferred_size;
+  OnPropertyChanged(&use_contents_preferred_size_, PropertyEffects::kLayout);
+}
+
 BEGIN_METADATA(ScrollView)
 ADD_READONLY_PROPERTY_METADATA(int, MinHeight)
 ADD_READONLY_PROPERTY_METADATA(int, MaxHeight)
@@ -1633,6 +1647,7 @@ ADD_PROPERTY_METADATA(bool, HasFocusIndicator)
 ADD_PROPERTY_METADATA(ScrollView::ScrollBarMode, HorizontalScrollBarMode)
 ADD_PROPERTY_METADATA(ScrollView::ScrollBarMode, VerticalScrollBarMode)
 ADD_PROPERTY_METADATA(bool, TreatAllScrollEventsAsHorizontal)
+ADD_PROPERTY_METADATA(bool, UseContentsPreferredSize)
 END_METADATA
 
 // VariableRowHeightScrollHelper ----------------------------------------------

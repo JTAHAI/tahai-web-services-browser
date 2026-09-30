@@ -31,7 +31,7 @@
 #include "components/autofill/core/browser/data_quality/addresses/profile_token_quality.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/metrics/address_data_cleaner_metrics.h"
-#include "components/autofill/core/browser/metrics/autofill_metrics_utils.h"
+#include "components/autofill/core/browser/metrics/autofill_metrics_util.h"
 #include "components/autofill/core/common/autofill_constants.h"
 #include "components/autofill/core/common/autofill_debug_features.h"
 #include "components/autofill/core/common/autofill_features.h"
@@ -198,19 +198,20 @@ void DeduplicateProfiles(const std::string& app_locale,
       continue;
     }
     // If possible, merge `*profile_it` with another profile and remove it.
-    if (auto merge_candidate = std::find_if(
-            profile_it + 1, profiles_with_action.end(),
-            [&](const ProfileWithAction& other_profile) {
-              return other_profile.action != ProfileAction::kRemove &&
-                     comparator.AreMergeable(profile_it->profile,
-                                             other_profile.profile);
-            });
-        merge_candidate != profiles_with_action.end()) {
-      merge_candidate->profile.MergeDataFrom(profile_it->profile,
-                                             comparator.app_locale());
-      profile_it->action = ProfileAction::kRemove;
-      merge_candidate->action = ProfileAction::kUpdate;
-      ++removed_profiles_count;
+    for (ProfileWithAction& merge_candidate :
+         std::ranges::subrange(profile_it + 1, profiles_with_action.end())) {
+      if (merge_candidate.action == ProfileAction::kRemove) {
+        continue;
+      }
+      const AutofillProfile::ProfileMergeResult merge_result =
+          merge_candidate.profile.MergeDataFrom(profile_it->profile,
+                                                app_locale);
+      if (merge_result != AutofillProfile::ProfileMergeResult::kMergeFailed) {
+        profile_it->action = ProfileAction::kRemove;
+        merge_candidate.action = ProfileAction::kUpdate;
+        ++removed_profiles_count;
+        break;
+      }
     }
   }
 
@@ -232,8 +233,16 @@ void ApplyProfileActions(
         address_data_manager->UpdateProfile(profile);
         break;
       case ProfileAction::kRemove:
+        // Account profiles are hidden rather than permanently deleted to avoid
+        // removing them from the user's account. However, `kAccountNameEmail`
+        // is a local profile created from GAIA info; removing it during
+        // deduplication should be permanent so that it is not immediately
+        // recreated.
         address_data_manager->RemoveProfile(
-            profile.guid(), /*non_permanent_account_profile_removal=*/true);
+            profile.guid(),
+            /*non_permanent_account_profile_removal=*/
+            profile.record_type() !=
+                AutofillProfile::RecordType::kAccountNameEmail);
         break;
       case ProfileAction::kNone:
         break;

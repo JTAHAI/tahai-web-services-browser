@@ -33,6 +33,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.IntentHandler;
@@ -57,6 +58,7 @@ import org.chromium.chrome.test.transit.settings.SettingsStation;
 import org.chromium.chrome.test.transit.signin.SigninBottomSheetFacility;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
 import org.chromium.components.signin.SigninFeatures;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.test.util.DeviceRestriction;
 import org.chromium.ui.test.util.RenderTestRule.Component;
 import org.chromium.ui.widget.ButtonCompat;
@@ -71,6 +73,7 @@ import java.util.List;
     ChromeFeatureList.ANDROID_TIPS_NOTIFICATIONS,
     SigninFeatures.ENABLE_SEAMLESS_SIGNIN,
 })
+@DisableFeatures(ChromeFeatureList.SETTINGS_IN_TAB) // crbug.com/521895796
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_STARTUP_PROMOS})
 @Batch(Batch.PER_CLASS)
 @Restriction(DeviceRestriction.RESTRICTION_TYPE_NON_AUTO)
@@ -496,6 +499,7 @@ public class TipsNotificationsFeaturePromoTest {
 
     @Test
     @MediumTest
+    @Restriction(DeviceFormFactor.PHONE)
     public void testSigninBottomSheetMainPageAccept() {
         @TipsNotificationsFeatureType int featureType = TipsNotificationsFeatureType.SIGNIN;
 
@@ -523,6 +527,7 @@ public class TipsNotificationsFeaturePromoTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
+    @Restriction(DeviceFormFactor.PHONE)
     public void testSigninBottomSheetDetailPageAccept() throws IOException {
         @TipsNotificationsFeatureType int featureType = TipsNotificationsFeatureType.SIGNIN;
         List<Integer> detailPageStepsRes =

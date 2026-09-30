@@ -60,11 +60,6 @@ struct SameSizeAsPhysicalBoxFragment : PhysicalFragment {
 
 ASSERT_SIZE(PhysicalBoxFragment, SameSizeAsPhysicalBoxFragment);
 
-bool HasControlClip(const PhysicalBoxFragment& self) {
-  const LayoutBox* box = DynamicTo<LayoutBox>(self.GetLayoutObject());
-  return box && box->HasControlClip();
-}
-
 bool IsFlexibleBoxWithSingleChildElement(const LayoutObject& layout_object) {
   if (!RuntimeEnabledFeatures::
           UsePositionForPointInFlexibleBoxWithSingleChildElementEnabled()) {
@@ -1265,8 +1260,7 @@ void PhysicalBoxFragment::AddOutlineRects(
     }
   }
 
-  if (ShouldIncludeBlockInkOverflow(outline_type) && !HasNonVisibleOverflow() &&
-      !HasControlClip(*this)) {
+  if (ShouldIncludeBlockInkOverflow(outline_type) && !HasNonVisibleOverflow()) {
     // Tricky code ahead: we pass a 0,0 additional_offset to
     // AddOutlineRectsForNormalChildren, and add it in after the call.
     // This is necessary because AddOutlineRectsForNormalChildren expects
@@ -1364,7 +1358,7 @@ void PhysicalBoxFragment::AddOutlineRectsForInlineBox(
   collector.Combine(cursor_collector.get(), additional_offset);
 
   if (ShouldIncludeBlockInkOverflowForAnchorOnly(outline_type) &&
-      !HasNonVisibleOverflow() && !HasControlClip(*this)) {
+      !HasNonVisibleOverflow()) {
     for (const auto& child : container->PostLayoutChildren()) {
       if (!child->IsOutOfFlowPositioned() ||
           child->GetLayoutObject()->ContainerForAbsolutePosition() !=
@@ -1524,6 +1518,34 @@ void PhysicalBoxFragment::AddOutlineRectsForDescendant(
   }
 }
 
+namespace {
+
+// True if |position| sits in a non-editable container directly beside an
+// editable atomic inline.
+bool IsNextToNestedEditableAtomicInline(const Position& position) {
+  if (!RuntimeEnabledFeatures::CaretOutsideEditableAtomicInlineEnabled()) {
+    return false;
+  }
+  const Node* container = position.ComputeContainerNode();
+  if (!container || IsEditable(*container)) {
+    return false;
+  }
+  // The box is the node on either side of |position|.
+  for (const Node* child : {position.ComputeNodeBeforePosition(),
+                            position.ComputeNodeAfterPosition()}) {
+    if (!child || !IsEditable(*child)) {
+      continue;
+    }
+    const LayoutObject* layout_object = child->GetLayoutObject();
+    if (layout_object && layout_object->IsAtomicInline()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+}  // namespace
+
 PositionWithAffinity PhysicalBoxFragment::PositionForPoint(
     PhysicalOffset point) const {
   if (layout_object_->IsLayoutReplaced()) {
@@ -1540,8 +1562,13 @@ PositionWithAffinity PhysicalBoxFragment::PositionForPoint(
       InlineCursor cursor(*this, *items);
       if (const PositionWithAffinity position =
               cursor.PositionForPointInInlineFormattingContext(
-                  point_in_contents, *this))
+                  point_in_contents, *this)) {
+        // Adjusting would snap a deliberately-outside position back in.
+        if (IsNextToNestedEditableAtomicInline(position.GetPosition())) {
+          return position;
+        }
         return AdjustForEditingBoundary(position);
+      }
       return layout_object_->CreatePositionWithAffinity(0);
     }
   }

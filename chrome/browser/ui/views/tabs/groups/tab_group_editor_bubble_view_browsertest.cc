@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.h"
 
 #include <memory>
+#include <vector>
 
 #include "base/strings/string_util.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -14,14 +15,15 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/features.h"
+#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_group_deletion_dialog_controller.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_editor_view.h"
@@ -36,6 +38,8 @@
 #include "components/prefs/pref_service.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tabs/public/tab_group.h"
+#include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/events/event.h"
@@ -68,15 +72,14 @@ class TabGroupEditorBubbleViewDialogBrowserTest : public DialogBrowserTest {
  public:
   TabGroupEditorBubbleViewDialogBrowserTest() {
     scoped_feature_list_.InitWithFeatures(
-        {features::kBookmarkTabGroupConversion},
-        {data_sharing::features::kDataSharingFeature,
-         data_sharing::features::kDataSharingJoinOnly});
+        {}, {data_sharing::features::kDataSharingFeature,
+             data_sharing::features::kDataSharingJoinOnly});
   }
 
  protected:
   void ShowUi(const std::string& name) override {
-    group_ = browser()->tab_strip_model()->AddToNewGroup({0});
-    browser()->tab_strip_model()->OpenTabGroupEditor(group_.value());
+    group_ = browser()->GetTabStripModel()->AddToNewGroup({0});
+    browser()->GetTabStripModel()->OpenTabGroupEditor(group_.value());
   }
 
   static views::Widget* WaitForAndGetEditorBubbleWidget() {
@@ -94,7 +97,7 @@ class TabGroupEditorBubbleViewDialogBrowserTest : public DialogBrowserTest {
   }
 
   TabGroupModel* group_model() {
-    return browser()->tab_strip_model()->group_model();
+    return browser()->GetTabStripModel()->group_model();
   }
 
   std::optional<tab_groups::TabGroupId> group_;
@@ -129,7 +132,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
 
   ShowUi("SetUp");
 
-  TabGroupModel* group_model = browser()->tab_strip_model()->group_model();
+  TabGroupModel* group_model = browser()->GetTabStripModel()->group_model();
   std::vector<tab_groups::TabGroupId> group_list = group_model->ListTabGroups();
   ASSERT_EQ(1u, group_list.size());
   ASSERT_EQ(1u, group_model->GetTabGroup(group_list[0])->ListTabs().length());
@@ -246,17 +249,15 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest, Ungroup) {
   base::HistogramTester histogram_tester;
 
   // Allow the Ungroup command to be immediately performed for saved groups.
-  if (browser()->GetFeatures().tab_group_deletion_dialog_controller()) {
-    browser()
-        ->GetFeatures()
-        .tab_group_deletion_dialog_controller()
+  if (tab_groups::DeletionDialogController::From(browser())) {
+    tab_groups::DeletionDialogController::From(browser())
         ->SetPrefsPreventShowingDialogForTesting(
             /*should_prevent_dialog=*/true);
   }
 
   ShowUi("SetUp");
 
-  TabStripModel* tsm = browser()->tab_strip_model();
+  TabStripModel* tsm = browser()->GetTabStripModel();
   ASSERT_EQ(1, tsm->count());
   TabGroupModel* group_model = tsm->group_model();
   std::vector<tab_groups::TabGroupId> group_list = group_model->ListTabGroups();
@@ -313,7 +314,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
 
   EXPECT_EQ(0u, group_model()->ListTabGroups().size());
   EXPECT_FALSE(group_model()->ContainsTabGroup(group_.value()));
-  EXPECT_EQ(1, browser()->tab_strip_model()->count());
+  EXPECT_EQ(1, browser()->GetTabStripModel()->count());
 
   BrowserWindowInterface* active_browser =
       GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
@@ -327,11 +328,17 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
                        MoveGroupToNewWindowDisabledWhenOnlyGroup) {
-  TabStripModel* tsm = browser()->tab_strip_model();
-  for (int index = tsm->count() - 1; index >= 0; --index) {
-    if (tsm->GetTabAtIndex(index)->GetGroup() != group_) {
-      tsm->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
+  TabStripModel* tsm = browser()->GetTabStripModel();
+  // Collect tabs to close first before closing them to avoid modifying the
+  // underlying tab collection while actively iterating over it.
+  std::vector<tabs::TabInterface*> tabs_to_close;
+  for (tabs::TabInterface* tab : *tsm) {
+    if (tab->GetGroup() != group_) {
+      tabs_to_close.push_back(tab);
     }
+  }
+  for (tabs::TabInterface* tab : tabs_to_close) {
+    tsm->CloseWebContents(tab->GetContents(), TabCloseTypes::CLOSE_NONE);
   }
 
   ShowUi("SetUp");
@@ -347,49 +354,36 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
   EXPECT_FALSE(move_group_button->GetVisible());
 }
 
-class TabGroupEditorBubbleViewDialogBrowserTestWithFreezingEnabled
-    : public TabGroupEditorBubbleViewDialogBrowserTest {
- public:
-  TabGroupEditorBubbleViewDialogBrowserTestWithFreezingEnabled() {
-    scoped_feature_list_.InitWithFeatures(
-        {features::kTabGroupsCollapseFreezing}, {});
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(
-    TabGroupEditorBubbleViewDialogBrowserTestWithFreezingEnabled,
-    CollapsingGroupFreezesAllTabs) {
+IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
+                       CollapsingGroupFreezesAllTabs) {
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
   InProcessBrowserTest::AddBlankTabAndShow(browser());
   InProcessBrowserTest::AddBlankTabAndShow(browser());
 
-  TabStripModel* tsm = browser()->tab_strip_model();
+  TabStripModel* tsm = browser()->GetTabStripModel();
   ASSERT_EQ(3, tsm->count());
   std::optional<tab_groups::TabGroupId> group = tsm->AddToNewGroup({0, 1});
 
   ASSERT_FALSE(browser_view->horizontal_tab_strip_for_testing()
                    ->tab_at(0)
-                   ->HasFreezingVote());
+                   ->HasFreezingVote(FreezingVoteReason::kCollapsedGroup));
   ASSERT_FALSE(browser_view->horizontal_tab_strip_for_testing()
                    ->tab_at(1)
-                   ->HasFreezingVote());
+                   ->HasFreezingVote(FreezingVoteReason::kCollapsedGroup));
   ASSERT_FALSE(browser_view->horizontal_tab_strip_for_testing()
                    ->tab_at(2)
-                   ->HasFreezingVote());
+                   ->HasFreezingVote(FreezingVoteReason::kCollapsedGroup));
   browser_view->horizontal_tab_strip_for_testing()
       ->ToggleTabGroupCollapsedState(group.value());
   EXPECT_TRUE(browser_view->horizontal_tab_strip_for_testing()
                   ->tab_at(0)
-                  ->HasFreezingVote());
+                  ->HasFreezingVote(FreezingVoteReason::kCollapsedGroup));
   EXPECT_TRUE(browser_view->horizontal_tab_strip_for_testing()
                   ->tab_at(1)
-                  ->HasFreezingVote());
+                  ->HasFreezingVote(FreezingVoteReason::kCollapsedGroup));
   EXPECT_FALSE(browser_view->horizontal_tab_strip_for_testing()
                    ->tab_at(2)
-                   ->HasFreezingVote());
+                   ->HasFreezingVote(FreezingVoteReason::kCollapsedGroup));
 }
 
 class TabGroupEditorBubbleViewDialogBrowserTestWithSavedGroup
@@ -407,7 +401,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTestWithSavedGroup,
 
   ShowUi("SetUp");
 
-  TabStripModel* tsm = browser()->tab_strip_model();
+  TabStripModel* tsm = browser()->GetTabStripModel();
   ASSERT_EQ(1, tsm->count());
   TabGroupModel* group_model = tsm->group_model();
   std::vector<tab_groups::TabGroupId> group_list = group_model->ListTabGroups();
@@ -434,7 +428,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTestWithSavedGroup,
 
   // Make sure the dialog is shown, and fake clicking the button.
   tab_groups::DeletionDialogController* deletion_dialog_controller =
-      browser()->GetFeatures().tab_group_deletion_dialog_controller();
+      tab_groups::DeletionDialogController::From(browser());
   EXPECT_TRUE(deletion_dialog_controller->IsShowingDialog());
 
   // Pull the dialog state and call the OnDialogOk method.
@@ -448,19 +442,16 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTestWithSavedGroup,
 
 IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTestWithSavedGroup,
                        CloseGroupedTab) {
-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
   InProcessBrowserTest::AddBlankTabAndShow(browser());
   InProcessBrowserTest::AddBlankTabAndShow(browser());
 
-  TabStripModel* tsm = browser()->tab_strip_model();
+  TabStripModel* tsm = browser()->GetTabStripModel();
   ASSERT_EQ(3, tsm->count());
   tsm->AddToNewGroup({0});
   tsm->ActivateTabAt(0);
   tsm->CloseSelectedTabs();
   tab_groups::DeletionDialogController* deletion_dialog_controller =
-      browser_view->browser()
-          ->GetFeatures()
-          .tab_group_deletion_dialog_controller();
+      tab_groups::DeletionDialogController::From(browser());
 
   EXPECT_TRUE(deletion_dialog_controller->IsShowingDialog());
 
@@ -472,17 +463,14 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTestWithSavedGroup,
 
 IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTestWithSavedGroup,
                        CloseGroupedTabWithPreventShowDialog) {
-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
   InProcessBrowserTest::AddBlankTabAndShow(browser());
   InProcessBrowserTest::AddBlankTabAndShow(browser());
 
   tab_groups::DeletionDialogController* deletion_dialog_controller =
-      browser_view->browser()
-          ->GetFeatures()
-          .tab_group_deletion_dialog_controller();
+      tab_groups::DeletionDialogController::From(browser());
   deletion_dialog_controller->SetPrefsPreventShowingDialogForTesting(true);
 
-  TabStripModel* tsm = browser()->tab_strip_model();
+  TabStripModel* tsm = browser()->GetTabStripModel();
   ASSERT_EQ(3, tsm->count());
   tsm->AddToNewGroup({0});
   tsm->ActivateTabAt(0);
@@ -509,12 +497,15 @@ IN_PROC_BROWSER_TEST_F(
     ToggleFocusGroup) {
   ShowUi("SetUp");
 
-  TabStripModel* const tsm = browser()->tab_strip_model();
+  base::HistogramTester histogram_tester;
+  TabStripModel* const tsm = browser()->GetTabStripModel();
   ASSERT_TRUE(group_.has_value());
   const tab_groups::TabGroupId group_id = group_.value();
 
   // 1. Initially, no group is focused.
   EXPECT_FALSE(tsm->GetFocusedGroup().has_value());
+  histogram_tester.ExpectTotalCount("TabGroups.Focus.EntryPoint", 0);
+  histogram_tester.ExpectTotalCount("TabGroups.Focus.ExitReason", 0);
 
   views::Widget* editor_bubble = WaitForAndGetEditorBubbleWidget();
   ASSERT_NE(nullptr, editor_bubble);
@@ -542,9 +533,12 @@ IN_PROC_BROWSER_TEST_F(
 
   EXPECT_TRUE(tsm->GetFocusedGroup().has_value());
   EXPECT_EQ(group_id, tsm->GetFocusedGroup().value());
+  histogram_tester.ExpectUniqueSample(
+      "TabGroups.Focus.EntryPoint", TabGroupFocusEntryPoint::kEditorBubble, 1);
+  histogram_tester.ExpectTotalCount("TabGroups.Focus.ExitReason", 0);
 
   // 3. Open the editor again to unfocus.
-  browser()->tab_strip_model()->OpenTabGroupEditor(group_id);
+  browser()->GetTabStripModel()->OpenTabGroupEditor(group_id);
   views::Widget* editor_bubble2 = WaitForAndGetEditorBubbleWidget();
   ASSERT_NE(nullptr, editor_bubble2);
   ASSERT_NE(nullptr, editor_bubble2->GetContentsView());
@@ -567,7 +561,35 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_TRUE(base::test::RunUntil([&]() { return !weak_widget2; }));
 
   EXPECT_FALSE(tsm->GetFocusedGroup().has_value());
+  histogram_tester.ExpectUniqueSample(
+      "TabGroups.Focus.EntryPoint", TabGroupFocusEntryPoint::kEditorBubble, 1);
+  histogram_tester.ExpectUniqueSample(
+      "TabGroups.Focus.ExitReason", TabGroupFocusExitReason::kEditorBubble, 1);
 }
+
+#if !BUILDFLAG(IS_CHROMEOS)
+IN_PROC_BROWSER_TEST_F(
+    TabGroupEditorBubbleViewDialogBrowserTestWithFocusingEnabled,
+    FocusGroupIsAvailableInGuestProfile) {
+  BrowserWindowInterface* const guest_browser = CreateGuestBrowser();
+  const std::optional<tab_groups::TabGroupId> group_id =
+      guest_browser->GetTabStripModel()->AddToNewGroup({0});
+  ASSERT_TRUE(group_id.has_value());
+
+  guest_browser->GetTabStripModel()->OpenTabGroupEditor(group_id.value());
+
+  views::Widget* const editor_bubble = WaitForAndGetEditorBubbleWidget();
+  ASSERT_NE(nullptr, editor_bubble);
+  ASSERT_NE(nullptr, editor_bubble->GetContentsView());
+
+  views::View* const focus_button_view =
+      views::ElementTrackerViews::GetInstance()->GetFirstMatchingView(
+          kTabGroupEditorBubbleFocusGroupButtonId,
+          views::ElementTrackerViews::GetContextForView(
+              editor_bubble->GetRootView()));
+  EXPECT_NE(nullptr, focus_button_view);
+}
+#endif
 
 class TabGroupEditorBubbleViewDialogBrowserTestWithTabGroupHome
     : public TabGroupEditorBubbleViewDialogBrowserTest {
@@ -594,7 +616,7 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_NE(nullptr, home_button);
 
   // Store the initial tab count.
-  int initial_tab_count = browser()->tab_strip_model()->count();
+  int initial_tab_count = browser()->GetTabStripModel()->count();
 
   ui::MouseEvent released_event(ui::EventType::kMouseReleased, gfx::PointF(),
                                 gfx::PointF(), base::TimeTicks(), 0, 0);
@@ -605,14 +627,14 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_TRUE(base::test::RunUntil([&]() { return !weak_widget; }));
 
   // Verify that a new tab was opened.
-  EXPECT_EQ(browser()->tab_strip_model()->count(), initial_tab_count + 1);
+  EXPECT_EQ(browser()->GetTabStripModel()->count(), initial_tab_count + 1);
 
   // Verify it is the active tab.
-  EXPECT_EQ(browser()->tab_strip_model()->active_index(), initial_tab_count);
+  EXPECT_EQ(browser()->GetTabStripModel()->active_index(), initial_tab_count);
 
   // Verify the URL.
   content::WebContents* active_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_NE(nullptr, active_contents);
   EXPECT_EQ(active_contents->GetVisibleURL(), GURL("chrome://tab-group-home/"));
 }
@@ -627,7 +649,7 @@ IN_PROC_BROWSER_TEST_F(TabGroupEditorBubbleViewDialogBrowserTest,
   }
   browser()->GetWindow()->SetBounds(gfx::Rect(0, 0, 1000, 1000));
 
-  group_ = browser()->tab_strip_model()->AddToNewGroup({0});
+  group_ = browser()->GetTabStripModel()->AddToNewGroup({0});
   ASSERT_TRUE(group_.has_value());
 
   // Try showing the bubble near the top of the window. The arrow should be on

@@ -15,7 +15,7 @@
 #include "chrome/browser/dom_distiller/tab_utils.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/page_action/page_action_controller.h"
@@ -82,8 +82,7 @@ bool IsTriggeredByOmnibox(const actions::ActionInvocationContext& context) {
   std::underlying_type_t<page_actions::PageActionTrigger> page_action_trigger =
       context.GetProperty(page_actions::kPageActionTriggerKey);
   return (page_action_trigger != page_actions::kInvalidPageActionTrigger) &&
-         features::IsReadAnythingOmniboxChipEnabled() &&
-         base::FeatureList::IsEnabled(features::kPageActionsMigration);
+         features::IsReadAnythingOmniboxChipEnabled();
 }
 
 void LogDecision(ReadAnythingOmniboxChipDecision decision) {
@@ -141,7 +140,7 @@ void RunPdfDistillableHeuristic(
 }
 #endif
 
-pdf::PDFDocumentHelper* GetPdf(content::WebContents* contents) {
+pdf::PDFDocumentHelper* GetPdf(content::WebContents& contents) {
 #if BUILDFLAG(ENABLE_PDF)
   return pdf::PDFDocumentHelper::MaybeGetForWebContents(contents);
 #else
@@ -179,7 +178,7 @@ void OnOptimizationGuideDecision(
 
   // This check is already done in CheckIfShouldSuggestReadingMode but it's
   // possible that the page was not detected as a PDF yet so check again.
-  if (auto* pdf_helper = GetPdf(contents)) {
+  if (auto* pdf_helper = GetPdf(*contents)) {
     RunPdfDistillableHeuristic(pdf_helper, std::move(result_callback));
     return;
   }
@@ -269,23 +268,13 @@ void ReadAnythingEntryPointController::ShowUI(
                                   open_trigger);
   }
 
-  if (features::IsImmersiveReadAnythingEnabled()) {
-    // TODO(crbug.com/471001915): Once IRM flag is enabled by default, change
-    // IDC_CONTENT_CONTEXT_OPEN_IN_READING_MODE, one of the triggers of this
-    // method, to reflect that it's opening Immersive mode instead of Side
-    // Panel.
-    if (tabs::TabInterface* tab = bwi->GetActiveTabInterface()) {
-      auto* controller = ReadAnythingController::From(tab);
-      CHECK(controller);
-      controller->ShowInPreferredUI(open_trigger);
-    }
-  } else {
-    SidePanelOpenTrigger side_panel_open_trigger =
-        ReadAnythingToSidePanelOpenTrigger(open_trigger);
-
-    bwi->GetFeatures().side_panel_ui()->Show(
-        SidePanelEntryKey(SidePanelEntryId::kReadAnything),
-        side_panel_open_trigger);
+  // TODO(crbug.com/471001915): Change IDC_CONTENT_CONTEXT_OPEN_IN_READING_MODE,
+  // one of the triggers of this method, to reflect that it's opening Immersive
+  // mode instead of Side Panel.
+  if (tabs::TabInterface* tab = bwi->GetActiveTabInterface()) {
+    auto* controller = ReadAnythingController::From(tab);
+    CHECK(controller);
+    controller->ShowInPreferredUI(open_trigger);
   }
 }
 
@@ -302,26 +291,17 @@ void ReadAnythingEntryPointController::ToggleUI(
                                   open_trigger);
   }
 
-  if (features::IsImmersiveReadAnythingEnabled()) {
-    if (tabs::TabInterface* tab = bwi->GetActiveTabInterface()) {
-      auto* controller = ReadAnythingController::From(tab);
-      CHECK(controller);
-      controller->ToggleUI(open_trigger);
-    }
-  } else {
-    SidePanelOpenTrigger side_panel_open_trigger =
-        ReadAnythingToSidePanelOpenTrigger(open_trigger);
-
-    bwi->GetFeatures().side_panel_ui()->Toggle(
-        SidePanelEntryKey(SidePanelEntryId::kReadAnything),
-        side_panel_open_trigger);
+  if (tabs::TabInterface* tab = bwi->GetActiveTabInterface()) {
+    auto* controller = ReadAnythingController::From(tab);
+    CHECK(controller);
+    controller->ToggleUI(open_trigger);
   }
 }
 
 // static
 bool ReadAnythingEntryPointController::IsUIShowing(
     BrowserWindowInterface* bwi) {
-  if (!features::IsImmersiveReadAnythingEnabled() || !bwi) {
+  if (!bwi) {
     return IsReadAnythingEntryShowing(bwi);
   }
 
@@ -339,8 +319,7 @@ void ReadAnythingEntryPointController::UpdatePageActionVisibility(
     tabs::TabInterface* tab,
     base::OnceCallback<void(user_education::FeaturePromoResult promo_result)>
         show_promo_callback) {
-  if (!base::FeatureList::IsEnabled(features::kPageActionsMigration) ||
-      !features::IsReadAnythingOmniboxChipEnabled() || !tab) {
+  if (!features::IsReadAnythingOmniboxChipEnabled() || !tab) {
     return;
   }
 
@@ -400,8 +379,8 @@ bool ReadAnythingEntryPointController::CheckIfShouldSuggestReadingModeNaive(
 
   // Disable the omnibox on app windows, as these windows don't usually have
   // omnibox support.
-  Browser* browser = bwi->GetBrowserForMigrationOnly();
-  if (browser && (browser->is_type_app() || browser->is_type_app_popup())) {
+  if (bwi->GetType() == BrowserWindowInterface::Type::TYPE_APP ||
+      bwi->GetType() == BrowserWindowInterface::Type::TYPE_APP_POPUP) {
     LogDecision(ReadAnythingOmniboxChipDecision::kHideAppWindow);
     return false;
   }
@@ -453,7 +432,7 @@ void ReadAnythingEntryPointController::CheckIfShouldSuggestReadingMode(
   // But since PDFs are distilled via Screen2x, use a custom heuristic to
   // determine if the PDF will distill well with RM.
   content::WebContents* contents = bwi->GetActiveTabInterface()->GetContents();
-  if (auto* pdf_helper = GetPdf(contents)) {
+  if (auto* pdf_helper = GetPdf(*contents)) {
     RunPdfDistillableHeuristic(pdf_helper, std::move(result_callback));
     return;
   }
@@ -479,8 +458,7 @@ void ReadAnythingEntryPointController::CheckIfShouldSuggestReadingMode(
 // static
 void ReadAnythingEntryPointController::OnPageActionIgnored(
     BrowserWindowInterface* bwi) {
-  if (!base::FeatureList::IsEnabled(features::kPageActionsMigration) ||
-      !features::IsReadAnythingOmniboxChipEnabled() || !bwi) {
+  if (!features::IsReadAnythingOmniboxChipEnabled() || !bwi) {
     return;
   }
 

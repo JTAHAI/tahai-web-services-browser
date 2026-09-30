@@ -7,16 +7,12 @@
 #include "base/notreached.h"
 #include "build/branding_buildflags.h"
 #include "chrome/app/vector_icons/vector_icons.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/page_action/action_ids.h"
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_ids.h"
-#include "chrome/common/pref_names.h"
 #include "components/browser_apis/ui_controllers/toolbar/toolbar_ui_api_data_model.mojom.h"
 #include "components/omnibox/browser/vector_icons.h"
-#include "components/prefs/pref_service.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/actions/actions.h"
 #include "ui/base/ui_base_features.h"
@@ -163,7 +159,7 @@ ActionItemToPinnedToolbarAction(actions::ActionItem* item) {
   if (item->GetImage().IsVectorIcon()) {
     icon = item->GetImage().GetVectorIcon().vector_icon();
   }
-  if (actions::IsActionItemClass<actions::StatefulImageActionItem>(item)) {
+  if (actions::IsActionClass<actions::StatefulImageActionItem>(item)) {
     auto* stateful_item = static_cast<actions::StatefulImageActionItem*>(item);
     if (stateful_item->GetStatefulImage().IsVectorIcon()) {
       icon = stateful_item->GetStatefulImage().GetVectorIcon().vector_icon();
@@ -280,9 +276,7 @@ ActionItemToPinnedToolbarAction(actions::ActionItem* item) {
                            : kDevicesChromeRefreshOldIcon));
       return toolbar_ui_api::mojom::PinnedToolbarAction::kSendTabToSelf;
     case kActionTaskManager:
-      CHECK_EQ(icon,
-               &(features::IsRoundedIconsEnabled() ? kTableChartIcon
-                                                   : kTaskManagerOldIcon));
+      CHECK_EQ(icon, &vector_icons::kTableChartIcon);
       return toolbar_ui_api::mojom::PinnedToolbarAction::kTaskManager;
     case kActionDevTools:
       CHECK_EQ(icon,
@@ -449,8 +443,8 @@ actions::ActionId MojomPageActionIdToActionId(
       return kActionRecordReplay;
     case MojomPageActionId::kActionShowIntentPicker:
       return kActionShowIntentPicker;
-    case MojomPageActionId::kActionZoomNormal:
-      return kActionZoomNormal;
+    case MojomPageActionId::kActionShowZoomBubble:
+      return kActionShowZoomBubble;
     case MojomPageActionId::kActionSidePanelShowReadAnything:
       return kActionSidePanelShowReadAnything;
     case MojomPageActionId::kActionOffersAndRewardsForPage:
@@ -499,6 +493,8 @@ actions::ActionId MojomPageActionIdToActionId(
       return kActionShowPaymentsChurnedUsersBubble;
     case MojomPageActionId::kActionFakePageActionForDebug:
       return kActionFakePageActionForDebug;
+    case MojomPageActionId::kActionWalletReminderNotice:
+      return kActionWalletReminderNotice;
   }
   NOTREACHED();
 }
@@ -525,8 +521,8 @@ MojomPageActionId ActionIdToMojomPageActionId(actions::ActionId action_id) {
       return MojomPageActionId::kActionRecordReplay;
     case kActionShowIntentPicker:
       return MojomPageActionId::kActionShowIntentPicker;
-    case kActionZoomNormal:
-      return MojomPageActionId::kActionZoomNormal;
+    case kActionShowZoomBubble:
+      return MojomPageActionId::kActionShowZoomBubble;
     case kActionSidePanelShowReadAnything:
       return MojomPageActionId::kActionSidePanelShowReadAnything;
     case kActionOffersAndRewardsForPage:
@@ -575,6 +571,8 @@ MojomPageActionId ActionIdToMojomPageActionId(actions::ActionId action_id) {
       return MojomPageActionId::kActionShowPaymentsChurnedUsersBubble;
     case kActionFakePageActionForDebug:
       return MojomPageActionId::kActionFakePageActionForDebug;
+    case kActionWalletReminderNotice:
+      return MojomPageActionId::kActionWalletReminderNotice;
   }
   NOTREACHED();
 }

@@ -120,6 +120,48 @@ bool GlicKeyedServiceAndroid::InvokeWithAutoSubmit(JNIEnv* env,
   }
 }
 
+void GlicKeyedServiceAndroid::InvokeWithPrompt(JNIEnv* env,
+                                               TabAndroid* tab,
+                                               std::string text,
+                                               int32_t source) {
+  if (!tab) {
+    return;
+  }
+
+  GlicInvokeOptions options(Target(*tab),
+                            static_cast<mojom::InvocationSource>(source));
+  options.prompts.push_back(std::move(text));
+  service_->Invoke(std::move(options));
+}
+
+void GlicKeyedServiceAndroid::Invoke(JNIEnv* env,
+                                     TabAndroid* tab,
+                                     int32_t source) {
+  if (!tab) {
+    return;
+  }
+
+  GlicInvokeOptions options(Target(*tab),
+                            static_cast<mojom::InvocationSource>(source));
+  service_->Invoke(std::move(options));
+}
+
+void GlicKeyedServiceAndroid::InvokeWithConversation(
+    JNIEnv* env,
+    TabAndroid* tab,
+    std::string glic_conversation_id,
+    int32_t source) {
+  if (glic_conversation_id.empty()) {
+    return;
+  }
+  Target target =
+      tab ? Target(*tab, ConversationId(std::move(glic_conversation_id)))
+          : Target(ConversationId(std::move(glic_conversation_id)));
+  GlicInvokeOptions options(std::move(target),
+                            static_cast<mojom::InvocationSource>(source));
+  service_->Invoke(std::move(options));
+}
+
 bool GlicKeyedServiceAndroid::IsPanelShowingForBrowser(
     JNIEnv* env,
     int64_t browser_window_ptr) {

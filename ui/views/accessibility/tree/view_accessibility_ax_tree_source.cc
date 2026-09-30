@@ -140,7 +140,7 @@ ViewAccessibility* ViewAccessibilityAXTreeSource::GetParent(
   if (!node || node->GetUniqueId() == root_id_) {
     return nullptr;
   }
-  return node->GetUnignoredParent();
+  return node->GetViewAccessibilityParent();
 }
 
 bool ViewAccessibilityAXTreeSource::IsIgnored(ViewAccessibility* node) const {
@@ -177,6 +177,7 @@ void ViewAccessibilityAXTreeSource::SerializeNode(
     return;
   }
   node->GetAccessibleNodeData(out_data);
+  node->ClearPendingAriaNotifications();
 }
 
 std::string ViewAccessibilityAXTreeSource::ToString(ViewAccessibility* root,

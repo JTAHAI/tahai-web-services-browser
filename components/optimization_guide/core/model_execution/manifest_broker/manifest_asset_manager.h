@@ -25,6 +25,7 @@
 #include "base/version.h"
 #include "components/component_updater/component_updater_service.h"
 #include "components/crx_file/id_util.h"
+#include "components/optimization_guide/core/model_execution/component_download_observer.h"
 #include "components/optimization_guide/core/model_execution/manifest_broker/manifest.h"
 #include "components/optimization_guide/core/model_execution/manifest_broker/manifest_monitor.h"
 #include "components/optimization_guide/core/model_execution/manifest_broker/manifest_solution_factory.h"
@@ -39,6 +40,35 @@ class PrefService;
 namespace optimization_guide {
 
 class UsageTracker;
+
+// Priorities for assets in the manifest.
+enum class AssetPriority {
+  kSpeculative = 0,
+  kBestEffort = 1,
+  kUserBlocking = 2,
+};
+
+// Tracks the priority of assets in the manifest.
+class AssetPriorities {
+ public:
+  AssetPriorities();
+  ~AssetPriorities();
+  AssetPriorities(const AssetPriorities&);
+  AssetPriorities& operator=(const AssetPriorities&);
+  AssetPriorities(AssetPriorities&&);
+  AssetPriorities& operator=(AssetPriorities&&);
+
+  void Raise(AssetPriority priority,
+             const absl::flat_hash_set<Manifest::AssetId>& assets);
+  void Clear();
+
+  bool IsAtLeast(AssetPriority priority,
+                 const Manifest::AssetId& asset_id) const;
+
+ private:
+  absl::flat_hash_map<Manifest::AssetId, AssetPriority> priorities_;
+};
+
 // Manages the state of assets defined in the on-device model manifest.
 class ManifestAssetManager : public UsageTracker::Observer {
  public:
@@ -84,6 +114,11 @@ class ManifestAssetManager : public UsageTracker::Observer {
       const std::string& use_case,
       mojo::PendingRemote<on_device_model::mojom::DownloadObserver> observer);
 
+  // Add download progress observer for the given asset.
+  void AddAssetDownloadObserver(
+      const std::string& asset_name,
+      mojo::PendingRemote<on_device_model::mojom::DownloadObserver> observer);
+
   // Tells the manager to begin providing assets to a new solution factory.
   // The `solution_factory` must not be null.
   // The asset manager will take the following actions in order, potentially
@@ -126,6 +161,10 @@ class ManifestAssetManager : public UsageTracker::Observer {
 
   // Uninstalls all models and clears active/background download requirements.
   void UninstallModels();
+
+  // Helper to resolve an asset name to its CRX ID.
+  std::optional<std::string> GetCrxIdForAsset(
+      const std::string& asset_name) const;
 
  private:
   enum class ComponentState {
@@ -230,8 +269,9 @@ class ManifestAssetManager : public UsageTracker::Observer {
   };
 
   // UsageTracker::Observer:
-  void OnDeviceEligibleUseCaseUsed(const std::string& use_case_name,
-                                   bool is_first_usage) override;
+  void OnPriorityIncrease(
+      const std::string& use_case_name,
+      std::optional<UsageTracker::Priority> previous_priority) override;
 
   // Updates the set of assets required by the active use cases.
   void UpdateActiveAssets();
@@ -270,6 +310,9 @@ class ManifestAssetManager : public UsageTracker::Observer {
                      std::unique_ptr<OnDeviceModelDownloadProgressManager>>
       progress_managers_ GUARDED_BY_CONTEXT(sequence_checker_);
 
+  std::map<std::string, std::unique_ptr<ComponentDownloadObserver>>
+      asset_download_observers_ GUARDED_BY_CONTEXT(sequence_checker_);
+
   // Tracks the free disk space and the last time it was evaluated.
   struct DiskSpaceStatus {
     DiskSpaceStatus();
@@ -292,13 +335,7 @@ class ManifestAssetManager : public UsageTracker::Observer {
   std::unique_ptr<ManifestSolutionFactory> factory_
       GUARDED_BY_CONTEXT(sequence_checker_);
 
-  // Tracks the manifest assets required by the active use cases.
-  absl::flat_hash_set<Manifest::AssetId> active_assets_by_id_
-      GUARDED_BY_CONTEXT(sequence_checker_);
-
-  // Tracks the manifest assets that are enabled for background download.
-  absl::flat_hash_set<Manifest::AssetId> background_download_assets_by_id_
-      GUARDED_BY_CONTEXT(sequence_checker_);
+  AssetPriorities asset_priorities_ GUARDED_BY_CONTEXT(sequence_checker_);
 
   base::ScopedObservation<UsageTracker, UsageTracker::Observer>
       usage_tracker_observation_{this};

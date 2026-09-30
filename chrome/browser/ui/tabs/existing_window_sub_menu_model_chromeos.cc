@@ -5,7 +5,6 @@
 #include "chrome/browser/ui/tabs/existing_window_sub_menu_model_chromeos.h"
 
 #include "base/strings/string_number_conversions.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_menu_model_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -74,7 +73,7 @@ ExistingWindowSubMenuModelChromeOS::~ExistingWindowSubMenuModelChromeOS() =
 
 void ExistingWindowSubMenuModelChromeOS::BuildMenuGroupedByDesk(
     const std::vector<BrowserWindowInterface*>& existing_browsers) {
-  // Get the vector of MenuItemInfo for |existing_browsers| and then group them
+  // Get the vector of MenuItemInfo for `existing_browsers` and then group them
   // by desk.
   const DesksHelper* desks_helper = DesksHelper::Get();
   const int num_desks = desks_helper->GetNumberOfDesks();

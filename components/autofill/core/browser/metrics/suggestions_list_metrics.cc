@@ -20,34 +20,64 @@
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/filling/filling_product.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
+#include "components/autofill/core/browser/suggestions/suggestion.h"
+#include "components/autofill/core/browser/suggestions/suggestion_util.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 
 namespace autofill::autofill_metrics {
 
-void LogSuggestionsCount(size_t num_suggestions,
-                         FillingProduct filling_product) {
-  switch (filling_product) {
-    case FillingProduct::kAddress:
-      base::UmaHistogramCounts100("Autofill.SuggestionsCount.Address",
-                                  num_suggestions);
-      break;
-    case FillingProduct::kCreditCard:
-      base::UmaHistogramCounts100("Autofill.SuggestionsCount.CreditCard",
-                                  num_suggestions);
-      break;
-    case FillingProduct::kNone:
-    case FillingProduct::kMerchantPromoCode:
-    case FillingProduct::kIban:
-    case FillingProduct::kAutocomplete:
-    case FillingProduct::kPassword:
-    case FillingProduct::kCompose:
-    case FillingProduct::kAutofillAi:
-    case FillingProduct::kLoyaltyCard:
-    case FillingProduct::kIdentityCredential:
-    case FillingProduct::kDataList:
-    case FillingProduct::kOneTimePassword:
-    case FillingProduct::kPasskey:
-    case FillingProduct::kAtMemory:
-      NOTREACHED();
+void LogSuggestionsCount(base::span<const Suggestion> suggestions) {
+  absl::flat_hash_map<FillingProduct, size_t> suggestions_count;
+  for (const Suggestion& suggestion : suggestions) {
+    if (!IsManagementFooterOption(suggestion)) {
+      ++suggestions_count[GetFillingProductFromSuggestionType(suggestion.type)];
+    }
+  }
+
+  for (const auto& [product, count] : suggestions_count) {
+    if (product != FillingProduct::kNone) {
+      base::UmaHistogramCounts100(
+          base::StrCat(
+              {"Autofill.SuggestionsCount.", FillingProductToString(product)}),
+          count);
+    }
+  }
+}
+
+void LogMergedEmailSuggestionCounts(size_t num_address_suggestions,
+                                    size_t num_autocomplete_suggestions) {
+  base::UmaHistogramCounts100(
+      "Autofill.EmailPopup.SuggestionCount",
+      num_address_suggestions + num_autocomplete_suggestions);
+  base::UmaHistogramCounts100("Autofill.EmailPopup.SuggestionCount.Address",
+                              num_address_suggestions);
+  base::UmaHistogramCounts100(
+      "Autofill.EmailPopup.SuggestionCount.Autocomplete",
+      num_autocomplete_suggestions);
+}
+
+void LogMergedEmailAcceptedSuggestionType(
+    SuggestionType accepted_suggestion_type,
+    base::span<const SuggestionType> shown_suggestion_types) {
+  const FillingProduct accepted_product =
+      GetFillingProductFromSuggestionType(accepted_suggestion_type);
+  auto contains_product = [&](FillingProduct filling_product) {
+    return std::ranges::contains(shown_suggestion_types, filling_product,
+                                 &GetFillingProductFromSuggestionType);
+  };
+
+  if (accepted_product == FillingProduct::kAutocomplete) {
+    base::UmaHistogramEnumeration(
+        "Autofill.AcceptedEmailSuggestion.Status",
+        contains_product(FillingProduct::kAddress)
+            ? EmailSuggestionAcceptedStatus::kMixedAutocompleteSelected
+            : EmailSuggestionAcceptedStatus::kAutocompleteOnly);
+  } else if (accepted_product == FillingProduct::kAddress) {
+    base::UmaHistogramEnumeration(
+        "Autofill.AcceptedEmailSuggestion.Status",
+        contains_product(FillingProduct::kAutocomplete)
+            ? EmailSuggestionAcceptedStatus::kMixedAddressSelected
+            : EmailSuggestionAcceptedStatus::kAddressOnly);
   }
 }
 

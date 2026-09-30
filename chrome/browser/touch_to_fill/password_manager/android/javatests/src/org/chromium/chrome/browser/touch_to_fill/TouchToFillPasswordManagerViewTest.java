@@ -58,6 +58,7 @@ import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.TriState;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
@@ -85,7 +86,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.Shee
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetTestSupport;
 import org.chromium.components.webauthn.cred_man.CredManSupportProvider;
 import org.chromium.content_public.browser.test.util.TouchCommon;
-import org.chromium.ui.accessibility.AccessibilityState;
+import org.chromium.ui.accessibility.AccessibilityStateTestHelper;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -198,7 +199,7 @@ public class TouchToFillPasswordManagerViewTest {
     public void tearDown() {
         ThreadUtils.runOnUiThread(
                 () -> {
-                    AccessibilityState.setIsTouchExplorationEnabledForTesting(false);
+                    AccessibilityStateTestHelper.setIsTouchExplorationEnabledForTesting(false);
                 });
     }
 
@@ -853,7 +854,7 @@ public class TouchToFillPasswordManagerViewTest {
         // Enabling the accessibility settings.
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    AccessibilityState.setIsTouchExplorationEnabledForTesting(true);
+                    AccessibilityStateTestHelper.setIsTouchExplorationEnabledForTesting(true);
                 });
 
         ThreadUtils.runOnUiThreadBlocking(
@@ -1039,7 +1040,7 @@ public class TouchToFillPasswordManagerViewTest {
                                         R.string.touch_to_fill_sheet_passkey_credential_context)));
 
         CredManSupportProvider.setupForTesting(
-                /* overrideAndroidVersion= */ null, /* overrideForcesGpm= */ null);
+                /* overrideAndroidVersion= */ null, /* overrideForcesGpm= */ TriState.NOT_SET);
     }
 
     @Test

@@ -7,7 +7,7 @@
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/test/test_browser_ui.h"
 #include "chrome/browser/ui/views/profiles/first_run_flow_controller.h"
 #include "chrome/browser/ui/views/profiles/profile_management_step_controller.h"
@@ -29,7 +29,7 @@ struct FirstRunTestParam {
   bool use_fixed_size = false;
   bool use_longer_strings = false;
   bool decline_signin_cta_experiment_enabled = false;
-  bool use_primary_and_tonal_buttons_for_promos_enabled = false;
+
   bool use_refresh = false;
   bool use_revamp = false;
   bool enable_sound = true;
@@ -51,9 +51,7 @@ const FirstRunTestParam kTestParams[] = {
     {.pixel_test_param = {.test_suffix = "DarkThemeDeclineSigninCTAExperiment",
                           .use_dark_theme = true},
      .decline_signin_cta_experiment_enabled = true},
-    {.pixel_test_param = {.test_suffix = "DarkThemeUsePrimaryAndTonalButtons",
-                          .use_dark_theme = true},
-     .use_primary_and_tonal_buttons_for_promos_enabled = true},
+
 #if !BUILDFLAG(IS_WIN)
     // TODO(https://crbug.com/40261456): The following test has been frequently
     // flaking on "Win10 Tests x64" since 2024-05-09:
@@ -79,9 +77,7 @@ const FirstRunTestParam kTestParams[] = {
     {.pixel_test_param = {.test_suffix = "RefreshRightToLeftLanguage",
                           .use_right_to_left_language = true},
      .use_refresh = true},
-    {.pixel_test_param = {.test_suffix = "RefreshUsePrimaryAndTonalButtons"},
-     .use_primary_and_tonal_buttons_for_promos_enabled = true,
-     .use_refresh = true},
+
     // Revamp parameters.
     {.pixel_test_param = {.test_suffix = "RevampDefault"},
      .use_refresh = true,
@@ -123,6 +119,7 @@ std::string_view GetMakeCardDescriptionLongerJsString() {
 
 }  // namespace
 
+// TODO(crbug.com/542896534): Add tests for larger profile picker window.
 class FirstRunIntroPixelTest
     : public ProfilesPixelTestBaseT<UiBrowserTest>,
       public testing::WithParamInterface<FirstRunTestParam> {
@@ -132,8 +129,7 @@ class FirstRunIntroPixelTest
     scoped_feature_list_.InitWithFeatureStates(
         {{switches::kProfileCreationDeclineSigninCTAExperiment,
           GetParam().decline_signin_cta_experiment_enabled},
-         {switches::kUsePrimaryAndTonalButtonsForPromos,
-          GetParam().use_primary_and_tonal_buttons_for_promos_enabled},
+
          {switches::kFirstRunDesktopRefresh, GetParam().use_refresh},
          {switches::kFirstRunDesktopRevamp, GetParam().use_revamp},
          {switches::kFirstRunDesktopRevampSound, GetParam().enable_sound},

@@ -64,6 +64,8 @@ TEST(RegistrationFetcherParamTest, BasicValid) {
   const auto& param = params[0];
   EXPECT_EQ(param.registration_endpoint(),
             GURL("https://www.example.com/startsession"));
+  EXPECT_EQ(param.referring_origin(),
+            url::Origin::Create(registration_request));
   EXPECT_THAT(param.supported_algos(),
               UnorderedElementsAre(ECDSA_SHA256, RSA_PKCS1_SHA256));
   EXPECT_EQ(param.challenge(), "c1");
@@ -471,6 +473,8 @@ TEST(RegistrationFetcherParamTest, FullUrl) {
   const auto& param = params[0];
   EXPECT_EQ(param.registration_endpoint(),
             GURL("https://accounts.example.com/startsession"));
+  EXPECT_EQ(param.referring_origin(),
+            url::Origin::Create(registration_request));
   EXPECT_THAT(param.supported_algos(),
               UnorderedElementsAre(ECDSA_SHA256, RSA_PKCS1_SHA256));
   EXPECT_EQ(param.challenge(), "c1");
@@ -689,10 +693,11 @@ TEST(RegistrationFetcherParamTest, ValidProviderParams) {
   EXPECT_EQ(param.registration_endpoint(),
             GURL("https://www.example.com/startsession"));
   EXPECT_THAT(param.supported_algos(), UnorderedElementsAre(ECDSA_SHA256));
-  EXPECT_EQ(param.challenge(), "c1");
-  EXPECT_EQ(param.provider_key(), "key");
-  EXPECT_EQ(param.provider_url(), GURL("https://provider.example.com"));
-  EXPECT_EQ(param.provider_session_id(), Session::Id("id"));
+  ASSERT_TRUE(param.provider_params().has_value());
+  EXPECT_EQ(param.provider_params()->provider_key, "key");
+  EXPECT_EQ(param.provider_params()->provider_url,
+            GURL("https://provider.example.com"));
+  EXPECT_EQ(param.provider_params()->provider_session_id, Session::Id("id"));
 }
 
 TEST(RegistrationFetcherParamTest, ValidProviderParamsWithoutSessionId) {
@@ -717,9 +722,11 @@ TEST(RegistrationFetcherParamTest, ValidProviderParamsWithoutSessionId) {
             GURL("https://www.example.com/startsession"));
   EXPECT_THAT(param.supported_algos(), UnorderedElementsAre(ECDSA_SHA256));
   EXPECT_EQ(param.challenge(), "c1");
-  EXPECT_EQ(param.provider_key(), "key");
-  EXPECT_EQ(param.provider_url(), GURL("https://provider.example.com"));
-  EXPECT_FALSE(param.provider_session_id().has_value());
+  ASSERT_TRUE(param.provider_params().has_value());
+  EXPECT_EQ(param.provider_params()->provider_key, "key");
+  EXPECT_EQ(param.provider_params()->provider_url,
+            GURL("https://provider.example.com"));
+  EXPECT_FALSE(param.provider_params()->provider_session_id.has_value());
 }
 
 TEST(RegistrationFetcherParamTest, InvalidProviderParamsWithoutSessionId) {
@@ -934,6 +941,23 @@ TEST(RegistrationFetcherParamTest, AikRequiredInvalidValue) {
   response_headers->AddHeader(
       kRegistrationHeaderName,
       "(ES256);path=\"startsession\";challenge=\"c1\";aik_required=42");
+  std::vector<RegistrationFetcherParam> params =
+      RegistrationFetcherParam::CreateIfValid(
+          registration_request, response_headers.get(),
+          /*restricted_sites=*/std::vector<SchemefulSite>());
+
+  EXPECT_TRUE(params.empty());
+}
+
+TEST(RegistrationFetcherParamTest, AikRequiredWithoutChallenge) {
+  base::test::ScopedFeatureList feature_list(
+      features::kDeviceBoundSessionsForSingleSignOn);
+
+  const GURL registration_request("https://www.example.com/registration");
+  scoped_refptr<net::HttpResponseHeaders> response_headers =
+      HttpResponseHeaders::Builder({1, 1}, "200 OK").Build();
+  response_headers->AddHeader(kRegistrationHeaderName,
+                              "(ES256);path=\"startsession\";aik_required=?1");
   std::vector<RegistrationFetcherParam> params =
       RegistrationFetcherParam::CreateIfValid(
           registration_request, response_headers.get(),

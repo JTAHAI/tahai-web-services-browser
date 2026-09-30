@@ -47,6 +47,7 @@
 #include "net/first_party_sets/first_party_set_metadata.h"
 #include "net/http/http_auth_preferences.h"
 #include "net/http/http_cache.h"
+#include "net/http/http_request_headers.h"
 #include "net/net_buildflags.h"
 #include "net/reporting/reporting_target_type.h"
 #include "net/storage_access_api/status.h"
@@ -285,6 +286,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
       const net::IsolationInfo& isolation_info,
       const net::CookieSettingOverrides& cookie_setting_overrides,
       const net::CookieSettingOverrides& devtools_cookie_setting_overrides,
+      bool prefer_bound_cookie_context,
       mojo::PendingRemote<mojom::CookieAccessObserver> observer) override;
   void GetTrustTokenQueryAnswerer(
       mojo::PendingReceiver<mojom::TrustTokenQueryAnswerer> receiver,
@@ -433,7 +435,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
       mojo::PendingRemote<mojom::WebSocketAuthenticationHandler> auth_handler,
       mojo::PendingRemote<mojom::TrustedHeaderClient> header_client,
       const std::optional<base::UnguessableToken>& throttling_profile_id,
-      const base::UnguessableToken& network_restrictions_id) override;
+      const base::UnguessableToken& network_restrictions_id,
+      mojom::IPAddressSpace target_address_space) override;
   void CreateWebTransport(
       const GURL& url,
       const url::Origin& origin,
@@ -445,6 +448,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
           anticipated_concurrent_incoming_unidirectional_streams,
       std::optional<uint16_t>
           anticipated_concurrent_incoming_bidirectional_streams,
+      std::vector<net::HttpRequestHeaders::HeaderKeyValuePair>
+          additional_headers,
       mojo::PendingRemote<mojom::WebTransportHandshakeClient> handshake_client,
       mojo::PendingRemote<mojom::URLLoaderNetworkServiceObserver>
           url_loader_network_observer,
@@ -531,6 +536,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
       const base::flat_map<std::string, std::string>& endpoints) override;
   void SendReportsAndRemoveSource(
       const base::UnguessableToken& reporting_source) override;
+  void SendReportsForSource(
+      const base::UnguessableToken& reporting_source) override;
   void QueueReport(
       const std::string& type,
       const std::string& group,
@@ -572,7 +579,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
       const std::string& realm,
       LookupProxyAuthCredentialsCallback callback) override;
 #endif
-  void SetSharedDictionaryCacheMaxSize(uint64_t cache_max_size) override;
+  void SetSharedDictionaryCacheMaxSize(
+      std::optional<base::ByteSize> cache_max_size) override;
   void ClearSharedDictionaryCache(
       base::Time start_time,
       base::Time end_time,
@@ -613,9 +621,6 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
       const ResourceRequest& request,
       const net::MutableNetworkTrafficAnnotationTag& traffic_annotation,
       const base::UnguessableToken& network_restrictions_id) override;
-
-  void GetBoundNetworkForTesting(
-      GetBoundNetworkForTestingCallback callback) override;
 
   void AddQuicHints(
       const std::vector<url::SchemeHostPort>& origins,
@@ -708,15 +713,16 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
       const net::ConnectionChangeNotifier::Observer* observer);
 
   size_t NumOpenWebTransports() const;
+  WebTransport* GetWebTransportForTesting();
 
   size_t num_url_loader_factories_for_testing() const {
     return url_loader_factories_.size();
   }
 
-  // Returns whether all URLLoaderFactories owned by `this` are bound to
-  // `bound_network`.
-  bool AllURLLoaderFactoriesAreBoundToNetworkForTesting(
-      net::handles::NetworkHandle bound_network) const;
+  // Returns how many URLLoaderFactories owned by `this` are bound to
+  // `target_network`.
+  size_t CountURLLoaderFactoriesBoundToNetworkForTesting(
+      net::handles::NetworkHandle target_network) const;
 
   GURL GetNetworkRestrictionResponseUrlForTesting(
       const base::UnguessableToken& network_restrictions_id) const;
@@ -977,6 +983,8 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
   // is.
   // These should also be above receiver_ so the bindings are destroyed prior to
   // the callbacks themselves.
+  // Pending removers are explicitly cleared in ~NetworkContext() to cancel
+  // in-flight tasks prior to context teardown.
   std::vector<std::unique_ptr<HttpCacheDataRemover>> http_cache_data_removers_;
   std::vector<std::unique_ptr<HttpCacheDataCounter>> http_cache_data_counters_;
   std::set<std::unique_ptr<ProxyLookupRequest>, base::UniquePtrComparator>

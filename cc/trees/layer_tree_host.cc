@@ -854,7 +854,9 @@ void LayerTreeHost::OnCommitRequested() {
 void LayerTreeHost::SetTargetLocalSurfaceId(
     const viz::LocalSurfaceId& target_local_surface_id) {
   DCHECK(IsMainThread());
-  proxy_->SetTargetLocalSurfaceId(target_local_surface_id);
+  if (target_local_surface_id.is_valid()) {
+    proxy_->SetTargetLocalSurfaceId(target_local_surface_id);
+  }
 }
 
 bool LayerTreeHost::RequestedMainFramePending() const {
@@ -1513,7 +1515,8 @@ void LayerTreeHost::SetViewportRectAndScale(
 
   // If a new viz::LocalSurfaceId has been provided, and the viewport has
   // changed, we need not begin new frames until it has activated.
-  if (previous_local_surface_id != local_surface_id_from_parent &&
+  if (local_surface_id_from_parent.is_valid() &&
+      previous_local_surface_id != local_surface_id_from_parent &&
       device_viewport_rect_changed) {
     SetTargetLocalSurfaceId(local_surface_id_from_parent);
   }
@@ -2193,6 +2196,15 @@ void LayerTreeHost::SetUnboundedFrameSink(
   DCHECK(IsMainThread());
   proxy_->SetUnboundedFrameSink(std::move(unbounded_frame_sink),
                                 local_surface_id);
+}
+
+void LayerTreeHost::SetUnboundedFrameSinkId(
+    const viz::FrameSinkId& frame_sink_id,
+    const viz::LocalSurfaceId& local_surface_id) {
+  DCHECK(settings_.enable_unbounded_element);
+  DCHECK(IsMainThread());
+  CHECK(base::FeatureList::IsEnabled(features::kTreesInViz));
+  proxy_->SetUnboundedFrameSinkId(frame_sink_id, local_surface_id);
 }
 
 void LayerTreeHost::DismissUnboundedFrameSink() {

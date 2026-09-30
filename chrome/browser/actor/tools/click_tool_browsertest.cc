@@ -12,6 +12,7 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "base/test/test_timeouts.h"
+#include "base/values.h"
 #include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/browser/actor/tools/click_tool_request.h"
 #include "chrome/browser/actor/tools/tool_request.h"
@@ -161,7 +162,7 @@ class ActorClickToolInteractionDisallowedTargetFeatureDisabledTest
 
   void SetUpOnMainThread() override {
     ActorToolsTest::SetUpOnMainThread();
-    ASSERT_TRUE(embedded_test_server()->Start());
+    ASSERT_TRUE(embedded_https_test_server().Start());
   }
 
  private:
@@ -170,8 +171,8 @@ class ActorClickToolInteractionDisallowedTargetFeatureDisabledTest
 
 // Basic test to ensure sending a click to an element works.
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_SentToElement) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   // Send a click to the document body.
@@ -214,11 +215,124 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_SentToElement) {
   }
 }
 
+// Ensure mouse event modifiers (e.g. event.buttons) are set properly during
+// mousedown and cleared during mouseup for left and right clicks.
+IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_Modifiers) {
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
+
+  ASSERT_TRUE(ExecJs(web_contents(), R"JS(
+    window.recorded_events = [];
+    const recordEvent = (e) => {
+      window.recorded_events.push({
+        type: e.type,
+        button: e.button,
+        buttons: e.buttons,
+      });
+    };
+    const button = document.getElementById('clickable');
+    button.addEventListener('mousedown', recordEvent);
+    button.addEventListener('mouseup', recordEvent);
+  )JS"));
+
+  std::optional<int> button_id =
+      GetDOMNodeId(*main_frame(), "button#clickable");
+  ASSERT_TRUE(button_id);
+
+  // 1. Left click: mousedown has buttons=1, mouseup has buttons=0.
+  {
+    std::unique_ptr<ToolRequest> action =
+        MakeClickRequest(*main_frame(), button_id.value());
+    ActResultFuture result;
+    actor_task().Act(ToRequestList(action), result.GetCallback());
+    ExpectOkResult(result);
+
+    content::EvalJsResult events_result =
+        EvalJs(web_contents(), "window.recorded_events");
+    const base::ListValue& events = events_result.ExtractList();
+    ASSERT_EQ(events.size(), 2u);
+    EXPECT_EQ("mousedown", *events[0].GetDict().FindString("type"));
+    EXPECT_EQ(0, events[0].GetDict().FindInt("button").value_or(-1));
+    EXPECT_EQ(1, events[0].GetDict().FindInt("buttons").value_or(-1));
+
+    EXPECT_EQ("mouseup", *events[1].GetDict().FindString("type"));
+    EXPECT_EQ(0, events[1].GetDict().FindInt("button").value_or(-1));
+    EXPECT_EQ(0, events[1].GetDict().FindInt("buttons").value_or(-1));
+  }
+
+  // 2. Right click: mousedown has buttons=2, mouseup has buttons=0.
+  {
+    ASSERT_TRUE(ExecJs(web_contents(), "window.recorded_events = [];"));
+
+    std::unique_ptr<ToolRequest> action = MakeClickRequest(
+        *main_frame(), button_id.value(), mojom::ClickType::kRight);
+    ActResultFuture result;
+    actor_task().Act(ToRequestList(action), result.GetCallback());
+    ExpectOkResult(result);
+
+    content::EvalJsResult events_result =
+        EvalJs(web_contents(), "window.recorded_events");
+    const base::ListValue& events = events_result.ExtractList();
+    ASSERT_EQ(events.size(), 2u);
+    EXPECT_EQ("mousedown", *events[0].GetDict().FindString("type"));
+    EXPECT_EQ(2, events[0].GetDict().FindInt("button").value_or(-1));
+    EXPECT_EQ(2, events[0].GetDict().FindInt("buttons").value_or(-1));
+
+    EXPECT_EQ("mouseup", *events[1].GetDict().FindString("type"));
+    EXPECT_EQ(2, events[1].GetDict().FindInt("button").value_or(-1));
+    EXPECT_EQ(0, events[1].GetDict().FindInt("buttons").value_or(-1));
+  }
+}
+
+// Ensure mouse events (mousemove, mousedown, mouseup) have their screen
+// coordinates (screenX, screenY) populated.
+IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_ScreenPosition) {
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
+  ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
+
+  ASSERT_TRUE(ExecJs(web_contents(), R"JS(
+    window.screen_positions = [];
+    const recordPosition = (e) => {
+      window.screen_positions.push({
+        type: e.type,
+        screenX: e.screenX,
+        screenY: e.screenY,
+      });
+    };
+    const button = document.getElementById('clickable');
+    button.addEventListener('mousemove', recordPosition);
+    button.addEventListener('mousedown', recordPosition);
+    button.addEventListener('mouseup', recordPosition);
+  )JS"));
+
+  std::optional<int> button_id =
+      GetDOMNodeId(*main_frame(), "button#clickable");
+  ASSERT_TRUE(button_id);
+
+  std::unique_ptr<ToolRequest> action =
+      MakeClickRequest(*main_frame(), button_id.value());
+  ActResultFuture result;
+  actor_task().Act(ToRequestList(action), result.GetCallback());
+  ExpectOkResult(result);
+
+  content::EvalJsResult positions_result =
+      EvalJs(web_contents(), "window.screen_positions");
+  const base::ListValue& positions = positions_result.ExtractList();
+  EXPECT_GE(positions.size(), 2u);
+
+  for (const base::Value& pos : positions) {
+    EXPECT_GT(pos.GetDict().FindInt("screenX").value_or(0), 0);
+    EXPECT_GT(pos.GetDict().FindInt("screenY").value_or(0), 0);
+  }
+}
+
 // Sending a click to an element that doesn't exist fails.
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
                        ClickTool_NonExistentElement) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   // Use a random node id that doesn't exist.
@@ -237,8 +351,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
 
 // Sending a click to a disabled element should fail without dispatching events.
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_DisabledElement) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> button_id = GetDOMNodeId(*main_frame(), "button#disabled");
@@ -258,8 +372,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_DisabledElement) {
 
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
                        ClickTool_DisabledCoordinateTextFailsValidation) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   // Aim at the button text because coordinate hit testing may return that text
@@ -282,8 +396,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolBrowserTest,
     ClickTool_DisabledFieldsetNonFormControlTargetsStillClick) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   ASSERT_TRUE(ExecJs(web_contents(), R"JS(
@@ -367,8 +481,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolBrowserTest,
     ClickTool_InteractionDisallowedDomNodeTargetsDoNotClick) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   ASSERT_TRUE(ExecJs(web_contents(), R"JS(
@@ -400,8 +514,8 @@ IN_PROC_BROWSER_TEST_F(
 
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
                        ClickTool_AriaDisabledAncestorStillClicksDescendant) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   ASSERT_TRUE(ExecJs(web_contents(), R"(
@@ -438,8 +552,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
 // Sending a click to an element that's not in the viewport should cause it to
 // first be scrolled into view then clicked.
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_OffscreenElement) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   // Page starts unscrolled
@@ -469,7 +583,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_OffscreenElement) {
 // first be scrolled into view then clicked.
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
                        ClickTool_OffscreenHiddenElement) {
-  const GURL url = embedded_test_server()->GetURL("/actor/oov_elements.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/oov_elements.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   for (const char* selector :
@@ -494,8 +609,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
 
 // Ensure clicks can be sent to elements that are only partially onscreen.
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_ClippedElements) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_with_overflow_clip.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_with_overflow_clip.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::vector<std::string> test_cases = {
@@ -520,8 +635,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_ClippedElements) {
 
 // Ensure clicks can be sent to a coordinate onscreen.
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_SentToCoordinate) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   // Send a click to a (0,0) coordinate inside the document.
@@ -567,8 +682,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_SentToCoordinate) {
 // dispatching events.
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
                        ClickTool_SentToCoordinateOffScreen) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   // Send a click to a negative coordinate offscreen.
@@ -607,8 +722,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
 // Ensure click is using viewport coordinate.
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
                        ClickTool_ViewportCoordinate) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   // Scroll the window by 100vh so #offscreen button is in viewport.
@@ -692,8 +807,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, ClickTool_Delay) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/page_with_clickable_element.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> body_id = GetDOMNodeId(*main_frame(), "body");
@@ -762,8 +877,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest, CheckboxOverlayedByPseudo) {
 
 IN_PROC_BROWSER_TEST_F(ActorClickToolBrowserTest,
                        ClickTool_OccludedByFixedContainer) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_occluded_by_fixed.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> target_id = GetDOMNodeId(*main_frame(), "#target");
@@ -831,7 +946,7 @@ class ActorClickToolValidationBrowserTest : public ActorClickToolBrowserTest {
   }
 
   void NavigateAndCaptureApc(const std::string& path) {
-    const GURL url = embedded_test_server()->GetURL(path);
+    const GURL url = embedded_https_test_server().GetURL("example.com", path);
     ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
     // Save APC so TOCTOU validation can find the action's target id in the last
@@ -908,7 +1023,7 @@ class ActorClickToolValidationBrowserTest : public ActorClickToolBrowserTest {
       mojom::ActionResultCode expected_code =
           mojom::ActionResultCode::kElementDisabled,
       bool expect_panel_hit = true) {
-    const GURL url = embedded_test_server()->GetURL(path);
+    const GURL url = embedded_https_test_server().GetURL("example.com", path);
     ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
     ExpectCurrentPageDirectActivationRejectedDuringRendererValidation(
@@ -1101,8 +1216,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
                        ClickTool_DirectActivation_OccludedByFixedContainer) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_occluded_by_fixed.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   ExpectDirectActivationClicksTarget();
@@ -1111,7 +1226,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolValidationBrowserTest,
     ClickTool_DirectActivation_OccludedWithModelessDialogAncestor) {
-  const GURL url = embedded_test_server()->GetURL(
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com",
       "/actor/click_occluded_by_fixed.html?modeless_dialog_parent=1");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
@@ -1123,8 +1239,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolOccludedDirectActivationDisabledBrowserTest,
     ClickTool_DirectActivation_RequiresFeatureEnabled) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_occluded_by_fixed.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> target_id = GetDOMNodeId(*main_frame(), "#target");
@@ -1147,8 +1263,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolDirectActivationNoToctouBrowserTest,
     ClickTool_DirectActivation_RequiresApcObservationWithoutToctou) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_occluded_by_fixed.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> target_id = GetDOMNodeId(*main_frame(), "#target");
@@ -1252,8 +1368,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
                        ClickTool_DirectActivation_RequiresApcGeometry) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_occluded_by_fixed.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> target_id = GetDOMNodeId(*main_frame(), "#target");
@@ -1304,8 +1420,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolValidationBrowserTest,
     ClickTool_DirectActivation_FailsWhenLivePointLeavesObservedApcBounds) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_occluded_by_fixed.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> target_id = GetDOMNodeId(*main_frame(), "#target");
@@ -1363,12 +1479,12 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
                        ClickTool_ToctouAllowsSameProcessSubframe) {
   // TOCTOU validation accepts an observed target in a same-process iframe.
-  const GURL url =
-      embedded_https_test_server().GetURL("/actor/positioned_iframe.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/positioned_iframe.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   const GURL subframe_url = embedded_https_test_server().GetURL(
-      "/actor/page_with_clickable_element.html");
+      "example.com", "/actor/page_with_clickable_element.html");
   ASSERT_TRUE(NavigateIframeToURL(web_contents(), "iframe", subframe_url));
 
   RenderFrameHost* subframe =
@@ -1434,12 +1550,12 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
                        ClickTool_DirectActivation_RejectsSameProcessSubframe) {
   // Direct activation bypasses normal hit testing, so it only supports targets
   // in the main frame.
-  const GURL url =
-      embedded_https_test_server().GetURL("/actor/positioned_iframe.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/positioned_iframe.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   const GURL subframe_url = embedded_https_test_server().GetURL(
-      "/actor/click_occluded_by_fixed.html");
+      "example.com", "/actor/click_occluded_by_fixed.html");
   ASSERT_TRUE(NavigateIframeToURL(web_contents(), "iframe", subframe_url));
 
   RenderFrameHost* subframe =
@@ -1505,7 +1621,7 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
 
   for (const char* path : urls) {
     SCOPED_TRACE(path);
-    const GURL url = embedded_test_server()->GetURL(path);
+    const GURL url = embedded_https_test_server().GetURL("example.com", path);
     ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
     // The `child=1` case makes the live hit-test winner a child of the
@@ -1517,8 +1633,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ActorClickToolZeroAreaDomIdClicksBrowserTest,
                        ClickTool_DomIdClickUsesVisibleDescendant) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_zero_area_anchor.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_zero_area_anchor.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> target_id = GetDOMNodeId(*main_frame(), "#target");
@@ -1556,8 +1672,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolZeroAreaDomIdClicksBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ActorClickToolZeroAreaDomIdClicksBrowserTest,
                        ClickTool_DomIdClickUsesVisibleShadowDescendant) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_zero_area_anchor.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_zero_area_anchor.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   ASSERT_TRUE(ExecJs(web_contents(), R"JS(
@@ -1611,8 +1727,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolZeroAreaDomIdClicksBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ActorClickToolZeroAreaDomIdClicksDisabledBrowserTest,
                        ClickTool_DomIdClickFailsWhenFeatureDisabled) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_zero_area_anchor.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_zero_area_anchor.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> target_id = GetDOMNodeId(*main_frame(), "#target");
@@ -1644,7 +1760,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolZeroAreaDomIdClicksDisabledBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
                        ClickTool_DirectActivation_OccludedByShadowPanel) {
-  const GURL url = embedded_test_server()->GetURL(
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com",
       "/actor/click_occluded_by_fixed.html?panel=shadow_fixed_slot&child=1");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
@@ -1693,8 +1810,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolDirectActivationDisallowedFlagDisabledTest,
     ClickTool_DirectActivation_RejectsInertTargetWhenFlagDisabled) {
-  const GURL url = embedded_test_server()->GetURL(
-      "/actor/click_occluded_by_fixed.html?inert=target-parent");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html?inert=target-parent");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> target_id = GetDOMNodeId(*main_frame(), "#target");
@@ -1755,7 +1872,7 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
 
   for (const char* path : urls) {
     SCOPED_TRACE(path);
-    const GURL url = embedded_test_server()->GetURL(path);
+    const GURL url = embedded_https_test_server().GetURL("example.com", path);
     ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
     // Popover is not a special actor concept. If it is the fixed-position
@@ -1780,8 +1897,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolValidationBrowserTest,
     ClickTool_DirectActivation_FailsWhenTargetIsNoLongerOccludedAtExecution) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_occluded_by_fixed.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> target_id = GetDOMNodeId(*main_frame(), "#target");
@@ -1827,7 +1944,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolValidationBrowserTest,
     ClickTool_DirectActivation_OccludedByAbsolutePanelInAbsoluteAncestor) {
-  const GURL url = embedded_test_server()->GetURL(
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com",
       "/actor/click_occluded_by_fixed.html?panel=shared_absolute_ancestor");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
@@ -1839,7 +1957,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolValidationBrowserTest,
     ClickTool_DirectActivation_OccludedByAbsolutePanelInRelativeAncestor) {
-  const GURL url = embedded_test_server()->GetURL(
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com",
       "/actor/click_occluded_by_fixed.html?panel=shared_relative_ancestor");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
@@ -1851,8 +1970,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolValidationBrowserTest,
     ClickTool_DirectActivation_RejectsSubframeHitInsideTarget) {
-  const GURL url = embedded_test_server()->GetURL(
-      "/actor/click_occluded_by_fixed.html?panel=iframe");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html?panel=iframe");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
   ASSERT_TRUE(ExecJs(web_contents(), R"JS(
     const iframe = document.getElementById('fixed-container');
@@ -1875,8 +1994,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
                        ClickTool_DirectActivation_OccludedBySubframe) {
   // The target stays in the top document while a fixed iframe covers it.
-  const GURL url = embedded_test_server()->GetURL(
-      "/actor/click_occluded_by_fixed.html?panel=iframe");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html?panel=iframe");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   ExpectDirectActivationClicksTarget();
@@ -1887,8 +2006,8 @@ IN_PROC_BROWSER_TEST_F(
     ClickTool_DirectActivation_OccludedBySubframeInFixedAncestor) {
   // An ordinary iframe also qualifies when a fixed top-document ancestor is
   // the panel covering the target.
-  const GURL url = embedded_test_server()->GetURL(
-      "/actor/click_occluded_by_fixed.html?panel=iframe");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html?panel=iframe");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
   ASSERT_TRUE(ExecJs(web_contents(), R"JS(
     const iframe = document.getElementById('fixed-container');
@@ -1907,8 +2026,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
                        ClickTool_DirectActivation_RejectsPanelInsideSubframe) {
   // The iframe owner must be the panel. A fixed element inside an ordinary
   // iframe does not qualify for direct activation.
-  const GURL url = embedded_test_server()->GetURL(
-      "/actor/click_occluded_by_fixed.html?panel=iframe");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html?panel=iframe");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
   ASSERT_TRUE(ExecJs(web_contents(), R"JS(
     const iframe = document.getElementById('fixed-container');
@@ -1926,8 +2045,8 @@ IN_PROC_BROWSER_TEST_F(ActorClickToolValidationBrowserTest,
   // Direct activation only follows a hit into one child document. A nested
   // iframe is outside that supported scope, even when the outer iframe is the
   // fixed panel.
-  const GURL url = embedded_test_server()->GetURL(
-      "/actor/click_occluded_by_fixed.html?panel=iframe");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html?panel=iframe");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
   ASSERT_TRUE(ExecJs(web_contents(), R"JS(
     const iframe = document.getElementById('fixed-container');
@@ -1971,8 +2090,8 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ActorClickToolValidationBrowserTest,
     ClickTool_DirectActivation_RevalidatesAvailabilityBeforeDispatch) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_occluded_by_fixed.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_occluded_by_fixed.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::optional<int> target_id = GetDOMNodeId(*main_frame(), "#target");
@@ -2041,8 +2160,8 @@ class ActorClickToolScaledBrowserTest : public ActorToolsTest {
 // scaling.
 IN_PROC_BROWSER_TEST_F(ActorClickToolScaledBrowserTest,
                        ClickTool_ScaledClippedElements) {
-  const GURL url =
-      embedded_test_server()->GetURL("/actor/click_with_overflow_clip.html");
+  const GURL url = embedded_https_test_server().GetURL(
+      "example.com", "/actor/click_with_overflow_clip.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
   std::vector<std::string> test_cases = {

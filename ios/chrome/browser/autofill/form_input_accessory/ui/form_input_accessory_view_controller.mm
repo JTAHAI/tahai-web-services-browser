@@ -86,6 +86,71 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
   }
 }
 
+// Filters out suggestions that have neither text, nor display description, nor
+// an icon to display.
+NSArray<FormSuggestion*>* FilterValidSuggestions(
+    NSArray<FormSuggestion*>* suggestions) {
+  NSMutableArray<FormSuggestion*>* valid_suggestions =
+      [[NSMutableArray alloc] init];
+  for (FormSuggestion* suggestion in suggestions) {
+    if (!suggestion.value.length && !suggestion.displayDescription.length &&
+        !suggestion.icon &&
+        suggestion.suggestionIconType == SuggestionIconType::kNone) {
+      continue;
+    }
+    [valid_suggestions addObject:suggestion];
+  }
+  return valid_suggestions;
+}
+
+// Returns true if based on the `suggestions` content the expand button should
+// be used instead of the manual fill buttons.
+bool HasActionableSuggestions(NSArray<FormSuggestion*>* suggestions) {
+  if (suggestions.count == 0) {
+    return false;
+  }
+  if (suggestions.count == 1 &&
+      suggestions.firstObject.type ==
+          autofill::SuggestionType::kAutocompleteAtMemoryButton) {
+    return false;
+  }
+  return true;
+}
+
+// Returns true if the suggestion is a special trailing suggestion (AtMemory or
+// Ambient Autofill).
+bool IsSpecialSuggestion(FormSuggestion* suggestion) {
+  return suggestion.type ==
+             autofill::SuggestionType::kAutocompleteAtMemoryButton ||
+         suggestion.type == autofill::SuggestionType::kFetchingAmbientData;
+}
+
+// Truncates standard suggestions to `kKeyboardAccessorySuggestionsLimit` while
+// preserving trailing special suggestions (Ambient Autofill and AtMemory).
+NSArray<FormSuggestion*>* TruncateSuggestionsIfNeeded(
+    NSArray<FormSuggestion*>* suggestions) {
+  if (suggestions.count <= kKeyboardAccessorySuggestionsLimit) {
+    return suggestions;
+  }
+
+  NSMutableArray<FormSuggestion*>* standard_suggestions =
+      [[NSMutableArray alloc] init];
+  NSMutableArray<FormSuggestion*>* special_suggestions =
+      [[NSMutableArray alloc] init];
+
+  for (FormSuggestion* suggestion in suggestions) {
+    if (IsSpecialSuggestion(suggestion)) {
+      [special_suggestions addObject:suggestion];
+    } else if (standard_suggestions.count <
+               kKeyboardAccessorySuggestionsLimit) {
+      [standard_suggestions addObject:suggestion];
+    }
+  }
+
+  [standard_suggestions addObjectsFromArray:special_suggestions];
+  return standard_suggestions;
+}
+
 }  // namespace
 
 @interface FormInputAccessoryViewController () <FormSuggestionViewDelegate>
@@ -141,6 +206,7 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
 @synthesize navigationDelegate = _navigationDelegate;
 @synthesize passwordButtonHidden = _passwordButtonHidden;
 @synthesize atMemoryButtonHidden = _atMemoryButtonHidden;
+@synthesize contentEditable = _contentEditable;
 @synthesize mainFillingProduct = _mainFillingProduct;
 @synthesize currentFieldId = _currentFieldId;
 
@@ -154,6 +220,7 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
     _formInputAccessoryViewControllerDelegate =
         formInputAccessoryViewControllerDelegate;
     _keyboardWasClosed = YES;
+    _atMemoryButtonHidden = YES;
 
     NSArray<UITrait>* traits = TraitCollectionSetForTraits(nil);
     [self registerForTraitChanges:traits
@@ -223,19 +290,35 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
 #pragma mark - FormInputAccessoryConsumer
 
 - (void)showAccessorySuggestions:(NSArray<FormSuggestion*>*)suggestions {
-  BOOL hasSuggestions = suggestions.count > 0;
-  if (suggestions.count == 1 &&
-      suggestions.firstObject.type ==
-          autofill::SuggestionType::kAutocompleteAtMemoryButton) {
-    // If the only suggestion is kAutocompleteAtMemoryButton, the manual fill
-    // buttons should be shown.
-    hasSuggestions = NO;
-  }
+  NSArray<FormSuggestion*>* validSuggestions =
+      FilterValidSuggestions(suggestions);
 
-  [self.formInputAccessoryView
-      showGroup:[self hasSingleManualFillButton:hasSuggestions]
-                    ? FormInputAccessoryViewSubitemGroup::kExpandButton
-                    : FormInputAccessoryViewSubitemGroup::kManualFillButtons];
+  NSArray<FormSuggestion*>* truncatedSuggestions =
+      TruncateSuggestionsIfNeeded(validSuggestions);
+
+  BOOL hasSuggestions = HasActionableSuggestions(truncatedSuggestions);
+
+  FormInputAccessoryViewSubitemGroup group;
+  if (self.isContentEditable) {
+    // `contenteditable` support is expected to be enabled together with
+    // AtMemory. However, due to the fact that AtMemory may not be available
+    // because of eligibility checks, when a `contenteditable` element is
+    // focused, we might not be able to show the AtMemory full button. There is
+    // also incognito mode where AtMemory is not available for now. Currently,
+    // when a `contenteditable` element is focused, the keyboard accessory is
+    // showing manual fill buttons which can not really fill. Showing navigation
+    // buttons is a better fallback.
+    if (self.atMemoryButtonHidden) {
+      group = FormInputAccessoryViewSubitemGroup::kNavigationButtons;
+    } else {
+      group = FormInputAccessoryViewSubitemGroup::kAtMemoryFullButton;
+    }
+  } else if ([self hasSingleManualFillButton:hasSuggestions]) {
+    group = FormInputAccessoryViewSubitemGroup::kExpandButton;
+  } else {
+    group = FormInputAccessoryViewSubitemGroup::kManualFillButtons;
+  }
+  [self.formInputAccessoryView showGroup:group];
 
   if ([ManualFillUtil
           manualFillDataTypeFromFillingProduct:_mainFillingProduct] ==
@@ -243,12 +326,7 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
     self.formInputAccessoryView.manualFillButton.hidden = YES;
   }
 
-  if (suggestions.count > kKeyboardAccessorySuggestionsLimit) {
-    suggestions = [suggestions
-        subarrayWithRange:NSMakeRange(0, kKeyboardAccessorySuggestionsLimit)];
-  }
-
-  [self updateFormSuggestionView:suggestions];
+  [self updateFormSuggestionView:truncatedSuggestions];
 }
 
 - (void)showNavigationButtons {
@@ -328,6 +406,9 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
 #pragma mark - Getter
 
 - (BOOL)isFormAccessoryVisible {
+  if (self.isContentEditable) {
+    return !self.atMemoryButtonHidden;
+  }
   return !(self.addressButtonHidden && self.creditCardButtonHidden &&
            self.passwordButtonHidden && self.atMemoryButtonHidden &&
            self.formSuggestionView.suggestions.count == 0);
@@ -360,6 +441,11 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
       self.formAccessoryVisible;
 }
 
+- (void)setIsContextMenuEnabled:(BOOL)isContextMenuEnabled {
+  _isContextMenuEnabled = isContextMenuEnabled;
+  _formSuggestionView.isContextMenuEnabled = isContextMenuEnabled;
+}
+
 #pragma mark - Actions
 
 - (void)tapInsideRecognized:(id)sender {
@@ -369,6 +455,29 @@ void LogManualFallbackEntryThroughExpandIcon(ManualFillDataType data_type,
 }
 
 #pragma mark - Private
+
+// Updates the gradient mask layout for the form suggestion view container.
+- (void)updateFormSuggestionViewMaskLayout {
+  CGFloat startPoint =
+      (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET)
+          ? kFormSuggestionViewLayerMaskGradientStartPointForTablet
+          : kFormSuggestionViewLayerMaskGradientStartPoint;
+  if (base::i18n::IsRTL()) {
+    // Create a gradient in the reverse direction from the non RTL case below.
+    self.formSuggestionViewMask.startPoint =
+        CGPointMake(1.0 - kFormSuggestionViewLayerMaskGradientEndPoint, 0.0);
+    self.formSuggestionViewMask.endPoint = CGPointMake(1.0 - startPoint, 0.0);
+    self.formSuggestionViewMask.colors =
+        @[ (id)[UIColor clearColor].CGColor, (id)[UIColor whiteColor].CGColor ];
+  } else {
+    self.formSuggestionViewMask.startPoint = CGPointMake(startPoint, 0.0);
+    self.formSuggestionViewMask.endPoint =
+        CGPointMake(kFormSuggestionViewLayerMaskGradientEndPoint, 0.0);
+    self.formSuggestionViewMask.colors =
+        @[ (id)[UIColor whiteColor].CGColor, (id)[UIColor clearColor].CGColor ];
+  }
+  self.formSuggestionContainerView.layer.mask = self.formSuggestionViewMask;
+}
 
 // Returns whether to use the single manual fill button.
 - (BOOL)hasSingleManualFillButton:(BOOL)hasSuggestions {
@@ -438,8 +547,8 @@ UIImage* GetManualFillSymbol() {
   UIImage* closeButtonSymbol =
       SymbolWithPointSize(SymbolKeyboardDown, kSymbolActionPointSize);
 
-  UIImage* atMemorySymbol = CustomSymbolWithPointSize(
-      kMagnifyingglassSparkSymbol, kSymbolActionPointSize);
+  UIImage* atMemorySymbol =
+      SymbolWithPointSize(SymbolMagnifyingglassSpark, kSymbolActionPointSize);
 
   [formInputAccessoryView
             setUpWithLeadingView:self.leadingView
@@ -512,6 +621,7 @@ UIImage* GetManualFillSymbol() {
 - (void)createFormSuggestionViewIfNeeded {
   if (!self.formSuggestionView) {
     self.formSuggestionView = [[FormSuggestionView alloc] init];
+    self.formSuggestionView.isContextMenuEnabled = _isContextMenuEnabled;
     self.formSuggestionView.formSuggestionViewDelegate = self;
     self.formSuggestionView.layoutGuideCenter = self.layoutGuideCenter;
     self.formSuggestionView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -523,27 +633,7 @@ UIImage* GetManualFillSymbol() {
     // Put a mask on the formSuggestionView's container view so that the mask
     // doesn't move along with the scroll view.
     self.formSuggestionViewMask = [CAGradientLayer layer];
-    CGFloat startPoint =
-        (ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET)
-            ? kFormSuggestionViewLayerMaskGradientStartPointForTablet
-            : kFormSuggestionViewLayerMaskGradientStartPoint;
-    if (base::i18n::IsRTL()) {
-      // Create a gradient in the reverse direction from the non RTL case below.
-      self.formSuggestionViewMask.startPoint =
-          CGPointMake(1.0 - kFormSuggestionViewLayerMaskGradientEndPoint, 0.0);
-      self.formSuggestionViewMask.endPoint = CGPointMake(1.0 - startPoint, 0.0);
-      self.formSuggestionViewMask.colors = @[
-        (id)[UIColor clearColor].CGColor, (id)[UIColor whiteColor].CGColor
-      ];
-    } else {
-      self.formSuggestionViewMask.startPoint = CGPointMake(startPoint, 0.0);
-      self.formSuggestionViewMask.endPoint =
-          CGPointMake(kFormSuggestionViewLayerMaskGradientEndPoint, 0.0);
-      self.formSuggestionViewMask.colors = @[
-        (id)[UIColor whiteColor].CGColor, (id)[UIColor clearColor].CGColor
-      ];
-    }
-    self.formSuggestionContainerView.layer.mask = self.formSuggestionViewMask;
+    [self updateFormSuggestionViewMaskLayout];
   }
 }
 
@@ -712,6 +802,23 @@ UIImage* GetManualFillSymbol() {
 
 - (void)openEditForSuggestion:(FormSuggestion*)suggestion {
   [self.contextMenuHandler openEditForSuggestion:suggestion];
+}
+
+- (void)openSourcesForSuggestion:(FormSuggestion*)suggestion {
+  [self.contextMenuHandler openSourcesForSuggestion:suggestion];
+}
+
+- (void)suppressPersonalContextSuggestion:(FormSuggestion*)suggestion {
+  [self.contextMenuHandler suppressPersonalContextSuggestion:suggestion];
+}
+
+- (BOOL)hasSourcesForSuggestion:(FormSuggestion*)suggestion {
+  return [self.contextMenuHandler hasSourcesForSuggestion:suggestion];
+}
+
+- (BOOL)canSuppressPersonalContextSuggestion:(FormSuggestion*)suggestion {
+  return
+      [self.contextMenuHandler canSuppressPersonalContextSuggestion:suggestion];
 }
 
 - (NSString*)formSuggestionView:(FormSuggestionView*)formSuggestionView

@@ -56,6 +56,9 @@ extern const char kHatsSurveyTriggerIdentityRefreshedFirstRunCompleted[];
 extern const char kHatsSurveyTriggerFirstRunDesktopRevampCompleted[];
 extern const char
     kHatsSurveyTriggerFirstRunDesktopRevampNoFeatureShowcaseCompleted[];
+extern const char kHatsSurveyTriggerPreFirstRunDesktopRefreshCompleted[];
+extern const char
+    kHatsSurveyTriggerPreFirstRunDesktopRefreshNoFeatureShowcaseCompleted[];
 extern const char kHatsSurveyTriggerIdentitySigninInterceptProfileSeparation[];
 extern const char kHatsSurveyTriggerIdentitySigninPromoBubbleDismissed[];
 extern const char kHatsSurveyTriggerIdentitySwitchProfileFromProfileMenu[];
@@ -99,12 +102,14 @@ extern const char kHatsSurveyTriggerWhatsNew[];
 extern const char kHatsSurveyTriggerReadingModeExit[];
 #else   // BUILDFLAG(IS_ANDROID)
 extern const char kHatsSurveyTriggerAndroidStartupSurvey[];
+extern const char kHatsSurveyTriggerRedWarningAndroid[];
 extern const char kHatsSurveyTriggerSigninFirstRun[];
 extern const char kHatsSurveyTriggerSigninWeb[];
 extern const char kHatsSurveyTriggerSigninNtpSigninButton[];
 extern const char kHatsSurveyTriggerSigninNtpAccountAvatarTap[];
 extern const char kHatsSurveyTriggerSigninNtpPromo[];
 extern const char kHatsSurveyTriggerSigninBookmarkPromo[];
+extern const char kHatsSurveyTriggerSuspiciousSiteWarning[];
 #endif  // #if !BUILDFLAG(IS_ANDROID)
 
 extern const char kHatsSurveyTriggerAutofillAiFilling[];

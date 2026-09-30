@@ -3,9 +3,9 @@
 // found in the LICENSE file.
 
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
 #include "content/public/test/browser_test.h"
@@ -14,9 +14,7 @@ namespace {
 
 class FindBarInteractiveUiTest : public InteractiveBrowserTest {
  protected:
-  FindBarInteractiveUiTest() {
-    scoped_feature_list_.InitAndEnableFeature(features::kPageActionsMigration);
-  }
+  FindBarInteractiveUiTest() = default;
 
   ~FindBarInteractiveUiTest() override = default;
 

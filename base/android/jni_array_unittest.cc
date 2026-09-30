@@ -29,12 +29,12 @@ TEST(JniArray, GetLength) {
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jbyteArray> j_bytes = ToJavaByteArray(env, bytes);
   ASSERT_TRUE(j_bytes);
-  ASSERT_EQ(4U, SafeGetArrayLength(env, j_bytes));
+  ASSERT_EQ(4, j_bytes.GetLength(env));
 
   ScopedJavaLocalRef<jbyteArray> j_empty_bytes =
       ToJavaByteArray(env, base::span<uint8_t>());
   ASSERT_TRUE(j_empty_bytes);
-  ASSERT_EQ(0U, SafeGetArrayLength(env, j_empty_bytes));
+  ASSERT_EQ(0, j_empty_bytes.GetLength(env));
 }
 
 TEST(JniArray, BasicConversions) {
@@ -42,18 +42,18 @@ TEST(JniArray, BasicConversions) {
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jbyteArray> bytes_from_span = ToJavaByteArray(env, bytes);
   ASSERT_TRUE(bytes_from_span);
-  ASSERT_EQ(4U, SafeGetArrayLength(env, bytes_from_span));
+  ASSERT_EQ(4, bytes_from_span.GetLength(env));
 
   auto input_string = std::string(base::as_string_view(bytes));
   ScopedJavaLocalRef<jbyteArray> bytes_from_string =
       ToJavaByteArray(env, input_string);
   ASSERT_TRUE(bytes_from_string);
-  ASSERT_EQ(4U, SafeGetArrayLength(env, bytes_from_string));
+  ASSERT_EQ(4, bytes_from_string.GetLength(env));
 
   ScopedJavaLocalRef<jbyteArray> bytes_from_ptr =
       UNSAFE_BUFFERS(ToJavaByteArray(env, bytes.data(), bytes.size()));
   ASSERT_TRUE(bytes_from_ptr);
-  ASSERT_EQ(4U, SafeGetArrayLength(env, bytes_from_ptr));
+  ASSERT_EQ(4, bytes_from_ptr.GetLength(env));
 
   std::vector<uint8_t> vector_from_span(5);
   std::vector<uint8_t> vector_from_string(5);
@@ -603,32 +603,4 @@ TEST(JniArray, ToJavaArrayOfObjectLocalRef) {
                                   j_array.obj(), 2)))));
 }
 
-TEST(JniArray, ToJavaArrayOfObjectGlobalRef) {
-  JNIEnv* env = AttachCurrentThread();
-
-  std::vector<ScopedJavaGlobalRef<jobject>> objects = {
-      ScopedJavaGlobalRef<jobject>(ConvertUTF8ToJavaString(env, "one")),
-      ScopedJavaGlobalRef<jobject>(ConvertUTF8ToJavaString(env, "two")),
-      ScopedJavaGlobalRef<jobject>(ConvertUTF8ToJavaString(env, "three")),
-  };
-
-  ScopedJavaLocalRef<jobjectArray> j_array = ToJavaArrayOfObjects(env, objects);
-  ASSERT_TRUE(j_array);
-
-  EXPECT_EQ("one",
-            ConvertJavaStringToUTF8(
-                env, jni_zero::AdoptRef(
-                         env, static_cast<jstring>(env->GetObjectArrayElement(
-                                  j_array.obj(), 0)))));
-  EXPECT_EQ("two",
-            ConvertJavaStringToUTF8(
-                env, jni_zero::AdoptRef(
-                         env, static_cast<jstring>(env->GetObjectArrayElement(
-                                  j_array.obj(), 1)))));
-  EXPECT_EQ("three",
-            ConvertJavaStringToUTF8(
-                env, jni_zero::AdoptRef(
-                         env, static_cast<jstring>(env->GetObjectArrayElement(
-                                  j_array.obj(), 2)))));
-}
 }  // namespace base::android

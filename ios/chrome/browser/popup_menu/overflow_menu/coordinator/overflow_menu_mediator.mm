@@ -5,6 +5,7 @@
 #import "ios/chrome/browser/popup_menu/overflow_menu/coordinator/overflow_menu_mediator.h"
 
 #import "base/apple/foundation_util.h"
+#import "base/ios/block_types.h"
 #import "base/ios/ios_util.h"
 #import "base/metrics/histogram_functions.h"
 #import "base/metrics/user_metrics.h"
@@ -44,6 +45,9 @@
 #import "ios/chrome/browser/bubble/model/tab_based_iph_browser_agent.h"
 #import "ios/chrome/browser/commerce/model/push_notification/push_notification_feature.h"
 #import "ios/chrome/browser/default_browser/model/default_browser_interest_signals.h"
+#import "ios/chrome/browser/default_browser/model/features.h"
+#import "ios/chrome/browser/default_browser/model/utils.h"
+#import "ios/chrome/browser/default_browser/promo/public/features.h"
 #import "ios/chrome/browser/find_in_page/model/find_tab_helper.h"
 #import "ios/chrome/browser/home_customization/model/home_background_customization_service.h"
 #import "ios/chrome/browser/home_customization/model/user_uploaded_image_manager.h"
@@ -78,6 +82,7 @@
 #import "ios/chrome/browser/reader_mode/model/constants.h"
 #import "ios/chrome/browser/reader_mode/model/features.h"
 #import "ios/chrome/browser/reader_mode/model/reader_mode_tab_helper.h"
+#import "ios/chrome/browser/reader_mode/model/reader_mode_web_state_utils.h"
 #import "ios/chrome/browser/reading_list/ui_bundled/reading_list_utils.h"
 #import "ios/chrome/browser/search_engines/model/search_engine_observer_bridge.h"
 #import "ios/chrome/browser/search_engines/model/search_engines_util.h"
@@ -91,6 +96,7 @@
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/shared/public/commands/cobalt_commands.h"
 #import "ios/chrome/browser/shared/public/commands/find_in_page_commands.h"
+#import "ios/chrome/browser/shared/public/commands/fullscreen_commands.h"
 #import "ios/chrome/browser/shared/public/commands/gemini_commands.h"
 #import "ios/chrome/browser/shared/public/commands/help_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_overlay_commands.h"
@@ -100,6 +106,7 @@
 #import "ios/chrome/browser/shared/public/commands/overflow_menu_customization_commands.h"
 #import "ios/chrome/browser/shared/public/commands/page_action_menu_commands.h"
 #import "ios/chrome/browser/shared/public/commands/page_info_commands.h"
+#import "ios/chrome/browser/shared/public/commands/picture_in_picture_commands.h"
 #import "ios/chrome/browser/shared/public/commands/popup_menu_commands.h"
 #import "ios/chrome/browser/shared/public/commands/price_tracked_items_commands.h"
 #import "ios/chrome/browser/shared/public/commands/quick_delete_commands.h"
@@ -287,6 +294,16 @@ void GetPresetNTPBackgroundPreview(
   // Bridge to register for IdentityManager changes.
   std::unique_ptr<signin::IdentityManagerObserverBridge>
       _identityManagerObserverBridge;
+
+  // Whether an action (tap) was taken on the default browser promo shortcut.
+  BOOL _defaultBrowserShortcutActionTaken;
+
+  // Whether the default browser promo is shown in this menu.
+  BOOL _defaultBrowserPromoShown;
+
+  // Whether an action (tap or hide) was taken on the default browser promo
+  // destination.
+  BOOL _defaultBrowserDestinationActionTaken;
 }
 
 // The current web state.
@@ -318,6 +335,7 @@ void GetPresetNTPBackgroundPreview(
     OverflowMenuDestination* spotlightDebuggerDestination;
 @property(nonatomic, strong) OverflowMenuDestination* cobaltDestination;
 @property(nonatomic, strong) OverflowMenuDestination* levelUpDestination;
+@property(nonatomic, strong) OverflowMenuDestination* defaultBrowserDestination;
 
 @property(nonatomic, strong) OverflowMenuActionGroup* identityActionsGroup;
 @property(nonatomic, strong) OverflowMenuActionGroup* customizationActionsGroup;
@@ -348,6 +366,7 @@ void GetPresetNTPBackgroundPreview(
 @property(nonatomic, strong) OverflowMenuAction* reportIssueAction;
 @property(nonatomic, strong) OverflowMenuAction* helpAction;
 @property(nonatomic, strong) OverflowMenuAction* shareChromeAction;
+@property(nonatomic, strong) OverflowMenuAction* defaultBrowserAction;
 
 @property(nonatomic, strong) OverflowMenuAction* editActionsAction;
 @property(nonatomic, strong) OverflowMenuAction* lensOverlayAction;
@@ -380,6 +399,23 @@ void GetPresetNTPBackgroundPreview(
 }
 
 - (void)disconnect {
+  if (!_defaultBrowserShortcutActionTaken &&
+      [self.helpActionsGroup.actions
+          containsObject:self.defaultBrowserAction] &&
+      self.defaultBrowserAction.shown) {
+    base::UmaHistogramEnumeration(
+        "IOS.DefaultBrowserPromo.OverflowMenu",
+        IOSDefaultBrowserPromoOverflowMenuAction::kNoAction);
+  }
+
+  if (!_defaultBrowserDestinationActionTaken &&
+      [self.model.destinations containsObject:self.defaultBrowserDestination] &&
+      self.defaultBrowserDestination.shown) {
+    base::UmaHistogramEnumeration(
+        "IOS.DefaultBrowserPromo.OverflowMenu",
+        IOSDefaultBrowserPromoOverflowMenuAction::kNoAction);
+  }
+
   // Remove the model link so the other deallocations don't update the model
   // and thus the UI as the UI is dismissing.
   self.model = nil;
@@ -409,6 +445,11 @@ void GetPresetNTPBackgroundPreview(
         self.engagementTracker->Dismissed(
             feature_engagement::kIPHWhatsNewUpdatedFeature);
       }
+    }
+
+    if (_defaultBrowserPromoShown) {
+      DismissDefaultBrowserPromoOverflowMenu(self.engagementTracker);
+      _defaultBrowserPromoShown = NO;
     }
 
     self.engagementTracker = nullptr;
@@ -484,7 +525,7 @@ void GetPresetNTPBackgroundPreview(
     _customizeHomepageAction.symbolTintColor =
         [UIColor colorNamed:kTextQuaternaryColor];
     _customizeHomepageAction.fallbackPreviewImage =
-        DefaultSymbolWithConfiguration(kPencilSymbol, nil);
+        SymbolWithConfiguration(SymbolPencil, nil);
   }
   [self configureThemePreviewForCustomizeHomepageAction];
   return _customizeHomepageAction;
@@ -755,6 +796,9 @@ void GetPresetNTPBackgroundPreview(
   // Level Up destination.
   self.levelUpDestination = [self newLevelUpDestination];
 
+  // Default Browser destination.
+  self.defaultBrowserDestination = [self newDefaultBrowserDestination];
+
   [self logTranslateAvailability];
 
   if (IsIdentityAwarenessEnabled()) {
@@ -904,6 +948,20 @@ void GetPresetNTPBackgroundPreview(
                                    [weakSelf showShareSheetForChromeApp];
                                  }];
 
+  self.defaultBrowserAction =
+      [self createOverflowMenuActionWithNameID:
+                IDS_IOS_OVERFLOW_MENU_SET_CHROME_AS_DEFAULT
+                                    actionType:overflow_menu::ActionType::
+                                                   DefaultBrowser
+                                    symbolName:kChromeProductSymbol
+                                  systemSymbol:NO
+                              monochromeSymbol:NO
+                               accessibilityID:kToolsMenuDefaultBrowserId
+                                  hideItemText:nil
+                                       handler:^{
+                                         [weakSelf openDefaultBrowserSettings];
+                                       }];
+
   if ([self isLensOverlayAvailable]) {
     self.lensOverlayAction = [self openLensOverlayAction];
   }
@@ -920,9 +978,7 @@ void GetPresetNTPBackgroundPreview(
     self.askBWGAction = [self openAskBWGAction];
   }
 
-  if (IsReaderModeAvailable()) {
-    self.readerModeAction = [self toggleReaderModeAction];
-  }
+  self.readerModeAction = [self toggleReaderModeAction];
 
   if (send_tab_to_self::AreIOSTabRemindersEnabled()) {
     self.setTabReminderAction = [self newSetTabReminderAction];
@@ -1463,6 +1519,19 @@ void GetPresetNTPBackgroundPreview(
                                      }];
 }
 
+- (OverflowMenuDestination*)newDefaultBrowserDestination {
+  __weak __typeof(self) weakSelf = self;
+  return [self
+      createOverflowMenuDestination:IDS_IOS_TOOLS_MENU_USE_CHROME_AS_DEFAULT
+                        destination:overflow_menu::Destination::DefaultBrowser
+                         symbolName:kChromeProductSymbol
+                       systemSymbol:NO
+                    accessibilityID:kToolsMenuDefaultBrowserId
+                            handler:^{
+                              [weakSelf openDefaultBrowserDestination];
+                            }];
+}
+
 - (NSString*)hideItemTextForDestination:
     (overflow_menu::Destination)destination {
   switch (destination) {
@@ -1472,6 +1541,9 @@ void GetPresetNTPBackgroundPreview(
     case overflow_menu::Destination::Cobalt:
       // These items are unhideable.
       return nil;
+    case overflow_menu::Destination::DefaultBrowser:
+      return l10n_util::GetNSString(
+          IDS_IOS_OVERFLOW_MENU_HIDE_DESTINATION_USE_CHROME_AS_DEFAULT);
     case overflow_menu::Destination::LevelUp:
       return l10n_util::GetNSString(
           IDS_IOS_OVERFLOW_MENU_HIDE_DESTINATION_LEVEL_UP);
@@ -1722,6 +1794,14 @@ void GetPresetNTPBackgroundPreview(
     destinations.push_back(overflow_menu::Destination::LevelUp);
   }
 
+  if (_defaultBrowserPromoShown ||
+      ShouldShowDefaultBrowserPromoOverflowMenu(
+          DefaultBrowserPromoOverflowMenuType::kDestination,
+          self.engagementTracker)) {
+    _defaultBrowserPromoShown = YES;
+    destinations.push_back(overflow_menu::Destination::DefaultBrowser);
+  }
+
   destinations.push_back(overflow_menu::Destination::Cobalt);
 
   return destinations;
@@ -1768,6 +1848,8 @@ void GetPresetNTPBackgroundPreview(
       return self.helpAction;
     case overflow_menu::ActionType::ShareChrome:
       return self.shareChromeAction;
+    case overflow_menu::ActionType::DefaultBrowser:
+      return self.defaultBrowserAction;
     case overflow_menu::ActionType::EditActions:
       return self.editActionsAction;
     case overflow_menu::ActionType::LensOverlay:
@@ -1896,9 +1978,7 @@ void GetPresetNTPBackgroundPreview(
     self.lensOverlayAction.enabled = [self isLensOverlayEnabled];
   }
 
-  if (IsReaderModeAvailable()) {
-    self.readerModeAction.enabled = [self isReaderModeEnabled];
-  }
+  self.readerModeAction.enabled = [self isReaderModeEnabled];
 
   self.askBWGAction.enabled = [self isGeminiAvailable];
 
@@ -1919,8 +1999,7 @@ void GetPresetNTPBackgroundPreview(
   NSMutableArray<OverflowMenuAction*>* appActions =
       [[NSMutableArray alloc] init];
 
-  if ((base::FeatureList::IsEnabled(kShareInOverflowMenu) ||
-       (IsChromeNextIaEnabled() && !IsChromeNextIaShareIconVisible())) &&
+  if (IsChromeNextIaEnabled() && !IsChromeNextIaShareIconVisible() &&
       [self isCurrentURLWebURL]) {
     base::UmaHistogramEnumeration("Mobile.ShareThisPage.Shown",
                                   ShareThisPageLocation::kOverflowMenu);
@@ -1962,6 +2041,14 @@ void GetPresetNTPBackgroundPreview(
 
   [helpActions addObject:self.helpAction];
   [helpActions addObject:self.shareChromeAction];
+
+  if (_defaultBrowserPromoShown ||
+      ShouldShowDefaultBrowserPromoOverflowMenu(
+          DefaultBrowserPromoOverflowMenuType::kShortcuts,
+          self.engagementTracker)) {
+    _defaultBrowserPromoShown = YES;
+    [helpActions addObject:self.defaultBrowserAction];
+  }
 
   self.helpActionsGroup.actions = helpActions;
 
@@ -2117,10 +2204,7 @@ void GetPresetNTPBackgroundPreview(
 
 // Returns whether translate is enabled on the current page.
 - (BOOL)isTranslateEnabled {
-  return
-      [self canManuallyTranslate:NO] && ![self isLensOverlayVisible] &&
-      (![self isReaderModeActive] ||
-       base::FeatureList::IsEnabled(kEnableReaderModeTranslationWithInfobar));
+  return [self canManuallyTranslate:NO] && ![self isLensOverlayVisible];
 }
 
 // Returns whether lens overlay is enabled on the current page.
@@ -2175,12 +2259,7 @@ void GetPresetNTPBackgroundPreview(
 
 // Whether Reader mode is active.
 - (BOOL)isReaderModeActive {
-  if (!self.webState) {
-    return NO;
-  }
-  ReaderModeTabHelper* helper =
-      ReaderModeTabHelper::FromWebState(self.webState);
-  return helper && helper->IsActive();
+  return IsReaderModeActiveInWebState(self.webState);
 }
 
 // Whether or not text zoom is enabled for this page.
@@ -2276,9 +2355,13 @@ void GetPresetNTPBackgroundPreview(
   return visibleItem->GetUserAgentType();
 }
 
-- (void)dismissMenu {
+- (void)dismissMenuWithCompletion:(ProceduralBlock)completion {
   self.menuHasBeenDismissed = YES;
-  [self.popupMenuHandler dismissPopupMenuAnimated:YES];
+  [self.popupMenuHandler dismissPopupMenuAnimated:YES completion:completion];
+}
+
+- (void)dismissMenu {
+  [self dismissMenuWithCompletion:nil];
 }
 
 // Possibly logs a feature engagement tracker event when the user clicks on a
@@ -2573,6 +2656,15 @@ void GetPresetNTPBackgroundPreview(
     }
     case overflow_menu::Destination::LevelUp:
       return self.levelUpDestination;
+    case overflow_menu::Destination::DefaultBrowser:
+      if (_defaultBrowserPromoShown ||
+          ShouldShowDefaultBrowserPromoOverflowMenu(
+              DefaultBrowserPromoOverflowMenuType::kDestination,
+              self.engagementTracker)) {
+        _defaultBrowserPromoShown = YES;
+        return self.defaultBrowserDestination;
+      }
+      return nil;
   }
 }
 
@@ -2605,6 +2697,8 @@ void GetPresetNTPBackgroundPreview(
       return [self newPriceNotificationsDestination];
     case overflow_menu::Destination::LevelUp:
       return [self newLevelUpDestination];
+    case overflow_menu::Destination::DefaultBrowser:
+      return [self newDefaultBrowserDestination];
   }
 }
 
@@ -2646,9 +2740,7 @@ void GetPresetNTPBackgroundPreview(
     actions.push_back(overflow_menu::ActionType::AskBWG);
   }
 
-  if (IsReaderModeAvailable()) {
-    actions.push_back(overflow_menu::ActionType::ReaderMode);
-  }
+  actions.push_back(overflow_menu::ActionType::ReaderMode);
   if (IsHideToolbarEnabled()) {
     actions.push_back(overflow_menu::ActionType::HideToolbars);
   }
@@ -2683,6 +2775,7 @@ void GetPresetNTPBackgroundPreview(
     case overflow_menu::ActionType::ReportAnIssue:
     case overflow_menu::ActionType::Help:
     case overflow_menu::ActionType::ShareChrome:
+    case overflow_menu::ActionType::DefaultBrowser:
     case overflow_menu::ActionType::EditActions:
     case overflow_menu::ActionType::ShareThisPage:
     case overflow_menu::ActionType::SigninDeprecated:
@@ -2938,6 +3031,17 @@ void GetPresetNTPBackgroundPreview(
 }
 
 - (void)hideDestination:(overflow_menu::Destination)destination {
+  if (destination == overflow_menu::Destination::DefaultBrowser) {
+    _defaultBrowserDestinationActionTaken = YES;
+    base::UmaHistogramEnumeration(
+        "IOS.DefaultBrowserPromo.OverflowMenu",
+        IOSDefaultBrowserPromoOverflowMenuAction::kHidden);
+    if (self.engagementTracker) {
+      self.engagementTracker->NotifyEvent(
+          feature_engagement::events::
+              kDefaultBrowserPromoOverflowMenuDestinationUsed);
+    }
+  }
   DestinationCustomizationModel* destinationCustomizationModel =
       self.menuOrderer.destinationCustomizationModel;
   for (OverflowMenuDestination* menuDestination in destinationCustomizationModel
@@ -2978,15 +3082,34 @@ void GetPresetNTPBackgroundPreview(
 
 // Starts ask Gemini.
 - (void)startAskGemini {
-  [self dismissMenu];
-  [self.geminiHandler
-      startGeminiFlowWithStartupState:
-          [[GeminiStartupState alloc]
-              initWithEntryPoint:gemini::EntryPoint::OverflowMenu]];
+  __weak id<GeminiCommands> weakGeminiHandler = self.geminiHandler;
+  __weak UIViewController* weakBaseViewController = self.baseViewController;
+  [self dismissMenuWithCompletion:^{
+    id<GeminiCommands> strongGeminiHandler = weakGeminiHandler;
+    SEL selector =
+        @selector(startGeminiEntryFlowWithStartupState:baseViewController:
+                  showSnackbarOnCompletion:completion:);
+    if (![strongGeminiHandler respondsToSelector:selector]) {
+      return;
+    }
+    [strongGeminiHandler
+        startGeminiEntryFlowWithStartupState:
+            [[GeminiStartupState alloc]
+                initWithEntryPoint:gemini::EntryPoint::OverflowMenu]
+                          baseViewController:weakBaseViewController
+                    showSnackbarOnCompletion:YES
+                                  completion:nil];
+  }];
 }
 
 - (void)startCollapseToolbars {
   [self dismissMenu];
+  if (IsFullscreenRefactoringEnabled()) {
+    [self.fullscreenHandler
+        forceFullscreen:YES
+                feature:ForceFullscreenFeature::kHideToolbars];
+    return;
+  }
   [self.browserCoordinatorHandler
       forceFullscreenMode:FullscreenModeTransitionTrigger::kForcedByUser];
 }
@@ -3029,6 +3152,26 @@ void GetPresetNTPBackgroundPreview(
 - (void)showShareSheetForChromeApp {
   [self dismissMenu];
   [self.activityServiceHandler showShareSheetForChromeApp];
+}
+
+// Dismisses the menu and opens default browser settings.
+- (void)openDefaultBrowserSettings {
+  _defaultBrowserShortcutActionTaken = YES;
+  base::UmaHistogramEnumeration(
+      "IOS.DefaultBrowserPromo.OverflowMenu",
+      IOSDefaultBrowserPromoOverflowMenuAction::kTapped);
+  if (self.engagementTracker) {
+    self.engagementTracker->NotifyEvent(
+        feature_engagement::events::
+            kDefaultBrowserPromoOverflowMenuShortcutsUsed);
+  }
+  __weak id<PictureInPictureCommands> weakPipHandler =
+      self.pictureInPictureHandler;
+  [self dismissMenuWithCompletion:^{
+    OpenIOSDefaultBrowserSettingsPage(IsDefaultAppsPictureInPictureVariant(),
+                                      /*ui_application_to_use=*/nil,
+                                      weakPipHandler);
+  }];
 }
 
 // Dismisses the menu and opens history.
@@ -3124,6 +3267,27 @@ void GetPresetNTPBackgroundPreview(
                                       BadgeTypePromo)];
 }
 
+// Dismisses the menu and opens default browser settings.
+- (void)openDefaultBrowserDestination {
+  _defaultBrowserDestinationActionTaken = YES;
+  base::UmaHistogramEnumeration(
+      "IOS.DefaultBrowserPromo.OverflowMenu",
+      IOSDefaultBrowserPromoOverflowMenuAction::kTapped);
+  if (self.engagementTracker) {
+    self.engagementTracker->NotifyEvent(
+        feature_engagement::events::
+            kDefaultBrowserPromoOverflowMenuDestinationUsed);
+  }
+
+  __weak id<PictureInPictureCommands> weakPipHandler =
+      self.pictureInPictureHandler;
+  [self dismissMenuWithCompletion:^{
+    OpenIOSDefaultBrowserSettingsPage(IsDefaultAppsPictureInPictureVariant(),
+                                      /*ui_application_to_use=*/nil,
+                                      weakPipHandler);
+  }];
+}
+
 // Presents the home customization menu.
 - (void)openHomeCustomization {
   CHECK(IsOverflowMenuHomeCustomizationEntrypointEnabled());
@@ -3177,6 +3341,7 @@ void GetPresetNTPBackgroundPreview(
     case overflow_menu::Destination::Cobalt:
     case overflow_menu::Destination::PriceNotifications:
     case overflow_menu::Destination::LevelUp:
+    case overflow_menu::Destination::DefaultBrowser:
       // Most destinations have no corresponding destination and nothing special
       // to be done when their shown state is toggled.
       return;

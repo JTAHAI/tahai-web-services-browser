@@ -159,8 +159,10 @@ class URLPattern {
   bool IsValidScheme(std::string_view scheme) const;
 
   // Returns true if this instance matches the specified URL. Always returns
-  // false for invalid URLs.
+  // false for invalid URLs. If `case_sensitive` is false, path matching is done
+  // case-insensitively using Unicode case folding.
   bool MatchesURL(const GURL& test) const;
+  bool MatchesURL(const GURL& test, bool case_sensitive) const;
 
   // Returns true if this instance matches the specified security origin.
   bool MatchesSecurityOrigin(const GURL& test) const;
@@ -175,8 +177,10 @@ class URLPattern {
   bool MatchesHost(std::string_view test) const;
   bool MatchesHost(const GURL& test) const;
 
-  // Returns true if `test` matches our path.
+  // Returns true if `test` matches our path. If `case_sensitive` is false, path
+  // matching is done case-insensitively using Unicode case folding.
   bool MatchesPath(std::string_view test) const;
+  bool MatchesPath(std::string_view test, bool case_sensitive) const;
 
   // Returns true if the pattern matches all patterns in an (e)TLD. This
   // includes patterns like *://*.com/*, *://*.co.uk/*, etc. A pattern that
@@ -293,8 +297,13 @@ class URLPattern {
   std::string path_;
 
   // The path with "?" and "\" characters escaped for use with the
-  // MatchPattern() function.
-  std::string path_escaped_;
+  // MatchPattern() function when matching against raw (possibly
+  // percent-encoded) paths.
+  std::string raw_path_for_matching_;
+
+  // The `raw_path_for_matching_` with percent-encoded characters unescaped for
+  // use when matching against unescaped UTF-8 paths.
+  std::string utf8_path_for_matching_;
 
   // A string representing this URLPattern.
   mutable std::string spec_;

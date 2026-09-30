@@ -11,6 +11,7 @@
 #include "base/containers/flat_map.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
+#include "base/i18n/legacy_language_tag_helpers.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/notreached.h"
 #include "base/path_service.h"
@@ -203,8 +204,7 @@ std::optional<SodaLanguagePackComponentConfig> GetLanguageComponentConfig(
   auto locale = MaybeMapToChineseLocale(language_name);
   for (const SodaLanguagePackComponentConfig& config :
        kLanguageComponentConfigs) {
-    if (base::ToLowerASCII(config.language_name) ==
-        base::ToLowerASCII(locale)) {
+    if (base::EqualsCaseInsensitiveASCII(config.language_name, locale)) {
       return config;
     }
   }
@@ -223,8 +223,10 @@ GetLanguageComponentConfigMatchingLanguageSubtag(
 
   for (const SodaLanguagePackComponentConfig& config :
        kLanguageComponentConfigs) {
-    if (l10n_util::GetLanguage(base::ToLowerASCII(config.language_name)) ==
-        l10n_util::GetLanguage(base::ToLowerASCII(language_name))) {
+    if (base::i18n::GetLanguageSubtagUsingLanguageTag(
+            base::ToLowerASCII(config.language_name)) ==
+        base::i18n::GetLanguageSubtagUsingLanguageTag(
+            base::ToLowerASCII(language_name))) {
       return config;
     }
   }
@@ -330,7 +332,7 @@ const std::string GetRedownloadedAfterExpirationMetricForLanguage(
 
 std::string_view GetDefaultLiveCaptionLanguage(
     std::string_view application_locale,
-    PrefService* profile_prefs) {
+    const PrefService& profile_prefs) {
   std::optional<SodaLanguagePackComponentConfig> application_locale_config =
       GetLanguageComponentConfigMatchingLanguageSubtag(application_locale);
 
@@ -340,7 +342,7 @@ std::string_view GetDefaultLiveCaptionLanguage(
   }
 
   std::string accept_languages_pref =
-      profile_prefs->GetString(language::prefs::kAcceptLanguages);
+      profile_prefs.GetString(language::prefs::kAcceptLanguages);
   for (std::string language :
        base::SplitString(accept_languages_pref, ",", base::TRIM_WHITESPACE,
                          base::SPLIT_WANT_NONEMPTY)) {

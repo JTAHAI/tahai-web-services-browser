@@ -6,8 +6,15 @@
 #define IOS_CHROME_BROWSER_WEB_MODEL_WEB_PERFORMANCE_METRICS_WEB_PERFORMANCE_METRICS_TAB_HELPER_H_
 
 #include <limits>
+#include <map>
+#include <optional>
+#include <string>
+#include <vector>
 
+#include "base/observer_list.h"
+#include "base/observer_list_types.h"
 #include "base/scoped_observation.h"
+#include "base/time/time.h"
 #include "ios/chrome/browser/web/model/web_performance_metrics/web_performance_metrics_java_script_feature_util.h"
 #include "ios/web/public/web_state_observer.h"
 #include "ios/web/public/web_state_user_data.h"
@@ -31,6 +38,22 @@ class WebPerformanceMetricsTabHelper
 
   ~WebPerformanceMetricsTabHelper() override;
 
+  class Observer : public base::CheckedObserver {
+   public:
+    Observer() = default;
+    ~Observer() override = default;
+
+    // Called when the aggregate absolute First Contentful Paint time is
+    // updated for the WebState. `absolute_first_contentful_paint` is measured
+    // in milliseconds since the Unix epoch.
+    virtual void OnFirstContentfulPaint(
+        WebPerformanceMetricsTabHelper* tab_helper,
+        double absolute_first_contentful_paint) {}
+  };
+
+  void AddObserver(Observer* observer);
+  void RemoveObserver(Observer* observer);
+
   // Returns the absolute first contentful paint time aggregated across iframes.
   double GetAggregateAbsoluteFirstContentfulPaint() const;
 
@@ -49,6 +72,17 @@ class WebPerformanceMetricsTabHelper
   // Sets the boolean variable that indicates whether the First Input Delay
   // has been logged in UMA for the current web page.
   void SetFirstInputDelayLoggingStatus(bool first_input_delay_logging_status);
+
+  // Sets Interaction to Next Paint timing data reported for a frame.
+  void SetFrameInteractionData(
+      const std::string& frame_id,
+      const std::vector<base::TimeDelta>& longest_durations,
+      int interaction_count,
+      bool is_main_frame);
+
+  // Flushes the latest Interaction to Next Paint metrics to UMA if any have
+  // been recorded for the current page load.
+  void FlushInteractionToNextPaintMetrics();
 
  private:
   friend class web::WebStateUserData<WebPerformanceMetricsTabHelper>;
@@ -73,11 +107,18 @@ class WebPerformanceMetricsTabHelper
 
   // Stores whether the First Input Delay has been logged to UMA for the
   // current web page
-  bool first_input_delay_has_been_logged = false;
+  bool first_input_delay_has_been_logged_ = false;
 
   // Stores whether the WebState has been hidden at any point since the most
   // recent navigation started.
   bool has_been_hidden_since_navigation_started_ = false;
+
+  base::ObserverList<Observer> observers_;
+
+  // Stores the frame interaction data for the current page load.
+  // INP metric will be calculated from this data when it needs to be logged.
+  std::map<std::string, web_performance_metrics::FrameInteractionData>
+      frame_interactions_;
 };
 
 #endif  // IOS_CHROME_BROWSER_WEB_MODEL_WEB_PERFORMANCE_METRICS_WEB_PERFORMANCE_METRICS_TAB_HELPER_H_

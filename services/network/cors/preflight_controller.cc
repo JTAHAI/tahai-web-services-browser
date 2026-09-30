@@ -43,6 +43,7 @@
 #include "services/network/public/mojom/url_loader_network_service_observer.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 namespace network::cors {
 
@@ -68,6 +69,13 @@ std::optional<std::string> GetHeaderString(
     return std::nullopt;
   }
   return headers->GetNormalizedHeader(header_name);
+}
+
+bool IsRevalidatingForHeadersCheck(const ResourceRequest& request) {
+  if (base::FeatureList::IsEnabled(features::kSafeRevalidation)) {
+    return false;
+  }
+  return request.is_revalidating;
 }
 
 // Algorithm step 3 of the CORS-preflight fetch,
@@ -129,7 +137,7 @@ std::unique_ptr<ResourceRequest> CreatePreflightRequest(
       header_names::kAccessControlRequestMethod, request.method);
 
   std::string request_headers = CreateAccessControlRequestHeadersHeader(
-      request.headers, request.is_revalidating,
+      request.headers, IsRevalidatingForHeadersCheck(request),
       IsAdAuctionTrustedSignalsRequest(request));
   if (!request_headers.empty()) {
     preflight_request->headers.SetHeader(
@@ -319,7 +327,7 @@ std::optional<CorsErrorStatus> CheckPreflightResult(
     return status;
 
   return result.EnsureAllowedCrossOriginHeaders(
-      original_request.headers, original_request.is_revalidating,
+      original_request.headers, IsRevalidatingForHeadersCheck(original_request),
       non_wildcard_request_headers_support,
       IsAdAuctionTrustedSignalsRequest(original_request));
 }
@@ -471,9 +479,12 @@ class PreflightController::PreflightLoader final {
 
     if (!(original_request_.load_flags & net::LOAD_DISABLE_CACHE) &&
         net_error == net::OK) {
-      controller_->AppendToCache(*original_request_.request_initiator,
-                                 original_request_.url, network_isolation_key_,
-                                 std::move(result));
+      if (!tainted_ || !base::FeatureList::IsEnabled(
+                           features::kCorsPreflightCacheKeyTaintedOrigin)) {
+        controller_->AppendToCache(*original_request_.request_initiator,
+                                   original_request_.url,
+                                   network_isolation_key_, std::move(result));
+      }
     }
 
     CHECK(!detected_error_status.has_value() || net_error != net::OK);
@@ -607,10 +618,13 @@ void PreflightController::PerformPreflightCheck(
                 : net::NetworkIsolationKey();
 
   if (!RetrieveCacheFlags(request.load_flags) &&
+      (!tainted || !base::FeatureList::IsEnabled(
+                       features::kCorsPreflightCacheKeyTaintedOrigin)) &&
       cache_.CheckIfRequestCanSkipPreflight(
           request.request_initiator.value(), request.url, network_isolation_key,
           request.credentials_mode, request.method, request.headers,
-          request.is_revalidating, net_log, acam_preflight_spec_conformant,
+          IsRevalidatingForHeadersCheck(request), net_log,
+          acam_preflight_spec_conformant,
           IsAdAuctionTrustedSignalsRequest(request))) {
     std::move(callback).Run(net::OK, std::nullopt, false);
     return;

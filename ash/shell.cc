@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <iterator>
 #include <memory>
+#include <ranges>
 #include <string>
 #include <utility>
 
@@ -91,7 +92,6 @@
 #include "ash/frame_throttler/frame_throttling_controller.h"
 #include "ash/game_dashboard/game_dashboard_controller.h"
 #include "ash/glanceables/glanceables_controller.h"
-#include "ash/glanceables/post_login_glanceables_metrics_recorder.h"
 #include "ash/host/ash_window_tree_host_init_params.h"
 #include "ash/hud_display/hud_display.h"
 #include "ash/ime/ime_controller_impl.h"
@@ -246,7 +246,6 @@
 #include "base/check.h"
 #include "base/check_is_test.h"
 #include "base/command_line.h"
-#include "base/containers/adapters.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_forward.h"
@@ -863,9 +862,7 @@ Shell::~Shell() {
   }
   RemovePreTargetHandler(system_gesture_filter_.get());
   RemoveAccessibilityEventHandler(mouse_cursor_filter_.get());
-  if (features::IsPeripheralCustomizationEnabled()) {
-    RemovePreTargetHandler(shortcut_input_handler_.get());
-  }
+  RemovePreTargetHandler(shortcut_input_handler_.get());
   RemovePreTargetHandler(modality_filter_.get());
   if (::features::IsAccessibilityMouseKeysEnabled()) {
     RemovePreTargetHandler(mouse_keys_controller_.get());
@@ -1018,9 +1015,6 @@ Shell::~Shell() {
   // need to access those windows and it will be a UAF.
   // https://crbug.com/1350711.
   capture_mode_controller_.reset();
-
-  // Relies on `overview_controller`.
-  post_login_glanceables_metrics_reporter_.reset();
 
   // Has to happen before `~OverviewController` since it's an observer.
   informed_restore_controller_.reset();
@@ -1720,10 +1714,8 @@ void Shell::Init(
   modality_filter_ = std::make_unique<SystemModalContainerEventFilter>(this);
   AddPreTargetHandler(modality_filter_.get());
 
-  if (features::IsPeripheralCustomizationEnabled()) {
-    shortcut_input_handler_ = std::make_unique<ShortcutInputHandler>();
-    AddPreTargetHandler(shortcut_input_handler_.get());
-  }
+  shortcut_input_handler_ = std::make_unique<ShortcutInputHandler>();
+  AddPreTargetHandler(shortcut_input_handler_.get());
 
   event_client_ = std::make_unique<EventClientImpl>();
 
@@ -1854,8 +1846,6 @@ void Shell::Init(
   if (features::AreAnyGlanceablesTimeManagementViewsEnabled()) {
     glanceables_controller_ = std::make_unique<GlanceablesController>();
   }
-  post_login_glanceables_metrics_reporter_ =
-      std::make_unique<PostLoginGlanceablesMetricsRecorder>();
 
   projector_controller_ = std::make_unique<ProjectorControllerImpl>();
   annotator_controller_ = std::make_unique<AnnotatorController>();
@@ -2025,7 +2015,7 @@ void Shell::CloseAllAppWindows() {
     tracker.Add(window.get());
   }
   // Delete from the bottom of mru list so that it won't affect activation.
-  for (auto window : base::Reversed(list)) {
+  for (auto window : std::views::reverse(list)) {
     // Make sure that the window in the `list` is still alive.
     if (tracker.Contains(window)) {
       delete window;

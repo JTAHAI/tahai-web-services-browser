@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.app.tab_activity_glue;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -22,6 +23,7 @@ import android.app.ActivityManager;
 import android.app.ActivityManager.AppTask;
 import android.content.Context;
 import android.graphics.Rect;
+import android.view.View;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -41,12 +43,17 @@ import org.chromium.base.Token;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.blink.mojom.DisplayMode;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.R;
 import org.chromium.chrome.browser.customtabs.PopupCreator;
 import org.chromium.chrome.browser.customtabs.PopupCreatorFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabGroupMergeNotificationType;
@@ -89,14 +96,15 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
                 Activity activity,
                 TabCreatorManager tabCreatorManager,
                 TabModel tabModel,
-                ExclusiveAccessManager exclusiveAccessManager) {
+                ExclusiveAccessManager exclusiveAccessManager,
+                FullscreenManager fullscreenManager) {
             super(
                     tab,
                     activity,
                     null,
                     false,
                     null,
-                    null,
+                    fullscreenManager,
                     tabCreatorManager,
                     mock(Supplier.class),
                     mock(Supplier.class),
@@ -107,8 +115,12 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
             mTabMap = new HashMap<>();
         }
 
+        int getDisplayModeCheckedForTesting() {
+            return getDisplayModeChecked();
+        }
+
         @Override
-        protected Tab fromWebContents(WebContents webContents) {
+        protected @Nullable Tab fromWebContents(WebContents webContents) {
             return mTabMap.get(webContents);
         }
 
@@ -146,6 +158,7 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
     @Mock Activity mActivity;
     @Mock Profile mProfile;
     @Mock WebContents mWebContents;
+    @Mock WebContents mNewWebContents;
     @Mock Tab mTab;
     @Mock TabCreatorManager mTabCreatorManager;
     @Mock TabCreator mTabCreator;
@@ -158,12 +171,16 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
     @Mock PopupCreator mPopupCreator;
     @Mock MultiWindowUtils mMultiWindowUtils;
     @Mock ExclusiveAccessManager mExclusiveAccessManager;
+    @Mock FullscreenManager mFullscreenManager;
     @Mock RenderFrameHost mRenderFrameHost;
+    @Mock private View mUrlBar;
+    @Mock private View mMenuButton;
+    @Mock private View mTabSwitcherButton;
 
     @Captor private ArgumentCaptor<CompletableFuture<Boolean>> mFutureCaptor;
 
-    GURL mUrl1 = new GURL("https://url1.com");
-    GURL mUrl2 = new GURL("https://url2.com");
+    private static final GURL URL_1 = new GURL("https://url1.com");
+    private static final GURL TARGET_URL = new GURL("https://foo.com");
 
     private static final int TEST_DISPLAY_ID = 73;
     private static final float TEST_DENSITY = 1.0f;
@@ -178,23 +195,28 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
         PopupCreatorFactory.setInstanceForTesting(mPopupCreator);
         mTabWebContentsDelegateAndroid =
                 new TestActivityTabWebContentsDelegateAndroid(
-                        mTab, mActivity, mTabCreatorManager, mTabModel, mExclusiveAccessManager);
+                        mTab,
+                        mActivity,
+                        mTabCreatorManager,
+                        mTabModel,
+                        mExclusiveAccessManager,
+                        mFullscreenManager);
         DisplayAndroidManager.setInstanceForTesting(mDisplayAndroidManager);
         AconfigFlaggedApiDelegate.setInstanceForTesting(mFlaggedApiDelegate);
         AndroidTaskUtils.setAppTaskForTesting(mAppTask);
 
-        doReturn(mWebContents).when(mTab).getWebContents();
-        doReturn(mProfile).when(mTab).getProfile();
-        doReturn(mUrl1).when(mWebContents).getVisibleUrl();
-        doReturn(mTabCreator).when(mTabCreatorManager).getTabCreator(anyBoolean());
+        when(mTab.getWebContents()).thenReturn(mWebContents);
+        when(mTab.getProfile()).thenReturn(mProfile);
+        when(mWebContents.getVisibleUrl()).thenReturn(URL_1);
+        when(mTabCreatorManager.getTabCreator(anyBoolean())).thenReturn(mTabCreator);
         when(mActivity.getSystemService(Context.ACTIVITY_SERVICE)).thenReturn(mActivityManager);
 
-        doReturn(TEST_DISPLAY_ID).when(mDisplayAndroid).getDisplayId();
-        doReturn(TEST_DENSITY).when(mDisplayAndroid).getDipScale();
-        doReturn(TEST_BOUNDS).when(mDisplayAndroid).getBounds();
-        doReturn(TEST_LOCAL_BOUNDS).when(mDisplayAndroid).getLocalBounds();
+        when(mDisplayAndroid.getDisplayId()).thenReturn(TEST_DISPLAY_ID);
+        when(mDisplayAndroid.getDipScale()).thenReturn(TEST_DENSITY);
+        when(mDisplayAndroid.getBounds()).thenReturn(TEST_BOUNDS);
+        when(mDisplayAndroid.getLocalBounds()).thenReturn(TEST_LOCAL_BOUNDS);
 
-        doReturn(mDisplayAndroid).when(mDisplayAndroidManager).getDisplayMatching(any());
+        when(mDisplayAndroidManager.getDisplayMatching(any())).thenReturn(mDisplayAndroid);
     }
 
     private void setRepositionPermission(boolean granted) {
@@ -231,15 +253,14 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
 
     @Test
     public void testAddNewContentsNotInTabGroup() {
-        WebContents newWebContents = mock(WebContents.class);
         Map<WebContents, Tab> tabMap =
-                Map.of(mWebContents, mock(Tab.class), newWebContents, mock(Tab.class));
+                Map.of(mWebContents, mock(Tab.class), mNewWebContents, mock(Tab.class));
         mTabWebContentsDelegateAndroid.setTabMap(tabMap);
 
         mTabWebContentsDelegateAndroid.addNewContents(
                 mWebContents,
-                newWebContents,
-                new GURL("https://foo.com"),
+                mNewWebContents,
+                TARGET_URL,
                 WindowOpenDisposition.NEW_FOREGROUND_TAB,
                 new WindowFeatures(),
                 false,
@@ -249,22 +270,21 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
 
     @Test
     public void testAddNewContentsToTabGroup() {
-        WebContents newWebContents = mock(WebContents.class);
         Tab parentTab = mock(Tab.class);
         Tab newTab = mock(Tab.class);
-        doReturn(Token.createRandom()).when(parentTab).getTabGroupId();
-        doReturn(newTab)
-                .when(mTabCreator)
-                .createTabWithWebContents(any(), anyBoolean(), any(), anyInt(), any(), any());
-        doReturn(true).when(mTabModel).isTabInTabGroup(any());
-        doReturn(true).when(mTabModel).isTabModelRestored();
-        Map<WebContents, Tab> tabMap = Map.of(mWebContents, parentTab, newWebContents, newTab);
+        when(parentTab.getTabGroupId()).thenReturn(Token.createRandom());
+        when(mTabCreator.createTabWithWebContents(
+                        any(), anyBoolean(), any(), anyInt(), any(), any()))
+                .thenReturn(newTab);
+        when(mTabModel.isTabInTabGroup(any())).thenReturn(true);
+        when(mTabModel.isTabModelRestored()).thenReturn(true);
+        Map<WebContents, Tab> tabMap = Map.of(mWebContents, parentTab, mNewWebContents, newTab);
         mTabWebContentsDelegateAndroid.setTabMap(tabMap);
 
         mTabWebContentsDelegateAndroid.addNewContents(
                 mWebContents,
-                newWebContents,
-                new GURL("https://foo.com"),
+                mNewWebContents,
+                TARGET_URL,
                 WindowOpenDisposition.NEW_FOREGROUND_TAB,
                 new WindowFeatures(),
                 false,
@@ -277,9 +297,172 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
     }
 
     @Test
+    public void testAddNewContents_NewBackgroundTab_NotInTabGroup() {
+        when(mTab.getTabGroupId()).thenReturn(null);
+
+        mTabWebContentsDelegateAndroid.addNewContents(
+                mWebContents,
+                mNewWebContents,
+                TARGET_URL,
+                WindowOpenDisposition.NEW_BACKGROUND_TAB,
+                new WindowFeatures(),
+                false,
+                null);
+
+        verify(mTabCreator)
+                .createTabWithWebContents(
+                        eq(mTab),
+                        eq(false),
+                        eq(mNewWebContents),
+                        eq(TabLaunchType.FROM_LONGPRESS_BACKGROUND),
+                        eq(TARGET_URL),
+                        any());
+    }
+
+    @Test
+    public void testAddNewContents_NewBackgroundTab_InTabGroup() {
+        when(mTab.getTabGroupId()).thenReturn(Token.createRandom());
+
+        mTabWebContentsDelegateAndroid.addNewContents(
+                mWebContents,
+                mNewWebContents,
+                TARGET_URL,
+                WindowOpenDisposition.NEW_BACKGROUND_TAB,
+                new WindowFeatures(),
+                false,
+                null);
+
+        verify(mTabCreator)
+                .createTabWithWebContents(
+                        eq(mTab),
+                        eq(false),
+                        eq(mNewWebContents),
+                        eq(TabLaunchType.FROM_LONGPRESS_BACKGROUND_IN_GROUP),
+                        eq(TARGET_URL),
+                        any());
+    }
+
+    @Test
+    public void testAddNewContents_NewForegroundTab_NotInTabGroup() {
+        when(mTab.getTabGroupId()).thenReturn(null);
+
+        mTabWebContentsDelegateAndroid.addNewContents(
+                mWebContents,
+                mNewWebContents,
+                TARGET_URL,
+                WindowOpenDisposition.NEW_FOREGROUND_TAB,
+                new WindowFeatures(),
+                false,
+                null);
+
+        verify(mTabCreator)
+                .createTabWithWebContents(
+                        eq(mTab),
+                        eq(false),
+                        eq(mNewWebContents),
+                        eq(TabLaunchType.FROM_LONGPRESS_FOREGROUND),
+                        eq(TARGET_URL),
+                        any());
+    }
+
+    @Test
+    public void testAddNewContents_NewForegroundTab_InTabGroup() {
+        when(mTab.getTabGroupId()).thenReturn(Token.createRandom());
+
+        mTabWebContentsDelegateAndroid.addNewContents(
+                mWebContents,
+                mNewWebContents,
+                TARGET_URL,
+                WindowOpenDisposition.NEW_FOREGROUND_TAB,
+                new WindowFeatures(),
+                false,
+                null);
+
+        verify(mTabCreator)
+                .createTabWithWebContents(
+                        eq(mTab),
+                        eq(false),
+                        eq(mNewWebContents),
+                        eq(TabLaunchType.FROM_LONGPRESS_FOREGROUND_IN_GROUP),
+                        eq(TARGET_URL),
+                        any());
+    }
+
+    @Test
+    public void testAddNewContents_NewPopup_InTabGroup_DoesNotUseInGroupLaunchType() {
+        when(mTab.getTabGroupId()).thenReturn(Token.createRandom());
+
+        mTabWebContentsDelegateAndroid.addNewContents(
+                mWebContents,
+                mNewWebContents,
+                TARGET_URL,
+                WindowOpenDisposition.NEW_POPUP,
+                new WindowFeatures(),
+                true,
+                null);
+
+        verify(mTabCreator)
+                .createTabWithWebContents(
+                        eq(mTab),
+                        eq(false),
+                        eq(mNewWebContents),
+                        eq(TabLaunchType.FROM_LONGPRESS_FOREGROUND),
+                        eq(TARGET_URL),
+                        any());
+    }
+
+    @Test
+    public void testAddNewContents_NewWindow_InTabGroup_DoesNotUseInGroupLaunchType() {
+        when(mTab.getTabGroupId()).thenReturn(Token.createRandom());
+
+        mTabWebContentsDelegateAndroid.addNewContents(
+                mWebContents,
+                mNewWebContents,
+                TARGET_URL,
+                WindowOpenDisposition.NEW_WINDOW,
+                new WindowFeatures(),
+                false,
+                null);
+
+        verify(mTabCreator)
+                .createTabWithWebContents(
+                        eq(mTab),
+                        eq(false),
+                        eq(mNewWebContents),
+                        eq(TabLaunchType.FROM_LONGPRESS_FOREGROUND),
+                        eq(TARGET_URL),
+                        any());
+    }
+
+    @Test
+    public void testAddNewContents_InTabGroup_AlreadyGrouped_DoesNotReMerge() {
+        Tab parentTab = mock(Tab.class);
+        Tab newTab = mock(Tab.class);
+        Token tabGroupId = Token.createRandom();
+        when(parentTab.getTabGroupId()).thenReturn(tabGroupId);
+        when(newTab.getTabGroupId()).thenReturn(tabGroupId);
+        when(mTabCreator.createTabWithWebContents(
+                        any(), anyBoolean(), any(), anyInt(), any(), any()))
+                .thenReturn(newTab);
+        when(mTabModel.isTabInTabGroup(any())).thenReturn(true);
+        when(mTabModel.isTabModelRestored()).thenReturn(true);
+        Map<WebContents, Tab> tabMap = Map.of(mWebContents, parentTab, mNewWebContents, newTab);
+        mTabWebContentsDelegateAndroid.setTabMap(tabMap);
+
+        mTabWebContentsDelegateAndroid.addNewContents(
+                mWebContents,
+                mNewWebContents,
+                TARGET_URL,
+                WindowOpenDisposition.NEW_FOREGROUND_TAB,
+                new WindowFeatures(),
+                false,
+                null);
+        verify(mTabModel, never()).mergeListOfTabsToGroup(any(), any(), anyInt());
+    }
+
+    @Test
     public void testAddNewContentsDoesNotAddToTabModelWhenMovingTabToPopupIsSuccessful() {
         when(mPopupCreator.moveTabToNewPopup(any(), any())).thenReturn(true);
-        WebContents newWebContents = mock(WebContents.class);
         Tab newTab = mock(Tab.class);
         doReturn(newTab)
                 .when(mTabCreator)
@@ -287,8 +470,8 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
 
         mTabWebContentsDelegateAndroid.addNewContents(
                 mWebContents,
-                newWebContents,
-                new GURL("https://foo.com"),
+                mNewWebContents,
+                TARGET_URL,
                 WindowOpenDisposition.NEW_POPUP,
                 new WindowFeatures(),
                 true,
@@ -309,7 +492,6 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
     @Test
     public void testAddNewContentsAddToTabModelWhenMovingTabToPopupIsUnsuccessful() {
         when(mPopupCreator.moveTabToNewPopup(any(), any())).thenReturn(false);
-        WebContents newWebContents = mock(WebContents.class);
         Tab newTab = mock(Tab.class);
         doReturn(newTab)
                 .when(mTabCreator)
@@ -317,8 +499,8 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
 
         mTabWebContentsDelegateAndroid.addNewContents(
                 mWebContents,
-                newWebContents,
-                new GURL("https://foo.com"),
+                mNewWebContents,
+                TARGET_URL,
                 WindowOpenDisposition.NEW_POPUP,
                 new WindowFeatures(),
                 true,
@@ -362,15 +544,14 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
         when(mPopupCreator.moveWebContentsToNewDocumentPictureInPictureWindow(any(), any(), any()))
                 .thenReturn(true);
 
-        WebContents newWebContents = mock(WebContents.class);
         PictureInPictureWindowOptions options =
                 new PictureInPictureWindowOptions(new Rect(0, 0, 100, 100), false);
 
         boolean result =
                 mTabWebContentsDelegateAndroid.addNewContents(
                         mWebContents,
-                        newWebContents,
-                        new GURL("https://foo.com"),
+                        mNewWebContents,
+                        TARGET_URL,
                         WindowOpenDisposition.NEW_PICTURE_IN_PICTURE,
                         new WindowFeatures(),
                         true,
@@ -384,15 +565,14 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
     public void testAddNewContents_DocumentPictureInPicture_Disabled() {
         mTabWebContentsDelegateAndroid.setIsDocumentPictureInPictureEnabled(false);
 
-        WebContents newWebContents = mock(WebContents.class);
         PictureInPictureWindowOptions options =
                 new PictureInPictureWindowOptions(new Rect(0, 0, 100, 100), false);
 
         boolean result =
                 mTabWebContentsDelegateAndroid.addNewContents(
                         mWebContents,
-                        newWebContents,
-                        new GURL("https://foo.com"),
+                        mNewWebContents,
+                        TARGET_URL,
                         WindowOpenDisposition.NEW_PICTURE_IN_PICTURE,
                         new WindowFeatures(),
                         true,
@@ -408,15 +588,14 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
         when(mPopupCreator.moveWebContentsToNewDocumentPictureInPictureWindow(any(), any(), any()))
                 .thenReturn(false);
 
-        WebContents newWebContents = mock(WebContents.class);
         PictureInPictureWindowOptions options =
                 new PictureInPictureWindowOptions(new Rect(0, 0, 100, 100), false);
 
         boolean result =
                 mTabWebContentsDelegateAndroid.addNewContents(
                         mWebContents,
-                        newWebContents,
-                        new GURL("https://foo.com"),
+                        mNewWebContents,
+                        TARGET_URL,
                         WindowOpenDisposition.NEW_PICTURE_IN_PICTURE,
                         new WindowFeatures(),
                         true,
@@ -485,5 +664,78 @@ public class ActivityTabWebContentsDelegateAndroidUnitTest {
         when(mExclusiveAccessManager.canEnterFullscreenModeForTab(mRenderFrameHost))
                 .thenReturn(false);
         assertFalse(mTabWebContentsDelegateAndroid.canEnterFullscreenModeForTab(mRenderFrameHost));
+    }
+
+    @Test
+    public void testTakeFocus_forward() {
+        when(mActivity.findViewById(R.id.url_bar)).thenReturn(mUrlBar);
+        when(mUrlBar.requestFocus(View.FOCUS_FORWARD)).thenReturn(true);
+
+        assertTrue(mTabWebContentsDelegateAndroid.takeFocus(/* reverse= */ false));
+        verify(mUrlBar).requestFocus(View.FOCUS_FORWARD);
+    }
+
+    @Test
+    public void testTakeFocus_reverse_menuButton() {
+        when(mActivity.findViewById(R.id.menu_button)).thenReturn(mMenuButton);
+        when(mMenuButton.isShown()).thenReturn(true);
+        when(mMenuButton.requestFocus(View.FOCUS_BACKWARD)).thenReturn(true);
+
+        assertTrue(mTabWebContentsDelegateAndroid.takeFocus(/* reverse= */ true));
+        verify(mMenuButton).requestFocus(View.FOCUS_BACKWARD);
+    }
+
+    @Test
+    public void testTakeFocus_reverse_tabSwitcherButton() {
+        when(mActivity.findViewById(R.id.menu_button)).thenReturn(mMenuButton);
+        when(mMenuButton.isShown()).thenReturn(false);
+        when(mActivity.findViewById(R.id.tab_switcher_button)).thenReturn(mTabSwitcherButton);
+        when(mTabSwitcherButton.isShown()).thenReturn(true);
+        when(mTabSwitcherButton.requestFocus(View.FOCUS_BACKWARD)).thenReturn(true);
+
+        assertTrue(mTabWebContentsDelegateAndroid.takeFocus(/* reverse= */ true));
+        verify(mTabSwitcherButton).requestFocus(View.FOCUS_BACKWARD);
+    }
+
+    @Test
+    public void testTakeFocus_reverse_buttonsHidden() {
+        when(mActivity.findViewById(R.id.menu_button)).thenReturn(mMenuButton);
+        when(mMenuButton.isShown()).thenReturn(false);
+        when(mActivity.findViewById(R.id.tab_switcher_button)).thenReturn(mTabSwitcherButton);
+        when(mTabSwitcherButton.isShown()).thenReturn(false);
+
+        assertFalse(mTabWebContentsDelegateAndroid.takeFocus(/* reverse= */ true));
+        verify(mMenuButton, never()).requestFocus(anyInt());
+        verify(mTabSwitcherButton, never()).requestFocus(anyInt());
+    }
+
+    @Test
+    public void testTakeFocus_forward_requestFocusFails() {
+        when(mActivity.findViewById(R.id.url_bar)).thenReturn(mUrlBar);
+        when(mUrlBar.requestFocus(View.FOCUS_FORWARD)).thenReturn(false);
+
+        assertFalse(mTabWebContentsDelegateAndroid.takeFocus(/* reverse= */ false));
+        verify(mUrlBar).requestFocus(View.FOCUS_FORWARD);
+    }
+
+    @Test
+    public void testTakeFocus_nullViews() {
+        when(mActivity.findViewById(anyInt())).thenReturn(null);
+
+        assertFalse(mTabWebContentsDelegateAndroid.takeFocus(/* reverse= */ false));
+        assertFalse(mTabWebContentsDelegateAndroid.takeFocus(/* reverse= */ true));
+    }
+
+    @Test
+    public void testGetDisplayModeChecked_fullscreen() {
+        when(mFullscreenManager.getPersistentFullscreenMode()).thenReturn(true);
+        assertEquals(
+                DisplayMode.FULLSCREEN,
+                mTabWebContentsDelegateAndroid.getDisplayModeCheckedForTesting());
+
+        when(mFullscreenManager.getPersistentFullscreenMode()).thenReturn(false);
+        assertEquals(
+                DisplayMode.BROWSER,
+                mTabWebContentsDelegateAndroid.getDisplayModeCheckedForTesting());
     }
 }

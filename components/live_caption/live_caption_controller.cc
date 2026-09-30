@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "base/check_deref.h"
 #include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
@@ -118,14 +119,17 @@ void LiveCaptionController::OnLiveCaptionEnabledChanged() {
 }
 
 void LiveCaptionController::OnFirstListenerAdded() {
-  // We have a listener, so be sure we also have soda.  This listener might not
+  // We have a listener, so be sure we also have soda. This listener might not
   // be the UI.
 
   MaybeSetLiveCaptionLanguage();
-  // The SodaInstaller determines whether SODA is already on the device and
-  // whether or not to download. Once SODA is on the device and ready, the
-  // SODAInstaller calls OnSodaInstalled on its observers.
-  if (!speech::SodaInstaller::GetInstance()->IsSodaInstalled(
+  if (base::FeatureList::IsEnabled(
+          media::kLiveCaptionSpeechRecognitionSmallExpertModel)) {
+    // SODA is not used when SpeechRecognitionSmallExpertModel is enabled.
+    return;
+  }
+  if (speech::SodaInstaller::GetInstance() &&
+      !speech::SodaInstaller::GetInstance()->IsSodaInstalled(
           speech::GetLanguageCode(GetLanguageCode()))) {
     if (!soda_installer_observation_.IsObserving()) {
       soda_installer_observation_.Observe(speech::SodaInstaller::GetInstance());
@@ -136,18 +140,30 @@ void LiveCaptionController::OnFirstListenerAdded() {
 
 void LiveCaptionController::OnLastListenerRemoved() {
   // We might not have installed a listener, but that's okay.
-  soda_installer_observation_.Reset();
-  speech::SodaInstaller::GetInstance()->SetUninstallTimer(global_prefs_,
-                                                          GetLanguageCode());
+  if (base::FeatureList::IsEnabled(
+          media::kLiveCaptionSpeechRecognitionSmallExpertModel)) {
+    // SODA is not used when SpeechRecognitionSmallExpertModel is enabled.
+    return;
+  }
+
+  if (speech::SodaInstaller::GetInstance()) {
+    soda_installer_observation_.Reset();
+    speech::SodaInstaller::GetInstance()->SetUninstallTimer(global_prefs_,
+                                                            GetLanguageCode());
+  }
 }
 
 void LiveCaptionController::OnLiveCaptionLanguageChanged() {
+  if (base::FeatureList::IsEnabled(
+          media::kLiveCaptionSpeechRecognitionSmallExpertModel)) {
+    // SODA is not used when SpeechRecognitionSmallExpertModel is enabled.
+    return;
+  }
   if (enabled_) {
     const auto language_code = GetLanguageCode();
     auto* soda_installer = speech::SodaInstaller::GetInstance();
-    // Only trigger an install when the language is not already installed.
-    if (!soda_installer->IsSodaInstalled(
-            speech::GetLanguageCode(language_code))) {
+    if (soda_installer && !soda_installer->IsSodaInstalled(
+                              speech::GetLanguageCode(language_code))) {
       soda_installer->InstallLanguage(language_code, global_prefs_);
     }
   }
@@ -179,7 +195,9 @@ void LiveCaptionController::OnSodaInstalled(
   bool is_language_code_for_live_caption =
       prefs::IsLanguageCodeForLiveCaption(language_code, profile_prefs());
 
-  if (is_language_code_for_live_caption) {
+  if (is_language_code_for_live_caption &&
+      !base::FeatureList::IsEnabled(
+          media::kLiveCaptionSpeechRecognitionSmallExpertModel)) {
     soda_installer_observation_.Reset();
   }
 }
@@ -243,11 +261,12 @@ void LiveCaptionController::MaybeSetLiveCaptionLanguage() {
         speech::kUsEnglishLocale, global_prefs_);
     speech::SodaInstaller::GetInstance()->RegisterLanguage(
         speech::GetDefaultLiveCaptionLanguage(application_locale(),
-                                              profile_prefs()),
+                                              CHECK_DEREF(profile_prefs())),
         global_prefs_);
-    profile_prefs()->SetString(prefs::kLiveCaptionLanguageCode,
-                               speech::GetDefaultLiveCaptionLanguage(
-                                   application_locale(), profile_prefs()));
+    profile_prefs()->SetString(
+        prefs::kLiveCaptionLanguageCode,
+        speech::GetDefaultLiveCaptionLanguage(application_locale(),
+                                              CHECK_DEREF(profile_prefs())));
   }
 }
 

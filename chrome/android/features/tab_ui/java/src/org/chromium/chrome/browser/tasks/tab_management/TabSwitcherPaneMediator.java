@@ -40,7 +40,6 @@ import org.chromium.chrome.browser.tasks.tab_management.TabListMediator.TabListI
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
-import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.util.motion.MotionEventInfo;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -114,7 +113,7 @@ public class TabSwitcherPaneMediator
             };
 
     private final BottomSheetObserver mBottomSheetObserver =
-            new EmptyBottomSheetObserver() {
+            new BottomSheetObserver() {
                 @Override
                 public void onSheetOpened(@StateChangeReason int reason) {
                     suppressAccessibility(true);
@@ -129,9 +128,7 @@ public class TabSwitcherPaneMediator
     private final Callback<Boolean> mOnAnimatingChanged = this::onAnimatingChanged;
     private final Callback<Boolean> mOnVisibilityChanged = this::onVisibilityChanged;
     private final Callback<Boolean> mNotifyBackPressedCallback =
-            ignored -> {
-                notifyBackPressStateChangedInternal();
-            };
+            _ -> notifyBackPressStateChangedInternal();
 
     /** Interface for getting scroll positions of tabs. */
     @FunctionalInterface
@@ -335,7 +332,7 @@ public class TabSwitcherPaneMediator
     }
 
     @Override
-    public void onTabSelecting(int tabId, boolean fromActionButton) {
+    public void onTabSelecting(int tabId) {
         mOnTabClickCallback.onResult(tabId);
     }
 
@@ -454,7 +451,7 @@ public class TabSwitcherPaneMediator
 
     public void openTabGroupDialog(int tabId) {
         List<Tab> relatedTabs = assumeNonNull(mTabModelSupplier.get()).getRelatedTabList(tabId);
-        if (relatedTabs.size() == 0) {
+        if (relatedTabs.isEmpty()) {
             relatedTabs = null;
         }
         assumeNonNull(mTabGridDialogControllerSupplier.get()).resetWithListOfTabs(relatedTabs);

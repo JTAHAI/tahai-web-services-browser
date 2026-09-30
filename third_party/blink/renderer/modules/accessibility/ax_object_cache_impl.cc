@@ -714,7 +714,7 @@ void LogNodeDataSizeDistribution(
       kSizeGb, kBucketCount);
   UMA_HISTOGRAM_CUSTOM_COUNTS(
       "Accessibility.Performance.AXObjectCacheImpl.Incremental.IntList",
-      base::saturated_cast<int>(node_data_size.int_list_attribhute_size), 1,
+      base::saturated_cast<int>(node_data_size.int_list_attribute_size), 1,
       kSize10Mb, kBucketCount);
   UMA_HISTOGRAM_CUSTOM_COUNTS(
       "Accessibility.Performance.AXObjectCacheImpl.Incremental.StringList",
@@ -2014,6 +2014,13 @@ void AXObjectCacheImpl::Remove(Node* node, bool notify_parent) {
 
   AXID axid = node->GetDomNodeId();
 
+  // HTML ids belong to connected DOM elements, not their AXObjects. Elements
+  // may be registered before an AXObject exists, and connected AXObjects can be
+  // removed and recreated without removing their DOM elements.
+  if (!node->isConnected() && relation_cache_) {
+    relation_cache_->RemoveRegisteredIdAttribute(axid);
+  }
+
   if (node == active_aria_modal_dialog_ &&
       lifecycle_.StateAllowsAXObjectsToBeDirtied()) {
     UpdateActiveAriaModalDialog(FocusedNode());
@@ -2028,6 +2035,11 @@ void AXObjectCacheImpl::RemovePopup(Document* popup_document) {
   // the popup document. This method is only be called for the popup document,
   // because if the main document is shutting down, the cache is disposed.
   DCHECK(popup_document);
+
+  // Closing a popup document does not disconnect its DOM elements, so their
+  // registered HTML ids remain in the owner document's accessibility cache.
+  // Popup documents typically contain few ids, so this small leak does not
+  // justify traversing the entire popup DOM to clean them up.
 
   // This can be called even when GetPopupDocumentIfShowing() when the popup
   // is from a <select size=1>, and in order to avoid duplicate objects, which
@@ -3701,6 +3713,9 @@ bool AXObjectCacheImpl::CommitAXUpdates(Document& document, bool force) {
       relation_cache_->ProcessUpdatesWithCleanLayout();
 
       EnsureFocusedObject();
+      if (active_aria_modal_dialog_) {
+        UpdateActiveAriaModalDialog(FocusedNode());
+      }
       if (mark_all_dirty_) {
         // In some cases, EnsureFocusedObject() causes bad aria-hidden subtrees
         // to be removed, if they contained the focus. This can in turn lead to
@@ -5043,7 +5058,9 @@ void AXObjectCacheImpl::HandleAttributeChanged(const QualifiedName& attr_name,
   }
 
   if (attr_name == html_names::kRoleAttr ||
-      attr_name == html_names::kTypeAttr) {
+      attr_name == html_names::kTypeAttr ||
+      (RuntimeEnabledFeatures::HTMLSwitchAttributeEnabled() &&
+       attr_name == html_names::kSwitchAttr)) {
     DeferTreeUpdate(TreeUpdateReason::kRoleChangeFromRoleOrType, element);
   } else if (attr_name == html_names::kSizeAttr ||
              attr_name == html_names::kMultipleAttr) {
@@ -6025,22 +6042,84 @@ void AXObjectCacheImpl::UpdateActiveAriaModalDialog(Node* focused_node) {
     return;
   }
 
-  Element* new_active_aria_modal = AncestorAriaModalDialog(focused_node);
-  if (active_aria_modal_dialog_ == new_active_aria_modal)
-    return;
+  // Re-evaluate if the current active_aria_modal_dialog_ is still valid:
+  // - Still has role=dialog|alertdialog and aria-modal=true
+  // - Is visible in AXTree (not display:none / visibility:hidden / aria-hidden)
+  if (active_aria_modal_dialog_) {
+    const AXObject* ax_dialog = Get(active_aria_modal_dialog_);
+    bool is_valid_modal = ax_dialog && !ax_dialog->IsIgnored() &&
+                          ax_dialog->IsVisible() && ax_dialog->IsModal();
+    if (!is_valid_modal) {
+      active_aria_modal_dialog_ = nullptr;
+      MarkDocumentDirty();
+    }
+  }
 
-  // Don't update when the focus itself is the modal.
-  if (new_active_aria_modal == focused_node) {
+  if (!focused_node) {
     return;
   }
 
-  active_aria_modal_dialog_ = new_active_aria_modal;
-  MarkDocumentDirty();
+  Element* new_active_aria_modal = AncestorAriaModalDialog(focused_node);
+
+  if (new_active_aria_modal) {
+    // If focus is on the modal dialog element itself (rather than a descendant
+    // inside it):
+    // Only preserve tree pruning if this dialog was ALREADY the active modal
+    // (meaning focus was previously on a descendant inside it).
+    if (new_active_aria_modal == focused_node) {
+      if (active_aria_modal_dialog_ == new_active_aria_modal) {
+        return;
+      }
+      if (active_aria_modal_dialog_) {
+        active_aria_modal_dialog_ = nullptr;
+        MarkDocumentDirty();
+      }
+      return;
+    }
+
+    if (active_aria_modal_dialog_ != new_active_aria_modal) {
+      active_aria_modal_dialog_ = new_active_aria_modal;
+      MarkDocumentDirty();
+    }
+    return;
+  }
+
+  // Focus is outside any modal dialog.
+  if (active_aria_modal_dialog_) {
+    const AXObject* ax_focus = Get(focused_node);
+    const AXObject* ax_dialog = Get(active_aria_modal_dialog_);
+
+    // If focus is on a strict ancestor of the active modal dialog in the a11y
+    // tree (e.g. body/root), preserve active_aria_modal_dialog_.
+    if (ax_dialog && ax_focus) {
+      for (const AXObject* ancestor = ax_dialog->ParentObject(); ancestor;
+           ancestor = ancestor->ParentObject()) {
+        if (ancestor == ax_focus) {
+          return;
+        }
+      }
+    }
+
+    // Focus moved to background content outside the modal hierarchy.
+    active_aria_modal_dialog_ = nullptr;
+    MarkDocumentDirty();
+  }
 }
 
 Element* AXObjectCacheImpl::AncestorAriaModalDialog(Node* node) {
-  // Find an element with role=dialog|alertdialog and aria-modal="true" that
-  // either contains the focus, or is focused.
+  if (!node) {
+    return nullptr;
+  }
+
+  if (const AXObject* obj = Get(node)) {
+    for (; obj; obj = obj->ParentObject()) {
+      if (obj->IsModal()) {
+        return obj->GetElement();
+      }
+    }
+    return nullptr;
+  }
+
   do {
     Element* element = DynamicTo<Element>(node);
     if (element) {
@@ -6792,6 +6871,23 @@ void AXObjectCacheImpl::HandleScrollPositionChanged(
   Node* node = GetClosestNodeForLayoutObject(layout_object);
   if (node) {
     InvalidateBoundingBox(node->GetDomNodeId());
+  }
+}
+
+void AXObjectCacheImpl::HandleScrollDimensionsChanged(
+    LayoutObject* layout_object) {
+  if (!layout_object || layout_object->GetDocument() != document_) {
+    return;
+  }
+
+  SCOPED_DISALLOW_LIFECYCLE_TRANSITION();
+
+  if (AXObject* obj = Get(layout_object)) {
+    if (lifecycle_.StateAllowsImmediateTreeUpdates()) {
+      MarkAXObjectDirtyWithCleanLayout(obj);
+    } else {
+      MarkAXObjectDirty(obj);
+    }
   }
 }
 

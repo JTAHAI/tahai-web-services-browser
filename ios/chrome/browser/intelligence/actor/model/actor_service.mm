@@ -52,9 +52,10 @@ ActorTaskId ActorService::CreateTask(const std::string& title,
   CHECK(IsActorEnabled());
 
   const ActorTaskId task_id = next_task_id_.GenerateNextId();
-  auto task =
-      std::make_unique<ActorTask>(task_id, title, allow_incognito_web_states,
-                                  journal_.get(), tool_factory_.get());
+  BrowserList* browser_list = BrowserListFactory::GetForProfile(profile_);
+  auto task = std::make_unique<ActorTask>(
+      task_id, title, allow_incognito_web_states, journal_.get(),
+      tool_factory_.get(), browser_list);
 
   // TODO(crbug.com/512521102): Cleanup observers lifecycle.
   // Only the latest task is tracked.
@@ -220,6 +221,13 @@ void ActorService::OnActCompleted(ActorTaskId task_id,
   }
 }
 
+std::optional<ActorTaskState> ActorService::GetActiveTaskState() const {
+  if (active_tasks_.empty()) {
+    return std::nullopt;
+  }
+  return active_tasks_.rbegin()->second->GetState();
+}
+
 web::WebState* ActorService::GetWebStateForID(web::WebStateID web_state_id,
                                               ActorTaskId task_id) {
   auto it = active_tasks_.find(task_id);
@@ -262,6 +270,11 @@ void ActorService::AddControlledWebState(ActorTaskId task_id,
 
 void ActorService::PauseTask(ActorTaskId task_id, bool from_actor) {
   // TODO(crbug.com/496163986): Implement and test.
+}
+
+void ActorService::InterruptTask(ActorTaskId task_id,
+                                 ActorTaskInterruptReason reason) {
+  // TODO(crbug.com/548051839): Implement and test.
 }
 
 void ActorService::StopTask(ActorTaskId task_id,

@@ -68,6 +68,7 @@
 #include "third_party/blink/public/web/web_navigation_type.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_controller.h"
 #include "third_party/blink/renderer/bindings/core/v8/serialization/serialized_script_value.h"
+#include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/document_init.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/ignore_opens_during_unload_count_incrementer.h"
@@ -249,6 +250,7 @@ void FrameLoader::Trace(Visitor* visitor) const {
 
 void FrameLoader::Init(
     const DocumentToken& document_token,
+    const base::UnguessableToken& initiator_state_token,
     std::unique_ptr<PolicyContainer> policy_container,
     const StorageKey& storage_key,
     ukm::SourceId document_ukm_source_id,
@@ -265,6 +267,7 @@ void FrameLoader::Init(
   }
   navigation_params->storage_key = storage_key;
   navigation_params->document_token = document_token;
+  navigation_params->initiator_state_token = initiator_state_token;
   navigation_params->frame_policy =
       frame_->Owner() ? frame_->Owner()->GetFramePolicy() : FramePolicy();
   navigation_params->document_ukm_source_id = document_ukm_source_id;
@@ -420,7 +423,8 @@ void FrameLoader::DispatchUnloadEventAndFillOldDocumentInfoIfNeeded(
       ScopedOldDocumentInfoForCommitCapturer::CurrentInfo();
   if (!old_document_info || !will_commit_new_document_in_this_frame ||
       !GetDocumentLoader()) {
-    frame_->GetDocument()->DispatchUnloadEvents(nullptr);
+    frame_->GetDocument()->DispatchUnloadEvents(
+        nullptr, will_commit_new_document_in_this_frame);
     return;
   }
   old_document_info->history_item = GetDocumentLoader()->GetHistoryItem();
@@ -434,7 +438,8 @@ void FrameLoader::DispatchUnloadEventAndFillOldDocumentInfoIfNeeded(
 
   base::ElapsedTimer elapsed_timer;
   frame_->GetDocument()->DispatchUnloadEvents(
-      &old_document_info->unload_timing_info);
+      &old_document_info->unload_timing_info,
+      will_commit_new_document_in_this_frame);
   old_document_info->total_lifecycle_events_processing_time_on_commit =
       std::max(
           old_document_info->total_lifecycle_events_processing_time_on_commit,
@@ -574,8 +579,21 @@ void FrameLoader::ProcessScrollForSameDocumentNavigation(
 
   // We need to scroll to the fragment whether or not a hash change occurred,
   // since the user might have scrolled since the previous navigation.
-  ProcessFragment(url, frame_load_type, kNavigationWithinSameDocument);
-  has_pending_cross_document_fragment_ = false;
+  if (url.HasFragmentIdentifier()) {
+    // If the same-document navigation explicitly navigates to a fragment, abort
+    // any pending cross-document text fragment and process the new fragment
+    // immediately.
+    has_pending_cross_document_fragment_ = false;
+    ProcessFragment(url, frame_load_type, kNavigationWithinSameDocument);
+  } else if (!has_pending_cross_document_fragment_ ||
+             (frame_->View() && frame_->GetPage() &&
+              frame_->GetPage()
+                  ->RelatedPagesMutationFromPreviousPageFinalized())) {
+    // Avoid prematurely processing a deferred cross-document text fragment
+    // until related pages state is finalized.
+    ProcessFragment(url, frame_load_type, kNavigationWithinSameDocument);
+    has_pending_cross_document_fragment_ = false;
+  }
 
   TakeObjectSnapshot();
 }
@@ -709,9 +727,6 @@ void FrameLoader::StartNavigation(FrameLoadRequest& request,
   TRACE_EVENT2("navigation", "FrameLoader::StartNavigation", "url",
                url.GetString().Utf8(), "load_type",
                static_cast<int>(frame_load_type));
-
-  resource_request.SetHasUserGesture(
-      LocalFrame::HasTransientUserActivation(frame_.Get()));
 
   if (!AllowRequestForThisFrame(request))
     return;
@@ -907,17 +922,6 @@ void FrameLoader::StartNavigation(FrameLoadRequest& request,
     return;
   }
 
-  // A sandboxed iframe without `allow-popups` should not be able to
-  // open a new browsing context by emulating a user gesture in JS.
-  // (e.g. Ctrl+click).
-  if (request.GetNavigationPolicy() != kNavigationPolicyCurrentTab &&
-      request.GetTriggeringEventInfo() ==
-          mojom::blink::TriggeringEventInfo::kFromUntrustedEvent &&
-      frame_->GetSecurityContext()->IsSandboxed(
-          network::mojom::blink::WebSandboxFlags::kPopups)) {
-    return;
-  }
-
   if (request.GetNavigationPolicy() == kNavigationPolicyCurrentTab &&
       (!origin_window || origin_window->GetSecurityOrigin()->CanAccess(
                              frame_->DomWindow()->GetSecurityOrigin()))) {
@@ -998,6 +1002,15 @@ void FrameLoader::StartNavigation(FrameLoadRequest& request,
           ? CSPDisposition::DO_NOT_CHECK
           : CSPDisposition::CHECK;
 
+  // Mark this frame as initiator if the request has not specified an initiator.
+  base::UnguessableToken initiator_state_token =
+      request.GetInitiatorStateToken().is_empty()
+          ? frame_->GetInitiatorStateToken()
+          : request.GetInitiatorStateToken();
+  CHECK(!initiator_state_token.is_empty());
+  DocumentToken initiator_document_token =
+      request.GetInitiatorDocumentToken().value_or(
+          frame_->GetDocument()->Token());
   Client()->BeginNavigation(
       resource_request, request.GetRequestorBaseURL(), request.GetFrameType(),
       origin_window, nullptr /* document_loader */, navigation_type,
@@ -1010,6 +1023,7 @@ void FrameLoader::StartNavigation(FrameLoadRequest& request,
       request.Form(), should_check_main_world_csp, request.GetBlobURLToken(),
       request.GetInputStartTime(), request.GetCreationTime(),
       request.HrefTranslate().GetString(), request.GetInitiatorFrameToken(),
+      initiator_state_token, initiator_document_token,
       request.GetSourceLocation(),
       request.TakeInitiatorNavigationStateKeepAliveHandle(),
       request.IsContainerInitiated(),
@@ -1257,7 +1271,8 @@ void FrameLoader::CommitNavigation(
     // DocumentLoader from reporting an error when detaching the pre-XSLT
     // document.
     if (commit_reason == CommitReason::kXSLT && document_loader_) {
-      DCHECK(XSLTProcessor::IsXSLTEnabled(nullptr));
+      DCHECK(
+          XSLTProcessor::IsXSLTEnabled(frame_ ? frame_->DomWindow() : nullptr));
       document_loader_->SetSentDidFinishLoad();
       previous_document_loader_for_xslt_ = document_loader_.Get();
     }
@@ -1325,7 +1340,8 @@ void FrameLoader::CommitNavigation(
       std::move(policy_container), std::move(extra_data));
 
   if (previous_document_loader_for_xslt_) {
-    DCHECK(XSLTProcessor::IsXSLTEnabled(nullptr));
+    DCHECK(
+        XSLTProcessor::IsXSLTEnabled(frame_ ? frame_->DomWindow() : nullptr));
     new_document_loader->InheritXsltUseCountersFrom(
         previous_document_loader_for_xslt_);
     previous_document_loader_for_xslt_ = nullptr;

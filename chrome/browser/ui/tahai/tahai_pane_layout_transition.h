@@ -12,7 +12,7 @@
 #include "components/split_tabs/split_tab_visual_data.h"
 #include "components/tab_groups/tab_group_id.h"
 
-class Browser;
+class BrowserWindowInterface;
 namespace content {
 class WebContents;
 }
@@ -27,7 +27,7 @@ using PaneCreationCallback = base::RepeatingCallback<
 // Prepare all members before dismantling an existing split. On failure, keep
 // the original split and remove only newly created, unchanged empty panes.
 // Existing tabs and panes that acquired navigation/unload state are untouched.
-bool ApplyNativePaneLayout(Browser* browser,
+bool ApplyNativePaneLayout(BrowserWindowInterface* browser,
                            size_t member_count,
                            split_tabs::SplitTabLayout layout,
                            const PaneCreationCallback& create_pane = {});

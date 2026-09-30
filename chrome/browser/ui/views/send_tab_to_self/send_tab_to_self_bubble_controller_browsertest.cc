@@ -20,9 +20,9 @@
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_test_util.h"
 #include "chrome/browser/signin/signin_browser_test_base.h"
 #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_context_menu_delegate.h"
 #include "chrome/browser/ui/signin/promos/bubble_signin_promo_view.h"
 #include "chrome/browser/ui/toasts/api/toast_id.h"
@@ -58,6 +58,12 @@
 namespace send_tab_to_self {
 
 namespace {
+
+using FormFactor = syncer::DeviceInfo::FormFactor;
+using OsType = syncer::DeviceInfo::OsType;
+
+using testing::AnyOf;
+using testing::HasSubstr;
 
 class TestSendTabToSelfModelObserver : public SendTabToSelfModelObserver {
  public:
@@ -181,7 +187,7 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfPostSendToastBrowserTest,
   GURL test_url = empty_url();
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, test_url));
 
   StubSendTabToSelfSyncService* sync_service = GetStubSyncService();
@@ -194,9 +200,8 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfPostSendToastBrowserTest,
       sync_service->GetSendTabToSelfModel());
 
   sync_service->GetFakeSendTabToSelfModel()->SetTargetDeviceInfoSortedList(
-      {TargetDeviceInfo("device_name_1", "device_1",
-                        syncer::DeviceInfo::FormFactor::kDesktop,
-                        base::Time::Now())});
+      {TargetDeviceInfo("device_name_1", "device_1", FormFactor::kDesktop,
+                        OsType::kLinux, base::Time::Now())});
 
   controller->OnDeviceSelected("device_1", "device_name_1");
   observer.WaitForEntryAdded();
@@ -214,7 +219,7 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfPostSendToastBrowserTest,
   GURL test_url = empty_url();
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, test_url));
 
   StubSendTabToSelfSyncService* sync_service = GetStubSyncService();
@@ -227,9 +232,8 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfPostSendToastBrowserTest,
       sync_service->GetSendTabToSelfModel());
 
   sync_service->GetFakeSendTabToSelfModel()->SetTargetDeviceInfoSortedList(
-      {TargetDeviceInfo("device_name_1", "device_1",
-                        syncer::DeviceInfo::FormFactor::kPhone,
-                        base::Time::Now())});
+      {TargetDeviceInfo("device_name_1", "device_1", FormFactor::kPhone,
+                        OsType::kAndroid, base::Time::Now())});
 
   controller->OnDeviceSelected("device_1", "device_name_1");
   observer.WaitForEntryAdded();
@@ -247,7 +251,7 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfPostSendToastBrowserTest,
   GURL test_url = empty_url();
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, test_url));
 
   StubSendTabToSelfSyncService* sync_service = GetStubSyncService();
@@ -260,9 +264,8 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfPostSendToastBrowserTest,
       sync_service->GetSendTabToSelfModel());
 
   sync_service->GetFakeSendTabToSelfModel()->SetTargetDeviceInfoSortedList(
-      {TargetDeviceInfo("device_name_1", "device_1",
-                        syncer::DeviceInfo::FormFactor::kTablet,
-                        base::Time::Now())});
+      {TargetDeviceInfo("device_name_1", "device_1", FormFactor::kTablet,
+                        OsType::kAndroid, base::Time::Now())});
 
   controller->OnDeviceSelected("device_1", "device_name_1");
   observer.WaitForEntryAdded();
@@ -279,7 +282,7 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfPostSendToastBrowserTest,
   GURL test_url = empty_url();
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, test_url));
 
   StubSendTabToSelfSyncService* sync_service =
@@ -295,9 +298,8 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfPostSendToastBrowserTest,
       sync_service->GetSendTabToSelfModel());
 
   sync_service->GetFakeSendTabToSelfModel()->SetTargetDeviceInfoSortedList(
-      {TargetDeviceInfo("device_name_1", "device_1",
-                        syncer::DeviceInfo::FormFactor::kDesktop,
-                        base::Time::Now())});
+      {TargetDeviceInfo("device_name_1", "device_1", FormFactor::kDesktop,
+                        OsType::kLinux, base::Time::Now())});
   sync_service->GetFakeSendTabToSelfModel()->SetSendResult(
       SendTabToSelfResult::kSuccessThrottled);
 
@@ -317,16 +319,15 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfPostSendToastBrowserTest,
   GURL test_url = empty_url();
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, test_url));
 
   StubSendTabToSelfSyncService* sync_service = GetStubSyncService();
   ASSERT_TRUE(sync_service);
 
   sync_service->GetFakeSendTabToSelfModel()->SetTargetDeviceInfoSortedList(
-      {TargetDeviceInfo("device_name_1", "device_1",
-                        syncer::DeviceInfo::FormFactor::kDesktop,
-                        base::Time::Now())});
+      {TargetDeviceInfo("device_name_1", "device_1", FormFactor::kDesktop,
+                        OsType::kLinux, base::Time::Now())});
 
   TestSendTabToSelfModelObserver observer(
       sync_service->GetSendTabToSelfModel());
@@ -350,7 +351,7 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfPostSendToastBrowserTest,
   GURL test_url = empty_url();
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, test_url));
 
   StubSendTabToSelfSyncService* sync_service = GetStubSyncService();
@@ -389,7 +390,7 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfPostSendToastDisabledBrowserTest,
   GURL test_url = empty_url();
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, test_url));
 
   StubSendTabToSelfSyncService* sync_service = GetStubSyncService();
@@ -436,7 +437,7 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfScrollPositionBrowserTest,
       embedded_test_server()->GetURL("/send_tab_to_self/scroll.html");
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, test_url));
 
   StubSendTabToSelfSyncService* sync_service = GetStubSyncService();
@@ -476,7 +477,7 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfScrollPositionBrowserTest,
   GURL test_url = embedded_test_server()->GetURL("/empty.html");
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, test_url));
 
   StubSendTabToSelfSyncService* sync_service = GetStubSyncService();
@@ -515,19 +516,21 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfScrollPositionBrowserTest,
       embedded_test_server()->GetURL("/send_tab_to_self/scroll.html");
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, test_url));
 
-  // Scroll to the content so it's precisely in the center of the viewport.
-  EXPECT_TRUE(content::ExecJs(
-      web_contents,
-      "new Promise(r => {"
-      "  document.getElementById('target').scrollIntoView("
-      "      {behavior: 'instant', block: 'center', inline: 'center'});"
-      "  requestAnimationFrame(() => "
-      "    requestAnimationFrame(r)"
-      "  );"
-      "});"));
+  // Scroll the page so the target element's vertical midpoint moves to 35% of
+  // the viewport height, where the reading position hit-test occurs.
+  EXPECT_TRUE(content::ExecJs(web_contents, R"(
+      new Promise(r => {
+        const target = document.getElementById('target');
+        const rect = target.getBoundingClientRect();
+        const currentMidpointY = rect.top + rect.height / 2;
+        const desiredMidpointY = window.innerHeight * 0.35;
+        window.scrollBy(0, currentMidpointY - desiredMidpointY);
+        requestAnimationFrame(() => requestAnimationFrame(r));
+      });
+    )"));
 
   StubSendTabToSelfSyncService* sync_service = GetStubSyncService();
   ASSERT_TRUE(sync_service);
@@ -560,19 +563,18 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfScrollPositionBrowserTest,
   // viewport.
   EXPECT_FALSE(
       observer.last_added_entry()->GetPageContext().scroll_position.IsEmpty());
-  // Verify that the generated selector matches the expected text.
-  EXPECT_THAT(
-      observer.last_added_entry()
-          ->GetPageContext()
-          .scroll_position.text_fragment.text_start,
-      testing::AnyOf(testing::HasSubstr("fox"), testing::HasSubstr("jumps"),
-                     testing::HasSubstr("dog")));
+  // Verify that the generated selector matches the middle words from the
+  // target paragraph.
+  EXPECT_THAT(observer.last_added_entry()
+                  ->GetPageContext()
+                  .scroll_position.text_fragment.text_start,
+              AnyOf(HasSubstr("fox"), HasSubstr("jumps"), HasSubstr("dog")));
 }
 
 IN_PROC_BROWSER_TEST_F(SendTabToSelfBubbleControllerBrowserTest,
                        HideBubbleOnNavigation) {
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, GURL("about:blank")));
 
   identity_test_env()->MakePrimaryAccountAvailable(
@@ -597,7 +599,7 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfBubbleControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(SendTabToSelfBubbleControllerBrowserTest,
                        ShowBubbleRecordsMetrics) {
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, GURL("about:blank")));
 
   identity_test_env()->MakePrimaryAccountAvailable(
@@ -609,12 +611,10 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfBubbleControllerBrowserTest,
       EntryPointDisplayReason::kOfferFeature);
   // Set up 2 target devices.
   sync_service->GetFakeSendTabToSelfModel()->SetTargetDeviceInfoSortedList(
-      {TargetDeviceInfo("device_name_0", "device_0",
-                        syncer::DeviceInfo::FormFactor::kDesktop,
-                        base::Time::Now()),
-       TargetDeviceInfo("device_name_1", "device_1",
-                        syncer::DeviceInfo::FormFactor::kDesktop,
-                        base::Time::Now())});
+      {TargetDeviceInfo("device_name_0", "device_0", FormFactor::kDesktop,
+                        OsType::kLinux, base::Time::Now()),
+       TargetDeviceInfo("device_name_1", "device_1", FormFactor::kDesktop,
+                        OsType::kLinux, base::Time::Now())});
 
   base::HistogramTester histogram_tester;
 
@@ -633,7 +633,7 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfBubbleControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(SendTabToSelfBubbleControllerBrowserTest,
                        ShowPromoBubble) {
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, empty_url()));
 
   StubSendTabToSelfSyncService* sync_service = GetStubSyncService();
@@ -653,7 +653,7 @@ IN_PROC_BROWSER_TEST_F(SendTabToSelfBubbleControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(SendTabToSelfBubbleControllerBrowserTest,
                        PromoBubbleAccept_OpensDiceSignInTab) {
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, empty_url()));
 
   // Trigger the 'Offer Sign-In' state by overriding the entry point display
@@ -730,7 +730,7 @@ IN_PROC_BROWSER_TEST_P(SendTabToSelfContextMenuParamsTest, VerifyMenuType) {
 #endif
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(content::NavigateToURL(web_contents, GURL("about:blank")));
 
   StubSendTabToSelfSyncService* stts_sync_service = GetStubSyncService();

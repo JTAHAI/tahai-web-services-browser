@@ -30,6 +30,10 @@
 #include "third_party/blink/public/mojom/loader/referrer.mojom-forward.h"
 #include "url/gurl.h"
 
+namespace network {
+class ResourceRequestBody;
+}  // namespace network
+
 namespace content {
 
 class FrameTreeNode;
@@ -90,6 +94,8 @@ class NavigationSimulatorImpl : public NavigationSimulator,
   void SetNavigationStart(base::TimeTicks navigation_start) override;
   void SetReloadType(ReloadType reload_type) override;
   void SetMethod(const std::string& method) override;
+  void SetResourceRequestBody(scoped_refptr<network::ResourceRequestBody>
+                                  resource_request_body) override;
   void SetIsFormSubmission(bool is_form_submission) override;
   void SetReferrer(blink::mojom::ReferrerPtr referrer) override;
   void SetSocketAddress(const net::IPEndPoint& remote_endpoint) override;
@@ -215,12 +221,6 @@ class NavigationSimulatorImpl : public NavigationSimulator,
   void set_insecure_navigations_set(
       const std::vector<uint32_t> insecure_navigations_set) {
     insecure_navigations_set_ = insecure_navigations_set;
-  }
-
-  void set_has_potentially_trustworthy_unique_origin(
-      bool has_potentially_trustworthy_unique_origin) {
-    has_potentially_trustworthy_unique_origin_ =
-        has_potentially_trustworthy_unique_origin;
   }
 
   void set_supports_loading_mode_header(std::string value) {
@@ -390,6 +390,7 @@ class NavigationSimulatorImpl : public NavigationSimulator,
   std::optional<net::SSLInfo> ssl_info_;
   std::optional<blink::PageState> page_state_;
   std::optional<url::Origin> origin_;
+  scoped_refptr<network::ResourceRequestBody> resource_request_body_;
   int64_t post_id_ = -1;
   bool skip_service_worker_ = false;
   std::optional<url::Origin> initiator_origin_;
@@ -405,7 +406,6 @@ class NavigationSimulatorImpl : public NavigationSimulator,
   blink::mojom::InsecureRequestPolicy insecure_request_policy_ =
       blink::mojom::InsecureRequestPolicy::kLeaveInsecureRequestsAlone;
   std::vector<uint32_t> insecure_navigations_set_;
-  bool has_potentially_trustworthy_unique_origin_ = false;
 
   // Any DNS aliases, as read from CNAME records, for the request URL that
   // would be in the network::mojom::URLResponseHead. The alias chain order

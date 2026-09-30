@@ -139,6 +139,7 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
   bool ShouldSendContextualUrlSuggestParam() const override;
   bool ShouldSendPageTitleSuggestParam() const override;
   bool IsOmniboxNextLensSearchChipEnabled() const override;
+  bool IsAskGShowChipEnabled() const override;
   bool IsOmniboxNextAimPopupEnabled() const override;
   bool IsGeminiStarterPackEnabled() const override;
   base::CallbackListSubscription GetLensSuggestInputsWhenReady(
@@ -153,7 +154,9 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
   void CloseIncognitoWindows() override;
   void PromptPageTranslation() override;
   bool OpenJourneys(const std::string& query) override;
-  void OpenLensOverlay(bool show) override;
+  void OpenLensOverlay(
+      bool show,
+      lens::LensOverlayInvocationSource invocation_source) override;
   bool ShouldOpenCoBrowsePanel() const override;
   void OpenCoBrowsePanel() override;
   bool ShouldOpenComposeboxForAskG() const override;

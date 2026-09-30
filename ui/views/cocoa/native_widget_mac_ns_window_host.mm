@@ -16,7 +16,7 @@
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/time/time.h"
-#include "components/remote_cocoa/app_shim/immersive_mode_delegate_mac.h"
+#include "components/remote_cocoa/app_shim/immersive_mode_controller_cocoa.h"
 #include "components/remote_cocoa/app_shim/mouse_capture.h"
 #include "components/remote_cocoa/app_shim/native_widget_mac_nswindow.h"
 #include "components/remote_cocoa/app_shim/native_widget_ns_window_bridge.h"
@@ -33,6 +33,7 @@
 #include "ui/base/hit_test.h"
 #include "ui/base/ime/input_method.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/recyclable_compositor_mac.h"
@@ -257,17 +258,6 @@ std::map<uint64_t, NativeWidgetMacNSWindowHost*>& GetIdToWidgetHostImplMap() {
 
 uint64_t g_last_bridged_native_widget_id = 0;
 
-NSWindow* OriginalHostingWindowFromFullScreenWindow(
-    NSWindow* full_screen_window) {
-  if ([full_screen_window.delegate
-          conformsToProtocol:@protocol(ImmersiveModeDelegate)]) {
-    return base::apple::ObjCCastStrict<NSObject<ImmersiveModeDelegate>>(
-               full_screen_window.delegate)
-        .originalHostingWindow;
-  }
-  return nullptr;
-}
-
 }  // namespace
 
 // static
@@ -285,7 +275,8 @@ NativeWidgetMacNSWindowHost* NativeWidgetMacNSWindowHost::GetFromNativeWindow(
   // TODO(mek): Figure out how to make this work with remote remote_cocoa
   // windows.
   if (remote_cocoa::IsNSToolbarFullScreenWindow(window)) {
-    NSWindow* original = OriginalHostingWindowFromFullScreenWindow(window);
+    NSWindow* original =
+        remote_cocoa::OriginalHostingWindowFromFullScreenWindow(window);
     if (NativeWidgetMacNSWindow* widget_window =
             base::apple::ObjCCast<NativeWidgetMacNSWindow>(original)) {
       return GetFromId([widget_window bridgedNativeWidgetId]);
@@ -716,9 +707,9 @@ void NativeWidgetMacNSWindowHost::UpdateCompositorProperties() {
   gfx::Size content_bounds_in_pixels =
       gfx::ToRoundedSize(gfx::ConvertSizeToPixels(
           content_bounds_in_screen_.size(), display_.device_scale_factor()));
-  compositor_->UpdateSurface(content_bounds_in_pixels,
-                             display_.device_scale_factor(),
-                             display_.GetColorSpaces(), display_.id());
+  compositor_->UpdateSurface(
+      content_bounds_in_pixels, display_.device_scale_factor(),
+      display_.GetColorSpaces(), display_.id(), display_.display_frequency());
 }
 
 void NativeWidgetMacNSWindowHost::DestroyCompositor() {
@@ -1051,9 +1042,12 @@ void NativeWidgetMacNSWindowHost::DispatchKeyEvent(ui::KeyEvent* event) {
 
 bool NativeWidgetMacNSWindowHost::DispatchKeyEventToMenuController(
     ui::KeyEvent* event) {
-  MenuController* menu_controller = MenuController::GetActiveInstance();
-  if (menu_controller && root_view_ &&
-      menu_controller->owner() == root_view_->GetWidget()) {
+  if (!root_view_) {
+    return false;
+  }
+  MenuController* menu_controller =
+      MenuController::GetForOwnerWidget(root_view_->GetWidget());
+  if (menu_controller) {
     return menu_controller->OnWillDispatchKeyEvent(event) ==
            ui::POST_DISPATCH_NONE;
   }
@@ -1066,6 +1060,16 @@ remote_cocoa::DragDropClient* NativeWidgetMacNSWindowHost::GetDragDropClient() {
 
 ui::TextInputClient* NativeWidgetMacNSWindowHost::GetTextInputClient() {
   return text_input_host_->GetTextInputClient();
+}
+
+void NativeWidgetMacNSWindowHost::SetLayerAndCompositorOpaque(bool opaque) {
+  if (layer()) {
+    layer()->SetFillsBoundsOpaquely(opaque);
+  }
+  if (compositor_) {
+    compositor_->compositor()->SetBackgroundColor(opaque ? SK_ColorWHITE
+                                                         : SK_ColorTRANSPARENT);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1146,7 +1150,13 @@ void NativeWidgetMacNSWindowHost::OnSpaceActivationChanged(
 }
 
 void NativeWidgetMacNSWindowHost::OnWindowNativeThemeChanged() {
-  ui::NativeTheme::GetInstanceForNativeUi()->NotifyOnNativeThemeUpdated();
+  if (base::FeatureList::IsEnabled(::features::kThemeChangeOptimization)) {
+    if (Widget* widget = GetWidget()) {
+      widget->ScheduleThemeChanged();
+    }
+  } else {
+    ui::NativeTheme::GetInstanceForNativeUi()->NotifyOnNativeThemeUpdated();
+  }
 }
 
 void NativeWidgetMacNSWindowHost::OnScrollEvent(
@@ -1225,9 +1235,13 @@ bool NativeWidgetMacNSWindowHost::DispatchMonitorEvent(
 
 bool NativeWidgetMacNSWindowHost::GetHasMenuController(
     bool* has_menu_controller) {
-  MenuController* menu_controller = MenuController::GetActiveInstance();
-  *has_menu_controller = menu_controller && root_view_ &&
-                         menu_controller->owner() == root_view_->GetWidget() &&
+  if (!root_view_) {
+    *has_menu_controller = false;
+    return true;
+  }
+  MenuController* menu_controller =
+      MenuController::GetForOwnerWidget(root_view_->GetWidget());
+  *has_menu_controller = menu_controller &&
                          // The editable combobox menu does not swallow keys.
                          !menu_controller->IsEditableCombobox();
   return true;
@@ -1392,12 +1406,10 @@ void NativeWidgetMacNSWindowHost::OnWindowGeometryChanged(
   content_bounds_in_screen_ = new_content_bounds_in_screen;
 
   Widget* widget = GetWidget();
-  // When a window grows vertically, the AppKit origin changes, but as far as
-  // toolkit-views is concerned, the window hasn't moved. Suppress these.
-  if (window_has_moved && widget) {
-    widget->OnNativeWidgetMove();
-  }
+  auto weak_this = weak_factory_.GetWeakPtr();
 
+  // Notify size changed first to prevent running OnNativeWidgetMove callbacks
+  // with outdated size.
   // Note we can't use new_window_bounds_in_screen.size(), since it includes the
   // titlebar for the purposes of detecting a window move.
   if (content_has_resized && widget) {
@@ -1405,6 +1417,18 @@ void NativeWidgetMacNSWindowHost::OnWindowGeometryChanged(
 
     // Update the compositor surface and layer size.
     UpdateCompositorProperties();
+  }
+
+  // Changing the size may destroy this.
+  if (!weak_this) {
+    return;
+  }
+
+  widget = GetWidget();
+  // When a window grows vertically, the AppKit origin changes, but as far as
+  // toolkit-views is concerned, the window hasn't moved. Suppress these.
+  if (window_has_moved && widget) {
+    widget->OnNativeWidgetMove();
   }
 }
 
@@ -1503,9 +1527,9 @@ void NativeWidgetMacNSWindowHost::OnWindowDisplayChanged(
   gfx::Size content_bounds_in_pixels =
       gfx::ToRoundedSize(gfx::ConvertSizeToPixels(
           content_bounds_in_screen_.size(), display_.device_scale_factor()));
-  compositor_->UpdateSurface(content_bounds_in_pixels,
-                             display_.device_scale_factor(),
-                             display_.GetColorSpaces(), display_.id());
+  compositor_->UpdateSurface(
+      content_bounds_in_pixels, display_.device_scale_factor(),
+      display_.GetColorSpaces(), display_.id(), display_.display_frequency());
 }
 
 void NativeWidgetMacNSWindowHost::OnWindowWillClose() {

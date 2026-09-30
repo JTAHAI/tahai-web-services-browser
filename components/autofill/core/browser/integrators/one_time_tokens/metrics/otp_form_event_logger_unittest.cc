@@ -5,18 +5,18 @@
 #include "base/base64.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/time/time.h"
 #include "components/autofill/core/browser/crowdsourcing/mock_autofill_crowdsourcing_manager.h"
 #include "components/autofill/core/browser/foundations/mock_autofill_manager_observer.h"
 #include "components/autofill/core/browser/integrators/one_time_tokens/otp_manager_impl.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics_test_base.h"
-#include "components/autofill/core/browser/metrics/ukm_metrics_test_utils.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/metrics/ukm_metrics_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
 #include "components/autofill/core/common/signatures.h"
 #include "components/one_time_tokens/core/browser/one_time_token.h"
 #include "components/one_time_tokens/core/browser/one_time_token_retrieval_error.h"
 #include "components/one_time_tokens/core/browser/one_time_token_service_impl.h"
 #include "components/one_time_tokens/core/browser/sms_otp_backend.h"
-#include "components/password_manager/core/browser/features/password_features.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
@@ -52,7 +52,6 @@ class OtpFormEventLoggerIntegrationTest
       public testing::Test {
  protected:
   OtpFormEventLoggerIntegrationTest() = default;
-  base::test::ScopedFeatureList feature_list_;
 
   void SetUp() override {
     SetUpHelper();
@@ -268,6 +267,12 @@ TEST_F(OtpFormEventLoggerIntegrationTest, OtpNotReady) {
   // Trigger field type determination to start OTP retrieval.
   test_api(autofill_manager()).OnFormsParsed({otp_form});
 
+  // Fast-forward time so the initial subscription started during form parsing
+  // expires. This ensures that when user interaction occurs, the subscription
+  // is renewed and queries the backend again, simulating that an OTP was not
+  // ready when the user interacted with the form.
+  task_environment_.FastForwardBy(base::Minutes(1));
+
   // This line marks the form as interacted with which is a prerequisite for key
   // metrics to be emitted.
   autofill_manager().OnAskForValuesToFillTest(
@@ -305,10 +310,6 @@ TEST_F(OtpFormEventLoggerIntegrationTest, OtpNotReady) {
 }
 
 TEST_F(OtpFormEventLoggerIntegrationTest, OtpAccepted) {
-#if BUILDFLAG(IS_ANDROID)
-  feature_list_.InitAndEnableFeature(
-      password_manager::features::kAndroidSmsOtpFilling);
-#endif
   base::HistogramTester histogram_tester;
   SetupMockedOtpResponse(true);
   FormData otp_form = CreateOtpForm();
@@ -459,10 +460,6 @@ TEST_F(OtpFormEventLoggerIntegrationTest, OtpNotAccepted) {
 }
 
 TEST_F(OtpFormEventLoggerIntegrationTest, OtpAcceptedAndCorrected) {
-#if BUILDFLAG(IS_ANDROID)
-  feature_list_.InitAndEnableFeature(
-      password_manager::features::kAndroidSmsOtpFilling);
-#endif
   base::HistogramTester histogram_tester;
   SetupMockedOtpResponse(true);
   FormData otp_form = CreateOtpForm();

@@ -13,7 +13,6 @@
 #include "ash/frame_sink/test/test_begin_frame_source.h"
 #include "ash/frame_sink/test/test_frame_factory.h"
 #include "ash/frame_sink/test/test_layer_tree_frame_sink.h"
-#include "ash/frame_sink/ui_resource_manager.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
 #include "base/functional/bind.h"
@@ -21,6 +20,8 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/run_loop.h"
+#include "cc/resources/resource_pool.h"
+#include "components/viz/client/client_resource_provider.h"
 #include "components/viz/common/frame_sinks/begin_frame_args.h"
 #include "components/viz/common/frame_sinks/begin_frame_source.h"
 #include "components/viz/common/gpu/context_provider.h"
@@ -96,20 +97,32 @@ class FrameSinkHolderTest : public AshTestBase {
         holder_weak_ptr_->layer_tree_frame_sink_for_test());
   }
 
-  std::unique_ptr<UiResource> MakeResource() {
-    const gfx::Size kSize = gfx::Size(20, 20);
-    auto shared_image = sii_->CreateSharedImage(
-        {viz::SinglePlaneFormat::kBGRA_8888, kSize, gfx::ColorSpace(),
-         gpu::SHARED_IMAGE_USAGE_DISPLAY_READ, "FastInkRootViewFrame"},
-        gpu::kNullSurfaceHandle);
-
-    auto resource = std::make_unique<UiResource>(sii_, std::move(shared_image));
-    resource->ui_source_id = 1u;
-    return resource;
+  size_t GetExportedResourcesCount(FrameSinkHolder* holder) {
+    FrameSinkHolderTestApi test_api(holder);
+    const size_t count = test_api.GetExportedResourcesCount();
+    EXPECT_EQ(test_api.client_resource_provider()->num_resources_for_testing(),
+              count);
+    EXPECT_GE(test_api.resource_pool()->GetTotalResourceCountForTesting(),
+              count);
+    return count;
   }
 
-  UiResourceManager& GetResourceManager() {
-    return frame_sink_holder_->resource_manager();
+  viz::TransferableResource CreateAndExportResource() {
+    FrameSinkHolderTestApi test_api(frame_sink_holder_.get());
+    auto resource = test_api.resource_pool()->AcquireResource(
+        gfx::Size(20, 20), viz::SinglePlaneFormat::kBGRA_8888,
+        gfx::ColorSpace());
+    resource.InstallSoftwareBacking(sii_, "TestFrame");
+    test_api.resource_pool()->PrepareForExport(
+        resource, viz::TransferableResource::ResourceSource::kTest);
+
+    std::vector<viz::TransferableResource> transferable_resources;
+    test_api.client_resource_provider()->PrepareSendToParent(
+        {resource.resource_id_for_export()}, &transferable_resources,
+        sii_.get());
+
+    test_api.resource_pool()->ReleaseResource(std::move(resource));
+    return transferable_resources[0];
   }
 
   scoped_refptr<gpu::SharedImageInterface> sii_;
@@ -356,8 +369,7 @@ TEST_F(FrameSinkHolderTest, DontSubmitNewFramesWhenWaitingToDeleteSinkHolder) {
   FrameSinkHolderTestApi test_api(frame_sink_holder_.get());
   base::RunLoop loop;
 
-  viz::TransferableResource resource_1 =
-      GetResourceManager().OfferAndPrepareResourceForExport(MakeResource());
+  auto resource_1 = CreateAndExportResource();
 
   frame_factory_->SetFrameResources({resource_1});
   frame_factory_->SetFrameMetaData(gfx::Size(100, 100), 1.0);
@@ -408,12 +420,9 @@ TEST_F(FrameSinkHolderTest,
 TEST_F(FrameSinkHolderTest, ExtendLifeTimeOfHolderToRootWindow) {
   FrameSinkHolderTestApi test_api(frame_sink_holder_.get());
 
-  viz::TransferableResource resource_1 =
-      GetResourceManager().OfferAndPrepareResourceForExport(MakeResource());
-  viz::TransferableResource resource_2 =
-      GetResourceManager().OfferAndPrepareResourceForExport(MakeResource());
-  viz::TransferableResource resource_3 =
-      GetResourceManager().OfferAndPrepareResourceForExport(MakeResource());
+  auto resource_1 = CreateAndExportResource();
+  auto resource_2 = CreateAndExportResource();
+  auto resource_3 = CreateAndExportResource();
 
   frame_factory_->SetFrameResources({resource_1, resource_2, resource_3});
   frame_factory_->SetFrameMetaData(gfx::Size(100, 100), 1.0);
@@ -481,10 +490,8 @@ TEST_F(FrameSinkHolderTest, DeleteHolderAfterReclaimingAllResources) {
   FrameSinkHolderTestApi test_api(frame_sink_holder_.get());
   base::RunLoop loop;
 
-  viz::TransferableResource resource_1 =
-      GetResourceManager().OfferAndPrepareResourceForExport(MakeResource());
-  viz::TransferableResource resource_2 =
-      GetResourceManager().OfferAndPrepareResourceForExport(MakeResource());
+  auto resource_1 = CreateAndExportResource();
+  auto resource_2 = CreateAndExportResource();
 
   frame_factory_->SetFrameResources({resource_1, resource_2});
   frame_factory_->SetFrameMetaData(gfx::Size(100, 100), 1.0);
@@ -516,8 +523,7 @@ TEST_F(FrameSinkHolderTest, DeleteHolderAfterReclaimingAllResources) {
 TEST_F(FrameSinkHolderTest, LayerTreeFrameSinkLost) {
   FrameSinkHolderTestApi test_api(frame_sink_holder_.get());
 
-  viz::TransferableResource resource_1 =
-      GetResourceManager().OfferAndPrepareResourceForExport(MakeResource());
+  auto resource_1 = CreateAndExportResource();
 
   frame_factory_->SetFrameResources({resource_1});
   frame_factory_->SetFrameMetaData(gfx::Size(100, 100), 1.0);
@@ -527,13 +533,11 @@ TEST_F(FrameSinkHolderTest, LayerTreeFrameSinkLost) {
   frame_sink_holder_->OnBeginFrame(CreateValidBeginFrameArgsForTesting());
   frame_sink_holder_->SubmitCompositorFrame(/*synchronous_draw=*/true);
 
-  EXPECT_EQ(GetResourceManager().exported_resources_count(), 1u);
+  EXPECT_EQ(GetExportedResourcesCount(frame_sink_holder_.get()), 1u);
 
   frame_sink_holder_->DidLoseLayerTreeFrameSink();
 
-  // When FrameSinkHolder loses the LayerTreeFrameSink, it marks all the
-  // exported resources as lost.
-  EXPECT_EQ(GetResourceManager().exported_resources_count(), 0u);
+  EXPECT_EQ(GetExportedResourcesCount(frame_sink_holder_.get()), 0u);
 }
 
 TEST_F(FrameSinkHolderTest,
@@ -541,8 +545,7 @@ TEST_F(FrameSinkHolderTest,
   FrameSinkHolderTestApi test_api(frame_sink_holder_.get());
   base::RunLoop loop;
 
-  viz::TransferableResource resource_1 =
-      GetResourceManager().OfferAndPrepareResourceForExport(MakeResource());
+  auto resource_1 = CreateAndExportResource();
 
   frame_factory_->SetFrameResources({resource_1});
   frame_factory_->SetFrameMetaData(gfx::Size(100, 100), 1.0);
@@ -573,8 +576,7 @@ TEST_F(FrameSinkHolderTest,
        DeleteSinkHolderWithExportedResources_DuringShutdown) {
   FrameSinkHolderTestApi test_api(frame_sink_holder_.get());
 
-  viz::TransferableResource resource_1 =
-      GetResourceManager().OfferAndPrepareResourceForExport(MakeResource());
+  auto resource_1 = CreateAndExportResource();
 
   frame_factory_->SetFrameResources({resource_1});
   frame_factory_->SetFrameMetaData(gfx::Size(100, 100), 1.0);
@@ -585,8 +587,7 @@ TEST_F(FrameSinkHolderTest,
   frame_sink_holder_->SubmitCompositorFrame(/*synchronous_draw=*/true);
 
   // Confirms we have an exported resource.
-  EXPECT_EQ(frame_sink_holder_->resource_manager().exported_resources_count(),
-            1u);
+  EXPECT_EQ(GetExportedResourcesCount(frame_sink_holder_.get()), 1u);
 
   // During shutdown, root_window can be null. We can replicate it by
   // removing the host window from the window hierarchy.
@@ -614,8 +615,7 @@ TEST_F(FrameSinkHolderTest,
        DeleteSinkHolderImmediatelyWhenNoExportedResources) {
   FrameSinkHolderTestApi test_api(frame_sink_holder_.get());
 
-  viz::TransferableResource resource_1 =
-      GetResourceManager().OfferAndPrepareResourceForExport(MakeResource());
+  auto resource_1 = CreateAndExportResource();
 
   frame_factory_->SetFrameResources({resource_1});
   frame_factory_->SetFrameMetaData(gfx::Size(100, 100), 1.0);
@@ -635,7 +635,7 @@ TEST_F(FrameSinkHolderTest,
   frame_sink_holder_->ReclaimResources(std::move(to_be_returned_resources));
 
   // We can delete the holder straight way since we have no exported resources.
-  ASSERT_EQ(GetResourceManager().exported_resources_count(), 0u);
+  ASSERT_EQ(GetExportedResourcesCount(frame_sink_holder_.get()), 0u);
 
   EXPECT_TRUE(FrameSinkHolder::DeleteWhenLastResourceHasBeenReclaimed(
       std::move(frame_sink_holder_), host_window_));
@@ -648,8 +648,7 @@ TEST_F(FrameSinkHolderTest,
 TEST_F(FrameSinkHolderTest, DeleteSinkHolderImmediatelyWhenFrameSinkIsLost) {
   FrameSinkHolderTestApi test_api(frame_sink_holder_.get());
 
-  viz::TransferableResource resource_1 =
-      GetResourceManager().OfferAndPrepareResourceForExport(MakeResource());
+  auto resource_1 = CreateAndExportResource();
 
   frame_factory_->SetFrameResources({resource_1});
   frame_factory_->SetFrameMetaData(gfx::Size(100, 100), 1.0);
@@ -663,7 +662,7 @@ TEST_F(FrameSinkHolderTest, DeleteSinkHolderImmediatelyWhenFrameSinkIsLost) {
   EXPECT_FALSE(test_api.LastSubmittedFrameSize().IsEmpty());
   EXPECT_EQ(layer_tree_frame_sink()->num_of_frames_received(), 1);
 
-  ASSERT_EQ(GetResourceManager().exported_resources_count(), 1u);
+  ASSERT_EQ(GetExportedResourcesCount(frame_sink_holder_.get()), 1u);
 
   frame_sink_holder_->DidLoseLayerTreeFrameSink();
 

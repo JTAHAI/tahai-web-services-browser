@@ -48,14 +48,19 @@ fillApi.addFunction(
 fillApi.addFunction(
     'inferLabelFromTableRow', elementInferenceUtil.inferLabelFromTableRow);
 fillApi.addFunction(
+    'insertInputElementValueAtCursor',
+    fillUtil.insertInputElementValueAtCursor);
+fillApi.addFunction(
     'isAutofillableElement', inferenceUtil.isAutofillableElement);
 fillApi.addFunction(
     'isAutofillableInputElement', inferenceUtil.isAutofillableInputElement);
-fillApi.addFunction('isCheckableElement', inferenceUtil.isCheckableElement);
+fillApi.addFunction('isContentEditable', fillUtil.isContentEditable);
 fillApi.addFunction('isSelectElement', inferenceUtil.isSelectElement);
 fillApi.addFunction('registerAllChildFrames', registerAllChildFrames);
 fillApi.addFunction(
     'sanitizeValueForInputElement', fillUtil.sanitizeValueForInputElement);
+fillApi.addFunction(
+    'setContentEditableValue', fillUtil.setContentEditableValue);
 fillApi.addFunction('setInputElementValue', fillUtil.setInputElementValue);
 fillApi.addFunction('setUniqueIDIfNeeded', setUniqueIDIfNeeded);
 fillApi.addFunction('shouldAutocomplete', fillUtil.shouldAutocomplete);

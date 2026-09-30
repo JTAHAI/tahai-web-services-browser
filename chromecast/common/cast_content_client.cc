@@ -13,6 +13,7 @@
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/memory/ref_counted_memory.h"
 #include "base/native_library.h"
 #include "base/path_service.h"
 #include "base/task/sequenced_task_runner.h"
@@ -37,12 +38,6 @@
 
 #include "chromecast/common/media/cast_media_drm_bridge_client.h"
 #include "components/cdm/common/android_cdm_registration.h"
-#endif
-
-#if !BUILDFLAG(IS_FUCHSIA)
-#include "base/no_destructor.h"
-#include "components/services/heap_profiling/public/cpp/profiling_client.h"  // nogncheck
-#include "mojo/public/cpp/bindings/pending_receiver.h"
 #endif
 
 #if BUILDFLAG(ENABLE_LIBRARY_CDMS)
@@ -147,7 +142,7 @@ std::string_view CastContentClient::GetDataResource(
       resource_id, scale_factor);
 }
 
-base::RefCountedMemory* CastContentClient::GetDataResourceBytes(
+scoped_refptr<base::RefCountedMemory> CastContentClient::GetDataResourceBytes(
     int resource_id) {
   // Chromecast loads localized resources for the home screen via this code
   // path. See crbug.com/643886 for details.
@@ -173,19 +168,7 @@ gfx::Image& CastContentClient::GetNativeImageNamed(int resource_id) {
 
 void CastContentClient::ExposeInterfacesToBrowser(
     scoped_refptr<base::SequencedTaskRunner> io_task_runner,
-    mojo::BinderMap* binders) {
-#if !BUILDFLAG(IS_FUCHSIA)
-  binders->Add<heap_profiling::mojom::ProfilingClient>(
-      base::BindRepeating(
-          [](mojo::PendingReceiver<heap_profiling::mojom::ProfilingClient>
-                 receiver) {
-            static base::NoDestructor<heap_profiling::ProfilingClient>
-                profiling_client;
-            profiling_client->BindToInterface(std::move(receiver));
-          }),
-      io_task_runner);
-#endif  // !BUILDFLAG(IS_FUCHSIA)
-}
+    mojo::BinderMap* binders) {}
 
 void CastContentClient::AddContentDecryptionModules(
     std::vector<content::CdmInfo>* cdms,

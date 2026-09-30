@@ -41,13 +41,13 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.ntp_customization.R;
 import org.chromium.chrome.browser.ntp_customization.theme.theme_collections.NtpThemeCollectionsAdapter.ThemeCollectionViewHolder;
 import org.chromium.components.image_fetcher.ImageFetcher;
+import org.chromium.ui.base.ViewUtils;
 import org.chromium.url.GURL;
 import org.chromium.url.JUnitTestGURLs;
 
@@ -58,7 +58,6 @@ import java.util.List;
 
 /** Unit tests for {@link NtpThemeCollectionsAdapter}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class NtpThemeCollectionsAdapterUnitTest {
     private static final String THEME_COLLECTION_TITLE = "Theme Collection 1";
     private static final GURL PREVIEW_IMAGE_URL = JUnitTestGURLs.URL_1;
@@ -81,7 +80,7 @@ public class NtpThemeCollectionsAdapterUnitTest {
                         ApplicationProvider.getApplicationContext(),
                         R.style.Theme_BrowserUI_DayNight);
         mParent = new FrameLayout(mContext);
-        mOnClickListener = view -> {};
+        mOnClickListener = ViewUtils.emptyClickListener();
 
         mCollectionItems = new ArrayList<>();
         mCollectionItems.add(

@@ -10,13 +10,14 @@ import {loadTimeData} from '//resources/js/load_time_data.js';
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
 
+import type {VisualBrowserProxy} from '../app/visual_browser_proxy.js';
+import {VisualBrowserProxyImpl} from '../app/visual_browser_proxy.js';
 import {DEFAULT_SETTINGS, ToolbarEvent} from '../content/read_anything_types.js';
 import type {SettingsPrefs, ShowAtConfigPrefs} from '../content/read_anything_types.js';
 import {ReadAnythingSettingsChange} from '../shared/metrics_browser_proxy.js';
 import {ReadAnythingLogger} from '../shared/read_anything_logger.js';
 
 import type {GroupedActionMenuElement} from './grouped_action_menu.js';
-import {SettingsItemType} from './menu_util.js';
 import type {MenuGroup, MenuStateItem, ToolbarMenu} from './menu_util.js';
 import {getHtml} from './text_menu.html.js';
 
@@ -27,8 +28,6 @@ export interface TextMenuElement {
 }
 
 const TextMenuElementBase = WebUiListenerMixinLit(I18nMixinLit(CrLitElement));
-
-export const MAX_EXPANDED_FONT_COUNT = 3;
 
 export class TextMenuElement extends TextMenuElementBase implements
     ToolbarMenu {
@@ -47,7 +46,6 @@ export class TextMenuElement extends TextMenuElementBase implements
       areFontsLoaded: {type: Boolean},
       pageLanguage: {type: String},
       groups_: {type: Array},
-      isFontMenuExpanded: {type: Boolean},
     };
   }
 
@@ -55,24 +53,26 @@ export class TextMenuElement extends TextMenuElementBase implements
   accessor nonModal: boolean = false;
   accessor areFontsLoaded: boolean = false;
   accessor pageLanguage: string = '';
-  accessor isFontMenuExpanded: boolean = false;
+
+  private visualBrowserProxy_: VisualBrowserProxy =
+      VisualBrowserProxyImpl.getInstance();
 
   private fontOptions_: Array<MenuStateItem<string>> = [];
   private lineSpacingOptions_: Array<MenuStateItem<number>> = [
     {
       title: loadTimeData.getString('lineSpacingStandardTitle'),
       icon: 'read-anything:line-spacing-standard-custom',
-      data: chrome.readingMode.standardLineSpacing,
+      data: this.visualBrowserProxy_.getStandardLineSpacing(),
     },
     {
       title: loadTimeData.getString('lineSpacingLooseTitle'),
       icon: 'read-anything:line-spacing-loose-custom',
-      data: chrome.readingMode.looseLineSpacing,
+      data: this.visualBrowserProxy_.getLooseLineSpacing(),
     },
     {
       title: loadTimeData.getString('lineSpacingVeryLooseTitle'),
       icon: 'read-anything:line-spacing-very-loose-custom',
-      data: chrome.readingMode.veryLooseLineSpacing,
+      data: this.visualBrowserProxy_.getVeryLooseLineSpacing(),
     },
   ];
 
@@ -82,21 +82,21 @@ export class TextMenuElement extends TextMenuElementBase implements
       icon: loadTimeData.getBoolean('webuiRoundedIconsEnabled')?
       'read-anything:format-letter-spacing-standard':
           'read-anything:letter-spacing-standard-old',
-      data: chrome.readingMode.standardLetterSpacing,
+      data: this.visualBrowserProxy_.getStandardLetterSpacing(),
     },
     {
       title: loadTimeData.getString('letterSpacingWideTitle'),
       icon: loadTimeData.getBoolean('webuiRoundedIconsEnabled')?
       'read-anything:format-letter-spacing-wide':
           'read-anything:letter-spacing-wide-old',
-      data: chrome.readingMode.wideLetterSpacing,
+      data: this.visualBrowserProxy_.getWideLetterSpacing(),
     },
     {
       title: loadTimeData.getString('letterSpacingVeryWideTitle'),
       icon: loadTimeData.getBoolean('webuiRoundedIconsEnabled')?
       'read-anything:format-letter-spacing-wider':
           'read-anything:letter-spacing-very-wide-old',
-      data: chrome.readingMode.veryWideLetterSpacing,
+      data: this.visualBrowserProxy_.getVeryWideLetterSpacing(),
     },
   ];
 
@@ -131,11 +131,14 @@ export class TextMenuElement extends TextMenuElementBase implements
   override willUpdate(changedProperties: PropertyValues<this>) {
     super.willUpdate(changedProperties);
 
+    if (changedProperties.has('pageLanguage') ||
+        changedProperties.has('areFontsLoaded')) {
+      this.computeFontOptions_();
+    }
+
     if (changedProperties.has('settingsPrefs') ||
         changedProperties.has('pageLanguage') ||
-        changedProperties.has('areFontsLoaded') ||
-        changedProperties.has('isFontMenuExpanded')) {
-      this.computeFontOptions_();
+        changedProperties.has('areFontsLoaded')) {
       this.updateOptionsForFont_();
       this.updateOptionsForLineSpacing_();
       this.updateOptionsForLetterSpacing_();
@@ -149,48 +152,33 @@ export class TextMenuElement extends TextMenuElementBase implements
 
   close() {
     this.$.menu.close();
-    this.isFontMenuExpanded = false;
   }
 
   protected onFontChange_(event: CustomEvent<{data: string}>) {
     const newFont = event.detail.data;
-    if (newFont === ToolbarEvent.EXPAND_FONTS_SENTINEL) {
-      event.stopImmediatePropagation();
-      this.isFontMenuExpanded = true;
-      return;
-    }
-    chrome.readingMode.onFontChange(newFont);
+    this.visualBrowserProxy_.onFontChange(newFont);
     this.logger_.logTextSettingsChange(ReadAnythingSettingsChange.FONT_CHANGE);
   }
 
   protected onLineSpacingChange_(event: CustomEvent<{data: number}>) {
     const newSpacing = event.detail.data;
-    chrome.readingMode.onLineSpacingChange(newSpacing);
+    this.visualBrowserProxy_.onLineSpacingChange(newSpacing);
     this.logger_.logTextSettingsChange(
         ReadAnythingSettingsChange.LINE_HEIGHT_CHANGE);
   }
 
   protected onLetterSpacingChange_(event: CustomEvent<{data: number}>) {
     const newSpacing = event.detail.data;
-    chrome.readingMode.onLetterSpacingChange(newSpacing);
+    this.visualBrowserProxy_.onLetterSpacingChange(newSpacing);
     this.logger_.logTextSettingsChange(
         ReadAnythingSettingsChange.LETTER_SPACING_CHANGE);
   }
 
   private updateOptionsForFont_() {
-    const currentFont = chrome.readingMode.fontName;
-    let hasSelected = false;
+    const currentFont = this.visualBrowserProxy_.getFontName();
     this.fontOptions_.forEach(option => {
       option.selected = option.data === currentFont;
-      if (option.selected) {
-        hasSelected = true;
-      }
     });
-    if (!hasSelected && this.fontOptions_.length > 0) {
-      if (this.fontOptions_[0]) {
-        this.fontOptions_[0].selected = true;
-      }
-    }
   }
 
   private updateOptionsForLineSpacing_() {
@@ -208,39 +196,15 @@ export class TextMenuElement extends TextMenuElementBase implements
   }
 
   private computeFontOptions_() {
-    const fonts = chrome.readingMode.supportedFonts;
-    let visibleFonts: string[];
-    if (this.isFontMenuExpanded || fonts.length <= MAX_EXPANDED_FONT_COUNT) {
-      visibleFonts = fonts;
-    } else {
-      const currentFont = chrome.readingMode.fontName;
-      const currentIndex = fonts.indexOf(currentFont);
-      if (currentIndex >= MAX_EXPANDED_FONT_COUNT) {
-        // Active font is outside the top 3.
-        // Pin first 2 default fonts + active font into the 3 visible slots.
-        visibleFonts = [...fonts.slice(0, 2), currentFont];
-      } else {
-        // Active font is in top 3 (or not set). Show top 3 fonts.
-        visibleFonts = fonts.slice(0, 3);
-      }
-    }
-    this.fontOptions_ = visibleFonts.map(
+    const fonts = this.visualBrowserProxy_.getSupportedFonts();
+    this.fontOptions_ = fonts.map(
         font => ({
           title: this.areFontsLoaded ?
               font :
               `${font}\u00A0${this.i18n('readingModeFontLoadingText')}`,
           data: font,
           style: `font-family:${font}`,
-          itemType: SettingsItemType.RADIO,
         }));
-    if (!this.isFontMenuExpanded && fonts.length > MAX_EXPANDED_FONT_COUNT) {
-      this.fontOptions_.push({
-        title: loadTimeData.getString('moreOptionsLabel'),
-        data: ToolbarEvent.EXPAND_FONTS_SENTINEL,
-        itemType: SettingsItemType.EXPAND,
-      });
-    }
-    this.updateOptionsForFont_();
     if (this.groups_[0]) {
       this.groups_[0].items = this.fontOptions_;
     }

@@ -11,7 +11,7 @@
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type_names.h"
-#include "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
+#include "components/autofill/core/browser/test_utils/entity_data_test_util.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -98,15 +98,35 @@ TEST(EntityAttributeUpdateDetailsTest, AttributeAdded) {
   ASSERT_THAT(
       EntityAttributeUpdateDetails::GetUpdatedAttributesDetails(
           new_number, old_number, "en-US"),
+      ElementsAre(EntityAttributeUpdateDetails(
+                      u"Name", u"Name", std::nullopt,
+                      EntityAttributeUpdateType::kNewEntityAttributeUnchanged),
+                  EntityAttributeUpdateDetails(
+                      u"Number", u"4321", u"1234",
+                      EntityAttributeUpdateType::kNewEntityAttributeUpdated),
+                  EntityAttributeUpdateDetails(
+                      u"Expiration date", u"Jan 1, 2030", std::nullopt,
+                      EntityAttributeUpdateType::kNewEntityAttributeAdded)));
+}
+
+TEST(EntityAttributeUpdateDetailsTest, AttributeAddedFromEmptyString) {
+  EntityInstance new_number = test::GetKnownTravelerNumberInstance(
+      {.name = u"Name", .number = u"4321", .expiration_date = u"2030-01-01"});
+  EntityInstance old_number = test::GetKnownTravelerNumberInstance(
+      {.name = u"Name", .number = u"", .expiration_date = u"2030-01-01"});
+
+  ASSERT_THAT(
+      EntityAttributeUpdateDetails::GetUpdatedAttributesDetails(
+          new_number, old_number, "en-US"),
       ElementsAre(
           EntityAttributeUpdateDetails(
-              u"Number", u"4321", u"1234",
-              EntityAttributeUpdateType::kNewEntityAttributeUpdated),
+              u"Name", u"Name", std::nullopt,
+              EntityAttributeUpdateType::kNewEntityAttributeUnchanged),
           EntityAttributeUpdateDetails(
-              u"Expiration date", u"Jan 1, 2030", std::nullopt,
+              u"Number", u"4321", std::nullopt,
               EntityAttributeUpdateType::kNewEntityAttributeAdded),
           EntityAttributeUpdateDetails(
-              u"Name", u"Name", std::nullopt,
+              u"Expiration date", u"Jan 1, 2030", std::nullopt,
               EntityAttributeUpdateType::kNewEntityAttributeUnchanged)));
 }
 
@@ -120,13 +140,12 @@ TEST(EntityAttributeUpdateDetailsTest, AttributeRemoved) {
   ASSERT_THAT(
       EntityAttributeUpdateDetails::GetUpdatedAttributesDetails(
           new_number, old_number, "en-US"),
-      ElementsAre(
-          EntityAttributeUpdateDetails(
-              u"Number", u"4321", u"1234",
-              EntityAttributeUpdateType::kNewEntityAttributeUpdated),
-          EntityAttributeUpdateDetails(
-              u"Name", u"Name", std::nullopt,
-              EntityAttributeUpdateType::kNewEntityAttributeUnchanged)));
+      ElementsAre(EntityAttributeUpdateDetails(
+                      u"Name", u"Name", std::nullopt,
+                      EntityAttributeUpdateType::kNewEntityAttributeUnchanged),
+                  EntityAttributeUpdateDetails(
+                      u"Number", u"4321", u"1234",
+                      EntityAttributeUpdateType::kNewEntityAttributeUpdated)));
 }
 
 // Tests that masked attributes are compared by their suffixes rather than a raw

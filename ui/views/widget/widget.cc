@@ -33,8 +33,10 @@
 #include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/color/color_provider_manager.h"
+#include "ui/color/color_provider_source_observer.h"
 #include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
 #include "ui/display/display.h"
@@ -53,6 +55,8 @@
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/focus/focus_manager_factory.h"
 #include "ui/views/focus/native_view_focus_manager.h"
+#include "ui/views/input_protection/default_input_protection_policy.h"
+#include "ui/views/input_protection/input_protection_event_handler.h"
 #include "ui/views/input_protection/occluded_widget_input_protector.h"
 #include "ui/views/input_protection/occlusion_aware_input_protection_policy.h"
 #include "ui/views/input_protection/window_activation_input_protection_policy.h"
@@ -83,6 +87,26 @@
 namespace views {
 
 namespace {
+
+class ParentThemeObserver : public ui::ColorProviderSourceObserver {
+ public:
+  ParentThemeObserver(Widget* widget, ui::ColorProviderSource* parent)
+      : widget_(widget) {
+    parent_theme_observation_.Observe(parent);
+  }
+  ~ParentThemeObserver() override = default;
+
+  void OnColorProviderChanged() override {
+    widget_->ResetLastColorProviderKey();
+    widget_->ScheduleThemeChanged();
+  }
+
+ private:
+  raw_ptr<Widget> widget_;
+  base::ScopedObservation<ui::ColorProviderSource,
+                          ui::ColorProviderSourceObserver>
+      parent_theme_observation_{this};
+};
 
 // If `view` has a layer the layer is added to `layers`. Else this recurses
 // through the children. This is used to build a list of the layers in reverse
@@ -497,12 +521,16 @@ void Widget::Init(InitParams params) {
     parent_ = GetWidgetForNativeView(params.parent)->GetWeakPtr();
   }
 
-  // Subscripbe to parent's paint-as-active change.
+  // Subscribe to parent's paint-as-active change and theme changes.
   if (parent_) {
     parent_paint_as_active_subscription_ =
         parent_->RegisterPaintAsActiveChangedCallback(
             base::BindRepeating(&Widget::OnParentShouldPaintAsActiveChanged,
                                 base::Unretained(this)));
+    if (base::FeatureList::IsEnabled(::features::kThemeChangeOptimization)) {
+      parent_theme_observer_ =
+          std::make_unique<ParentThemeObserver>(this, parent_.get());
+    }
   }
 
   params.child |= (params.type == InitParams::TYPE_CONTROL);
@@ -644,6 +672,11 @@ void Widget::Init(InitParams params) {
 
   OccludedWidgetInputProtector::GetInstance()->UpdateTracking(
       base::PassKey<Widget>(), this);
+
+  if (base::FeatureList::IsEnabled(features::kEnableInputProtection)) {
+    input_protection_event_handler_ =
+        std::make_unique<InputProtectionEventHandler>(root_view_.get());
+  }
 
   internal::AnyWidgetObserverSingleton::GetInstance()->OnAnyWidgetInitialized(
       this);
@@ -924,6 +957,18 @@ bool Widget::IsMoveLoopSupported() const {
   return native_widget_ ? native_widget_->IsMoveLoopSupported() : false;
 }
 
+void Widget::PrepareForMoveLoop(MoveLoopSource source) {
+  if (native_widget_) {
+    native_widget_->PrepareForMoveLoop(source);
+  }
+}
+
+void Widget::SetBypassWindowManager(bool bypass) {
+  if (native_widget_) {
+    native_widget_->SetBypassWindowManager(bypass);
+  }
+}
+
 bool Widget::IsMouseButtonDown() const {
   return native_widget_ ? native_widget_->IsMouseButtonDown() : false;
 }
@@ -1081,6 +1126,7 @@ void Widget::Show() {
   ui::mojom::WindowShowState preferred_show_state =
       CanActivate() ? ui::mojom::WindowShowState::kNormal
                     : ui::mojom::WindowShowState::kInactive;
+  auto weak_this = GetWeakPtr();
   if (non_client_view_) {
     // While initializing, the kiosk mode will go to full screen before the
     // widget gets shown. In that case we stay in full screen mode, regardless
@@ -1092,12 +1138,14 @@ void Widget::Show() {
     } else {
       native_widget_->Show(saved_show_state_, gfx::Rect());
     }
+    CHECK(weak_this);
     // |saved_show_state_| only applies the first time the window is shown.
     // If we don't reset the value the window may be shown maximized every time
     // it is subsequently shown after being hidden.
     saved_show_state_ = preferred_show_state;
   } else {
     native_widget_->Show(preferred_show_state, gfx::Rect());
+    CHECK(weak_this);
   }
 
   HandleShowRequested();
@@ -1107,7 +1155,9 @@ void Widget::Hide() {
   if (!native_widget_) {
     return;
   }
+  auto weak_this = GetWeakPtr();
   native_widget_->Hide();
+  CHECK(weak_this);
   internal::AnyWidgetObserverSingleton::GetInstance()->OnAnyWidgetHidden(this);
 }
 
@@ -1115,6 +1165,7 @@ void Widget::ShowInactive() {
   if (!native_widget_) {
     return;
   }
+  auto weak_this = GetWeakPtr();
   // If this gets called with saved_show_state_ ==
   // ui::mojom::WindowShowState::kMaximized, call SetBounds()with the restored
   // bounds to set the correct size. This normally should not happen, but if it
@@ -1122,9 +1173,11 @@ void Widget::ShowInactive() {
   if (saved_show_state_ == ui::mojom::WindowShowState::kMaximized &&
       !initial_restored_bounds_.IsEmpty()) {
     SetBounds(initial_restored_bounds_);
+    CHECK(weak_this);
     saved_show_state_ = ui::mojom::WindowShowState::kNormal;
   }
   native_widget_->Show(ui::mojom::WindowShowState::kInactive, gfx::Rect());
+  CHECK(weak_this);
 
   HandleShowRequested();
 }
@@ -1342,11 +1395,8 @@ void Widget::EnableInputEventActivationProtection(
     return;
   }
 
-  input_protector_ = std::make_unique<InputEventActivationProtector>();
-  // TODO(crbug.com/467460499): `DefaultInputProtectionPolicy` is installed by
-  // default (inside `InputEventActivationProtector`), but it won't work fully
-  // because visibility changes are not yet forwarded from the Widget.
-  // This will be addressed in a follow-up CL.
+  input_protector_ = std::make_unique<InputEventActivationProtector>(
+      std::make_unique<DefaultInputProtectionPolicy>(GetRootView()));
   input_protector_->AddPolicy(
       std::make_unique<OcclusionAwareInputProtectionPolicy>());
   input_protector_->AddPolicy(
@@ -1355,16 +1405,6 @@ void Widget::EnableInputEventActivationProtection(
 
 bool Widget::IsInputEventActivationProtectionEnabled() const {
   return input_event_activation_protection_enabled_;
-}
-
-bool Widget::IsPossiblyUnintendedInteraction(const ui::Event& event,
-                                             const View* target) {
-  if (!IsInputEventActivationProtectionEnabled()) {
-    return false;
-  }
-
-  return input_protector_->IsPossiblyUnintendedInteraction(
-      event, /*allow_key_events=*/false, target);
 }
 
 const ui::ThemeProvider* Widget::GetThemeProvider() const {
@@ -1570,7 +1610,39 @@ FocusTraversable* Widget::GetFocusTraversable() {
   return static_cast<internal::RootView*>(root_view_.get());
 }
 
+void Widget::ScheduleThemeChanged() {
+  if (!base::FeatureList::IsEnabled(::features::kThemeChangeOptimization)) {
+    ThemeChanged();
+    return;
+  }
+  if (theme_update_scheduled_) {
+    return;
+  }
+  theme_update_scheduled_ = true;
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&Widget::ProcessScheduledThemeChanged,
+                                weak_ptr_factory_.GetWeakPtr()));
+}
+
+void Widget::ProcessScheduledThemeChanged() {
+  if (!theme_update_scheduled_) {
+    return;
+  }
+  theme_update_scheduled_ = false;
+  ThemeChanged();
+}
+
 void Widget::ThemeChanged() {
+  theme_update_scheduled_ = false;
+
+  if (base::FeatureList::IsEnabled(::features::kThemeChangeOptimization)) {
+    const ui::ColorProviderKey current_key = GetColorProviderKey();
+    if (last_color_provider_key_ && *last_color_provider_key_ == current_key) {
+      return;
+    }
+    last_color_provider_key_ = current_key;
+  }
+
   if (root_view_) {
     root_view_->ThemeChanged();
   }
@@ -1987,7 +2059,8 @@ bool Widget::OnNativeWidgetActivationChanged(bool active) {
   const bool was_paint_as_active = ShouldPaintAsActive();
 
   // Widgets in a widget tree should share the same ShouldPaintAsActive().
-  // Lock the parent as paint-as-active when this widget becomes active.
+  // Lock the parent as paint-as-active when this widget becomes active (if not
+  // already locked).
   // If we're in the process of closing the widget, delay resetting the
   // `parent_paint_as_active_lock_` until the owning native widget destroys this
   // widget (i.e. wait until widget destruction). Do this as closing a widget
@@ -2000,10 +2073,14 @@ bool Widget::OnNativeWidgetActivationChanged(bool active) {
   // native widget to destroy this widget we ensure that resetting the paint
   // lock happens synchronously with the activation the next widget (see
   // crbug/1303549).
-  if (!active && !paint_as_active_refcount_ && !widget_closed_) {
-    parent_paint_as_active_lock_.reset();
-  } else if (parent()) {
-    parent_paint_as_active_lock_ = parent()->LockPaintAsActive();
+  if (active) {
+    if (parent() && !parent_paint_as_active_lock_) {
+      parent_paint_as_active_lock_ = parent()->LockPaintAsActive();
+    }
+  } else {
+    if (!paint_as_active_refcount_ && !widget_closed_) {
+      parent_paint_as_active_lock_.reset();
+    }
   }
 
   native_widget_active_ = active;
@@ -2593,7 +2670,7 @@ View* Widget::GetFocusTraversableParentView() {
 
 void Widget::OnNativeThemeUpdated(ui::NativeTheme* observed_theme) {
   TRACE_EVENT0("ui", "Widget::OnNativeThemeUpdated");
-  ThemeChanged();
+  ScheduleThemeChanged();
 }
 
 void Widget::OnAXModeAdded(ui::AXMode mode) {
@@ -2613,14 +2690,14 @@ void Widget::SetColorModeOverride(
     std::optional<ui::ColorProviderKey::ColorMode> color_mode) {
   if (color_mode != color_mode_override_) {
     color_mode_override_ = color_mode;
-    ThemeChanged();
+    ScheduleThemeChanged();
   }
 }
 
 void Widget::SetUserColorOverride(std::optional<SkColor> user_color) {
   if (user_color != user_color_override_) {
     user_color_override_ = user_color;
-    ThemeChanged();
+    ScheduleThemeChanged();
   }
 }
 
@@ -2683,6 +2760,10 @@ ui::ColorProviderKey Widget::GetColorProviderKeyForTesting() const {
   return GetColorProviderKey();
 }
 
+void Widget::ResetLastColorProviderKey() {
+  last_color_provider_key_.reset();
+}
+
 void Widget::SetCheckParentForFullscreen() {
   check_parent_for_fullscreen_ = true;
 }
@@ -2739,6 +2820,7 @@ internal::RootView* Widget::CreateRootView() {
 void Widget::DestroyRootView() {
   NotifyWillRemoveView(root_view_.get());
   non_client_view_ = nullptr;
+  input_protection_event_handler_.reset();
   // Remove all children before the unique_ptr reset so that
   // GetWidget()->GetRootView() doesn't return nullptr while the views hierarchy
   // is being torn down.
@@ -2851,7 +2933,7 @@ void Widget::HandleNativeWidgetReparented(Widget* parent) {
   parent_paint_as_active_lock_.reset();
   parent_paint_as_active_subscription_ = base::CallbackListSubscription();
 
-  // Lock and subscribe to parent's paint-as-active.
+  // Lock and subscribe to parent's paint-as-active and theme changes.
   if (parent) {
     if (has_lock_on_parent || native_widget_active_) {
       parent_paint_as_active_lock_ = parent->LockPaintAsActive();
@@ -2860,6 +2942,14 @@ void Widget::HandleNativeWidgetReparented(Widget* parent) {
         parent->RegisterPaintAsActiveChangedCallback(
             base::BindRepeating(&Widget::OnParentShouldPaintAsActiveChanged,
                                 base::Unretained(this)));
+    if (base::FeatureList::IsEnabled(::features::kThemeChangeOptimization)) {
+      parent_theme_observer_ =
+          std::make_unique<ParentThemeObserver>(this, parent);
+    } else {
+      parent_theme_observer_.reset();
+    }
+  } else {
+    parent_theme_observer_.reset();
   }
 
   if (old_parent) {
@@ -2958,10 +3048,11 @@ void Widget::HandleWidgetDestroying() {
   CHECK(!native_widget_destroyed_);
   CHECK(!widget_destroying_handled_);
   widget_destroying_handled_ = true;
-  ClearFocusManagerFromWidget();
   if (parent_) {
     parent_->OnChildRemoved(this);
   }
+  parent_theme_observer_.reset();
+  ClearFocusManagerFromWidget();
   observers_.Notify(&WidgetObserver::OnWidgetDestroying, this);
   if (non_client_view_) {
     non_client_view_->WindowClosing();
@@ -2972,6 +3063,13 @@ void Widget::HandleWidgetDestroying() {
 }
 
 void Widget::HandleWidgetDestroyed() {
+  // This check may fail if Automation Framework manipulates the window hierarchy
+  // on Windows. Specifically, if Chrome's hwnd is re-parented to a hwnd created
+  // by a different thread and then the parent hwnd is closed, Chrome will
+  // receive WM_NCDESTROY (which calls OnNativeWidgetDestroying) without a
+  // preceding WM_DESTROY (which calls OnNativeWidgetDestroyed).
+  // We intentionally leave this failure. Please see crbug.com/540755275 for the
+  // discussion.
   CHECK(widget_destroying_handled_);
   if (native_widget_destroyed_) {
     return;

@@ -62,6 +62,7 @@
 #include "chrome/common/webui_url_constants.h"
 #include "components/application_locale_storage/application_locale_storage.h"
 #include "components/bookmarks/browser/bookmark_model.h"
+#include "components/contextual_tasks/public/features.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/top_sites.h"
 #include "components/history/core/common/pref_names.h"
@@ -123,7 +124,9 @@
 #include "base/android/jni_android.h"
 #include "chrome/browser/lens/jni_headers/LensSupportStatusHelper_jni.h"
 #else  // BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/contextual_search/contextual_search_service_factory.h"
 #include "chrome/browser/contextual_search/contextual_search_web_contents_helper.h"
+#include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_ui_service_factory.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
@@ -139,6 +142,7 @@
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/side_panel/history_clusters/history_clusters_side_panel_coordinator.h"
 #include "chrome/browser/upgrade_detector/upgrade_detector.h"
+#include "components/contextual_search/contextual_search_service.h"
 #include "components/lens/lens_overlay_invocation_source.h"
 #endif  // BUILDFLAG(IS_ANDROID)
 
@@ -148,9 +152,9 @@ namespace {
 // This list should be kept in sync with chrome/common/webui_url_constants.h.
 // Only include useful sub-pages, confirmation alerts are not useful.
 constexpr auto kChromeSettingsSubPages = std::to_array<base::cstring_view>({
-    chrome::kAddressesSubPage,
     chrome::kAutofillSubPage,
     chrome::kClearBrowserDataSubPage,
+    chrome::kContactInfoSubPage,
     chrome::kContentSettingsSubPage,
     chrome::kLanguageOptionsSubPage,
     chrome::kPasswordManagerSubPage,
@@ -245,7 +249,11 @@ ChromeAutocompleteProviderClient::ChromeAutocompleteProviderClient(
           unified_consent::UrlKeyedDataCollectionConsentHelper::
               NewPersonalizedDataCollectionConsentHelper(
                   SyncServiceFactory::GetForProfile(profile_))),
+#if BUILDFLAG(IS_ANDROID)
+      tab_matcher_(GetTemplateURLService(), profile_, web_contents_getter_),
+#else
       tab_matcher_(GetTemplateURLService(), profile_),
+#endif
       storage_partition_(nullptr),
       omnibox_triggered_feature_service_(
           std::make_unique<OmniboxTriggeredFeatureService>()) {
@@ -707,6 +715,14 @@ bool ChromeAutocompleteProviderClient::IsOmniboxNextLensSearchChipEnabled()
 #endif  // !BUILDFLAG(IS_ANDROID)
 }
 
+bool ChromeAutocompleteProviderClient::IsAskGShowChipEnabled() const {
+#if !BUILDFLAG(IS_ANDROID)
+  return IsOmniboxNextAimPopupEnabled() && omnibox::kAskGShowChip.Get();
+#else
+  return false;
+#endif  // !BUILDFLAG(IS_ANDROID)
+}
+
 bool ChromeAutocompleteProviderClient::IsOmniboxNextAimPopupEnabled() const {
 #if !BUILDFLAG(IS_ANDROID)
   return omnibox::IsAimPopupEnabled(profile_);
@@ -786,7 +802,7 @@ bool ChromeAutocompleteProviderClient::OpenJourneys(const std::string& query) {
   }
 
   auto* const history_clusters_side_panel_coordinator =
-      bwi->GetFeatures().history_clusters_side_panel_coordinator();
+      HistoryClustersSidePanelCoordinator::From(bwi);
   if (history_clusters_side_panel_coordinator &&
       history_clusters_side_panel_coordinator->Show(query)) {
     return true;
@@ -799,8 +815,27 @@ bool ChromeAutocompleteProviderClient::OpenJourneys(const std::string& query) {
 
 bool ChromeAutocompleteProviderClient::ShouldOpenCoBrowsePanel() const {
 #if !BUILDFLAG(IS_ANDROID)
-  return omnibox::kAskGCoBrowse.Get()
-      || omnibox::kAskGCoBrowseWithVisualSelection.Get();
+  if (!lens::features::IsLensSidePanelUnificationEnabled() ||
+      !contextual_tasks::IsContextualTasksUIEnabled()) {
+    return false;
+  }
+
+  if (!omnibox::kAskGCoBrowse.Get() &&
+      !omnibox::kAskGCoBrowseWithVisualSelection.Get()) {
+    return false;
+  }
+
+  if (!lens::features::IsLensSidePanelUnificationAllowSignedOut()) {
+    auto* ui_service =
+        contextual_tasks::ContextualTasksUiServiceFactory::GetForBrowserContext(
+            profile_);
+    if (!ui_service || !ui_service->IsSignedInToBrowserWithValidCredentials() ||
+        !ui_service->CookieJarContainsPrimaryAccount()) {
+      return false;
+    }
+  }
+
+  return true;
 #else
   return false;
 #endif
@@ -819,11 +854,6 @@ void ChromeAutocompleteProviderClient::OpenCoBrowsePanel() {
                          : nullptr;
 
   if (ui_service) {
-    if (auto* lens_controller = LensSearchController::From(tab)) {
-      lens_controller->SetInvocationSource(
-          lens::LensOverlayInvocationSource::kOmniboxPageAction);
-    }
-
     GURL creation_url = ui_service->GetDefaultAiPageUrl();
     auto* tab_helper =
         ContextualSearchWebContentsHelper::GetOrCreateForWebContents(
@@ -831,13 +861,60 @@ void ChromeAutocompleteProviderClient::OpenCoBrowsePanel() {
     std::unique_ptr<contextual_search::ContextualSearchSessionHandle>
         session_handle = tab_helper->TakeSessionHandle();
 
+    if (!session_handle) {
+      auto* contextual_search_service =
+          ContextualSearchServiceFactory::GetForProfile(bwi->GetProfile());
+      if (contextual_search_service) {
+        session_handle = contextual_search_service->CreateSession(
+            omnibox::CreateQueryControllerConfigParams(),
+            // TODO (crbug.com/554084129) - Update
+            // toContextualSearchSource::kOmnibox or something new to decouple
+            // from lens.
+            contextual_search::ContextualSearchSource::kLens,
+            lens::LensOverlayInvocationSource::kOmniboxPageAction);
+      }
+    }
+
+    // Verify enterprise content sharing settings for the session. This is
+    // required before ContextualSearchSessionHandle::CreateContextToken() can
+    // be called (e.g., when Lens Overlay calls this handle concurrently).
+    if (session_handle) {
+      session_handle->CheckSearchContentSharingSettings(
+          bwi->GetProfile()->GetPrefs());
+    }
+
+    if (auto* lens_controller = LensSearchController::From(tab)) {
+      if (omnibox::kAskGCoBrowseWithVisualSelection.Get()) {
+        // Concurrently launch the Lens Overlay alongside the side panel
+        // opening.
+        lens_controller->OpenLensOverlay(
+            lens::LensOverlayInvocationSource::kOmniboxPageAction);
+      } else {
+        lens_controller->SetInvocationSource(
+            lens::LensOverlayInvocationSource::kOmniboxPageAction);
+      }
+    }
+    contextual_tasks::StartTaskUiOptions options;
+    options.entry_point =
+        omnibox::ChromeAimEntryPoint::DESKTOP_CHROME_COBROWSE_OMNIBOX_ACTION;
+
     ui_service->StartTaskUiInSidePanel(bwi, tab, creation_url,
-                                       std::move(session_handle));
+                                       std::move(session_handle), options);
+
+    // Focus the side panel so that focus is not left on the omnibox.
+    if (auto* controller =
+            contextual_tasks::ContextualTasksPanelController::From(bwi)) {
+      if (auto* side_panel_contents = controller->GetActiveWebContents()) {
+        side_panel_contents->Focus();
+      }
+    }
   }
 #endif
 }
 
-void ChromeAutocompleteProviderClient::OpenLensOverlay(bool show) {
+void ChromeAutocompleteProviderClient::OpenLensOverlay(
+    bool show,
+    lens::LensOverlayInvocationSource invocation_source) {
 #if !BUILDFLAG(IS_ANDROID)
   if (auto* lens_search_controller =
           GetLensSearchController(GetWebContents(web_contents_getter_))) {
@@ -845,8 +922,7 @@ void ChromeAutocompleteProviderClient::OpenLensOverlay(bool show) {
       // Force showing the contextual search box in the Lens Overlay, unless
       // kAskGLensChipRoute is enabled.
       bool show_csb = !omnibox::kAskGLensChipRoute.Get();
-      lens_search_controller->OpenLensOverlay(
-          lens::LensOverlayInvocationSource::kOmniboxPageAction, show_csb);
+      lens_search_controller->OpenLensOverlay(invocation_source, show_csb);
     } else {
       // TODO(crbug.com/402497756): For prototyping, reusing the existing
       // omnibox entry point. However, for production, create a new invocation

@@ -60,7 +60,7 @@ export function getHtml(this: NtpComposeboxElement) {
     ${this.errorMessage ?
       html`<ntp-error-scrim id="errorScrim" part="error-scrim"
           ?compact-mode="${this.searchboxLayoutMode === 'Compact' &&
-                          this.files.size === 0}"
+                          !this.hasFiles()}"
           .errorMessage="${this.errorMessage}"
           @dismiss-error-scrim="${this.onDismissErrorScrim}">
       </ntp-error-scrim>`
@@ -92,7 +92,7 @@ export function getHtml(this: NtpComposeboxElement) {
           ${this.shouldShowVoiceSearch() ? html`
             <cr-icon-button id="voiceSearchButton" class="voice-icon"
                 slot="action-buttons"
-                part="voice-icon" iron-icon="cr:mic"
+                part="voice-icon" iron-icon="cr:mic-filled"
                 @click="${this.onVoiceSearchButtonClick}"
                 title="${this.i18n('voiceSearchButtonLabel')}">
             </cr-icon-button>

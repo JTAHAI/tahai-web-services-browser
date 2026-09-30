@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -30,40 +31,46 @@
 #include "base/notimplemented.h"
 #include "base/notreached.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/types/optional_ref.h"
-#include "base/types/zip.h"
 #include "build/buildflag.h"
 #include "components/affiliations/core/browser/affiliation_utils.h"
 #include "components/autofill/core/browser/autofill_field.h"
 #include "components/autofill/core/browser/data_manager/autofill_ai/entity_data_manager.h"
-#include "components/autofill/core/browser/data_model/addresses/autofill_normalization_utils.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_normalization_util.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_instance.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type.h"
 #include "components/autofill/core/browser/data_model/autofill_ai/entity_type_names.h"
-#include "components/autofill/core/browser/field_type_utils.h"
+#include "components/autofill/core/browser/field_type_util.h"
 #include "components/autofill/core/browser/filling/autofill_ai/field_filling_entity_util.h"
 #include "components/autofill/core/browser/filling/field_filling_util.h"
 #include "components/autofill/core/browser/form_processing/autofill_ai/determine_attribute_types.h"
 #include "components/autofill/core/browser/form_structure.h"
 #include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_labels.h"
 #include "components/autofill/core/browser/network/autofill_ai/autofill_ai_personal_context_access_manager.h"
-#include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_utils.h"
+#include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_util.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/autofill/core/browser/suggestions/suggestion_util.h"
+#include "components/autofill/core/common/autofill_debug_features.h"
 #include "components/autofill/core/common/autofill_features.h"
+#include "components/autofill/core/common/autofill_prefs.h"
 #include "components/autofill/core/common/dense_set.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "components/autofill/core/common/unique_ids.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/personal_context/core/personal_context_features.h"
+#include "components/personal_context/core/personal_context_prefs.h"
+#include "components/personal_context/first_run/personal_context_first_run_service.h"
+#include "components/prefs/pref_service.h"
 #include "components/strings/grit/components_strings.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/gfx/range/range.h"
 #include "url/gurl.h"
 #include "url/url_constants.h"
 
@@ -81,6 +88,17 @@ int GetRecordTypePriority(EntityInstance::RecordType record_type) {
   }
   NOTREACHED();
 }
+
+// In order to avoid showing too many notices to users, we add a cool off
+// period for the private inference notice to be shown after Ambient Autofill
+// notice is shown.
+constexpr base::TimeDelta kAmbientAutofillToPrivateInferenceNoticeCoolOff =
+    base::Days(7);
+
+// In order to avoid showing the same private inference notice repeatedly (for
+// example every time the user focus a field in the form), use a cool off period
+// so that users can only see the notice with at most a certain frequency.
+constexpr base::TimeDelta kPrivateInferenceNoticeCoolOff = base::Minutes(15);
 
 // Represents all the different UI sections for autofill ai data in Chrome
 // Settings.
@@ -190,34 +208,19 @@ Suggestion CreateManageShoppingSuggestion() {
   return suggestion;
 }
 
-// Returns a suggestion to "Undo" Autofill.
-Suggestion CreateUndoSuggestion() {
-  Suggestion suggestion(l10n_util::GetStringUTF16(IDS_AUTOFILL_UNDO_MENU_ITEM),
-                        SuggestionType::kUndoOrClear);
-  suggestion.icon = Suggestion::Icon::kUndo;
-  suggestion.acceptance_a11y_announcement =
-      l10n_util::GetStringUTF16(IDS_AUTOFILL_A11Y_ANNOUNCE_CLEARED_FORM);
-  return suggestion;
-}
-
 std::vector<Suggestion> GetFooterSuggestions(
-    const FormFieldData& trigger_field,
+    const AutofillField& trigger_field,
     const DenseSet<AutofillAiUiSection>& ui_sections) {
   std::vector<Suggestion> suggestions;
   suggestions.reserve(3);
 
   suggestions.emplace_back(SuggestionType::kSeparator);
-  // TODO(crbug.com/393114125): Change to use `AutofillField::field_modifiers_`.
-  if (trigger_field.is_autofilled_according_to_renderer()) {
+  if (ShouldOfferUndoOnField(trigger_field)) {
     suggestions.emplace_back(CreateUndoSuggestion());
   }
 
-  const bool is_split_manage_enabled =
-      base::FeatureList::IsEnabled(
-          features::kSuggestionManageButtonSplitForEnhancedAutofill) &&
-      base::FeatureList::IsEnabled(features::kYourSavedInfoSettingsPage);
-
-  if (is_split_manage_enabled) {
+  if (base::FeatureList::IsEnabled(
+          features::kSuggestionManageButtonSplitForEnhancedAutofill)) {
     CHECK(!ui_sections.empty());
     if (ui_sections.size() == 1) {
       switch (*ui_sections.begin()) {
@@ -279,7 +282,7 @@ std::vector<std::u16string> GetLabelsForSuggestions(
   }
 
   // Prepend the entity type's name to each label.
-  for (auto [entity, label] : base::zip(entities, labels)) {
+  for (auto [entity, label] : std::views::zip(entities, labels)) {
     label.insert(label.begin(),
                  std::u16string(entity->type().GetNameForI18n()));
   }
@@ -341,7 +344,8 @@ std::vector<const EntityInstance*> DedupedEntitiesForSuggestions(
 
   std::vector<std::vector<std::pair<FieldGlobalId, std::u16string>>>
       fields_to_values(entities.size());
-  for (auto [entity, field_to_values] : base::zip(entities, fields_to_values)) {
+  for (auto [entity, field_to_values] :
+       std::views::zip(entities, fields_to_values)) {
     for (const auto& [field, attribute_type] :
          type_assignment.Find(entity->type())) {
       base::optional_ref<const AttributeInstance> attribute =
@@ -419,13 +423,8 @@ Suggestion::Icon GetSuggestionIcon(
       return is_personal_context ? Suggestion::Icon::kOrderSpark
                                  : Suggestion::Icon::kOrder;
     case EntityTypeName::kPassport:
-      if (is_personal_context) {
-        return Suggestion::Icon::kPassportSpark;
-      }
-      return base::FeatureList::IsEnabled(
-                 features::kAutofillAiWalletPrivatePasses)
-                 ? Suggestion::Icon::kPassport
-                 : Suggestion::Icon::kIdCard;
+      return is_personal_context ? Suggestion::Icon::kPassportSpark
+                                 : Suggestion::Icon::kPassport;
     case EntityTypeName::kKnownTravelerNumber:
     case EntityTypeName::kRedressNumber:
       return is_personal_context ? Suggestion::Icon::kIdCard2Spark
@@ -514,6 +513,169 @@ bool CanFillSomeField(const EntityInstance& entity,
       });
 }
 
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+using EntityPayload = EntityInstance::PersonalContextRecordTypePayload;
+using SourceType = EntityPayload::Source::Type;
+
+std::u16string PayloadSourceToAppName(SourceType source_type) {
+  switch (source_type) {
+    case SourceType::kPhotos:
+      return l10n_util::GetStringUTF16(IDS_AUTOFILL_AI_SOURCE_APP_PHOTOS);
+    case SourceType::kGmail:
+      return l10n_util::GetStringUTF16(IDS_AUTOFILL_AI_SOURCE_APP_GMAIL);
+    case SourceType::kUnspecified:
+      NOTREACHED();
+  }
+}
+
+// Groups valid source URLs by their `SourceType`.
+//
+// Returns a `base::flat_map` which keeps entries sorted by `SourceType`.
+base::flat_map<SourceType, std::vector<GURL>> GroupSourcesByApp(
+    base::span<const EntityPayload::Source> payload_sources) {
+  base::flat_map<SourceType, std::vector<GURL>> app_urls;
+  for (const EntityPayload::Source& source : payload_sources) {
+    if (source.type != SourceType::kUnspecified &&
+        GURL(source.url).is_valid()) {
+      app_urls[source.type].emplace_back(source.url);
+    }
+  }
+  return app_urls;
+}
+
+// Appends a formatted citation badge string (e.g. "\u00A0[1]") to `text` for
+// the given 0-based source index within an app.
+//
+// Returns the character range within `text` that corresponds to the newly
+// appended badge, which will later be styled as a clickable link.
+//
+// Example:
+//   `text` before: u"Gmail"
+//   `source_index`: 0
+//   `text` after:  u"Gmail\u00A0[1]"
+//   returned range: gfx::Range(5, 9)
+gfx::Range AppendSourceAttributionSuggestionBadge(size_t source_index,
+                                                  std::u16string& text) {
+  text.append(kBadgeSeparator);
+  const size_t badge_start = text.length();
+  base::StrAppend(
+      &text, {kBadgeStartDelimiter, base::NumberToString16(source_index + 1),
+              kBadgeEndDelimiter});
+  const size_t badge_end = text.length();
+  return {badge_start, badge_end};
+}
+
+struct AttributionData {
+  std::u16string full_text;
+  std::vector<Suggestion::PersonalContextSourceCitation> citations;
+};
+
+std::optional<AttributionData> BuildAttributionData(
+    base::span<const EntityPayload::Source> payload_sources) {
+  base::flat_map<SourceType, std::vector<GURL>> grouped_sources =
+      GroupSourcesByApp(payload_sources);
+  if (grouped_sources.empty()) {
+    return std::nullopt;
+  }
+
+  std::vector<size_t> offsets;
+  // Pre-calculate the starting offset of the placeholder in the translated
+  // string.
+  l10n_util::GetStringFUTF16(IDS_AUTOFILL_AI_SUGGESTED_BY_GEMINI_WITH_SOURCES,
+                             {std::u16string()}, &offsets);
+  if (offsets.empty()) {
+    // If the translated string is missing the placeholder (e.g. due to a
+    // localization error), `offsets` will be empty. Returning nullopt safely
+    // skips generating attribution rather than crashing Chrome.
+    return std::nullopt;
+  }
+  const size_t base_offset = offsets[0];
+
+  std::u16string sources_text;
+  std::vector<Suggestion::PersonalContextSourceCitation> citations;
+  bool needs_separator = false;
+  for (const auto& [app_type, urls] : grouped_sources) {
+    if (needs_separator) {
+      sources_text.append(kLabelSeparator);
+    }
+    sources_text.append(PayloadSourceToAppName(app_type));
+
+    for (size_t i = 0; i < urls.size(); ++i) {
+      const gfx::Range badge_range =
+          AppendSourceAttributionSuggestionBadge(i, sources_text);
+      citations.emplace_back(urls[i],
+                             gfx::Range(base_offset + badge_range.start(),
+                                        base_offset + badge_range.end()));
+    }
+    needs_separator = true;
+  }
+
+  std::u16string full_text = l10n_util::GetStringFUTF16(
+      IDS_AUTOFILL_AI_SUGGESTED_BY_GEMINI_WITH_SOURCES, {sources_text});
+
+  return AttributionData{std::move(full_text), std::move(citations)};
+}
+
+std::optional<Suggestion> CreatePersonalContextSourceAttributionSuggestion(
+    const EntityInstance& entity) {
+  CHECK_EQ(entity.record_type(), EntityInstance::RecordType::kPersonalContext);
+  if (!base::FeatureList::IsEnabled(
+          features::kAutofillAmbientAutofillSourceAttribution)) {
+    return std::nullopt;
+  }
+
+  std::optional<AttributionData> attribution_data = BuildAttributionData(
+      std::get<EntityPayload>(entity.record_type_data()).sources);
+  if (!attribution_data) {
+    return std::nullopt;
+  }
+
+  Suggestion source_info(std::move(attribution_data->full_text),
+                         SuggestionType::kAutofillAiSourceAttribution);
+  source_info.icon = Suggestion::Icon::kSpark;
+  source_info.acceptability =
+      Suggestion::Acceptability::kUnselectableAndUnacceptable;
+  source_info.payload = Suggestion::AutofillAiPayload(
+      entity.guid(), std::move(attribution_data->citations));
+  return source_info;
+}
+
+Suggestion CreateManageEnhancedAutofillSuggestion() {
+  Suggestion suggestion(
+      l10n_util::GetStringUTF16(IDS_AUTOFILL_MANAGE_ENHANCED_AUTOFILL),
+      SuggestionType::kManageEnhancedAutofill);
+  suggestion.icon = Suggestion::Icon::kSettings;
+  return suggestion;
+}
+
+std::vector<Suggestion> CreateAmbientAutofillSubMenu(
+    const EntityInstance& entity) {
+  std::vector<Suggestion> submenu;
+  if (std::optional<Suggestion> source_info =
+          CreatePersonalContextSourceAttributionSuggestion(entity)) {
+    submenu.push_back(std::move(*source_info));
+  }
+
+  if (!submenu.empty()) {
+    submenu.emplace_back(SuggestionType::kSeparator);
+  }
+
+  if (base::FeatureList::IsEnabled(
+          features::kAutofillAmbientAutofillSuppressionUI)) {
+    Suggestion remove_info(
+        l10n_util::GetStringUTF16(IDS_AUTOFILL_AI_REMOVE_INFO),
+        SuggestionType::kRemoveAutofillAi);
+    remove_info.icon = Suggestion::Icon::kClose;
+    remove_info.payload = Suggestion::AutofillAiPayload(entity.guid());
+    submenu.push_back(std::move(remove_info));
+  }
+  if (!submenu.empty()) {
+    submenu.push_back(CreateManageEnhancedAutofillSuggestion());
+  }
+  return submenu;
+}
+#endif
+
 Suggestion GetSuggestionForEntity(
     const FormStructure& form,
     const EntityInstance& entity,
@@ -534,16 +696,13 @@ Suggestion GetSuggestionForEntity(
 
   Suggestion suggestion =
       Suggestion(main_text, SuggestionType::kFillAutofillAi);
+  suggestion.labels = {{Suggestion::Text(std::move(label))}};
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
   if (entity.record_type() == EntityInstance::RecordType::kPersonalContext) {
-    suggestion.labels = {{Suggestion::Text(std::move(label))},
-                         {Suggestion::Text(l10n_util::GetStringUTF16(
-                             IDS_AUTOFILL_AI_SUGGESTED_BY_GEMINI))}};
-  } else {
-    suggestion.labels = {{Suggestion::Text(std::move(label))}};
+    suggestion.labels.push_back({Suggestion::Text(
+        l10n_util::GetStringUTF16(IDS_AUTOFILL_AI_SUGGESTED_BY_GEMINI))});
+    suggestion.children = CreateAmbientAutofillSubMenu(entity);
   }
-#else
-  suggestion.labels = {{Suggestion::Text(std::move(label))}};
 #endif
 
   const bool requires_server_fetch = WillRequireServerFetch(
@@ -596,7 +755,6 @@ bool CompareSameTypeEntities(const EntityInstance& lhs,
     }
     return frecency_order(lhs, rhs);
   };
-
 
   auto compare_greater = [&compare_by_attribute](AttributeTypeName attr_name) {
     return compare_by_attribute(attr_name, std::greater<std::u16string>());
@@ -811,7 +969,7 @@ std::vector<Suggestion> CreateSuggestionsForEntities(
   std::vector<Suggestion> suggestions;
   suggestions.reserve(entities_to_suggest.size());
   CHECK_EQ(entities_to_suggest.size(), labels.size());
-  for (auto [entity, label] : base::zip(entities_to_suggest, labels)) {
+  for (auto [entity, label] : std::views::zip(entities_to_suggest, labels)) {
     base::span<const AutofillFieldWithAttributeType> fields_with_types =
         assignment.Find(entity.type());
     base::optional_ref<const AutofillFieldWithAttributeType>
@@ -870,7 +1028,8 @@ Suggestion CreateParentFallbackSuggestion(EntityType entity_type,
                                         ? IDS_AUTOFILL_AI_OTHER_ORDERS
                                         : IDS_AUTOFILL_AI_ALL_ORDERS),
           SuggestionType::kAutofillAiOtherOrders);
-      suggestion.acceptability = Suggestion::Acceptability::kUnacceptable;
+      suggestion.acceptability =
+          Suggestion::Acceptability::kSelectableButUnacceptable;
       suggestion.children = std::move(children);
       return suggestion;
     }
@@ -880,7 +1039,8 @@ Suggestion CreateParentFallbackSuggestion(EntityType entity_type,
                                         ? IDS_AUTOFILL_AI_OTHER_SHIPMENTS
                                         : IDS_AUTOFILL_AI_ALL_SHIPMENTS),
           SuggestionType::kAutofillAiOtherShipments);
-      suggestion.acceptability = Suggestion::Acceptability::kUnacceptable;
+      suggestion.acceptability =
+          Suggestion::Acceptability::kSelectableButUnacceptable;
       suggestion.children = std::move(children);
       return suggestion;
     }
@@ -1012,6 +1172,70 @@ void AppendDomainFallbackSuggestions(
   }
 }
 
+bool ShouldShowPrivateInferenceNotice(const AutofillField& trigger_field,
+                                      const AttributeTypeAssignment& assignment,
+                                      const PrefService* prefs) {
+  const bool is_autofill_ai_field =
+      !FindAttributesForField(assignment, trigger_field.global_id()).empty();
+  if (!is_autofill_ai_field ||
+      !base::FeatureList::IsEnabled(features::kAutofillAiUsePrivateAi)) {
+    return false;
+  }
+
+  if (base::FeatureList::IsEnabled(
+          features::debug::kAutofillAiAlwaysShowPrivateAiNotice)) {
+    return true;
+  }
+
+  const base::Time ambient_autofill_notice_acked =
+      prefs ? prefs->GetTime(personal_context::prefs::
+                                 kAmbientAutofillNoticeAcknowledgedTimestamp)
+            : base::Time();
+
+  const bool ambient_autofill_notice_impression_shown =
+      prefs &&
+      prefs->GetInteger(
+          personal_context::prefs::
+              kPersonalContextAmbientAutofillNoticeImpressionCount) > 0;
+
+  if (ambient_autofill_notice_impression_shown &&
+      ambient_autofill_notice_acked.is_null()) {
+    return false;
+  }
+
+  const bool ambient_autofill_notice_acked_not_long_ago =
+      !ambient_autofill_notice_acked.is_null() &&
+      (base::Time::Now() - ambient_autofill_notice_acked) <
+          kAmbientAutofillToPrivateInferenceNoticeCoolOff;
+
+  if (ambient_autofill_notice_acked_not_long_ago) {
+    return false;
+  }
+
+  const base::Time private_inference_notice_seen =
+      prefs ? prefs->GetTime(
+                  prefs::kAutofillAiPrivateInferenceNoticeShownTimestamp)
+            : base::Time();
+
+  const bool private_inference_notice_seen_not_long_ago =
+      !private_inference_notice_seen.is_null() &&
+      (base::Time::Now() - private_inference_notice_seen) <
+          kPrivateInferenceNoticeCoolOff;
+
+  if (private_inference_notice_seen_not_long_ago) {
+    return false;
+  }
+
+  const bool private_inference_notice_never_acked =
+      !prefs ||
+      prefs
+          ->GetTime(
+              prefs::kAutofillAiPrivateInferenceNoticeAcknowledgedTimestamp)
+          .is_null();
+
+  return private_inference_notice_never_acked;
+}
+
 std::vector<Suggestion> CreateAutofillAiFillingSuggestions(
     const FormStructure& form,
     const AutofillField& trigger_field,
@@ -1023,6 +1247,10 @@ std::vector<Suggestion> CreateAutofillAiFillingSuggestions(
       GetEntityTypesBeingFetched(trigger_field, client);
   const bool should_show_fetching_suggestions =
       !entity_types_being_fetched.empty();
+
+  const bool should_show_private_inference_notice =
+      ShouldShowPrivateInferenceNotice(trigger_field, assignment,
+                                       client.GetPrefs());
 
   std::vector<Suggestion> suggestions;
   DenseSet<AutofillAiUiSection> ui_sections;
@@ -1041,16 +1269,22 @@ std::vector<Suggestion> CreateAutofillAiFillingSuggestions(
                                   entities_to_suggest, all_entities, assignment,
                                   client, ui_sections);
 
-  if (suggestions.empty() && !should_show_fetching_suggestions) {
+  if (suggestions.empty() && !should_show_fetching_suggestions &&
+      !should_show_private_inference_notice) {
     return {};
   }
 
+  bool personal_context_notice_added = false;
   if (IsPersonalContextNoticeSuggestionSupported() &&
-      HasPersonalContextSuggestion(suggestions, all_entities) &&
-      client.ShouldShowPersonalContextAmbientAutofillNotice()) {
-    Suggestion& suggestion =
-        suggestions.emplace_back(SuggestionType::kPersonalContextNotice);
-    suggestion.filtration_policy = Suggestion::FiltrationPolicy::kStatic;
+      HasPersonalContextSuggestion(suggestions, all_entities)) {
+    personal_context::PersonalContextFirstRunService* service =
+        client.GetPersonalContextFirstRunService();
+    if (service && service->ShouldShowPersonalContextAmbientAutofillNotice()) {
+      Suggestion& suggestion =
+          suggestions.emplace_back(SuggestionType::kPersonalContextNotice);
+      suggestion.filtration_policy = Suggestion::FiltrationPolicy::kStatic;
+      personal_context_notice_added = true;
+    }
   }
 
   if (should_show_fetching_suggestions) {
@@ -1060,7 +1294,13 @@ std::vector<Suggestion> CreateAutofillAiFillingSuggestions(
     }
   }
 
-  base::Extend(suggestions, GetFooterSuggestions(trigger_field, ui_sections));
+  if (should_show_private_inference_notice && !personal_context_notice_added) {
+    suggestions.emplace_back(SuggestionType::kAutofillAiPrivateInferenceNotice);
+  }
+
+  if (!ui_sections.empty()) {
+    base::Extend(suggestions, GetFooterSuggestions(trigger_field, ui_sections));
+  }
   return suggestions;
 }
 
@@ -1096,13 +1336,20 @@ void AutofillAiSuggestionGenerator::GenerateSuggestions(
     return;
   }
 
+  const AttributeTypeAssignment assignment(form_structure->fields(),
+                                           trigger_autofill_field->section());
+
   const bool is_fillable =
       GetFieldsFillableByAutofillAi(*form_structure, client)
           .contains(trigger_field.global_id());
   const bool is_fetching_data_for_field =
       !GetEntityTypesBeingFetched(*trigger_autofill_field, client).empty();
+  const bool should_show_private_inference_notice =
+      ShouldShowPrivateInferenceNotice(*trigger_autofill_field, assignment,
+                                       client.GetPrefs());
 
-  if ((!is_fillable && !is_fetching_data_for_field) ||
+  if ((!is_fillable && !is_fetching_data_for_field &&
+       !should_show_private_inference_notice) ||
       SuppressSuggestionsForAutocompleteUnrecognizedField(
           *trigger_autofill_field, GetAcUnrecognizedBehavior(client))) {
     callback({SuggestionDataSource::kAutofillAi, {}});
@@ -1110,20 +1357,14 @@ void AutofillAiSuggestionGenerator::GenerateSuggestions(
   }
 
   std::vector<const EntityInstance*> entities = GetEntitiesForSuggestion(
-      GetFillableEntityInstances(client),
-      AttributeTypeAssignment(form_structure->fields(),
-                              trigger_autofill_field->section()),
-      trigger_field.global_id(), client.GetAppLocale(),
-      client.GetLastCommittedPrimaryMainFrameURL());
+      GetFillableEntityInstances(client), assignment, trigger_field.global_id(),
+      client.GetAppLocale(), client.GetLastCommittedPrimaryMainFrameURL());
 
   std::vector<Suggestion> suggestions = CreateAutofillAiFillingSuggestions(
       *form_structure, *trigger_autofill_field,
       base::ToVector(entities,
                      [](const EntityInstance* entity) { return *entity; }),
-      entity_manager->GetEntityInstances(),
-      AttributeTypeAssignment(form_structure->fields(),
-                              trigger_autofill_field->section()),
-      client);
+      entity_manager->GetEntityInstances(), assignment, client);
 
   callback({SuggestionDataSource::kAutofillAi, std::move(suggestions)});
 }

@@ -26,6 +26,7 @@
 #include "third_party/blink/renderer/core/fileapi/blob.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/core/html/forms/form_data.h"
+#include "third_party/blink/renderer/core/streams/readable_stream.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer_view.h"
 #include "third_party/blink/renderer/core/url/url_search_params.h"
@@ -556,7 +557,7 @@ bool Response::IsBodyUsed() const {
 }
 
 String Response::MimeType() const {
-  return response_->MimeType();
+  return response_->HeaderList()->ExtractMIMEType();
 }
 
 String Response::ContentType() const {

@@ -14,6 +14,7 @@ import org.jni_zero.JNINamespace;
 import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
+import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
@@ -106,7 +107,7 @@ public class TabStoragePackager {
                     ARCHIVED_WINDOW_TAG,
                     /* isOffTheRecord= */ false,
                     TabModelType.ARCHIVED,
-                    /* activeTabSupplier= */ () -> null);
+                    /* activeTabSupplier= */ SupplierUtils.ofNull());
         }
     }
 
@@ -122,11 +123,14 @@ public class TabStoragePackager {
     @CalledByNative
     public long packageTab(@JniType("const TabAndroid*") Tab tab) {
         WebContentsState state = TabStateExtractor.getWebContentsState(tab);
+        int webContentsStateVersion =
+                state == null ? WebContentsState.INVALID_BUFFER_VERSION : state.version();
         return TabStoragePackagerJni.get()
                 .consolidateTabData(
                         mNativeTabStoragePackager,
                         tab.getTimestampMillis(),
                         state == null ? null : state.buffer(),
+                        webContentsStateVersion,
                         assumeNonNull(TabAssociatedApp.getAppId(tab)),
                         tab.getThemeColor(),
                         tab.getLastNavigationCommittedTimestampMillis(),
@@ -276,6 +280,7 @@ public class TabStoragePackager {
                 long nativeTabStoragePackagerAndroid,
                 long timestampMillis,
                 @Nullable ByteBuffer webContentsStateBuffer,
+                int webContentsStateVersion,
                 @Nullable @JniType("std::optional<std::string>") String openerAppId,
                 int themeColor,
                 long lastNavigationCommittedTimestampMillis,

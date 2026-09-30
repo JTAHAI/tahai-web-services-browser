@@ -34,7 +34,6 @@
 #include "base/containers/span.h"
 #include "base/strings/string_view_util.h"
 #include "style_rule.h"
-#include "third_party/blink/renderer/core/css/active_navigation_condition.h"
 #include "third_party/blink/renderer/core/css/css_markup.h"
 #include "third_party/blink/renderer/core/css/css_selector_list.h"
 #include "third_party/blink/renderer/core/css/navigation_query.h"
@@ -143,16 +142,54 @@ CSSSelector::CSSSelector(MatchType match_type,
   data_.rare_data_->attribute_ = attribute;
 }
 
+// static
+const AtomicString& CSSSelector::NameForInlineSelectorListPseudo(
+    PseudoType pseudo_type) {
+  DEFINE_STATIC_LOCAL(const AtomicString, is_atom, ("is"));
+  DEFINE_STATIC_LOCAL(const AtomicString, where_atom, ("where"));
+  DEFINE_STATIC_LOCAL(const AtomicString, not_atom, ("not"));
+  DEFINE_STATIC_LOCAL(const AtomicString, has_atom, ("has"));
+  switch (pseudo_type) {
+    case kPseudoIs:
+      return is_atom;
+    case kPseudoWhere:
+      return where_atom;
+    case kPseudoNot:
+      return not_atom;
+    case kPseudoHas:
+      return has_atom;
+    default:
+      NOTREACHED();
+  }
+}
+
 void CSSSelector::CreateRareData() {
   DCHECK_NE(Match(), kTag);
   DCHECK_NE(Match(), kUniversalTag);
   if (HasRareData()) {
     return;
   }
-  // This transitions the DataUnion from |value_| to |rare_data_| and thus needs
-  // to be careful to correctly manage explicitly destruction of |value_|
-  // followed by placement new of |rare_data_|. A straight-assignment will
-  // compile and may kinda work, but will be undefined behavior.
+  // This transitions the DataUnion from |value_| (or |selector_list_|) to
+  // |rare_data_| and thus needs to be careful to correctly manage explicit
+  // destruction of the old member followed by placement new of |rare_data_|.
+  // A straight-assignment will compile and may kinda work, but will be
+  // undefined behavior.
+  if (HasInlineSelectorList()) {
+    CSSSelectorList* selector_list = data_.selector_list_.Get();
+    auto* rare_data = MakeGarbageCollected<RareData>(
+        NameForInlineSelectorListPseudo(GetPseudoType()));
+    rare_data->selector_list_ = selector_list;
+    // Clear the tag bit _before_ touching the union, so that a concurrent
+    // Oilpan marker (which dispatches on the tag bits, see Trace()) never
+    // sees the RareData pointer as a CSSSelectorList. While neither bit is
+    // set nothing is traced; both objects are kept alive by the stack
+    // (conservative scanning) meanwhile.
+    bits_.set<HasInlineSelectorListField>(false);
+    data_.selector_list_.~Member<CSSSelectorList>();
+    new (&data_.rare_data_) Member<RareData>(rare_data);
+    bits_.set<HasRareDataField>(true);
+    return;
+  }
   auto* rare_data = MakeGarbageCollected<RareData>(data_.value_);
   data_.value_.~AtomicString();
   new (&data_.rare_data_) Member<RareData>(rare_data);
@@ -424,9 +461,10 @@ PseudoId CSSSelector::GetPseudoId(PseudoType type) {
       return kPseudoIdOverscrollAreaParent;
     case kPseudoOverscrollBackdrop:
       return kPseudoIdOverscrollBackdrop;
+    case kPseudoSkeleton:
+      return kPseudoIdSkeleton;
     case kPseudoAnimatedImage:
     case kPseudoActive:
-    case kPseudoActiveNavigation:
     case kPseudoActiveOption:
     case kPseudoActiveViewTransition:
     case kPseudoActiveViewTransitionType:
@@ -538,7 +576,7 @@ PseudoId CSSSelector::GetPseudoId(PseudoType type) {
     case kPseudoTextField:
     case kPseudoToolFormActive:
     case kPseudoToolSubmitActive:
-    case kPseudoNavSource:
+    case kPseudoNavigationSource:
     case kPseudoUnknown:
     case kPseudoUnbounded:
     case kPseudoUnparsed:
@@ -576,6 +614,14 @@ std::optional<CSSSelector> CSSSelector::Renest(StyleRule* new_parent) const {
     if (old_rare_data != new_rare_data) {
       CSSSelector selector(*this);
       selector.data_.rare_data_ = new_rare_data;
+      return selector;
+    }
+  } else if (HasInlineSelectorList()) {
+    CSSSelectorList* old_list = data_.selector_list_.Get();
+    CSSSelectorList* new_list = old_list->Renest(new_parent);
+    if (old_list != new_list) {
+      CSSSelector selector(*this);
+      selector.data_.selector_list_ = new_list;
       return selector;
     }
   }
@@ -696,7 +742,7 @@ constexpr static NameToPseudoStruct kPseudoTypeWithoutArgumentsMap[] = {
     {"marker", CSSSelector::kPseudoMarker},
     {"modal", CSSSelector::kPseudoModal},
     {"muted", CSSSelector::kPseudoMuted},
-    {"nav-source", CSSSelector::kPseudoNavSource},
+    {"navigation-source", CSSSelector::kPseudoNavigationSource},
     {"no-button", CSSSelector::kPseudoNoButton},
     {"only-child", CSSSelector::kPseudoOnlyChild},
     {"only-of-type", CSSSelector::kPseudoOnlyOfType},
@@ -727,6 +773,7 @@ constexpr static NameToPseudoStruct kPseudoTypeWithoutArgumentsMap[] = {
     {"select-listbox", CSSSelector::kPseudoSelectListbox},
     {"selection", CSSSelector::kPseudoSelection},
     {"single-button", CSSSelector::kPseudoSingleButton},
+    {"skeleton", CSSSelector::kPseudoSkeleton},
     {"spelling-error", CSSSelector::kPseudoSpellingError},
     {"stalled", CSSSelector::kPseudoStalled},
     {"start", CSSSelector::kPseudoStart},
@@ -753,7 +800,6 @@ constexpr static NameToPseudoStruct kPseudoTypeWithArgumentsMap[] = {
     {"-internal-overscroll-area-parent",
      CSSSelector::kPseudoOverscrollAreaParent},
     {"-webkit-any", CSSSelector::kPseudoAny},
-    {"active-navigation", CSSSelector::kPseudoActiveNavigation},
     {"active-view-transition-type",
      CSSSelector::kPseudoActiveViewTransitionType},
     {"cue", CSSSelector::kPseudoCue},
@@ -823,7 +869,8 @@ CSSSelector::PseudoType CSSSelector::NameToPseudoType(
                          DCHECK(entry.string);
                          return std::string_view(entry.string) < latin1_name;
                        });
-  if (match == pseudo_type_map_end || match->string != name) {
+  if (match == pseudo_type_map_end ||
+      std::string_view(match->string) != latin1_name) {
     return CSSSelector::kPseudoUnknown;
   }
 
@@ -921,8 +968,13 @@ CSSSelector::PseudoType CSSSelector::NameToPseudoType(
     return CSSSelector::kPseudoUnknown;
   }
 
-  if (match->type == CSSSelector::kPseudoNavSource &&
-      !RuntimeEnabledFeatures::RouteMatchingEnabled()) {
+  if (match->type == CSSSelector::kPseudoNavigationSource &&
+      !RuntimeEnabledFeatures::NavigationSourcePseudoClassEnabled()) {
+    return CSSSelector::kPseudoUnknown;
+  }
+
+  if (match->type == CSSSelector::kPseudoSkeleton &&
+      !RuntimeEnabledFeatures::DeclarativeSkeletonsEnabled()) {
     return CSSSelector::kPseudoUnknown;
   }
 
@@ -976,16 +1028,18 @@ void CSSSelector::UpdatePseudoPage(const AtomicString& value,
   bits_.set<PseudoTypeField>(type);
 }
 
-void CSSSelector::UpdatePseudoType(const AtomicString& value,
+void CSSSelector::UpdatePseudoType(AtomicString value,
                                    const CSSParserContext& context,
                                    bool has_arguments,
                                    CSSParserMode mode) {
   DCHECK(Match() == kPseudoClass || Match() == kPseudoElement);
-  AtomicString lower_value = value.ToAsciiLower();
+  if (!value.ContainsNoAsciiUpper()) [[unlikely]] {
+    value = value.ToAsciiLower();
+  }
   PseudoType pseudo_type = CSSSelectorParser::ParsePseudoType(
-      lower_value, has_arguments, context.GetDocument());
+      value, has_arguments, context.GetDocument());
   SetPseudoType(pseudo_type);
-  SetValue(lower_value);
+  SetValue(std::move(value));
 
   switch (GetPseudoType()) {
     case kPseudoAfter:
@@ -1054,6 +1108,11 @@ void CSSSelector::UpdatePseudoType(const AtomicString& value,
         bits_.set<PseudoTypeField>(kPseudoUnknown);
       }
       break;
+    case kPseudoSkeleton:
+      if (Match() != kPseudoElement) {
+        bits_.set<PseudoTypeField>(kPseudoUnknown);
+      }
+      break;
     case kPseudoHasDatalist:
     case kPseudoHasOpenMenuitem:
     case kPseudoHostHasNonAutoAppearance:
@@ -1071,7 +1130,6 @@ void CSSSelector::UpdatePseudoType(const AtomicString& value,
       [[fallthrough]];
     // For pseudo-classes
     case kPseudoActive:
-    case kPseudoActiveNavigation:
     case kPseudoActiveOption:
     case kPseudoActiveViewTransition:
     case kPseudoActiveViewTransitionType:
@@ -1129,7 +1187,7 @@ void CSSSelector::UpdatePseudoType(const AtomicString& value,
     case kPseudoMenulistPopoverWithMenulistAnchor:
     case kPseudoModal:
     case kPseudoMuted:
-    case kPseudoNavSource:
+    case kPseudoNavigationSource:
     case kPseudoNoButton:
     case kPseudoNot:
     case kPseudoNthChild:
@@ -1264,9 +1322,11 @@ template <bool expand_pseudo_references>
 void CSSSelector::SerializeSelectorList(const CSSSelectorList* selector_list,
                                         StringBuilder& builder,
                                         uintptr_t scope_id) {
-  const CSSSelector* first_sub_selector = selector_list->First();
+  const CSSSelector* first_sub_selector =
+      selector_list->FirstIncludingUnparsedInvalid();
   for (const CSSSelector* sub_selector = first_sub_selector; sub_selector;
-       sub_selector = CSSSelectorList::Next(*sub_selector)) {
+       sub_selector =
+           CSSSelectorList::NextIncludingUnparsedInvalid(*sub_selector)) {
     if (sub_selector != first_sub_selector) {
       builder.Append(", ");
     }
@@ -1301,6 +1361,8 @@ void CSSSelector::SerializeSimpleSelector(StringBuilder& builder,
   } else if (Match() == kClass) {
     builder.Append('.');
     SerializeIdentifier(SerializingValue(), builder);
+  } else if (Match() == kInvalidList && IsUnparsedInvalid()) {
+    builder.Append(Value());
   } else if (Match() == kPseudoClass || Match() == kPagePseudoClass) {
     if (GetPseudoType() == kPseudoUnparsed) {
       builder.Append(Value());
@@ -1328,13 +1390,15 @@ void CSSSelector::SerializeSimpleSelector(StringBuilder& builder,
           } else if (a == -1) {
             builder.Append("-n");
           } else {
-            builder.AppendFormat("%dn", a);
+            builder.AppendNumber(a);
+            builder.Append('n');
           }
 
           if (b < 0) {
             builder.Append(String::Number(b));
           } else if (b > 0) {
-            builder.AppendFormat("+%d", b);
+            builder.Append('+');
+            builder.AppendNumber(b);
           }
         }
 
@@ -1404,16 +1468,9 @@ void CSSSelector::SerializeSimpleSelector(StringBuilder& builder,
         break;
       }
       case kPseudoLinkTo: {
-        DCHECK(GetRouteLocation());
+        DCHECK(GetNavigationLocation());
         builder.Append("(");
-        GetRouteLocation()->SerializeTo(builder);
-        builder.Append(")");
-        break;
-      }
-      case kPseudoActiveNavigation: {
-        DCHECK(GetActiveNavigationCondition());
-        builder.Append("(");
-        GetActiveNavigationCondition()->SerializeTo(builder);
+        GetNavigationLocation()->SerializeTo(builder);
         builder.Append(")");
         break;
       }
@@ -1623,19 +1680,26 @@ void CSSSelector::SetArgumentList(
 }
 
 void CSSSelector::SetSelectorList(CSSSelectorList* selector_list) {
+  if (HasInlineSelectorList()) {
+    data_.selector_list_ = selector_list;
+    return;
+  }
+  if (!HasRareData() && Match() == kPseudoClass &&
+      CanStoreSelectorListInline(GetPseudoType()) &&
+      data_.value_ == NameForInlineSelectorListPseudo(GetPseudoType())) {
+    // Same care as in CreateRareData(): switch the active union member.
+    data_.value_.~AtomicString();
+    new (&data_.selector_list_) Member<CSSSelectorList>(selector_list);
+    bits_.set<HasInlineSelectorListField>(true);
+    return;
+  }
   CreateRareData();
   data_.rare_data_->selector_list_ = selector_list;
 }
 
-void CSSSelector::SetRouteLocation(RouteLocation* location) {
+void CSSSelector::SetNavigationLocation(NavigationLocation* location) {
   CreateRareData();
-  data_.rare_data_->route_location_ = location;
-}
-
-void CSSSelector::SetActiveNavigationCondition(
-    ActiveNavigationCondition* condition) {
-  CreateRareData();
-  data_.rare_data_->active_navigation_condition_ = condition;
+  data_.rare_data_->navigation_location_ = location;
 }
 
 void CSSSelector::SetContainsPseudoInsideHasPseudoClass() {
@@ -1802,6 +1866,7 @@ bool CSSSelector::IsTreeAbidingPseudoElement() const {
           GetPseudoType() == kPseudoViewTransitionOld ||
           GetPseudoType() == kPseudoViewTransitionNew ||
           GetPseudoType() == kPseudoOverscrollAreaParent ||
+          GetPseudoType() == kPseudoSkeleton ||
           IsElementBackedPseudoElement(GetPseudoType()));
 }
 
@@ -1870,6 +1935,7 @@ bool CSSSelector::IsAllowedAfterPart() const {
     case kPseudoViewTransitionNew:
     case kPseudoViewTransitionOld:
     case kPseudoOverscrollAreaParent:
+    case kPseudoSkeleton:
       return true;
 
     // It's possible that we should support ::slotted() after ::part().
@@ -1892,7 +1958,6 @@ bool CSSSelector::IsAllowedAfterPart() const {
     case kPseudoAutofillSelected:
     case kPseudoWebKitAutofill:
     case kPseudoActive:
-    case kPseudoActiveNavigation:
     case kPseudoActiveOption:
     case kPseudoActiveViewTransition:
     case kPseudoActiveViewTransitionType:
@@ -1957,7 +2022,7 @@ bool CSSSelector::IsAllowedAfterPart() const {
     case kPseudoIsHtml:
     case kPseudoListBox:
     case kPseudoMultiSelectFocus:
-    case kPseudoNavSource:
+    case kPseudoNavigationSource:
     case kPseudoOpen:
     case kPseudoPastCue:
     case kPseudoPopoverInTopLayer:
@@ -2144,30 +2209,7 @@ CSSSelector::RareData::~RareData() = default;
 
 // a helper function for checking nth-arguments
 bool CSSSelector::RareData::MatchNth(unsigned unsigned_count) {
-  // These very large values for aN + B or count can't ever match, so
-  // give up immediately if we see them.
-  int max_value = std::numeric_limits<int>::max() / 2;
-  int min_value = std::numeric_limits<int>::min() / 2;
-  if (unsigned_count > static_cast<unsigned>(max_value) ||
-      NthAValue() > max_value || NthAValue() < min_value ||
-      NthBValue() > max_value || NthBValue() < min_value) [[unlikely]] {
-    return false;
-  }
-
-  int count = static_cast<int>(unsigned_count);
-  if (!NthAValue()) {
-    return count == NthBValue();
-  }
-  if (NthAValue() > 0) {
-    if (count < NthBValue()) {
-      return false;
-    }
-    return (count - NthBValue()) % NthAValue() == 0;
-  }
-  if (count > NthBValue()) {
-    return false;
-  }
-  return (NthBValue() - count) % (-NthAValue()) == 0;
+  return CSSSelector::MatchNth(NthAValue(), NthBValue(), unsigned_count);
 }
 
 CSSSelector::RareData* CSSSelector::RareData::Renest(StyleRule* new_parent) {
@@ -2192,13 +2234,14 @@ void CSSSelector::Trace(Visitor* visitor) const {
     visitor->Trace(data_.parent_rule_);
   } else if (HasRareDataForOilpan()) {
     visitor->Trace(data_.rare_data_);
+  } else if (HasInlineSelectorListForOilpan()) {
+    visitor->Trace(data_.selector_list_);
   }
 }
 
 void CSSSelector::RareData::Trace(Visitor* visitor) const {
   visitor->Trace(selector_list_);
-  visitor->Trace(route_location_);
-  visitor->Trace(active_navigation_condition_);
+  visitor->Trace(navigation_location_);
 }
 
 const CSSSelector* CSSSelector::SelectorListOrParent() const {
@@ -2208,8 +2251,8 @@ const CSSSelector* CSSSelector::SelectorListOrParent() const {
     } else {
       return nullptr;
     }
-  } else if (HasRareData() && data_.rare_data_->selector_list_) {
-    return data_.rare_data_->selector_list_->First();
+  } else if (const CSSSelectorList* selector_list = SelectorList()) {
+    return selector_list->First();
   } else {
     return nullptr;
   }
@@ -2255,7 +2298,6 @@ bool CSSSelector::SupportsPseudoStateChange(PseudoType type) {
   switch (type) {
     case CSSSelector::kPseudoAnimatedImage:
     case CSSSelector::kPseudoActive:
-    case CSSSelector::kPseudoActiveNavigation:
     case CSSSelector::kPseudoActiveOption:
     case CSSSelector::kPseudoActiveViewTransition:
     case CSSSelector::kPseudoActiveViewTransitionType:
@@ -2267,6 +2309,7 @@ bool CSSSelector::SupportsPseudoStateChange(PseudoType type) {
     case CSSSelector::kPseudoChecked:
     case CSSSelector::kPseudoDefault:
     case CSSSelector::kPseudoDefined:
+    case CSSSelector::kPseudoDialogInTopLayer:
     case CSSSelector::kPseudoDir:
     case CSSSelector::kPseudoDisabled:
     case CSSSelector::kPseudoDrag:
@@ -2300,7 +2343,7 @@ bool CSSSelector::SupportsPseudoStateChange(PseudoType type) {
     case CSSSelector::kPseudoModal:
     case CSSSelector::kPseudoMultiSelectFocus:
     case CSSSelector::kPseudoMuted:
-    case CSSSelector::kPseudoNavSource:
+    case CSSSelector::kPseudoNavigationSource:
     case CSSSelector::kPseudoNthChild:
     case CSSSelector::kPseudoNthLastChild:
     case CSSSelector::kPseudoNthLastOfType:
@@ -2315,6 +2358,7 @@ bool CSSSelector::SupportsPseudoStateChange(PseudoType type) {
     case CSSSelector::kPseudoPictureInPicture:
     case CSSSelector::kPseudoPlaceholderShown:
     case CSSSelector::kPseudoPlaying:
+    case CSSSelector::kPseudoPopoverInTopLayer:
     case CSSSelector::kPseudoPopoverOpen:
     case CSSSelector::kPseudoReadOnly:
     case CSSSelector::kPseudoReadWrite:

@@ -5,15 +5,20 @@
 #include "components/enterprise/watermarking/watermark.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "base/command_line.h"
+#include "base/numerics/angle_conversions.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_split.h"
 #include "base/strings/utf_string_conversions.h"
 #include "cc/paint/paint_canvas.h"
 #include "cc/paint/paint_recorder.h"
 #include "cc/paint/skia_paint_canvas.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/font.h"
+#include "ui/gfx/font_list.h"
 #include "ui/gfx/render_text.h"
 
 namespace {
@@ -22,6 +27,7 @@ namespace {
 constexpr int kWatermarkBlockSpacing = 80;
 constexpr double kRotationAngle = 45;
 constexpr double kWatermarkBlockWidthToFontSizeRatio = 350.0 / 24.0;
+constexpr double kMaxWatermarkBlockWidthToFontSizeRatio = 700.0 / 24.0;
 
 gfx::Font WatermarkFont(int font_size) {
   return gfx::Font(
@@ -65,11 +71,6 @@ std::unique_ptr<gfx::RenderText> CreateRenderText(const gfx::Rect& display_rect,
   return render_text;
 }
 
-int GetWatermarkBlockWidth(int font_size) {
-  double ideal_width = font_size * kWatermarkBlockWidthToFontSizeRatio;
-  return base::ClampRound<int>(ideal_width);
-}
-
 int block_width_offset(int block_width) {
   return block_width + kWatermarkBlockSpacing;
 }
@@ -104,7 +105,7 @@ int min_x(double angle, const SkSize& bounds, int block_width) {
   // -X also needs to be a factor of `block_width_offset()` so that there is no
   // sliding of the watermark blocks when `bounds` resize and there's always a
   // text block drawn at X=0.
-  int min = cos(90 - angle) * bounds.height();
+  int min = std::cos(base::DegToRad(90.0 - angle)) * bounds.height();
   return -((min / block_width_offset(block_width)) + 1) *
          block_width_offset(block_width);
 }
@@ -129,7 +130,8 @@ int max_x(double angle, const SkSize& bounds, int block_width) {
   //
   // An extra `block_width_offset()` length is added so that the last column for
   // staggered rows doesn't appear on resizes.
-  return cos(angle) * bounds.width() + block_width_offset(block_width);
+  return std::cos(base::DegToRad(angle)) * bounds.width() +
+         block_width_offset(block_width);
 }
 
 int max_y(double angle, const SkSize& bounds) {
@@ -165,7 +167,9 @@ int max_y(double angle, const SkSize& bounds) {
   //                           │ ╱
   //                           │╱
   //
-  return sin(angle) * bounds.width() + cos(angle) * bounds.height();
+  double angle_radians = base::DegToRad(angle);
+  return std::sin(angle_radians) * bounds.width() +
+         std::cos(angle_radians) * bounds.height();
 }
 
 class WatermarkBlockRenderer {
@@ -260,6 +264,25 @@ void DrawWatermark(WatermarkBlockRenderer* watermark_block_renderer,
 
 namespace enterprise_watermark {
 
+int GetWatermarkBlockWidth(const std::u16string& watermark_text,
+                           int font_size) {
+  float min_width = font_size * kWatermarkBlockWidthToFontSizeRatio;
+  float max_width = font_size * kMaxWatermarkBlockWidthToFontSizeRatio;
+
+  gfx::FontList font_list = gfx::FontList(WatermarkFont(font_size))
+                                .DeriveWithWeight(WatermarkFontWeight());
+  float max_line_width = 0.0f;
+  for (std::u16string_view line :
+       base::SplitStringPiece(watermark_text, u"\n", base::KEEP_WHITESPACE,
+                              base::SPLIT_WANT_ALL)) {
+    max_line_width =
+        std::max(max_line_width, gfx::Canvas::GetStringWidthF(line, font_list));
+  }
+
+  float calculated_width = std::clamp(max_line_width, min_width, max_width);
+  return base::ClampCeil(calculated_width);
+}
+
 int GetWatermarkBlockHeight(const std::u16string& utf16_text,
                             int line_count,
                             int block_width,
@@ -317,7 +340,7 @@ WatermarkBlock DrawWatermarkToPaintRecord(const std::string& watermark_text,
   std::u16string utf16_text = base::UTF8ToUTF16(watermark_text);
 
   WatermarkBlock watermark_block;
-  watermark_block.width = GetWatermarkBlockWidth(font_size);
+  watermark_block.width = GetWatermarkBlockWidth(utf16_text, font_size);
 
   // The coordinates here do not matter as the display rect will change for
   // each drawn block.

@@ -24,16 +24,15 @@ import androidx.test.core.app.ApplicationProvider;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowDrawable;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.ntp_customization.R;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
+import org.chromium.ui.base.ViewUtils;
 
 /** Unit tests for {@link NtpThemeListItemView}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class NtpThemeListItemViewUnitTest {
 
     private NtpThemeListItemView mNtpThemeListItemView;
@@ -53,7 +52,7 @@ public class NtpThemeListItemViewUnitTest {
 
     @Test
     public void testDestroy() {
-        mNtpThemeListItemView.setOnClickListener(v -> {});
+        mNtpThemeListItemView.setOnClickListener(ViewUtils.emptyClickListener());
         assertTrue(mNtpThemeListItemView.hasOnClickListeners());
 
         mNtpThemeListItemView.destroy();

@@ -11,6 +11,12 @@
 
 namespace extensions {
 
+// Prefix for chrome.webRequest event names (e.g. "webRequest.onBeforeRequest").
+inline constexpr char kWebRequestEventPrefix[] = "webRequest.";
+
+// Prefix for <webview> event names (e.g. "webViewInternal.onBeforeRequest").
+inline constexpr char kWebViewEventPrefix[] = "webViewInternal.";
+
 // Keys of the payload dictionary that is appended as a second argument in
 // per-context dispatch.
 inline constexpr char kContextDispatchAwaitResponseKey[] = "awaitResponse";
@@ -20,6 +26,8 @@ inline constexpr char kContextDispatchWindowIdKey[] = "windowId";
 // Request/response header names only delivered to webRequest listeners that
 // registered the "extraHeaders" option. Lowercase for case-insensitive
 // comparison.
+// NOTE: Keep in sync with the corresponding constants in
+// //extensions/renderer/resources/web_request_event.js.
 inline constexpr auto kExtraRequestHeaderNames =
     base::MakeFixedFlatSet<std::string_view>(
         {"accept-encoding", "accept-language", "cookie", "origin", "referer"});

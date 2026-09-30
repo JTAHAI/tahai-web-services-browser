@@ -15,6 +15,8 @@ import {OffscreenBridge} from '../../common/offscreen_bridge.js';
 import {Output} from '../output/output.js';
 
 import {BackTranslateCallback, BrailleTranslator, TranslateCallback} from './braille_translator.js';
+import {CompositionCandidateProvider} from './composition_candidate_provider.js';
+import {WasmKanaKanjiProvider} from './wasm_kana_kanji_provider.js';
 
 type QueuedRequest = {
   type: 'translate',
@@ -23,10 +25,32 @@ type QueuedRequest = {
 };
 
 export class TenjiTranslator implements BrailleTranslator {
+  /**
+   * Japanese kana input is entered as IME composition text so that it can go
+   * through kana-to-kanji conversion before being committed.
+   */
+  readonly usesCompositionInput = true;
+
   private static initPromise_: Promise<boolean>|null = null;
   private static pendingRequest_ = false;
   private static requestQueue_: QueuedRequest[] = [];
   private static hasAnnouncedBackTranslateUnavailable_ = false;
+  private static compositionCandidateProvider_: CompositionCandidateProvider|
+      null = null;
+
+  /**
+   * Returns the CompositionCandidateProvider used to convert Japanese kana
+   * input to kanji before commit. Lazily instantiated (rather than assigned
+   * at field-initializer time) to avoid eagerly evaluating
+   * wasm_kana_kanji_provider.ts, which imports TenjiTranslator itself.
+   */
+  getCompositionCandidateProvider(): CompositionCandidateProvider {
+    if (!TenjiTranslator.compositionCandidateProvider_) {
+      TenjiTranslator.compositionCandidateProvider_ =
+          new WasmKanaKanjiProvider();
+    }
+    return TenjiTranslator.compositionCandidateProvider_;
+  }
 
   init(): Promise<boolean> {
     if (!TenjiTranslator.initPromise_) {

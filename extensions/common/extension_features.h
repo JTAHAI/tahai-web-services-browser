@@ -40,8 +40,8 @@ namespace extensions_features {
 // Controls the limit for action.setBadgeText() API input.
 BASE_DECLARE_FEATURE(kApiActionSetBadgeTextByteLimit);
 
-// Controls the limit for alarms.create() API input.
-BASE_DECLARE_FEATURE(kApiAlarmsCreateLengthLimit);
+// Controls the availability of SplitView Extension APIs.
+BASE_DECLARE_FEATURE(kApiTabsSplitView);
 
 // Controls the availability of contentSettings.clipboard.
 BASE_DECLARE_FEATURE(kApiContentSettingsClipboard);
@@ -70,10 +70,20 @@ BASE_DECLARE_FEATURE(kApiGlicPrivate);
 // `enterprise.reportingPrivate.onDataMaskingRulesTriggered` API.
 BASE_DECLARE_FEATURE(kApiEnterpriseReportingPrivateOnDataMaskingRulesTriggered);
 
+// Controls the availability of the
+// `enterprise.reportingPrivate.reportForceSaveToCloudEventHandled` API.
+BASE_DECLARE_FEATURE(
+    kApiEnterpriseReportingPrivateReportForceSaveToCloudEventHandled);
+
 // Controls the availability of Glic access from Google webpages.
 BASE_DECLARE_FEATURE(kApiGlicAccessFromGoogleWebpage);
+
 // Controls the availability of Glic access from Chrome promotion pages.
 BASE_DECLARE_FEATURE(kApiGlicAccessFromPromotionPage);
+
+// Controls the availability of Glic access from Web Continuity.
+BASE_DECLARE_FEATURE(kApiGlicAccessFromWebContinuity);
+
 extern const base::FeatureParam<std::string> kProdPromptEndpointUrlParam;
 extern const base::FeatureParam<std::string> kGlicInvokeApiOAuth2ScopeParam;
 extern const base::FeatureParam<bool> kGlicRequireConsentForInvokeParam;
@@ -93,12 +103,25 @@ inline constexpr char kGlicOpenNewTabDispositionBackground[] = "background";
 inline constexpr char kGlicOpenNewTabDispositionForegroundIfNotConsented[] =
     "foreground_if_not_consented";
 
+// Controls the availability of the enterprise.webrtc API. Acts as a remote
+// kill switch: with this disabled the API is not present in the extension
+// context at all.
+BASE_DECLARE_FEATURE(kApiEnterpriseWebrtc);
+
 // Controls the availability of the new `proxyOverrideRulesPrivate` API.
 BASE_DECLARE_FEATURE(kApiProxyOverrideRulesPrivate);
 
 // Controls the availability of the deprecated nacl_arch in
 // runtime.getPlatformInfo() API.
 BASE_DECLARE_FEATURE(kApiRuntimeGetPlatformInfoNaClArch);
+
+// Controls the availability of runtime.sendNativeMessage and
+// runtime.connectNative on Desktop Android.
+BASE_DECLARE_FEATURE(kApiDesktopAndroidNativeMessaging);
+
+// If enabled, bypasses the allowlist check on Desktop Android for native
+// messaging extension IDs.
+BASE_DECLARE_FEATURE(kApiDesktopAndroidNativeMessagingBypassExtensionAllowlist);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Other Features
@@ -109,6 +132,11 @@ BASE_DECLARE_FEATURE(kApiRuntimeGetPlatformInfoNaClArch);
 // Enables the UI in the install prompt which lets a user choose to withhold
 // requested host permissions by default.
 BASE_DECLARE_FEATURE(kAllowWithholdingExtensionPermissionsOnInstall);
+
+// If enabled, navigations and window.open calls to URLs outside a hosted app's
+// web extent in background contents are blocked and not persisted to prefs.
+// TODO(crbug.com/511824746): Clean up in M156.
+BASE_DECLARE_FEATURE(kBlockBackgroundContentsOffExtentNavigation);
 
 // When enabled, then bad_message::ReceivedBadMessage will be called when
 // browser receives an IPC from a content script and the IPC that unexpectedly
@@ -121,15 +149,19 @@ BASE_DECLARE_FEATURE(kCheckingNoExtensionIdInExtensionIpcs);
 // URLs in worker scripts and subresources.
 BASE_DECLARE_FEATURE(kComponentExtensionAllowWorkerChromeResources);
 
+// Gates native UI affordances for leaving reviews on installed Chrome Web Store
+// extensions.
+BASE_DECLARE_FEATURE(kCWSReviewPromptingNativeUI);
+
 // If enabled, <webview>s will be allowed to request permission from an
 // embedding Chrome App to request access to Human Interface Devices.
 BASE_DECLARE_FEATURE(kEnableWebHidInWebView);
 
-#if BUILDFLAG(ENABLE_DESKTOP_ANDROID_EXTENSIONS)
-// If enabled, extensions will be enabled for @google.com and @managedchrome.com
-// users on desktop Android. Otherwise they will be blocked.
-BASE_DECLARE_FEATURE(kEnableExtensionsForCorpDesktopAndroid);
-#endif
+// If enabled, extensions can opt in to asynchronous listener registration via
+// the `background.async_listener_registration` manifest key to defer event
+// dispatch on worker start until the extension signals that its listeners are
+// registered.
+BASE_DECLARE_FEATURE(kExtensionAsyncListenerRegistration);
 
 // If enabled, JS content scripts injected at document start will be compiled
 // in a background thread.
@@ -201,7 +233,6 @@ BASE_DECLARE_FEATURE(kExperimentalOmniboxLabs);
 // out of the allowlist.
 BASE_DECLARE_FEATURE(kSafeBrowsingCrxAllowlistAutoDisable);
 
-
 // Controls whether the component webstore hosted app is loaded.
 BASE_DECLARE_FEATURE(kWebstoreHostedApp);
 
@@ -258,12 +289,6 @@ BASE_DECLARE_FEATURE(kDebuggerAPIRestrictedToDevMode);
 // even if they are not externally connectable.
 BASE_DECLARE_FEATURE(kExtensionBrowserNamespaceOnWebPages);
 
-// When enabled, a call to base::ListValue::Clone is avoided when dispatching an
-// extension function. Behind a feature to assess impact
-// (go/chrome-performance-work-should-be-finched).
-// TODO(crbug.com/424432184): Clean up when experiment is complete.
-BASE_DECLARE_FEATURE(kAvoidCloneArgsOnExtensionFunctionDispatch);
-
 // If enabled, the ContentVerifier cache key will include the extension root
 // path. This prevents collisions when an extension is updated or reloaded
 // to a new directory while keeping the same version ID.
@@ -310,8 +335,11 @@ BASE_DECLARE_FEATURE(kOptimizeWebRequestProxy);
 // (using per-listener synthetic sub-event names). The renderer matches
 // listeners itself, reports each blocking listener's response via the
 // `webRequestInternal.eventHandled` function, and signals completion with a
-// single `webRequestInternal.eventHandlingDone` per context.
+// single `WebRequestHost.EventHandlingDone` mojo call per target.
 BASE_DECLARE_FEATURE(kWebRequestPerContextEventDispatch);
+
+// If enabled, `HashedExtensionId` uses SHA-256 hashes instead of SHA-1.
+BASE_DECLARE_FEATURE(kUseSha256ForExtensionHashes);
 
 }  // namespace extensions_features
 

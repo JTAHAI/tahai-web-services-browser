@@ -79,8 +79,6 @@ component("features") {
     "model_execution/on_device_features.h",
 
     # TODO(crbug.com/514743962): These should all be broken up and removed.
-    "optimization_guide_constants.cc",
-    "optimization_guide_constants.h",
     "optimization_guide_enums.h",
     "optimization_guide_features.cc",
     "optimization_guide_features.h",
@@ -205,6 +203,8 @@ source_set("core_util") {
 source_set("model_execution") {
   # TODO: crbug.com/421262905 - Should not need these without model_execution
   sources = [
+    "model_execution/component_download_observer.cc",
+    "model_execution/component_download_observer.h",
     "model_execution/optimization_guide_model_execution_error.cc",
     "model_execution/optimization_guide_model_execution_error.h",
     "model_execution/remote_model_executor.cc",
@@ -222,12 +222,14 @@ source_set("model_execution") {
     ":features",
     "//base",
     "//base/version_info",
+    "//components/component_updater",
     "//components/optimization_guide:optimization_guide_buildflags",
     "//components/optimization_guide/optimization_guide_internals/webui:mojo_bindings",
     "//components/optimization_guide/proto:optimization_guide_proto",
     "//components/optimization_guide/public/mojom",
     "//components/policy/core/common",
     "//components/prefs",
+    "//components/update_client",
     "//components/variations/net",
     "//services/network/public/cpp",
     "//services/network/public/mojom",
@@ -245,6 +247,8 @@ source_set("model_execution") {
       "model_execution/model_execution_fetcher_impl.h",
       "model_execution/model_execution_manager.cc",
       "model_execution/model_execution_manager.h",
+      "model_execution/model_execution_proto_util.cc",
+      "model_execution/model_execution_proto_util.h",
       "model_execution/settings_enabled_observer.cc",
       "model_execution/settings_enabled_observer.h",
     ]
@@ -307,26 +311,16 @@ source_set("ondevice") {
       "model_execution/model_broker_client.h",
       "model_execution/model_broker_impl.cc",
       "model_execution/model_broker_impl.h",
-      "model_execution/model_broker_state.cc",
-      "model_execution/model_broker_state.h",
       "model_execution/model_execution_util.cc",
       "model_execution/model_execution_util.h",
       "model_execution/multimodal_message.cc",
       "model_execution/multimodal_message.h",
-      "model_execution/on_device_asset_manager.cc",
-      "model_execution/on_device_asset_manager.h",
       "model_execution/on_device_context.cc",
       "model_execution/on_device_context.h",
       "model_execution/on_device_execution.cc",
       "model_execution/on_device_execution.h",
       "model_execution/on_device_model_access_controller.cc",
       "model_execution/on_device_model_access_controller.h",
-      "model_execution/on_device_model_adaptation_controller.cc",
-      "model_execution/on_device_model_adaptation_controller.h",
-      "model_execution/on_device_model_adaptation_loader.cc",
-      "model_execution/on_device_model_adaptation_loader.h",
-      "model_execution/on_device_model_component.cc",
-      "model_execution/on_device_model_component.h",
       "model_execution/on_device_model_download_progress_manager.cc",
       "model_execution/on_device_model_download_progress_manager.h",
       "model_execution/on_device_model_execution_proto_descriptors.h",
@@ -335,12 +329,8 @@ source_set("ondevice") {
       "model_execution/on_device_model_execution_proto_value_utils.h",
       "model_execution/on_device_model_feature_adapter.cc",
       "model_execution/on_device_model_feature_adapter.h",
-      "model_execution/on_device_model_metadata.cc",
-      "model_execution/on_device_model_metadata.h",
       "model_execution/on_device_model_names.cc",
       "model_execution/on_device_model_names.h",
-      "model_execution/on_device_model_service_controller.cc",
-      "model_execution/on_device_model_service_controller.h",
       "model_execution/on_device_model_validator.cc",
       "model_execution/on_device_model_validator.h",
       "model_execution/on_device_telemetry_logger.cc",
@@ -395,6 +385,8 @@ source_set("ondevice") {
       sources += [
         "model_execution/android/model_broker_android.cc",
         "model_execution/android/model_broker_android.h",
+        "model_execution/on_device_model_adaptation_loader.cc",
+        "model_execution/on_device_model_adaptation_loader.h",
       ]
       deps += [
         "//build:branding_buildflags",
@@ -426,14 +418,17 @@ if (build_with_model_execution) {
     ]
     deps = [
       ":features",
+      ":model_execution",
       ":ondevice",
       "//base",
+      "//build:branding_buildflags",
       "//components/component_updater",
       "//components/crx_file",
       "//components/optimization_guide/core:features",
       "//components/optimization_guide/proto:optimization_guide_proto",
       "//components/optimization_guide/public/mojom",
       "//components/prefs",
+      "//components/update_client",
       "//services/on_device_model/public/cpp",
     ]
   }
@@ -470,8 +465,10 @@ if (build_with_model_execution) {
       ":ondevice",
       "//base",
       "//base/test:test_support",
+      "//components/crx_file",
       "//components/optimization_guide/proto:optimization_guide_proto",
       "//components/optimization_guide/public/mojom",
+      "//components/prefs:test_support",
       "//services/on_device_model/public/cpp/test_support",
       "//testing/gmock",
     ]
@@ -606,8 +603,8 @@ static_library("hints_test_support") {
     "proto_database_provider_test_base.cc",
     "proto_database_provider_test_base.h",
   ]
+  public_deps = [ ":hints" ]
   deps = [
-    ":hints",
     "//base",
     "//components/leveldb_proto",
     "//components/optimization_guide/proto:optimization_guide_proto",
@@ -658,8 +655,6 @@ static_library("model_execution_test_support") {
       "model_execution/test/fake_component_update_service.h",
       "model_execution/test/fake_model_assets.cc",
       "model_execution/test/fake_model_assets.h",
-      "model_execution/test/fake_model_broker.cc",
-      "model_execution/test/fake_model_broker.h",
       "model_execution/test/feature_config_builder.cc",
       "model_execution/test/feature_config_builder.h",
       "model_execution/test/mock_download_progress_observer.cc",
@@ -674,14 +669,13 @@ static_library("model_execution_test_support") {
       "model_execution/test/response_holder.h",
       "model_execution/test/substitution_builder.cc",
       "model_execution/test/substitution_builder.h",
-      "model_execution/test/test_on_device_model_component_state_manager.cc",
-      "model_execution/test/test_on_device_model_component_state_manager.h",
     ]
     deps += [
       "//components/component_updater:test_support",
       "//components/optimization_guide/public/mojom",
       "//components/prefs:test_support",
       "//components/update_client",
+      "//components/version_info",
       "//services/on_device_model/public/cpp:types",
       "//services/on_device_model/public/cpp/test_support",
       "//third_party/dawn/src/dawn:proc",
@@ -720,13 +714,14 @@ if (is_ios) {
   source_set("eg_test_support+eg2") {
     testonly = true
     sources = [
-      "optimization_guide_constants.cc",
-      "optimization_guide_constants.h",
       "optimization_guide_enums.h",
       "optimization_guide_switches.cc",
       "optimization_guide_switches.h",
     ]
-    public_deps = [ ":hints_test_support" ]
+    public_deps = [
+      ":core_util",
+      ":hints_test_support",
+    ]
     deps = [
       "//base",
       "//components/optimization_guide/proto:optimization_guide_proto",
@@ -877,23 +872,20 @@ source_set("model_execution_unit_tests") {
       "model_execution/model_execution_fetcher_impl_unittest.cc",
       "model_execution/model_execution_manager_unittest.cc",
       "model_execution/multimodal_message_unittest.cc",
-      "model_execution/on_device_asset_manager_unittest.cc",
-      "model_execution/on_device_model_adaptation_loader_unittest.cc",
-      "model_execution/on_device_model_component_unittest.cc",
       "model_execution/on_device_model_download_progress_manager_unittest.cc",
       "model_execution/on_device_model_execution_proto_descriptors_unittest.cc",
       "model_execution/on_device_model_execution_proto_value_utils_unittest.cc",
       "model_execution/on_device_model_feature_adapter_unittest.cc",
-      "model_execution/on_device_model_metadata_unittest.cc",
-      "model_execution/on_device_model_service_controller_unittest.cc",
       "model_execution/on_device_model_validator_unittest.cc",
       "model_execution/optimization_guide_model_execution_error_unittest.cc",
       "model_execution/performance_class_unittest.cc",
       "model_execution/repetition_checker_unittest.cc",
       "model_execution/response_parser_factory_unittest.cc",
       "model_execution/safety_checker_unittest.cc",
+      "model_execution/session_impl_unittest.cc",
       "model_execution/simple_response_parser_unittest.cc",
       "model_execution/substitution_unittest.cc",
+      "model_execution/usage_tracker_unittest.cc",
       "model_quality/model_execution_logging_wrappers_unittest.cc",
     ]
     deps += [
@@ -942,7 +934,6 @@ source_set("unit_tests") {
     "optimization_guide_logger_unittest.cc",
     "optimization_guide_permissions_util_unittest.cc",
     "optimization_guide_proto_util_unittest.cc",
-    "optimization_guide_switches_unittest.cc",
     "optimization_guide_util_unittest.cc",
   ]
   deps = [

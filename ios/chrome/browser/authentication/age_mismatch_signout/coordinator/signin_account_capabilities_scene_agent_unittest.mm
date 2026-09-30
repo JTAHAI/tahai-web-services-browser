@@ -75,7 +75,7 @@ class SigninAccountCapabilitiesSceneAgentTest : public PlatformTest {
     TestProfileIOS::Builder builder;
     builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetFactoryWithDelegate(
+        AuthenticationServiceFactory::GetFactoryWithDelegateForTesting(
             std::make_unique<FakeAuthenticationServiceDelegate>()));
     builder.AddTestingFactory(SyncServiceFactory::GetInstance(),
                               SyncServiceFactory::GetDefaultFactory());
@@ -140,7 +140,7 @@ class SigninAccountCapabilitiesSceneAgentTest : public PlatformTest {
         identity_manager, identity_manager
                               ->FindExtendedAccountInfoByEmailAddress(
                                   base::SysNSStringToUTF8(identity.userEmail))
-                              .account_id);
+                              .GetAccountId());
   }
 
   void FetchCapabilities(FakeSystemIdentity* identity) {

@@ -77,9 +77,12 @@ for these.
   - **Cross Gap**: Column gaps (same as grid)
   - **Association rules**: Same as grid, any row and column gaps will neatly align.
 
-<!--
-TODO(samomekarajr && javiercon): Complete this for grid-lanes.
--->
+### Grid-lanes
+- **Main Gap**: Grid-axis gutters between adjacent non-collapsed lanes.
+- **Cross Gap**: Stacking-axis gutters before placed items. Each Cross Gap is
+confined to one lane.
+- **Association rules**: Each lane's contiguous Cross Gap run is associated
+with the neighboring Main Gaps using before and after ranges.
 ---
 
 ### Calculating Intersections during Paint
@@ -104,6 +107,18 @@ Flex line height.
   - All cross gaps for flex only have two intersection points. This is
 because the cross gaps in flex are the gap between items, and they do not
 ever span multiple flex lines.
+
+#### Grid-lanes
+- Main Gap intersection points are calculated as:
+  - Start edge of the container || The ordered, de-duplicated merge of real
+    orthogonal Cross Gaps in the adjacent lanes || End edge of the container.
+  - Blocked segments are derived by comparing occupant identity on the two
+    sides.
+- Cross Gaps use:
+  - Start grid-axis boundary of the owning lane || End grid-axis
+    boundary of the owning lane.
+  - Each stored Cross Gap has exactly two intersection points and remains
+    confined to its owning lane. See [CSSWG issue 14153](https://github.com/w3c/csswg-drafts/issues/14153).
 
 ### For Multicol:
 - Same as grid.

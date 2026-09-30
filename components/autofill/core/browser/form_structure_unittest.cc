@@ -37,13 +37,13 @@
 #include "components/autofill/core/browser/heuristic_source.h"
 #include "components/autofill/core/browser/proto/api_v1.pb.h"
 #include "components/autofill/core/browser/studies/autofill_experiments.h"
-#include "components/autofill/core/browser/test_utils/autofill_form_test_utils.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_form_test_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
 #include "components/autofill/core/common/autocomplete_parsing_util.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/autofill/core/common/autofill_prefs.h"
-#include "components/autofill/core/common/autofill_test_utils.h"
+#include "components/autofill/core/common/autofill_test_util.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/form_data_test_api.h"
 #include "components/autofill/core/common/form_field_data.h"
@@ -512,7 +512,7 @@ TEST_F(FormStructureTestImpl,
 }
 
 // Tests whether the heuristics and server predictions are run for forms with
-// fewer than 3 fields  and no autocomplete attributes.
+// fewer than 3 fields and no autocomplete attributes.
 TEST_F(FormStructureTestImpl,
        HeuristicsAndServerPredictions_SmallForm_NoAutocompleteAttribute) {
   FormData form;
@@ -1785,14 +1785,6 @@ TEST_F(FormStructureTestImpl, CheckFormSignature) {
   field.set_renderer_id(test::MakeFieldRendererId());
   test_api(form).Append(field);
 
-  // Checkable fields shouldn't affect the signature.
-  field.set_label(u"Select");
-  field.set_name(u"Select");
-  field.set_form_control_type(FormControlType::kInputCheckbox);
-  field.set_check_status(FormFieldData::CheckStatus::kCheckableButUnchecked);
-  field.set_renderer_id(test::MakeFieldRendererId());
-  test_api(form).Append(field);
-
   form_structure = std::make_unique<FormStructure>(form);
 
   EXPECT_EQ(FormStructureTestImpl::Hash64Bit(std::string("://&&email&first")),
@@ -1817,7 +1809,6 @@ TEST_F(FormStructureTestImpl, CheckFormSignature) {
             form_structure->FormSignatureAsStr());
 
   // Checks how digits are removed from field names.
-  field.set_check_status(FormFieldData::CheckStatus::kNotCheckable);
   field.set_label(u"Random Field label");
   field.set_name(u"random1234");
   field.set_form_control_type(FormControlType::kInputText);
@@ -2443,11 +2434,57 @@ TEST_F(FormStructureTestImpl, LogBuffer_FormSignatures) {
   LogBuffer buffer;
   buffer << form_structure;
 
-  std::string json;
-  EXPECT_TRUE(base::JSONWriter::Write(*buffer.RetrieveResult(), &json));
-  EXPECT_THAT(json, testing::HasSubstr("Form signature:"));
-  EXPECT_THAT(json, testing::HasSubstr("Form alternative signature:"));
-  EXPECT_THAT(json, testing::HasSubstr("Form structural signature:"));
+  std::optional<std::string> json = base::WriteJson(*buffer.RetrieveResult());
+  ASSERT_TRUE(json.has_value());
+  EXPECT_THAT(json.value(), testing::HasSubstr("Form signature:"));
+  EXPECT_THAT(json.value(), testing::HasSubstr("Form alternative signature:"));
+  EXPECT_THAT(json.value(), testing::HasSubstr("Form structural signature:"));
+}
+
+// The test below validates that the `MatchInfo` structure of `AutofillField` is
+// correctly propagated during the regex parsing.
+TEST_F(FormStructureTestImpl, FieldsMatchedOnDifferentAttributes) {
+  base::test::ScopedFeatureList scoped_feature_list{
+      features::kAutofillBetterLocalHeuristicPlaceholderSupport};
+
+  FormStructure form_structure(test::GetFormData({
+      .fields =
+          {// The label is of high quality but doesn't match. The regex
+           // should match with placeholder, which is considered low
+           // quality.
+           {.label = u"Label",
+            .placeholder = u"Full Name",
+            .label_source = FormFieldData::LabelSource::kLabelTag},
+           // The label is of high quality but doesn't match. The regexes
+           // should match with name.
+           {.label = u"Label",
+            .name = u"Address",
+            .placeholder = u"Full Name",
+            .label_source = FormFieldData::LabelSource::kLabelTag},
+           // The label is of high quality and should be matched by regexes.
+           {.label = u"Country",
+            .placeholder = u"Full Name",
+            .label_source = FormFieldData::LabelSource::kLabelTag}},
+  }));
+  const RegexPredictions regex_predictions = DetermineRegexTypes(
+      GeoIpCountryCode(""), LanguageCode(""), form_structure.ToFormData(),
+      nullptr, /*ignore_small_forms=*/true);
+  regex_predictions.ApplyTo(form_structure.fields());
+
+  EXPECT_EQ(NAME_FULL, form_structure.field(0)->heuristic_type());
+  ASSERT_TRUE(form_structure.field(0)->regex_match_info());
+  EXPECT_EQ(MatchInfo::MatchAttribute::kLowQualityLabel,
+            form_structure.field(0)->regex_match_info()->matched_attribute);
+
+  EXPECT_EQ(ADDRESS_HOME_LINE1, form_structure.field(1)->heuristic_type());
+  ASSERT_TRUE(form_structure.field(1)->regex_match_info());
+  EXPECT_EQ(MatchInfo::MatchAttribute::kName,
+            form_structure.field(1)->regex_match_info()->matched_attribute);
+
+  EXPECT_EQ(ADDRESS_HOME_COUNTRY, form_structure.field(2)->heuristic_type());
+  ASSERT_TRUE(form_structure.field(2)->regex_match_info());
+  EXPECT_EQ(MatchInfo::MatchAttribute::kHighQualityLabel,
+            form_structure.field(2)->regex_match_info()->matched_attribute);
 }
 
 }  // namespace

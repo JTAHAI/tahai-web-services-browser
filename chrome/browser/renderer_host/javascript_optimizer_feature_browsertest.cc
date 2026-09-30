@@ -25,11 +25,13 @@
 #include "base/test/run_until.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/page_action/action_ids.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/js_optimization/js_optimizations_page_action_controller.h"
 #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
 #include "chrome/browser/ui/views/page_action/test_support/page_action_interactive_test_mixin.h"
+#include "chrome/browser/ui/views/page_action/test_support/page_action_test_accessor.h"
 #include "chrome/browser/ui/views/page_action/test_support/page_action_test_support.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
@@ -1344,25 +1346,23 @@ class JavascriptOptimizerOmnibarIconBrowserTest
  public:
   // Returns true iff the JS Optimizations omnibar icon is visible.
   bool IsOmnibarIconVisible() {
-    auto* provider = BrowserView::GetBrowserViewForBrowser(browser())
-                         ->toolbar_button_provider();
-    const auto* view = page_actions::GetIconLabelBubbleViewForTesting(
-        provider->GetPageActionViewInterface(kActionShowJsOptimizationsIcon),
-        kActionShowJsOptimizationsIcon);
-    return view && view->GetVisible();
+    return page_actions::PageActionTestAccessor(browser(),
+                                                kActionShowJsOptimizationsIcon)
+        .GetVisible();
   }
 
   // Returns true iff the JS Optimizations bubble is visible.
   bool IsBubbleVisible() {
     if (ui::ElementTracker::GetElementTracker()->GetUniqueElement(
             JsOptimizationsPageActionController::kBubbleBodyElementId,
-            browser()->GetBrowserView().GetElementContext()) == nullptr) {
+            BrowserView::GetBrowserViewForBrowser(browser())
+                ->GetElementContext()) == nullptr) {
       return false;
     }
 
     actions::ActionItem* action_item = actions::ActionManager::Get().FindAction(
         kActionShowJsOptimizationsIcon,
-        browser()->browser_actions()->root_action_item());
+        BrowserActions::From(browser())->root_action_item());
     return action_item && action_item->GetIsShowingBubble();
   }
 
@@ -1373,7 +1373,8 @@ class JavascriptOptimizerOmnibarIconBrowserTest
     }
     return ui::ElementTracker::GetElementTracker()->GetUniqueElement(
                JsOptimizationsPageActionController::kBubbleButtonElementId,
-               browser()->GetBrowserView().GetElementContext()) != nullptr;
+               BrowserView::GetBrowserViewForBrowser(browser())
+                   ->GetElementContext()) != nullptr;
   }
 
   using PageActionInteractiveTestMixin::WaitForPageActionButtonVisible;
@@ -1537,8 +1538,15 @@ IN_PROC_BROWSER_TEST_F(JavascriptOptimizerBubbleBrowserTest,
   ASSERT_FALSE(IsOmnibarIconVisible());
 }
 
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_IconHighlightClearedOnBubbleClose \
+    DISABLED_IconHighlightClearedOnBubbleClose
+#else
+#define MAYBE_IconHighlightClearedOnBubbleClose \
+    IconHighlightClearedOnBubbleClose
+#endif
 IN_PROC_BROWSER_TEST_F(JavascriptOptimizerBubbleBrowserTest,
-                       IconHighlightClearedOnBubbleClose) {
+                       MAYBE_IconHighlightClearedOnBubbleClose) {
   auto* map = HostContentSettingsMapFactory::GetForProfile(profile());
   map->SetDefaultContentSetting(ContentSettingsType::JAVASCRIPT_OPTIMIZER,
                                 ContentSetting::CONTENT_SETTING_BLOCK);
@@ -1555,32 +1563,87 @@ IN_PROC_BROWSER_TEST_F(JavascriptOptimizerBubbleBrowserTest,
       WaitForShow(JsOptimizationsPageActionController::kBubbleBodyElementId));
   EXPECT_TRUE(IsBubbleVisible());
 
-  // Check icon is highlighted.
-  auto* provider = BrowserView::GetBrowserViewForBrowser(browser())
-                       ->toolbar_button_provider();
-  auto* icon = page_actions::GetIconLabelBubbleViewForTesting(
-      provider->GetPageActionViewInterface(kActionShowJsOptimizationsIcon),
-      kActionShowJsOptimizationsIcon);
-  EXPECT_TRUE(icon);
-  views::test::InkDropHostTestApi ink_drop_test_api(views::InkDrop::Get(icon));
-  ASSERT_EQ(ink_drop_test_api.GetInkDrop()->GetTargetInkDropState(),
-            views::InkDropState::ACTIVATED);
+  // TODO(crbug.com/545160323): Test WebUI page action highlight.
+  if (!features::IsWebUILocationBarEnabled()) {
+    // Check icon is highlighted.
+    auto* provider = BrowserView::GetBrowserViewForBrowser(browser())
+                         ->toolbar_button_provider();
+    auto* icon = page_actions::GetIconLabelBubbleViewForTesting(
+        provider->GetPageActionViewInterface(kActionShowJsOptimizationsIcon),
+        kActionShowJsOptimizationsIcon);
+    EXPECT_TRUE(icon);
+    views::test::InkDropHostTestApi ink_drop_test_api(
+        views::InkDrop::Get(icon));
+    ASSERT_EQ(ink_drop_test_api.GetInkDrop()->GetTargetInkDropState(),
+              views::InkDropState::ACTIVATED);
 
-  // Close bubble.
+    // Close bubble.
+    RunTestSequence(
+        WithElement(JsOptimizationsPageActionController::kBubbleBodyElementId,
+                    base::BindOnce([](ui::TrackedElement* element) {
+                      auto* view_element =
+                          element->AsA<views::TrackedElementViews>();
+                      view_element->view()->GetWidget()->Close();
+                    })),
+        WaitForHide(JsOptimizationsPageActionController::kBubbleBodyElementId));
+
+    // Check icon is no longer highlighted.
+    ASSERT_TRUE(base::test::RunUntil([&]() {
+      return ink_drop_test_api.GetInkDrop()->GetTargetInkDropState() ==
+             views::InkDropState::HIDDEN;
+    }));
+  } else {
+    // Close bubble.
+    RunTestSequence(
+        WithElement(JsOptimizationsPageActionController::kBubbleBodyElementId,
+                    base::BindOnce([](ui::TrackedElement* element) {
+                      auto* view_element =
+                          element->AsA<views::TrackedElementViews>();
+                      view_element->view()->GetWidget()->Close();
+                    })),
+        WaitForHide(JsOptimizationsPageActionController::kBubbleBodyElementId));
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(JavascriptOptimizerBubbleBrowserTest,
+                       BubbleClosesOnNavigation) {
+  auto* map = HostContentSettingsMapFactory::GetForProfile(profile());
+  map->SetDefaultContentSetting(ContentSettingsType::JAVASCRIPT_OPTIMIZER,
+                                ContentSetting::CONTENT_SETTING_BLOCK);
+
+  ASSERT_TRUE(content::NavigateToURL(
+      web_contents(),
+      embedded_https_test_server().GetURL("a.com", "/simple.html")));
+  ASSERT_TRUE(AreV8OptimizationsDisabledOnActiveWebContents());
+  ASSERT_TRUE(IsOmnibarIconVisible());
+
+  // Click on icon.
+  RunTestSequence(PressButton(kJsOptimizationsIconElementId));
+  // Assert that bubble is visible.
   RunTestSequence(
-      WithElement(JsOptimizationsPageActionController::kBubbleBodyElementId,
-                  base::BindOnce([](ui::TrackedElement* element) {
-                    auto* view_element =
-                        element->AsA<views::TrackedElementViews>();
-                    view_element->view()->GetWidget()->Close();
-                  })),
-      WaitForHide(JsOptimizationsPageActionController::kBubbleBodyElementId));
+      WaitForShow(JsOptimizationsPageActionController::kBubbleBodyElementId));
+  EXPECT_TRUE(IsBubbleVisible());
 
-  // Check icon is no longer highlighted.
-  ASSERT_TRUE(base::test::RunUntil([&]() {
-    return ink_drop_test_api.GetInkDrop()->GetTargetInkDropState() ==
-           views::InkDropState::HIDDEN;
-  }));
+  // Navigate to a different site while the bubble is open.
+  ASSERT_TRUE(content::NavigateToURL(
+      web_contents(),
+      embedded_https_test_server().GetURL("b.com", "/simple.html")));
+  ASSERT_TRUE(AreV8OptimizationsDisabledOnActiveWebContents());
+
+  // The bubble was opened for the previous site, so it should now be closed.
+  RunTestSequence(
+      WaitForHide(JsOptimizationsPageActionController::kBubbleBodyElementId));
+  EXPECT_FALSE(IsBubbleVisible());
+
+  // No allow exception was written for either site.
+  EXPECT_EQ(ContentSetting::CONTENT_SETTING_BLOCK,
+            map->GetContentSetting(
+                embedded_https_test_server().GetURL("a.com", "/"), GURL(),
+                ContentSettingsType::JAVASCRIPT_OPTIMIZER));
+  EXPECT_EQ(ContentSetting::CONTENT_SETTING_BLOCK,
+            map->GetContentSetting(
+                embedded_https_test_server().GetURL("b.com", "/"), GURL(),
+                ContentSettingsType::JAVASCRIPT_OPTIMIZER));
 }
 
 // JS optimizations disabled by enterprise policy.

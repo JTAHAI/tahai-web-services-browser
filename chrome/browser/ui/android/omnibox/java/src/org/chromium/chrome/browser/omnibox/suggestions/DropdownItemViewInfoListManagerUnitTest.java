@@ -21,13 +21,13 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxLayoutMode;
+import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.SuggestionCommonProperties.RoundSides;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.components.omnibox.suggestions.OmniboxSuggestionUiType;
@@ -41,14 +41,14 @@ import java.util.List;
 
 /** Tests for {@link DropdownItemViewInfoListManager}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class DropdownItemViewInfoListManagerUnitTest {
-    public @Rule MockitoRule mockitoRule = MockitoJUnit.rule();
+    @Rule public final MockitoRule mockitoRule = MockitoJUnit.rule();
 
-    private @Spy SuggestionProcessor mBasicSuggestionProcessor;
-    private @Spy SuggestionProcessor mEditUrlSuggestionProcessor;
-    private @Mock PropertyModel mModel;
-    private @Mock ListObserver<Void> mListObserver;
+    @Spy private SuggestionProcessor mBasicSuggestionProcessor;
+    @Spy private SuggestionProcessor mEditUrlSuggestionProcessor;
+    @Mock private PropertyModel mModel;
+    @Mock private ListObserver<Void> mListObserver;
+    @Mock private OmniboxResourceProvider mResourceProvider;
 
     private ModelList mSuggestionModels;
     private SettableNonNullObservableSupplier<Integer> mRoundSidesSupplier;
@@ -67,7 +67,7 @@ public class DropdownItemViewInfoListManagerUnitTest {
         mRoundSidesSupplier = ObservableSuppliers.createNonNull(RoundSides.TOP_AND_BOTTOM);
         mManager =
                 new DropdownItemViewInfoListManager(
-                        mSuggestionModels, context, mRoundSidesSupplier);
+                        mSuggestionModels, context, mRoundSidesSupplier, mResourceProvider);
         mManager.onNativeInitialized();
     }
 

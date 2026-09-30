@@ -48,6 +48,7 @@ class PermissionChipView : public views::MdTextButton,
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
+  void OnGestureEvent(ui::GestureEvent* event) override;
   void OnThemeChanged() override;
   void UpdateBackgroundColor() override;
 
@@ -60,10 +61,6 @@ class PermissionChipView : public views::MdTextButton,
   }
   PermissionChipTheme theme() const { return theme_; }
 
-  // Returns whether the theme describes a request state (true) or indicator
-  // state (false).
-  bool GetIsRequestForTesting() const;
-
   void StopAnimationForTesting();
 
   int GetIconViewWidth() const;
@@ -71,6 +68,10 @@ class PermissionChipView : public views::MdTextButton,
   // PermissionChipInterface:
   void SetVisible(bool visible) override;
   bool GetVisible() const override;
+  PermissionChipTheme GetThemeForTesting() const override;
+  std::u16string GetTooltipText() const override;
+  std::u16string GetTextForTesting() const override;
+  bool GetIsRequestForTesting() const override;
   void SetChipIcon(const gfx::VectorIcon& icon) override;
   void SetChipIcon(const gfx::VectorIcon* icon) override;
   void SetMessage(std::u16string message) override;
@@ -94,10 +95,13 @@ class PermissionChipView : public views::MdTextButton,
   void AnnounceText(const std::u16string& text) override;
   void AnnounceAlert(const std::u16string& text) override;
   bool IsMouseHovered() const override;
-  void SetPressedCallback(base::RepeatingClosure callback) override;
+  void SetPressedCallback(
+      base::RepeatingCallback<void(bool)> callback) override;
   views::BubbleAnchor GetAnchor() override;
   void SetBubbleOwner(
       PermissionChipInterface::BubbleOwnerDelegate* owner) override;
+  void ExecuteForTesting() override;
+  void EndAnimationForTesting() override;
 
   // Views-specific formatting.
   void UpdateForDividerVisibility(bool is_divider_visible,

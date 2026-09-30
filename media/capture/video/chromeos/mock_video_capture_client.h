@@ -5,6 +5,7 @@
 #ifndef MEDIA_CAPTURE_VIDEO_CHROMEOS_MOCK_VIDEO_CAPTURE_CLIENT_H_
 #define MEDIA_CAPTURE_VIDEO_CHROMEOS_MOCK_VIDEO_CAPTURE_CLIENT_H_
 
+#include "base/containers/span.h"
 #include "media/capture/video/video_capture_device.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
@@ -17,7 +18,6 @@ namespace unittest_internal {
 class MockVideoCaptureClient : public VideoCaptureDevice::Client {
  public:
   MOCK_METHOD0(DoReserveOutputBuffer, void(void));
-  MOCK_METHOD0(DoOnIncomingCapturedBuffer, void(void));
   MOCK_METHOD0(DoOnIncomingCapturedVideoFrame, void(void));
   MOCK_METHOD0(OnCaptureConfigurationChanged, void(void));
   MOCK_METHOD3(OnError,
@@ -27,6 +27,7 @@ class MockVideoCaptureClient : public VideoCaptureDevice::Client {
   MOCK_METHOD1(OnFrameDropped, void(media::VideoCaptureFrameDropReason reason));
   MOCK_CONST_METHOD0(GetBufferPoolUtilization, double(void));
   MOCK_METHOD0(OnStarted, void(void));
+  MOCK_METHOD0(InvalidateBuffers, void());
 
   explicit MockVideoCaptureClient();
 
@@ -41,8 +42,7 @@ class MockVideoCaptureClient : public VideoCaptureDevice::Client {
                  const std::string& message);
 
   void OnIncomingCapturedData(
-      const uint8_t* data,
-      int length,
+      base::span<const uint8_t> data,
       const VideoCaptureFormat& format,
       const gfx::ColorSpace& color_space,
       int rotation,
@@ -77,13 +77,6 @@ class MockVideoCaptureClient : public VideoCaptureDevice::Client {
                                     Buffer* buffer,
                                     int* require_new_buffer_id,
                                     int* retire_old_buffer_id) override;
-  void OnIncomingCapturedBuffer(
-      Buffer buffer,
-      const VideoCaptureFormat& format,
-      base::TimeTicks reference_time,
-      base::TimeDelta timestamp,
-      std::optional<base::TimeTicks> capture_begin_time,
-      const std::optional<media::VideoFrameMetadata>& metadata) override;
   void OnIncomingCapturedBufferExt(
       Buffer buffer,
       const VideoCaptureFormat& format,

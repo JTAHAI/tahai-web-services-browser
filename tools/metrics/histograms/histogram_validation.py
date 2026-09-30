@@ -46,12 +46,13 @@ class GetFilesToCheckResult:
   files_to_check: List[HistogramFileState]
   old_variants_doc: xml.dom.minidom.Document | None
   new_variants_doc: xml.dom.minidom.Document | None
+  modified_variants_blocks: Set[str]
 
 
 def get_old_and_new_variants(
-    affected_files: List[HistogramFileState],
-    read_file_fn: Callable[[str], str],
-    variants_paths: List[str],
+  affected_files: List[HistogramFileState],
+  read_file_fn: Callable[[str], str],
+  variants_paths: List[str],
 ) -> List[GetOldAndNewVariantsResult]:
   """Retrieves the old and new contents of variants XML files.
 
@@ -66,8 +67,7 @@ def get_old_and_new_variants(
     the current patchset.
   """
   affected_files_by_path = {
-      pathlib.Path(f.path).resolve(): f
-      for f in affected_files
+    pathlib.Path(f.path).resolve(): f for f in affected_files
   }
   result = []
   for variant_file in variants_paths:
@@ -84,30 +84,29 @@ def get_old_and_new_variants(
       is_modified = False
 
     result.append(
-        GetOldAndNewVariantsResult(
-            variants_file_path=str(resolved_variant_file),
-            old_variants=old_variants,
-            new_variants=new_variants,
-            is_modified=is_modified,
-        ))
+      GetOldAndNewVariantsResult(
+        variants_file_path=str(resolved_variant_file),
+        old_variants=old_variants,
+        new_variants=new_variants,
+        is_modified=is_modified,
+      )
+    )
   return result
 
 
 def _get_histograms_affected_by_variant_changes(
-    old_variants: str,
-    new_variants: str,
-    histograms_paths: List[str],
+  modified_variants_blocks: Set[str],
+  histograms_paths: List[str],
 ) -> List[str]:
-  modified_variants_blocks = histogram_utils.get_modified_variants_blocks(
-      old_variants, new_variants)
-  return histogram_utils.find_files_using_variants(modified_variants_blocks,
-                                                   histograms_paths)
+  return histogram_utils.find_files_using_variants(
+    modified_variants_blocks, histograms_paths
+  )
 
 
 def get_virtually_affected_files_to_check(
-    virtually_affected_paths: List[str],
-    processed_paths: Set[pathlib.Path],
-    read_file_fn: Callable[[str], str],
+  virtually_affected_paths: List[str],
+  processed_paths: Set[pathlib.Path],
+  read_file_fn: Callable[[str], str],
 ) -> List[HistogramFileState]:
   """Reads virtually affected files and returns them as HistogramFileState.
 
@@ -132,28 +131,31 @@ def get_virtually_affected_files_to_check(
       continue
     content = read_file_fn(str(resolved_path)).splitlines()
     files_to_check.append(
-        HistogramFileState(
-            path=str(resolved_path),
-            old_contents=content,
-            new_contents=content,
-            action='M',
-        ))
+      HistogramFileState(
+        path=str(resolved_path),
+        old_contents=content,
+        new_contents=content,
+        action='M',
+      )
+    )
   return files_to_check
 
 
 def get_files_to_check(
-    affected_files: List[HistogramFileState],
-    read_file_fn: Callable[[str], str],
-    variants_paths: List[str],
-    histograms_paths: List[str],
+  affected_files: List[HistogramFileState],
+  read_file_fn: Callable[[str], str],
+  variants_paths: List[str],
+  histograms_paths: List[str],
 ) -> GetFilesToCheckResult:
   """Returns a list of files to check for histogram changes."""
-  variants_res = get_old_and_new_variants(affected_files, read_file_fn,
-                                          variants_paths)
+  variants_res = get_old_and_new_variants(
+    affected_files, read_file_fn, variants_paths
+  )
 
   old_variants_trees = []
   new_variants_trees = []
   virtually_affected_paths = []
+  modified_variants_blocks = set()
 
   for res in variants_res:
     old_content = res.old_variants.strip()
@@ -167,23 +169,30 @@ def get_files_to_check(
       new_variants_trees.append(new_doc)
 
     if res.is_modified:
+      file_modified_variants = histogram_utils.get_modified_variants_blocks(
+        res.old_variants, res.new_variants
+      )
+      modified_variants_blocks.update(file_modified_variants)
       virtually_affected_paths.extend(
-          _get_histograms_affected_by_variant_changes(
-              res.old_variants,
-              res.new_variants,
-              histograms_paths,
-          ))
+        _get_histograms_affected_by_variant_changes(
+          file_modified_variants,
+          histograms_paths,
+        )
+      )
 
-  old_variants_doc = (merge_xml.MergeTrees(old_variants_trees,
-                                           should_expand_owners=False)
-                      if old_variants_trees else None)
-  new_variants_doc = (merge_xml.MergeTrees(new_variants_trees,
-                                           should_expand_owners=False)
-                      if new_variants_trees else None)
+  old_variants_doc = (
+    merge_xml.MergeTrees(old_variants_trees, should_expand_owners=False)
+    if old_variants_trees
+    else None
+  )
+  new_variants_doc = (
+    merge_xml.MergeTrees(new_variants_trees, should_expand_owners=False)
+    if new_variants_trees
+    else None
+  )
 
   resolved_histograms_paths = {
-      pathlib.Path(p).resolve()
-      for p in histograms_paths
+    pathlib.Path(p).resolve() for p in histograms_paths
   }
   files_to_check = []
   processed_paths = set()
@@ -194,35 +203,86 @@ def get_files_to_check(
         files_to_check.append(f)
         processed_paths.add(resolved_path)
 
-  virt_files = get_virtually_affected_files_to_check(virtually_affected_paths,
-                                                     processed_paths,
-                                                     read_file_fn)
+  virt_files = get_virtually_affected_files_to_check(
+    virtually_affected_paths, processed_paths, read_file_fn
+  )
   files_to_check.extend(virt_files)
 
-  return GetFilesToCheckResult(files_to_check, old_variants_doc,
-                               new_variants_doc)
+  return GetFilesToCheckResult(
+    files_to_check,
+    old_variants_doc,
+    new_variants_doc,
+    modified_variants_blocks,
+  )
 
 
 def _empty_variants_doc() -> xml.dom.minidom.Document:
   return xml.dom.minidom.parseString(
-      '<variants-configuration></variants-configuration>')
+    '<variants-configuration></variants-configuration>'
+  )
 
 
 def get_histogram_names(
-    files_contents: List[List[str]],
-    variants: xml.dom.minidom.Document | None,
+  files_contents: List[List[str]],
+  variants: xml.dom.minidom.Document | None,
 ) -> Set[str]:
   """Returns all expanded histogram names from the given files contents."""
   all_histograms = set()
   variants_doc = variants or _empty_variants_doc()
   for contents in files_contents:
     all_histograms.update(
-        histogram_utils.get_names_from_contents(contents, variants_doc))
+      histogram_utils.get_names_from_contents(contents, variants_doc)
+    )
   return all_histograms
 
 
+def get_histograms_with_modified_variants(
+  files_to_check: List[HistogramFileState],
+  old_variants: xml.dom.minidom.Document | None,
+  new_variants: xml.dom.minidom.Document | None,
+  modified_variants_blocks: Set[str],
+) -> Set[str]:
+  """Returns existing histograms that reference modified `<variants>` blocks."""
+  old_variants_doc = old_variants or _empty_variants_doc()
+  new_variants_doc = new_variants or _empty_variants_doc()
+  variant_modified_histograms = set()
+
+  for file_state in files_to_check:
+    file_modified_variants = histogram_utils.get_modified_variants_blocks(
+      '\n'.join(file_state.old_contents), '\n'.join(file_state.new_contents)
+    )
+    all_modified_variants = (
+      modified_variants_blocks | file_modified_variants
+    )
+    if not all_modified_variants:
+      continue
+
+    old_histograms = set()
+    if file_state.action != 'A':
+      old_histograms = histogram_utils.get_names_from_contents(
+        file_state.old_contents, old_variants_doc
+      )
+      variant_modified_histograms.update(
+        histogram_utils.get_names_using_variants_from_contents(
+          file_state.old_contents, old_variants_doc, all_modified_variants
+        )
+      )
+
+    if file_state.action != 'D':
+      new_variant_modified_histograms = (
+        histogram_utils.get_names_using_variants_from_contents(
+          file_state.new_contents, new_variants_doc, all_modified_variants
+        )
+      )
+      variant_modified_histograms.update(
+        new_variant_modified_histograms & old_histograms
+      )
+
+  return variant_modified_histograms
+
+
 def check_booleans_are_enums(
-    affected_files: List[AffectedFileForLineCheck],
+  affected_files: List[AffectedFileForLineCheck],
 ) -> List[Tuple[str, int, str]]:
   """Checks that histograms that use Booleans do not use units."""
   results = []
@@ -237,16 +297,16 @@ def check_booleans_are_enums(
 
 
 def check_removed_segmentation_histograms(
-    removed_histograms: Set[str],
-    segmentation_histograms: Set[str],
+  removed_histograms: Set[str],
+  segmentation_histograms: Set[str],
 ) -> Set[str]:
   """Checks if any histogram used by segmentation platform is removed."""
   return removed_histograms.intersection(segmentation_histograms)
 
 
 def check_if_introduced_too_many_histograms(
-    added_histograms: Set[str],
-    threshold: int,
+  added_histograms: Set[str],
+  threshold: int,
 ) -> bool:
   """Checks if the number of histograms introduced in the CL is too high."""
   return len(added_histograms) > threshold

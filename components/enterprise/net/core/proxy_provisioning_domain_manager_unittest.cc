@@ -7,17 +7,21 @@
 #include <memory>
 #include <vector>
 
+#include "base/strings/stringprintf.h"
 #include "base/test/run_until.h"
 #include "base/test/task_environment.h"
 #include "base/values.h"
 #include "components/enterprise/browser/identifiers/profile_id_service.h"
 #include "components/enterprise/net/core/enterprise_network_auth_service.h"
 #include "components/enterprise/net/core/provisioning_domain_fetcher.h"
+#include "components/enterprise/net/core/timer_utils.h"
 #include "components/enterprise/net/core/types.h"
+#include "components/enterprise/net/core/utils.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "net/http/http_status_code.h"
+#include "net/http/http_util.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
 #include "services/network/test/test_url_loader_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -36,7 +40,25 @@ constexpr char kTestPvdJson[] = R"({
     {
       "identifier": "proxy1",
       "protocol": "https-connect",
-      "proxy": "proxy1.example.com:443"
+      "proxy": "proxy1.example.com:443",
+      "google_chrome": {
+        "auth": {
+          "type": "profile_bearer_token",
+          "scope": "cloud_secure_gateway"
+        },
+        "extra_headers": [
+          {
+            "key": "X-Client-ID",
+            "value": "test_client",
+            "type": "constant"
+          },
+          {
+            "key": "X-Profile-ID",
+            "value": "${profile_id}",
+            "type": "variable"
+          }
+        ]
+      }
     },
     {
       "identifier": "proxy2",
@@ -47,7 +69,8 @@ constexpr char kTestPvdJson[] = R"({
   "proxy-match": [
     {
       "proxies": ["proxy1"],
-      "domains": ["*.secure.com"]
+      "domains": ["*.secure.com"],
+      "ports": [443]
     },
     {
       "proxies": ["DIRECT"],
@@ -85,11 +108,16 @@ class ProxyProvisioningDomainManagerTest : public testing::Test {
   std::unique_ptr<ProxyProvisioningDomainManager> CreateManager(
       const ProvisioningDomainConfig& policy,
       EnterpriseNetworkAuthService* auth_service) {
-    auto shared_factory =
-        base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
-            &test_url_loader_factory_);
+    auto url_loader_factory_callback = base::BindRepeating(
+        [](network::TestURLLoaderFactory* test_url_loader_factory)
+            -> scoped_refptr<network::SharedURLLoaderFactory> {
+          return test_url_loader_factory->GetSafeWeakWrapper();
+        },
+        &test_url_loader_factory_);
     return std::make_unique<ProxyProvisioningDomainManager>(
-        policy, auth_service, shared_factory);
+        base::Value(ProvisioningDomainConfigToDict(policy)),
+        /*cached_config_dict=*/nullptr, auth_service,
+        std::move(url_loader_factory_callback));
   }
 
   ProvisioningDomainConfig CreateTestPolicyConfig() {
@@ -138,7 +166,30 @@ class ProxyProvisioningDomainManagerTest : public testing::Test {
         {ProvisioningDomainProxyConfig::State::kFetching, final_state});
   }
 
-  base::test::TaskEnvironment task_environment_;
+  void SimulateHttpError(int http_status = 500,
+                         const std::string& url = kTestUrl) {
+    ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+    network::URLLoaderCompletionStatus status(net::ERR_FAILED);
+    auto head = network::mojom::URLResponseHead::New();
+    head->headers = base::MakeRefCounted<net::HttpResponseHeaders>(
+        base::StringPrintf("HTTP/1.1 %d Error\r\n\r\n", http_status));
+    test_url_loader_factory_.SimulateResponseForPendingRequest(
+        GURL(url), status, std::move(head), "");
+  }
+
+  void FastForwardAndFailTransient(ProxyProvisioningDomainManager* manager,
+                                   base::TimeDelta expected_delay) {
+    task_environment_.FastForwardBy(
+        manager->GetCurrentExpirationDelayForTesting());
+    SimulateHttpError(500);
+    EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedTransient,
+              manager->state());
+    EXPECT_TRUE(manager->IsExpirationTimerRunningForTesting());
+    EXPECT_EQ(expected_delay, manager->GetCurrentExpirationDelayForTesting());
+  }
+
+  base::test::TaskEnvironment task_environment_{
+      base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   signin::IdentityTestEnvironment identity_test_env_;
   network::TestURLLoaderFactory test_url_loader_factory_;
   TestingPrefServiceSimple pref_service_;
@@ -184,17 +235,17 @@ TEST_F(ProxyProvisioningDomainManagerTest,
   EXPECT_EQ(2u, manager->fetched_config().proxy_endpoints.size());
   EXPECT_EQ(3u, manager->fetched_config().routing_rules.size());
 
-  // Trigger another refresh that fails with permanent JSON parse error.
-  ExpectStateTransitionTo(
-      observer, manager.get(),
-      ProvisioningDomainProxyConfig::State::kFailedPermanent);
+  // Trigger another refresh that fails with blocked JSON parse error.
+  ExpectStateTransitionTo(observer, manager.get(),
+                          ProvisioningDomainProxyConfig::State::kFailedBlocked);
 
   manager->ForceRefresh();
   ASSERT_EQ(1, test_url_loader_factory_.NumPending());
   test_url_loader_factory_.SimulateResponseForPendingRequest(kTestUrl,
                                                              "{invalid_json");
   EXPECT_FALSE(manager->is_refresh_in_progress());
-  // Verify previous valid routes were PRESERVED!
+  // Verify previous valid routes were PRESERVED on blocked error for maximal
+  // availability!
   EXPECT_EQ(2u, manager->fetched_config().proxy_endpoints.size());
   EXPECT_EQ(3u, manager->fetched_config().routing_rules.size());
 
@@ -242,14 +293,13 @@ TEST_F(ProxyProvisioningDomainManagerTest, CancelRefreshAbortsInFlightRequest) {
   manager->RemoveObserver(&observer);
 }
 
-TEST_F(ProxyProvisioningDomainManagerTest,
-       GetDebugInfoContainsDetailedContent) {
+TEST_F(ProxyProvisioningDomainManagerTest, ToDictContainsDetailedContent) {
   auto auth_service = CreateAuthService();
   auto manager = CreateManager(CreateTestPolicyConfigWithAuthAndHeaders(),
                                auth_service.get());
 
   // Verify debug info before fetch runs.
-  base::DictValue debug_info_initial = manager->GetDebugInfo();
+  base::DictValue debug_info_initial = manager->ToDict();
   const base::DictValue* policy_dict = debug_info_initial.FindDict("policy");
   ASSERT_NE(nullptr, policy_dict);
   EXPECT_EQ(kTestDomain, *policy_dict->FindString("pvd_id"));
@@ -297,11 +347,11 @@ TEST_F(ProxyProvisioningDomainManagerTest,
       kTestUrl, kTestPvdJson));
 
   // Verify detailed debug info after successful refresh.
-  base::DictValue debug_info = manager_http->GetDebugInfo();
+  base::DictValue debug_info = manager_http->ToDict();
   const base::DictValue* fetched_config_dict =
       debug_info.FindDict("fetched_config");
   ASSERT_NE(nullptr, fetched_config_dict);
-  EXPECT_EQ(kTestDomain, *fetched_config_dict->FindString("pvd_id"));
+  EXPECT_EQ(kTestDomain, *fetched_config_dict->FindString("identifier"));
   EXPECT_EQ("Valid", *fetched_config_dict->FindString("state"));
 
   const base::ListValue* proxies = fetched_config_dict->FindList("proxies");
@@ -342,15 +392,16 @@ TEST_F(ProxyProvisioningDomainManagerTest,
               manager->state());
   }
 
-  // Test permanent error case with auth token fetch without primary account.
+  // Test blocked transient error case with auth token fetch without primary
+  // account.
   {
     auto manager = CreateManager(CreateTestPolicyConfigWithAuthAndHeaders(),
                                  auth_service.get());
     ASSERT_TRUE(base::test::RunUntil([&]() {
       return manager->state() ==
-             ProvisioningDomainProxyConfig::State::kFailedPermanent;
+             ProvisioningDomainProxyConfig::State::kFailedBlocked;
     }));
-    EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedPermanent,
+    EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedBlocked,
               manager->state());
   }
 
@@ -375,6 +426,441 @@ TEST_F(ProxyProvisioningDomainManagerTest,
     EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedTransient,
               manager->state());
   }
+
+  // Test transient error case with HTTP 503 Service Unavailable (exhausting
+  // SimpleURLLoader retries).
+  {
+    auto manager = CreateManager(CreateTestPolicyConfig(), auth_service.get());
+    for (int i = 0; i < 3; ++i) {
+      ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+      test_url_loader_factory_.SimulateResponseForPendingRequest(
+          kTestUrl, "", net::HTTP_SERVICE_UNAVAILABLE);
+    }
+    EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedTransient,
+              manager->state());
+  }
+
+  // Test transient error case with HTTP 408 Request Timeout.
+  {
+    auto manager = CreateManager(CreateTestPolicyConfig(), auth_service.get());
+    ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+    test_url_loader_factory_.SimulateResponseForPendingRequest(
+        kTestUrl, "", net::HTTP_REQUEST_TIMEOUT);
+    EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedTransient,
+              manager->state());
+  }
+
+  // Test permanent error case with HTTP 403 Forbidden.
+  {
+    auto manager = CreateManager(CreateTestPolicyConfig(), auth_service.get());
+    ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+    test_url_loader_factory_.SimulateResponseForPendingRequest(
+        kTestUrl, "", net::HTTP_FORBIDDEN);
+    EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedPermanent,
+              manager->state());
+  }
+
+  // Test blocked error case with unparsable JSON response.
+  {
+    auto manager = CreateManager(CreateTestPolicyConfig(), auth_service.get());
+    ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+    test_url_loader_factory_.SimulateResponseForPendingRequest(
+        kTestUrl, "{ not valid json }", net::HTTP_OK);
+    EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedBlocked,
+              manager->state());
+  }
+}
+
+TEST_F(ProxyProvisioningDomainManagerTest, NullURLLoaderFactoryRecovery) {
+  auto auth_service = CreateAuthService();
+  bool return_valid_factory = false;
+
+  auto url_loader_factory_callback = base::BindRepeating(
+      [](network::TestURLLoaderFactory* test_url_loader_factory,
+         bool* return_valid_factory)
+          -> scoped_refptr<network::SharedURLLoaderFactory> {
+        if (!*return_valid_factory) {
+          return nullptr;
+        }
+        return test_url_loader_factory->GetSafeWeakWrapper();
+      },
+      &test_url_loader_factory_, &return_valid_factory);
+
+  MockDomainObserver observer;
+
+  base::RunLoop run_loop;
+  EXPECT_CALL(observer, OnProvisioningDomainStateChanged(testing::_))
+      .WillOnce([&run_loop](auto*) { run_loop.Quit(); });
+
+  auto manager = std::make_unique<ProxyProvisioningDomainManager>(
+      base::Value(ProvisioningDomainConfigToDict(CreateTestPolicyConfig())),
+      /*cached_config_dict=*/nullptr, auth_service.get(),
+      std::move(url_loader_factory_callback));
+  manager->AddObserver(&observer);
+
+  run_loop.Run();
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedTransient,
+            manager->state());
+
+  // Make factory available and force refresh.
+  return_valid_factory = true;
+  ExpectStateTransitionTo(observer, manager.get(),
+                          ProvisioningDomainProxyConfig::State::kValid);
+  manager->ForceRefresh();
+
+  ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+  EXPECT_TRUE(test_url_loader_factory_.SimulateResponseForPendingRequest(
+      kTestUrl, kTestPvdJson));
+
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kValid, manager->state());
+}
+
+TEST_F(ProxyProvisioningDomainManagerTest, RestoresFromCachedConfigDict) {
+  auto auth_service = CreateAuthService();
+
+  // Create a manager and populate its fetched config by simulating network
+  // response.
+  auto initial_manager =
+      CreateManager(CreateTestPolicyConfig(), auth_service.get());
+  ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+  EXPECT_TRUE(test_url_loader_factory_.SimulateResponseForPendingRequest(
+      kTestUrl, kTestPvdJson));
+
+  base::DictValue cached_dict = initial_manager->ToDict();
+
+  auto url_loader_factory_callback = base::BindRepeating(
+      [](network::TestURLLoaderFactory* test_url_loader_factory)
+          -> scoped_refptr<network::SharedURLLoaderFactory> {
+        return test_url_loader_factory->GetSafeWeakWrapper();
+      },
+      &test_url_loader_factory_);
+
+  // Create a new manager initialized with cached_dict.
+  auto manager = std::make_unique<ProxyProvisioningDomainManager>(
+      base::Value(ProvisioningDomainConfigToDict(CreateTestPolicyConfig())),
+      &cached_dict, auth_service.get(), std::move(url_loader_factory_callback));
+
+  // Active routes should be restored immediately from cache.
+  const auto& restored_config = manager->fetched_config();
+  EXPECT_EQ(2u, restored_config.proxy_endpoints.size());
+  EXPECT_EQ(3u, restored_config.routing_rules.size());
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kRefreshNeeded,
+            manager->state());
+
+  EXPECT_TRUE(restored_config.proxy_endpoints.contains("proxy1"));
+  EXPECT_TRUE(restored_config.proxy_endpoints.contains("proxy2"));
+  const auto& p1 = restored_config.proxy_endpoints.at("proxy1");
+  ASSERT_TRUE(p1.auth.has_value());
+  EXPECT_EQ(AuthType::kProfileBearerToken, p1.auth->type);
+  EXPECT_EQ(2u, p1.extra_headers.size());
+  EXPECT_EQ(std::vector<std::string>{"DIRECT"},
+            restored_config.routing_rules[1].proxies);
+}
+
+TEST_F(ProxyProvisioningDomainManagerTest, HandlesMalformedPolicyDict) {
+  auto auth_service = CreateAuthService();
+
+  // Create a dummy cached_dict.
+  auto dummy_manager =
+      CreateManager(CreateTestPolicyConfig(), auth_service.get());
+  ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+  EXPECT_TRUE(test_url_loader_factory_.SimulateResponseForPendingRequest(
+      kTestUrl, kTestPvdJson));
+  base::DictValue cached_dict = dummy_manager->ToDict();
+
+  // Pass malformed policy alongside a non-null cached_config_dict.
+  base::DictValue malformed_policy;
+  malformed_policy.Set("invalid_key", "invalid_value");
+
+  auto url_loader_factory_callback = base::BindRepeating(
+      [](network::TestURLLoaderFactory* test_url_loader_factory)
+          -> scoped_refptr<network::SharedURLLoaderFactory> {
+        return test_url_loader_factory->GetSafeWeakWrapper();
+      },
+      &test_url_loader_factory_);
+
+  auto manager = std::make_unique<ProxyProvisioningDomainManager>(
+      base::Value(std::move(malformed_policy)), &cached_dict,
+      auth_service.get(), std::move(url_loader_factory_callback));
+
+  // Policy parsing failure should return early as FailedPermanent and NOT set
+  // fetched config from cached_dict.
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedPermanent,
+            manager->state());
+  EXPECT_FALSE(manager->is_refresh_in_progress());
+  EXPECT_EQ(0, test_url_loader_factory_.NumPending());
+  EXPECT_EQ(0u, manager->fetched_config().proxy_endpoints.size());
+  EXPECT_EQ(0u, manager->fetched_config().routing_rules.size());
+
+  base::DictValue dict_info = manager->ToDict();
+  const std::string* state_str =
+      dict_info.FindStringByDottedPath("fetched_config.state");
+  ASSERT_NE(nullptr, state_str);
+  EXPECT_EQ("FailedPermanent", *state_str);
+}
+
+TEST_F(ProxyProvisioningDomainManagerTest, HandlesNonDictPolicyValue) {
+  auto auth_service = CreateAuthService();
+  base::Value non_dict_policy("not_a_dictionary");
+
+  auto url_loader_factory_callback = base::BindRepeating(
+      [](network::TestURLLoaderFactory* test_url_loader_factory)
+          -> scoped_refptr<network::SharedURLLoaderFactory> {
+        return test_url_loader_factory->GetSafeWeakWrapper();
+      },
+      &test_url_loader_factory_);
+
+  auto manager = std::make_unique<ProxyProvisioningDomainManager>(
+      non_dict_policy, /*cached_config_dict=*/nullptr, auth_service.get(),
+      std::move(url_loader_factory_callback));
+
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedPermanent,
+            manager->state());
+  EXPECT_FALSE(manager->is_refresh_in_progress());
+  EXPECT_EQ(0, test_url_loader_factory_.NumPending());
+
+  base::DictValue dict_info = manager->ToDict();
+  const std::string* state_str =
+      dict_info.FindStringByDottedPath("fetched_config.state");
+  ASSERT_NE(nullptr, state_str);
+  EXPECT_EQ("FailedPermanent", *state_str);
+}
+
+TEST_F(ProxyProvisioningDomainManagerTest,
+       ForceRefreshRecoversFromBlockedFetchError) {
+  auto auth_service = CreateAuthService();
+  MockDomainObserver observer;
+
+  // Create a manager with auth config requiring primary account. Since no
+  // account is signed in, initial fetch enters blocked transient error state.
+  auto manager = CreateManager(CreateTestPolicyConfigWithAuthAndHeaders(),
+                               auth_service.get());
+  manager->AddObserver(&observer);
+
+  ExpectStateTransitions(
+      observer, manager.get(),
+      {ProvisioningDomainProxyConfig::State::kFetching,
+       ProvisioningDomainProxyConfig::State::kFailedBlocked});
+  ASSERT_TRUE(base::test::RunUntil([&]() {
+    return manager->state() ==
+           ProvisioningDomainProxyConfig::State::kFailedBlocked;
+  }));
+
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedBlocked,
+            manager->state());
+
+  // Now make primary account available and force refresh.
+  AccountInfo account_info = identity_test_env_.MakePrimaryAccountAvailable(
+      "user@managed.com", signin::ConsentLevel::kSignin);
+  identity_test_env_.SimulateSuccessfulFetchOfAccountInfo(
+      account_info.GetAccountId(), account_info.GetEmail(),
+      account_info.GetGaiaId(), "managed.com", "Full Name", "Given Name",
+      "en-US", "picture_url");
+
+  ExpectStateTransitionTo(observer, manager.get(),
+                          ProvisioningDomainProxyConfig::State::kValid);
+
+  manager->ForceRefresh();
+
+  // Simulate token fetch success and PvD network response.
+  identity_test_env_.WaitForAccessTokenRequestIfNecessaryAndRespondWithToken(
+      "test_token", base::Time::Max());
+
+  ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+  EXPECT_TRUE(test_url_loader_factory_.SimulateResponseForPendingRequest(
+      kTestUrl, kTestPvdJson));
+
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kValid, manager->state());
+}
+
+TEST_F(ProxyProvisioningDomainManagerTest,
+       ForceRefreshDoesNotRetryMalformedPolicy) {
+  auto auth_service = CreateAuthService();
+  base::DictValue malformed_policy;
+  malformed_policy.Set("invalid_field", 123);
+
+  auto url_loader_factory_callback = base::BindRepeating(
+      [](network::TestURLLoaderFactory* test_url_loader_factory)
+          -> scoped_refptr<network::SharedURLLoaderFactory> {
+        return test_url_loader_factory->GetSafeWeakWrapper();
+      },
+      &test_url_loader_factory_);
+
+  auto manager = std::make_unique<ProxyProvisioningDomainManager>(
+      base::Value(std::move(malformed_policy)), /*cached_config_dict=*/nullptr,
+      auth_service.get(), std::move(url_loader_factory_callback));
+
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedPermanent,
+            manager->state());
+
+  // ForceRefresh should do nothing for malformed policies.
+  manager->ForceRefresh();
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedPermanent,
+            manager->state());
+  EXPECT_FALSE(manager->is_refresh_in_progress());
+  EXPECT_EQ(0, test_url_loader_factory_.NumPending());
+}
+
+TEST_F(ProxyProvisioningDomainManagerTest,
+       SchedulesProactiveRefreshTimerOnSuccess) {
+  auto auth_service = CreateAuthService();
+  MockDomainObserver observer;
+
+  auto manager = CreateManager(CreateTestPolicyConfig(), auth_service.get());
+  manager->AddObserver(&observer);
+
+  ExpectStateTransitionTo(observer, manager.get(),
+                          ProvisioningDomainProxyConfig::State::kValid);
+
+  // Initial fetch starts.
+  ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+  EXPECT_TRUE(test_url_loader_factory_.SimulateResponseForPendingRequest(
+      kTestUrl, kTestPvdJson));
+
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kValid, manager->state());
+  EXPECT_TRUE(manager->IsExpirationTimerRunningForTesting());
+
+  // Verify delay is greater than 0 and close to 80% TTL.
+  base::TimeDelta delay = manager->GetCurrentExpirationDelayForTesting();
+  EXPECT_GE(delay, kMinRefreshDelay);
+
+  // Fast forward by the delay to trigger proactive refresh.
+  ExpectStateTransitionTo(observer, manager.get(),
+                          ProvisioningDomainProxyConfig::State::kValid);
+
+  task_environment_.FastForwardBy(delay);
+
+  ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+  EXPECT_TRUE(test_url_loader_factory_.SimulateResponseForPendingRequest(
+      kTestUrl, kTestPvdJson));
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kValid, manager->state());
+  EXPECT_TRUE(manager->IsExpirationTimerRunningForTesting());
+}
+
+TEST_F(ProxyProvisioningDomainManagerTest,
+       ForceRefreshCancelsAndReschedulesTimer) {
+  auto auth_service = CreateAuthService();
+  MockDomainObserver observer;
+
+  auto manager = CreateManager(CreateTestPolicyConfig(), auth_service.get());
+  manager->AddObserver(&observer);
+
+  ExpectStateTransitionTo(observer, manager.get(),
+                          ProvisioningDomainProxyConfig::State::kValid);
+
+  ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+  EXPECT_TRUE(test_url_loader_factory_.SimulateResponseForPendingRequest(
+      kTestUrl, kTestPvdJson));
+
+  EXPECT_TRUE(manager->IsExpirationTimerRunningForTesting());
+
+  // ForceRefresh cancels timer and initiates immediate refresh.
+  ExpectStateTransitionTo(observer, manager.get(),
+                          ProvisioningDomainProxyConfig::State::kValid);
+  manager->ForceRefresh();
+
+  ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+  EXPECT_TRUE(test_url_loader_factory_.SimulateResponseForPendingRequest(
+      kTestUrl, kTestPvdJson));
+
+  EXPECT_TRUE(manager->IsExpirationTimerRunningForTesting());
+}
+
+TEST_F(ProxyProvisioningDomainManagerTest,
+       TransientRetryExponentialBackoffAndBlockedTransition) {
+  auto auth_service = CreateAuthService();
+
+  auto manager = CreateManager(CreateTestPolicyConfig(), auth_service.get());
+  ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+  EXPECT_TRUE(test_url_loader_factory_.SimulateResponseForPendingRequest(
+      kTestUrl, kTestPvdJson));
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kValid, manager->state());
+  EXPECT_EQ(2u, manager->fetched_config().proxy_endpoints.size());
+  EXPECT_EQ(3u, manager->fetched_config().routing_rules.size());
+
+  // Proactive refresh fires at 80% TTL.
+  task_environment_.FastForwardBy(
+      manager->GetCurrentExpirationDelayForTesting());
+
+  // 1st transient failure -> 15s retry scheduled.
+  SimulateHttpError(500);
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedTransient,
+            manager->state());
+  EXPECT_TRUE(manager->IsExpirationTimerRunningForTesting());
+  EXPECT_EQ(base::Seconds(15), manager->GetCurrentExpirationDelayForTesting());
+
+  // 2nd (1m), 3rd (4m), and 4th (16m cap) retries with exponential backoff.
+  FastForwardAndFailTransient(manager.get(), base::Minutes(1));
+  FastForwardAndFailTransient(manager.get(), base::Minutes(4));
+  FastForwardAndFailTransient(manager.get(), base::Minutes(16));
+
+  // 5th failure exceeds kMaxTransientRetries (5) -> transitions to
+  // kFailedBlocked.
+  task_environment_.FastForwardBy(
+      manager->GetCurrentExpirationDelayForTesting());
+  SimulateHttpError(500);
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedBlocked,
+            manager->state());
+  EXPECT_FALSE(manager->IsExpirationTimerRunningForTesting());
+  // Active routes are preserved for maximal availability.
+  EXPECT_EQ(2u, manager->fetched_config().proxy_endpoints.size());
+  EXPECT_EQ(3u, manager->fetched_config().routing_rules.size());
+}
+
+TEST_F(ProxyProvisioningDomainManagerTest,
+       TransientFailureOnExpiredConfigPreservesRoutesAndRetries) {
+  auto auth_service = CreateAuthService();
+
+  // Create response with an expiration timestamp 10 minutes in the future.
+  base::Time expires = base::Time::Now() + base::Minutes(10);
+  std::string pvd_json = base::StringPrintf(
+      R"({
+    "identifier": "api.example.com",
+    "expires": "%s",
+    "proxies": [
+      {
+        "identifier": "proxy1",
+        "protocol": "https-connect",
+        "proxy": "proxy1.example.com:443"
+      }
+    ],
+    "proxy-match": [
+      {
+        "proxies": ["proxy1"],
+        "domains": ["*.secure.com"]
+      }
+    ]
+  })",
+      net::HttpUtil::TimeFormatHTTP(expires).c_str());
+
+  auto manager = CreateManager(CreateTestPolicyConfig(), auth_service.get());
+  ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+  EXPECT_TRUE(test_url_loader_factory_.SimulateResponseForPendingRequest(
+      kTestUrl, pvd_json));
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kValid, manager->state());
+  EXPECT_GT(manager->fetched_config().proxy_endpoints.size(), 0u);
+
+  // Proactive refresh delay is ~80% of 10 min (480s, rounded to whole seconds).
+  base::TimeDelta delay = manager->GetCurrentExpirationDelayForTesting();
+  EXPECT_GE(delay, base::Minutes(7));
+  EXPECT_LE(delay, base::Minutes(8));
+  task_environment_.FastForwardBy(delay);
+
+  // A proactive refresh is now in flight.
+  ASSERT_EQ(1, test_url_loader_factory_.NumPending());
+
+  // Advance virtual clock past the 10-minute expiration before server responds.
+  task_environment_.AdvanceClock(base::Minutes(5));
+
+  SimulateHttpError(500);
+
+  // Expired configs remain in effect and active routes are preserved in memory
+  // while retries are ongoing.
+  EXPECT_EQ(ProvisioningDomainProxyConfig::State::kFailedTransient,
+            manager->state());
+  EXPECT_TRUE(manager->IsExpirationTimerRunningForTesting());
+  EXPECT_EQ(1u, manager->fetched_config().proxy_endpoints.size());
+  EXPECT_EQ(1u, manager->fetched_config().routing_rules.size());
 }
 
 }  // namespace

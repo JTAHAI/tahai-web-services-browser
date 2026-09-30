@@ -33,7 +33,7 @@ class FamilyLinkUrlFilterManualBehaviorTestBase : public ::testing::Test {
     supervised_user_test_environment_.Shutdown();
   }
 
-  FamilyLinkUrlFilter* under_test() {
+  const FamilyLinkUrlFilter* under_test() {
     return supervised_user_test_environment_.family_link_url_filter();
   }
 
@@ -49,21 +49,17 @@ class FamilyLinkUrlFilterManualBehaviorTestBase : public ::testing::Test {
   base::HistogramTester histogram_tester_;
 };
 
-// Test cases only parametrized by kSupervisedUserUseUrlFilteringService
-// feature.
 class FamilyLinkUrlFilterManualBehaviorTest
-    : public base::test::WithFeatureOverride,
-      public FamilyLinkUrlFilterManualBehaviorTestBase {
+    : public FamilyLinkUrlFilterManualBehaviorTestBase {
  protected:
   FamilyLinkUrlFilterManualBehaviorTest()
-      : base::test::WithFeatureOverride(kSupervisedUserUseUrlFilteringService),
-        FamilyLinkUrlFilterManualBehaviorTestBase() {}
+      : FamilyLinkUrlFilterManualBehaviorTestBase() {}
 };
 
-TEST_P(FamilyLinkUrlFilterManualBehaviorTest,
+TEST_F(FamilyLinkUrlFilterManualBehaviorTest,
        DisabledParentalControlsDontBlockUrls) {
   // All sites blocked by default.
-  EnableParentalControls(*test_env().pref_service());
+  test_env().EnableSupervisedAccount();
   test_env().SetWebFilterType(WebFilterType::kCertainSites);
   EXPECT_TRUE(IsSubjectToParentalControls(*test_env().pref_service()));
   EXPECT_TRUE(under_test()
@@ -78,17 +74,17 @@ TEST_P(FamilyLinkUrlFilterManualBehaviorTest,
 }
 
 // Tests that allowing all site navigation is applied to supervised users.
-TEST_P(FamilyLinkUrlFilterManualBehaviorTest, AllowAllSitesDoesntBlockUrls) {
-  EnableParentalControls(*test_env().pref_service());
+TEST_F(FamilyLinkUrlFilterManualBehaviorTest, AllowAllSitesDoesntBlockUrls) {
+  test_env().EnableSupervisedAccount();
   test_env().SetWebFilterType(WebFilterType::kAllowAllSites);
   EXPECT_TRUE(under_test()
                   ->GetFilteringBehavior(GURL("http://example.com"))
                   .IsAllowed());
 }
 
-TEST_P(FamilyLinkUrlFilterManualBehaviorTest, UnrelatedHostExceptionIsIgnored) {
-  EnableParentalControls(*test_env().pref_service());
-  test_env().SetManualFilterForHost("google.com", /*allow=*/false);
+TEST_F(FamilyLinkUrlFilterManualBehaviorTest, UnrelatedHostExceptionIsIgnored) {
+  test_env().EnableSupervisedAccount();
+  test_env().SetManualFilterForHost("google.com", /*allowlist=*/false);
   test_env().SetWebFilterType(WebFilterType::kAllowAllSites);
   EXPECT_EQ(under_test()
                 ->GetFilteringBehavior(GURL("https://www.example.com"))
@@ -96,11 +92,11 @@ TEST_P(FamilyLinkUrlFilterManualBehaviorTest, UnrelatedHostExceptionIsIgnored) {
             FilteringBehavior::kAllow);
 }
 
-TEST_P(FamilyLinkUrlFilterManualBehaviorTest, Canonicalization) {
-  EnableParentalControls(*test_env().pref_service());
+TEST_F(FamilyLinkUrlFilterManualBehaviorTest, Canonicalization) {
+  test_env().EnableSupervisedAccount();
   // We assume that the hosts and URLs are already canonicalized.
-  test_env().SetManualFilterForHost("www.moose.org", true);
-  test_env().SetManualFilterForHost("www.xn--n3h.net", true);
+  test_env().SetManualFilterForHost("www.moose.org", /*allowlist=*/true);
+  test_env().SetManualFilterForHost("www.xn--n3h.net", /*allowlist=*/true);
   test_env().SetManualFilterForUrl("http://www.example.com/foo/", true);
   test_env().SetManualFilterForUrl(
       "http://www.example.com/%C3%85t%C3%B8mstr%C3%B6m", true);
@@ -164,10 +160,10 @@ TEST_P(FamilyLinkUrlFilterManualBehaviorTest, Canonicalization) {
 
 // Tests that conflict tracking histogram records a result for no conflicts
 // even for paths that determine a result and exit early.
-TEST_P(FamilyLinkUrlFilterManualBehaviorTest,
+TEST_F(FamilyLinkUrlFilterManualBehaviorTest,
        PatternWithoutConflictOnEarlyExit) {
   // The host map is empty but the url map contains an exact match.
-  EnableParentalControls(*test_env().pref_service());
+  test_env().EnableSupervisedAccount();
   test_env().SetManualFilterForUrl("https://www.google.com", true);
   test_env().SetWebFilterType(WebFilterType::kCertainSites);
 
@@ -187,8 +183,6 @@ TEST_P(FamilyLinkUrlFilterManualBehaviorTest,
       /*sample=*/0, /*expected_count=*/1);
 }
 
-INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(FamilyLinkUrlFilterManualBehaviorTest);
-
 struct CertainSitesTestCase {
   std::string test_name;
   // Tested url.
@@ -199,22 +193,19 @@ struct CertainSitesTestCase {
 
 // Test cases where manual behavior only allows listed hosts.
 class FamilyLinkUrlFilterManualBehaviorCertainSitesTest
-    : public WithFeatureOverrideAndParamInterface<CertainSitesTestCase>,
-      public FamilyLinkUrlFilterManualBehaviorTestBase {
+    : public FamilyLinkUrlFilterManualBehaviorTestBase,
+      public testing::WithParamInterface<CertainSitesTestCase> {
  protected:
-  FamilyLinkUrlFilterManualBehaviorCertainSitesTest()
-      : WithFeatureOverrideAndParamInterface(
-            kSupervisedUserUseUrlFilteringService),
-        FamilyLinkUrlFilterManualBehaviorTestBase() {}
+  const CertainSitesTestCase& GetTestCase() const { return GetParam(); }
 };
 
 TEST_P(FamilyLinkUrlFilterManualBehaviorCertainSitesTest, FilteringBehavior) {
-  EnableParentalControls(*test_env().pref_service());
+  test_env().EnableSupervisedAccount();
   test_env().SetWebFilterType(WebFilterType::kCertainSites);
 
   if (GetTestCase().allowed_host_exception.has_value()) {
     test_env().SetManualFilterForHost(
-        GetTestCase().allowed_host_exception.value(), true);
+        GetTestCase().allowed_host_exception.value(), /*allowlist=*/true);
   }
 
   EXPECT_EQ(under_test()
@@ -473,18 +464,10 @@ const CertainSitesTestCase kCertainSitesTestCases[] = {
      FilteringBehavior::kBlock},
 };  // namespace
 
-INSTANTIATE_TEST_SUITE_P(
-    ,
-    FamilyLinkUrlFilterManualBehaviorCertainSitesTest,
-    testing::Combine(
-        /*kSupervisedUserUseUrlFilteringService=*/testing::Bool(),
-        testing::ValuesIn(kCertainSitesTestCases)),
-    [](const auto& info) {
-      bool is_feature_enabled = std::get<0>(info.param);
-      return std::get<1>(info.param).test_name + "_With" +
-             kSupervisedUserUseUrlFilteringService.name +
-             (is_feature_enabled ? "Enabled" : "Disabled");
-    });
+INSTANTIATE_TEST_SUITE_P(,
+                         FamilyLinkUrlFilterManualBehaviorCertainSitesTest,
+                         testing::ValuesIn(kCertainSitesTestCases),
+                         [](const auto& info) { return info.param.test_name; });
 
 struct HostConflictsTestCase {
   std::string test_name;
@@ -506,21 +489,18 @@ struct HostConflictsTestCase {
 
 // Test cases where manual behavior only allows listed hosts.
 class FamilyLinkUrlFilterManualBehaviorHostConflictsTest
-    : public WithFeatureOverrideAndParamInterface<HostConflictsTestCase>,
-      public FamilyLinkUrlFilterManualBehaviorTestBase {
+    : public FamilyLinkUrlFilterManualBehaviorTestBase,
+      public testing::WithParamInterface<HostConflictsTestCase> {
  protected:
-  FamilyLinkUrlFilterManualBehaviorHostConflictsTest()
-      : WithFeatureOverrideAndParamInterface<HostConflictsTestCase>(
-            kSupervisedUserUseUrlFilteringService),
-        FamilyLinkUrlFilterManualBehaviorTestBase() {}
+  const HostConflictsTestCase& GetTestCase() const { return GetParam(); }
 
   void SetUp() override {
-    EnableParentalControls(*test_env().pref_service());
+    test_env().EnableSupervisedAccount();
     for (const auto& host : GetTestCase().allowed_hosts) {
-      test_env().SetManualFilterForHost(host, true);
+      test_env().SetManualFilterForHost(host, /*allowlist=*/true);
     }
     for (const auto& host : GetTestCase().blocked_hosts) {
-      test_env().SetManualFilterForHost(host, false);
+      test_env().SetManualFilterForHost(host, /*allowlist=*/false);
     }
   }
 };
@@ -658,18 +638,10 @@ const HostConflictsTestCase kHostConflictsTestCases[] = {
 
 };  // namespace
 
-INSTANTIATE_TEST_SUITE_P(
-    ,
-    FamilyLinkUrlFilterManualBehaviorHostConflictsTest,
-    testing::Combine(
-        /*kSupervisedUserUseUrlFilteringService=*/testing::Bool(),
-        testing::ValuesIn(kHostConflictsTestCases)),
-    [](const auto& info) {
-      bool is_feature_enabled = std::get<0>(info.param);
-      return std::get<1>(info.param).test_name + "_With" +
-             kSupervisedUserUseUrlFilteringService.name +
-             (is_feature_enabled ? "Enabled" : "Disabled");
-    });
+INSTANTIATE_TEST_SUITE_P(,
+                         FamilyLinkUrlFilterManualBehaviorHostConflictsTest,
+                         testing::ValuesIn(kHostConflictsTestCases),
+                         [](const auto& info) { return info.param.test_name; });
 
 struct HostConflictTypeTestCase {
   std::string test_name;
@@ -680,16 +652,13 @@ struct HostConflictTypeTestCase {
 
 // Test cases where manual behavior only allows listed hosts.
 class FamilyLinkUrlFilterManualBehaviorHostConflictTypesTest
-    : public WithFeatureOverrideAndParamInterface<HostConflictTypeTestCase>,
-      public FamilyLinkUrlFilterManualBehaviorTestBase {
+    : public FamilyLinkUrlFilterManualBehaviorTestBase,
+      public testing::WithParamInterface<HostConflictTypeTestCase> {
  protected:
-  FamilyLinkUrlFilterManualBehaviorHostConflictTypesTest()
-      : WithFeatureOverrideAndParamInterface<HostConflictTypeTestCase>(
-            kSupervisedUserUseUrlFilteringService),
-        FamilyLinkUrlFilterManualBehaviorTestBase() {}
+  const HostConflictTypeTestCase& GetTestCase() const { return GetParam(); }
 
   void SetUp() override {
-    EnableParentalControls(*test_env().pref_service());
+    test_env().EnableSupervisedAccount();
     test_env().SetWebFilterType(WebFilterType::kCertainSites);
     test_env().SetManualFilterForHosts(GetTestCase().host_exceptions);
   }
@@ -817,18 +786,10 @@ const HostConflictTypeTestCase kHostConflictTypesTestCases[] = {
     },
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    ,
-    FamilyLinkUrlFilterManualBehaviorHostConflictTypesTest,
-    ::testing::Combine(
-        /*kSupervisedUserUseUrlFilteringService=*/testing::Bool(),
-        testing::ValuesIn(kHostConflictTypesTestCases)),
-    [](const auto& info) {
-      bool is_feature_enabled = std::get<0>(info.param);
-      return std::get<1>(info.param).test_name + "_With" +
-             kSupervisedUserUseUrlFilteringService.name +
-             (is_feature_enabled ? "Enabled" : "Disabled");
-    });
+INSTANTIATE_TEST_SUITE_P(,
+                         FamilyLinkUrlFilterManualBehaviorHostConflictTypesTest,
+                         testing::ValuesIn(kHostConflictTypesTestCases),
+                         [](const auto& info) { return info.param.test_name; });
 
 }  // namespace
 }  // namespace supervised_user

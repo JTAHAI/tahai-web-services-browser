@@ -16,6 +16,7 @@
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/compiler_specific.h"
+#include "base/containers/to_vector.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
@@ -171,12 +172,11 @@ class KeySystemManager {
 
 KeySystemManager::KeySystemManager() {
   // Widevine is always supported in Android.
-  key_system_uuid_map_[kWidevineKeySystem] = UUID(
-      kWidevineUuid, UNSAFE_TODO(kWidevineUuid + std::size(kWidevineUuid)));
+  key_system_uuid_map_[kWidevineKeySystem] = base::ToVector(kWidevineUuid);
   // External Clear Key is supported only for testing.
   if (base::FeatureList::IsEnabled(kExternalClearKeyForTesting)) {
-    key_system_uuid_map_[kExternalClearKeyKeySystem] = UUID(
-        kClearKeyUuid, UNSAFE_TODO(kClearKeyUuid + std::size(kClearKeyUuid)));
+    key_system_uuid_map_[kExternalClearKeyKeySystem] =
+        base::ToVector(kClearKeyUuid);
   }
   MediaDrmBridgeClient* client = GetMediaDrmBridgeClient();
   if (client) {
@@ -208,44 +208,6 @@ KeySystemManager* GetKeySystemManager() {
   return ksm;
 }
 
-// Checks whether |key_system| is supported with |container_mime_type|. Only
-// checks |key_system| support if |container_mime_type| is empty.
-// TODO(xhwang): The |container_mime_type| is not the same as contentType in
-// the EME spec. Revisit this once the spec issue with initData type is
-// resolved.
-bool IsKeySystemSupportedWithTypeImpl(const std::string& key_system,
-                                      const std::string& container_mime_type) {
-  CHECK(!key_system.empty());
-
-  UUID scheme_uuid = GetKeySystemManager()->GetUUID(key_system);
-  if (scheme_uuid.empty()) {
-    DVLOG(1) << "Cannot get UUID for key system " << key_system;
-    return false;
-  }
-
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jbyteArray> j_scheme_uuid = UNSAFE_TODO(
-      base::android::ToJavaByteArray(env, &scheme_uuid[0], scheme_uuid.size()));
-  ScopedJavaLocalRef<jstring> j_container_mime_type =
-      ConvertUTF8ToJavaString(env, container_mime_type);
-  bool supported = Java_MediaDrmBridge_isCryptoSchemeSupported(
-      env, j_scheme_uuid, j_container_mime_type);
-  DVLOG_IF(1, !supported) << "Crypto scheme not supported for " << key_system
-                          << " with " << container_mime_type;
-  return supported;
-}
-
-MediaDrmBridge::SecurityLevel GetSecurityLevelFromString(
-    const std::string& security_level_str) {
-  if (0 == security_level_str.compare("L1")) {
-    return MediaDrmBridge::SECURITY_LEVEL_1;
-  }
-  if (0 == security_level_str.compare("L3")) {
-    return MediaDrmBridge::SECURITY_LEVEL_3;
-  }
-  DCHECK(security_level_str.empty());
-  return MediaDrmBridge::SECURITY_LEVEL_DEFAULT;
-}
 
 // Converts from String value returned from MediaDrm to an enum of HdcpVersion
 // values. Refer to http://shortn/_eFj9y8KBgR for the list of Strings that could
@@ -297,21 +259,6 @@ HdcpVersion ToEmeHdcpVersion(const std::string& hdcp_level_str) {
   return HdcpVersion::kHdcpVersionNone;
 }
 
-// Do not change the return values as they are part of Android MediaDrm API
-// for Widevine.
-std::string GetSecurityLevelString(
-    MediaDrmBridge::SecurityLevel security_level) {
-  switch (security_level) {
-    case MediaDrmBridge::SECURITY_LEVEL_DEFAULT:
-      return "";
-    case MediaDrmBridge::SECURITY_LEVEL_1:
-      return "L1";
-    case MediaDrmBridge::SECURITY_LEVEL_3:
-      return "L3";
-  }
-  return "";
-}
-
 CreateCdmTypedStatus ConvertMediaDrmCreateError(
     MediaDrmBridge::MediaDrmCreateError error,
     MediaDrmBridge::SecurityLevel security_level) {
@@ -325,7 +272,7 @@ CreateCdmTypedStatus ConvertMediaDrmCreateError(
     case MediaDrmBridge::MediaDrmCreateError::MEDIADRM_ILLEGAL_STATE:
       return CreateCdmTypedStatus::Codes::kAndroidMediaDrmIllegalState;
     case MediaDrmBridge::MediaDrmCreateError::FAILED_SECURITY_LEVEL:
-      return (security_level == MediaDrmBridge::SECURITY_LEVEL_1)
+      return (security_level >= MediaDrmBridge::SECURITY_LEVEL_SW_SECURE_DECODE)
                  ? CreateCdmTypedStatus::Codes::kAndroidFailedL1SecurityLevel
                  : CreateCdmTypedStatus::Codes::kAndroidFailedL3SecurityLevel;
     case MediaDrmBridge::MediaDrmCreateError::FAILED_SECURITY_ORIGIN:
@@ -362,7 +309,18 @@ CdmSessionClosedReason ToCdmSessionClosedReason(
 
 // static
 bool MediaDrmBridge::IsKeySystemSupported(const std::string& key_system) {
-  return IsKeySystemSupportedWithTypeImpl(key_system, "");
+  CHECK(!key_system.empty());
+
+  UUID scheme_uuid = GetKeySystemManager()->GetUUID(key_system);
+  if (scheme_uuid.empty()) {
+    DVLOG(1) << "Cannot get UUID for key system " << key_system;
+    return false;
+  }
+
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jbyteArray> j_scheme_uuid =
+      base::android::ToJavaByteArray(env, scheme_uuid);
+  return Java_MediaDrmBridge_isCryptoSchemeSupported(env, j_scheme_uuid);
 }
 
 // static
@@ -401,12 +359,32 @@ bool MediaDrmBridge::IsPersistentLicenseTypeSupported(
 }
 
 // static
-bool MediaDrmBridge::IsKeySystemSupportedWithType(
+MediaDrmBridge::SupportedContainers MediaDrmBridge::GetSupportedContainers(
     const std::string& key_system,
-    const std::string& container_mime_type) {
-  DCHECK(!container_mime_type.empty()) << "Call IsKeySystemSupported instead";
+    SecurityLevel security_level) {
+  CHECK(!key_system.empty());
 
-  return IsKeySystemSupportedWithTypeImpl(key_system, container_mime_type);
+  UUID scheme_uuid = GetKeySystemManager()->GetUUID(key_system);
+  if (scheme_uuid.empty()) {
+    DVLOG(1) << "Cannot get UUID for key system " << key_system;
+    return {};
+  }
+
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jbyteArray> j_scheme_uuid =
+      base::android::ToJavaByteArray(env, scheme_uuid);
+
+  base::android::ScopedJavaLocalRef<jobjectArray> j_containers =
+      Java_MediaDrmBridge_getSupportedContainers(
+          env, j_scheme_uuid, static_cast<int>(security_level));
+
+  std::vector<std::string> containers;
+  if (!j_containers.is_null()) {
+    base::android::AppendJavaStringArrayToStringVector(env, j_containers,
+                                                       &containers);
+  }
+
+  return MediaDrmBridge::SupportedContainers(std::move(containers));
 }
 
 // static
@@ -709,7 +687,7 @@ bool MediaDrmBridge::IsSecureCodecRequired() {
   // To fix it, we could call MediaCrypto.requiresSecureDecoderComponent().
   // See http://crbug.com/727918.
   if (std::ranges::equal(scheme_uuid_, kWidevineUuid)) {
-    return SECURITY_LEVEL_1 == GetSecurityLevel();
+    return GetSecurityLevel() >= SECURITY_LEVEL_SW_SECURE_DECODE;
   }
 
   // If UUID is ClearKey, we should automatically return false since secure
@@ -794,12 +772,42 @@ void MediaDrmBridge::SetMediaCryptoReadyCB(
   DCHECK(!media_crypto_ready_cb_);
   media_crypto_ready_cb_ = std::move(media_crypto_ready_cb);
 
-  if (!j_media_crypto_) {
+  if (!j_media_crypto_.has_value()) {
     return;
   }
 
   std::move(media_crypto_ready_cb_)
-      .Run(j_media_crypto_, IsSecureCodecRequired());
+      .Run(*j_media_crypto_, IsSecureCodecRequired());
+}
+
+void MediaDrmBridge::CompleteInitialization(
+    const std::string& origin_id,
+    MediaCryptoReadyCB media_crypto_ready_cb) {
+  if (!task_runner_->BelongsToCurrentThread()) {
+    task_runner_->PostTask(
+        FROM_HERE, base::BindOnce(&MediaDrmBridge::CompleteInitialization,
+                                  weak_factory_.GetWeakPtr(), origin_id,
+                                  std::move(media_crypto_ready_cb)));
+    return;
+  }
+
+  DVLOG(1) << __func__;
+
+  SetMediaCryptoReadyCB(std::move(media_crypto_ready_cb));
+
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jstring> j_security_origin =
+      ConvertUTF8ToJavaString(env, origin_id);
+
+  bool success = Java_MediaDrmBridge_initializeWithOriginAndCrypto(
+      env, j_media_drm_, j_security_origin);
+
+  if (!success) {
+    LOG(ERROR) << "Failed to complete JNI MediaDrmBridge initialization.";
+    if (media_crypto_ready_cb_) {
+      std::move(media_crypto_ready_cb_).Run(nullptr, false);
+    }
+  }
 }
 
 bool MediaDrmBridge::SetPropertyStringForTesting(
@@ -1026,18 +1034,15 @@ MediaDrmBridge::MediaDrmBridge(
       session_keys_change_cb_(session_keys_change_cb),
       session_expiration_update_cb_(session_expiration_update_cb),
       task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
+      security_level_(security_level),
       media_crypto_context_(this) {
   DVLOG(1) << __func__;
 
   JNIEnv* env = AttachCurrentThread();
   CHECK(env);
 
-  ScopedJavaLocalRef<jbyteArray> j_scheme_uuid = UNSAFE_TODO(
-      base::android::ToJavaByteArray(env, &scheme_uuid[0], scheme_uuid.size()));
-
-  std::string security_level_str = GetSecurityLevelString(security_level);
-  ScopedJavaLocalRef<jstring> j_security_level =
-      ConvertUTF8ToJavaString(env, security_level_str);
+  ScopedJavaLocalRef<jbyteArray> j_scheme_uuid =
+      base::android::ToJavaByteArray(env, scheme_uuid);
 
   // origin id can be empty when MediaDrmBridge is created by
   // CreateWithoutSessionSupport, which is used for unprovisioning, or for
@@ -1048,8 +1053,8 @@ MediaDrmBridge::MediaDrmBridge(
   ScopedJavaLocalRef<jstring> j_message = ConvertUTF8ToJavaString(env, message);
 
   j_media_drm_.Reset(Java_MediaDrmBridge_create(
-      env, j_scheme_uuid, j_security_origin, j_security_level, j_message,
-      requires_media_crypto, reinterpret_cast<intptr_t>(this),
+      env, j_scheme_uuid, j_security_origin, static_cast<jint>(security_level),
+      j_message, requires_media_crypto, reinterpret_cast<intptr_t>(this),
       reinterpret_cast<intptr_t>(storage_.get())));
 }
 
@@ -1075,12 +1080,7 @@ MediaDrmBridge::~MediaDrmBridge() {
 }
 
 MediaDrmBridge::SecurityLevel MediaDrmBridge::GetSecurityLevel() {
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jstring> j_security_level =
-      Java_MediaDrmBridge_getSecurityLevel(env, j_media_drm_);
-  std::string security_level_str =
-      ConvertJavaStringToUTF8(env, j_security_level.obj());
-  return GetSecurityLevelFromString(security_level_str);
+  return security_level_;
 }
 
 std::string MediaDrmBridge::GetVersionInternal() {
@@ -1091,6 +1091,11 @@ std::string MediaDrmBridge::GetVersionInternal() {
 }
 
 HdcpVersion MediaDrmBridge::GetCurrentHdcpLevel() {
+  if (security_level_ == SECURITY_LEVEL_SW_SECURE_CRYPTO ||
+      security_level_ == SECURITY_LEVEL_SW_SECURE_DECODE) {
+    return HdcpVersion::kHdcpVersionNone;
+  }
+
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jstring> j_current_hdcp_level =
       Java_MediaDrmBridge_getCurrentHdcpLevel(env, j_media_drm_);
@@ -1102,13 +1107,12 @@ HdcpVersion MediaDrmBridge::GetCurrentHdcpLevel() {
 void MediaDrmBridge::NotifyMediaCryptoReady(
     ScopedJavaGlobalRef<jobject> j_media_crypto) {
   DCHECK(task_runner_->BelongsToCurrentThread());
-  DCHECK(j_media_crypto);
-  DCHECK(!j_media_crypto_);
-
-  j_media_crypto_ = std::move(j_media_crypto);
+  DCHECK(!j_media_crypto_.has_value());
 
   UMA_HISTOGRAM_BOOLEAN("Media.EME.MediaCryptoAvailable",
-                        !j_media_crypto_.is_null());
+                        !j_media_crypto.is_null());
+
+  j_media_crypto_ = std::move(j_media_crypto);
 
   if (!media_crypto_ready_cb_) {
     return;
@@ -1116,7 +1120,7 @@ void MediaDrmBridge::NotifyMediaCryptoReady(
 
   // We have to use scoped_ptr to pass ScopedJavaGlobalRef with a callback.
   std::move(media_crypto_ready_cb_)
-      .Run(j_media_crypto_, IsSecureCodecRequired());
+      .Run(*j_media_crypto_, IsSecureCodecRequired());
 }
 
 void MediaDrmBridge::SendProvisioningRequest(const GURL& default_url,

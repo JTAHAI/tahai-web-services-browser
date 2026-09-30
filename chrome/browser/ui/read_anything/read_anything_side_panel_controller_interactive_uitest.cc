@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/ui/read_anything/read_anything_side_panel_controller.h"
+
 #include <atomic>
 #include <optional>
 
@@ -10,18 +12,18 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/read_anything/read_anything_controller.h"
 #include "chrome/browser/ui/read_anything/read_anything_entry_point_controller.h"
 #include "chrome/browser/ui/read_anything/read_anything_enums.h"
-#include "chrome/browser/ui/read_anything/read_anything_side_panel_controller.h"
 #include "chrome/browser/ui/read_anything/read_anything_side_panel_controller_utils.h"
 #include "chrome/browser/ui/side_panel/side_panel_action_callback.h"
 #include "chrome/browser/ui/side_panel/side_panel_enums.h"
 #include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/page_action/test_support/page_action_interactive_test_mixin.h"
@@ -39,6 +41,8 @@
 #include "ui/accessibility/accessibility_features.h"
 #include "ui/base/accelerators/accelerator.h"
 
+using read_anything::mojom::ReadAnythingOpenTrigger;
+
 namespace {
 constexpr char kDocumentWithNamedElement[] = "/select.html";
 }  // namespace
@@ -54,77 +58,37 @@ class MockReadAnythingLifecycleObserver : public ReadAnythingLifecycleObserver {
   MOCK_METHOD(void, OnDestroyed, (), (override));
 };
 
-class ReadAnythingSidePanelControllerTest
-    : public InProcessBrowserTest,
-      public testing::WithParamInterface<bool> {
+class ReadAnythingSidePanelControllerTest : public InProcessBrowserTest {
  public:
-  ReadAnythingSidePanelControllerTest() {
-    feature_list_.InitWithFeatureState(features::kImmersiveReadAnything,
-                                       IsImmersiveEnabled());
-  }
-
-  // Wrapper methods around the ReadAnythingSidePanelController. These do
-  // nothing more than keep the below tests less verbose (simple pass-throughs).
-  ReadAnythingSidePanelController* side_panel_controller() {
-    return browser()
-        ->GetActiveTabInterface()
-        ->GetTabFeatures()
-        ->read_anything_side_panel_controller();
-  }
-
   void AddObserver(ReadAnythingLifecycleObserver* observer) {
-    if (IsImmersiveEnabled()) {
-      ReadAnythingController::From(browser()->GetActiveTabInterface())
-          ->AddObserver(observer);
-    } else {
-      side_panel_controller()->AddObserver(observer);
-    }
+    ReadAnythingController::From(browser()->GetActiveTabInterface())
+        ->AddObserver(observer);
   }
   void RemoveObserver(ReadAnythingLifecycleObserver* observer) {
-    if (IsImmersiveEnabled()) {
-      ReadAnythingController::From(browser()->GetActiveTabInterface())
-          ->RemoveObserver(observer);
-    } else {
-      side_panel_controller()->RemoveObserver(observer);
-    }
-  }
-
-  std::optional<ReadAnythingOpenTrigger> empty_trigger() {
-    return std::optional<ReadAnythingOpenTrigger>();
+    ReadAnythingController::From(browser()->GetActiveTabInterface())
+        ->RemoveObserver(observer);
   }
 
   void OnEntryShown(SidePanelEntry* entry) {
-    if (IsImmersiveEnabled()) {
-      ReadAnythingOpenTrigger read_anything_trigger =
-          entry->last_open_trigger().has_value()
-              ? read_anything::SidePanelToReadAnythingOpenTrigger(
-                    entry->last_open_trigger().value())
-              : ReadAnythingOpenTrigger::kUnknown;
-      ReadAnythingController::From(browser()->GetActiveTabInterface())
-          ->OnEntryShown(read_anything_trigger);
-    } else {
-      side_panel_controller()->OnEntryShown(entry);
-    }
+    ReadAnythingOpenTrigger read_anything_trigger =
+        entry->last_open_trigger().has_value()
+            ? read_anything::SidePanelToReadAnythingOpenTrigger(
+                  entry->last_open_trigger().value())
+            : ReadAnythingOpenTrigger::kUnknown;
+    ReadAnythingController::From(browser()->GetActiveTabInterface())
+        ->OnEntryShown(read_anything_trigger);
   }
 
   void OnEntryHidden(SidePanelEntry* entry) {
-    if (IsImmersiveEnabled()) {
-      ReadAnythingController::From(browser()->GetActiveTabInterface())
-          ->OnEntryHidden();
-    } else {
-      side_panel_controller()->OnEntryHidden(entry);
-    }
+    ReadAnythingController::From(browser()->GetActiveTabInterface())
+        ->OnEntryHidden();
   }
 
  protected:
-  bool IsImmersiveEnabled() const { return GetParam(); }
   MockReadAnythingLifecycleObserver read_anything_observer_;
-
- private:
-  base::test::ScopedFeatureList feature_list_;
 };
 
-IN_PROC_BROWSER_TEST_P(ReadAnythingSidePanelControllerTest,
+IN_PROC_BROWSER_TEST_F(ReadAnythingSidePanelControllerTest,
                        RegisterReadAnythingEntry) {
   // The tab should have a read anything entry in its side panel.
   EXPECT_EQ(SidePanelRegistry::From(browser()->GetActiveTabInterface())
@@ -135,7 +99,7 @@ IN_PROC_BROWSER_TEST_P(ReadAnythingSidePanelControllerTest,
             SidePanelEntry::Id::kReadAnything);
 }
 
-IN_PROC_BROWSER_TEST_P(ReadAnythingSidePanelControllerTest,
+IN_PROC_BROWSER_TEST_F(ReadAnythingSidePanelControllerTest,
                        OnEntryShown_ActivateObservers) {
   AddObserver(&read_anything_observer_);
   SidePanelEntry* entry =
@@ -150,7 +114,7 @@ IN_PROC_BROWSER_TEST_P(ReadAnythingSidePanelControllerTest,
   OnEntryShown(entry);
 }
 
-IN_PROC_BROWSER_TEST_P(ReadAnythingSidePanelControllerTest,
+IN_PROC_BROWSER_TEST_F(ReadAnythingSidePanelControllerTest,
                        OnEntryHidden_ActivateObservers) {
   AddObserver(&read_anything_observer_);
   SidePanelEntry* entry =
@@ -164,14 +128,10 @@ IN_PROC_BROWSER_TEST_P(ReadAnythingSidePanelControllerTest,
   OnEntryHidden(entry);
 }
 
-IN_PROC_BROWSER_TEST_P(ReadAnythingSidePanelControllerTest,
+IN_PROC_BROWSER_TEST_F(ReadAnythingSidePanelControllerTest,
                        TabWillDetach_MarkOmniboxIgnoredIfGoodCandidate) {
   browser()->GetActiveTabInterface()->Close();
 }
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         ReadAnythingSidePanelControllerTest,
-                         testing::Bool());
 
 class ReadAnythingCUJTest : public InteractiveFeaturePromoTest {
  public:
@@ -238,13 +198,8 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingCUJTest, ShowAndHideIphAfterNavigation) {
 }
 
 class ReadAnythingSidePanelControllerInteractiveTest
-    : public InteractiveBrowserTest,
-      public testing::WithParamInterface<bool> {
+    : public InteractiveBrowserTest {
  public:
-  ReadAnythingSidePanelControllerInteractiveTest() {
-    scoped_feature_list_.InitWithFeatureState(features::kImmersiveReadAnything,
-                                              GetParam());
-  }
   void SetUp() override {
     ASSERT_TRUE(embedded_test_server()->InitializeAndListen());
     InteractiveBrowserTest::SetUp();
@@ -257,19 +212,11 @@ class ReadAnythingSidePanelControllerInteractiveTest
     EXPECT_TRUE(embedded_test_server()->ShutdownAndWaitUntilComplete());
     InteractiveBrowserTest::TearDownOnMainThread();
   }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-IN_PROC_BROWSER_TEST_P(
+IN_PROC_BROWSER_TEST_F(
     ReadAnythingSidePanelControllerInteractiveTest,
     OpenImmersiveChangeToSidePanelAndCloseWithKeyboardShortcut) {
-  if (!GetParam()) {
-    // Only applies to immersive mode flag enabled
-    return;
-  }
-
   ui::Accelerator reading_mode_accelerator;
   ASSERT_TRUE(BrowserView::GetBrowserViewForBrowser(browser())->GetAccelerator(
       IDC_SHOW_READING_MODE_KEYBOARD, &reading_mode_accelerator));
@@ -287,7 +234,7 @@ IN_PROC_BROWSER_TEST_P(
       CheckResult(
           [this]() {
             return ReadAnythingController::From(
-                       browser()->tab_strip_model()->GetActiveTab())
+                       browser()->GetTabStripModel()->GetActiveTab())
                 ->GetPresentationState();
           },
           ReadAnythingController::PresentationState::kInImmersiveOverlay),
@@ -295,7 +242,7 @@ IN_PROC_BROWSER_TEST_P(
       // Change presentation to Side Panel
       Do([this]() {
         auto* controller = ReadAnythingController::From(
-            browser()->tab_strip_model()->GetActiveTab());
+            browser()->GetTabStripModel()->GetActiveTab());
         controller->ShowSidePanelUI(
             SidePanelOpenTrigger::kReadAnythingTogglePresentationButton);
       }),
@@ -305,7 +252,7 @@ IN_PROC_BROWSER_TEST_P(
       CheckResult(
           [this]() {
             return ReadAnythingController::From(
-                       browser()->tab_strip_model()->GetActiveTab())
+                       browser()->GetTabStripModel()->GetActiveTab())
                 ->GetPresentationState();
           },
           ReadAnythingController::PresentationState::kInSidePanel),
@@ -318,36 +265,11 @@ IN_PROC_BROWSER_TEST_P(
       CheckResult(
           [this]() {
             return ReadAnythingController::From(
-                       browser()->tab_strip_model()->GetActiveTab())
+                       browser()->GetTabStripModel()->GetActiveTab())
                 ->GetPresentationState();
           },
           ReadAnythingController::PresentationState::kInactive));
 }
-
-IN_PROC_BROWSER_TEST_P(ReadAnythingSidePanelControllerInteractiveTest,
-                       OpenAndCloseWithKeyboardShortcut) {
-  ui::Accelerator reading_mode_accelerator;
-  ASSERT_TRUE(BrowserView::GetBrowserViewForBrowser(browser())->GetAccelerator(
-      IDC_SHOW_READING_MODE_KEYBOARD, &reading_mode_accelerator));
-
-  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
-  RunTestSequence(
-      InstrumentTab(kActiveTab),
-      NavigateWebContents(kActiveTab, embedded_test_server()->GetURL(
-                                          kDocumentWithNamedElement)),
-
-      // Use the keyboard shortcut command to open the reading mode.
-      SendAccelerator(kBrowserViewElementId, reading_mode_accelerator),
-      WaitForShow(kSidePanelElementId),
-
-      // Use the keyboard shortcut command again to close the read mode.
-      SendAccelerator(kBrowserViewElementId, reading_mode_accelerator),
-      WaitForHide(kSidePanelElementId));
-}
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         ReadAnythingSidePanelControllerInteractiveTest,
-                         testing::Bool());
 
 class ReadAnythingKeyboardShortcutCUJTest
     : public PageActionInteractiveTestMixin<InteractiveFeaturePromoTest> {
@@ -363,8 +285,7 @@ class ReadAnythingKeyboardShortcutCUJTest
     a11y::SetDistillableDomainsForTesting({distillable_url_.GetHost()});
 
     std::vector<base::test::FeatureRef> enabled_features = {
-        features::kImmersiveReadAnything, features::kReadAnythingOmniboxChip,
-        features::kPageActionsMigration,
+        features::kReadAnythingOmniboxChip,
         feature_engagement::kIPHReadingModeKeyboardShortcutFeature};
     feature_list_.InitAndEnableFeatures(enabled_features);
     ReadAnythingController::SetFreezeDistillationOnCreationForTesting(true);
@@ -439,8 +360,7 @@ class ReadAnythingPresentationModeCUJTest
     a11y::SetDistillableDomainsForTesting({distillable_url_.GetHost()});
 
     std::vector<base::test::FeatureRef> enabled_features = {
-        features::kImmersiveReadAnything, features::kReadAnythingOmniboxChip,
-        features::kPageActionsMigration,
+        features::kReadAnythingOmniboxChip,
         feature_engagement::kIPHReadingModePresentationModeFeature};
     feature_list_.InitAndEnableFeatures(enabled_features);
     ReadAnythingController::SetFreezeDistillationOnCreationForTesting(true);

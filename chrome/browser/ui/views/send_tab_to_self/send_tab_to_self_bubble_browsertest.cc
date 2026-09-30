@@ -5,10 +5,11 @@
 #include "base/time/time.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/send_tab_to_self/send_tab_to_self_bubble_controller.h"
@@ -23,6 +24,7 @@
 #include "components/signin/public/base/signin_buildflags.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "content/public/test/browser_test.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/gfx/image/image_unittest_util.h"
 #include "ui/views/layout/animating_layout_manager_test_util.h"
@@ -31,6 +33,9 @@
 namespace send_tab_to_self {
 
 namespace {
+
+using FormFactor = syncer::DeviceInfo::FormFactor;
+using OsType = syncer::DeviceInfo::OsType;
 
 class StubSendTabToSelfBubbleController : public SendTabToSelfBubbleController {
  public:
@@ -50,25 +55,24 @@ class StubSendTabToSelfBubbleController : public SendTabToSelfBubbleController {
 
   std::vector<TargetDeviceInfo> GetValidDevices() override {
     const auto now = base::Time::Now();
-    return {{"Device_1", "device_guid_1",
-             syncer::DeviceInfo::FormFactor::kDesktop, now - base::Days(0)},
-            {"Device_2", "device_guid_2",
-             syncer::DeviceInfo::FormFactor::kPhone, now - base::Days(0)},
-            {"Device_3", "device_guid_3",
-             syncer::DeviceInfo::FormFactor::kDesktop, now - base::Days(1)},
-            {"Device_4", "device_guid_4",
-             syncer::DeviceInfo::FormFactor::kPhone, now - base::Days(1)},
-            {"Device_5", "device_guid_5",
-             syncer::DeviceInfo::FormFactor::kDesktop, now - base::Days(5)},
-            {"Device_6", "device_guid_6",
-             syncer::DeviceInfo::FormFactor::kPhone, now - base::Days(5)}};
+    return {{"Device_1", "device_guid_1", FormFactor::kDesktop, OsType::kLinux,
+             now - base::Days(0)},
+            {"Device_2", "device_guid_2", FormFactor::kPhone, OsType::kAndroid,
+             now - base::Days(0)},
+            {"Device_3", "device_guid_3", FormFactor::kDesktop, OsType::kLinux,
+             now - base::Days(1)},
+            {"Device_4", "device_guid_4", FormFactor::kPhone, OsType::kAndroid,
+             now - base::Days(1)},
+            {"Device_5", "device_guid_5", FormFactor::kDesktop, OsType::kLinux,
+             now - base::Days(5)},
+            {"Device_6", "device_guid_6", FormFactor::kPhone, OsType::kAndroid,
+             now - base::Days(5)}};
   }
 
   AccountInfo GetSharingAccountInfo() override {
-    AccountInfo info;
-    info.email = "user@host.com";
-    info.account_image = gfx::Image(gfx::test::CreateImageSkia(96, 96));
-    return info;
+    return AccountInfo::Builder(GaiaId("test_gaia"), "user@host.com")
+        .SetAvatarImage(gfx::Image(gfx::test::CreateImageSkia(96, 96)))
+        .Build();
   }
 
  private:
@@ -89,7 +93,7 @@ class SendTabToSelfBubbleTest : public DialogBrowserTest {
     DialogBrowserTest::SetUpOnMainThread();
 
     content::WebContents* web_contents =
-        browser()->tab_strip_model()->GetActiveWebContents();
+        browser()->GetTabStripModel()->GetActiveWebContents();
     std::unique_ptr<StubSendTabToSelfBubbleController> controller =
         std::make_unique<StubSendTabToSelfBubbleController>(web_contents);
     controller_ = controller.get();
@@ -211,7 +215,7 @@ IN_PROC_BROWSER_TEST_P(SendTabToSelfBubbleParameterizedTest,
   // Pin send tab to self to the toolbar.
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
   actions::ActionItem* browser_action_item =
-      browser()->browser_actions()->root_action_item();
+      BrowserActions::From(browser())->root_action_item();
   auto* action_item = actions::ActionManager::Get().FindAction(
       kActionSendTabToSelf, browser_action_item);
   action_item->SetEnabled(true);

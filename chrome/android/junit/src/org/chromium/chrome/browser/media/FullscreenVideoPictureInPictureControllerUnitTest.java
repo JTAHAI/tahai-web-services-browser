@@ -49,8 +49,6 @@ import java.util.concurrent.TimeUnit;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(shadows = {ShadowPackageManager.class, ShadowSystemClock.class})
 public class FullscreenVideoPictureInPictureControllerUnitTest {
-    private static final int TAB_ID = 0;
-
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private Activity mActivity;
     @Mock private FullscreenManager mFullscreenManager;
@@ -282,6 +280,36 @@ public class FullscreenVideoPictureInPictureControllerUnitTest {
 
         mController.onResume();
         verify(mActivity, times(1)).moveTaskToBack(true);
+    }
+
+    @Test
+    public void pictureInPictureSuspendsMediaWhenClosedByOnStop() {
+        enterPip();
+        verify(mWebContents).addObserver(mWebContentsObserverCaptor.capture());
+        mWebContentsObserverCaptor.getValue().mediaStartedPlaying(0, true, true);
+
+        mController.onStop();
+        verify(mMediaSession, times(1)).suspend(SuspendType.SYSTEM);
+
+        mController.onStop();
+        verify(mMediaSession, times(1)).suspend(SuspendType.SYSTEM);
+    }
+
+    @Test
+    public void pictureInPictureDoesNotSuspendMediaWhenRestoredByOnResume() {
+        enterPip();
+        verify(mWebContents).addObserver(mWebContentsObserverCaptor.capture());
+        mWebContentsObserverCaptor.getValue().mediaStartedPlaying(0, true, true);
+
+        mController.onResume();
+        mController.onStop();
+        verify(mMediaSession, times(0)).suspend(SuspendType.SYSTEM);
+    }
+
+    @Test
+    public void testOnStopDoesNotSuspendMediaWithoutPictureInPicture() {
+        mController.onStop();
+        verify(mMediaSession, times(0)).suspend(SuspendType.SYSTEM);
     }
 
     @Test

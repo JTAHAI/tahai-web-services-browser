@@ -229,7 +229,7 @@ std::string GetNoSpareRendererAllocationForCOOPUMAName(
 // trial is not activated on excluded machines.
 size_t GetSpareRPHCount() {
   // Exclude machines with less than 4gigs of ram.
-  if (base::SysInfo::AmountOfTotalPhysicalMemory() < base::GiBU(4)) {
+  if (base::SysInfo::AmountOfTotalPhysicalMemory() < base::GiB(4)) {
     return 1u;
   }
   return features::kMultipleSpareRPHsCount.Get();
@@ -316,13 +316,13 @@ void LogSpareProcessTakeActionUMAs(
   }
 }
 
-// Returns the memory limit threshold (expressed as a percentage) that
-// determines when a spare RPH can be created or killed.
-int GetMemoryLimitThreshold() {
+// Returns the memory limit threshold that determines when a spare RPH can be
+// created or killed.
+base::MemoryLimit GetMemoryLimitThreshold() {
   if (base::FeatureList::IsEnabled(kSpareRPHUseCriticalMemoryPressure)) {
-    return base::kCriticalMemoryPressureThreshold;
+    return base::MemoryLimit::CriticalPressureThreshold();
   }
-  return base::kModerateMemoryPressureThreshold;
+  return base::MemoryLimit::ModeratePressureThreshold();
 }
 
 constexpr base::MemoryConsumerTraits kSpareRenderProcessHostManagerTraits(
@@ -557,9 +557,12 @@ RenderProcessHost* SpareRenderProcessHostManagerImpl::WarmupSpare(
   RenderProcessHost* new_spare_rph =
       RenderProcessHostImpl::CreateSpareRenderProcessHost(
           browser_context, nullptr /* site_instance */);
+  // Register the spare right away so that RenderProcessHost::IsSpare() is
+  // already true while the process launches, in particular when the embedder's
+  // AppendExtraCommandLineSwitches() runs.
+  spare_rphs_.push_back(new_spare_rph);
   new_spare_rph->AddObserver(this);
   new_spare_rph->Init();
-  spare_rphs_.push_back(new_spare_rph);
 
   // Use the new timeout if there is no previous renderer or
   // the specified timeout will be triggered after the current timeout
@@ -637,9 +640,15 @@ RenderProcessHost* SpareRenderProcessHostManagerImpl::MaybeTakeSpare(
       //    WebUIs need their processes created with their SiteInstance so that
       //    the kForTopChromeWebUI flag is correctly set on the
       //    RenderProcessHost.
+      // 5. The SiteInstance is for privileged content (a WebContents created
+      //    with PrivilegedParams). Like Top Chrome WebUI, privileged content
+      //    needs its process created with its SiteInstance so that the
+      //    kPrivileged flag is set on the RenderProcessHost (an unlocked spare
+      //    would otherwise be taken and then rejected as an unsuitable host).
       site_instance->HasProcess() ||
       !site_instance->CanAssociateWithSpareProcess() ||
-      site_instance->GetSecurityPrincipal().IsGuest()
+      site_instance->GetSecurityPrincipal().IsGuest() ||
+      site_instance->GetSiteInfo().embedder_isolation_info().is_privileged()
 #if !BUILDFLAG(IS_ANDROID)
       || GetContentClient()->browser()->IsTopChromeWebUIURL(
              site_instance->GetSecurityPrincipal().GetDeprecatedSiteURL())
@@ -1032,7 +1041,7 @@ bool SpareRenderProcessHostManagerImpl::ShouldCreateExtraSpare() const {
   }
 
   // Don't create spares when under memory pressure.
-  if (memory_limit() < base::kNoMemoryPressureThreshold) {
+  if (memory_limit() < base::MemoryLimit::NoPressureThreshold()) {
     return false;
   }
 
@@ -1056,9 +1065,9 @@ void SpareRenderProcessHostManagerImpl::MaybeCreateExtraSpare() {
   RenderProcessHost* new_spare_rph =
       RenderProcessHostImpl::CreateSpareRenderProcessHost(
           browser_context, nullptr /* site_instance */);
+  spare_rphs_.push_back(new_spare_rph);
   new_spare_rph->AddObserver(this);
   new_spare_rph->Init();
-  spare_rphs_.push_back(new_spare_rph);
 }
 
 void SpareRenderProcessHostManagerImpl::OnMetricsHeartbeatTimerFired() {

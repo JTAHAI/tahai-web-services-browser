@@ -16,12 +16,10 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.FeatureOverrides;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.preferences.Pref;
@@ -32,7 +30,6 @@ import org.chromium.components.user_prefs.UserPrefs;
 
 /** Tests for the {@link FeedbackPolicyManager}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class FeedbackPolicyManagerTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -60,46 +57,25 @@ public class FeedbackPolicyManagerTest {
         FeatureOverrides.removeAllIncludingAnnotations();
     }
 
-    private void setFeatureFlag(boolean enabled) {
-        if (enabled) {
-            FeatureOverrides.enable(ChromeFeatureList.USER_FEEDBACK_ALLOWED_POLICY);
-        } else {
-            FeatureOverrides.disable(ChromeFeatureList.USER_FEEDBACK_ALLOWED_POLICY);
-        }
-    }
-
     @Test
-    public void testFlagDisabled_ReturnsDefaultTrue() {
-        setFeatureFlag(false);
-
+    public void testPreNative_ReturnsDefaultTrue() {
         Assert.assertTrue(
-                "Should return true when flag is disabled",
+                "Should return true pre-native by default",
                 FeedbackPolicyManager.getInstance().isUserFeedbackAllowed());
     }
 
     @Test
-    public void testFlagEnabled_PreNative_ReturnsDefaultTrue() {
-        setFeatureFlag(true);
-
-        Assert.assertTrue(
-                "Should return true pre-native by default when flag is enabled",
-                FeedbackPolicyManager.getInstance().isUserFeedbackAllowed());
-    }
-
-    @Test
-    public void testFlagEnabled_PreNative_ReturnsCachedValue() {
-        setFeatureFlag(true);
+    public void testPreNative_ReturnsCachedValue() {
         mSharedPreferenceManager.writeBoolean(
                 ChromePreferenceKeys.POLICY_USER_FEEDBACK_ALLOWED, false);
 
         Assert.assertFalse(
-                "Should return cached value pre-native when flag is enabled",
+                "Should return cached value pre-native",
                 FeedbackPolicyManager.getInstance().isUserFeedbackAllowed());
     }
 
     @Test
-    public void testFlagEnabled_NativeInit_SyncsCache() {
-        setFeatureFlag(true);
+    public void testNativeInit_SyncsCache() {
         Mockito.when(mMockPrefService.getBoolean(Pref.USER_FEEDBACK_ALLOWED)).thenReturn(false);
 
         // Trigger native initialization
@@ -118,7 +94,6 @@ public class FeedbackPolicyManagerTest {
 
     @Test
     public void testNativePrefChange_UpdatesCache() {
-        setFeatureFlag(true);
         Mockito.when(mMockPrefService.getBoolean(Pref.USER_FEEDBACK_ALLOWED)).thenReturn(true);
 
         // Initialize manager
@@ -142,7 +117,6 @@ public class FeedbackPolicyManagerTest {
 
     @Test
     public void testProfileSwitching_RecreatesRegistrar() {
-        setFeatureFlag(true);
         Profile secondMockProfile = Mockito.mock(Profile.class);
         PrefChangeRegistrar secondMockRegistrar = Mockito.mock(PrefChangeRegistrar.class);
 
@@ -164,7 +138,6 @@ public class FeedbackPolicyManagerTest {
 
     @Test
     public void testIncognitoProfile_ObserverNotRegistered() {
-        setFeatureFlag(true);
         Profile incognitoProfile = Mockito.mock(Profile.class);
         Mockito.when(incognitoProfile.isOffTheRecord()).thenReturn(true);
 
@@ -177,7 +150,6 @@ public class FeedbackPolicyManagerTest {
 
     @Test
     public void testDestroy_CleansUp() {
-        setFeatureFlag(true);
         Mockito.when(mMockPrefService.getBoolean(Pref.USER_FEEDBACK_ALLOWED)).thenReturn(true);
 
         FeedbackPolicyManager.getInstance().onFinishNativeInitialization(mRegularMockProfile);

@@ -21,11 +21,11 @@
 #include "base/test/test_future.h"
 #include "base/test/test_io_thread.h"
 #include "build/build_config.h"
+#include "services/device/hid/hid_collection.h"
 #include "services/device/hid/hid_connection.h"
 #include "services/device/hid/hid_service.h"
 #include "services/device/public/cpp/device_features.h"
 #include "services/device/public/cpp/hid/hid_blocklist.h"
-#include "services/device/public/cpp/hid/hid_collection.h"
 #include "services/device/public/cpp/test/test_report_descriptors.h"
 #include "services/device/public/mojom/hid.mojom.h"
 #include "services/device/test/usb_test_gadget.h"
@@ -688,6 +688,62 @@ TEST_F(HidConnectionProtectedReportTest,
   // Close the connection.
   connection().Close();
   EXPECT_TRUE(connection().closed());
+}
+
+TEST_F(HidConnectionProtectedReportTest, CollectionTypeAffectsProtection) {
+  constexpr uint8_t kTestReportId = 1;
+
+  // Case 1: Collection type is Physical (0). Reports should NOT be protected.
+  {
+    auto collection = mojom::HidCollectionInfo::New();
+    collection->usage = mojom::HidUsageAndPage::New(
+        mojom::kGenericDesktopKeyboard, mojom::kPageGenericDesktop);
+    collection->collection_type = mojom::kHIDCollectionTypePhysical;
+    collection->report_ids.push_back(kTestReportId);
+    auto report = mojom::HidReportDescription::New();
+    report->report_id = kTestReportId;
+    collection->input_reports.push_back(std::move(report));
+
+    auto device_info = CreateHidDeviceInfo(std::move(collection),
+                                           /*max_input_report_size=*/1,
+                                           /*max_output_report_size=*/0,
+                                           /*max_feature_report_size=*/0);
+    CreateConnection(device_info);
+
+    TestFuture<bool, scoped_refptr<base::RefCountedBytes>, size_t> read_future;
+    auto buffer = base::MakeRefCounted<base::RefCountedBytes>(
+        std::vector<uint8_t>{kTestReportId});
+    connection().SimulateInputReport(buffer);
+    connection().Read(read_future.GetCallback());
+    EXPECT_TRUE(read_future.Get<0>());
+    connection().Close();
+  }
+
+  // Case 2: Collection type is Application (1). Reports SHOULD be protected.
+  {
+    auto collection = mojom::HidCollectionInfo::New();
+    collection->usage = mojom::HidUsageAndPage::New(
+        mojom::kGenericDesktopKeyboard, mojom::kPageGenericDesktop);
+    collection->collection_type = mojom::kHIDCollectionTypeApplication;
+    collection->report_ids.push_back(kTestReportId);
+    auto report = mojom::HidReportDescription::New();
+    report->report_id = kTestReportId;
+    collection->input_reports.push_back(std::move(report));
+
+    auto device_info = CreateHidDeviceInfo(std::move(collection),
+                                           /*max_input_report_size=*/1,
+                                           /*max_output_report_size=*/0,
+                                           /*max_feature_report_size=*/0);
+    CreateConnection(device_info);
+
+    TestFuture<bool, scoped_refptr<base::RefCountedBytes>, size_t> read_future;
+    auto buffer = base::MakeRefCounted<base::RefCountedBytes>(
+        std::vector<uint8_t>{kTestReportId});
+    connection().SimulateInputReport(buffer);
+    connection().Read(read_future.GetCallback());
+    EXPECT_FALSE(read_future.IsReady());
+    connection().Close();
+  }
 }
 
 }  // namespace device

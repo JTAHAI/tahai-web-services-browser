@@ -28,15 +28,19 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "base/version.h"
+#include "build/branding_buildflags.h"
 #include "components/crx_file/id_util.h"
+#include "components/optimization_guide/core/model_execution/component_download_observer.h"
 #include "components/optimization_guide/core/model_execution/manifest_broker/manifest.h"
 #include "components/optimization_guide/core/model_execution/model_execution_prefs.h"
 #include "components/optimization_guide/core/model_execution/model_execution_util.h"
+#include "components/optimization_guide/core/model_execution/on_device_model_download_progress_manager.h"
 #include "components/optimization_guide/core/model_execution/on_device_model_names.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/public/mojom/model_broker_debug.mojom.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
+#include "components/update_client/crx_update_item.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 
 namespace optimization_guide {
@@ -307,6 +311,32 @@ bool ManifestAssetManager::DiskSpaceStatus::CanSupportProactiveDownload()
              free_space_.value());
 }
 
+AssetPriorities::AssetPriorities() = default;
+AssetPriorities::~AssetPriorities() = default;
+AssetPriorities::AssetPriorities(const AssetPriorities&) = default;
+AssetPriorities& AssetPriorities::operator=(const AssetPriorities&) = default;
+AssetPriorities::AssetPriorities(AssetPriorities&&) = default;
+AssetPriorities& AssetPriorities::operator=(AssetPriorities&&) = default;
+
+void AssetPriorities::Raise(
+    AssetPriority priority,
+    const absl::flat_hash_set<Manifest::AssetId>& assets) {
+  for (const auto& asset : assets) {
+    auto [it, inserted] = priorities_.try_emplace(asset, priority);
+    it->second = std::max(it->second, priority);
+  }
+}
+
+void AssetPriorities::Clear() {
+  priorities_.clear();
+}
+
+bool AssetPriorities::IsAtLeast(AssetPriority priority,
+                                const Manifest::AssetId& asset_id) const {
+  auto it = priorities_.find(asset_id);
+  return it != priorities_.end() && it->second >= priority;
+}
+
 ManifestAssetManager::ManifestAssetManager(
     PrefService& local_state,
     UsageTracker& usage_tracker,
@@ -334,6 +364,27 @@ ManifestAssetManager::~ManifestAssetManager() {
               perfetto::TerminatingFlow::FromPointer(this));
 }
 
+std::optional<std::string> ManifestAssetManager::GetCrxIdForAsset(
+    const std::string& asset_name) const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (!factory_) {
+    return std::nullopt;
+  }
+
+  const auto& on_demand_components =
+      factory_->manifest().GetAssets().on_demand_components();
+  auto it = on_demand_components.find(asset_name);
+  if (it == on_demand_components.end()) {
+    return std::nullopt;
+  }
+
+  std::vector<uint8_t> public_key_hash;
+  if (!base::HexStringToBytes(it->second.public_key(), &public_key_hash)) {
+    return std::nullopt;
+  }
+  return crx_file::id_util::GenerateIdFromHash(public_key_hash);
+}
+
 void ManifestAssetManager::AddDownloadProgressObserver(
     const std::string& use_case,
     mojo::PendingRemote<on_device_model::mojom::DownloadObserver> observer) {
@@ -351,15 +402,9 @@ void ManifestAssetManager::AddDownloadProgressObserver(
 
   base::flat_set<std::string> component_ids;
   for (const auto& asset_id : *required_assets) {
-    const auto& on_demand_components =
-        factory_->manifest().GetAssets().on_demand_components();
-    auto it = on_demand_components.find(asset_id);
-    if (it != on_demand_components.end()) {
-      std::vector<uint8_t> public_key_hash;
-      if (base::HexStringToBytes(it->second.public_key(), &public_key_hash)) {
-        component_ids.insert(
-            crx_file::id_util::GenerateIdFromHash(public_key_hash));
-      }
+    auto crx_id = GetCrxIdForAsset(asset_id);
+    if (crx_id) {
+      component_ids.insert(*crx_id);
     }
   }
 
@@ -369,6 +414,27 @@ void ManifestAssetManager::AddDownloadProgressObserver(
         component_update_service_, std::move(component_ids));
   }
   progress_manager->AddObserver(std::move(observer));
+}
+
+void ManifestAssetManager::AddAssetDownloadObserver(
+    const std::string& asset_name,
+    mojo::PendingRemote<on_device_model::mojom::DownloadObserver> observer) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (!component_update_service_) {
+    return;
+  }
+
+  auto crx_id = GetCrxIdForAsset(asset_name);
+  if (!crx_id) {
+    return;
+  }
+
+  auto& tracker = asset_download_observers_[*crx_id];
+  if (!tracker) {
+    tracker = std::make_unique<ComponentDownloadObserver>(
+        component_update_service_, *crx_id);
+  }
+  tracker->AddObserver(std::move(observer));
 }
 
 void ManifestAssetManager::UpdateSolutionFactory(
@@ -399,15 +465,15 @@ void ManifestAssetManager::UpdateSolutionFactory(
     context.SetAssetId(asset_id);
   }
 
-  std::vector<Manifest::UseCaseName> background_download_use_cases;
+  asset_priorities_.Clear();
   for (const auto& [use_case_name, use_case_config] :
        factory_->manifest().GetDeviceCategoryConfig().use_cases()) {
     if (use_case_config.background_download()) {
-      background_download_use_cases.push_back(use_case_name);
+      asset_priorities_.Raise(
+          AssetPriority::kSpeculative,
+          *factory_->manifest().GetRequiredAssets(use_case_name));
     }
   }
-  background_download_assets_by_id_ =
-      factory_->manifest().GetRequiredAssets(background_download_use_cases);
 
   UpdateActiveAssets();
 }
@@ -421,9 +487,8 @@ void ManifestAssetManager::RefreshSolutions() {
 
 void ManifestAssetManager::UninstallModels() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  model_execution::prefs::ClearAllUseCaseUsages(&*local_state_);
-  active_assets_by_id_.clear();
-  background_download_assets_by_id_.clear();
+  usage_tracker_->ClearAllUseCaseUsages();
+  asset_priorities_.Clear();
 
   std::vector<std::string> keys_to_save;
   for (auto& [public_key, context] : ledger_.GetMutableContexts()) {
@@ -457,30 +522,32 @@ bool ManifestAssetManager::VerifyInstallation(const base::FilePath& install_dir,
   return base::PathExists(install_dir);
 }
 
-void ManifestAssetManager::OnDeviceEligibleUseCaseUsed(
+void ManifestAssetManager::OnPriorityIncrease(
     const std::string& use_case_name,
-    bool is_first_usage) {
+    std::optional<UsageTracker::Priority> previous_priority) {
   TRACE_EVENT("optimization_guide",
-              "ManifestAssetManager::OnDeviceEligibleUseCaseUsed",
-              perfetto::Flow::FromPointer(this), "use_case_name", use_case_name,
-              "is_first_usage", is_first_usage);
-  if (is_first_usage) {
-    UpdateActiveAssets();
-  }
+              "ManifestAssetManager::OnPriorityIncrease",
+              perfetto::Flow::FromPointer(this), "use_case_name", use_case_name);
+  UpdateActiveAssets();
 }
 
 // Get all assets required by used use cases in usage_tracker.
 void ManifestAssetManager::UpdateActiveAssets() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  std::vector<Manifest::UseCaseName> active_use_cases;
   for (const auto& [use_case, _] :
        factory_->manifest().GetDeviceCategoryConfig().use_cases()) {
-    if (usage_tracker_->WasUseCaseRecentlyUsed(use_case)) {
-      active_use_cases.push_back(use_case);
+    std::optional<UsageTracker::Priority> priority =
+        usage_tracker_->GetPriority(use_case);
+    if (!priority) {
+      continue;
     }
+    AssetPriority asset_priority =
+        *priority == UsageTracker::Priority::kUserBlocking
+            ? AssetPriority::kUserBlocking
+            : AssetPriority::kBestEffort;
+    asset_priorities_.Raise(asset_priority,
+                            *factory_->manifest().GetRequiredAssets(use_case));
   }
-  active_assets_by_id_ =
-      factory_->manifest().GetRequiredAssets(active_use_cases);
   UpdateRegistrations();
 }
 
@@ -503,6 +570,19 @@ bool ManifestAssetManager::ShouldInstall(
   if (!component) {
     return false;
   }
+#if BUILDFLAG(CHROME_FOR_TESTING)
+  // In Chrome for Testing the normal component update mechanism is disabled, so
+  // the only components that are installed are the ones listed in the Chrome
+  // for Testing configuration file as Required Components, see
+  // 'docs/chrome_for_testing/chrome_for_testing_configuration.md'.
+  //
+  // The required components are installed before the browser starts, so here we
+  // unconditionally allow installation of all on-demand components present in
+  // the manifest and the actual filtering is done in
+  // RequiredComponentsController, see
+  // components/component_updater/required_components_controller.h.
+  return true;
+#else
   if (context.requested_version() == component->target_version()) {
     // The component is either downloading or already installed.
     return true;
@@ -518,11 +598,14 @@ bool ManifestAssetManager::ShouldInstall(
     }
     return false;
   }
-  if (active_assets_by_id_.contains(context.asset_id())) {
+  if (asset_priorities_.IsAtLeast(AssetPriority::kBestEffort,
+                                  context.asset_id())) {
     return true;
   }
   return disk_space_status_.CanSupportProactiveDownload() &&
-         background_download_assets_by_id_.contains(context.asset_id());
+         asset_priorities_.IsAtLeast(AssetPriority::kSpeculative,
+                                     context.asset_id());
+#endif
 }
 
 void ManifestAssetManager::UpdateRegistrations() {
@@ -583,10 +666,26 @@ void ManifestAssetManager::UpdateRegistrations() {
       delegate_->RegisterOnDemandComponent(
           public_key, component->target_version(), context.asset_id(),
           weak_ptr_factory_.GetWeakPtr());
+      // Defer calling NotifyFactory until registration completes (via
+      // InstallerRegistered or OnAssetReady), because the asset may already be
+      // present on disk.
       continue;
     }
+
+    if (context.state() == ComponentState::kReady &&
+        !context.install_dir().has_value()) {
+      // Registration completed recently and we've observed that we have the
+      // right version, but we are waiting for the path from the updater.
+      continue;
+    }
+
+    // Registration is complete, so we know the state of the asset and can
+    // notify the factory.
+    NotifyFactory(public_key, context);
+
     if (context.state() == ComponentState::kRegistered) {
-      if (active_assets_by_id_.contains(context.asset_id())) {
+      if (asset_priorities_.IsAtLeast(AssetPriority::kUserBlocking,
+                                      context.asset_id())) {
         context.SetOnDemandDownloading();
         // This doesn't change a persistent state, so it's okay to not save.
         delegate_->RequestUpdate(public_key,
@@ -723,7 +822,22 @@ std::vector<mojom::BrokerAssetInfoPtr> ManifestAssetManager::GetBrokerAssets()
   for (const auto& [public_key, context] : ledger_.contexts()) {
     const proto::OnDemandComponent* component =
         factory_->manifest().GetAssetByPublicKey(public_key);
-    assets.push_back(context.ToBrokerAssetInfo(component));
+    auto asset_info = context.ToBrokerAssetInfo(component);
+
+    // Fetch initial download progress if available.
+    if (component_update_service_) {
+      std::vector<uint8_t> hash;
+      if (base::HexStringToBytes(public_key, &hash)) {
+        std::string crx_id = crx_file::id_util::GenerateIdFromHash(hash);
+        if (auto progress =
+                GetDownloadProgress(component_update_service_, crx_id)) {
+          asset_info->bytes_downloaded = progress->first;
+          asset_info->bytes_total = progress->second;
+        }
+      }
+    }
+
+    assets.push_back(std::move(asset_info));
   }
   return assets;
 }

@@ -37,7 +37,6 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.Shadows;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.MathUtils;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
@@ -54,12 +53,12 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.Stat
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
 import org.chromium.components.browser_ui.notifications.BaseNotificationManagerProxyFactory;
 import org.chromium.components.browser_ui.notifications.NotificationFeatureMap;
+import org.chromium.components.browser_ui.notifications.channels.ChannelsInitializer;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.ViewUtils;
 
 /** Unit tests for {@link TipsOptInCoordinator}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 @EnableFeatures(NotificationFeatureMap.CACHE_NOTIIFICATIONS_ENABLED)
 public class TipsOptInCoordinatorUnitTest {
     private static final int NARROW_SCREEN_WIDTH_DP = 300;
@@ -79,6 +78,7 @@ public class TipsOptInCoordinatorUnitTest {
 
     @Before
     public void setUp() {
+        ChannelsInitializer.resetForTesting();
         mActivity = Robolectric.buildActivity(Activity.class).create().get();
         mActivity.setTheme(R.style.Theme_BrowserUI_DayNight);
         mSharedPreferenceManager = ChromeSharedPreferences.getInstance();

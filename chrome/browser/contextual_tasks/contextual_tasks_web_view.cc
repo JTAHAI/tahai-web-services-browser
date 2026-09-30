@@ -6,25 +6,32 @@
 
 #include "base/functional/callback.h"
 #include "base/logging.h"
+#include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/webui/webui_embedding_context.h"
+#include "chrome/common/webui_url_constants.h"
 #include "components/contextual_tasks/public/features.h"
 #include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/browser/view_type_utils.h"
+#include "third_party/blink/public/common/web_preferences/web_preferences.h"
+#include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/geometry/size.h"
+#include "ui/views/controls/webview/web_contents_set_background_color.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/view_class_properties.h"
+#include "url/gurl.h"
 
 namespace contextual_tasks {
 
 ContextualTasksWebView::ContextualTasksWebView(
-    content::BrowserContext* browser_context) {
+    BrowserWindowInterface* browser_window) {
   SetProperty(views::kElementIdentifierKey,
               kContextualTasksSidePanelWebViewElementId);
 
@@ -33,21 +40,41 @@ ContextualTasksWebView::ContextualTasksWebView(
         SetLayoutManager(std::make_unique<views::BoxLayout>(
             views::BoxLayout::Orientation::kVertical));
 
-    toolbar_web_view_ =
-        AddChildView(std::make_unique<views::WebView>(browser_context));
-    toolbar_web_view_->SetPreferredSize(gfx::Size(0, 40));
+    toolbar_web_view_ = AddChildView(
+        std::make_unique<views::WebView>(browser_window->GetProfile()));
+    views::WebContentsSetBackgroundColor::CreateForWebContentsWithColor(
+        toolbar_web_view_->GetWebContents(), SK_ColorTRANSPARENT);
+    toolbar_web_view_->GetWebContents()->SetPageBaseBackgroundColor(
+        SK_ColorTRANSPARENT);
+    blink::web_pref::WebPreferences prefs =
+        toolbar_web_view_->GetWebContents()->GetOrCreateWebPreferences();
+    prefs.preferred_color_scheme =
+        contextual_tasks::ShouldUseDarkMode(browser_window->GetProfile())
+            ? blink::mojom::PreferredColorScheme::kDark
+            : blink::mojom::PreferredColorScheme::kLight;
+    toolbar_web_view_->GetWebContents()->SetWebPreferences(prefs);
 
-    content_web_view_ =
-        AddChildView(std::make_unique<views::WebView>(browser_context));
+    toolbar_web_view_->SetPreferredSize(gfx::Size(0, 40));
+    toolbar_web_view_->LoadInitialURL(
+        GURL(chrome::kChromeUIContextualTasksToolbarURL));
+    webui::SetBrowserWindowInterface(toolbar_web_view_->GetWebContents(),
+                                     browser_window);
+
+    content_web_view_ = AddChildView(
+        std::make_unique<views::WebView>(browser_window->GetProfile()));
     layout->SetFlexForView(content_web_view_, 1);
   } else {
     SetLayoutManager(std::make_unique<views::FillLayout>());
-    content_web_view_ =
-        AddChildView(std::make_unique<views::WebView>(browser_context));
+    content_web_view_ = AddChildView(
+        std::make_unique<views::WebView>(browser_window->GetProfile()));
   }
 }
 
 ContextualTasksWebView::~ContextualTasksWebView() {
+  if (toolbar_web_view_ && toolbar_web_view_->web_contents()) {
+    webui::SetBrowserWindowInterface(toolbar_web_view_->GetWebContents(),
+                                     nullptr);
+  }
   SetWebContents(nullptr);
 }
 

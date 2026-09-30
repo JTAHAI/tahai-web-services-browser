@@ -26,6 +26,10 @@ std::string_view ActionSourceToString(ActionSource source) {
   switch (source) {
     case ActionSource::kPasswordManager:
       return "PasswordManager";
+    case ActionSource::kActor:
+      return "Actor";
+    case ActionSource::kAutofill:
+      return "Autofill";
     case ActionSource::kUnknown:
       return "Unknown";
   }
@@ -123,6 +127,10 @@ void CriticalActionService::AddCriticalAction(
   if (!backend_) {
     return;
   }
+  base::UmaHistogramEnumeration(
+      base::StrCat({"CriticalActions.EventLogged.",
+                    ActionSourceToString(entry.action_source)}),
+      entry.action_type);
   backend_.AsyncCall(&CriticalActionBackend::AddCriticalAction).WithArgs(entry);
 }
 

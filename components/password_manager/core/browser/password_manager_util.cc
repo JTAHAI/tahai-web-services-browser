@@ -40,12 +40,13 @@
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
 #include "components/password_manager/core/browser/password_store/password_store_util.h"
 #include "components/password_manager/core/browser/password_store/stored_credential.h"
+#include "components/password_manager/core/browser/password_sync_util.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/signin/public/base/signin_metrics.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
+#include "crypto/process_bound_string.h"
 #include "url/url_util.h"
-#include "components/password_manager/core/browser/password_sync_util.h"
 
 using autofill::password_generation::PasswordGenerationType;
 using password_manager::PasswordForm;
@@ -162,6 +163,14 @@ bool IsSavingBlockedByTrustedVaultError(
           client->GetSyncService())) {
     return false;
   }
+
+  // The updates of the locally stored passwords should not be blocked by
+  // trusted vault errors.
+  if (form_manager && form_manager->IsPasswordUpdate() &&
+      !form_manager->IsUpdateAffectingPasswordsStoredInTheGoogleAccount()) {
+    return false;
+  }
+
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
   const password_manager::PasswordStoreInterface* account_store =
       client->GetAccountPasswordStore();
@@ -171,16 +180,6 @@ bool IsSavingBlockedByTrustedVaultError(
          base::FeatureList::IsEnabled(
              password_manager::features::kPasswordSaveInContextErrorResolution);
 #else  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-  // The updates of the locally stored passwords should not be blocked by
-  // trusted vault errors.
-  // TODO(crbug.com/538573597): Allow updating locally saved passwords despite
-  // the trusted vault error on Android.
-  // TODO(crbug.com/538569490): Allow updating locally saved passwords despite
-  // the trusted vault error on iOS.
-  if (form_manager->IsPasswordUpdate() &&
-      !form_manager->IsUpdateAffectingPasswordsStoredInTheGoogleAccount()) {
-    return false;
-  }
   bool has_trusted_vault_error = false;
   bool has_other_blocking_errors = false;
   // It might be that the credential is updated in both stores. In this case
@@ -214,10 +213,17 @@ bool IsSavingBlockedByTrustedVaultError(
 }
 
 bool IsSavingBlockedByRecoverableError(
-    const password_manager::PasswordManagerClient* client) {
+    const password_manager::PasswordManagerClient* client,
+    const password_manager::PasswordFormManagerForUI* form_manager) {
 #if BUILDFLAG(IS_IOS)
   if (!password_manager::sync_util::HasChosenToSyncPasswords(
           client->GetSyncService())) {
+    return false;
+  }
+  // The updates of the locally stored passwords should not be blocked by
+  // recoverable errors.
+  if (form_manager && form_manager->IsPasswordUpdate() &&
+      !form_manager->IsUpdateAffectingPasswordsStoredInTheGoogleAccount()) {
     return false;
   }
   const password_manager::PasswordStoreInterface* account_store =
@@ -420,11 +426,14 @@ const StoredCredential* GetMatchForUpdating(
     return nullptr;
   }
 
+  crypto::SecureU16String submitted_form_password_value =
+      submitted_form.password_value.secure_value();
+
   if (IsEligibleForEmptyUsernameMatching(submitted_form)) {
     // Prioritize matching by password value.
     const StoredCredential* best_match = nullptr;
     for (const StoredCredential* stored_match : credentials) {
-      if (stored_match->password_value == submitted_form.password_value &&
+      if (stored_match->password_value == submitted_form_password_value &&
           (!best_match || IsBetterMatchStored(*stored_match, *best_match))) {
         best_match = stored_match;
       }

@@ -23,8 +23,6 @@ class FakeSharingDeviceRegistration : public SharingDeviceRegistration {
   void UnregisterDevice(
       SharingDeviceRegistration::RegistrationCallback callback) override {}
 
-  bool IsSharedClipboardSupported() const override { return false; }
-
   bool IsSmsFetcherSupported() const override { return false; }
 
   bool IsRemoteCopySupported() const override { return false; }
@@ -38,6 +36,8 @@ class FakeSharingDeviceRegistration : public SharingDeviceRegistration {
   }
 
   bool IsGlicExperimentalTriggeringSupported() const override { return false; }
+
+  bool IsBrowserActuatorSupported() const override { return false; }
 
   void SetEnabledFeaturesForTesting(
       std::set<syncer::DeviceInfo::SharingFeature> enabled_features) override {}

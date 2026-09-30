@@ -20,6 +20,7 @@
 #include "components/messages/android/mock_message_dispatcher_bridge.h"
 #include "components/password_manager/core/browser/mock_password_form_manager_for_ui.h"
 #include "components/password_manager/core/browser/password_form.h"
+#include "components/password_manager/core/browser/password_string.h"
 #include "components/password_manager/core/common/password_manager_features.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/strings/grit/components_strings.h"
@@ -30,6 +31,7 @@
 
 using password_manager::MockPasswordFormManagerForUI;
 using password_manager::PasswordFormManagerForUI;
+using password_manager::PasswordString;
 
 namespace {
 constexpr char16_t kDefaultUrl[] = u"http://example.com";
@@ -127,6 +129,8 @@ GeneratedPasswordSavedMessageDelegateTest::CreateFormManager(
       .WillByDefault(testing::ReturnRef(form_));
   ON_CALL(*form_manager, GetURL())
       .WillByDefault(testing::ReturnRef(password_form_url_));
+  ON_CALL(*form_manager, IsFetchCompleted())
+      .WillByDefault(testing::Return(true));
   return form_manager;
 }
 
@@ -134,7 +138,7 @@ void GeneratedPasswordSavedMessageDelegateTest::SetUsernameAndPassword(
     std::u16string username,
     std::u16string password) {
   form_.username_value = std::move(username);
-  form_.password_value = std::move(password);
+  form_.password_value = PasswordString(std::move(password));
 }
 
 void GeneratedPasswordSavedMessageDelegateTest::DismissMessage() {
@@ -194,10 +198,9 @@ TEST_F(GeneratedPasswordSavedMessageDelegateTest, MessagePropertyValues) {
             GetMessageWrapper()->GetTitle());
   EXPECT_EQ(l10n_util::GetStringUTF16(IDS_OK),
             GetMessageWrapper()->GetPrimaryButtonText());
-  EXPECT_EQ(
-      l10n_util::GetStringUTF16(
-          IDS_PASSWORD_MANAGER_GENERATED_PASSWORD_SAVED_MESSAGE_DESCRIPTION),
-      GetMessageWrapper()->GetDescription());
+  EXPECT_EQ(l10n_util::GetStringUTF16(
+                IDS_PASSWORD_SAVED_CONFIRMATION_MESSAGE_DESCRIPTION),
+            GetMessageWrapper()->GetDescription());
   EXPECT_EQ(ResourceMapper::MapToJavaDrawableId(
                 IDR_ANDROID_PASSWORD_MANAGER_LOGO_24DP),
             GetMessageWrapper()->GetIconResourceId());

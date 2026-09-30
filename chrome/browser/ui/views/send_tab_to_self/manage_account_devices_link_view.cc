@@ -60,7 +60,8 @@ std::unique_ptr<views::View> BuildManageAccountDevicesLinkView(
 
   AccountInfo account = controller->GetSharingAccountInfo();
   DCHECK(!account.IsEmpty());
-  gfx::ImageSkia square_avatar = account.account_image.AsImageSkia();
+  gfx::ImageSkia square_avatar =
+      account.GetAvatarImage().value_or(gfx::Image()).AsImageSkia();
   // The color used in `circle_mask` is irrelevant as long as it's opaque; only
   // the alpha channel matters.
   gfx::ImageSkia circle_mask =
@@ -85,10 +86,11 @@ std::unique_ptr<views::View> BuildManageAccountDevicesLinkView(
     // placeholders. This GetStringFUTF16() call replaces them with empty
     // strings (no-op) and saves the range in |offsets[0]| and |offsets[1]|.
     std::vector<size_t> offsets;
-    link_view->SetText(l10n_util::GetStringFUTF16(
-        IDS_SEND_TAB_TO_SELF_MANAGE_DEVICES_LINK,
-        {std::u16string(), std::u16string(), base::UTF8ToUTF16(account.email)},
-        &offsets));
+    link_view->SetText(
+        l10n_util::GetStringFUTF16(IDS_SEND_TAB_TO_SELF_MANAGE_DEVICES_LINK,
+                                   {std::u16string(), std::u16string(),
+                                    base::UTF8ToUTF16(account.GetEmail())},
+                                   &offsets));
     DCHECK_EQ(3u, offsets.size());
     link_view->AddStyleRange(
         gfx::Range(offsets[0], offsets[1]),
@@ -96,7 +98,7 @@ std::unique_ptr<views::View> BuildManageAccountDevicesLinkView(
             &SendTabToSelfBubbleController::OnManageDevicesClicked,
             controller)));
   } else {
-    link_view->SetText(base::UTF8ToUTF16(account.email));
+    link_view->SetText(base::UTF8ToUTF16(account.GetEmail()));
   }
 
   return container;

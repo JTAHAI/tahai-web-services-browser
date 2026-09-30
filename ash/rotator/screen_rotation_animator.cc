@@ -24,11 +24,11 @@
 #include "ui/compositor/animation_throughput_reporter.h"
 #include "ui/compositor/callback_layer_animation_observer.h"
 #include "ui/compositor/compositor.h"
-#include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_sequence.h"
 #include "ui/compositor/layer_animator.h"
 #include "ui/compositor/layer_owner.h"
 #include "ui/compositor/layer_tree_owner.h"
+#include "ui/compositor/layer_with_external_texture.h"
 #include "ui/display/display.h"
 #include "ui/display/manager/display_manager.h"
 #include "ui/display/manager/managed_display_info.h"
@@ -295,11 +295,12 @@ void ScreenRotationAnimator::OnScreenRotationContainerLayerCopiedBeforeRotation(
                            GetScreenRotationContainer(root_window_)->layer(),
                            old_layer_tree_owner_->root());
 
-  // TODO(oshima): We need a better way to control animation and other
-  // activities during system wide animation.
+  // This disables animations while updating the rotation and is safe even if
+  // multiple rotation animations are applied concurrently because
+  // ScopedAnimationDurationScaleMode supports stacking for DISABLE_ANIMATION.
   animation_scale_mode_ =
       std::make_unique<gfx::ScopedAnimationDurationScaleMode>(
-          gfx::ScopedAnimationDurationScaleMode::ZERO_DURATION);
+          gfx::ScopedAnimationDurationScaleMode::DISABLE_ANIMATION);
 
   for (auto& observer : screen_rotation_animator_observers_)
     observer.OnScreenCopiedBeforeRotation();
@@ -364,9 +365,9 @@ std::unique_ptr<ui::LayerTreeOwner> ScreenRotationAnimator::CopyLayerTree(
     std::unique_ptr<viz::CopyOutputResult> result) {
   gfx::Size layer_size =
       GetScreenRotationContainer(root_window_)->layer()->size();
-  std::unique_ptr<ui::Layer> copy_layer =
+  std::unique_ptr<ui::LayerWithExternalTexture> copy_layer =
       CreateLayerFromCopyOutputResult(std::move(result), layer_size);
-  CHECK_EQ(copy_layer->type(), ui::LAYER_SOLID_COLOR);
+  copy_layer->SetFillsBoundsOpaquely(false);
   DCHECK_EQ(copy_layer->size(),
             GetScreenRotationContainer(root_window_)->layer()->size());
 

@@ -135,9 +135,8 @@ bool WebViewTranslateClient::IsTranslatableURL(const GURL& url) {
   return !url.is_empty() && !url.SchemeIs(url::kFtpScheme);
 }
 
-void WebViewTranslateClient::CheckIfPdfIsTranslatable(
-    base::OnceCallback<void(bool)> callback) {
-  std::move(callback).Run(false);
+bool WebViewTranslateClient::IsReadingModeOpen() const {
+  return false;
 }
 
 }  // namespace ios_web_view

@@ -10,6 +10,7 @@
 #include <numeric>
 #include <string>
 
+#include "base/command_line.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
@@ -24,16 +25,18 @@
 #include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
 #include "chrome/browser/ui/bookmarks/test_bookmark_navigation_wrapper.h"
 #include "chrome/browser/ui/ui_features.h"
-#include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/bookmarks/common/bookmark_bar_visibility_state.h"
 #include "components/bookmarks/common/bookmark_pref_names.h"
 #include "components/bookmarks/test/bookmark_test_helpers.h"
+#include "components/enterprise/isolated_mode/isolated_mode_features.h"
+#include "components/enterprise/isolated_mode/prefs.h"
 #include "components/saved_tab_groups/public/features.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
+#include "content/public/browser/page_navigator.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/clipboard/clipboard.h"
@@ -68,6 +71,10 @@ class BookmarkContextMenuControllerTest : public testing::Test {
   }
 
   void SetUp() override {
+    base::CommandLine::ForCurrentProcess()->RemoveSwitch(
+        enterprise_isolated_mode::switches::
+            kForceEnterpriseIsolatedModeReplacesIncognito);
+
     TestingProfile::Builder profile_builder;
     profile_builder.AddTestingFactory(
         BookmarkModelFactory::GetInstance(),
@@ -76,6 +83,10 @@ class BookmarkContextMenuControllerTest : public testing::Test {
         BookmarkMergedSurfaceServiceFactory::GetInstance(),
         BookmarkMergedSurfaceServiceFactory::GetDefaultFactory());
     profile_ = profile_builder.Build();
+    profile_->GetPrefs()->SetInteger(
+        enterprise_isolated_mode::kEnterpriseIsolatedModeSettings,
+        static_cast<int>(
+            enterprise_isolated_mode::IsolatedModeSetting::kDisabled));
     model_ = BookmarkModelFactory::GetForBrowserContext(profile_.get());
     bookmarks::test::WaitForBookmarkModelToLoad(model_);
     AddTestData(model_);
@@ -763,4 +774,122 @@ TEST_F(
         BookmarkLaunchLocation::kNone, {F11}, /*can_paste=*/false);
     EXPECT_EQ(F11, controller.ComputeNodeToFocusForBookmarkManager());
   }
+}
+
+// Tests isolated mode menu item visibility, enablement, and command execution
+// for a single URL when isolated mode is enabled.
+TEST_F(BookmarkContextMenuControllerTest, IsolatedModeSingleURL) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(
+      enterprise_isolated_mode::kEnableEnterpriseIsolatedMode);
+  profile_->GetPrefs()->SetInteger(
+      enterprise_isolated_mode::kEnterpriseIsolatedModeSettings,
+      static_cast<int>(
+          enterprise_isolated_mode::IsolatedModeSetting::kEnabled));
+
+  std::vector<raw_ptr<const BookmarkNode, VectorExperimental>> nodes = {
+      model_->bookmark_bar_node()->children().front().get(),
+  };
+  BookmarkContextMenuController controller(
+      gfx::NativeWindow(), nullptr, nullptr, profile_.get(),
+      BookmarkLaunchLocation::kNone, nodes, /*can_paste=*/false);
+  EXPECT_TRUE(controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL));
+  EXPECT_TRUE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_NEW_WINDOW));
+  // Incognito should be disabled when isolated mode is active.
+  EXPECT_FALSE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_INCOGNITO));
+  // Isolated mode command should be enabled.
+  EXPECT_TRUE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_ISOLATED));
+  // Menu model should contain the isolated mode item.
+  EXPECT_TRUE(controller.menu_model()
+                  ->GetIndexOfCommandId(IDC_BOOKMARK_BAR_OPEN_ALL_ISOLATED)
+                  .has_value());
+
+  GURL url = model_->bookmark_bar_node()->children().front()->url();
+  controller.ExecuteCommand(IDC_BOOKMARK_BAR_OPEN_ALL_ISOLATED, 0);
+  EXPECT_EQ(1U, wrapper_.urls().size());
+  EXPECT_EQ(url, wrapper_.last_url());
+}
+
+// Tests that isolated mode menu item is not shown when isolated mode is
+// disabled.
+TEST_F(BookmarkContextMenuControllerTest, IsolatedModeDisabledSingleURL) {
+  std::vector<raw_ptr<const BookmarkNode, VectorExperimental>> nodes = {
+      model_->bookmark_bar_node()->children().front().get(),
+  };
+  BookmarkContextMenuController controller(
+      gfx::NativeWindow(), nullptr, nullptr, profile_.get(),
+      BookmarkLaunchLocation::kNone, nodes, /*can_paste=*/false);
+  EXPECT_TRUE(controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL));
+  EXPECT_TRUE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_NEW_WINDOW));
+  EXPECT_TRUE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_INCOGNITO));
+  EXPECT_FALSE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_ISOLATED));
+  // Menu model should NOT contain the isolated mode item.
+  EXPECT_FALSE(controller.menu_model()
+                   ->GetIndexOfCommandId(IDC_BOOKMARK_BAR_OPEN_ALL_ISOLATED)
+                   .has_value());
+}
+
+// Tests isolated mode menu item visibility, enablement, and command execution
+// for a single folder when isolated mode is enabled.
+TEST_F(BookmarkContextMenuControllerTest, IsolatedModeSingleFolder) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(
+      enterprise_isolated_mode::kEnableEnterpriseIsolatedMode);
+  profile_->GetPrefs()->SetInteger(
+      enterprise_isolated_mode::kEnterpriseIsolatedModeSettings,
+      static_cast<int>(
+          enterprise_isolated_mode::IsolatedModeSetting::kEnabled));
+
+  std::vector<raw_ptr<const BookmarkNode, VectorExperimental>> nodes = {
+      model_->bookmark_bar_node()->children()[1].get(),  // F1 folder
+  };
+  BookmarkContextMenuController controller(
+      gfx::NativeWindow(), nullptr, nullptr, profile_.get(),
+      BookmarkLaunchLocation::kNone, nodes, /*can_paste=*/false);
+  EXPECT_TRUE(controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL));
+  EXPECT_TRUE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_NEW_WINDOW));
+  // Incognito should be disabled when isolated mode is active.
+  EXPECT_FALSE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_INCOGNITO));
+  // Isolated mode command should be enabled.
+  EXPECT_TRUE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_ISOLATED));
+  // Menu model should contain the isolated mode item.
+  EXPECT_TRUE(controller.menu_model()
+                  ->GetIndexOfCommandId(IDC_BOOKMARK_BAR_OPEN_ALL_ISOLATED)
+                  .has_value());
+
+  controller.ExecuteCommand(IDC_BOOKMARK_BAR_OPEN_ALL_ISOLATED, 0);
+  EXPECT_EQ(1U, wrapper_.urls().size());
+  EXPECT_EQ(model_->bookmark_bar_node()->children()[1]->children()[0]->url(),
+            wrapper_.last_url());
+}
+
+// Tests that isolated mode menu item is not shown for folders when isolated
+// mode is disabled.
+TEST_F(BookmarkContextMenuControllerTest, IsolatedModeDisabledSingleFolder) {
+  std::vector<raw_ptr<const BookmarkNode, VectorExperimental>> nodes = {
+      model_->bookmark_bar_node()->children()[1].get(),
+  };
+  BookmarkContextMenuController controller(
+      gfx::NativeWindow(), nullptr, nullptr, profile_.get(),
+      BookmarkLaunchLocation::kNone, nodes, /*can_paste=*/false);
+  EXPECT_TRUE(controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL));
+  EXPECT_TRUE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_NEW_WINDOW));
+  EXPECT_TRUE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_INCOGNITO));
+  EXPECT_FALSE(
+      controller.IsCommandIdEnabled(IDC_BOOKMARK_BAR_OPEN_ALL_ISOLATED));
+  // Menu model should NOT contain the isolated mode item.
+  EXPECT_FALSE(controller.menu_model()
+                   ->GetIndexOfCommandId(IDC_BOOKMARK_BAR_OPEN_ALL_ISOLATED)
+                   .has_value());
 }

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/android/application_status_listener.h"
+#include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
@@ -22,7 +23,9 @@
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "components/send_tab_to_self/features.h"
+#include "components/send_tab_to_self/metrics_util.h"
 #include "components/send_tab_to_self/page_context.h"
+#include "components/send_tab_to_self/proto_conversions.h"
 #include "components/send_tab_to_self/send_tab_to_self_entry.h"
 #include "components/send_tab_to_self/send_tab_to_self_model.h"
 #include "components/shared_highlighting/core/common/text_fragment.h"
@@ -35,7 +38,6 @@
 #include "chrome/android/chrome_jni_headers/NotificationManager_jni.h"
 #include "chrome/android/chrome_jni_headers/SendTabToSelfNotificationReceiver_jni.h"
 
-using base::android::ConvertUTF8ToJavaString;
 using base::android::ScopedJavaLocalRef;
 using jni_zero::AttachCurrentThread;
 
@@ -171,26 +173,18 @@ void AndroidNotificationHandler::DisplayNewEntries(
                     kSendTabToSelfSupportAutoOpenInTabGrid))
           : nullptr;
 
-  // If Chrome is already open and active in the foreground, entries are
-  // opened directly as new background tabs.
   if (target_web_contents) {
-    std::vector<const SendTabToSelfEntry*> entries;
-    entries.reserve(new_entries.size());
-    for (const SendTabToSelfEntry* entry : new_entries) {
-      if (entry && !entry->IsOpened()) {
-        entries.push_back(entry);
-      }
-    }
+    // If there is a target tab (i.e. Chrome is active / in the foreground),
+    // open the entries in background tabs.
     OpenEntriesInBackground(
-        entries, *target_web_contents,
+        new_entries, *target_web_contents,
         AutoOpenOutcome::kTabsOpenedImmediatelyInBackground);
   } else {
-    // Otherwise, show a standard system notification.
+    // Chrome is *not* in the foreground, so show notifications for the entries.
     for (const SendTabToSelfEntry* entry : new_entries) {
-      if (!entry || entry->IsOpened()) {
-        continue;
-      }
       ShowNotification(*entry);
+      // TODO(crbug.com/488072250): Record this only if kSendTabToSelfAutoOpen
+      // is enabled.
       RecordAutoOpenOutcome(AutoOpenOutcome::kUnopenedImmediately);
     }
   }
@@ -210,22 +204,25 @@ void AndroidNotificationHandler::ShowNotification(
   std::optional<std::string> internal_scroll_to_text_fragment =
       GetScrollPositionAsTextFragment(&entry);
 
+  std::vector<uint8_t> page_context_bytes;
+  if (base::FeatureList::IsEnabled(kSendTabToSelfPropagateFormFields) &&
+      !entry.GetPageContext().form_field_info.fields.empty()) {
+    std::string serialized_page_context =
+        PageContextToProto(entry.GetPageContext()).SerializeAsString();
+    page_context_bytes.assign(serialized_page_context.begin(),
+                              serialized_page_context.end());
+  }
+
   Java_NotificationManager_showNotification(
-      env, ConvertUTF8ToJavaString(env, entry.GetGUID()),
-      ConvertUTF8ToJavaString(env, entry.GetURL().spec()),
-      ConvertUTF8ToJavaString(env, entry.GetTitle()),
-      ConvertUTF8ToJavaString(env, entry.GetDeviceName()),
-      expiration_time.InMillisecondsSinceUnixEpoch(),
+      env, entry.GetGUID(), entry.GetURL().spec(), entry.GetTitle(),
+      entry.GetDeviceName(), expiration_time.InMillisecondsSinceUnixEpoch(),
       send_tab_to_self_notification_receiver_class,
-      internal_scroll_to_text_fragment
-          ? ConvertUTF8ToJavaString(env, *internal_scroll_to_text_fragment)
-          : nullptr);
+      internal_scroll_to_text_fragment, page_context_bytes);
 }
 
 void AndroidNotificationHandler::HideNotification(const std::string& guid) {
   JNIEnv* env = AttachCurrentThread();
-  Java_NotificationManager_hideNotification(env,
-                                            ConvertUTF8ToJavaString(env, guid));
+  Java_NotificationManager_hideNotification(env, guid);
 }
 
 void AndroidNotificationHandler::DismissEntries(
@@ -297,31 +294,44 @@ void AndroidNotificationHandler::OpenEntriesInBackground(
     base::span<const SendTabToSelfEntry* const> entries,
     content::WebContents& target_web_contents,
     AutoOpenOutcome outcome) {
-  TabModel* model =
+  int next_tabstrip_index = TabModel::kInvalidIndex;
+  // Insert tabs after the active tab, if available, preserving chronological
+  // order when opening multiple tabs simultaneously.
+  const TabModel* model =
       TabModelList::GetTabModelForWebContents(&target_web_contents);
-  int active_index = model ? model->GetActiveIndex() : -1;
+  if (model) {
+    const int active_index = model->GetActiveIndex();
+    if (active_index != TabModel::kInvalidIndex) {
+      next_tabstrip_index = active_index + 1;
+    }
+  }
 
   std::string_view last_device_name;
-  int opened_count = 0;
+
   for (const SendTabToSelfEntry* entry : entries) {
-    // Calculate tabstrip index adjacent to the active tab, preserving
-    // chronological order when opening multiple tabs sequentially.
-    int tabstrip_index =
-        (active_index != -1) ? (active_index + 1 + opened_count++) : -1;
-    OpenEntryInBackgroundTab(*entry, target_web_contents, tabstrip_index);
+    OpenEntryInBackground(*entry, target_web_contents, next_tabstrip_index);
+    RecordAutoOpenOutcome(outcome);
+
+    if (next_tabstrip_index != TabModel::kInvalidIndex) {
+      ++next_tabstrip_index;
+    }
+
     // Dismiss any system notification associated with this entry.
     HideNotification(entry->GetGUID());
-    RecordAutoOpenOutcome(outcome);
+
     last_device_name = entry->GetDeviceName();
   }
 
-  // Display an in-app banner for the most recent sender device.
+  // Display an in-app banner for the most recent sender device if at least
+  // one tab was opened.
   if (!last_device_name.empty()) {
-    ShowMessageBanner(last_device_name, &target_web_contents);
+    CHECK(!entries.empty());
+    ShowMessageBanner(last_device_name, entries.size(), &target_web_contents,
+                      entries.front()->GetURL());
   }
 }
 
-void AndroidNotificationHandler::OpenEntryInBackgroundTab(
+void AndroidNotificationHandler::OpenEntryInBackground(
     const SendTabToSelfEntry& entry,
     content::WebContents& target_web_contents,
     int tabstrip_index) {
@@ -372,8 +382,11 @@ void AndroidNotificationHandler::OnNavigationStarted(
 
 void AndroidNotificationHandler::ShowMessageBanner(
     std::string_view device_name,
-    content::WebContents* web_contents) {
-  send_tab_to_self::ShowMessageBanner(web_contents, device_name);
+    int opened_tab_count,
+    content::WebContents* web_contents,
+    const GURL& opened_tab_url) {
+  send_tab_to_self::ShowMessageBanner(web_contents, device_name,
+                                      opened_tab_count, opened_tab_url);
 }
 
 void AndroidNotificationHandler::DidAddTab(TabAndroid* tab,

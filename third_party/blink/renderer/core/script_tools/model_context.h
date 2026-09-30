@@ -23,6 +23,7 @@
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_receiver.h"
 #include "third_party/blink/renderer/platform/mojo/heap_mojo_remote.h"
+#include "third_party/blink/renderer/platform/wtf/base_hash_traits.h"
 
 namespace blink {
 class AbortController;
@@ -47,6 +48,8 @@ class DeclarativeWebMCPTool : public GarbageCollectedMixin {
       String input_arguments,
       base::OnceCallback<void(base::expected<String, ScriptToolError>)>
           done_callback) = 0;
+
+  virtual void CancelTool() = 0;
 
   virtual String ToolName() const = 0;
 
@@ -168,6 +171,7 @@ class CORE_EXPORT ModelContext : public EventTarget,
                          const String& name,
                          const String& input_arguments,
                          ExecuteScriptToolCallback callback) override;
+  void CancelScriptTool(const base::UnguessableToken& invocation_id) override;
 
   void DidFinishParsing();
 
@@ -225,15 +229,10 @@ class CORE_EXPORT ModelContext : public EventTarget,
     void Trace(Visitor* visitor) const;
     String tool_name;
     ScriptToolExecutedCallback callback;
-    base::UnguessableToken invocation_id;
+    // Created for every tool execution; never null.
     Member<AbortController> abort_controller;
-    // Manages the lifetime of the abort algorithm associated with this
-    // execution's AbortSignal. Storing this here ensures the algorithm is
-    // automatically unregistered when the execution completes (i.e. is removed
-    // from `pending_executions_`).
-    std::unique_ptr<ScopedAbortState> scoped_abort_state;
   };
-  HeapHashMap<String, PendingExecution> pending_executions_;
+  HeapHashMap<base::UnguessableToken, PendingExecution> pending_executions_;
 
   Vector<CrossDocumentScriptToolResultCallback>
       cross_document_result_callbacks_;

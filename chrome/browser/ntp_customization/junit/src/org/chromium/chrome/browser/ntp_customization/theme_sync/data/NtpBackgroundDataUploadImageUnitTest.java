@@ -26,7 +26,6 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -37,7 +36,6 @@ import org.chromium.chrome.browser.ntp_customization.theme.upload_image.Backgrou
 
 /** Tests for {@link NtpBackgroundDataUploadImage}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
 public class NtpBackgroundDataUploadImageUnitTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -80,6 +78,11 @@ public class NtpBackgroundDataUploadImageUnitTest {
         assertNotEquals(data1, data3);
         assertNotEquals(data1, data4);
         assertEquals(data1.hashCode(), data2.hashCode());
+
+        // isBitmapSaved should not affect equality.
+        data1.setIsBitmapSaved(/* isBitmapSaved= */ true);
+        assertEquals(data1, data2);
+        assertEquals(data1.hashCode(), data2.hashCode());
     }
 
     @Test
@@ -112,6 +115,7 @@ public class NtpBackgroundDataUploadImageUnitTest {
         assertEquals(filePath, restored.getLastUploadImageFilePath());
         assertEquals(primaryColor, restored.getPrimaryColor());
         assertEquals(TEST_FILE_ID_HASH, restored.getFileIdHash());
+        assertEquals(data.isBitmapSaved(), restored.isBitmapSaved());
         assertNotNull(restored.getBackgroundImageInfo());
         assertEquals(
                 portraitMatrix.toShortString(),

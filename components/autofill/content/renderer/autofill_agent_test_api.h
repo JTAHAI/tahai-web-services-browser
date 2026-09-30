@@ -19,8 +19,8 @@ class AutofillAgentTestApi {
 
   bool is_dom_content_loaded() const { return agent_->is_dom_content_loaded_; }
 
-  FormTracker& form_tracker() { return *agent_->form_tracker_; }
-  void set_form_tracker(std::unique_ptr<FormTracker> form_tracker) {
+  FormSubmissionTracker& form_tracker() { return *agent_->form_tracker_; }
+  void set_form_tracker(std::unique_ptr<FormSubmissionTracker> form_tracker) {
     agent_->form_tracker_ = std::move(form_tracker);
   }
 
@@ -57,6 +57,12 @@ class AutofillAgentTestApi {
 
   void DidChangeScrollOffset() { agent_->DidChangeScrollOffset(); }
 
+  bool ShouldThrottleAskForValuesToFill(
+      FieldRendererId field,
+      AutofillSuggestionTriggerSource trigger_source) {
+    return agent_->ShouldThrottleAskForValuesToFill(field, trigger_source);
+  }
+
   void set_focus_requires_scroll(bool focus_requires_scroll) {
     const_cast<AutofillAgent::Config&>(agent_->config_).focus_requires_scroll =
         AutofillAgent::FocusRequiresScroll(focus_requires_scroll);
@@ -72,12 +78,16 @@ class AutofillAgentTestApi {
     return agent_->process_forms_after_dynamic_change_timer_;
   }
 
-  AutofillAgent::EmailVerificationObserver& email_verification_observer() {
-    return agent_->email_verification_observer_;
+  EmailVerificationHandler& email_verification_handler() {
+    return agent_->email_verification_handler_;
   }
 
   JavaScriptAutofillTracker& javascript_autofill_tracker() {
     return agent_->javascript_autofill_tracker_;
+  }
+
+  base::WeakPtr<AutofillAgent> GetWeakPtr() {
+    return agent_->weak_ptr_factory_.GetWeakPtr();
   }
 
  private:

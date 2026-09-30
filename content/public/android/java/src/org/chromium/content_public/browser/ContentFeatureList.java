@@ -6,6 +6,7 @@ package org.chromium.content_public.browser;
 
 import android.os.Build;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.MutableBooleanParamWithSafeDefault;
 import org.chromium.base.MutableFlagWithSafeDefault;
 import org.chromium.base.MutableIntParamWithSafeDefault;
@@ -14,6 +15,7 @@ import org.chromium.components.cached_flags.CachedFlag;
 import org.chromium.content.common.ContentInternalFeatures;
 import org.chromium.content_public.common.ContentFeatures;
 import org.chromium.ui.accessibility.AccessibilityFeatures;
+import org.chromium.ui.base.DeviceInput;
 
 import java.util.List;
 
@@ -95,6 +97,8 @@ public class ContentFeatureList {
     public static final String WEB_BLUETOOTH_NEW_PERMISSIONS_BACKEND =
             "WebBluetoothNewPermissionsBackend";
 
+    public static final String WEB_HID = "WebHID";
+
     public static final String WEB_IDENTITY_DIGITAL_CREDENTIALS = "WebIdentityDigitalCredentials";
 
     public static final String WEB_IDENTITY_DIGITAL_CREDENTIALS_CREATION =
@@ -147,7 +151,14 @@ public class ContentFeatureList {
                             ContentFeatureMap.getInstance(),
                             AccessibilityFeatures
                                     .ACCESSIBILITY_MAGNIFICATION_FOLLOWS_FOCUS_NO_KEYBOARD,
-                            false);
+                            true);
+
+    public static boolean isAccessibilityMagnificationFollowsFocusEnabled() {
+        if (DeviceInput.supportsKeyboard(ContextUtils.getApplicationContext())) {
+            return sAccessibilityMagnificationFollowsFocusKeyboardAttached.isEnabled();
+        }
+        return sAccessibilityMagnificationFollowsFocusNoKeyboard.isEnabled();
+    }
 
     public static final MutableFlagWithSafeDefault sAccessibilityRequestScopedContentChangedEvents =
             new MutableFlagWithSafeDefault(

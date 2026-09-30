@@ -127,11 +127,11 @@ domain Page
       gamepad
       geolocation
       gyroscope
+      haptics
       hid
       identity-credentials-get
       idle-detection
       interest-cohort
-      join-ad-interest-group
       keyboard-map
       language-detector
       language-model
@@ -148,17 +148,16 @@ domain Page
       otp-credentials
       payment
       picture-in-picture
-      private-aggregation
       private-state-token-issuance
       private-state-token-redemption
       publickey-credentials-create
       publickey-credentials-get
-      record-ad-auction-events
       rewriter
-      run-ad-auction
       screen-wake-lock
       serial
+      # Deprecated.
       shared-storage
+      # Deprecated.
       shared-storage-select-url
       smart-card
       speaker-selection
@@ -684,7 +683,6 @@ domain Page
     properties
       string action
       string name
-      optional array of ImageResource icons
       # Mimic a map, name is the key, accepts is the value.
       optional array of FileFilter accepts
       # Won't repeat the enums, using string for easy comparison. Same as the
@@ -1173,8 +1171,36 @@ domain Page
       optional integer maxWidth
       # Maximum screenshot height.
       optional integer maxHeight
-      # Send every n-th frame.
+      # Send every n-th frame. Must be a positive integer.
       optional integer everyNthFrame
+      # Maximum number of frames sent until screencastFrameAck is required.
+      # Defaults to 3. Must be a positive integer.
+      optional integer maxFramesInFlight
+      # By default, after screencastFrameAck arrives, the next produced frame is sent.
+      # Passing this flag enables storing the last produced frame in memory, which is
+      # immediately sent upon screencastFrameAck. This way, overall performance is
+      # traded for a better latency.
+      optional boolean sendLastFrame
+
+  # Starts screencast video recording.
+  experimental command startScreenRecording
+    parameters
+      optional boolean audio
+      # Maximum frame width in pixels.
+      optional integer maxWidth
+      # Maximum frame height in pixels.
+      optional integer maxHeight
+      # Maximum frame rate in frames per second.
+      optional integer frameRate
+    returns
+      # A handle of the stream that holds resulting screencast data.
+      experimental IO.StreamHandle stream
+
+  # Stops screencast video recording.
+  experimental command stopScreenRecording
+    returns
+      # A handle of the stream that holds resulting screencast data.
+      experimental IO.StreamHandle stream
 
   # Force the page stop all navigations and pending resource fetches.
   command stopLoading
@@ -1626,6 +1652,7 @@ domain Page
       EmbedderExtensionMessagingForOpenPort
       EmbedderExtensionSentMessageToCachedFrame
       EmbedderExtensionFrame
+      EmbedderPrivilegedWebContents
       RequestedByWebViewClient
       PostMessageByWebViewClient
       CacheControlNoStoreDeviceBoundSessionTerminated

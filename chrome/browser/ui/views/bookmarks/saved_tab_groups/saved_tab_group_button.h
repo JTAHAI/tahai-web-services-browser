@@ -17,15 +17,13 @@
 #include "components/saved_tab_groups/public/saved_tab_group.h"
 #include "components/tab_groups/tab_group_color.h"
 #include "components/tab_groups/tab_group_id.h"
-#include "content/public/browser/page.h"
-#include "content/public/browser/page_navigator.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/controls/button/menu_button.h"
 #include "ui/views/drag_controller.h"
 
-class Browser;
+class BrowserWindowInterface;
 
 namespace gfx {
 class Canvas;
@@ -48,7 +46,7 @@ class SavedTabGroupButton : public views::MenuButton,
  public:
   SavedTabGroupButton(const SavedTabGroup& group,
                       PressedCallback callback,
-                      Browser* browser,
+                      BrowserWindowInterface* browser,
                       bool animations_enabled = true);
 
   SavedTabGroupButton(const SavedTabGroupButton&) = delete;
@@ -96,8 +94,9 @@ class SavedTabGroupButton : public views::MenuButton,
   const base::Uuid guid() const { return guid_; }
 
  private:
-  FRIEND_TEST_ALL_PREFIXES(SavedTabGroupBarUnitTest, AccessibleName);
-  FRIEND_TEST_ALL_PREFIXES(SavedTabGroupBarUnitTest, TooltipText);
+  FRIEND_TEST_ALL_PREFIXES(SavedTabGroupBarComponentBrowserTest,
+                           AccessibleName);
+  FRIEND_TEST_ALL_PREFIXES(SavedTabGroupBarComponentBrowserTest, TooltipText);
 
   std::u16string GetAccessibleNameForButton() const;
   void SetTextProperties(const SavedTabGroup& group);
@@ -105,8 +104,9 @@ class SavedTabGroupButton : public views::MenuButton,
   void UpdateAccessibleName();
   void SetText(std::u16string_view text) override;
   int GetAndIncrementLatestCommandId();
+  void OnContextMenuClosed();
 
-  raw_ptr<Browser> browser_;
+  raw_ptr<BrowserWindowInterface> browser_;
 
   // The animations for button movement.
   std::unique_ptr<gfx::SlideAnimation> show_animation_;
@@ -129,6 +129,9 @@ class SavedTabGroupButton : public views::MenuButton,
 
   // Menu model used by the context menu.
   std::unique_ptr<STGTabsMenuModel> menu_model_;
+
+  // Keeps the button highlighted while its context menu is showing.
+  std::optional<views::Button::ScopedAnchorHighlight> context_menu_highlight_;
 
   // Context menu runner used for this View.
   std::unique_ptr<views::MenuRunner> context_menu_runner_;

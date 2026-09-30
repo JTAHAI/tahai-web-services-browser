@@ -20,7 +20,6 @@
 #include "android_webview/renderer/aw_url_loader_throttle_provider.h"
 #include "android_webview/renderer/browser_exposed_renderer_interfaces.h"
 #include "base/android/library_loader/library_prefetcher.h"
-#include "base/android/orderfile/orderfile_buildflags.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/i18n/rtl.h"
@@ -123,20 +122,9 @@ bool AwContentRendererClient::HandleNavigation(
     blink::WebFrame* frame,
     const blink::WebURLRequest& request,
     blink::WebNavigationType type,
-    blink::WebNavigationPolicy default_policy,
-    bool is_redirect) {
+    blink::WebNavigationPolicy default_policy) {
   // Only GETs can be overridden.
   if (!request.HttpMethod().Equals("GET"))
-    return false;
-
-  // Any navigation from loadUrl, and goBack/Forward are considered application-
-  // initiated and hence will not yield a shouldOverrideUrlLoading() callback.
-  // Webview classic does not consider reload application-initiated so we
-  // continue the same behavior.
-  bool application_initiated = type == blink::kWebNavigationTypeBackForward;
-
-  // Don't offer application-initiated navigations unless it's a redirect.
-  if (application_initiated && !is_redirect)
     return false;
 
   bool is_outermost_main_frame = frame->IsOutermostMainFrame();
@@ -172,9 +160,8 @@ bool AwContentRendererClient::HandleNavigation(
   mojo::AssociatedRemote<mojom::FrameHost> frame_host_remote;
   render_frame->GetRemoteAssociatedInterfaces()->GetInterface(
       &frame_host_remote);
-  frame_host_remote->ShouldOverrideUrlLoading(
-      url, has_user_gesture, is_redirect, is_outermost_main_frame,
-      &ignore_navigation);
+  frame_host_remote->ShouldOverrideUrlLoading(url, has_user_gesture,
+                                              &ignore_navigation);
 
   return ignore_navigation;
 }
@@ -204,12 +191,7 @@ void AwContentRendererClient::RenderFrameCreated(
 
   // Owned by |render_frame|.
   new page_load_metrics::MetricsRenderFrameObserver(render_frame);
-  // Currently, AwRenderFrameObserver is only used for orderfile
-  // instrumentation. So we avoid creating the observer unless orderfile
-  // instrumentation is enabled.
-#if BUILDFLAG(ORDERFILE_INSTRUMENTATION)
   new AwRenderFrameObserver(render_frame);
-#endif
 }
 
 std::unique_ptr<blink::WebPrescientNetworking>

@@ -9,6 +9,7 @@
 
 #include "chrome/browser/media/webrtc/desktop_media_list.h"
 #include "chrome/browser/media/webrtc/window_icon_util.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/views/desktop_capture/desktop_media_source_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "ui/accessibility/ax_enums.mojom.h"
@@ -37,14 +38,17 @@ constexpr int kItemSpacing = 4;
 gfx::ImageSkia LoadDefaultIcon(aura::Window* window) {
   BrowserView* browser_view =
       BrowserView::GetBrowserViewForNativeWindow(window);
-  Browser* browser = browser_view ? browser_view->browser() : nullptr;
+  BrowserWindowInterface* browser =
+      browser_view ? browser_view->browser() : nullptr;
 
   // Apps could be launched in a view other than BrowserView, so we count those
   // windows without Browser association as apps.
   // Technically dev tool is actually a special app, but we would like to
   // display product logo for it, because intuitively it is internal to browser.
   bool is_app =
-      !browser || browser->is_type_app() || browser->is_type_app_popup();
+      !browser ||
+      browser->GetType() == BrowserWindowInterface::Type::TYPE_APP ||
+      browser->GetType() == BrowserWindowInterface::Type::TYPE_APP_POPUP;
   int idr = is_app ? IDR_APP_DEFAULT_ICON : IDR_PRODUCT_LOGO_32;
 
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
@@ -71,7 +75,7 @@ DesktopMediaListView::DesktopMediaListView(
     DesktopMediaSourceViewStyle generic_style,
     DesktopMediaSourceViewStyle single_style,
     const std::u16string& accessible_name)
-    : controller_(controller),
+    : controller_(controller ? controller->GetWeakPtr() : nullptr),
       single_style_(single_style),
       generic_style_(generic_style) {
   SetBorder(views::CreateEmptyBorder(16));
@@ -85,7 +89,9 @@ DesktopMediaListView::DesktopMediaListView(
 DesktopMediaListView::~DesktopMediaListView() = default;
 
 void DesktopMediaListView::OnSelectionChanged() {
-  controller_->OnSourceSelectionChanged();
+  if (controller_) {
+    controller_->OnSourceSelectionChanged();
+  }
 }
 
 bool DesktopMediaListView::OnKeyPressed(const ui::KeyEvent& event) {
@@ -154,6 +160,9 @@ void DesktopMediaListView::ClearSelection() {
 }
 
 void DesktopMediaListView::OnSourceAdded(size_t index) {
+  if (!controller_) {
+    return;
+  }
   const DesktopMediaList::Source& source = controller_->GetSource(index);
 
   DesktopMediaSourceView* source_view =
@@ -195,6 +204,10 @@ void DesktopMediaListView::OnSourceAdded(size_t index) {
 }
 
 void DesktopMediaListView::OnSourceRemoved(size_t index) {
+  if (!controller_) {
+    return;
+  }
+
   DesktopMediaSourceView* view = AsDesktopMediaSourceView(children()[index]);
   DCHECK(view);
 
@@ -225,6 +238,9 @@ void DesktopMediaListView::OnSourceMoved(size_t old_index, size_t new_index) {
 }
 
 void DesktopMediaListView::OnSourceNameChanged(size_t index) {
+  if (!controller_) {
+    return;
+  }
   const DesktopMediaList::Source& source = controller_->GetSource(index);
   DesktopMediaSourceView* source_view =
       AsDesktopMediaSourceView(children()[index]);
@@ -232,6 +248,9 @@ void DesktopMediaListView::OnSourceNameChanged(size_t index) {
 }
 
 void DesktopMediaListView::OnSourceThumbnailChanged(size_t index) {
+  if (!controller_) {
+    return;
+  }
   const DesktopMediaList::Source& source = controller_->GetSource(index);
   DesktopMediaSourceView* source_view =
       AsDesktopMediaSourceView(children()[index]);
@@ -250,6 +269,10 @@ void DesktopMediaListView::OnDelegatedSourceListSelection() {
 }
 
 void DesktopMediaListView::SetStyle(const DesktopMediaSourceViewStyle& style) {
+  if (!controller_) {
+    return;
+  }
+
   const size_t old_columns = active_style_.columns;
   const gfx::Size old_item_size = active_style_.item_size;
   active_style_ = style;

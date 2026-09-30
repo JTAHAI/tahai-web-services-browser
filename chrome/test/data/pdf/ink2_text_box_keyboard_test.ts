@@ -4,13 +4,14 @@
 
 import 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/pdf_viewer_wrapper.js';
 
-import type {InkTextBoxElement, Viewport} from 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/pdf_viewer_wrapper.js';
+import {TextStyle} from 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/pdf_viewer_wrapper.js';
+import type {InkTextBoxElement, TextAnnotation, Viewport} from 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/pdf_viewer_wrapper.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {isMac} from 'chrome://resources/js/platform.js';
 import {keyDownOn, keyUpOn} from 'chrome://webui-test/keyboard_mock_interactions.js';
 import {eventToPromise, isVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
-import {assertPositionAndSize, dragHandleWithKeyboard, getTestAnnotation, initializeBox, reactivateBox, setupTextBoxTest, verifyFinishTextAnnotationMessage} from './ink2_text_box_test_utils.js';
+import {assertPositionAndSize, dragHandleWithKeyboard, getCtrlModifier, getTestAnnotation, initializeBox, reactivateBox, setupTextBoxTest, verifyFinishTextAnnotationMessage} from './ink2_text_box_test_utils.js';
 import {getRequiredElement} from './test_util.js';
 
 async function setUpExistingAnnotation(
@@ -388,6 +389,190 @@ chrome.test.runTests([
     event = await whenAnnounced;
     chrome.test.assertTrue(event.detail.messages.includes(
         loadTimeData.getString('ink2TextAnnotationDeleted')));
+
+    chrome.test.succeed();
+  },
+
+  async function testCopyAnnotation() {
+    const {textbox, manager, viewport, mockPlugin} = await setupTextBoxTest();
+    const testAnnotation = await setUpExistingAnnotation(textbox, viewport);
+    mockPlugin.clearMessages();
+
+    // Trigger Copy shortcut (Ctrl+C / Cmd+C).
+    const whenSaved = eventToPromise<
+        CustomEvent<{annotation: TextAnnotation, isCut: boolean}>>(
+        'saved-annotation-to-clipboard-for-testing', manager);
+    keyDownOn(textbox, 0, getCtrlModifier(), 'c');
+    const savedEvent = await whenSaved;
+
+    // Verify copy calls into Ink2Manager with isCut = false.
+    chrome.test.assertEq('Hello World', savedEvent.detail.annotation.text);
+    chrome.test.assertFalse(savedEvent.detail.isCut);
+
+    // Verify copy does not immediately commit; text box remains active.
+    chrome.test.assertFalse(textbox.hidden);
+    chrome.test.assertEq('Hello World', textbox.$.textbox.value);
+    chrome.test.assertEq(
+        undefined, mockPlugin.findMessage('finishTextAnnotation'));
+
+    // Modify text and commit. Verify updated annotation is committed.
+    textbox.$.textbox.value = 'Updated Text';
+    textbox.$.textbox.dispatchEvent(new CustomEvent('input'));
+    await textbox.commitTextAnnotation();
+    await microtasksFinished();
+
+    chrome.test.assertTrue(textbox.hidden);
+    const expectedAnnotation = {
+      ...testAnnotation,
+      text: 'Updated Text',
+    };
+    verifyFinishTextAnnotationMessage(
+        mockPlugin, expectedAnnotation, /*expectedIsEdited=*/ true);
+
+    chrome.test.succeed();
+  },
+
+  async function testCutAnnotation() {
+    const {textbox, manager, viewport, mockPlugin} = await setupTextBoxTest();
+    const testAnnotation = await setUpExistingAnnotation(textbox, viewport);
+    mockPlugin.clearMessages();
+
+    // Trigger Cut shortcut (Ctrl+X / Cmd+X).
+    const whenSaved = eventToPromise<
+        CustomEvent<{annotation: TextAnnotation, isCut: boolean}>>(
+        'saved-annotation-to-clipboard-for-testing', manager);
+    keyDownOn(textbox, 0, getCtrlModifier(), 'x');
+    const savedEvent = await whenSaved;
+
+    // Verify cut calls into Ink2Manager with isCut = true.
+    chrome.test.assertEq('Hello World', savedEvent.detail.annotation.text);
+    chrome.test.assertTrue(savedEvent.detail.isCut);
+
+    await microtasksFinished();
+
+    // Verify cut immediately deletes the annotation (commits empty).
+    chrome.test.assertTrue(textbox.hidden);
+    const expectedAnnotation = {
+      ...testAnnotation,
+      text: '',
+    };
+    verifyFinishTextAnnotationMessage(
+        mockPlugin, expectedAnnotation, /*expectedIsEdited=*/ true);
+
+    chrome.test.succeed();
+  },
+
+  async function testCopyAndCutIgnoredWhenTextSelected() {
+    const {textbox, manager, viewport} = await setupTextBoxTest();
+    await setUpExistingAnnotation(textbox, viewport);
+
+    let savedEventFired = false;
+    const listener = () => {
+      savedEventFired = true;
+    };
+    manager.addEventListener(
+        'saved-annotation-to-clipboard-for-testing', listener);
+
+    // Ctrl+C on the textarea should not copy the annotation element.
+    keyDownOn(textbox.$.textbox, 0, getCtrlModifier(), 'c');
+    await microtasksFinished();
+    chrome.test.assertFalse(savedEventFired);
+
+    // Ctrl+X on the textarea should not cut the annotation element.
+    keyDownOn(textbox.$.textbox, 0, getCtrlModifier(), 'x');
+    await microtasksFinished();
+    chrome.test.assertFalse(savedEventFired);
+    chrome.test.assertFalse(textbox.hidden);
+
+    manager.removeEventListener(
+        'saved-annotation-to-clipboard-for-testing', listener);
+    chrome.test.succeed();
+  },
+
+  async function testCopyIgnoredWhenInactive() {
+    const {textbox, manager} = await setupTextBoxTest();
+    chrome.test.assertTrue(textbox.hidden);
+
+    let savedEventFired = false;
+    const listener = () => {
+      savedEventFired = true;
+    };
+    manager.addEventListener(
+        'saved-annotation-to-clipboard-for-testing', listener);
+
+    // Text box is INACTIVE. Copy should be ignored.
+    keyDownOn(textbox, 0, getCtrlModifier(), 'c');
+    await microtasksFinished();
+
+    chrome.test.assertFalse(savedEventFired);
+
+    manager.removeEventListener(
+        'saved-annotation-to-clipboard-for-testing', listener);
+    chrome.test.succeed();
+  },
+
+  async function testStylesShortcutsIgnoredWhenInactive() {
+    const {textbox, manager} = await setupTextBoxTest();
+    chrome.test.assertTrue(textbox.hidden);
+
+    // Text box is INACTIVE. Shortcuts should be ignored.
+    keyDownOn(textbox, 0, getCtrlModifier(), 'b');
+    await microtasksFinished();
+    chrome.test.assertFalse(
+        manager.getCurrentTextAttributes().styles[TextStyle.BOLD]);
+
+    keyDownOn(textbox, 0, getCtrlModifier(), 'i');
+    await microtasksFinished();
+    chrome.test.assertFalse(
+        manager.getCurrentTextAttributes().styles[TextStyle.ITALIC]);
+
+    chrome.test.succeed();
+  },
+
+  async function testBoldShortcut() {
+    const {textbox, manager} = await setupTextBoxTest();
+    initializeBox(100, 100, 400, 300);
+    await microtasksFinished();
+
+    // Initial style is not bold.
+    chrome.test.assertFalse(
+        manager.getCurrentTextAttributes().styles[TextStyle.BOLD]);
+
+    // Ctrl+B on the textarea should toggle bold on.
+    keyDownOn(textbox.$.textbox, 0, getCtrlModifier(), 'b');
+    await microtasksFinished();
+    chrome.test.assertTrue(
+        manager.getCurrentTextAttributes().styles[TextStyle.BOLD]);
+
+    // Ctrl+B on the textarea again should toggle bold off.
+    keyDownOn(textbox.$.textbox, 0, getCtrlModifier(), 'b');
+    await microtasksFinished();
+    chrome.test.assertFalse(
+        manager.getCurrentTextAttributes().styles[TextStyle.BOLD]);
+
+    chrome.test.succeed();
+  },
+
+  async function testItalicShortcut() {
+    const {textbox, manager} = await setupTextBoxTest();
+    initializeBox(100, 100, 400, 300);
+    await microtasksFinished();
+
+    // Initial style is not italic.
+    chrome.test.assertFalse(
+        manager.getCurrentTextAttributes().styles[TextStyle.ITALIC]);
+
+    // Ctrl+I on the textarea should toggle italic on.
+    keyDownOn(textbox.$.textbox, 0, getCtrlModifier(), 'i');
+    await microtasksFinished();
+    chrome.test.assertTrue(
+        manager.getCurrentTextAttributes().styles[TextStyle.ITALIC]);
+
+    // Ctrl+I on the textarea again should toggle italic off.
+    keyDownOn(textbox.$.textbox, 0, getCtrlModifier(), 'i');
+    await microtasksFinished();
+    chrome.test.assertFalse(
+        manager.getCurrentTextAttributes().styles[TextStyle.ITALIC]);
 
     chrome.test.succeed();
   },

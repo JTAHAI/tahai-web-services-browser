@@ -5,7 +5,9 @@
 #import "ios/chrome/browser/enterprise/data_controls/model/data_controls_tab_helper.h"
 
 #import <UIKit/UIKit.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
+#import "base/json/json_reader.h"
 #import "base/memory/raw_ptr.h"
 #import "base/run_loop.h"
 #import "base/strings/utf_string_conversions.h"
@@ -14,6 +16,12 @@
 #import "base/test/run_until.h"
 #import "base/test/scoped_feature_list.h"
 #import "base/test/test_future.h"
+#import "components/enterprise/browser/controller/fake_browser_dm_token_storage.h"
+#import "components/enterprise/common/proto/connectors.pb.h"
+#import "components/enterprise/connectors/core/cloud_content_scanning/clipboard_request_handler.h"
+#import "components/enterprise/connectors/core/cloud_content_scanning/common.h"
+#import "components/enterprise/connectors/core/common.h"
+#import "components/enterprise/connectors/core/connectors_prefs.h"
 #import "components/enterprise/connectors/core/reporting_event_router.h"
 #import "components/enterprise/data_controls/core/browser/features.h"
 #import "components/enterprise/data_controls/core/browser/prefs.h"
@@ -23,6 +31,7 @@
 #import "components/signin/public/identity_manager/identity_test_utils.h"
 #import "components/strings/grit/components_strings.h"
 #import "components/sync_preferences/testing_pref_service_syncable.h"
+#import "ios/chrome/browser/enterprise/cloud_content_scanning/test/test_clipboard_request_handler_ios.h"
 #import "ios/chrome/browser/enterprise/common/test/mock_reporting_event_router.h"
 #import "ios/chrome/browser/enterprise/connectors/reporting/ios_realtime_reporting_client.h"
 #import "ios/chrome/browser/enterprise/connectors/reporting/ios_realtime_reporting_client_factory.h"
@@ -39,6 +48,7 @@
 #import "ios/chrome/browser/signin/model/identity_test_environment_browser_state_adaptor.h"
 #import "ios/chrome/test/fakes/fake_enterprise_commands_handler.h"
 #import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
+#import "ios/components/enterprise/analysis/features.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
 #import "ios/web/public/test/web_task_environment.h"
 #import "testing/gtest/include/gtest/gtest.h"
@@ -62,6 +72,8 @@ const char kAllowedUrl[] = "https://allow.com";
 const char kWarnUrl[] = "https://warn.com";
 const char kReportUrl[] = "https://report.com";
 const char kOtherUrl[] = "https://other.com";
+const char kFakeDmToken[] = "fake-dm-token";
+const char kFakeClientId[] = "fake-client-id";
 inline constexpr std::u16string_view kOrganizationDomain = u"google.com";
 
 }  // namespace
@@ -118,6 +130,19 @@ class DataControlsTabHelperTest : public PlatformTest {
     }));
     run_loop.Run();
     return result;
+  }
+
+  void SetUpMockClipboardRequestHandlerToTriggerPasteboardChange() {
+    enterprise_connectors::SetMockClipboardRequestHandlerWithClosureForTesting(
+        enterprise_connectors::TriggeredRule::WARN,
+        base::BindRepeating(
+            [](DataControlsTabHelper* tab_helper) {
+              // Manually invoke the observer to simulate synchronous
+              // notification, guaranteeing it hits the
+              // `kWaitingScanDecision` state.
+              tab_helper->OnPasteboardContentChanged();
+            },
+            tab_helper()));
   }
 
   void SetCopyFromOsClipboardBlockRule() {
@@ -342,6 +367,49 @@ class DataControlsTabHelperTest : public PlatformTest {
                             {"class": "CLIPBOARD", "level": "BLOCK"}
                           ]
                         })"});
+  }
+
+  void SetBulkDataEntryRule(PrefService* prefs = nullptr) {
+    PrefService* pref_service =
+        prefs ? prefs : profile_->GetTestingPrefService();
+    pref_service->Set(
+        enterprise_connectors::AnalysisConnectorPref(
+            enterprise_connectors::AnalysisConnector::BULK_DATA_ENTRY),
+        *base::JSONReader::Read(R"([
+            {
+              "service_provider": "google",
+              "enable": [
+                {"url_list": ["*"], "tags": ["dlp"]}
+              ]
+            }
+          ])",
+                                base::JSON_PARSE_CHROMIUM_EXTENSIONS));
+    pref_service->SetInteger(
+        enterprise_connectors::AnalysisConnectorScopePref(
+            enterprise_connectors::AnalysisConnector::BULK_DATA_ENTRY),
+        policy::POLICY_SCOPE_MACHINE);
+  }
+
+  void SetAuditOnlyBulkDataEntryRule(PrefService* prefs = nullptr) {
+    PrefService* pref_service =
+        prefs ? prefs : profile_->GetTestingPrefService();
+    pref_service->Set(
+        enterprise_connectors::AnalysisConnectorPref(
+            enterprise_connectors::AnalysisConnector::BULK_DATA_ENTRY),
+        *base::JSONReader::Read(R"([
+            {
+              "service_provider": "google",
+              "enable": [
+                {"url_list": ["*"], "tags": ["dlp"]}
+              ],
+              "block_until_verdict": 0
+            }
+          ])",
+                                base::JSON_PARSE_CHROMIUM_EXTENSIONS));
+    pref_service->SetInteger(
+        enterprise_connectors::AnalysisConnectorScopePref(
+            enterprise_connectors::AnalysisConnector::BULK_DATA_ENTRY),
+        policy::POLICY_SCOPE_MACHINE);
   }
 
   web::WebTaskEnvironment task_environment_;
@@ -970,6 +1038,30 @@ TEST_F(DataControlsTabHelperTest, ShouldAllowPaste_BlockedToOSClipboard) {
   ASSERT_TRUE(WaitForStringInPasteboard(expected_placeholder));
 }
 
+// Tests that paste is blocked if the page URL changes (navigated away) before
+// the paste decision is finalized.
+TEST_F(DataControlsTabHelperTest, ShouldAllowPaste_BlockFromNavigatedAway) {
+  SetPasteWarnRule();
+  web_state_->SetCurrentURL(GURL(kWarnUrl));
+  FakeEnterpriseCommandsHandler* handler =
+      [[FakeEnterpriseCommandsHandler alloc] init];
+  tab_helper()->SetEnterpriseCommandsHandler(handler);
+
+  EXPECT_CALL(*reporting_router_, ReportPasteWarningBypassed(_, _)).Times(1);
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  EXPECT_TRUE(
+      base::test::RunUntil([&] { return !handler->_callback.is_null(); }));
+
+  // Change the page URL to simulate navigating away before the user responds.
+  web_state_->SetCurrentURL(GURL(kOtherUrl));
+
+  std::move(handler->_callback).Run(true);
+  EXPECT_FALSE(future.Get());
+}
+
 // Tests that cut is blocked when a "BLOCK" rule matches the page URL.
 TEST_F(DataControlsTabHelperTest, ShouldAllowCut) {
   SetCopyBlockRule(profile_->GetPrefs());
@@ -1232,7 +1324,7 @@ TEST_F(DataControlsTabHelperTest,
 
 // Tests that paste is blocked when a "WARN" rule matches the page URL and the
 // user copies new content before making a decision using the warning dialog.
-TEST_F(DataControlsTabHelperTest, ShouldBlockPaste_Warn_NewCopyAction) {
+TEST_F(DataControlsTabHelperTest, ShouldAllowPaste_Warn_NewCopyAction) {
   SetPasteWarnRule();
   web_state_->SetCurrentURL(GURL(kWarnUrl));
   FakeEnterpriseCommandsHandler* handler =
@@ -1266,6 +1358,675 @@ TEST_F(DataControlsTabHelperTest, ShouldBlockPaste_Warn_NewCopyAction) {
   // Change the pasteboard content.
   UIPasteboard.generalPasteboard.string = @"Placeholder";
   run_loop.Run();
+}
+
+// Tests that paste is allowed when Bulk Data Entry connector is enabled, and
+// the verdict is not set.
+TEST_F(DataControlsTabHelperTest, ShouldAllowPaste_BulkDataEntry_Success) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+  EXPECT_TRUE(future.Get());
+}
+
+// Tests that paste is blocked when Bulk Data Entry connector is enabled, but
+// the pasted content exceeds the maximum size limit (`PastedContentDLP` is
+// std::nullopt).
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_BulkDataEntry_BlockFromPasteboardContentTooLarge) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+
+  id<SnackbarCommands> snackbar_handler =
+      OCMStrictProtocolMock(@protocol(SnackbarCommands));
+  OCMExpect([snackbar_handler
+      showSnackbarMessageAfterDismissingKeyboard:[OCMArg checkWithBlock:^BOOL(
+                                                             SnackbarMessage*
+                                                                 obj) {
+        return [obj.title
+            isEqualToString:
+                l10n_util::GetNSString(
+                    IDS_ENTERPRISE_CONTENT_ANALYSIS_PASTE_BLOCKED_MESSAGE)];
+      }]]);
+  tab_helper()->SetSnackbarHandler(snackbar_handler);
+
+  // Set pasteboard content size exceeding 100 MB limit.
+  UIPasteboard.generalPasteboard.items = @[ @{
+    UTTypeUTF8PlainText.identifier : [NSMutableData
+        dataWithLength:data_controls::kMaxPasteboardContentSizeToProcess + 1]
+  } ];
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+  EXPECT_FALSE(future.Get());
+
+  [(OCMockObject*)snackbar_handler verify];
+
+  // Clear the pasteboard.
+  UIPasteboard.generalPasteboard.string = @"";
+}
+
+// Tests that paste is blocked when Bulk Data Entry connector is enabled, but
+// the ProfileIOS is destroyed before Pasted Content Analysis runs.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_BulkDataEntry_ProfileDestroyed) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+
+  // Need to set up a different Test ProfileIOS because profile in
+  // TestProfileManager cannot be destroyed.
+  TestProfileIOS::Builder builder;
+  builder.AddTestingFactory(
+      IdentityManagerFactory::GetInstance(),
+      base::BindRepeating(IdentityTestEnvironmentBrowserStateAdaptor::
+                              BuildIdentityManagerForTests));
+  std::unique_ptr<TestProfileIOS> custom_profile = std::move(builder).Build();
+  SetBulkDataEntryRule(custom_profile->GetTestingPrefService());
+
+  auto custom_web_state = std::make_unique<web::FakeWebState>();
+  custom_web_state->SetBrowserState(custom_profile.get());
+  DataControlsTabHelper::CreateForWebState(custom_web_state.get());
+  DataControlsTabHelper* custom_tab_helper =
+      DataControlsTabHelper::FromWebState(custom_web_state.get());
+
+  id<SnackbarCommands> snackbar_handler =
+      OCMStrictProtocolMock(@protocol(SnackbarCommands));
+  custom_tab_helper->SetSnackbarHandler(snackbar_handler);
+
+  base::test::TestFuture<bool> future;
+  custom_tab_helper->ShouldAllowPaste(future.GetCallback());
+
+  // Destroy the profile before the analysis callback runs.
+  custom_profile.reset();
+
+  EXPECT_FALSE(future.Get());
+
+  [(OCMockObject*)snackbar_handler verify];
+}
+
+// Tests that paste is blocked in RunPastedContentAnalysis when Bulk Data Entry
+// connector is enabled and the page URL changes (user navigates away) while
+// getting pasteboard content.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_BulkDataEntry_NavigatedAway) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+
+  web_state_->SetCurrentURL(GURL(kAllowedUrl));
+
+  id<SnackbarCommands> snackbar_handler =
+      OCMStrictProtocolMock(@protocol(SnackbarCommands));
+  tab_helper()->SetSnackbarHandler(snackbar_handler);
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  // Change the URL while getting pasteboard content (after
+  // `PasteIfAllowedByDataControls` has passed, but before
+  // `RunPastedContentAnalysis` runs). This ensures the rejection is triggered
+  // by `RunPastedContentAnalysis`.
+  web_state_->SetCurrentURL(GURL(kOtherUrl));
+
+  EXPECT_FALSE(future.Get());
+
+  [(OCMockObject*)snackbar_handler verify];
+}
+
+// Tests that consecutive paste is blocked while waiting for scan result.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_BulkDataEntry_BlockConsecutivePaste) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+
+  web_state_->SetCurrentURL(GURL(kAllowedUrl));
+
+  FakeEnterpriseCommandsHandler* handler =
+      [[FakeEnterpriseCommandsHandler alloc] init];
+  tab_helper()->SetEnterpriseCommandsHandler(handler);
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  // Set up the mock clipboard request handler factory.
+  enterprise_connectors::ClipboardRequestHandler::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::CreateTestClipboardRequestHandlerIOS,
+          enterprise_connectors::TriggeredRule::WARN));
+
+  // 1 time for the initial warning from Content Analysis and 1 from bypass.
+  EXPECT_CALL(*reporting_router_, OnSensitiveDataEvent(_)).Times(2);
+
+  base::test::TestFuture<bool> original_paste;
+  tab_helper()->ShouldAllowPaste(original_paste.GetCallback());
+
+  EXPECT_TRUE(
+      base::test::RunUntil([&] { return !handler->_callback.is_null(); }));
+  EXPECT_EQ(handler.dialogType, enterprise::DialogType::kPastedContentWarn);
+
+  // Simulate a consecutive paste event.
+  base::test::TestFuture<bool> consecutive_paste;
+  tab_helper()->ShouldAllowPaste(consecutive_paste.GetCallback());
+  EXPECT_FALSE(consecutive_paste.Get());
+
+  // Simulate user bypass.
+  std::move(handler->_callback).Run(true);
+
+  EXPECT_TRUE(original_paste.Get());
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+}
+
+// Tests that paste is blocked when a content analysis bulk data entry rule
+// blocks it.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_BulkDataEntry_BlockFromContentAnalysis) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+
+  web_state_->SetCurrentURL(GURL(kAllowedUrl));
+
+  id<SnackbarCommands> snackbar_handler =
+      OCMStrictProtocolMock(@protocol(SnackbarCommands));
+  OCMExpect([snackbar_handler
+      showSnackbarMessageAfterDismissingKeyboard:[OCMArg checkWithBlock:^BOOL(
+                                                             SnackbarMessage*
+                                                                 obj) {
+        return [obj.title
+            isEqualToString:
+                l10n_util::GetNSString(
+                    IDS_ENTERPRISE_CONTENT_ANALYSIS_PASTE_BLOCKED_MESSAGE)];
+      }]]);
+  tab_helper()->SetSnackbarHandler(snackbar_handler);
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  // Set up the mock clipboard request handler factory.
+  enterprise_connectors::ClipboardRequestHandler::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::CreateTestClipboardRequestHandlerIOS,
+          enterprise_connectors::TriggeredRule::BLOCK));
+
+  EXPECT_CALL(*reporting_router_, OnSensitiveDataEvent(_)).Times(1);
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  EXPECT_FALSE(future.Get());
+
+  [(OCMockObject*)snackbar_handler verify];
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+}
+
+// Tests that paste is blocked and warns when a content analysis bulk data entry
+// rule warns, and user does not bypass.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_BulkDataEntry_WarnFromContentAnalysis) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+
+  web_state_->SetCurrentURL(GURL(kAllowedUrl));
+
+  FakeEnterpriseCommandsHandler* handler =
+      [[FakeEnterpriseCommandsHandler alloc] init];
+  tab_helper()->SetEnterpriseCommandsHandler(handler);
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  // Set up the mock clipboard request handler factory.
+  enterprise_connectors::ClipboardRequestHandler::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::CreateTestClipboardRequestHandlerIOS,
+          enterprise_connectors::TriggeredRule::WARN));
+
+  // 1 time for the initial warning from Content Analysis.
+  EXPECT_CALL(*reporting_router_, OnSensitiveDataEvent(_)).Times(1);
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  EXPECT_TRUE(
+      base::test::RunUntil([&] { return !handler->_callback.is_null(); }));
+  EXPECT_EQ(handler.dialogType, enterprise::DialogType::kPastedContentWarn);
+
+  // Simulate user dismissing the warning without bypassing.
+  std::move(handler->_callback).Run(false);
+
+  EXPECT_FALSE(future.Get());
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+}
+
+// Tests that paste is allowed when a content analysis bulk data entry rule
+// warns, and user bypasses the warning.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_BulkDataEntry_WarnFromContentAnalysis_Bypassed) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+
+  web_state_->SetCurrentURL(GURL(kAllowedUrl));
+
+  FakeEnterpriseCommandsHandler* handler =
+      [[FakeEnterpriseCommandsHandler alloc] init];
+  tab_helper()->SetEnterpriseCommandsHandler(handler);
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  // Set up the mock clipboard request handler factory.
+  enterprise_connectors::ClipboardRequestHandler::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::CreateTestClipboardRequestHandlerIOS,
+          enterprise_connectors::TriggeredRule::WARN));
+
+  EXPECT_CALL(*reporting_router_, OnSensitiveDataEvent(_)).Times(2);
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  EXPECT_TRUE(
+      base::test::RunUntil([&] { return !handler->_callback.is_null(); }));
+  EXPECT_EQ(handler.dialogType, enterprise::DialogType::kPastedContentWarn);
+
+  // Simulate user bypassing the warning.
+  std::move(handler->_callback).Run(true);
+
+  EXPECT_TRUE(future.Get());
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+}
+
+// Tests that paste is allowed when a content analysis bulk data entry rule
+// doesn't trigger any blocking action.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_BulkDataEntry_AllowFromContentAnalysis) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+
+  web_state_->SetCurrentURL(GURL(kAllowedUrl));
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  // Set up the mock clipboard request handler factory.
+  enterprise_connectors::ClipboardRequestHandler::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::CreateTestClipboardRequestHandlerIOS,
+          enterprise_connectors::TriggeredRule::ACTION_UNSPECIFIED));
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  EXPECT_TRUE(future.Get());
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+}
+
+// Tests that paste is allowed when a Data Controls rule warns but is bypassed,
+// and a content analysis bulk data entry rule doesn't block it.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_Warn_Bypassed_AllowFromContentAnalysis) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+  SetPasteWarnRule();
+
+  web_state_->SetCurrentURL(GURL(kWarnUrl));
+
+  FakeEnterpriseCommandsHandler* handler =
+      [[FakeEnterpriseCommandsHandler alloc] init];
+  tab_helper()->SetEnterpriseCommandsHandler(handler);
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  // Set up the mock clipboard request handler factory.
+  enterprise_connectors::ClipboardRequestHandler::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::CreateTestClipboardRequestHandlerIOS,
+          enterprise_connectors::TriggeredRule::ACTION_UNSPECIFIED));
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  // Wait for the Data Controls warning dialog to show up.
+  EXPECT_TRUE(
+      base::test::RunUntil([&] { return !handler->_callback.is_null(); }));
+  EXPECT_EQ(handler.dialogType, enterprise::DialogType::kClipboardPasteWarn);
+
+  // Bypass the Data Controls warning. This should trigger the Content Analysis.
+  EXPECT_CALL(*reporting_router_, ReportPasteWarningBypassed(_, _)).Times(1);
+  std::move(handler->_callback).Run(true);
+
+  EXPECT_TRUE(future.Get());
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+}
+
+// Tests that paste is blocked when a Data Controls rule warns but is bypassed,
+// and a content analysis bulk data entry rule warns but the user does not
+// bypass it.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_Warn_Bypassed_WarnFromContentAnalysis) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+  SetPasteWarnRule();
+
+  web_state_->SetCurrentURL(GURL(kWarnUrl));
+
+  FakeEnterpriseCommandsHandler* handler =
+      [[FakeEnterpriseCommandsHandler alloc] init];
+  tab_helper()->SetEnterpriseCommandsHandler(handler);
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  // Set up the mock clipboard request handler factory.
+  enterprise_connectors::ClipboardRequestHandler::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::CreateTestClipboardRequestHandlerIOS,
+          enterprise_connectors::TriggeredRule::WARN));
+
+  // Warning from Data Controls.
+  EXPECT_CALL(*reporting_router_, OnSensitiveDataEvent(_)).Times(1);
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  // Wait for the Data Controls warning dialog to show up.
+  EXPECT_TRUE(
+      base::test::RunUntil([&] { return !handler->_callback.is_null(); }));
+  EXPECT_EQ(handler.dialogType, enterprise::DialogType::kClipboardPasteWarn);
+
+  // Bypass the Data Controls warning. This should trigger the Content Analysis.
+  EXPECT_CALL(*reporting_router_, ReportPasteWarningBypassed(_, _)).Times(1);
+  std::move(handler->_callback).Run(true);
+
+  // Wait for the Content Analysis warning dialog to show up.
+  EXPECT_TRUE(
+      base::test::RunUntil([&] { return !handler->_callback.is_null(); }));
+  EXPECT_EQ(handler.dialogType, enterprise::DialogType::kPastedContentWarn);
+
+  // Do not bypass the Content Analysis warning.
+  std::move(handler->_callback).Run(false);
+
+  EXPECT_FALSE(future.Get());
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+}
+
+// Tests that paste is allowed when a Data Controls rule warns but is bypassed,
+// and a content analysis bulk data entry rule warns and is bypassed too.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_Warn_Bypassed_WarnFromContentAnalysis_Bypassed) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+  SetPasteWarnRule();
+
+  web_state_->SetCurrentURL(GURL(kWarnUrl));
+
+  FakeEnterpriseCommandsHandler* handler =
+      [[FakeEnterpriseCommandsHandler alloc] init];
+  tab_helper()->SetEnterpriseCommandsHandler(handler);
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  // Set up the mock clipboard request handler factory.
+  enterprise_connectors::ClipboardRequestHandler::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::CreateTestClipboardRequestHandlerIOS,
+          enterprise_connectors::TriggeredRule::WARN));
+
+  // 2 times: once for warning, once for bypass.
+  EXPECT_CALL(*reporting_router_, OnSensitiveDataEvent(_)).Times(2);
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  // Wait for the Data Controls warning dialog to show up.
+  EXPECT_TRUE(
+      base::test::RunUntil([&] { return !handler->_callback.is_null(); }));
+  EXPECT_EQ(handler.dialogType, enterprise::DialogType::kClipboardPasteWarn);
+
+  // Bypass the Data Controls warning. This should trigger the Content Analysis.
+  EXPECT_CALL(*reporting_router_, ReportPasteWarningBypassed(_, _)).Times(1);
+  std::move(handler->_callback).Run(true);
+
+  // Wait for the Content Analysis warning dialog to show up.
+  EXPECT_TRUE(
+      base::test::RunUntil([&] { return !handler->_callback.is_null(); }));
+  EXPECT_EQ(handler.dialogType, enterprise::DialogType::kPastedContentWarn);
+
+  // Bypass the Content Analysis warning.
+  std::move(handler->_callback).Run(true);
+
+  EXPECT_TRUE(future.Get());
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+}
+
+// Tests that paste is blocked when a Data Controls rule warns but is bypassed,
+// but a content analysis bulk data entry rule blocks it.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_Warn_Bypassed_BlockFromContentAnalysis) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+  SetPasteWarnRule();
+
+  web_state_->SetCurrentURL(GURL(kWarnUrl));
+
+  FakeEnterpriseCommandsHandler* handler =
+      [[FakeEnterpriseCommandsHandler alloc] init];
+  tab_helper()->SetEnterpriseCommandsHandler(handler);
+
+  id<SnackbarCommands> snackbar_handler =
+      OCMStrictProtocolMock(@protocol(SnackbarCommands));
+  OCMExpect([snackbar_handler
+      showSnackbarMessageAfterDismissingKeyboard:[OCMArg checkWithBlock:^BOOL(
+                                                             SnackbarMessage*
+                                                                 obj) {
+        return [obj.title
+            isEqualToString:
+                l10n_util::GetNSString(
+                    IDS_ENTERPRISE_CONTENT_ANALYSIS_PASTE_BLOCKED_MESSAGE)];
+      }]]);
+  tab_helper()->SetSnackbarHandler(snackbar_handler);
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  // Set up the mock clipboard request handler factory.
+  enterprise_connectors::ClipboardRequestHandler::SetFactoryForTesting(
+      base::BindRepeating(
+          &enterprise_connectors::CreateTestClipboardRequestHandlerIOS,
+          enterprise_connectors::TriggeredRule::BLOCK));
+
+  // 1 time for the block action.
+  EXPECT_CALL(*reporting_router_, OnSensitiveDataEvent(_)).Times(1);
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  // Wait for the Data Controls warning dialog to show up.
+  EXPECT_TRUE(
+      base::test::RunUntil([&] { return !handler->_callback.is_null(); }));
+  EXPECT_EQ(handler.dialogType, enterprise::DialogType::kClipboardPasteWarn);
+
+  // Bypass the Data Controls warning. This should trigger the Content Analysis.
+  EXPECT_CALL(*reporting_router_, ReportPasteWarningBypassed(_, _)).Times(1);
+  std::move(handler->_callback).Run(true);
+
+  // Content analysis will block it, triggering a snackbar and completing with
+  // false.
+  EXPECT_FALSE(future.Get());
+
+  [(OCMockObject*)snackbar_handler verify];
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+}
+
+// Tests that a paste is blocked if the pasteboard content changes during a
+// scan.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_PasteboardContentChangedDuringScan) {
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetBulkDataEntryRule();
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  SetUpMockClipboardRequestHandlerToTriggerPasteboardChange();
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  // Wait for the scan to finish. The paste should be blocked because the event
+  // became stale.
+  EXPECT_FALSE(future.Get());
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+}
+
+// Tests that paste is allowed immediately when Bulk Data Entry connector is
+// enabled, and the verdict is set to not block.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_BulkDataEntry_AuditOnly_Success) {
+  auto fake_dm_token_storage =
+      std::make_unique<policy::FakeBrowserDMTokenStorage>();
+  fake_dm_token_storage->SetClientId(kFakeClientId);
+  fake_dm_token_storage->SetDMToken(kFakeDmToken);
+  policy::BrowserDMTokenStorage::SetForTesting(fake_dm_token_storage.get());
+
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetAuditOnlyBulkDataEntryRule();
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  // This callback will only be run after we get the `RequestHandlerResult`.
+  base::test::TestFuture<bool> content_analysis_task;
+
+  // Set up the mock clipboard request handler factory to return BLOCK. Since it
+  // is audit-only, the paste should be allowed immediately regardless of the
+  // scan result.
+  enterprise_connectors::SetMockClipboardRequestHandlerWithClosureForTesting(
+      enterprise_connectors::TriggeredRule::BLOCK,
+      base::BindRepeating(content_analysis_task.GetRepeatingCallback(), true));
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  // The paste should be allowed.
+  EXPECT_TRUE(future.Get());
+
+  // Verify that the background content analysis runs.
+  EXPECT_TRUE(content_analysis_task.Get());
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+  policy::BrowserDMTokenStorage::SetForTesting(nullptr);
+}
+
+// Tests that paste is allowed immediately when Bulk Data Entry connector is
+// enabled, but the scan is cancelled if the content is too large.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_BulkDataEntry_AuditOnly_ScanCancelIfContentTooLarge) {
+  auto fake_dm_token_storage =
+      std::make_unique<policy::FakeBrowserDMTokenStorage>();
+  fake_dm_token_storage->SetClientId(kFakeClientId);
+  fake_dm_token_storage->SetDMToken(kFakeDmToken);
+  policy::BrowserDMTokenStorage::SetForTesting(fake_dm_token_storage.get());
+
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetAuditOnlyBulkDataEntryRule();
+
+  // Set pasteboard content size exceeding 100 MB limit.
+  UIPasteboard.generalPasteboard.items = @[ @{
+    UTTypeUTF8PlainText.identifier : [NSMutableData
+        dataWithLength:data_controls::kMaxPasteboardContentSizeToProcess + 1]
+  } ];
+
+  // This callback will only be run after we get the `RequestHandlerResult`.
+  base::test::TestFuture<bool> content_analysis_task;
+
+  // Set up the mock clipboard request handler factory to return BLOCK. Since it
+  // is audit-only, the paste should be allowed immediately regardless of the
+  // scan result.
+  enterprise_connectors::SetMockClipboardRequestHandlerWithClosureForTesting(
+      enterprise_connectors::TriggeredRule::BLOCK,
+      base::BindRepeating(content_analysis_task.GetRepeatingCallback(), true));
+
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+
+  // The paste should be allowed.
+  EXPECT_TRUE(future.Get());
+
+  // Verify that the callback was not run, indicating no analysis is run.
+  EXPECT_FALSE(content_analysis_task.IsReady());
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+  policy::BrowserDMTokenStorage::SetForTesting(nullptr);
+}
+
+// Tests that exceeding the limit amount of non-blocking scan requests will
+// block the next paste.
+TEST_F(DataControlsTabHelperTest,
+       ShouldAllowPaste_BulkDataEntry_AuditOnly_BlockFromExceedingLimit) {
+  auto fake_dm_token_storage =
+      std::make_unique<policy::FakeBrowserDMTokenStorage>();
+  fake_dm_token_storage->SetClientId(kFakeClientId);
+  fake_dm_token_storage->SetDMToken(kFakeDmToken);
+  policy::BrowserDMTokenStorage::SetForTesting(fake_dm_token_storage.get());
+
+  feature_list_.InitAndEnableFeature(
+      enterprise_connectors::kEnableBulkDataEntryConnectorIOS);
+  SetAuditOnlyBulkDataEntryRule();
+
+  // Ensure pasteboard has some content to trigger analysis.
+  UIPasteboard.generalPasteboard.string = @"test string";
+
+  // Perform 100 pastes without providing the tab helper with scan results,
+  // making the handler stay alive and not destroyed to exceed limit.
+  for (size_t i = 0; i < DataControlsTabHelper::kMaxAuditPasteEvents; ++i) {
+    // Use `TestFuture` to ensure the creation for the request handler is run.
+    // Because getting the pasteboard content and the creation of the handler is
+    // asynchronous, adding the `future.Wait()` ensures the main thread wait for
+    // them before exiting.
+    base::test::TestFuture<void> future;
+    enterprise_connectors::
+        SetMockClipboardRequestHandlerWithClosureAndNoResultForTesting(
+            enterprise_connectors::TriggeredRule::BLOCK,
+            future.GetRepeatingCallback());
+    tab_helper()->ShouldAllowPaste(base::DoNothing());
+    EXPECT_TRUE(future.Wait());
+  }
+
+  // The next paste should be blocked because the limit is reached.
+  base::test::TestFuture<bool> future;
+  tab_helper()->ShouldAllowPaste(future.GetCallback());
+  EXPECT_FALSE(future.Get());
+
+  enterprise_connectors::ClipboardRequestHandler::ResetFactoryForTesting();
+  policy::BrowserDMTokenStorage::SetForTesting(nullptr);
 }
 
 }  // namespace data_controls

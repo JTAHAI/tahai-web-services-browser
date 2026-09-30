@@ -143,6 +143,21 @@ ffmpeg -i sfx.flac -map 0:0 -acodec copy -strict -2 -movflags frag_keyframe+empt
 #### with_mask.flac
 A 4-channel FLAC file with a `WAVEFORMATEXTENSIBLE_CHANNEL_MASK` tag. Used to verify that `AudioFileReader` can handle files where FFmpeg refines the channel layout during decoding without failing due to "unsupported midstream configuration change".
 
+### MP3
+
+#### repro-minimal.mp3
+MP3 file containing independent channel block_type switching in joint stereo (e.g. from Zoom H1n recorder). Used to verify that Symphonia decodes frames with per-channel block_type differences without error.
+Source: Repro file from https://issues.chromium.org/issues/563087658
+
+#### silent-section.mp3
+MP3 file containing silent sections filled with 0xff bytes, causing Symphonia decoder to trigger out-of-bounds error on bit reservoir. Used to verify the fix for this regression.
+Source: https://abfiles.s3.amazonaws.com/jds/silent-section.mp3
+
+#### synth-bad.mp3
+Truncated MP3 test file (~2.6 KB, 4 complete frames followed by a truncated 5th frame). Used to verify that SymphoniaAudioDecoder gracefully drops undecodeable trailing frames and reaches end-of-stream (firing the 'ended' event) without a fatal decode error.
+Source: Repro file from https://issues.chromium.org/issues/558966895, trimmed to the first 2650 bytes.
+
+
 ### VVC
 
 #### bear_180p.vvc

@@ -75,8 +75,9 @@ class ProvisioningDomainFetcherTest : public testing::Test {
     AccountInfo account_info = identity_test_env_.MakePrimaryAccountAvailable(
         email, signin::ConsentLevel::kSignin);
     identity_test_env_.SimulateSuccessfulFetchOfAccountInfo(
-        account_info.account_id, account_info.email, account_info.gaia,
-        "managed.com", "Full Name", "Given Name", "en-US", "picture_url");
+        account_info.GetAccountId(), account_info.GetEmail(),
+        account_info.GetGaiaId(), "managed.com", "Full Name", "Given Name",
+        "en-US", "picture_url");
   }
 
   // Synchronously executes fetch when no HTTP network call is expected (e.g.
@@ -312,20 +313,21 @@ TEST_F(ProvisioningDomainFetcherTest, MapsOAuthFetchErrors) {
 
   // GAIA error state mappings
   const struct {
-    GoogleServiceAuthError::State gaia_state;
+    GoogleServiceAuthError auth_error;
     TokenFetchError expected_token_error;
   } kGaiaErrorCases[] = {
-      {GoogleServiceAuthError::ACCOUNT_NOT_FOUND,
+      {GoogleServiceAuthError::CreateAccountNotFound(),
        TokenFetchError::kNoPrimaryAccount},
-      {GoogleServiceAuthError::INVALID_GAIA_CREDENTIALS,
+      {GoogleServiceAuthError::FromInvalidGaiaCredentialsReason(
+           GoogleServiceAuthError::InvalidGaiaCredentialsReason::UNKNOWN),
        TokenFetchError::kInvalidCredentials},
-      {GoogleServiceAuthError::CONNECTION_FAILED,
+      {GoogleServiceAuthError::FromConnectionError(net::ERR_FAILED),
        TokenFetchError::kTransientError},
   };
 
   for (const auto& test_case : kGaiaErrorCases) {
-    ProvisioningDomainFetchResult result = FetchWithOAuthAsyncError(
-        auth_service, policy, GoogleServiceAuthError(test_case.gaia_state));
+    ProvisioningDomainFetchResult result =
+        FetchWithOAuthAsyncError(auth_service, policy, test_case.auth_error);
     EXPECT_EQ(0, test_url_loader_factory_.NumPending());
     ASSERT_FALSE(result.has_value());
     EXPECT_EQ(ProvisioningDomainFetchResultStatus::kTokenFetchError,

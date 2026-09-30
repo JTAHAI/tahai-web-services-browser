@@ -5,11 +5,9 @@
 #ifndef IOS_CHROME_BROWSER_INTELLIGENCE_ACTOR_MODEL_ACTOR_TASK_H_
 #define IOS_CHROME_BROWSER_INTELLIGENCE_ACTOR_MODEL_ACTOR_TASK_H_
 
-#import <set>
 #import <string>
 #import <vector>
 
-#import "base/containers/flat_map.h"
 #import "base/functional/callback.h"
 #import "base/memory/raw_ptr.h"
 #import "base/memory/weak_ptr.h"
@@ -18,11 +16,13 @@
 #import "ios/chrome/browser/intelligence/actor/model/actor_engine.h"
 #import "ios/chrome/browser/intelligence/actor/public/actor_task_updates_observer.h"
 #import "ios/chrome/browser/intelligence/actor/public/actor_types.h"
-#import "ios/chrome/browser/intelligence/actor/tools/model/tool_delegate.h"
+#import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/web_state_observer.h"
-#import "url/origin.h"
 
 @class CRBProtocolObservers;
+
+class Browser;
+class BrowserList;
 
 namespace web {
 class WebState;
@@ -38,14 +38,14 @@ class AggregatedJournal;
 // a whole Actor journey and be passed multiple sets of actions to execute
 // sequentially.
 class ActorTask : public web::WebStateObserver,
-                  public ActorEngine::ExecutionUpdatesDelegate,
-                  public ToolDelegate {
+                  public ActorEngine::ExecutionUpdatesDelegate {
  public:
   ActorTask(ActorTaskId task_id,
             const std::string& title,
             bool allow_incognito_web_states,
             AggregatedJournal* journal,
-            ActorToolFactory* tool_factory);
+            ActorToolFactory* tool_factory,
+            BrowserList* browser_list);
   ~ActorTask() override;
 
   ActorTask(const ActorTask&) = delete;
@@ -59,9 +59,13 @@ class ActorTask : public web::WebStateObserver,
   // Removes a registered observer.
   void RemoveObserver(id<ActorTaskUpdatesObserver> observer);
 
-  // Accessors. TODO(crbug.com/496164697): Remove when they are used internally
-  // in ActorTask, this is to fix compilation.
   const std::string& title() const { return title_; }
+
+  // Returns the unique identifier of the task.
+  ActorTaskId task_id() const { return task_id_; }
+
+  // Returns the execution engine associated with this task.
+  ActorEngine& engine() const;
 
   // Returns the current execution state of the task.
   ActorTaskState GetState() const;
@@ -79,16 +83,44 @@ class ActorTask : public web::WebStateObserver,
   // Stops the task and cancels any pending actions.
   virtual void Stop(ActorTaskStoppedReason stop_reason);
 
-  // Pauses execution (either initiated by the actor or the user). Subsequent
-  // `Act()` calls are invalid while paused.
+  // Pauses execution (either initiated by the actor or the user), cancelling
+  // in-progress actions. Subsequent `Act()` calls are invalid while paused.
   void Pause(bool from_actor);
 
   // Resumes task execution from a paused state.
   void Resume();
 
+  // Interrupts task execution to wait for user input, suspending ongoing
+  // actions without cancelling them. If `retain_user_control` is true, user
+  // interaction with the controlled WebState is permitted; if false, WebState
+  // interaction remains blocked.
+  void Interrupt(bool retain_user_control,
+                 ActorTaskInterruptReason interrupt_reason);
+
+  // Uninterrupts the task from waiting on user input, resuming execution into
+  // the given `resumed_state`.
+  void Uninterrupt(ActorTaskState resumed_state);
+
   // Returns whether this task's underlying engine is actively controlling
   // or observing the given WebState.
   bool IsControllingWebState(web::WebState* web_state) const;
+
+  // Returns the journal used for logging.
+  AggregatedJournal& GetJournal() const;
+
+  // Returns the tool factory associated with this task.
+  ActorToolFactory& GetToolFactory() const;
+
+  // Returns whether the window identified by `window_id` exists.
+  bool IsWindowIdValid(int32_t window_id);
+
+  // Inserts a new WebState with `load_params` in the window identified by
+  // `window_id`. Position of the new tab is determined by the task. Returns
+  // the inserted WebState, or nullptr if the insertion failed.
+  web::WebState* InsertWebState(
+      int32_t window_id,
+      const web::NavigationManager::WebLoadParams& load_params,
+      bool in_background);
 
   // Returns the set of web states actively controlled by this task.
   const std::vector<base::WeakPtr<web::WebState>>& controlled_web_states()
@@ -103,19 +135,6 @@ class ActorTask : public web::WebStateObserver,
 
  private:
   friend class ActorTaskTest;
-
-  // ToolDelegate:
-  ActorTaskId GetTaskId() const override;
-  AggregatedJournal& GetJournal() const override;
-  ActorToolFactory& GetToolFactory() const override;
-  void InterruptFromTool() override;
-  void UninterruptFromTool() override;
-  actor_login::ActorLoginService* GetActorLoginService() override;
-  void PromptToSelectCredential(
-      const std::vector<actor_login::Credential>& credentials,
-      CredentialSelectedCallback callback) override;
-  std::optional<CredentialWithPermission> GetUserSelectedCredential(
-      const url::Origin& request_origin) const override;
 
   // Sets the actuation state on all controlled `WebState`s based on
   // `actuating`.
@@ -136,13 +155,6 @@ class ActorTask : public web::WebStateObserver,
   void DeferActCompletion(ActCallback callback,
                           std::vector<ActionResult> results);
 
-  // TODO(crbug.com/472291829): Implement affiliation service related logic to
-  // fetch affiliated domains so we can reuse the permission.
-  // Caches any user selected credential during task execution.
-  void SetUserSelectedCredential(const actor_login::Credential& credential,
-                                 bool should_store_permission,
-                                 base::OnceClosure affiliations_fetched);
-
   // Handles observation removal when a WebState finishes loading or is
   // destroyed. Also resolves the deferred callback if no more WebStates are
   // loading.
@@ -155,11 +167,20 @@ class ActorTask : public web::WebStateObserver,
   void OnWillExecuteTool(ToolType tool_type,
                          web::WebStateID web_state_id) override;
 
+  // Returns the Browser associated with the given `window_id`.
+  Browser* GetBrowserForWindowId(int32_t window_id) const;
+
   // The task state.
   ActorTaskState state_ = ActorTaskState::kInit;
 
   // The task's ID.
   const ActorTaskId task_id_;
+
+  // The BrowserList associated with this task. ActorTask is owned by
+  // ActorService, which depends on BrowserList (as declared in
+  // ActorServiceFactory). Consequently, ActorService and this task are
+  // destroyed before the BrowserList during profile shutdown.
+  raw_ptr<BrowserList> browser_list_ = nullptr;
 
   // The task's title.
   const std::string title_;
@@ -201,15 +222,6 @@ class ActorTask : public web::WebStateObserver,
   // executions. `CRBProtocolObservers` itself is held strongly, but the
   // observers inside are held weakly.
   __strong CRBProtocolObservers<ActorTaskUpdatesObserver>* observers_;
-
-  // For multi-step login, these are the credentials that the user has chosen to
-  // allow the actor to use in this task, as well as whether the user has given
-  // permission for this credential to always be used.
-  base::flat_map<url::Origin, CredentialWithPermission>
-      user_selected_credentials_;
-
-  // The login service to log into websites.
-  std::unique_ptr<actor_login::ActorLoginService> actor_login_service_;
 
   // Weak pointer factory.
   base::WeakPtrFactory<ActorTask> weak_ptr_factory_{this};

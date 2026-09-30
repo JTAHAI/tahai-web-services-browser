@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import type {WebClientInitialState} from '../glic.mojom-webui.js';
-import type {AdditionalContext, AdditionalContextPart, AnnotatedPageData, CaptureRegionErrorReason, CaptureRegionParams, CaptureRegionResult, ChromeVersion, ClientCapabilities, ClientErrorDialogType, ConversationInfo, CounterAbuseVerdict, ErrorReasonTypes, ErrorWithReason, ExperimentalTriggeringUpdate, FileUploadPolicyState, FocusedTabDataHasFocus, FocusedTabDataHasNoFocus, FormFactor, GeminiEnterpriseSettings, GetPinCandidatesOptions, HostCapability, InvokeOptions, MetricUserInputReactionType, MicrophoneStatus, OnResponseStoppedDetails, OpenPanelInfo, OpenSettingsOptions, PageMetadata, PanelOpeningData, PanelState, PdfDocumentData, PinCandidate, PinTabsOptions, Platform, ResumeActorTaskResult, Screenshot, TabContextOptions, TabContextResult, TabData, UnpinTabsOptions, UserProfileInfo, WebClientMode, ZeroStateSuggestions, ZeroStateSuggestionsOptions, ZeroStateSuggestionsV2} from '../glic_api/glic_api.js';
+import type {AdditionalContext, AdditionalContextPart, AnnotatedPageData, CaptureRegionErrorReason, CaptureRegionParams, CaptureRegionResult, ChromeVersion, ClientCapabilities, ClientErrorDialogType, ConversationInfo, CounterAbuseVerdict, ErrorReasonTypes, ErrorWithReason, ExperimentalTriggeringUpdate, FileUploadPolicyState, FocusedTabDataHasFocus, FocusedTabDataHasNoFocus, FormFactor, GeminiEnterpriseSettings, GetPinCandidatesOptions, HostCapability, InvokeOptions, MetricUserInputReactionType, MicrophoneStatus, OnResponseStoppedDetails, OpenPanelInfo, OpenPinnedTabPickerOptions, OpenSettingsOptions, PageMetadata, PanelOpeningData, PanelState, PdfDocumentData, PinCandidate, PinTabsOptions, Platform, PromptType, ResumeActorTaskResult, Screenshot, TabContextOptions, TabContextResult, TabData, UnpinTabsOptions, UserProfileInfo, WebClientMode, ZeroStateSuggestions} from '../glic_api/glic_api.js';
 
 import type {ActorClient, ActorHost} from './actor/actor_types.js';
 import type {AnnotationClient, AnnotationHost} from './annotation/annotation_types.js';
@@ -12,6 +12,7 @@ import type {SkillsClient, SkillsHost} from './skills/skills_types.js';
 import type {InterfaceDef, InterfaceDefMethods, ReplaceProperties} from './transport/messaging.js';
 import {defInterface, defMessage} from './transport/messaging.js';
 import type {ErrorCodec, PendingReceiver, PendingRemote, TransferableException} from './transport/post_message_transport.js';
+import type {ZeroStateSuggestionsClient, ZeroStateSuggestionsHost} from './zero_state_suggestions/zero_state_suggestions_types.js';
 
 export type {
   ActorClient,
@@ -21,6 +22,8 @@ export type {
   ExperimentalTriggeringClient,
   SkillsClient,
   SkillsHost,
+  ZeroStateSuggestionsClient,
+  ZeroStateSuggestionsHost,
 };
 
 /*
@@ -48,6 +51,7 @@ export const WebClientHostDef = defInterface({
         skillsReceiver?: PendingReceiver<SkillsClient>,
         experimentalTriggeringReceiver?: PendingReceiver<
                                           ExperimentalTriggeringClient>,
+        zeroStateSuggestionsRemote?: PendingRemote<ZeroStateSuggestionsHost>,
       }>(),
       histogram: {name: 'WebClientCreated', id: 1},
     },
@@ -303,6 +307,7 @@ export const WebClientHostDef = defInterface({
       name: 'onUserInputSubmitted',
       request: defMessage<{
         mode: number,
+        promptType?: PromptType,
       }>(),
       histogram: {id: 38},
     },
@@ -422,6 +427,11 @@ export const WebClientHostDef = defInterface({
       histogram: {id: 52},
     },
     {
+      name: 'openPinnedTabPicker',
+      request: defMessage<{options?: OpenPinnedTabPickerOptions}>(),
+      histogram: {id: 104},
+    },
+    {
       name: 'subscribeToCaptureRegion',
       request: defMessage<{
         remote: PendingRemote<WebClientRegionCapture>,
@@ -451,17 +461,7 @@ export const WebClientHostDef = defInterface({
       name: 'maybeRefreshUserStatus',
       histogram: {id: 58},
     },
-    {
-      name: 'getZeroStateSuggestionsAndSubscribe',
-      request: defMessage<{
-        hasActiveSubscription: boolean,
-        options: ZeroStateSuggestionsOptions,
-      }>(),
-      response: defMessage<{
-        suggestions?: ZeroStateSuggestionsV2,
-      }>(),
-      histogram: {id: 55},
-    },
+
     {
       name: 'subscribeToPageMetadata',
       request: defMessage<{
@@ -654,9 +654,6 @@ export const WebClientDef = defInterface({
     },
     {
       name: 'checkResponsive',
-      response: defMessage<{
-        clientSendMessageQueueLength: number,
-      }>(),
     },
     {
       name: 'notifyManualResizeChanged',
@@ -688,13 +685,7 @@ export const WebClientDef = defInterface({
         tabData: TabDataPrivate,
       }>(),
     },
-    {
-      name: 'zeroStateSuggestionsChanged',
-      request: defMessage<{
-        suggestions: ZeroStateSuggestionsV2,
-        options: ZeroStateSuggestionsOptions,
-      }>(),
-    },
+
     {
       name: 'pageMetadataChanged',
       request: defMessage<{
@@ -816,6 +807,9 @@ type InterfaceHistogramIds<I extends InterfaceDef> = {
        never]: M['histogram'] extends {id: infer Id} ? Id : never;
 };
 
+// Note: We are migrating API request reporting to C++. This list should be
+// trimmed down and fully deleted eventually.
+// See chrome/browser/glic/public/glic_api_metrics.h.
 // LINT.IfChange(ApiRequestType)
 // New values here must be added to histograms.xml and to enums.xml.
 // Note: Not for accessing in code, so it can be stripped from compiled js.
@@ -823,7 +817,6 @@ export const RECORDED_REQUEST_IDS = {
   WebClientCreated: 1,
   WebClientInitialized: 2,
   CreateTab: 3,
-  ActivateTabWithUrl: 102,
   OpenGlicSettingsPage: 4,
   ClosePanel: 5,
   ClosePanelAndShutdown: 6,
@@ -875,7 +868,7 @@ export const RECORDED_REQUEST_IDS = {
   SubscribeToPinCandidates: 52,
   // Do not reuse deleted request ID: 53,
   GetZeroStateSuggestionsForFocusedTab: 54,
-  GetZeroStateSuggestionsAndSubscribe: 55,
+  // Do not reuse deleted request ID: 55,
   SetClosedCaptioningSetting: 56,
   DropScrollToHighlight: 57,
   MaybeRefreshUserStatus: 58,
@@ -921,6 +914,9 @@ export const RECORDED_REQUEST_IDS = {
   OnOptinImpression: 99,
   ProcessCounterAbuseVerdict: 100,
   GetImageBytesFromTab: 101,
+  ActivateTabWithUrl: 102,
+  UpdateActorTaskStepProgress: 103,
+  OpenPinnedTabPicker: 104,
 } as const satisfies
 // LINT.ThenChange(
 // //tools/metrics/histograms/metadata/glic/histograms.xml:ApiRequestType,
@@ -944,9 +940,15 @@ export function getHostRequestHistogramInfo(
     return undefined;
   }
   const method = interfaceDef.methodMap?.get(requestType);
-  // interfaceDef() ensures histogram satisfies HostRequestHistogramInfo, or is
-  // unset.
-  return method?.histogram as HostRequestHistogramInfo | undefined;
+  if (!method || !method.histogram) {
+    return undefined;
+  }
+  const name = (method.histogram as {name?: string}).name ??
+      (requestType.charAt(0).toUpperCase() + requestType.slice(1));
+  return {
+    name,
+    id: method.histogram.id,
+  };
 }
 
 //

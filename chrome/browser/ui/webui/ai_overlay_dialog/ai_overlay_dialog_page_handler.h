@@ -14,6 +14,7 @@
 #include "chrome/browser/ui/webui/ai_overlay_dialog/ai_overlay_dialog.mojom.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
+#include "third_party/blink/public/mojom/dom/dom_node_id.mojom.h"
 #include "url/gurl.h"
 
 class BrowserWindowInterface;
@@ -24,6 +25,8 @@ class ActionItem;
 
 namespace ttc {
 
+class AiOverlayDialogUntrustedUI;
+
 class AiOverlayDialogPageHandler
     : public ai_overlay_dialog::mojom::PageHandler,
       public AiOverlayDialogController::Observer {
@@ -31,12 +34,28 @@ class AiOverlayDialogPageHandler
   AiOverlayDialogPageHandler(
       mojo::PendingReceiver<ai_overlay_dialog::mojom::PageHandler> receiver,
       mojo::PendingRemote<ai_overlay_dialog::mojom::Page> remote,
-      BrowserWindowInterface* browser);
+      BrowserWindowInterface* browser,
+      AiOverlayDialogUntrustedUI* untrusted_ui = nullptr);
   ~AiOverlayDialogPageHandler() override;
 
   // overlay_dialog::mojom::PageHandler interface
   void GetMockAudioData(GetMockAudioDataCallback callback) override;
   void UpdateAudioEnergy(float energy) override;
+  void Close() override;
+  void GetCursorPosition(GetCursorPositionCallback callback) override;
+  void CaptureRawViewportRegion(
+      int32_t x,
+      int32_t y,
+      int32_t width,
+      int32_t height,
+      CaptureRawViewportRegionCallback callback) override;
+  void SetRememberedNote(ai_overlay_dialog::mojom::RememberedNotePtr note,
+                         SetRememberedNoteCallback callback) override;
+  void GetRememberedNotes(GetRememberedNotesCallback callback) override;
+  void SaveDebugFile(ai_overlay_dialog::mojom::DebugFileType type,
+                     const std::string& content) override;
+  void GetImageBytes(const blink::DOMNodeIdType& dom_node_id,
+                     GetImageBytesCallback callback) override;
 
   void DidChangePage(const GURL& url,
                      const std::optional<std::u16string>& title,
@@ -55,6 +74,7 @@ class AiOverlayDialogPageHandler
   mojo::Remote<ai_overlay_dialog::mojom::Page> page_;
   raw_ptr<BrowserWindowInterface> browser_;
   raw_ptr<actions::ActionItem> overlay_action_item_ = nullptr;
+  raw_ptr<AiOverlayDialogUntrustedUI> untrusted_ui_ = nullptr;
 };
 
 }  // namespace ttc

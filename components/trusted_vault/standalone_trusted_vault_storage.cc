@@ -119,8 +119,7 @@ void UpgradeToVersion1(
   AssignBytesToProtoString(GetConstantTrustedVaultKey(),
                            &constant_key_as_proto_string);
 
-  for (trusted_vault_pb::LocalTrustedVaultPerUser& per_user_vault :
-       *local_trusted_vault->mutable_user()) {
+  for (UserVault& per_user_vault : *local_trusted_vault->mutable_user()) {
     if (per_user_vault.vault_key_size() == 1 &&
         per_user_vault.vault_key(0).key_material() !=
             constant_key_as_proto_string) {
@@ -141,8 +140,7 @@ void UpgradeToVersion2(
   CHECK(local_trusted_vault);
   CHECK_EQ(local_trusted_vault->data_version(), 1);
 
-  for (trusted_vault_pb::LocalTrustedVaultPerUser& per_user_vault :
-       *local_trusted_vault->mutable_user()) {
+  for (UserVault& per_user_vault : *local_trusted_vault->mutable_user()) {
     per_user_vault.set_keys_marked_as_stale_by_consumer(false);
   }
   local_trusted_vault->set_data_version(2);
@@ -157,8 +155,7 @@ void UpgradeToVersion3(
   CHECK(local_trusted_vault);
   CHECK_EQ(local_trusted_vault->data_version(), 2);
 
-  for (trusted_vault_pb::LocalTrustedVaultPerUser& per_user_vault :
-       *local_trusted_vault->mutable_user()) {
+  for (UserVault& per_user_vault : *local_trusted_vault->mutable_user()) {
     if (per_user_vault.local_device_registration_info()
             .device_registered_version() == 0) {
       per_user_vault.mutable_local_device_registration_info()
@@ -176,8 +173,7 @@ void UpgradeToVersion4(
   CHECK(local_trusted_vault);
   CHECK_EQ(local_trusted_vault->data_version(), 3);
 
-  for (trusted_vault_pb::LocalTrustedVaultPerUser& per_user_vault :
-       *local_trusted_vault->mutable_user()) {
+  for (UserVault& per_user_vault : *local_trusted_vault->mutable_user()) {
     if (per_user_vault.local_device_registration_info()
             .has_deprecated_last_registration_returned_local_data_obsolete()) {
       per_user_vault.set_last_registration_returned_local_data_obsolete(
@@ -288,8 +284,52 @@ StandaloneTrustedVaultStorage::StandaloneTrustedVaultStorage(
 
 StandaloneTrustedVaultStorage::~StandaloneTrustedVaultStorage() = default;
 
-trusted_vault_pb::LocalTrustedVaultPerUser*
-StandaloneTrustedVaultStorage::AddUserVault(const GaiaId& gaia_id) {
+void StandaloneTrustedVaultStorage::ReadDataFromDisk() {
+  data_ = file_access_->ReadFromDisk();
+}
+
+const UserVault* StandaloneTrustedVaultStorage::AddUserVault(
+    const GaiaId& gaia_id) {
+  return AddUserVaultImpl(gaia_id);
+}
+
+const UserVault* StandaloneTrustedVaultStorage::FindUserVault(
+    const GaiaId& gaia_id) const {
+  return FindUserVaultImpl(gaia_id);
+}
+
+const UserVault& StandaloneTrustedVaultStorage::GetUserVault(
+    const GaiaId& gaia_id) const {
+  const UserVault* user_vault = FindUserVault(gaia_id);
+  CHECK(user_vault);
+  return *user_vault;
+}
+
+const UserVault& StandaloneTrustedVaultStorage::MutateUserVault(
+    const GaiaId& gaia_id,
+    base::FunctionRef<void(UserVault&)> mutator) {
+  UserVault* user_vault = FindUserVaultImpl(gaia_id);
+  if (!user_vault) {
+    user_vault = AddUserVaultImpl(gaia_id);
+  }
+  mutator(*user_vault);
+  file_access_->WriteToDisk(data_);
+  return *user_vault;
+}
+
+void StandaloneTrustedVaultStorage::RemoveUserVaults(
+    base::FunctionRef<bool(const UserVault&)> predicate) {
+  auto* users = data_.mutable_user();
+  auto removed = std::ranges::remove_if(*users, predicate);
+  if (removed.begin() == users->end()) {
+    return;
+  }
+  users->erase(removed.begin(), removed.end());
+  file_access_->WriteToDisk(data_);
+}
+
+UserVault* StandaloneTrustedVaultStorage::AddUserVaultImpl(
+    const GaiaId& gaia_id) {
   CHECK(FindUserVault(gaia_id) == nullptr);
 
   auto* user_vault = data_.add_user();
@@ -297,8 +337,8 @@ StandaloneTrustedVaultStorage::AddUserVault(const GaiaId& gaia_id) {
   return user_vault;
 }
 
-trusted_vault_pb::LocalTrustedVaultPerUser*
-StandaloneTrustedVaultStorage::FindUserVault(const GaiaId& gaia_id) {
+UserVault* StandaloneTrustedVaultStorage::FindUserVaultImpl(
+    const GaiaId& gaia_id) {
   for (int i = 0; i < data_.user_size(); ++i) {
     if (GaiaId(data_.user(i).gaia_id()) == gaia_id) {
       return data_.mutable_user(i);
@@ -307,29 +347,128 @@ StandaloneTrustedVaultStorage::FindUserVault(const GaiaId& gaia_id) {
   return nullptr;
 }
 
-void StandaloneTrustedVaultStorage::RemoveUserVaults(
-    base::FunctionRef<bool(const trusted_vault_pb::LocalTrustedVaultPerUser&)>
-        predicate) {
-  auto removed = std::ranges::remove_if(*data_.mutable_user(), predicate);
-  data_.mutable_user()->erase(removed.begin(), removed.end());
+const UserVault* StandaloneTrustedVaultStorage::FindUserVaultImpl(
+    const GaiaId& gaia_id) const {
+  for (int i = 0; i < data_.user_size(); ++i) {
+    if (GaiaId(data_.user(i).gaia_id()) == gaia_id) {
+      return &data_.user(i);
+    }
+  }
+  return nullptr;
 }
 
-void StandaloneTrustedVaultStorage::ReadDataFromDisk() {
-  data_ = file_access_->ReadFromDisk();
+const LocalDeviceRegistrationInfo&
+StandaloneTrustedVaultStorage::GetLocalDeviceRegistrationInfo(
+    const GaiaId& gaia_id) const {
+  return GetUserVault(gaia_id).local_device_registration_info();
 }
 
-void StandaloneTrustedVaultStorage::WriteDataToDisk() {
-  file_access_->WriteToDisk(data_);
+void StandaloneTrustedVaultStorage::MutateLocalDeviceRegistrationInfo(
+    const GaiaId& gaia_id,
+    base::FunctionRef<void(LocalDeviceRegistrationInfo&)> mutator) {
+  MutateUserVault(gaia_id, [&](UserVault& user_vault) {
+    mutator(*user_vault.mutable_local_device_registration_info());
+  });
 }
 
-// static
+const ICloudKeychainRegistrationInfo&
+StandaloneTrustedVaultStorage::GetICloudKeychainRegistrationInfo(
+    const GaiaId& gaia_id) const {
+  return GetUserVault(gaia_id).icloud_keychain_registration_info();
+}
+
+void StandaloneTrustedVaultStorage::MutateICloudKeychainRegistrationInfo(
+    const GaiaId& gaia_id,
+    base::FunctionRef<void(ICloudKeychainRegistrationInfo&)> mutator) {
+  MutateUserVault(gaia_id, [&](UserVault& user_vault) {
+    mutator(*user_vault.mutable_icloud_keychain_registration_info());
+  });
+}
+
+bool StandaloneTrustedVaultStorage::
+    GetLastRegistrationReturnedLocalDataObsolete(const GaiaId& gaia_id) const {
+  const UserVault* user_vault = FindUserVault(gaia_id);
+  return user_vault &&
+         user_vault->last_registration_returned_local_data_obsolete();
+}
+
+void StandaloneTrustedVaultStorage::
+    SetLastRegistrationReturnedLocalDataObsolete(const GaiaId& gaia_id,
+                                                 bool obsolete) {
+  MutateUserVault(gaia_id, [&](UserVault& user_vault) {
+    user_vault.set_last_registration_returned_local_data_obsolete(obsolete);
+  });
+}
+
+std::vector<std::vector<uint8_t>> StandaloneTrustedVaultStorage::GetVaultKeys(
+    const GaiaId& gaia_id) const {
+  const UserVault* user_vault = FindUserVault(gaia_id);
+  return user_vault ? GetAllVaultKeys(*user_vault)
+                    : std::vector<std::vector<uint8_t>>();
+}
+
+int StandaloneTrustedVaultStorage::GetLastKeyVersion(
+    const GaiaId& gaia_id) const {
+  const UserVault* user_vault = FindUserVault(gaia_id);
+  return user_vault ? user_vault->last_vault_key_version() : 0;
+}
+
+void StandaloneTrustedVaultStorage::SetVaultKeys(
+    const GaiaId& gaia_id,
+    const std::vector<std::vector<uint8_t>>& keys,
+    int last_key_version) {
+  MutateUserVault(gaia_id, [&](UserVault& user_vault) {
+    user_vault.set_last_vault_key_version(last_key_version);
+    user_vault.set_keys_marked_as_stale_by_consumer(false);
+    user_vault.clear_vault_key();
+    for (const std::vector<uint8_t>& key : keys) {
+      AssignBytesToProtoString(
+          key, user_vault.add_vault_key()->mutable_key_material());
+    }
+  });
+}
+
+bool StandaloneTrustedVaultStorage::GetKeysMarkedAsStaleByConsumer(
+    const GaiaId& gaia_id) const {
+  const UserVault* user_vault = FindUserVault(gaia_id);
+  return user_vault && user_vault->keys_marked_as_stale_by_consumer();
+}
+
+void StandaloneTrustedVaultStorage::SetKeysMarkedAsStaleByConsumer(
+    const GaiaId& gaia_id,
+    bool stale) {
+  MutateUserVault(gaia_id, [&](UserVault& user_vault) {
+    user_vault.set_keys_marked_as_stale_by_consumer(stale);
+  });
+}
+
+int64_t StandaloneTrustedVaultStorage::GetLastFailedRequestMillis(
+    const GaiaId& gaia_id) const {
+  const UserVault* user_vault = FindUserVault(gaia_id);
+  return user_vault ? user_vault->last_failed_request_millis_since_unix_epoch()
+                    : 0;
+}
+
+void StandaloneTrustedVaultStorage::SetLastFailedRequestMillis(
+    const GaiaId& gaia_id,
+    int64_t last_failed_request_millis) {
+  MutateUserVault(gaia_id, [&](UserVault& user_vault) {
+    user_vault.set_last_failed_request_millis_since_unix_epoch(
+        last_failed_request_millis);
+  });
+}
+
 bool StandaloneTrustedVaultStorage::HasNonConstantKey(
-    const trusted_vault_pb::LocalTrustedVaultPerUser& per_user_vault) {
+    const GaiaId& gaia_id) const {
+  const UserVault* user_vault = FindUserVault(gaia_id);
+  if (!user_vault) {
+    return false;
+  }
   std::string constant_key_as_proto_string;
   AssignBytesToProtoString(GetConstantTrustedVaultKey(),
                            &constant_key_as_proto_string);
   for (const trusted_vault_pb::LocalTrustedVaultKey& key :
-       per_user_vault.vault_key()) {
+       user_vault->vault_key()) {
     if (key.key_material() != constant_key_as_proto_string) {
       return true;
     }
@@ -340,7 +479,7 @@ bool StandaloneTrustedVaultStorage::HasNonConstantKey(
 // static
 std::vector<std::vector<uint8_t>>
 StandaloneTrustedVaultStorage::GetAllVaultKeys(
-    const trusted_vault_pb::LocalTrustedVaultPerUser& per_user_vault) {
+    const UserVault& per_user_vault) {
   std::vector<std::vector<uint8_t>> vault_keys;
   for (const trusted_vault_pb::LocalTrustedVaultKey& key :
        per_user_vault.vault_key()) {

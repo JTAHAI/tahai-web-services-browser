@@ -17,8 +17,8 @@
 #include "components/autofill/core/browser/data_quality/addresses/profile_token_quality.h"
 #include "components/autofill/core/browser/data_quality/addresses/profile_token_quality_test_api.h"
 #include "components/autofill/core/browser/field_types.h"
-#include "components/autofill/core/browser/metrics/autofill_metrics_utils.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/metrics/autofill_metrics_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
 #include "components/autofill/core/browser/test_utils/test_profiles.h"
 #include "components/autofill/core/common/autofill_clock.h"
 #include "components/autofill/core/common/autofill_constants.h"
@@ -352,7 +352,7 @@ TEST_P(AddressDataCleanerTest, Deduplicate_kAccountMerge) {
 
   AutofillProfile local_profile(AddressCountryCode{"CA"});
   test::SetProfileInfo(&local_profile, test::SetProfileInfoOptionsBuilder()
-                                           .with_address1("6543 CH BACON")
+                                           .with_address1("6543 Chemin Bacon")
                                            .with_address2("APP 3")
                                            .with_city("Montreal")
                                            .with_state("QUÉBEC")
@@ -366,7 +366,7 @@ TEST_P(AddressDataCleanerTest, Deduplicate_kAccountMerge) {
 
   AutofillProfile account_profile(AddressCountryCode{"CA"});
   test::SetProfileInfo(&account_profile, test::SetProfileInfoOptionsBuilder()
-                                             .with_address1("6543, Bacon Rd")
+                                             .with_address1("6543, CH BACON")
                                              .with_city("Montreal")
                                              .with_state("QC")
                                              .with_zipcode("hhh 999")
@@ -382,7 +382,7 @@ TEST_P(AddressDataCleanerTest, Deduplicate_kAccountMerge) {
   MaybeCleanupAddressData();
   AutofillProfile expected(AddressCountryCode("CA"));
   expected.SetRawInfoWithVerificationStatus(
-      ADDRESS_HOME_LINE1, u"6543 CH BACON", VerificationStatus::kObserved);
+      ADDRESS_HOME_LINE1, u"6543 Chemin Bacon", VerificationStatus::kObserved);
   expected.SetRawInfoWithVerificationStatus(ADDRESS_HOME_LINE2, u"APP 3",
                                             VerificationStatus::kObserved);
   expected.SetRawInfoWithVerificationStatus(ADDRESS_HOME_CITY, u"Montreal",
@@ -401,9 +401,13 @@ TEST_P(AddressDataCleanerTest, Deduplicate_kAccountMerge) {
   EXPECT_THAT(test_adm_.GetProfiles(),
               testing::UnorderedPointwise(IsEqualForDeduplicationPurposes(),
                                           {expected}));
+  EXPECT_TRUE(
+      test_adm_.was_last_account_profile_removal_non_permanent().value_or(
+          false));
 }
 
 TEST_P(AddressDataCleanerTest, Deduplicate_kAccountNameEmailSubset) {
+  base::Time now = base::Time::Now();
   test_api(data_cleaner_).SetAreCleanupsPending(false);
 
   AutofillProfile account_name_email_profile(AddressCountryCode("XX"));
@@ -412,6 +416,7 @@ TEST_P(AddressDataCleanerTest, Deduplicate_kAccountNameEmailSubset) {
   account_name_email_profile.SetInfoWithVerificationStatus(
       EMAIL_ADDRESS, u"test@gmail.com", "en-US",
       VerificationStatus::kUserVerified);
+  account_name_email_profile.usage_history().set_use_date(now);
   account_name_email_profile.FinalizeAfterImport();
   test_api(account_name_email_profile)
       .set_record_type(AutofillProfile::RecordType::kAccountNameEmail);
@@ -423,6 +428,7 @@ TEST_P(AddressDataCleanerTest, Deduplicate_kAccountNameEmailSubset) {
   superset_profile.SetInfoWithVerificationStatus(
       EMAIL_ADDRESS, u"test@gmail.com", "en-US",
       VerificationStatus::kUserVerified);
+  superset_profile.usage_history().set_use_date(now);
   superset_profile.FinalizeAfterImport();
   test_api(superset_profile)
       .set_record_type(AutofillProfile::RecordType::kAccount);
@@ -433,6 +439,9 @@ TEST_P(AddressDataCleanerTest, Deduplicate_kAccountNameEmailSubset) {
   EXPECT_THAT(test_adm_.GetProfiles(),
               testing::UnorderedPointwise(IsEqualForDeduplicationPurposes(),
                                           {superset_profile}));
+  EXPECT_FALSE(
+      test_adm_.was_last_account_profile_removal_non_permanent().value_or(
+          true));
 }
 
 TEST_P(AddressDataCleanerTest, DeduplicateOncePerMilestone) {

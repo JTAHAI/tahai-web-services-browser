@@ -14,8 +14,8 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/tahai/tahai_named_workspace_controller.h"
 #include "chrome/common/pref_names.h"
@@ -65,8 +65,8 @@ std::u16string TabPreview(const NamedWorkspace& workspace) {
 
 class NamedWorkspaceManagerView final : public views::DialogDelegate {
  public:
-  explicit NamedWorkspaceManagerView(Browser* browser)
-      : browser_(browser->AsWeakPtr()) {
+  explicit NamedWorkspaceManagerView(BrowserWindowInterface* browser)
+      : browser_(browser->GetWeakPtr()) {
     auto contents = std::make_unique<views::View>();
     contents_ = contents.get();
     SetContentsView(std::move(contents));
@@ -434,7 +434,7 @@ class NamedWorkspaceManagerView final : public views::DialogDelegate {
     }
   }
 
-  base::WeakPtr<Browser> browser_;
+  base::WeakPtr<BrowserWindowInterface> browser_;
   raw_ptr<views::View> contents_ = nullptr;
   raw_ptr<views::Textfield> name_ = nullptr;
   raw_ptr<views::Textfield> filter_ = nullptr;
@@ -451,8 +451,9 @@ class NamedWorkspaceManagerView final : public views::DialogDelegate {
 
 }  // namespace
 
-void ShowNamedWorkspaceManager(Browser* browser) {
-  if (!browser || !browser->is_type_normal() ||
+void ShowNamedWorkspaceManager(BrowserWindowInterface* browser) {
+  if (!browser ||
+      !(browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
       !NamedWorkspaceStore(browser->GetProfile()).enabled()) {
     return;
   }

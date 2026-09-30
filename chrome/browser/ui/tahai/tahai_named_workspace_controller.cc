@@ -11,9 +11,10 @@
 
 #include "base/uuid.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabrestore.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
@@ -26,9 +27,12 @@
 
 namespace tahai {
 
-Browser* ActivateNativeCustomMode(Browser* source, std::string_view id) {
-  if (!source || !source->is_type_normal() ||
-      !source->GetProfile()->IsRegularProfile() || source->GetProfile()->IsOffTheRecord()) {
+BrowserWindowInterface* ActivateNativeCustomMode(BrowserWindowInterface* source,
+                                                 std::string_view id) {
+  if (!source ||
+      !(source->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
+      !source->GetProfile()->IsRegularProfile() ||
+      source->GetProfile()->IsOffTheRecord()) {
     return nullptr;
   }
   auto* modes = ModeServiceFactory::GetForProfile(source->GetProfile());
@@ -47,20 +51,28 @@ Browser* ActivateNativeCustomMode(Browser* source, std::string_view id) {
   if (!ValidateWindowPresentation(presentation)) {
     return nullptr;
   }
-  Browser* target = workspace_id.empty() ? source : OpenNamedWorkspace(source, workspace_id);
+  BrowserWindowInterface* target =
+      workspace_id.empty() ? source : OpenNamedWorkspace(source, workspace_id);
   auto* controller = WindowModeController::GetForBrowser(target);
-  return controller && controller->RestorePresentation(presentation) ? target : nullptr;
+  if (!controller) {
+    return nullptr;
+  }
+  const auto weak_target = target->GetWeakPtr();
+  return controller->RestorePresentation(presentation) ? weak_target.get()
+                                                       : nullptr;
 }
 
-NamedWorkspaceCaptureResult CaptureNamedWorkspace(Browser* browser,
-                                                  std::string_view name) {
-  if (!browser || !browser->is_type_normal() ||
+NamedWorkspaceCaptureResult CaptureNamedWorkspace(
+    BrowserWindowInterface* browser,
+    std::string_view name) {
+  if (!browser ||
+      !(browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) ||
       !NamedWorkspaceStore(browser->GetProfile()).enabled()) {
     return {.failure = NamedWorkspaceCaptureFailure::kUnavailable};
   }
   auto* mode = WindowModeController::GetForBrowser(browser);
-  auto* model = browser->tab_strip_model();
-  if (!mode || !model->delegate()->IsTabStripEditable()) {
+  auto* model = browser->GetTabStripModel();
+  if (!mode || !model || !model->delegate()->IsTabStripEditable()) {
     return {.failure = NamedWorkspaceCaptureFailure::kUnsupportedLayout};
   }
   if (model->empty()) {
@@ -116,24 +128,26 @@ NamedWorkspaceCaptureResult CaptureNamedWorkspace(Browser* browser,
   return {.workspace = std::move(workspace)};
 }
 
-Browser* OpenNamedWorkspace(Browser* source, std::string_view id) {
-  if (!source || !source->is_type_normal()) {
+BrowserWindowInterface* OpenNamedWorkspace(BrowserWindowInterface* source,
+                                           std::string_view id) {
+  if (!source ||
+      !(source->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL)) {
     return nullptr;
   }
   auto workspace = NamedWorkspaceStore(source->GetProfile()).Find(id);
   if (!workspace || !NamedWorkspaceStore::Validate(*workspace) ||
-      Browser::GetCreationStatusForProfile(source->GetProfile()) !=
-          Browser::CreationStatus::kOk) {
+      GetBrowserWindowCreationStatusForProfile(*source->GetProfile()) !=
+          BrowserWindowInterface::CreationStatus::kOk) {
     return nullptr;
   }
-  Browser* restored =
-      Browser::Create(Browser::CreateParams(source->GetProfile(), true));
+  BrowserWindowInterface* restored = CreateBrowserWindow(
+      BrowserWindowCreateParams(source->GetProfile(), true));
   if (!restored) {
     return nullptr;
   }
-  const auto weak_restored = restored->AsWeakPtr();
-  auto* model = restored->tab_strip_model();
-  if (!model->empty() ||
+  const auto weak_restored = restored->GetWeakPtr();
+  auto* model = restored->GetTabStripModel();
+  if (!model || !model->empty() ||
       (!workspace->groups.empty() && !model->SupportsTabGroups())) {
     restored->GetWindow()->Show();
     return nullptr;
@@ -203,17 +217,19 @@ Browser* OpenNamedWorkspace(Browser* source, std::string_view id) {
     }
   }
   auto* mode = WindowModeController::GetForBrowser(restored);
-  if (!mode ||
-      !(workspace->presentation
-            ? mode->RestorePresentation(*workspace->presentation)
-            : mode->ApplyWorkspacePresentation(workspace->mode,
-                                                workspace->rail_state,
-                                                workspace->rail_width))) {
-    restored->GetWindow()->Show();
+  const bool presentation_restored =
+      mode && (workspace->presentation
+                   ? mode->RestorePresentation(*workspace->presentation)
+                   : mode->ApplyWorkspacePresentation(workspace->mode,
+                                                      workspace->rail_state,
+                                                      workspace->rail_width));
+  // Presentation and Show() notify native observers, which can close a window.
+  // Never return or dereference its raw pointer after those callbacks.
+  if (!weak_restored) {
     return nullptr;
   }
   restored->GetWindow()->Show();
-  return restored;
+  return presentation_restored ? weak_restored.get() : nullptr;
 }
 
 }  // namespace tahai

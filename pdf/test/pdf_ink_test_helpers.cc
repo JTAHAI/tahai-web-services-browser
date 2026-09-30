@@ -121,8 +121,10 @@ base::DictValue SampleTextAttributesDict() {
   text_attributes.Set("size", 12.0f);
   text_attributes.Set("typeface", "serif");
   text_attributes.Set("alignment", "center");
-  text_attributes.Set("styles",
-                      base::DictValue().Set("bold", true).Set("italic", true));
+  text_attributes.Set("styles", base::DictValue()
+                                    .Set("bold", true)
+                                    .Set("italic", true)
+                                    .Set("strikethrough", true));
   return text_attributes;
 }
 
@@ -139,46 +141,44 @@ InkTextBoxAttributes SampleInkTextBoxAttributes() {
   return SampleInkTextBoxAttributesWithText("Box 0");
 }
 
-InkTextBoxAttributes SampleInkTextBoxAttributesWithText(std::string_view text) {
-  return InkTextBoxAttributes(
-      /*rect=*/gfx::RectF(10.0f, 20.0f, 100.0f, 50.0f),
-      /*color=*/SkColorSetRGB(0, 0, 255),
-      /*css_font_size=*/12.0f,
-      /*typeface=*/TextTypeface::kMonospace,
-      /*alignment=*/TextAlignment::kCenter,
-      /*orientation=*/1,
-      /*viewport_orientation=*/PageOrientation::kOriginal,
-      /*is_bold=*/false,
-      /*is_italic=*/true, text);
+InkTextBoxAttributes SampleInkTextBoxAttributesWithText(std::string text) {
+  return InkTextBoxAttributes{
+      .rect = gfx::RectF(10.0f, 20.0f, 100.0f, 50.0f),
+      .color = SkColorSetRGB(0, 0, 255),
+      .css_font_size = 12.0f,
+      .typeface = TextTypeface::kMonospace,
+      .alignment = TextAlignment::kCenter,
+      .orientation = 1,
+      .viewport_orientation = PageOrientation::kOriginal,
+      .is_bold = false,
+      .is_italic = true,
+      .is_strikethrough = false,
+      .text = std::move(text),
+  };
 }
 
 testing::Matcher<const InkTextBoxAttributes&>
 SampleInkTextBoxAttributesMatcher() {
-  return InkTextBoxAttributesEq(
-      /*rect=*/gfx::RectF(10.0f, 20.0f, 100.0f, 15.0f),
-      /*color=*/SkColorSetRGB(253, 214, 99),
-      /*css_font_size=*/12.0f,
-      /*typeface=*/TextTypeface::kSerif,
-      /*alignment=*/TextAlignment::kCenter,
-      /*orientation=*/1,
-      /*viewport_orientation=*/PageOrientation::kOriginal,
-      /*is_bold=*/true,
-      /*is_italic=*/true,
-      /*text=*/"hi");
+  return SampleInkTextBoxAttributesMatcherWith("hi",
+                                               PageOrientation::kOriginal);
 }
 
 testing::Matcher<const InkTextBoxAttributes&>
 SampleInkTextBoxAttributesMatcherWith(const std::string& text,
                                       PageOrientation viewport_orientation) {
-  return InkTextBoxAttributesEq(
-      /*rect=*/gfx::RectF(10.0f, 20.0f, 100.0f, 15.0f),
-      /*color=*/SkColorSetRGB(253, 214, 99),
-      /*css_font_size=*/12.0f,
-      /*typeface=*/TextTypeface::kSerif,
-      /*alignment=*/TextAlignment::kCenter,
-      /*orientation=*/1, viewport_orientation,
-      /*is_bold=*/true,
-      /*is_italic=*/true, text);
+  return testing::Eq(InkTextBoxAttributes{
+      .rect = gfx::RectF(10.0f, 20.0f, 100.0f, 15.0f),
+      .color = SkColorSetRGB(253, 214, 99),
+      .css_font_size = 12.0f,
+      .typeface = TextTypeface::kSerif,
+      .alignment = TextAlignment::kCenter,
+      .orientation = 1,
+      .viewport_orientation = viewport_orientation,
+      .is_bold = true,
+      .is_italic = true,
+      .is_strikethrough = true,
+      .text = text,
+  });
 }
 
 base::BlobStorage SampleInkTextInfoBlob(FontId typeface_id) {
@@ -304,6 +304,7 @@ void PrintTo(const InkTextBoxAttributes& info, std::ostream* os) {
       << static_cast<int>(info.viewport_orientation)
       << ",\n  is_bold=" << base::ToString(info.is_bold)
       << ",\n  is_italic=" << base::ToString(info.is_italic)
+      << ",\n  is_strikethrough=" << base::ToString(info.is_strikethrough)
       << ",\n  text=" << info.text << "\n}";
 }
 

@@ -13,6 +13,7 @@
 #import "components/autofill/core/common/unique_ids.h"
 #import "components/autofill/ios/browser/autofill_client_ios.h"
 #import "components/autofill/ios/form_util/child_frame_registrar.h"
+#import "components/optimization_guide/core/optimization_guide_features.h"
 #import "components/optimization_guide/core/page_content_proto_serializer.h"
 #import "components/optimization_guide/proto/features/common_quality_data.pb.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
@@ -117,6 +118,7 @@ constexpr char kOuterBoundingBoxKey[] = "outerBoundingBox";
 constexpr char kVisibleBoundingBoxKey[] = "visibleBoundingBox";
 constexpr char kFragmentVisibleBoundingBoxesKey[] =
     "fragmentVisibleBoundingBoxes";
+constexpr char kCssPositionKey[] = "cssPosition";
 constexpr char kIsFocusedDocumentKey[] = "isFocusedDocument";
 
 // Values matching the `RedactedFrameMetadata.Reason` enum in
@@ -487,7 +489,15 @@ void PopulateAutofillData(
   proto_form_control_data->add_coarse_autofill_field_type(
       autofill_metadata->coarse_field_type);
 
-  if (!autofill_context->extract_autofill_credit_card_redactions) {
+  if (autofill_metadata->redaction_reason ==
+          AutofillFieldRedactionReason::kShouldRedactForPayments &&
+      !autofill_context->extract_autofill_credit_card_redactions) {
+    return;
+  }
+
+  if (autofill_metadata->redaction_reason ==
+          AutofillFieldRedactionReason::kShouldRedactForOtp &&
+      !autofill_context->extract_autofill_otp_redactions) {
     return;
   }
 
@@ -755,6 +765,14 @@ void PopulateGeometry(const base::DictValue& geometry_dict,
     }
   }
 
+  if (std::optional<int> css_position =
+          ReadJsNumber(geometry_dict, kCssPositionKey)) {
+    if (optimization_guide::proto::CssPosition_IsValid(*css_position)) {
+      mutable_geometry()->set_css_position(
+          static_cast<optimization_guide::proto::CssPosition>(*css_position));
+    }
+  }
+
   if (const base::ListValue* fragments =
           geometry_dict.FindList(kFragmentVisibleBoundingBoxesKey)) {
     for (const auto& fragment : *fragments) {
@@ -886,7 +904,9 @@ void PopulateAPCNodeFromContentTree(
             PopulateIframeData(*iframe_data, destination_node, origin,
                                on_frame_extracted);
             grafter.RegisterPlaceholder(*remote, destination_node);
-            return;
+            // Break rather than return so that the placeholder node's geometry
+            // is populated below
+            break;
           }
         }
 
@@ -899,6 +919,7 @@ void PopulateAPCNodeFromContentTree(
               child_autofill_context.emplace(
                   autofill_context->web_state, local_token,
                   autofill_context->extract_autofill_credit_card_redactions,
+                  autofill_context->extract_autofill_otp_redactions,
                   autofill_context->section_numbers);
             }
           }
@@ -944,6 +965,13 @@ void PopulateAPCNodeFromContentTree(
       if (form_control_data) {
         PopulateFormControlData(*form_control_data, autofill_context,
                                 destination_node);
+        if (destination_node->content_attributes()
+                .form_control_data()
+                .redaction_decision() !=
+            optimization_guide::proto::
+                REDACTION_DECISION_NO_REDACTION_NECESSARY) {
+          grafter.set_has_sensitive_fields_to_redact(true);
+        }
       }
       break;
     }
@@ -1098,13 +1126,6 @@ void ResolveCrossSiteFrameContent(
       },
       registrar);
 
-  auto placer = base::BindRepeating(
-      [](optimization_guide::proto::ContentNode* parentNode,
-         FrameGrafter::FrameContent unregistered) {
-        *parentNode->add_children_nodes() = std::move(unregistered.content);
-      },
-      apc->mutable_root_node());
-
   GURL main_frame_url(apc->main_frame_data().url());
   net::SchemefulSite main_frame_site(main_frame_url);
 
@@ -1141,7 +1162,14 @@ void ResolveCrossSiteFrameContent(
       },
       include_same_site_only, main_frame_site);
 
-  grafter.ResolveUnregisteredContent(mapping_lookup, placer,
+  // Unregistered/orphan frames (e.g. invisible utility or tracking iframes that
+  // are omitted from the main DOM layout walk) are dropped from the tree to
+  // avoid duplicate node_id=1 collisions.
+  // TODO(crbug.com/549274706): Add support for collecting/preserving redaction
+  // bounding boxes from orphaned/un-grafted frames, matching desktop
+  // kAnnotatedPageContentRedactionsOnOrphanedFrames behavior.
+  grafter.ResolveUnregisteredContent(mapping_lookup,
+                                     /*placer=*/base::DoNothing(),
                                      unresolved_handler);
 }
 

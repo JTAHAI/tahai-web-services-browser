@@ -21,18 +21,21 @@
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
+#include "build/build_config.h"
 #include "chrome/browser/autocomplete/aim_eligibility_service_factory.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/signin/chrome_signin_client_test_util.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/scoped_browser_locale.h"
 #include "chrome/test/base/search_test_utils.h"
+#include "components/application_locale_storage/application_locale_storage.h"
 #include "components/contextual_tasks/public/features.h"
+#include "components/embedder_support/user_agent_utils.h"
 #include "components/omnibox/browser/aim_eligibility_service.h"
 #include "components/omnibox/browser/aim_eligibility_service_features.h"
 #include "components/omnibox/browser/omnibox_prefs.h"
@@ -48,10 +51,15 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
 #include "content/public/test/url_loader_interceptor.h"
+#include "extensions/buildflags/buildflags.h"
 #include "net/base/mock_network_change_notifier.h"
 #include "services/network/public/cpp/url_loader_completion_status.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/omnibox_proto/aim_eligibility_response.pb.h"
+
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#include "extensions/common/extension_features.h"
+#endif
 
 // Helper function to provide eligibility response for intercepted requests.
 // This function can also simulate network failures by using the optional
@@ -238,8 +246,7 @@ class AimEligibilityTestBase : public InProcessBrowserTest {
     InProcessBrowserTest::SetUpOnMainThread();
 
     identity_test_env_adaptor_ =
-        std::make_unique<IdentityTestEnvironmentProfileAdaptor>(
-            browser()->GetProfile());
+        std::make_unique<IdentityTestEnvironmentProfileAdaptor>(GetProfile());
 
     identity_test_env()->SetTestURLLoaderFactory(test_url_loader_factory());
     identity_test_env()->SetAutomaticIssueOfAccessTokens(true);
@@ -316,10 +323,10 @@ class ChromeAimEligibilityServiceBrowserTest
         country);
 
     // Set up the AIM policy pref; 0 = allowed, 1 = disallowed.
-    browser()->GetProfile()->GetPrefs()->SetInteger(omnibox::kAIModeSettings,
-                                                    allowed_by_policy ? 0 : 1);
+    GetProfile()->GetPrefs()->SetInteger(omnibox::kAIModeSettings,
+                                         allowed_by_policy ? 0 : 1);
 
-    SetUpDefaultSearchEngine(browser()->GetProfile(), is_google_dse);
+    SetUpDefaultSearchEngine(GetProfile(), is_google_dse);
 
     AimEligibilityTestBase::SetUpOnMainThread();
   }
@@ -391,7 +398,7 @@ IN_PROC_BROWSER_TEST_P(ChromeAimEligibilityServiceBrowserTest,
   {
     base::HistogramTester histogram_tester;
 
-    auto* service = GetAimEligibilityService(browser()->GetProfile());
+    auto* service = GetAimEligibilityService(GetProfile());
     base::test::TestFuture<void> eligibility_changed_future;
     auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
         eligibility_changed_future.GetRepeatingCallback());
@@ -547,7 +554,7 @@ IN_PROC_BROWSER_TEST_P(ChromeAimEligibilityServiceBrowserTest,
                                /*session_index=*/1);
             }));
 
-    auto* service = GetAimEligibilityService(browser()->GetProfile());
+    auto* service = GetAimEligibilityService(GetProfile());
     base::test::TestFuture<void> eligibility_changed_future;
     auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
         eligibility_changed_future.GetRepeatingCallback());
@@ -720,7 +727,7 @@ class ChromeAimEligibilityServiceStartupRequestBrowserTest
   void SetUpOnMainThread() override {
     AimEligibilityTestBase::SetUpOnMainThread();
 
-    SetUpDefaultSearchEngine(browser()->GetProfile(), /*is_google_dse=*/true);
+    SetUpDefaultSearchEngine(GetProfile(), /*is_google_dse=*/true);
   }
 
  private:
@@ -749,7 +756,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceStartupRequestBrowserTest,
       ->SetConnectionType(net::NetworkChangeNotifier::CONNECTION_NONE);
 
   // When the service is initialized.
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -791,7 +798,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceStartupRequestBrowserTest,
           }));
 
   // Given the user is online at startup.
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -806,6 +813,85 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceStartupRequestBrowserTest,
       AimEligibilityServiceFriend::EligibilityRequestStatus::kSent, 1);
   histogram_tester.ExpectBucketCount(
       "Omnibox.AimEligibility.EligibilityRequestStatus.Startup",
+      AimEligibilityServiceFriend::EligibilityRequestStatus::kSuccess, 1);
+}
+
+IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceStartupRequestBrowserTest,
+                       RequestSendsFullVersionListHeader) {
+  omnibox::AimEligibilityResponse response;
+  response.set_is_eligible(true);
+  base::test::TestFuture<std::optional<std::string>> full_version_list_future;
+  auto url_loader_interceptor = std::make_unique<content::URLLoaderInterceptor>(
+      base::BindLambdaForTesting(
+          [&](content::URLLoaderInterceptor::RequestParams* params) {
+            if (params->url_request.url.path() == "/async/folae") {
+              full_version_list_future.SetValue(
+                  params->url_request.headers.GetHeader(
+                      "Sec-CH-UA-Full-Version-List"));
+            }
+            return OnRequest(params, std::make_optional(response),
+                             base::DoNothing());
+          }));
+
+  // Given the user is online at startup and contextual tasks is disabled.
+  auto* service = GetAimEligibilityService(GetProfile());
+  base::test::TestFuture<void> eligibility_changed_future;
+  auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
+      eligibility_changed_future.GetRepeatingCallback());
+
+  // When the service is initialized, then an eligibility request is sent.
+  EXPECT_TRUE(eligibility_changed_future.Wait());
+
+  // The Sec-CH-UA-Full-Version-List header should be present and populated.
+  std::optional<std::string> full_version_list =
+      full_version_list_future.Take();
+  ASSERT_TRUE(full_version_list.has_value());
+  EXPECT_EQ(
+      *full_version_list,
+      embedder_support::GetUserAgentMetadata().SerializeBrandFullVersionList());
+}
+
+IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceStartupRequestBrowserTest,
+                       RequestOnLocaleChange) {
+  base::HistogramTester histogram_tester;
+
+  omnibox::AimEligibilityResponse response;
+  response.set_is_eligible(true);
+  base::test::TestFuture<bool> request_handled_future;
+  auto url_loader_interceptor = std::make_unique<content::URLLoaderInterceptor>(
+      base::BindLambdaForTesting(
+          [&](content::URLLoaderInterceptor::RequestParams* params) {
+            return OnRequest(params, std::make_optional(response),
+                             request_handled_future.GetRepeatingCallback());
+          }));
+
+  // Given the service is initialized at startup.
+  auto* service = GetAimEligibilityService(GetProfile());
+  base::test::TestFuture<void> eligibility_changed_future;
+  auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
+      eligibility_changed_future.GetRepeatingCallback());
+  EXPECT_TRUE(request_handled_future.Take());
+  EXPECT_TRUE(eligibility_changed_future.Wait());
+  request_handled_future.Clear();
+  eligibility_changed_future.Clear();
+
+  // Change response so eligibility changed observer fires on next request.
+  response.set_is_eligible(false);
+
+  // When the application locale changes.
+  g_browser_process->GetFeatures()->application_locale_storage()->Set("fr-FR");
+
+  // Then an eligibility request with kLocaleChange should be sent.
+  EXPECT_TRUE(request_handled_future.Take());
+  EXPECT_TRUE(eligibility_changed_future.Wait());
+
+  histogram_tester.ExpectTotalCount(
+      "Omnibox.AimEligibility.EligibilityRequestStatus.LocaleChange", 2);
+  histogram_tester.ExpectBucketCount(
+      "Omnibox.AimEligibility.EligibilityRequestStatus.LocaleChange",
+      AimEligibilityServiceFriend::EligibilityRequestStatus::kSent, 1);
+  histogram_tester.ExpectBucketCount(
+      "Omnibox.AimEligibility.EligibilityRequestStatus.LocaleChange",
       AimEligibilityServiceFriend::EligibilityRequestStatus::kSuccess, 1);
 }
 
@@ -831,7 +917,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceStartupRequestBrowserTest,
       ->SetConnectionType(net::NetworkChangeNotifier::CONNECTION_NONE);
 
   // When the service is initialized.
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -889,7 +975,7 @@ class ChromeAimEligibilityServicePecApiEnabledBrowserTest
 
   void SetUpOnMainThread() override {
     AimEligibilityTestBase::SetUpOnMainThread();
-    SetUpDefaultSearchEngine(browser()->GetProfile(), /*is_google_dse=*/true);
+    SetUpDefaultSearchEngine(GetProfile(), /*is_google_dse=*/true);
   }
 
  private:
@@ -916,7 +1002,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServicePecApiEnabledBrowserTest,
                              request_handled_future.GetRepeatingCallback());
           }));
 
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
 
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
@@ -949,7 +1035,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServicePecApiEnabledBrowserTest,
                              request_handled_future.GetRepeatingCallback());
           }));
 
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -983,7 +1069,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServicePecApiEnabledBrowserTest,
                              request_handled_future.GetRepeatingCallback());
           }));
 
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
 
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
@@ -1015,7 +1101,7 @@ class ChromeAimEligibilityServiceRetryRequestBrowserTest
   }
 
   void SetUpOnMainThread() override {
-    SetUpDefaultSearchEngine(browser()->GetProfile(), /*is_google_dse=*/true);
+    SetUpDefaultSearchEngine(GetProfile(), /*is_google_dse=*/true);
 
     AimEligibilityTestBase::SetUpOnMainThread();
   }
@@ -1042,7 +1128,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceRetryRequestBrowserTest,
           }));
 
   // When the service is initialized.
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -1072,7 +1158,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceRetryRequestBrowserTest,
           }));
 
   // When the service is initialized.
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -1100,7 +1186,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceRetryRequestBrowserTest,
           }));
 
   // When the service is initialized.
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -1136,7 +1222,7 @@ class ChromeAimEligibilityServiceCacheBrowserTest
   }
 
   void SetUpOnMainThread() override {
-    SetUpDefaultSearchEngine(browser()->GetProfile(), /*is_google_dse=*/true);
+    SetUpDefaultSearchEngine(GetProfile(), /*is_google_dse=*/true);
 
     AimEligibilityTestBase::SetUpOnMainThread();
   }
@@ -1147,7 +1233,7 @@ class ChromeAimEligibilityServiceCacheBrowserTest
 
 IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceCacheBrowserTest,
                        RequestFromCache) {
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
 
   omnibox::AimEligibilityResponse response;
   response.set_is_eligible(true);
@@ -1195,7 +1281,7 @@ class ChromeAimEligibilityServiceOffTheRecordBrowserTest
   }
 
   void SetUpOnMainThread() override {
-    SetUpDefaultSearchEngine(browser()->GetProfile(), /*is_google_dse=*/true);
+    SetUpDefaultSearchEngine(GetProfile(), /*is_google_dse=*/true);
 
     AimEligibilityTestBase::SetUpOnMainThread();
   }
@@ -1207,12 +1293,12 @@ class ChromeAimEligibilityServiceOffTheRecordBrowserTest
 IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceOffTheRecordBrowserTest,
                        IsCreateImagesEligibleReturnsFalseForOffTheRecord) {
   // Check regular profile.
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   ASSERT_TRUE(service);
   EXPECT_TRUE(service->IsCreateImagesEligible());
 
   // Check off-the-record profile.
-  Profile* otr_profile = browser()->GetProfile()->GetPrimaryOTRProfile(
+  Profile* otr_profile = GetProfile()->GetPrimaryOTRProfile(
       /*create_if_needed=*/true);
   auto* otr_service = GetAimEligibilityService(otr_profile);
   ASSERT_TRUE(otr_service);
@@ -1244,14 +1330,20 @@ class ChromeAimEligibilityServiceOAuthBrowserTest
   void SetUpOnMainThread() override {
     AimEligibilityTestBase::SetUpOnMainThread();
 
-    SetUpDefaultSearchEngine(browser()->GetProfile(), /*is_google_dse=*/true);
+    SetUpDefaultSearchEngine(GetProfile(), /*is_google_dse=*/true);
   }
 
   base::test::ScopedFeatureList feature_list_;
 };
 
+// TODO(crbug.com/541665465): Test is flaky on ChromeOS.
+#if BUILDFLAG(IS_CHROMEOS)
+#define MAYBE_RequestIncludesOAuthToken DISABLED_RequestIncludesOAuthToken
+#else
+#define MAYBE_RequestIncludesOAuthToken RequestIncludesOAuthToken
+#endif
 IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceOAuthBrowserTest,
-                       RequestIncludesOAuthToken) {
+                       MAYBE_RequestIncludesOAuthToken) {
   // Setup: Make a primary account available with a refresh token.
   auto* identity_manager = identity_test_env()->identity_manager();
   AccountInfo primary_account_info = signin::MakeAccountAvailable(
@@ -1284,7 +1376,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceOAuthBrowserTest,
           }));
 
   // Trigger the request.
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -1312,7 +1404,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceOAuthBrowserTest,
 
   // Trigger the request.
   // Check off-the-record profile.
-  Profile* otr_profile = browser()->GetProfile()->GetPrimaryOTRProfile(
+  Profile* otr_profile = GetProfile()->GetPrimaryOTRProfile(
       /*create_if_needed=*/true);
   auto* service = GetAimEligibilityService(otr_profile);
   base::test::TestFuture<void> eligibility_changed_future;
@@ -1346,7 +1438,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceOAuthBrowserTest,
                              request_handled_future.GetRepeatingCallback());
           }));
 
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -1413,7 +1505,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceOAuthBrowserTest,
                              request_handled_future.GetRepeatingCallback());
           }));
 
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -1437,7 +1529,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceOAuthBrowserTest,
                              request_handled_future.GetRepeatingCallback());
           }));
 
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -1486,7 +1578,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceOAuthBrowserTest,
                              request_handled_future.GetRepeatingCallback());
           }));
 
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -1594,7 +1686,7 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceOAuthBrowserTest,
   identity_test_env()->SetCookieAccounts(
       {{account_b.email, account_b.gaia}, {account_a.email, account_a.gaia}});
 
-  auto* service = GetAimEligibilityService(browser()->GetProfile());
+  auto* service = GetAimEligibilityService(GetProfile());
   base::test::TestFuture<void> eligibility_changed_future;
   auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
       eligibility_changed_future.GetRepeatingCallback());
@@ -1624,4 +1716,133 @@ IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceOAuthBrowserTest,
   EXPECT_FALSE(has_auth_future.Take());
   EXPECT_EQ(credentials_mode_future.Take(),
             network::mojom::CredentialsMode::kInclude);
+}
+
+class ChromeAimEligibilityServiceSearchCapabilitiesBrowserTest
+    : public AimEligibilityTestBase {
+ public:
+  ChromeAimEligibilityServiceSearchCapabilitiesBrowserTest() = default;
+  ~ChromeAimEligibilityServiceSearchCapabilitiesBrowserTest() override =
+      default;
+
+ protected:
+  void SetUp() override {
+    std::vector<base::test::FeatureRefAndParams> enabled_features = {
+        {omnibox::kAimEnabled, {}},
+        {omnibox::kAimServerEligibilityEnabled, {}},
+        {omnibox::kAimServerRequestOnStartupEnabled, {}},
+        {omnibox::kAimServerEligibilitySendSearchCapabilitiesHeaderEnabled, {}},
+        {contextual_tasks::kContextualTasksRearchitecture, {}},
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+        {extensions_features::kApiContextualTasksPrivate, {}},
+#endif
+    };
+
+    feature_list_.InitWithFeaturesAndParameters(enabled_features,
+                                                /*disabled_features=*/{});
+
+    InProcessBrowserTest::SetUp();
+  }
+
+  void SetUpOnMainThread() override {
+    SetUpDefaultSearchEngine(GetProfile(), /*is_google_dse=*/true);
+
+    AimEligibilityTestBase::SetUpOnMainThread();
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceSearchCapabilitiesBrowserTest,
+                       RequestIncludesSearchCapabilitiesHeader) {
+  omnibox::AimEligibilityResponse response;
+  response.set_is_eligible(true);
+  base::test::TestFuture<bool> request_handled_future;
+  base::test::TestFuture<std::optional<std::string>> capabilities_header_future;
+  base::test::TestFuture<std::optional<std::string>> user_agent_header_future;
+
+  auto url_loader_interceptor = std::make_unique<content::URLLoaderInterceptor>(
+      base::BindLambdaForTesting(
+          [&](content::URLLoaderInterceptor::RequestParams* params) {
+            if (params->url_request.url.path() != "/async/folae") {
+              return false;
+            }
+
+            capabilities_header_future.SetValue(
+                params->url_request.headers.GetHeader(
+                    contextual_tasks::
+                        kContextualTasksSearchCapabilitiesHeaderName));
+            user_agent_header_future.SetValue(
+                params->url_request.headers.GetHeader("User-Agent"));
+
+            return OnRequest(params, std::make_optional(response),
+                             request_handled_future.GetRepeatingCallback());
+          }));
+
+  // Trigger the request.
+  auto* service = GetAimEligibilityService(GetProfile());
+  base::test::TestFuture<void> eligibility_changed_future;
+  auto eligibility_subscription = service->RegisterEligibilityChangedCallback(
+      eligibility_changed_future.GetRepeatingCallback());
+
+  EXPECT_TRUE(eligibility_changed_future.Wait());
+  EXPECT_TRUE(request_handled_future.Get());
+
+  std::optional<std::string> header = capabilities_header_future.Take();
+  std::optional<std::string> user_agent = user_agent_header_future.Take();
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+  EXPECT_TRUE(header.has_value());
+  EXPECT_EQ(*header,
+            contextual_tasks::kContextualTasksSearchCapabilitiesDefaultVersion);
+  EXPECT_FALSE(user_agent.has_value());
+#else
+  EXPECT_FALSE(header.has_value());
+  EXPECT_TRUE(user_agent.has_value());
+#endif
+}
+
+IN_PROC_BROWSER_TEST_F(ChromeAimEligibilityServiceSearchCapabilitiesBrowserTest,
+                       RequestIncludesSearchCapabilitiesHeader_Incognito) {
+  omnibox::AimEligibilityResponse response;
+  response.set_is_eligible(true);
+  base::test::TestFuture<bool> request_handled_future;
+  base::test::TestFuture<std::optional<std::string>> capabilities_header_future;
+
+  auto url_loader_interceptor = std::make_unique<content::URLLoaderInterceptor>(
+      base::BindLambdaForTesting(
+          [&](content::URLLoaderInterceptor::RequestParams* params) {
+            if (params->url_request.url.path() != "/async/folae") {
+              return false;
+            }
+
+            capabilities_header_future.SetValue(
+                params->url_request.headers.GetHeader(
+                    contextual_tasks::
+                        kContextualTasksSearchCapabilitiesHeaderName));
+
+            return OnRequest(params, std::make_optional(response),
+                             request_handled_future.GetRepeatingCallback());
+          }));
+
+  Profile* otr_profile =
+      GetProfile()->GetPrimaryOTRProfile(/*create_if_needed=*/true);
+  SetUpDefaultSearchEngine(otr_profile, /*is_google_dse=*/true);
+  auto* otr_service = GetAimEligibilityService(otr_profile);
+  base::test::TestFuture<void> eligibility_changed_future;
+  auto eligibility_subscription =
+      otr_service->RegisterEligibilityChangedCallback(
+          eligibility_changed_future.GetRepeatingCallback());
+
+  EXPECT_TRUE(eligibility_changed_future.Wait());
+  EXPECT_TRUE(request_handled_future.Get());
+
+  std::optional<std::string> header = capabilities_header_future.Take();
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+  EXPECT_TRUE(header.has_value());
+  EXPECT_EQ(*header,
+            contextual_tasks::kContextualTasksSearchCapabilitiesDefaultVersion);
+#else
+  EXPECT_FALSE(header.has_value());
+#endif
 }

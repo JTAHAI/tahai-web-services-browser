@@ -5,12 +5,14 @@
 #ifndef COMPONENTS_WEBAPPS_ISOLATED_WEB_APPS_IDENTITY_IWA_IDENTITY_VALIDATOR_H_
 #define COMPONENTS_WEBAPPS_ISOLATED_WEB_APPS_IDENTITY_IWA_IDENTITY_VALIDATOR_H_
 
+#include "base/component_export.h"
 #include "base/types/expected.h"
 #include "components/web_package/signed_web_bundles/identity_validator.h"
 
 namespace web_app {
 
-class IwaIdentityValidator : public web_package::IdentityValidator {
+class COMPONENT_EXPORT(ISOLATED_WEB_APPS) IwaIdentityValidator
+    : public web_package::IdentityValidator {
  public:
   // Creates a global singleton that can be accessed via
   // `web_package::IdentityValidator::GetInstance()`.
@@ -30,10 +32,11 @@ class IwaIdentityValidator : public web_package::IdentityValidator {
       const std::vector<web_package::PublicKey>& public_keys,
       bool allow_soft_key_rotation);
 
- private:
+ protected:
   IwaIdentityValidator() = default;
   ~IwaIdentityValidator() override = default;
 
+ private:
   friend base::NoDestructor<IwaIdentityValidator>;
 };
 

@@ -99,7 +99,6 @@ export class TopToolbarElement extends TopToolbarElementBase {
       isHandshakeComplete: {type: Boolean},
       isUserSignedIn: {type: Boolean},
       onboardingTooltipShowing: {type: Boolean},
-      lensSearchTooltipShowing: {type: Boolean},
       contextualTasksEnableSpatialModelToolbarLayout_: {type: Boolean},
       contextualTasksEnableSpatialModelToolbarLayoutNewThreadInOverflow_:
           {type: Boolean},
@@ -125,12 +124,11 @@ export class TopToolbarElement extends TopToolbarElementBase {
   accessor enableOpenInNewTabButton: boolean = false;
   accessor showReopenTabs_: boolean = false;
   accessor onboardingTooltipShowing: boolean = false;
-  accessor lensSearchTooltipShowing: boolean = false;
   private browserProxy_: BrowserProxy = BrowserProxyImpl.getInstance();
   private listenerIds_: number[] = [];
   protected accessor isExpandButtonEnabled: boolean =
       loadTimeData.getBoolean('expandButtonEnabled');
-  protected accessor isPinButtonEnabled: boolean =
+  accessor isPinButtonEnabled: boolean =
       loadTimeData.getBoolean('enablePinButton');
   private hideOverflowMenuOnAiPageEnabled_: boolean =
       loadTimeData.getBoolean('hideMenuOnAiPageEnabled');
@@ -200,8 +198,7 @@ export class TopToolbarElement extends TopToolbarElementBase {
     super.updated(changedProperties);
 
     if (changedProperties.has('isAiPage') ||
-        changedProperties.has('onboardingTooltipShowing') ||
-        changedProperties.has('lensSearchTooltipShowing')) {
+        changedProperties.has('onboardingTooltipShowing')) {
       this.hideOverflowMenuButton_ =
           this.isAiPage && this.hideOverflowMenuOnAiPageEnabled_;
       if (changedProperties.has('isAiPage') && !this.isAiPage) {
@@ -209,7 +206,7 @@ export class TopToolbarElement extends TopToolbarElementBase {
       }
       // <if expr="not is_android">
       if (this.isAiPage) {
-        if (!this.onboardingTooltipShowing && !this.lensSearchTooltipShowing) {
+        if (!this.onboardingTooltipShowing) {
           this.browserProxy_.handler.maybeTriggerPinningPromo();
         }
       }
@@ -274,11 +271,22 @@ export class TopToolbarElement extends TopToolbarElementBase {
     this.showReopenTabs_ = false;
   }
 
-  protected onLogoClick_() {
+  protected onLogoPointerdown_() {
     if (!this.isSidePanelRearchitectureEnabled_) {
       return;
     }
-    this.browserProxy_.handler.showPageInfoBubble();
+    this.browserProxy_.handler.onLogoPointerDown();
+  }
+
+  protected onLogoClick_(e: Event) {
+    if (!this.isSidePanelRearchitectureEnabled_) {
+      return;
+    }
+    // Keyboard synthetic clicks generate PointerEvents with an empty
+    // pointerType in WebUI, whereas natural pointer clicks have a valid
+    // pointerType (e.g., 'mouse', 'touch', 'pen').
+    this.browserProxy_.handler.showPageInfoBubble(
+        e instanceof PointerEvent && e.pointerType !== '');
   }
 }
 

@@ -79,6 +79,7 @@ _CONFIG = [
             'base::CPU',
             'base::Days',
             'base::DefaultTickClock',
+            'base::Difference',  # for base::EnumSet.
             'base::ElapsedTimer',
             'base::EnumSet',
             'base::expected',
@@ -90,7 +91,7 @@ _CONFIG = [
             'base::GetUniqueIdForProcess',
             'base::GetSystemMemoryInfo',
             'base::GiBS',
-            'base::GiBU',
+            'base::GiB',
             'base::HashingLRUCache',
             'base::HashInts',
             'base::HashMetricName',
@@ -98,7 +99,10 @@ _CONFIG = [
             'base::Hertz',
             'base::HexStringToUInt64',
             'base::Hours',
+            'base::i18n::LEFT_TO_RIGHT',
+            'base::i18n::RIGHT_TO_LEFT',
             'base::i18n::TextDirection',
+            'base::i18n::UNKNOWN_DIRECTION',
             'base::i18n::ToChar16Ptr',
             'base::i18n::ToUCharPtr',
             'base::IdType',
@@ -107,10 +111,11 @@ _CONFIG = [
             'base::IdTypeU32',
             'base::IdTypeU64',
             'base::InheritThreadType',
+            'base::Intersection',  # for base::EnumSet.
             'base::JobDelegate',
             'base::JobHandle',
             'base::KiBS',
-            'base::KiBU',
+            'base::KiB',
             'base::kCriticalMemoryPressureThreshold',
             'base::kInvalidThreadId',
             'base::kStatefulMemoryPressure',
@@ -125,7 +130,7 @@ _CONFIG = [
             'base::MemoryPressureListenerTag',
             'base::MessagePump',
             'base::MiBS',
-            'base::MiBU',
+            'base::MiB',
             'base::Microseconds',
             'base::Milliseconds',
             'base::Minutes',
@@ -145,9 +150,9 @@ _CONFIG = [
             'base::PowerMonitor',
             'base::Process',
             'base::RadToDeg',
-            'base::RangeAsRvalues',
             'base::raw_span',
             'base::RefCountedData',
+            'base::RefCountedMemory',
             'base::RemoveChars',
             'base::RepeatingTimer',
             'base::RunLoop',
@@ -188,6 +193,7 @@ _CONFIG = [
             'base::unexpected',
             'base::UnguessableToken',
             'base::UnguessableTokenHash',
+            'base::Union',  # for base::EnumSet.
             'base::UnlocalizedTimeFormatWithPattern',
             'base::Uuid',
             'base::ValuesEquivalent',
@@ -204,9 +210,6 @@ _CONFIG = [
             'base::expected',
             'base::ok',
             'base::unexpected',
-
-            # //base/types/zip.h
-            'base::zip',
 
             # //base/functional/bind.h
             'base::IgnoreResult',
@@ -422,6 +425,14 @@ _CONFIG = [
         ],
     },
     {
+        'paths': [
+            'third_party/blink/public/common/input/',
+        ],
+        'allowed': [
+            'ui::GestureScrollRailsMode',
+        ],
+    },
+    {
         'paths': ['third_party/blink/common/indexeddb/indexeddb_key.cc'],
         'allowed': ['base::HexEncode'],
     },
@@ -494,6 +505,16 @@ _CONFIG = [
         'allowed': ['base::EqualsCaseInsensitiveASCII'],
     },
     {
+        # Renderer-side speculation-rules link-selection heuristics reuse
+        # net's canonical No-Vary-Search URL-equivalence matcher rather than
+        # reimplementing it, matching the browser-side PreloadingDecider.
+        'paths': [
+            'third_party/blink/renderer/core/speculation_rules/'
+            'document_speculation_rules.cc',
+        ],
+        'allowed': ['net::HttpNoVarySearchData'],
+    },
+    {
         'paths': [
             'third_party/blink/common/page/content_to_visible_time_reporter.cc',
         ],
@@ -560,6 +581,12 @@ _CONFIG = [
             # To initialize the AgentClusterKey in CommitNavigationParams.
             'GURL',
         ],
+    },
+    {
+        'paths': [
+            'third_party/blink/common/web_package/web_package_request_matcher.cc'
+        ],
+        'allowed': ['net::structured_headers::Item'],
     },
     {
         'paths': ['third_party/blink/public/platform/web_url.h'],
@@ -796,7 +823,13 @@ _CONFIG = [
             'cc::kMaxOverlapBetweenPages',
             'cc::kMinFractionToStepWhenPaging',
             'cc::kPixelsPerLineStep',
+            'cc::MainThreadHitTestReason',
+            'cc::MainThreadHitTestReasons',
+            'cc::MainThreadRepaintReason',
+            'cc::MainThreadRepaintReasons',
             'cc::MainThreadScrollingReason',
+            'cc::MainThreadScrollingOtherReason',
+            'cc::MainThreadScrollingOtherReasons',
             'cc::ManipulationInfo',
             'cc::ScrollOffsetAnimationCurve',
             'cc::ScrollSnapAlign',
@@ -1345,6 +1378,7 @@ _CONFIG = [
     },
     {
         'paths': [
+            'third_party/blink/renderer/core/css/css_default_style_sheets.cc',
             'third_party/blink/renderer/core/timezone/timezone_controller.cc',
             'third_party/blink/renderer/core/frame/local_frame_mojo_handler.cc',
         ],
@@ -1426,10 +1460,14 @@ _CONFIG = [
     },
     {
         'paths': [
-            'third_party/blink/renderer/core/loader/alternate_signed_exchange_resource_info.cc'
+            'third_party/blink/renderer/core/loader/alternate_signed_exchange_resource_info.cc',
+            'third_party/blink/renderer/modules/webtransport/test_utils.cc',
+            'third_party/blink/renderer/modules/webtransport/test_utils.h',
+            'third_party/blink/renderer/modules/webtransport/web_transport.cc',
         ],
         'allowed': [
             # Used by WebPackageRequestMatcher in //third_party/blink/common.
+            # Used by WebTransport in //third_party/blink/renderer/modules/webtransport.
             'net::HttpRequestHeaders',
         ],
     },
@@ -1678,6 +1716,15 @@ _CONFIG = [
             'v8::Isolate',
             'v8::Local',
             'v8::Value',
+        ],
+    },
+    {
+        'paths': [
+            'third_party/blink/public/web/web_v8_features.h',
+        ],
+        'allowed': [
+            'v8::Context',
+            'v8::Local',
         ],
     },
     {
@@ -2949,13 +2996,16 @@ _CONFIG = [
         'paths': [
             'third_party/blink/renderer/modules/ml/webnn/',
             'third_party/blink/renderer/modules/ml/ml.cc',
+            'third_party/blink/renderer/modules/ml/ml.h',
             'third_party/blink/renderer/modules/ml/ml_context.cc',
             'third_party/blink/renderer/modules/ml/ml_context.h',
             'third_party/blink/renderer/modules/ml/ml_model_loader_test_util.cc',
         ],
         'allowed': [
             'blink_mojom::.+',
+            'dawn::.+',
             'webnn::.+',
+            'wgpu::.+',
             'gpu::SharedImageInterface',
             'gpu::SHARED_IMAGE_USAGE_WEBGPU_READ',
             'gpu::SHARED_IMAGE_USAGE_WEBGPU_SHARED_BUFFER',

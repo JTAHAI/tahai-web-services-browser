@@ -1,14 +1,15 @@
 # RC engineering evidence — 2026-09-30
 
-This is an engineering record, not an RC acceptance certificate. No new native
-build, dependency sync, MSIX, signing, installation or Store upload was performed
-in this review. The scheduled continuation remains paused. Work stays in
-`C:\src\TAHAI-GA\src` on `codex/ga-2.0.33-chromium-152`, preserving the recovered
-toolchain, Store identity and existing implementation.
+This is an engineering record, not an RC acceptance certificate. The later
+sections record the approved source/dependency migration and checkpoint push.
+No new native browser build, MSIX, signing, package installation or Store upload
+has been completed for this revision. The scheduled continuation remains paused.
+Work stays in `C:\src\TAHAI-GA\src` on `codex/ga-2.0.33-chromium-152`, preserving
+the recovered toolchain as rollback, Store identity and existing implementation.
 
 ## Upstream security baseline decision
 
-The checkout is Chromium **152.0.7977.83**. The current Windows stable release
+The starting checkout was Chromium **152.0.7977.83**. The Windows stable release
 announced September 29 is **154.0.8037.92/.93**, with 32 security fixes in that
 announcement. Moving to the current stable engine is recommended for this RC;
 changing the displayed version is not a security update.
@@ -123,3 +124,178 @@ Then checkpoint/push safely, package through the established MSIX pipeline and
 test installation/upgrade/state retention in the isolated Windows environment.
 Do not touch the host Store 2.0.32 browser/profile, resume the scheduler, upload
 to the Store or label the release complete without that evidence.
+
+## Approved Chromium 154 port — source engineering checkpoint
+
+The user approved upgrading the engine and matching dependencies. The port uses
+the official `154.0.8037.93` tag at
+`f89f3a4363808e117c592adedcf9947882ac3b79`. The complete pre-port implementation
+was committed as `d8853eed913a95ab86d15466cf1d65976b3a59b6` and retained on
+`codex/rollback-chromium-152-20260930`. The old recovered toolchain, release
+configuration and clean nested ARIA checkout are preserved under
+`out/upgrade-154-20260930/rollback-152`; the backup manifest verified 7,405 files.
+The original release output remains separate. The checkpoint was subsequently
+published to GitHub as described below.
+
+Because the repository is shallow, the source merge used the known 152 base
+`79460ebecaa5625e57a5fb679a735659e73dc687` explicitly. Its merged tree was
+`460e326c241e4c3aff995f41ab7b57c36d4022f3`; all 20 conflicts were resolved.
+The completed merge retains both the checkpoint and official 154 parents as
+`e035511dcbab7bfc9d73a94fc96e7527c0daa733` (tree
+`85566e19024db18eba1521ffd10f9c049ee21fc6`). No unrelated-history/ours-only result
+is a candidate.
+An initial CRLF-sensitive conflict-index restoration failed; it was repaired
+using LF-only index input before the 20 resolutions were staged. The source tree
+and compiler upgrade are not established by a version-string substitution.
+
+Concrete port work:
+
+- TAHAI native controllers, retained actions, dialogs and WebUI dispatch use
+  `BrowserWindowInterface`, current weak pointers and session identifiers. Native
+  workspace creation uses the current browser-window factory. Removed upstream
+  migration shims are not reintroduced.
+- Native two-to-four-pane restore preserves Chromium's weak live-tab lifetime
+  checks. Horizontal tab layout retains shared borders for every pane count and
+  distributes odd/tiny widths without negative coordinates. New browser coverage
+  exercises 2/3/4 panes in both orientations, bounded/unbounded/minimum geometry.
+- TAHAI enterprise policy names and semantics remain; their unshipped RC numeric
+  slots move to 1483–1499 so upstream's new 1477–1482 policies are not overwritten.
+  Policy template generation succeeded and 14 policy-generator tests passed
+  (`out/upgrade-154-20260930/policy-generation-tests.log`).
+- Generated elevation-service interfaces now match TAHAI's configured IID.
+  Chromium 154 changed tracing's invitation ABI, so tracing gets a new interface
+  IID (`E91BA5EB-59CF-50E3-8BC8-175FE36F3E79`) and retains the previous IID only
+  for registration cleanup. Store identity and service CLSIDs are unchanged.
+  Added native factory/interface tests also reject the previous tracing ABI.
+- The encryption round-trip service test frees its second BSTR instead of
+  freeing the first one twice.
+- Recorded browser failures drove three test corrections: wait for catalog
+  refresh before the skin Reset action; verify Mission's public committed URL
+  and actual WebUI; activate the native window and traverse enabled rail controls
+  while confirming disabled controls remain unfocusable. No product permission,
+  accessibility or leak check was disabled.
+- Release evidence is now version 2 and binds eight binaries: browser EXE/DLL,
+  mission/browser tests, both Windows services and both service-test binaries.
+  The runner and packaging guard require successful nonzero `ServiceMainTest.*`
+  and `SystemTracingSessionTest.*` results, including the new IID regressions,
+  with one job/no retries. Missing/stale service evidence fails closed. The guard
+  passed 36 synthetic checks; these are not native browser/service execution.
+  System-wide service installation and cross-integrity tests remain separate
+  isolated-VM acceptance work.
+
+The merged source preflight passed 21/21 suites at
+`out/source-review-20260930-123245/summary.json`, including the COM/evidence-gate
+edits above and 36 packaging-evidence fixture checks. Native 154 compilation and runtime verification
+remain pending. In particular, the earlier accessibility COM-reference leaks
+are not declared fixed from source inspection. Dependency sync completed with
+actual exit 0, no hooks and two jobs. Follow-up inventory checked 244 dependency
+pins and 154 clean Git dependency worktrees. Resolved CIPD instance IDs were
+compared with independently queried installed site pins; the initial generic
+comparison exposed gclient JSON truncating tags containing a second `@`, not a
+dependency mismatch. Logs and both inventories remain under
+`out/upgrade-154-20260930`. Hooks/native build have not run.
+
+## Follow-up compatibility and publication evidence
+
+- Window presentation restoration now checks controller/window weak pointers
+  after native observer callbacks, before continuing skin/theme work or returning
+  a restored window. A restore superseded by a callback also stops on generation
+  mismatch. Reentrant mode notifications are coalesced into a weak UI task rather
+  than recursively iterating Chromium's non-reentrant observer list. Three new
+  browser regressions cover controller destruction, replacement/deferred
+  delivery during notification, and destruction during custom-mode reset;
+  they remain pending native execution.
+- Chromium's non-Android window factory is synchronous in this target revision
+  (`create_browser_window_non_android.cc`). Named workspace restoration retains
+  that supported desktop path and now also checks for an unavailable tab model.
+- A direct checkpoint push was rejected because the shallow Chromium parent
+  `d04cdb24d67b081f6cf80200ffc5233f44b61109` is absent. No branch was force-pushed.
+  The existing publication branch's tree was verified identical to native
+  `ea5a5f922816ba0d72f462e81e43259cebfd7be2`, then the repository's established
+  source-publication approach was used. GitHub accepted the fast-forward
+  `2fde194ebe..bc52b0d9ec2d35cc85af65b340b2ec461cc9e29a` and `ls-remote` confirmed
+  it. Its tree `d7c23489d8dd92f6921bd6fdbae7f795c75c3c0d` exactly matches local
+  checkpoint `d8853eed913a95ab86d15466cf1d65976b3a59b6`. The subsequent 154 merge
+  is not included in that pre-port checkpoint. Logs: `github-checkpoint-push.log`
+  and `github-source-publication.log` under `out/upgrade-154-20260930`.
+- The 154 Rust toolchain resolved all 337 vendored packages offline. The initial
+  `--locked` check failed because one `syn` reference needed its version and the
+  manual merge was not in canonical ordering. Cargo's offline normalization
+  changed no package versions; a second locked/offline metadata check exited 0.
+  Guard remains pinned to adblock 0.12.6. The original merged lockfile is retained
+  as `Cargo.lock.before-resolution`; metadata logs are beside it. This is graph
+  resolution, not compilation or runtime evidence for the shipped Guard service.
+- The latest source preflight passed 21/21 suites with actual exit 0 at
+  `out/source-review-20260930-130733/summary.json`. The native observer regressions
+  still require compilation and a fresh native test run.
+- The release runner defaults to one job and a separate `out/tahai_rc_154_x64`
+  output. It rejects paths outside this checkout's `out` and output directories
+  without reviewed `args.gn` before acquiring a build lock or invoking GN. Both
+  rejection cases were exercised (`runner-escape-rejection.log` and
+  `runner-missing-args-rejection.log`); neither started a build.
+- The pinned Rust toolchain built the `gnrt` source-generation helper, which
+  completed `gen` with exit 0. Its formatting subprocess lacked `gn.bat` on
+  PATH, so generated files were explicitly formatted with the synced GN tool.
+  The 281 tracked generated rules then matched the merged index. Two ignored
+  hash-crate BUILD.gn files were also formatted and explicitly added to Git.
+  No browser build or GN build-graph generation was performed.
+- A real Guard source audit found missing ignored dependency READMEs and two
+  original Cargo.lock files. Pinned original archives identified the missing
+  files; executable source bytes were unchanged. The six source/metadata/build
+  files are now explicitly tracked. All 15 recorded inventory entries and 339
+  original archive files verified without changing the recorded hashes.
+  The auditor gained a current-lock/inventory mode with six new synthetic tests
+  (12 total). The source preflight now includes that real checkout audit and
+  passed **22/22 suites, exit 0**, at
+  `out/source-review-20260930-132817/summary.json`.
+
+## Windows SDK prerequisite
+
+The target's Windows build instructions require SDK **10.0.28000.2270**, with
+headers/libraries under `10.0.28000.0`. Only `10.0.26100.0` is currently installed.
+The installed debugging tools **10.0.26100.7705** satisfy the separate minimum
+debugger requirement. Do not lower Chromium's SDK pins to reuse the older SDK.
+
+The exact installer was downloaded from Microsoft's
+[official SDK downloads](https://learn.microsoft.com/en-us/windows/apps/windows-sdk/downloads)
+to `out/upgrade-154-20260930/winsdksetup-28000.2270.exe`; its Microsoft Corporation
+Authenticode signature verified valid, product version is `10.1.28000.2270`, and
+SHA-256 is `E9F1BDE566381355E594E2F90DAF4F714EB5C7EF2C45C501CE236AFE2ABEA300`.
+The attempted elevated side-by-side install did **not** start: Windows reported
+that elevation was cancelled. The wrapper later exited zero after null-process
+errors; that is **not** an installer success or installer exit status. No SDK
+installation is claimed. Administrator installation remains required; no second
+elevation attempt or permission workaround was made.
+An explicit administrator-only helper, `out/upgrade-154-20260930/install-required-sdk.ps1`,
+verifies the pinned installer, installs the x86/x64 C++/UWP/signing components
+without rebooting, and checks the required files. Its syntax was checked; the
+helper has **not** been run. It reports actual installer status and treats a
+missing SDK tool/header/library as failure.
+
+## Source-only handoff requested by the user
+
+The latest user instruction is to continue source engineering, commit and push,
+then build binaries on another machine. This supersedes the local-build/SDK
+installation next step. No further local native build or SDK installation is
+authorized by this handoff; the scheduler stays paused. See the checked-in
+[build-machine handoff](tahai-154-build-handoff.md) for dependency setup,
+explicit machine paths, preserved validation arguments and pending acceptance.
+
+The runner now fails before GN when the source-pinned SDK files or compiler
+stamps are missing/stale, including the SDK override used by Chromium. Ten
+synthetic preflight cases pass. Its failure handler also preserves an original
+lock-acquisition error before a run directory exists. Four actual PowerShell
+rejection-path tests pass without starting GN, compilers or browsers: outside
+output, missing arguments, existing lock preservation, and missing isolation
+with failure/status capture and owned-lock cleanup. These are runner/source
+checks, not native product runtime tests. The checked-in x64 profile explicitly
+preserves validation settings and does not claim official PGO optimization.
+
+The expanded source preflight passed **24/24 suites, actual exit 0**, including
+the optional source-render harness, at
+`out/source-review-20260930-135331/summary.json`. PowerShell parser checks and
+`git diff --check` passed. The real read-only prerequisite check returned the
+expected exit 1 for the 11 missing SDK 28000 headers/libraries/tools; both compiler
+stamps and the other required files matched. That failure is preserved in
+`out/upgrade-154-20260930/build-machine-prerequisite-check.log` and is not being
+counted as a build pass. No installer, GN generation or native build was started.

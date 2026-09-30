@@ -6,9 +6,11 @@
 
 #include <stddef.h>
 
+#include <iterator>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
@@ -168,6 +170,7 @@
 #include "ui/accessibility/accessibility_features.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_features.h"
+#include "ui/base/webui/resource_path.h"
 #include "ui/base/webui/web_ui_util.h"
 #include "ui/chromeos/resources/grit/ui_chromeos_resources.h"
 #include "ui/display/display.h"
@@ -316,8 +319,6 @@ void CreateAndAddOobeUIDataSource(Profile* profile,
   source->AddBoolean("isOobeAiIntroEnabled", features::IsOobeAiIntroEnabled());
   source->AddBoolean("isJellyEnabled", features::IsOobeJellyEnabled());
   source->AddBoolean("isOobeJellyEnabled", features::IsOobeJellyEnabled());
-  source->AddBoolean("isOobeJellyModalEnabled",
-                     features::IsOobeJellyModalEnabled());
   source->AddBoolean("isBootAnimationEnabled",
                      features::IsBootAnimationEnabled());
   source->AddBoolean("isChoobeEnabled", features::IsOobeChoobeEnabled());
@@ -778,11 +779,15 @@ void OobeUI::AddOobeComponents(content::WebUIDataSource* source) {
           "test_api/no_test_api.js",
           "test_api/test_api.js",
       });
+  std::vector<webui::ResourcePath> oobe_resources;
+  oobe_resources.reserve(std::size(kOobeResources));
   for (const auto& path : kOobeResources) {
     if (!kConditionalResources.contains(path.path)) {
-      source->AddResourcePath(path.path, path.id);
+      oobe_resources.push_back(path);
     }
   }
+  source->AddResourcePaths(oobe_resources);
+
   // Add Gaia Authenticator resources
   source->AddResourcePaths(kGaiaAuthHostResources);
 
@@ -837,9 +842,6 @@ base::DictValue OobeUI::GetLocalizedStrings() {
   // TODO (b/268463435) Cleanup OobeJelly
   if (features::IsOobeJellyEnabled()) {
     oobeClasses += "jelly-enabled ";
-  }
-  if (features::IsOobeJellyModalEnabled()) {
-    oobeClasses += "jelly-modal-enabled ";
   }
   if (features::IsBootAnimationEnabled()) {
     oobeClasses += "boot-animation-enabled ";

@@ -6,8 +6,8 @@
 
 #include <string>
 
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/test/browser_test.h"
@@ -30,7 +30,8 @@ class PinnedActionToolbarButtonMenuModelBrowserTest
 
   actions::ActionItem* action_item() {
     return actions::ActionManager::Get().FindAction(
-        actions::kActionCut, browser()->browser_actions()->root_action_item());
+        actions::kActionCut,
+        BrowserActions::From(browser())->root_action_item());
   }
 };
 

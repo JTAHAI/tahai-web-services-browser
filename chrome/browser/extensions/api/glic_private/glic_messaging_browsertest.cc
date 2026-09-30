@@ -12,8 +12,16 @@
 #include "chrome/browser/glic/public/features.h"
 #include "chrome/browser/glic/test_support/glic_browser_test.h"
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
+#include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+#include "chrome/browser/glic/test_support/mock_glic_keyed_service.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/glic/glic_profile_manager.h"
+#include "chrome/browser/glic/suggestions/contextual_cueing_service_factory.h"
+#include "chrome/browser/actor/actor_keyed_service_factory.h"
+#include "chrome/browser/profiles/profile_manager.h"
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/ui/tabs/tab_enums.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #endif
 
 #include "chrome/browser/profiles/profile.h"
@@ -87,9 +95,20 @@ class GlicMessagingAccessDisabledBrowserTest : public GlicPrivateApiTestBase {
 namespace {
 
 #if !BUILDFLAG(IS_ANDROID)
-content::EvalJsResult ExecuteInvoke(content::WebContents* web_contents,
-                                    const std::string& prompt_id,
-                                    const std::string& invocation_source) {
+content::EvalJsResult ExecuteInvoke(
+    content::WebContents* web_contents,
+    const std::string& prompt_id,
+    const std::string& invocation_source,
+    const std::optional<std::string>& conversation_id = std::nullopt,
+    const std::optional<std::string>& turn_id = std::nullopt) {
+  std::string extra_fields;
+  if (conversation_id) {
+    extra_fields +=
+        base::StringPrintf(", conversationId: '%s'", conversation_id->c_str());
+  }
+  if (turn_id) {
+    extra_fields += base::StringPrintf(", turnId: '%s'", turn_id->c_str());
+  }
   std::string script = base::StringPrintf(
       R"(
       (async () => {
@@ -100,7 +119,7 @@ content::EvalJsResult ExecuteInvoke(content::WebContents* web_contents,
           chrome.runtime.sendMessage(
               '%s', {type: 'glicPrivate.invoke', args: {
                 promptId: '%s',
-                invocationSource: '%s'
+                invocationSource: '%s'%s
               }}, (response) => {
                 if (chrome.runtime.lastError) {
                   resolve(chrome.runtime.lastError.message);
@@ -112,7 +131,7 @@ content::EvalJsResult ExecuteInvoke(content::WebContents* web_contents,
       })()
       )",
       extension_misc::kGlicExtensionId, prompt_id.c_str(),
-      invocation_source.c_str());
+      invocation_source.c_str(), extra_fields.c_str());
 
   return content::EvalJs(web_contents, script);
 }
@@ -558,7 +577,7 @@ class GlicMessagingFullyEnabledBrowserTest
     : public glic::GlicBrowserTestMixin<GlicMessagingBrowserTest> {
  public:
   void SetUpOnMainThread() override {
-    GlicMessagingBrowserTest::SetUpOnMainThread();
+    glic::GlicBrowserTestMixin<GlicMessagingBrowserTest>::SetUpOnMainThread();
     SetupIdentityAndCapabilities();
   }
 };
@@ -927,6 +946,124 @@ IN_PROC_BROWSER_TEST_F(GlicSubframeInvokeBrowserTest,
   // Verify that the top-level frame remains example.com.
   EXPECT_EQ("example.com",
             tab->GetPrimaryMainFrame()->GetLastCommittedURL().host());
+}
+
+namespace {
+std::unique_ptr<KeyedService> CreateMockGlicKeyedService(
+    content::BrowserContext* context) {
+  return std::make_unique<glic::MockGlicKeyedService>(
+      context,
+      IdentityManagerFactory::GetForProfile(
+          Profile::FromBrowserContext(context)),
+      g_browser_process->profile_manager(),
+      glic::GlicProfileManager::GetInstance(),
+      glic::ContextualCueingServiceFactory::GetForProfile(
+          Profile::FromBrowserContext(context)),
+      actor::ActorKeyedServiceFactory::GetActorKeyedService(context));
+}
+}  // namespace
+
+class GlicMessagingWebContinuityBrowserTest : public GlicPrivateApiTestBase {
+ public:
+  GlicMessagingWebContinuityBrowserTest() {
+    feature_list_.InitWithFeaturesAndParameters(
+        {{contextual_tasks::kContextualTasks, {}},
+         {extensions_features::kApiGlicPrivate, {}},
+         {extensions_features::kApiGlicAccessFromWebContinuity, {}},
+         {features::kGlicActor,
+          {{"glic_actor_policy_control_exemption", "true"}}}},
+        {});
+    create_services_subscription_ =
+        BrowserContextDependencyManager::GetInstance()
+            ->RegisterCreateServicesCallbackForTesting(
+                base::BindRepeating(&GlicMessagingWebContinuityBrowserTest::
+                                        OnWillCreateBrowserContextServices,
+                                    base::Unretained(this)));
+  }
+
+  void SetUpBrowserContextKeyedServices(
+      content::BrowserContext* context) override {
+    GlicPrivateApiTestBase::SetUpBrowserContextKeyedServices(context);
+    // Bind the SigninClient to our TestURLLoaderFactory so that
+    // SetCookieAccounts() can intercept the ListAccounts request.
+    ChromeSigninClientFactory::GetInstance()->SetTestingFactory(
+        context, base::BindRepeating(&BuildChromeSigninClientWithURLLoader,
+                                     &test_url_loader_factory_));
+  }
+
+  void OnWillCreateBrowserContextServices(content::BrowserContext* context) {
+    glic::GlicKeyedServiceFactory::GetInstance()->SetTestingFactory(
+        context, base::BindRepeating(&CreateMockGlicKeyedService));
+  }
+
+  void SetUpOnMainThread() override {
+    GlicPrivateApiTestBase::SetUpOnMainThread();
+    auto* identity_manager = IdentityManagerFactory::GetForProfile(profile());
+    CoreAccountInfo primary =
+        identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
+    ASSERT_FALSE(primary.IsEmpty());
+    identity_adaptor_ =
+        std::make_unique<IdentityTestEnvironmentProfileAdaptor>(profile());
+    identity_adaptor_->identity_test_env()->SetTestURLLoaderFactory(
+        &test_url_loader_factory_);
+    identity_adaptor_->identity_test_env()->SetCookieAccounts(
+        {{primary.email, primary.gaia}});
+    identity_adaptor_->identity_test_env()->SetAutomaticIssueOfAccessTokens(
+        true);
+  }
+
+  void TearDownOnMainThread() override {
+    identity_adaptor_.reset();
+    GlicPrivateApiTestBase::TearDownOnMainThread();
+  }
+
+ protected:
+  glic::GlicTestEnvironment glic_test_environment_;
+  base::test::ScopedFeatureList feature_list_;
+  base::CallbackListSubscription create_services_subscription_;
+  network::TestURLLoaderFactory test_url_loader_factory_;
+  std::unique_ptr<IdentityTestEnvironmentProfileAdaptor> identity_adaptor_;
+};
+
+IN_PROC_BROWSER_TEST_F(GlicMessagingWebContinuityBrowserTest,
+                       InvokeWebContinuity) {
+  content::WebContents* tab =
+      browser()->tab_strip_model()->GetActiveWebContents();
+  ASSERT_TRUE(content::NavigateToURL(
+      tab, GURL("https://gemini.google.com/empty.html")));
+
+  glic::MockGlicKeyedService* mock_service = static_cast<glic::MockGlicKeyedService*>(
+      glic::GlicKeyedServiceFactory::GetGlicKeyedService(profile(),
+                                                         /*create=*/true));
+  ASSERT_TRUE(mock_service);
+
+  std::string cid = "c_123";
+  std::string turn_id = "t_456";
+  auto conversation_matcher = testing::VariantWith<glic::ConversationId>(
+      testing::AllOf(testing::Field(&glic::ConversationId::conversation_id,
+                                    testing::Eq(cid)),
+                     testing::Field(&glic::ConversationId::turn_id,
+                                    testing::Eq(std::make_optional(turn_id)))));
+
+  // Expect InvokeWithAutoSubmit to be called with kWebContinuity source and
+  // conversation.
+  EXPECT_CALL(
+      *mock_service,
+      InvokeWithAutoSubmit(
+          testing::_,
+          testing::AllOf(
+              testing::Property(
+                  &glic::GlicInvokeOptions::GetInvocationSource,
+                  testing::Eq(glic::mojom::InvocationSource::kWebContinuity)),
+              testing::Field(&glic::GlicInvokeOptions::target,
+                             testing::Field(&glic::Target::conversation,
+                                            conversation_matcher)))))
+      .Times(1);
+
+  // We don't need a prompt ID for web-continuity.
+  content::EvalJsResult result =
+      ExecuteInvoke(tab, "", "web-continuity", cid, turn_id);
+  EXPECT_EQ("success", result);
 }
 
 #endif  // !BUILDFLAG(IS_ANDROID)

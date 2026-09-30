@@ -56,6 +56,9 @@ import org.chromium.chrome.browser.ui.actions.ActionId;
 import org.chromium.chrome.browser.ui.actions.ActionProperties;
 import org.chromium.chrome.browser.ui.actions.ActionRegistry;
 import org.chromium.chrome.browser.ui.android.bars_common.IphIntent;
+import org.chromium.chrome.browser.ui.bottombar.BottomBarHostManager.Host;
+import org.chromium.chrome.browser.ui.bottombar.BottomBarMetrics.AimIneligibilityReason;
+import org.chromium.chrome.browser.ui.bottombar.BottomBarMetrics.GlicIneligibilityReason;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.chrome.browser.user_education.IphCommand;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
@@ -617,7 +620,10 @@ public class BottomBarMediatorUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM)
+    @EnableFeatures({
+        ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM,
+        ChromeFeatureList.ANDROID_BOTTOM_BAR + ":bypass_aim_geofencing/true"
+    })
     public void testDseChangedDynamically_WhenAiModeCandidate_TogglesVisibilityWithoutSwapping() {
         // In "us" with GLIC disabled, candidate resolves to AI_MODE.
         when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(false);
@@ -767,7 +773,7 @@ public class BottomBarMediatorUnitTest {
     }
 
     @Test
-    public void testDeferredCandidateResolution_LateIndia_SoonCountry() {
+    public void testDeferredCandidateResolution_LateIndia_AllowedCountry() {
         mCountrySupplier = new OneshotSupplierImpl<>();
         when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(true);
 
@@ -776,15 +782,13 @@ public class BottomBarMediatorUnitTest {
         verify(mButtonManager).setButtonVisibility(ActionId.GLIC, false);
         verify(mButtonManager).setButtonVisibility(ActionId.AI_MODE, false);
 
-        // Country arrives as "in" (Soon country).
+        // Country arrives as "in" (Allowed country).
         mCountrySupplier.set("in");
         RobolectricUtil.runAllBackgroundAndUi();
 
-        // Both buttons remain hidden, no dynamic observers attached.
-        verify(mButtonManager, times(2)).setButtonVisibility(ActionId.GLIC, false);
-        verify(mButtonManager, times(2)).setButtonVisibility(ActionId.AI_MODE, false);
-        verify(mGlicKeyedService, never()).addAllowedChangedObserver(any());
-        verify(mTemplateUrlService, never()).addObserver(any());
+        // Candidate resolves to GLIC and becomes visible.
+        verify(mButtonManager).setButtonVisibility(ActionId.GLIC, true);
+        verify(mGlicKeyedService).addAllowedChangedObserver(any());
     }
 
     @Test
@@ -798,6 +802,121 @@ public class BottomBarMediatorUnitTest {
         // Geofencing is bypassed -> candidate resolves to GLIC immediately despite null country.
         verify(mButtonManager).setButtonVisibility(ActionId.GLIC, true);
         verify(mGlicKeyedService).addAllowedChangedObserver(any());
+    }
+
+    @Test
+    public void testCandidateExtraActionResolved_RecordsMetric() {
+        when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(true);
+        var glicWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.BottomBar.ExtraAction.CandidateResolved",
+                        BottomBarMetrics.CandidateAction.GLIC);
+        createMediator(/* shouldIncludeHomeButton= */ false);
+        glicWatcher.assertExpected();
+    }
+
+    @Test
+    @EnableFeatures({
+        ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM,
+        ChromeFeatureList.ANDROID_BOTTOM_BAR + ":bypass_aim_geofencing/true"
+    })
+    public void testCandidateExtraActionResolved_AiMode_RecordsMetric() {
+        when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(false);
+        var aimWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.BottomBar.ExtraAction.CandidateResolved",
+                        BottomBarMetrics.CandidateAction.AIM);
+        createMediator(/* shouldIncludeHomeButton= */ false);
+        aimWatcher.assertExpected();
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.ANDROID_BOTTOM_BAR + ":show_glic_setting_toggle/true")
+    public void testUpdateGlicVisibility_DisabledInSettings_RecordsIneligibilityReason() {
+        when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(true);
+        when(mGlicEnablingJniMock.isPolicyEnforced(any())).thenReturn(false);
+        BottomBarConfigUtils.setGlicButtonEnabled(false);
+
+        var watcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.BottomBar.Glic.IneligibilityReason",
+                        GlicIneligibilityReason.USER_DISABLED_IN_SETTINGS);
+        createMediator(/* shouldIncludeHomeButton= */ false);
+        watcher.assertExpected();
+    }
+
+    @Test
+    @EnableFeatures({
+        ChromeFeatureList.ANDROID_BOTTOM_BAR_AIM,
+        ChromeFeatureList.ANDROID_BOTTOM_BAR + ":bypass_aim_geofencing/true"
+    })
+    public void testUpdateAiModeVisibility_DseNotGoogle_RecordsIneligibilityReason() {
+        when(mGlicEnablingJniMock.isEnabledForProfile(any())).thenReturn(false);
+        when(mTemplateUrlService.isDefaultSearchEngineGoogle()).thenReturn(false);
+
+        var watcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        "Android.BottomBar.Aim.IneligibilityReason",
+                        AimIneligibilityReason.DEFAULT_SEARCH_ENGINE_NOT_GOOGLE);
+        createMediator(/* shouldIncludeHomeButton= */ false);
+        watcher.assertExpected();
+    }
+
+    @Test
+    public void testOnTintChanged_WhenHostTabbed_UpdatesColorSchemeAndNotifiesDelegate() {
+        createMediator(/* shouldIncludeHomeButton= */ false);
+        assertNotNull(mMediator);
+        assertEquals(Host.TABBED, mMediator.getHostForTesting());
+
+        mMediator.onTintChanged(null, null, BrandedColorScheme.INCOGNITO);
+
+        assertEquals(BrandedColorScheme.INCOGNITO, mModel.get(BottomBarProperties.COLOR_SCHEME));
+        verify(mVisibilityDelegate).onBackgroundColorChanged();
+    }
+
+    @Test
+    public void testOnTintChanged_WhenHostHub_SuppressesColorSchemeUpdate() {
+        createMediator(/* shouldIncludeHomeButton= */ false);
+        assertNotNull(mMediator);
+
+        // Set initial color scheme to INCOGNITO
+        mMediator.onTintChanged(null, null, BrandedColorScheme.INCOGNITO);
+        assertEquals(BrandedColorScheme.INCOGNITO, mModel.get(BottomBarProperties.COLOR_SCHEME));
+        verify(mVisibilityDelegate, times(1)).onBackgroundColorChanged();
+
+        // Switch to Hub host
+        mMediator.setParent(Host.HUB);
+        assertEquals(Host.HUB, mMediator.getHostForTesting());
+
+        // When in Hub, onTintChanged (e.g. fired when closing last incognito tab) should be ignored
+        mMediator.onTintChanged(null, null, BrandedColorScheme.APP_DEFAULT);
+
+        // Color scheme in model should NOT have snapped to APP_DEFAULT
+        assertEquals(BrandedColorScheme.INCOGNITO, mModel.get(BottomBarProperties.COLOR_SCHEME));
+        // Visibility delegate should NOT have received another notification
+        verify(mVisibilityDelegate, times(1)).onBackgroundColorChanged();
+    }
+
+    @Test
+    public void testSetParent_TabbedToHubAndBack_UpdatesColorSchemeOnReturn() {
+        createMediator(/* shouldIncludeHomeButton= */ false);
+        assertNotNull(mMediator);
+
+        mMediator.onTintChanged(null, null, BrandedColorScheme.INCOGNITO);
+        assertEquals(BrandedColorScheme.INCOGNITO, mModel.get(BottomBarProperties.COLOR_SCHEME));
+
+        mMediator.setParent(Host.HUB);
+        assertEquals(Host.HUB, mMediator.getHostForTesting());
+
+        // Simulate ThemeColorProvider changing to APP_DEFAULT while in Hub
+        when(mThemeColorProvider.getBrandedColorScheme())
+                .thenReturn(BrandedColorScheme.APP_DEFAULT);
+
+        // When returning to TABBED host, model and delegate should be updated
+        mMediator.setParent(Host.TABBED);
+        assertEquals(Host.TABBED, mMediator.getHostForTesting());
+        assertEquals(BrandedColorScheme.APP_DEFAULT, mModel.get(BottomBarProperties.COLOR_SCHEME));
+        verify(mVisibilityDelegate, times(2)).onBackgroundColorChanged();
     }
 
     private void createMediator(boolean shouldIncludeHomeButton) {

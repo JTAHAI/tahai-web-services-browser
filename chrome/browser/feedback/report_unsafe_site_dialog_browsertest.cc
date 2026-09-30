@@ -11,10 +11,11 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
+#include "build/build_config.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/branded_strings.h"
@@ -31,6 +32,10 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/widget/widget.h"
+
+#if !BUILDFLAG(IS_MAC)
+#include "ui/aura/window.h"
+#endif
 
 // Browser tests for report-unsafe-site dialog.
 class ReportUnsafeSiteDialogBrowserTest : public PlatformBrowserTest {
@@ -147,7 +152,7 @@ IN_PROC_BROWSER_TEST_F(ReportUnsafeSiteDialogBrowserTest,
   base::HistogramTester histogram_tester;
 
   chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   EXPECT_EQ(tab_strip_model->count(), 2);
 
   // Split the current tab.
@@ -195,8 +200,16 @@ IN_PROC_BROWSER_TEST_F(ReportUnsafeSiteDialogBrowserTest, CloseReason_Escape) {
   base::StatisticsRecorder::HistogramWaiter histogram_waiter(kHistogramName);
 
   content::WebContents* dialog_contents = OpenDialogAndGetWebContents();
-  views::Widget* widget = views::Widget::GetWidgetForNativeWindow(
-      dialog_contents->GetTopLevelNativeWindow());
+#if BUILDFLAG(IS_MAC)
+  views::Widget* widget =
+      views::Widget::GetWidgetForNativeView(dialog_contents->GetNativeView());
+#else
+  views::Widget* widget = nullptr;
+  for (gfx::NativeView view = dialog_contents->GetNativeView(); view && !widget;
+       view = view->parent()) {
+    widget = views::Widget::GetWidgetForNativeView(view);
+  }
+#endif
   ui::Accelerator esc(ui::VKEY_ESCAPE, 0);
   EXPECT_TRUE(widget->client_view()->AcceleratorPressed(esc));
 

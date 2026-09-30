@@ -5,6 +5,7 @@
 #include "chrome/browser/context_hub/context_hub_service_factory.h"
 
 #include "base/files/file_util.h"
+#include "base/files/scoped_temp_dir.h"
 #include "base/functional/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
@@ -13,8 +14,11 @@
 #include "chrome/browser/context_hub/memory_bank/memory_bank_entry.h"
 #include "chrome/browser/optimization_guide/mock_optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
+#include "chrome/browser/page_content_annotations/page_content_extraction_service_factory.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "components/optimization_guide/core/optimization_guide_features.h"
+#include "components/page_content_annotations/content/page_content_extraction_service.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -28,6 +32,7 @@ class ContextHubServiceFactoryTest : public testing::Test {
  protected:
   void SetUp() override {
     testing::Test::SetUp();
+    ContextHubServiceFactory::GetInstance();
     create_services_subscription_ =
         BrowserContextDependencyManager::GetInstance()
             ->RegisterCreateServicesCallbackForTesting(
@@ -45,8 +50,20 @@ class ContextHubServiceFactoryTest : public testing::Test {
                                     -> std::unique_ptr<KeyedService> {
               return std::make_unique<MockOptimizationGuideKeyedService>();
             }));
+    page_content_annotations::PageContentExtractionServiceFactory::GetInstance()
+        ->SetTestingFactoryAndUse(
+            browser_context,
+            base::BindRepeating([](content::BrowserContext* context)
+                                    -> std::unique_ptr<KeyedService> {
+              return std::make_unique<
+                  page_content_annotations::PageContentExtractionService>(
+                  /*os_crypt_async=*/nullptr, context->GetPath(),
+                  /*tracker=*/nullptr);
+            }));
   }
 
+  base::test::ScopedFeatureList optimization_hints_feature_list_{
+      optimization_guide::features::kOptimizationHints};
   base::test::ScopedFeatureList scoped_feature_list_;
   content::BrowserTaskEnvironment task_environment_;
   base::CallbackListSubscription create_services_subscription_;
@@ -83,10 +100,12 @@ TEST_F(ContextHubServiceFactoryTest,
       ContextHubServiceFactory::GetForProfile(&profile);
   ASSERT_NE(nullptr, service);
 
-  base::test::TestFuture<void> save_future;
-  service->SaveTab(GURL("https://example.com"), "Title", "Page text",
-                   save_future.GetCallback());
-  ASSERT_TRUE(save_future.Wait());
+  base::test::TestFuture<bool> save_future;
+  service->SaveMemoryBankEntry(
+      MemoryBankEntry(MemoryBankType::kTab, GURL("https://example.com"),
+                      "Title", "Page text"),
+      save_future.GetCallback());
+  ASSERT_FALSE(save_future.Get());
 
   base::test::TestFuture<std::vector<MemoryBankEntry>> get_entries_future;
   service->GetAllEntries(get_entries_future.GetCallback());
@@ -103,10 +122,12 @@ TEST_F(ContextHubServiceFactoryTest,
       ContextHubServiceFactory::GetForProfile(&profile);
   ASSERT_NE(nullptr, service);
 
-  base::test::TestFuture<void> save_future;
-  service->SaveTab(GURL("https://example.com"), "Title", "Page text",
-                   save_future.GetCallback());
-  ASSERT_TRUE(save_future.Wait());
+  base::test::TestFuture<bool> save_future;
+  service->SaveMemoryBankEntry(
+      MemoryBankEntry(MemoryBankType::kTab, GURL("https://example.com"),
+                      "Title", "Page text"),
+      save_future.GetCallback());
+  ASSERT_TRUE(save_future.Get());
 
   base::test::TestFuture<std::vector<MemoryBankEntry>> get_entries_future;
   service->GetAllEntries(get_entries_future.GetCallback());
@@ -128,10 +149,12 @@ TEST_F(ContextHubServiceFactoryTest,
       ContextHubServiceFactory::GetForProfile(&profile);
   ASSERT_NE(nullptr, service);
 
-  base::test::TestFuture<void> save_future;
-  service->SaveTab(GURL("https://example.com"), "Title", "Page text",
-                   save_future.GetCallback());
-  ASSERT_TRUE(save_future.Wait());
+  base::test::TestFuture<bool> save_future;
+  service->SaveMemoryBankEntry(
+      MemoryBankEntry(MemoryBankType::kTab, GURL("https://example.com"),
+                      "Title", "Page text"),
+      save_future.GetCallback());
+  ASSERT_TRUE(save_future.Get());
 
   base::test::TestFuture<std::vector<MemoryBankEntry>> get_entries_future;
   service->GetAllEntries(get_entries_future.GetCallback());
@@ -153,10 +176,12 @@ TEST_F(ContextHubServiceFactoryTest,
       ContextHubServiceFactory::GetForProfile(&profile);
   ASSERT_NE(nullptr, service);
 
-  base::test::TestFuture<void> save_future;
-  service->SaveTab(GURL("https://example.com"), "Title", "Page text",
-                   save_future.GetCallback());
-  ASSERT_TRUE(save_future.Wait());
+  base::test::TestFuture<bool> save_future;
+  service->SaveMemoryBankEntry(
+      MemoryBankEntry(MemoryBankType::kTab, GURL("https://example.com"),
+                      "Title", "Page text"),
+      save_future.GetCallback());
+  ASSERT_FALSE(save_future.Get());
 
   // Memory Banks feature is disabled so NoOpMemoryBank returns empty entries.
   base::test::TestFuture<std::vector<MemoryBankEntry>> get_entries_future;
@@ -174,12 +199,15 @@ TEST_F(ContextHubServiceFactoryTest, DeleteDatabaseWhenFeaturesDisabled) {
       /*enabled_features=*/{features::kContextHub, features::kMemoryBanks},
       /*disabled_features=*/{features::kContextHubDatabaseStorage});
 
-  TestingProfile profile;
+  base::ScopedTempDir temp_dir;
+  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
   base::FilePath db_path =
-      profile.GetPath().Append(FILE_PATH_LITERAL("ContextHub.db"));
+      temp_dir.GetPath().Append(FILE_PATH_LITERAL("ContextHub.db"));
 
   ASSERT_TRUE(base::WriteFile(db_path, "dummy content"));
   ASSERT_TRUE(base::PathExists(db_path));
+
+  TestingProfile profile(temp_dir.GetPath());
 
   EXPECT_NE(nullptr, ContextHubServiceFactory::GetForProfile(&profile));
 

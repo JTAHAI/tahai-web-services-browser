@@ -119,7 +119,6 @@ public class CollaborationIntegrationTest {
     private static final long WAIT_TIMEOUT_MS = 1000L;
     private static final String TEST_COLLABORATION_ID = "collaboration_id";
     private static final String TEST_ACCESS_TOKEN = "access_token";
-    private static final String TEST_GROUP_TITLE = "group_title";
 
     /** Counts the number of calls from DataSharingService. Only use on UI thread. */
     private static class CountingShareObserver implements DataSharingService.Observer {
@@ -244,14 +243,13 @@ public class CollaborationIntegrationTest {
         mCollaborationTestUtils.setupShareDelegateSupplier(cta);
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    cta.getRootUiCoordinatorForTesting()
-                            .getDataSharingTabManager()
-                            .createOrManageFlow(
-                                    EitherGroupId.createLocalId(localTabGroupId),
-                                    CollaborationServiceShareOrManageEntryPoint.UNKNOWN,
-                                    (ignored) -> {});
-                });
+                () ->
+                        cta.getRootUiCoordinatorForTesting()
+                                .getDataSharingTabManager()
+                                .createOrManageFlow(
+                                        EitherGroupId.createLocalId(localTabGroupId),
+                                        CollaborationServiceShareOrManageEntryPoint.UNKNOWN,
+                                        (ignored) -> {}));
 
         // There's many async signals that fly around after linking the tab group. In particular we
         // need the SharedGroupObserver to think the group is shared. For this, it already knows the
@@ -451,10 +449,7 @@ public class CollaborationIntegrationTest {
         mCollaborationTestUtils.createTabGroupAndOpenTabGridDialog(cta);
 
         // Setting create flow callback to cancel create flow.
-        Callback<Boolean> callback =
-                (success) -> {
-                    mDataSharingUIDelegate.forceCreateFlowCancellation();
-                };
+        Callback<Boolean> callback = (_) -> mDataSharingUIDelegate.forceCreateFlowCancellation();
         mDataSharingUIDelegate.setShowCreateFlowCallback(callback);
 
         onView(withId(R.id.share_button)).perform(CollaborationTestUtils.relaxedClick());

@@ -11,11 +11,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import android.app.Activity;
-import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -45,6 +43,7 @@ import org.robolectric.android.controller.ActivityController;
 
 import org.chromium.base.CallbackUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxLayoutMode;
@@ -52,10 +51,12 @@ import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxSta
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxProperties.BackgroundStyle;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxProperties.PopupButtonData;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxProperties.PopupButtonType;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxViewHolder.AnchoringMode;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.components.omnibox.AutocompleteRequestType;
 import org.chromium.components.omnibox.IconResourceIdsProto.IconResourceIds;
+import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.TestActivity;
 import org.chromium.ui.base.WindowAndroid;
@@ -87,12 +88,14 @@ public class FuseboxViewBinderUnitTest {
     @Mock private DynamicRectProvider mDynamicRectProvider;
     @Mock private WindowAndroid mWindowAndroid;
     @Mock private Runnable mRunnable;
+    @Mock private SimpleRecyclerViewAdapter mSimpleRecyclerViewAdapter;
 
     private final PropertyModel mModel = new PropertyModel(FuseboxProperties.ALL_KEYS);
 
     private ActivityController<TestActivity> mActivityController;
     private FuseboxViewHolder mViewHolder;
     private FuseboxPopup mPopup;
+    private FuseboxViewBinder mBinder;
 
     @Before
     public void setUp() {
@@ -132,7 +135,10 @@ public class FuseboxViewBinderUnitTest {
                 FuseboxProperties.PLUS_BUTTON_BACKGROUND_STYLE,
                 BackgroundStyle.INTERACT_ONLY_SMALL);
 
-        PropertyModelChangeProcessor.create(mModel, mViewHolder, FuseboxViewBinder::bind);
+        var resourceProvider =
+                new OmniboxResourceProvider(activity, BrandedColorScheme.APP_DEFAULT);
+        mBinder = new FuseboxViewBinder(resourceProvider);
+        PropertyModelChangeProcessor.create(mModel, mViewHolder, mBinder::bind);
     }
 
     @After
@@ -140,16 +146,70 @@ public class FuseboxViewBinderUnitTest {
         mActivityController.close();
     }
 
-    private View getDynamicButton(int index) {
-        ViewGroup group = mPopup.mViewGroup;
-        int headerIndex = group.indexOfChild(mPopup.mModelsHeader);
+    private View getDynamicButton(FuseboxPopup popup, int index) {
+        ViewGroup group = popup.mViewGroup;
+        int headerIndex = group.indexOfChild(popup.mModelsHeader);
         return group.getChildAt(headerIndex + 1 + index);
+    }
+
+    private View getDynamicButton(int index) {
+        return getDynamicButton(mPopup, index);
     }
 
     private View getDynamicToolButton(int index) {
         ViewGroup group = mPopup.mViewGroup;
         int headerIndex = group.indexOfChild(mPopup.mToolsHeader);
         return group.getChildAt(headerIndex + 1 + index);
+    }
+
+    private FuseboxViewHolder createBottomSheetViewHolder() {
+        Activity activity = mActivityController.get();
+        ViewGroup popupView =
+                (ViewGroup)
+                        LayoutInflater.from(activity)
+                                .inflate(R.layout.fusebox_context_popup, /* root= */ null);
+        FuseboxPopup popup =
+                new FuseboxPopup(
+                        activity,
+                        mWindowAndroid,
+                        mPopupWindow,
+                        popupView,
+                        mDynamicRectProvider,
+                        /* isBottomSheet= */ true);
+        return new FuseboxViewHolder(mViewHolder.parentView, popup);
+    }
+
+    private PropertyModel createBottomSheetModel() {
+        return new PropertyModel.Builder(FuseboxProperties.ALL_KEYS)
+                .with(FuseboxProperties.POPUP_IS_BOTTOM_SHEET, true)
+                .with(FuseboxProperties.PLUS_BUTTON_VISIBLE, true)
+                .with(FuseboxProperties.FUSEBOX_STATE, FuseboxState.EXPANDED)
+                .with(FuseboxProperties.REQUEST_TYPE, AutocompleteRequestType.SEARCH)
+                .with(FuseboxProperties.REQUEST_TYPE_BUTTON_TEXT, "test label")
+                .with(FuseboxProperties.REQUEST_TYPE_BUTTON_VISIBLE, false)
+                .with(FuseboxProperties.COLOR_SCHEME, BrandedColorScheme.APP_DEFAULT)
+                .with(FuseboxProperties.FUSEBOX_LAYOUT_MODE, FuseboxLayoutMode.TOOLBAR)
+                .with(
+                        FuseboxProperties.PLUS_BUTTON_BACKGROUND_STYLE,
+                        BackgroundStyle.INTERACT_ONLY_SMALL)
+                .build();
+    }
+
+    private void addModelButton(PropertyModel model, FuseboxViewHolder viewHolder) {
+        PopupButtonData buttonData =
+                new PopupButtonDataBuilder().withIconId(IconResourceIds.AUTORENEW_VALUE).build();
+        model.set(FuseboxProperties.POPUP_MODEL_BUTTON_DATA_LIST, List.of(buttonData));
+        if (viewHolder != mViewHolder) {
+            mBinder.bind(model, viewHolder, FuseboxProperties.POPUP_MODEL_BUTTON_DATA_LIST);
+        }
+    }
+
+    private void addModelButton(FuseboxViewHolder viewHolder) {
+        addModelButton(mModel, viewHolder);
+    }
+
+    private void addModelButton() {
+        addModelButton(mViewHolder);
     }
 
     private void configureFusebox(@Variant int testCase, @AutocompleteRequestType int requestType) {
@@ -183,62 +243,55 @@ public class FuseboxViewBinderUnitTest {
 
     @Test
     public void adapter_isSet() {
-        SimpleRecyclerViewAdapter adapter = mock(SimpleRecyclerViewAdapter.class);
-        mModel.set(FuseboxProperties.ADAPTER, adapter);
-        assertEquals(adapter, mViewHolder.attachmentsView.getAdapter());
+        mModel.set(FuseboxProperties.ADAPTER, mSimpleRecyclerViewAdapter);
+        assertEquals(mSimpleRecyclerViewAdapter, mViewHolder.attachmentsView.getAdapter());
     }
 
     @Test
     public void plusButtonClickListener_isCalled() {
-        Runnable runnable = mock(Runnable.class);
-        mModel.set(FuseboxProperties.PLUS_BUTTON_CLICKED, runnable);
+        mModel.set(FuseboxProperties.PLUS_BUTTON_CLICKED, mRunnable);
 
         mViewHolder.plusButton.performClick();
-        verify(runnable).run();
+        verify(mRunnable).run();
     }
 
     @Test
     public void cameraButtonClickListener_isCalled() {
-        Runnable runnable = mock(Runnable.class);
-        mModel.set(FuseboxProperties.POPUP_ATTACH_CAMERA_CLICKED, runnable);
+        mModel.set(FuseboxProperties.POPUP_ATTACH_CAMERA_CLICKED, mRunnable);
 
         mPopup.mCameraButton.performClick();
-        verify(runnable).run();
+        verify(mRunnable).run();
     }
 
     @Test
     public void galleryButtonClickListener_isCalled() {
-        Runnable runnable = mock(Runnable.class);
-        mModel.set(FuseboxProperties.POPUP_ATTACH_GALLERY_CLICKED, runnable);
+        mModel.set(FuseboxProperties.POPUP_ATTACH_GALLERY_CLICKED, mRunnable);
 
         mPopup.mGalleryButton.performClick();
-        verify(runnable).run();
+        verify(mRunnable).run();
     }
 
     @Test
     public void fileButtonClickListener_isCalled() {
-        Runnable runnable = mock(Runnable.class);
-        mModel.set(FuseboxProperties.POPUP_ATTACH_FILE_CLICKED, runnable);
+        mModel.set(FuseboxProperties.POPUP_ATTACH_FILE_CLICKED, mRunnable);
 
         mPopup.mFileButton.performClick();
-        verify(runnable).run();
+        verify(mRunnable).run();
     }
 
     @Test
     public void tabPickerButtonClickListener_isCalled() {
-        Runnable runnable = mock(Runnable.class);
-        mModel.set(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_CLICKED, runnable);
+        mModel.set(FuseboxProperties.POPUP_ATTACH_TAB_PICKER_CLICKED, mRunnable);
 
         mPopup.mTabButton.performClick();
-        verify(runnable).run();
+        verify(mRunnable).run();
     }
 
     @Test
     public void requestTypeButtonClicked_setsListener() {
-        Runnable runnable = mock(Runnable.class);
-        mModel.set(FuseboxProperties.REQUEST_TYPE_BUTTON_CLICKED, runnable);
+        mModel.set(FuseboxProperties.REQUEST_TYPE_BUTTON_CLICKED, mRunnable);
         mViewHolder.requestType.performClick();
-        verify(runnable).run();
+        verify(mRunnable).run();
     }
 
     @Test
@@ -280,12 +333,54 @@ public class FuseboxViewBinderUnitTest {
     @Test
     public void reanchorViewsForCompactFusebox_popoverLayoutMode() {
         configureFusebox(Variant.COMPACT, AutocompleteRequestType.SEARCH);
+
+        HistogramWatcher histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        FuseboxMetrics.REANCHOR_VIEWS_DURATION_HISTOGRAM);
         mModel.set(FuseboxProperties.FUSEBOX_LAYOUT_MODE, FuseboxLayoutMode.SUGGESTIONS_POPOVER);
 
+        assertEquals(AnchoringMode.POPOVER, mViewHolder.currentAnchoringMode);
         var lp = (ConstraintLayout.LayoutParams) mViewHolder.plusButton.getLayoutParams();
         assertEquals(ConstraintSet.UNSET, lp.topToTop);
         assertEquals(R.id.omnibox_suggestions_dropdown, lp.topToBottom);
         assertEquals(ConstraintSet.PARENT_ID, lp.bottomToBottom);
+        histogramWatcher.assertExpected();
+    }
+
+    @Test
+    public void reanchorViewsForCompactFusebox_deduplicatesWhenOptimizationsEnabled() {
+        OmniboxFeatures.sModelPickerOptimizations.setForTesting(true);
+        HistogramWatcher histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        FuseboxMetrics.REANCHOR_VIEWS_DURATION_HISTOGRAM);
+        configureFusebox(Variant.COMPACT, AutocompleteRequestType.SEARCH);
+
+        assertEquals(AnchoringMode.TOOLBAR_SINGLE_LINE, mViewHolder.currentAnchoringMode);
+        var lp = (ConstraintLayout.LayoutParams) mViewHolder.plusButton.getLayoutParams();
+        assertEquals(R.id.url_bar, lp.topToTop);
+        assertEquals(ConstraintSet.UNSET, lp.topToBottom);
+        assertEquals(ConstraintSet.UNSET, lp.bottomToBottom);
+        histogramWatcher.assertExpected();
+
+        // Transitioning between DISABLED and COMPACT maintains singleLine without re-anchoring.
+        histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        FuseboxMetrics.REANCHOR_VIEWS_DURATION_HISTOGRAM);
+        mModel.set(FuseboxProperties.FUSEBOX_STATE, FuseboxState.DISABLED);
+        assertEquals(AnchoringMode.TOOLBAR_SINGLE_LINE, mViewHolder.currentAnchoringMode);
+        var lpDisabled = (ConstraintLayout.LayoutParams) mViewHolder.plusButton.getLayoutParams();
+        assertEquals(R.id.url_bar, lpDisabled.topToTop);
+        assertEquals(ConstraintSet.UNSET, lpDisabled.topToBottom);
+        assertEquals(ConstraintSet.UNSET, lpDisabled.bottomToBottom);
+        histogramWatcher.assertExpected();
+
+        // Transitioning to EXPANDED updates anchoring mode to TOOLBAR_MULTI_LINE.
+        histogramWatcher =
+                HistogramWatcher.newSingleRecordWatcher(
+                        FuseboxMetrics.REANCHOR_VIEWS_DURATION_HISTOGRAM);
+        mModel.set(FuseboxProperties.FUSEBOX_STATE, FuseboxState.EXPANDED);
+        assertEquals(AnchoringMode.TOOLBAR_MULTI_LINE, mViewHolder.currentAnchoringMode);
+        histogramWatcher.assertExpected();
     }
 
     @Test
@@ -382,13 +477,12 @@ public class FuseboxViewBinderUnitTest {
 
     @Test
     public void modelButtonClickListener_isCalled() {
-        Runnable runnable = mock(Runnable.class);
         mModel.set(
                 FuseboxProperties.POPUP_MODEL_BUTTON_DATA_LIST,
-                List.of(new PopupButtonDataBuilder().withOnClicked(runnable).build()));
+                List.of(new PopupButtonDataBuilder().withOnClicked(mRunnable).build()));
 
         getDynamicButton(0).performClick();
-        verify(runnable).run();
+        verify(mRunnable).run();
     }
 
     @Test
@@ -718,28 +812,40 @@ public class FuseboxViewBinderUnitTest {
     }
 
     @Test
-    public void activationChip() {
-        mModel.set(FuseboxProperties.ACTIVATION_CHIP_VISIBLE, true);
-        assertEquals(View.VISIBLE, mViewHolder.activationChip.getVisibility());
+    public void recentTabsEnabled_withFavicon() {
+        Bitmap favicon = UiUtils.createBitmap(/* size= */ 1, Color.BLUE);
+        PopupButtonData dataWithFavicon =
+                new PopupButtonDataBuilder()
+                        .withText("tab with favicon")
+                        .withType(PopupButtonType.RECENT_TAB)
+                        .withCustomIcon(favicon)
+                        .build();
+        PopupButtonData dataWithoutFavicon =
+                new PopupButtonDataBuilder()
+                        .withText("tab without favicon")
+                        .withType(PopupButtonType.RECENT_TAB)
+                        .build();
+        mModel.set(
+                FuseboxProperties.POPUP_RECENT_TABS_BUTTON_DATA_LIST,
+                List.of(dataWithFavicon, dataWithoutFavicon));
 
-        mModel.set(FuseboxProperties.ACTIVATION_CHIP_VISIBLE, false);
-        assertEquals(View.GONE, mViewHolder.activationChip.getVisibility());
+        View childWithFavicon = mPopup.mRecentTabsContainer.getChildAt(0);
+        View childWithoutFavicon = mPopup.mRecentTabsContainer.getChildAt(1);
+        ImageView imageWithFavicon = childWithFavicon.findViewById(R.id.start_icon);
+        ImageView imageWithoutFavicon = childWithoutFavicon.findViewById(R.id.start_icon);
 
-        mModel.set(FuseboxProperties.ACTIVATION_CHIP_CLICKED, mRunnable);
+        mModel.set(FuseboxProperties.POPUP_RECENT_TABS_ENABLED, true);
+        assertTrue(mPopup.mRecentTabsContainer.getChildAt(0).isEnabled());
+        assertTrue(mPopup.mRecentTabsContainer.getChildAt(1).isEnabled());
+        assertNotNull(imageWithFavicon.getDrawable().getColorFilter());
+        assertNull(imageWithoutFavicon.getDrawable().getColorFilter());
 
-        mViewHolder.activationChip.performClick();
-        verify(mRunnable).run();
-
-        Context context = mViewHolder.activationChip.getContext();
-        mModel.set(FuseboxProperties.COLOR_SCHEME, BrandedColorScheme.APP_DEFAULT);
-        assertEquals(
-                OmniboxResourceProvider.getColorPrimary(context, BrandedColorScheme.APP_DEFAULT),
-                mViewHolder.activationChip.getForegroundTintList().getDefaultColor());
-
-        mModel.set(FuseboxProperties.COLOR_SCHEME, BrandedColorScheme.INCOGNITO);
-        assertEquals(
-                OmniboxResourceProvider.getColorPrimary(context, BrandedColorScheme.INCOGNITO),
-                mViewHolder.activationChip.getForegroundTintList().getDefaultColor());
+        // Toggle disabled:
+        mModel.set(FuseboxProperties.POPUP_RECENT_TABS_ENABLED, false);
+        assertFalse(childWithFavicon.isEnabled());
+        assertFalse(childWithoutFavicon.isEnabled());
+        assertNotNull(imageWithFavicon.getDrawable().getColorFilter());
+        assertNull(imageWithoutFavicon.getDrawable().getColorFilter());
     }
 
     private static class PopupButtonDataBuilder {
@@ -823,27 +929,11 @@ public class FuseboxViewBinderUnitTest {
 
     @Test
     public void horizontalAttachments_applyStatefulColors() {
-        Activity activity = mActivityController.get();
-        ViewGroup popupView =
-                (ViewGroup)
-                        LayoutInflater.from(activity)
-                                .inflate(R.layout.fusebox_context_popup, /* root= */ null);
-        doReturn(popupView).when(mPopupWindow).getContentView();
+        PropertyModel model = createBottomSheetModel();
+        FuseboxViewHolder viewHolder = createBottomSheetViewHolder();
+        mBinder.bind(model, viewHolder, FuseboxProperties.COLOR_SCHEME);
 
-        FuseboxPopup horizontalPopup =
-                new FuseboxPopup(
-                        activity,
-                        mWindowAndroid,
-                        mPopupWindow,
-                        popupView,
-                        mDynamicRectProvider,
-                        /* isBottomSheet= */ true);
-        FuseboxViewHolder viewHolder =
-                new FuseboxViewHolder(mViewHolder.parentView, horizontalPopup);
-
-        FuseboxViewBinder.bind(mModel, viewHolder, FuseboxProperties.COLOR_SCHEME);
-
-        View currentTabButton = horizontalPopup.mAddCurrentTab;
+        View currentTabButton = viewHolder.popup.mAddCurrentTab;
         View iconBackground = currentTabButton.findViewById(R.id.start_icon_background);
         assertNotNull(iconBackground);
 
@@ -855,5 +945,75 @@ public class FuseboxViewBinderUnitTest {
         ColorStateList textColors = textView.getTextColors();
         assertNotNull(textColors);
         assertTrue(textColors.isStateful());
+    }
+
+    @Test
+    public void popupIconTint_plusMenuUsesSecondaryTint() {
+        Activity activity = mActivityController.get();
+        ColorStateList secondaryTint =
+                OmniboxResourceProvider.getSecondaryIconTintList(
+                        activity, BrandedColorScheme.APP_DEFAULT);
+
+        ImageView tabIcon = mPopup.mTabButton.findViewById(R.id.start_icon);
+        assertEquals(secondaryTint, tabIcon.getImageTintList());
+
+        addModelButton();
+        ImageView dynamicIcon = getDynamicButton(0).findViewById(R.id.start_icon);
+        assertEquals(secondaryTint, dynamicIcon.getImageTintList());
+    }
+
+    @Test
+    public void popupIconTint_bottomSheetUsesPrimaryTint() {
+        PropertyModel model = createBottomSheetModel();
+        FuseboxViewHolder viewHolder = createBottomSheetViewHolder();
+        mBinder.bind(model, viewHolder, FuseboxProperties.COLOR_SCHEME);
+
+        ColorStateList primaryTint =
+                OmniboxResourceProvider.getPrimaryIconTintList(
+                        mActivityController.get(), BrandedColorScheme.APP_DEFAULT);
+        ImageView tabIcon = viewHolder.popup.mTabButton.findViewById(R.id.start_icon);
+        assertEquals(primaryTint, tabIcon.getImageTintList());
+
+        addModelButton(model, viewHolder);
+        ImageView dynamicIcon = getDynamicButton(viewHolder.popup, 0).findViewById(R.id.start_icon);
+        assertEquals(primaryTint, dynamicIcon.getImageTintList());
+    }
+
+    @Test
+    public void popupIconSize_plusMenuUses20dp() {
+        Resources res = mActivityController.get().getResources();
+        int expectedSize = res.getDimensionPixelSize(R.dimen.fusebox_popup_item_icon_size);
+
+        ImageView tabIcon = mPopup.mTabButton.findViewById(R.id.start_icon);
+        ViewGroup.LayoutParams layoutParams = tabIcon.getLayoutParams();
+        assertEquals(expectedSize, layoutParams.width);
+        assertEquals(expectedSize, layoutParams.height);
+
+        addModelButton();
+        ImageView dynamicIcon = getDynamicButton(0).findViewById(R.id.start_icon);
+        ViewGroup.LayoutParams dynamicLayoutParams = dynamicIcon.getLayoutParams();
+        assertEquals(expectedSize, dynamicLayoutParams.width);
+        assertEquals(expectedSize, dynamicLayoutParams.height);
+    }
+
+    @Test
+    public void popupIconSize_bottomSheetPreserves24dp() {
+        PropertyModel model = createBottomSheetModel();
+        FuseboxViewHolder viewHolder = createBottomSheetViewHolder();
+        mBinder.bind(model, viewHolder, FuseboxProperties.COLOR_SCHEME);
+        Resources res = mActivityController.get().getResources();
+        int expectedBottomSheetIconSize =
+                res.getDimensionPixelSize(R.dimen.fusebox_bottom_sheet_attachment_icon_size);
+
+        ImageView tabIcon = viewHolder.popup.mTabButton.findViewById(R.id.start_icon);
+        ViewGroup.LayoutParams layoutParams = tabIcon.getLayoutParams();
+        assertEquals(expectedBottomSheetIconSize, layoutParams.width);
+        assertEquals(expectedBottomSheetIconSize, layoutParams.height);
+
+        addModelButton(model, viewHolder);
+        ImageView dynamicIcon = getDynamicButton(viewHolder.popup, 0).findViewById(R.id.start_icon);
+        ViewGroup.LayoutParams dynamicLayoutParams = dynamicIcon.getLayoutParams();
+        assertEquals(expectedBottomSheetIconSize, dynamicLayoutParams.width);
+        assertEquals(expectedBottomSheetIconSize, dynamicLayoutParams.height);
     }
 }

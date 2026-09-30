@@ -5,11 +5,14 @@
 #include "chrome/browser/ui/android/extensions/extension_action_popup_contents.h"
 
 #include "base/android/jni_string.h"
+#include "chrome/browser/devtools/devtools_toggle_action.h"
+#include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/extensions/extension_view_host.h"
 #include "chrome/browser/extensions/extension_view_host_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/internal/android/android_browser_window.h"
 #include "components/input/native_web_keyboard_event.h"
+#include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/browser/extension_action.h"
@@ -37,8 +40,12 @@ constexpr gfx::Size kMaxSize = {800, 600};
 }  // namespace
 
 ExtensionActionPopupContents::ExtensionActionPopupContents(
-    std::unique_ptr<ExtensionViewHost> host)
-    : host_(std::move(host)) {
+    std::unique_ptr<ExtensionViewHost> host,
+    bool inspect_with_devtools,
+    ShowPopupCallback callback)
+    : host_(std::move(host)),
+      inspect_with_devtools_(inspect_with_devtools),
+      shown_callback_(std::move(callback)) {
   java_object_ = Java_ExtensionActionPopupContents_Constructor(
       AttachCurrentThread(), reinterpret_cast<int64_t>(this),
       host_->host_contents());
@@ -56,7 +63,11 @@ ExtensionActionPopupContents::ExtensionActionPopupContents(
   }
 }
 
-ExtensionActionPopupContents::~ExtensionActionPopupContents() = default;
+ExtensionActionPopupContents::~ExtensionActionPopupContents() {
+  if (shown_callback_) {
+    std::move(shown_callback_).Run(nullptr);
+  }
+}
 
 ScopedJavaLocalRef<jobject> ExtensionActionPopupContents::GetJavaObject() {
   return java_object_.AsLocalRef(AttachCurrentThread());
@@ -102,12 +113,22 @@ void ExtensionActionPopupContents::RenderFrameCreated(
 bool ExtensionActionPopupContents::HandleKeyboardEvent(
     content::WebContents* source,
     const input::NativeWebKeyboardEvent& event) {
+  if (event.os_event.is_null()) {
+    return false;
+  }
   return Java_ExtensionActionPopupContents_handleKeyboardEvent(
-      AttachCurrentThread(), java_object_, source->GetJavaWebContents(),
-      event.os_event);
+      AttachCurrentThread(), java_object_, event.os_event);
 }
 
 void ExtensionActionPopupContents::OnLoaded() {
+  if (shown_callback_) {
+    std::move(shown_callback_).Run(host_.get());
+  }
+  if (inspect_with_devtools_) {
+    DevToolsWindow::OpenDevToolsWindow(
+        host_->host_contents(), DevToolsToggleAction::ShowConsolePanel(),
+        DevToolsOpenedByAction::kContextMenuInspect);
+  }
   Java_ExtensionActionPopupContents_onLoaded(AttachCurrentThread(),
                                              java_object_);
 }
@@ -132,28 +153,6 @@ void ExtensionActionPopupContents::HandleCloseExtensionHost(
                                             java_object_);
 }
 
-// JNI method to create an ExtensionActionPopupContents instance.
-// This is called from the Java side to initiate the display of an extension
-// popup.
-static ScopedJavaLocalRef<jobject> JNI_ExtensionActionPopupContents_Create(
-    JNIEnv* env,
-    int64_t extension_view_host_ptr) {
-  std::unique_ptr<ExtensionViewHost> host(
-      reinterpret_cast<extensions::ExtensionViewHost*>(
-          extension_view_host_ptr));
-  DCHECK(host);
-
-  // The ExtensionActionPopupContents C++ object's lifetime is managed by its
-  // Java counterpart. The Java object holds a pointer to this C++ instance.
-  // When the Java side is finished with the popup, it will explicitly call
-  // a 'destroy()' method on its Java object, which in turn calls the native
-  // ExtensionActionPopupContents::Destroy() method, leading to the deletion
-  // of this C++ object. Therefore, 'new' is used here, and ownership is
-  // effectively passed to the Java-controlled lifecycle.
-  ExtensionActionPopupContents* popup =
-      new ExtensionActionPopupContents(std::move(host));
-  return popup->GetJavaObject();
-}
 
 }  // namespace extensions
 

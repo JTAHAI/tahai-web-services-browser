@@ -32,8 +32,16 @@ const int kDefaultNetworkListLimit = 1000;
 const char kPrivateOnlyError[] = "Requires networkingPrivate API access.";
 
 const char* const kPrivatePropertyPathsForSet[] = {
-    "Cellular.APN", "ProxySettings", "StaticIPConfig", "VPN.Host",
-    "VPN.IPsec",    "VPN.L2TP",      "VPN.OpenVPN",    "VPN.ThirdPartyVPN",
+    "Cellular.APN",
+    "IPAddressConfigType",
+    "NameServersConfigType",
+    "ProxySettings",
+    "StaticIPConfig",
+    "VPN.Host",
+    "VPN.IPsec",
+    "VPN.L2TP",
+    "VPN.OpenVPN",
+    "VPN.ThirdPartyVPN",
 };
 
 const char* const kPrivatePropertyPathsForGet[] = {
@@ -41,6 +49,7 @@ const char* const kPrivatePropertyPathsForGet[] = {
     "Cellular.APNList",
     "Cellular.CustomAPNList",
     "Cellular.LastGoodAPN",
+    "Cellular.EID",
     "Cellular.ESN",
     "Cellular.ICCID",
     "Cellular.IMEI",
@@ -49,6 +58,8 @@ const char* const kPrivatePropertyPathsForGet[] = {
     "Cellular.MEID",
     "Cellular.MIN",
     "Ethernet.EAP",
+    "IPAddressConfigType",
+    "NameServersConfigType",
     "VPN.IPsec",
     "VPN.L2TP",
     "VPN.OpenVPN",
@@ -385,6 +396,25 @@ ExtensionFunction::ResponseAction NetworkingPrivateGetNetworksFunction::Run() {
 
 void NetworkingPrivateGetNetworksFunction::Success(
     base::ListValue network_list) {
+  // Determine if the calling extension has privileged access to private
+  // networking properties.
+  bool has_private_access =
+      HasPrivateNetworkingAccess(extension(), source_context_type(),
+                                 source_url(), context_id(), *GetContextData());
+
+  // If the caller is not allowlisted, filter out sensitive properties
+  // (e.g., Cellular.ICCID, Cellular.EID) from each network dictionary
+  // to prevent information leaks.
+  if (!has_private_access) {
+    for (auto& network : network_list) {
+      if (network.is_dict()) {
+        FilterProperties(network.GetDict(), PropertiesType::GET, extension(),
+                         source_context_type(), source_url(), context_id(),
+                         *GetContextData());
+      }
+    }
+  }
+
   return Respond(WithArguments(std::move(network_list)));
 }
 

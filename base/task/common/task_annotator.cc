@@ -220,7 +220,7 @@ void TaskAnnotator::RunTaskImpl(PendingTask& pending_task) {
         scoped_quarantine_task_scope;
     if (g_scheduler_loop_quarantine_task_controlled_purge_enabled.load(
             std::memory_order_relaxed)) {
-      scoped_quarantine_task_scope.emplace();
+      scoped_quarantine_task_scope.emplace(pending_task);
     }
 
     if (g_task_annotator_observer) {
@@ -268,9 +268,7 @@ void TaskAnnotator::EmitTaskLocation(perfetto::EventContext& ctx,
 // into EventContext if toplevel.flow category is enabled.
 void TaskAnnotator::MaybeEmitIncomingTaskFlow(perfetto::EventContext& ctx,
                                               const PendingTask& task) const {
-  static const uint8_t* flow_enabled =
-      TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED("toplevel.flow");
-  if (!*flow_enabled) {
+  if (!TRACE_EVENT_CATEGORY_ENABLED("toplevel.flow")) {
     return;
   }
 
@@ -328,10 +326,8 @@ void TaskAnnotator::MaybeEmitDelayAndPolicy(perfetto::EventContext& ctx,
 
 void TaskAnnotator::MaybeEmitIPCHash(perfetto::EventContext& ctx,
                                      const PendingTask& task) const {
-  static const uint8_t* toplevel_ipc_enabled =
-      TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(
-          TRACE_DISABLED_BY_DEFAULT("toplevel.ipc"));
-  if (!*toplevel_ipc_enabled) {
+  if (!TRACE_EVENT_CATEGORY_ENABLED(
+          TRACE_DISABLED_BY_DEFAULT("toplevel.ipc"))) {
     return;
   }
 

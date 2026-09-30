@@ -21,6 +21,7 @@ import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.EnableLeakChecks;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.ImportantFormFactors;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.customtabs.CustomTabsConnection;
@@ -43,6 +44,8 @@ import java.util.concurrent.TimeoutException;
 @ImportantFormFactors(DeviceFormFactor.TABLET_OR_DESKTOP)
 @Batch(Batch.PER_CLASS)
 @EnableLeakChecks
+// TODO(b/555414915): Update Android tests with WebUI NTP enabled on AL.
+@DisableFeatures(ChromeFeatureList.USE_WEB_UI_NTP_ANDROID)
 public class PublicTransitLeakTest {
     @Rule
     public FreshCtaTransitTestRule mChromeTabbedActivityTestRule =
@@ -63,6 +66,7 @@ public class PublicTransitLeakTest {
 
     @Test
     @LargeTest
+    @DisableFeatures(ChromeFeatureList.SETTINGS_IN_TAB) // crbug.com/521895796
     public void settingsActivityTest() {
         WebPageStation page = mChromeTabbedActivityTestRule.startOnBlankPage();
         page.openRegularTabAppMenu()

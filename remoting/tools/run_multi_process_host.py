@@ -119,35 +119,38 @@ def ensure_permissions(abs_out_dir, user_home, force=False):
     remoting_core_path = os.path.join(abs_out_dir, "libremoting_core.so")
 
     def check_permissions():
-        try:
-            subprocess.run([
-                "sudo", "-u", "_crd_network", "test", "-x", remoting_host_path
-            ],
-                           check=True,
-                           capture_output=True)
-            subprocess.run([
-                "sudo", "-u", "_crd_network", "test", "-r", remoting_core_path
-            ],
-                           check=True,
-                           capture_output=True)
-            return True
-        except subprocess.CalledProcessError:
-            return False
+        for user in [
+                "_crd_network", "_crd_peer_connection", "_crd_crashpad"
+        ]:
+            try:
+                subprocess.run([
+                    "sudo", "-u", user, "test", "-x", remoting_host_path
+                ],
+                               check=True,
+                               capture_output=True)
+                subprocess.run([
+                    "sudo", "-u", user, "test", "-r", remoting_core_path
+                ],
+                               check=True,
+                               capture_output=True)
+            except subprocess.CalledProcessError:
+                return False
+        return True
 
     print("Checking permissions...")
     if not force and check_permissions():
-        print("_crd_network has the right permissions.")
+        print("System users have the right permissions.")
         return
 
     if force:
         print("Forcing permission update...")
     else:
-        print(
-            "_crd_network does not have execute permissions. Setting ACLs...")
+        print("System users do not have execute permissions. Setting ACLs...")
 
     run_command([
-        "setfacl", "-R", "-m", "u:_crd_network:rx", "-m", "g:Debian-gdm:rx",
-        abs_out_dir
+        "setfacl", "-R", "-m", "u:_crd_network:rx", "-m",
+        "u:_crd_peer_connection:rx", "-m", "u:_crd_crashpad:rx", "-m",
+        "g:Debian-gdm:rx", abs_out_dir
     ])
 
     # Accounts also need to be granted read and executable permissions to
@@ -161,8 +164,9 @@ def ensure_permissions(abs_out_dir, user_home, force=False):
 
         print(f"Setting ACLs on {parent_dir}...")
         run_command([
-            "setfacl", "-m", "u:_crd_network:rx", "-m", "g:Debian-gdm:rx",
-            parent_dir
+            "setfacl", "-m", "u:_crd_network:rx", "-m",
+            "u:_crd_peer_connection:rx", "-m", "u:_crd_crashpad:rx", "-m",
+            "g:Debian-gdm:rx", parent_dir
         ])
 
         if parent_dir == user_home_abs:
@@ -200,7 +204,10 @@ def user_main(out_dir, keep_sessions=False, set_permissions=False):
     run_command(cmd)
 
 
-def root_main(out_dir, user_home, keep_sessions=False, set_permissions=False):
+def root_main(out_dir,
+              user_home,
+              keep_sessions=False,
+              set_permissions=False):
     abs_out_dir = os.path.abspath(out_dir)
     host_config_path = "/etc/chrome-remote-desktop/host.json"
 
@@ -219,8 +226,10 @@ def root_main(out_dir, user_home, keep_sessions=False, set_permissions=False):
             print("No suitable user config found")
             sys.exit(1)
 
-    print("Adding _crd_network system user...")
+    print("Adding CRD system users...")
     run_command(["adduser", "--system", "_crd_network"])
+    run_command(["adduser", "--system", "_crd_peer_connection"])
+    run_command(["adduser", "--system", "_crd_crashpad"])
 
     remoting_host_path = os.path.join(abs_out_dir, "remoting_me2me_host")
     remoting_core_path = os.path.join(abs_out_dir, "libremoting_core.so")
@@ -327,15 +336,16 @@ def main():
         "Forcibly run the setfacl command to set permissions, bypassing the "
         "permission check. Useful if you modified dependencies (e.g. WebRTC) "
         "that aren't checked by default.")
-    parser.add_argument("--terminate-sessions",
-                        action="store_true",
-                        help="Only terminate remote sessions and exit. "
-                        "Must be run with sudo.")
+    parser.add_argument(
+        "--terminate-sessions",
+        action="store_true",
+        help="Only terminate remote sessions and exit. "
+        "Must be run with sudo.")
 
     # These should be set by the script itself.
     parser.add_argument("--elevated",
-                        action="store_true",
-                        help=argparse.SUPPRESS)
+        action="store_true",
+        help=argparse.SUPPRESS)
     parser.add_argument("--user-home", help=argparse.SUPPRESS)
 
     args = parser.parse_args()

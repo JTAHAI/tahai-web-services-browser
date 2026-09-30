@@ -70,7 +70,7 @@ class SVGResources {
   static void UpdateEffects(LayoutObject&,
                             StyleDifference,
                             const ComputedStyle* old_style);
-  static void ClearEffects(const LayoutObject&);
+  static void ClearEffects(const LayoutObject&, const ComputedStyle* style);
   static void UpdatePaints(const LayoutObject&,
                            const ComputedStyle* old_style,
                            const ComputedStyle& style);
@@ -110,7 +110,7 @@ class SVGElementResourceClient final
 
   Member<SVGElement> element_;
   Member<FilterData> filter_data_;
-  bool filter_data_dirty_;
+  bool filter_data_dirty_ = false;
 };
 
 // Helper class for handling invalidation of resources (generally after the

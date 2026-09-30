@@ -73,17 +73,22 @@ std::unique_ptr<ChromeMLHolder> ChromeMLHolder::Create(
   }
 
   base::ScopedNativeLibrary scoped_library(library);
-  auto get_api = reinterpret_cast<ChromeMLAPIGetter>(
-      scoped_library.GetFunctionPointer("GetChromeMLAPI"));
-  if (!get_api) {
-    LOG(ERROR) << "Unable to resolve GetChromeMLAPI() symbol.";
+  auto get_api_v2 = reinterpret_cast<ChromeMLAPIGetterV2>(
+      scoped_library.GetFunctionPointer("GetChromeMLAPIV2"));
+  if (!get_api_v2) {
+    LOG(ERROR) << "Unable to resolve GetChromeMLAPIV2() symbol.";
     return {};
   }
 
-  const ChromeMLAPI* api = get_api(base::FeatureList::IsEnabled(
-      on_device_model::features::kOnDeviceModelLitertLmBackend));
+  ChromeMLBackendMode mode = ChromeMLBackendMode::kLiteRtLmSession;
+  if (base::FeatureList::IsEnabled(
+          on_device_model::features::kOnDeviceModelConversationBackend)) {
+    mode = ChromeMLBackendMode::kLiteRtLmConversation;
+  }
+
+  const ChromeMLAPI* api = get_api_v2(mode);
   if (!api) {
-    LOG(ERROR) << "GetChromeMLAPI() returned null.";
+    LOG(ERROR) << "GetChromeMLAPIV2() returned null.";
     return {};
   }
 

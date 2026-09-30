@@ -310,13 +310,13 @@ ParsedSessionDescription ParsedSessionDescription::Parse(const String& sdp_type,
 
 void ParsedSessionDescription::DoParse() {
   std::optional<webrtc::SdpType> maybe_type =
-      webrtc::SdpTypeFromString(type_.Utf8().c_str());
+      webrtc::SdpTypeFromString(type_.Utf8());
   if (!maybe_type.has_value()) {
     description_.reset();
     return;
   }
-  description_ = webrtc::CreateSessionDescription(*maybe_type,
-                                                  sdp_.Utf8().c_str(), &error_);
+  description_ =
+      webrtc::CreateSessionDescription(*maybe_type, sdp_.Utf8(), &error_);
 }
 
 // Processes the resulting state changes of a SetLocalDescription() or
@@ -366,9 +366,10 @@ class RTCPeerConnectionHandler::WebRtcSetDescriptionObserverImpl
     auto current_remote_description =
         std::move(states.current_remote_description);
 
-    // Track result in chrome://webrtc-internals/.
+    // Result is computed while the description is still available but
+    // fired after the events.
+    StringBuilder result;
     if (tracker && handler_) {
-      StringBuilder result;
       if (action_ ==
           PeerConnectionTracker::kActionSetLocalDescriptionImplicit) {
         webrtc::SessionDescriptionInterface* created_session_description =
@@ -395,8 +396,6 @@ class RTCPeerConnectionHandler::WebRtcSetDescriptionObserverImpl
         }
         json->WriteJSON(&result);
       }
-      tracker->TrackSessionDescriptionCallback(handler_.get(), action_,
-                                               "OnSuccess", result.ToString());
       handler_->TrackSignalingChange(signaling_state);
     }
 
@@ -410,6 +409,11 @@ class RTCPeerConnectionHandler::WebRtcSetDescriptionObserverImpl
 
     // This fires JS events and could cause |handler_| to become null.
     ProcessStateChanges(std::move(states));
+
+    if (tracker && handler_) {
+      tracker->TrackSessionDescriptionCallback(handler_.get(), action_,
+                                               "OnSuccess", result.ToString());
+    }
     ResolvePromise();
   }
 
@@ -1910,7 +1914,6 @@ void RTCPeerConnectionHandler::OnIceConnectionChange(
     webrtc::PeerConnectionInterface::IceConnectionState new_state) {
   TRACE_EVENT0("webrtc", "RTCPeerConnectionHandler::OnIceConnectionChange");
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
-  ReportICEState(new_state);
   track_metrics_.IceConnectionChange(new_state);
 }
 
@@ -1921,6 +1924,14 @@ void RTCPeerConnectionHandler::TrackIceConnectionStateChange(
     return;
   }
   peer_connection_tracker_->TrackIceConnectionStateChange(this, state);
+}
+
+void RTCPeerConnectionHandler::TrackOnTrack(const RTCTrackEvent& event) {
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
+  if (!peer_connection_tracker_) {
+    return;
+  }
+  peer_connection_tracker_->TrackOnTrack(this, event);
 }
 
 // Called any time the combined peerconnection state changes
@@ -2218,17 +2229,6 @@ scoped_refptr<base::SingleThreadTaskRunner>
 RTCPeerConnectionHandler::signaling_thread() const {
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
   return signaling_thread_;
-}
-
-void RTCPeerConnectionHandler::ReportICEState(
-    webrtc::PeerConnectionInterface::IceConnectionState new_state) {
-  DCHECK(task_runner_->RunsTasksInCurrentSequence());
-  if (ice_state_seen_[new_state]) {
-    return;
-  }
-  ice_state_seen_[new_state] = true;
-  UMA_HISTOGRAM_ENUMERATION("WebRTC.PeerConnection.ConnectionState", new_state,
-                            webrtc::PeerConnectionInterface::kIceConnectionMax);
 }
 
 }  // namespace blink

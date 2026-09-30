@@ -39,6 +39,7 @@ class StatusIconLinuxDbus : public ui::StatusIconLinux,
                             public base::RefCounted<StatusIconLinuxDbus> {
  public:
   StatusIconLinuxDbus();
+  explicit StatusIconLinuxDbus(scoped_refptr<dbus::Bus> bus);
 
   StatusIconLinuxDbus(const StatusIconLinuxDbus&) = delete;
   StatusIconLinuxDbus& operator=(const StatusIconLinuxDbus&) = delete;
@@ -55,9 +56,6 @@ class StatusIconLinuxDbus : public ui::StatusIconLinux,
 
  private:
   friend class base::RefCounted<StatusIconLinuxDbus>;
-
-  class Multiplexer;
-  friend class Multiplexer;
 
   ~StatusIconLinuxDbus() override;
 
@@ -95,6 +93,13 @@ class StatusIconLinuxDbus : public ui::StatusIconLinux,
   dbus_utils::ExportMethodResult<> OnScroll(int32_t delta,
                                             std::string orientation);
   dbus_utils::ExportMethodResult<> OnSecondaryActivate(int32_t x, int32_t y);
+  dbus_utils::ExportMethodResult<> OnProvideXdgActivationToken(
+      std::string token);
+
+  void OnGetProperty(dbus::MethodCall* method_call,
+                     dbus::ExportedObject::ResponseSender response_sender);
+  void OnGetAllProperties(dbus::MethodCall* method_call,
+                          dbus::ExportedObject::ResponseSender response_sender);
 
   void UpdateMenuImpl(ui::MenuModel* model, bool send_signal);
 
@@ -131,8 +136,6 @@ class StatusIconLinuxDbus : public ui::StatusIconLinux,
   std::string service_name_;
   raw_ptr<dbus::ObjectProxy, DanglingUntriaged> watcher_ = nullptr;
   raw_ptr<dbus::ExportedObject, DanglingUntriaged> item_ = nullptr;
-
-  base::RepeatingCallback<void(bool)> barrier_;
 
   // A map of property names (e.g. "Category", "Id") to their values.
   std::map<std::string, dbus_utils::Variant> properties_;

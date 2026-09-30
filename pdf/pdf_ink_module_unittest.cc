@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <ranges>
 #include <set>
 #include <string>
 #include <string_view>
@@ -22,7 +23,6 @@
 #include "base/test/task_environment.h"
 #include "base/test/values_test_util.h"
 #include "base/time/time.h"
-#include "base/types/zip.h"
 #include "base/values.h"
 #include "pdf/page_orientation.h"
 #include "pdf/pdf_caret.h"
@@ -242,7 +242,7 @@ blink::WebTouchEvent CreateTouchEvent(blink::WebInputEvent::Type type,
   constexpr int kNoModifiers = 0;
   blink::WebTouchEvent touch_event(
       type, kNoModifiers, blink::WebInputEvent::GetStaticTimeStampForTests());
-  for (auto [touch, point] : base::zip(touch_event.touches, points)) {
+  for (auto [touch, point] : std::views::zip(touch_event.touches, points)) {
     touch.SetPositionInWidget(point);
   }
   touch_event.touches_length = points.size();
@@ -590,7 +590,8 @@ TEST_P(PdfInkModuleTest, HandleGetAllTextAnnotationsMessage) {
                   "alignment": "center",
                   "styles": {
                     "bold": false,
-                    "italic": true
+                    "italic": true,
+                    "strikethrough": false
                   }
                 },
                 "viewportOrientation": 0
@@ -1012,16 +1013,19 @@ class PdfInkModuleTextTest : public testing::Test {
 
     std::vector<InkTextBox> test_boxes;
     InkTextBox test_box(
-        /*id=*/42, InkTextBoxAttributes(
-                       /*rect=*/gfx::RectF(10.0f, 20.0f, 100.0f, 15.0f),
-                       /*color=*/kYellow,
-                       /*css_font_size=*/12.0f,
-                       /*typeface=*/TextTypeface::kSerif,
-                       /*alignment=*/TextAlignment::kCenter,
-                       /*orientation=*/1,
-                       /*viewport_orientation=*/PageOrientation::kOriginal,
-                       /*is_bold=*/true,
-                       /*is_italic=*/true, kOriginalText));
+        /*id=*/42, InkTextBoxAttributes{
+                       .rect = gfx::RectF(10.0f, 20.0f, 100.0f, 15.0f),
+                       .color = kYellow,
+                       .css_font_size = 12.0f,
+                       .typeface = TextTypeface::kSerif,
+                       .alignment = TextAlignment::kCenter,
+                       .orientation = 1,
+                       .viewport_orientation = PageOrientation::kOriginal,
+                       .is_bold = true,
+                       .is_italic = true,
+                       .is_strikethrough = true,
+                       .text = kOriginalText,
+                   });
     test_box.ink_loaded_text_id = kLoadedTextId;
     test_boxes.push_back(std::move(test_box));
 
@@ -1436,7 +1440,7 @@ TEST_F(PdfInkModuleTextTest, HandleFinishTextAnnotationMessageStyleMetrics) {
   histograms.ExpectTotalCount("PDF.Ink2TextAnnotationItalic", 0);
 
   {
-    // Send an edited message with bold=true, italic=true.
+    // Send an edited message with bold=true, italic=true, strikethrough=false.
     base::DictValue data = SampleFinishTextAnnotationData(kFrontendId, kFontId,
                                                           kPageIndex, kPdfZoom);
 
@@ -1445,8 +1449,10 @@ TEST_F(PdfInkModuleTextTest, HandleFinishTextAnnotationMessageStyleMetrics) {
     data.Set("newTypefaces", std::move(typefaces));
 
     base::DictValue text_attributes = SampleTextAttributesDict();
-    text_attributes.Set(
-        "styles", base::DictValue().Set("bold", true).Set("italic", false));
+    text_attributes.Set("styles", base::DictValue()
+                                      .Set("bold", true)
+                                      .Set("italic", false)
+                                      .Set("strikethrough", false));
     data.Set("textAttributes", std::move(text_attributes));
 
     EXPECT_TRUE(ink_module().OnMessage(
@@ -1457,7 +1463,7 @@ TEST_F(PdfInkModuleTextTest, HandleFinishTextAnnotationMessageStyleMetrics) {
   }
 
   {
-    // Send an edited message with bold=false, italic=true.
+    // Send an edited message with bold=false, italic=true, strikethrough=false.
     base::DictValue data = SampleFinishTextAnnotationData(kFrontendId, kFontId,
                                                           kPageIndex, kPdfZoom);
     base::ListValue typefaces_edit;
@@ -1465,8 +1471,10 @@ TEST_F(PdfInkModuleTextTest, HandleFinishTextAnnotationMessageStyleMetrics) {
     data.Set("newTypefaces", std::move(typefaces_edit));
 
     base::DictValue text_attributes_edit = SampleTextAttributesDict();
-    text_attributes_edit.Set(
-        "styles", base::DictValue().Set("bold", false).Set("italic", true));
+    text_attributes_edit.Set("styles", base::DictValue()
+                                           .Set("bold", false)
+                                           .Set("italic", true)
+                                           .Set("strikethrough", false));
     data.Set("textAttributes", std::move(text_attributes_edit));
 
     EXPECT_TRUE(ink_module().OnMessage(
@@ -1634,22 +1642,12 @@ TEST_F(PdfInkModuleTextTest, HandleFinishTextAnnotationMessageEdit) {
     EXPECT_CALL(client(), UpdateTextActiveAndInvalidate(TextId(kTextId0),
                                                         /*active=*/false));
     EXPECT_CALL(client(), DiscardText(kTextId0));
-    EXPECT_CALL(
-        client(),
-        DrawText(kPageIndex, kTextId1,
-                 ElementsAre(SampleInkTextInfoMatcher(kFontId)), kAscent,
-                 kPdfZoom,
-                 InkTextBoxAttributesEq(
-                     /*rect=*/gfx::RectF(10.0f, 20.0f, 100.0f, 15.0f),
-                     /*color=*/kYellow,
-                     /*css_font_size=*/12.0f,
-                     /*typeface=*/TextTypeface::kSerif,
-                     /*alignment=*/TextAlignment::kCenter,
-                     /*orientation=*/1,
-                     /*viewport_orientation=*/PageOrientation::kOriginal,
-                     /*is_bold=*/true,
-                     /*is_italic=*/true,
-                     /*text=*/"ah")));
+    EXPECT_CALL(client(),
+                DrawText(kPageIndex, kTextId1,
+                         ElementsAre(SampleInkTextInfoMatcher(kFontId)),
+                         kAscent, kPdfZoom,
+                         SampleInkTextBoxAttributesMatcherWith(
+                             "ah", PageOrientation::kOriginal)));
     EXPECT_CALL(client(), RequestThumbnail(kPageIndex, _));
     EXPECT_CALL(client(), AddFont(_, _, _)).Times(0);
 

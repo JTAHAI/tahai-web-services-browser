@@ -23,11 +23,15 @@ enum class AppBarPosition;
 // The position of the app bar.
 @property(nonatomic, assign) AppBarPosition appBarPosition;
 
-// Indicates whether the app bar is locked in fullscreen.
-@property(nonatomic, assign) BOOL appBarLockedInFullscreen;
+// Indicates whether the assistant container is invoked.
+@property(nonatomic, assign) BOOL assistantContainerInvoked;
 
 // Sets the App Bar view to be contained.
 - (void)setAppBar:(UIView*)appBar;
+
+// Notifies the container view that the window size has changed, updating its
+// constraints.
+- (void)windowSizeDidChange;
 
 @end
 

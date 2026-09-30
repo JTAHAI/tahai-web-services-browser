@@ -6,8 +6,10 @@ package org.chromium.device.nfc;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -99,7 +101,7 @@ public class NFCTest {
     /** Class that is used test NfcImpl implementation */
     private static class TestNfcImpl extends NfcImpl {
         public TestNfcImpl(Context context, NfcDelegate delegate) {
-            super(0, delegate, null);
+            super(0, delegate, null, false);
         }
 
         public void processPendingOperationsForTesting(NfcTagHandler handler) {
@@ -881,13 +883,13 @@ public class NFCTest {
         {
             // |recordType| is a string mixed with ASCII/non-ASCII, FAIL.
             extMojoNdefRecord.recordType = "example.com:hellö";
-            android.nfc.NdefMessage extNdefMessage_nonASCII = null;
+            android.nfc.NdefMessage extNdefMessageNonAscii = null;
             try {
-                extNdefMessage_nonASCII =
+                extNdefMessageNonAscii =
                         NdefMessageUtils.toNdefMessage(createMojoNdefMessage(extMojoNdefRecord));
             } catch (InvalidNdefMessageException e) {
             }
-            assertNull(extNdefMessage_nonASCII);
+            assertNull(extNdefMessageNonAscii);
 
             char[] chars = new char[251];
             Arrays.fill(chars, 'a');
@@ -895,23 +897,23 @@ public class NFCTest {
 
             // |recordType|'s length is 255, OK.
             extMojoNdefRecord.recordType = domain + ":xyz";
-            android.nfc.NdefMessage extNdefMessage_255 = null;
+            android.nfc.NdefMessage extNdefMessage255 = null;
             try {
-                extNdefMessage_255 =
+                extNdefMessage255 =
                         NdefMessageUtils.toNdefMessage(createMojoNdefMessage(extMojoNdefRecord));
             } catch (InvalidNdefMessageException e) {
             }
-            assertNotNull(extNdefMessage_255);
+            assertNotNull(extNdefMessage255);
 
             // Exceeding the maximum length 255, FAIL.
             extMojoNdefRecord.recordType = domain + ":xyze";
-            android.nfc.NdefMessage extNdefMessage_256 = null;
+            android.nfc.NdefMessage extNdefMessage256 = null;
             try {
-                extNdefMessage_256 =
+                extNdefMessage256 =
                         NdefMessageUtils.toNdefMessage(createMojoNdefMessage(extMojoNdefRecord));
             } catch (InvalidNdefMessageException e) {
             }
-            assertNull(extNdefMessage_256);
+            assertNull(extNdefMessage256);
         }
         {
             // '/' is not allowed in the type part.
@@ -935,7 +937,7 @@ public class NFCTest {
         localMojoNdefRecord.data = ApiCompatibilityUtils.getBytesUtf8(TEST_TEXT);
         {
             // Must start with ':'.
-            localMojoNdefRecord.recordType = "dummyLocalTypeNotStartingwith:";
+            localMojoNdefRecord.recordType = "localTypeNotStartingWith:";
             localMojoNdefRecord.data = ApiCompatibilityUtils.getBytesUtf8(TEST_TEXT);
             NdefMessage localMojoNdefMessage = createMojoNdefMessage(localMojoNdefRecord);
             android.nfc.NdefMessage localNdefMessage = null;
@@ -948,37 +950,37 @@ public class NFCTest {
         {
             // |recordType| is a string mixed with ASCII/non-ASCII, FAIL.
             localMojoNdefRecord.recordType = ":hellö";
-            android.nfc.NdefMessage localNdefMessage_nonASCII = null;
+            android.nfc.NdefMessage localNdefMessageNonAscii = null;
             try {
-                localNdefMessage_nonASCII =
+                localNdefMessageNonAscii =
                         NdefMessageUtils.toNdefMessage(createMojoNdefMessage(localMojoNdefRecord));
             } catch (InvalidNdefMessageException e) {
             }
-            assertNull(localNdefMessage_nonASCII);
+            assertNull(localNdefMessageNonAscii);
 
             char[] chars = new char[255];
             Arrays.fill(chars, 'a');
-            String chars_255 = new String(chars);
+            String chars255 = new String(chars);
 
             // The length of the real local type is 255, OK.
-            localMojoNdefRecord.recordType = ":" + chars_255;
-            android.nfc.NdefMessage localNdefMessage_255 = null;
+            localMojoNdefRecord.recordType = ":" + chars255;
+            android.nfc.NdefMessage localNdefMessage255 = null;
             try {
-                localNdefMessage_255 =
+                localNdefMessage255 =
                         NdefMessageUtils.toNdefMessage(createMojoNdefMessage(localMojoNdefRecord));
             } catch (InvalidNdefMessageException e) {
             }
-            assertNotNull(localNdefMessage_255);
+            assertNotNull(localNdefMessage255);
 
             // Exceeding the maximum length 255, FAIL.
-            localMojoNdefRecord.recordType = ":a" + chars_255;
-            android.nfc.NdefMessage localNdefMessage_256 = null;
+            localMojoNdefRecord.recordType = ":a" + chars255;
+            android.nfc.NdefMessage localNdefMessage256 = null;
             try {
-                localNdefMessage_256 =
+                localNdefMessage256 =
                         NdefMessageUtils.toNdefMessage(createMojoNdefMessage(localMojoNdefRecord));
             } catch (InvalidNdefMessageException e) {
             }
-            assertNull(localNdefMessage_256);
+            assertNull(localNdefMessage256);
         }
     }
 
@@ -1171,6 +1173,14 @@ public class NFCTest {
         // Check that watch request was completed successfully even if NFC operations are suspended.
         verify(mockCallback).call(mErrorCaptor.capture());
         assertNull(mErrorCaptor.getValue());
+
+        // Check that reader mode was NOT enabled while operations are suspended.
+        verify(mNfcAdapter, never())
+                .enableReaderMode(
+                        any(Activity.class),
+                        any(ReaderCallback.class),
+                        anyInt(),
+                        (Bundle) isNull());
 
         // Check that watch is not triggered when NFC tag is in proximity.
         nfc.processPendingOperationsForTesting(mNfcTagHandler);
@@ -1977,5 +1987,84 @@ public class NFCTest {
                 android.nfc.NdefRecord.RTD_SMART_POSTER,
                 ApiCompatibilityUtils.getBytesUtf8(DUMMY_RECORD_ID),
                 payloadMessage.toByteArray());
+    }
+
+    /**
+     * Test that NfcProviderImpl.suspendNfcOperations() persists the suspended state when called
+     * before getNfcForHost(), and applies it when NfcImpl is instantiated.
+     */
+    @Test
+    @Feature({"NFCTest"})
+    public void testProviderSuspendsBeforeGetNfcForHost() {
+        NfcProviderImpl provider = new NfcProviderImpl(mDelegate);
+        provider.suspendNfcOperations();
+        assertTrue(provider.getOperationsSuspendedForTesting());
+
+        provider.getNfcForHost(1, null);
+        NfcImpl nfc = provider.getNfcImplForTesting();
+        assertNotNull(nfc);
+        assertTrue(nfc.isOperationsSuspendedForTesting());
+
+        mDelegate.invokeCallback();
+        Push_Response mockCallback = mock(Push_Response.class);
+        nfc.push(createMojoNdefMessage(), createNdefWriteOptions(), mockCallback);
+
+        // Check that push request was cancelled immediately due to operations being suspended.
+        verify(mockCallback).call(mErrorCaptor.capture());
+        assertNotNull(mErrorCaptor.getValue());
+        assertEquals(NdefErrorType.OPERATION_CANCELLED, mErrorCaptor.getValue().errorType);
+    }
+
+    /**
+     * Test that NfcProviderImpl preserves the suspended state when a new NfcImpl is requested
+     * (rebind) while suspended.
+     */
+    @Test
+    @Feature({"NFCTest"})
+    public void testProviderRebindPreservesSuspendedState() {
+        NfcProviderImpl provider = new NfcProviderImpl(mDelegate);
+        provider.getNfcForHost(1, null);
+        NfcImpl nfc1 = provider.getNfcImplForTesting();
+        assertNotNull(nfc1);
+        assertFalse(nfc1.isOperationsSuspendedForTesting());
+
+        provider.suspendNfcOperations();
+        assertTrue(nfc1.isOperationsSuspendedForTesting());
+        assertTrue(provider.getOperationsSuspendedForTesting());
+
+        // Rebind with a new host/request
+        provider.getNfcForHost(2, null);
+        NfcImpl nfc2 = provider.getNfcImplForTesting();
+        assertNotNull(nfc2);
+        assertTrue(nfc2.isOperationsSuspendedForTesting());
+
+        mDelegate.invokeCallback();
+        Push_Response mockCallback = mock(Push_Response.class);
+        nfc2.push(createMojoNdefMessage(), createNdefWriteOptions(), mockCallback);
+
+        // Check that push request was cancelled immediately on the new instance.
+        verify(mockCallback).call(mErrorCaptor.capture());
+        assertNotNull(mErrorCaptor.getValue());
+        assertEquals(NdefErrorType.OPERATION_CANCELLED, mErrorCaptor.getValue().errorType);
+    }
+
+    /**
+     * Test that NfcProviderImpl.resumeNfcOperations() clears the suspended state and resumes
+     * operations on the underlying NfcImpl.
+     */
+    @Test
+    @Feature({"NFCTest"})
+    public void testProviderResumeClearsSuspendedState() {
+        NfcProviderImpl provider = new NfcProviderImpl(mDelegate);
+        provider.suspendNfcOperations();
+        assertTrue(provider.getOperationsSuspendedForTesting());
+
+        provider.resumeNfcOperations();
+        assertFalse(provider.getOperationsSuspendedForTesting());
+
+        provider.getNfcForHost(1, null);
+        NfcImpl nfc = provider.getNfcImplForTesting();
+        assertNotNull(nfc);
+        assertFalse(nfc.isOperationsSuspendedForTesting());
     }
 }

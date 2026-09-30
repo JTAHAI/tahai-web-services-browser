@@ -44,7 +44,7 @@ export {CrToolbarElement} from 'chrome://resources/cr_elements/cr_toolbar/cr_too
 export {CrToolbarSearchFieldElement} from 'chrome://resources/cr_elements/cr_toolbar/cr_toolbar_search_field.js';
 export {OpenWindowProxyImpl} from 'chrome://resources/js/open_window_proxy.js';
 export type {OpenWindowProxy} from 'chrome://resources/js/open_window_proxy.js';
-export {PluralStringProxyImpl as SettingsPluralStringProxyImpl} from 'chrome://resources/js/plural_string_proxy.js';
+export {PluralStringProxyImpl} from 'chrome://resources/js/plural_string_proxy.js';
 export {getTrustedHTML} from 'chrome://resources/js/static_types.js';
 export {SettingsAboutPageElement} from './about_page/about_page.js';
 export {ControlledRadioButtonElement} from './controls/controlled_radio_button.js';
@@ -74,10 +74,10 @@ export {HomeUrlInputElement} from './appearance_page/home_url_input.js';
 export {SettingsAutofillAiEntriesListElement} from './autofill_page/autofill_ai_entries_list.js';
 export {SettingsAutofillPageElement} from './autofill_page/autofill_page.js';
 export {SettingsAutofillPageIndexElement} from './autofill_page/autofill_page_index.js';
-export {PasswordCheckReferrer, PasswordManagerImpl, PasswordManagerPage} from './autofill_page/password_manager_proxy.js';
-export type {PasswordManagerProxy} from './autofill_page/password_manager_proxy.js';
+export {CollapsibleCardElement} from './autofill_page/collapsible_autofill_settings_card.js';
+export {PasswordCheckReferrer, PasswordManagerImpl, PasswordManagerPage} from './autofill_page/passwords/password_manager_proxy.js';
+export type {PasswordManagerProxy} from './autofill_page/passwords/password_manager_proxy.js';
 export {BaseMixin} from './base_mixin.js';
-export {SettingsCheckboxListEntryElement} from './controls/settings_checkbox_list_entry.js';
 // <if expr="not is_chromeos">
 export {DefaultBrowserBrowserProxyImpl} from './default_browser_page/default_browser_browser_proxy.js';
 export type {DefaultBrowserBrowserProxy, DefaultBrowserInfo} from './default_browser_page/default_browser_browser_proxy.js';
@@ -100,7 +100,7 @@ export {SettingsStartupUrlDialogElement} from './on_startup_page/startup_url_dia
 export {EDIT_STARTUP_URL_EVENT, SettingsStartupUrlEntryElement} from './on_startup_page/startup_url_entry.js';
 export {SettingsStartupUrlsPageElement} from './on_startup_page/startup_urls_page.js';
 export {StartupUrlsPageBrowserProxyImpl} from './on_startup_page/startup_urls_page_browser_proxy.js';
-export type {StartupUrlsPageBrowserProxy} from './on_startup_page/startup_urls_page_browser_proxy.js';
+export type {StartupPageInfo, StartupUrlsPageBrowserProxy} from './on_startup_page/startup_urls_page_browser_proxy.js';
 export {pageVisibility, resetPageVisibilityForTesting} from './page_visibility.js';
 export type {PrivacyPageVisibility} from './page_visibility.js';
 // <if expr="is_chromeos">
@@ -142,6 +142,9 @@ export {ScrollableMixin} from './scrollable_mixin.js';
 export {ExtensionControlledMessageElement} from './search_page/extension_controlled_message.js';
 export {FeatureShortcutsPageElement} from './search_page/feature_shortcuts_page.js';
 export {KeyboardShortcutPageElement} from './search_page/keyboard_shortcut_page.js';
+export {OmniboxEverywhereBrowserProxyImpl} from './search_page/omnibox_everywhere_browser_proxy.js';
+export type {OmniboxEverywhereBrowserProxy} from './search_page/omnibox_everywhere_browser_proxy.js';
+export {SettingsOmniboxEverywhereSectionElement} from './search_page/omnibox_everywhere_section.js';
 export {SettingsSearchEngineListDialogElement} from './search_page/search_engine_list_dialog.js';
 export {ChoiceMadeLocation, SearchEnginesBrowserProxyImpl, SearchEnginesInteractions} from './search_page/search_engines_browser_proxy.js';
 export type {CategorizedTemplateUrls, SearchEngine, SearchEnginesBrowserProxy, SearchEnginesInfo} from './search_page/search_engines_browser_proxy.js';
@@ -162,6 +165,3 @@ export {SiteFaviconElement} from './site_favicon.js';
 export {convertDateToWindowsEpoch} from './time.js';
 export {TooltipMixin} from './tooltip_mixin.js';
 export type {TooltipMixinInterface} from './tooltip_mixin.js';
-export {CollapsibleCardElement} from './your_saved_info_page/collapsible_autofill_settings_card.js';
-export {SettingsYourSavedInfoPageElement} from './your_saved_info_page/your_saved_info_page.js';
-export {SettingsYourSavedInfoPageIndexElement} from './your_saved_info_page/your_saved_info_page_index.js';

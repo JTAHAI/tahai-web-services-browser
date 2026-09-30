@@ -17,7 +17,6 @@
 #include "third_party/blink/public/common/security/protocol_handler_security_level.h"
 #include "third_party/blink/public/platform/web_audio_device.h"
 #include "third_party/blink/public/platform/web_prescient_networking.h"
-#include "ui/gfx/icc_profile.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 #include "v8/include/v8-initialization.h"
@@ -143,8 +142,7 @@ bool ContentRendererClient::HandleNavigation(
     blink::WebFrame* frame,
     const blink::WebURLRequest& request,
     blink::WebNavigationType type,
-    blink::WebNavigationPolicy default_policy,
-    bool is_redirect) {
+    blink::WebNavigationPolicy default_policy) {
   return false;
 }
 #endif
@@ -258,11 +256,6 @@ ContentRendererClient::CreateSpeechRecognitionClient(
   return nullptr;
 }
 #endif
-
-bool ContentRendererClient::AllowScriptExtensionForServiceWorker(
-    const url::Origin& script_origin) {
-  return false;
-}
 
 bool ContentRendererClient::ShouldEnforceWebRTCRoutingPreferences() {
   return true;

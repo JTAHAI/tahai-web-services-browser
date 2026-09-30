@@ -19,7 +19,6 @@
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -76,13 +75,15 @@ constexpr Command kCommands[] = {
     {IDC_NEW_TAB, u"New tab", u"open blank tab"},
 };
 
-bool Available(Browser* browser) {
-  return browser && browser->is_type_normal() &&
+bool Available(BrowserWindowInterface* browser) {
+  return browser &&
+         (browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) &&
          !browser->GetProfile()->IsGuestSession() &&
          !browser->GetProfile()->IsSystemProfile();
 }
 
-bool CanActivateItem(Browser* source, const FinderResult& result) {
+bool CanActivateItem(BrowserWindowInterface* source,
+                     const FinderResult& result) {
   if (!Available(source)) {
     return false;
   }
@@ -105,7 +106,7 @@ bool CanActivateItem(Browser* source, const FinderResult& result) {
       return Available(result.browser.get()) && result.contents &&
              result.browser->GetProfile() == source->GetProfile() &&
              result.contents->GetBrowserContext() == source->GetProfile() &&
-             result.browser->tab_strip_model()->GetIndexOfWebContents(
+             result.browser->GetTabStripModel()->GetIndexOfWebContents(
                  result.contents.get()) != TabStripModel::kNoTab;
   }
   return false;
@@ -119,7 +120,7 @@ bool Matches(std::u16string text, const std::vector<std::u16string>& terms) {
 }
 
 class FinderView;
-using Finders = std::map<Browser*, base::WeakPtr<FinderView>>;
+using Finders = std::map<BrowserWindowInterface*, base::WeakPtr<FinderView>>;
 Finders& OpenFinders() {
   static base::NoDestructor<Finders> finders;
   return *finders;
@@ -138,8 +139,8 @@ class FinderContentsView final : public views::View {
 class FinderView final : public views::DialogDelegate,
                          public views::TextfieldController {
  public:
-  explicit FinderView(Browser* browser)
-      : browser_(browser->AsWeakPtr()), key_(browser) {
+  explicit FinderView(BrowserWindowInterface* browser)
+      : browser_(browser->GetWeakPtr()), key_(browser) {
     SetTitle(l10n_util::GetStringUTF16(IDS_TAHAI_FINDER_TITLE));
     SetButtons(static_cast<int>(ui::mojom::DialogButton::kCancel));
     SetButtonLabel(ui::mojom::DialogButton::kCancel,
@@ -276,7 +277,8 @@ class FinderView final : public views::DialogDelegate,
       // Close the native dialog first, then activate on the next UI turn so
       // dialog teardown cannot steal focus back from the destination.
       auto activate = base::BindOnce(
-          [](base::WeakPtr<Browser> browser, FinderResult selected) {
+          [](base::WeakPtr<BrowserWindowInterface> browser,
+             FinderResult selected) {
             if (browser) {
               ActivateFinderResult(browser.get(), selected);
             }
@@ -293,10 +295,10 @@ class FinderView final : public views::DialogDelegate,
     }
   }
 
-  const base::WeakPtr<Browser> browser_;
+  const base::WeakPtr<BrowserWindowInterface> browser_;
   // Identity-only map key; never dereferenced, including during window
   // teardown.
-  raw_ptr<Browser> key_;
+  raw_ptr<BrowserWindowInterface> key_;
   raw_ptr<views::Textfield> search_ = nullptr;
   raw_ptr<views::Label> status_ = nullptr;
   raw_ptr<views::View> rows_ = nullptr;
@@ -308,7 +310,7 @@ class FinderView final : public views::DialogDelegate,
 
 }  // namespace
 
-std::vector<FinderResult> FindBrowserItems(Browser* source,
+std::vector<FinderResult> FindBrowserItems(BrowserWindowInterface* source,
                                            std::u16string_view query) {
   std::vector<FinderResult> results;
   if (!Available(source) || query.size() > 256) {
@@ -357,12 +359,12 @@ std::vector<FinderResult> FindBrowserItems(Browser* source,
   }
   GlobalBrowserCollection::GetInstance()->ForEach(
       [&](BrowserWindowInterface* window) {
-        Browser* browser = window->GetBrowserForMigrationOnly();
+        BrowserWindowInterface* browser = window;
         if (!Available(browser) ||
             browser->GetProfile() != source->GetProfile()) {
           return true;
         }
-        const auto* tabs = browser->tab_strip_model();
+        const auto* tabs = browser->GetTabStripModel();
         for (int index = 0;
              index < tabs->count() && results.size() < kMaxResults; ++index) {
           auto* contents = tabs->GetWebContentsAt(index);
@@ -375,7 +377,7 @@ std::vector<FinderResult> FindBrowserItems(Browser* source,
                 FinderResult::Kind::kTab, title.substr(0, 200),
                 l10n_util::GetStringUTF16(IDS_TAHAI_FINDER_TAB) + u" · " +
                     base::UTF8ToUTF16(url.host())};
-            result.browser = browser->AsWeakPtr();
+            result.browser = browser->GetWeakPtr();
             result.contents = contents->GetWeakPtr();
             results.push_back(std::move(result));
           }
@@ -386,7 +388,8 @@ std::vector<FinderResult> FindBrowserItems(Browser* source,
   return results;
 }
 
-bool ActivateFinderResult(Browser* source, const FinderResult& result) {
+bool ActivateFinderResult(BrowserWindowInterface* source,
+                          const FinderResult& result) {
   if (!Available(source)) {
     return false;
   }
@@ -413,11 +416,11 @@ bool ActivateFinderResult(Browser* source, const FinderResult& result) {
         return false;
       }
       const int index =
-          browser->tab_strip_model()->GetIndexOfWebContents(contents);
+          browser->GetTabStripModel()->GetIndexOfWebContents(contents);
       if (index == TabStripModel::kNoTab) {
         return false;
       }
-      browser->tab_strip_model()->ActivateTabAt(index);
+      browser->GetTabStripModel()->ActivateTabAt(index);
       browser->GetWindow()->Activate();
       contents->Focus();
       return true;
@@ -426,7 +429,7 @@ bool ActivateFinderResult(Browser* source, const FinderResult& result) {
   NOTREACHED();
 }
 
-void ShowFinder(Browser* browser) {
+void ShowFinder(BrowserWindowInterface* browser) {
   if (!Available(browser)) {
     return;
   }

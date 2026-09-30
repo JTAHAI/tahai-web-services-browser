@@ -19,7 +19,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/web_signin_interceptor.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/signin/dice_web_signin_interceptor_delegate.h"
@@ -213,7 +212,7 @@ DiceWebSigninInterceptionBubbleView::~DiceWebSigninInterceptionBubbleView() {
 // static
 std::unique_ptr<ScopedWebSigninInterceptionBubbleHandle>
 DiceWebSigninInterceptionBubbleView::CreateBubble(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     views::BubbleAnchor anchor,
     const WebSigninInterceptor::Delegate::BubbleParameters& bubble_parameters,
     base::OnceCallback<void(SigninInterceptionResult)> callback) {
@@ -239,8 +238,9 @@ DiceWebSigninInterceptionBubbleView::ScopedHandle::~ScopedHandle() {
     return;
   }
   widget->CloseWithReason(
-      bubble_->GetAccepted() ? views::Widget::ClosedReason::kAcceptButtonClicked
-                             : views::Widget::ClosedReason::kUnspecified);
+      bubble_->GetAccepted()
+          ? views::Widget::ClosedReason::kAcceptButtonClicked
+          : views::Widget::ClosedReason::kCancelButtonClicked);
 }
 
 DiceWebSigninInterceptionBubbleView::ScopedHandle::ScopedHandle(
@@ -275,7 +275,8 @@ void DiceWebSigninInterceptionBubbleView::OnPrimaryAccountChanged(
 void DiceWebSigninInterceptionBubbleView::OnExtendedAccountInfoRemoved(
     const AccountInfo& info) {
   // The account has been removed from Chrome, the bubble is not needed anymore.
-  if (info.account_id == bubble_parameters_.intercepted_account.account_id) {
+  if (info.GetAccountId() ==
+      bubble_parameters_.intercepted_account.GetAccountId()) {
     Dismiss(SigninInterceptionDismissReason::kUserNotEligible);
   }
 }
@@ -297,7 +298,7 @@ content::WebContents* DiceWebSigninInterceptionBubbleView::AddNewContents(
 }
 
 DiceWebSigninInterceptionBubbleView::DiceWebSigninInterceptionBubbleView(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     views::BubbleAnchor anchor,
     const WebSigninInterceptor::Delegate::BubbleParameters& bubble_parameters,
     base::OnceCallback<void(SigninInterceptionResult)> callback)
@@ -305,7 +306,7 @@ DiceWebSigninInterceptionBubbleView::DiceWebSigninInterceptionBubbleView(
       profile_keep_alive_(
           browser->GetProfile(),
           ProfileKeepAliveOrigin::kDiceWebSigninInterceptionBubble),
-      browser_(browser->AsWeakPtr()),
+      browser_(browser->GetWeakPtr()),
       profile_(browser->GetProfile()),
       bubble_parameters_(bubble_parameters),
       callback_(std::move(callback)) {
@@ -492,7 +493,7 @@ bool DiceWebSigninInterceptorDelegate::IsSigninInterceptionSupportedInternal(
 
 std::unique_ptr<ScopedWebSigninInterceptionBubbleHandle>
 DiceWebSigninInterceptorDelegate::ShowSigninInterceptionBubbleInternal(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     const WebSigninInterceptor::Delegate::BubbleParameters& bubble_parameters,
     base::OnceCallback<void(SigninInterceptionResult)> callback) {
   DCHECK(browser);

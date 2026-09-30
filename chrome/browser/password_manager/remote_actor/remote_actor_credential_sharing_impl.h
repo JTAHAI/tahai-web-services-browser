@@ -32,6 +32,25 @@ class DeviceAuthenticator;
 
 namespace password_manager {
 
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+//
+// LINT.IfChange(RemoteActorCredentialSharingResult)
+enum class RemoteActorCredentialSharingResult {
+  kOtherError = 0,
+  kSuccess = 1,
+  kUserIdentityOrSyncStateInvalid = 2,
+  kNoSyncOrAccountStorage = 3,
+  kNoPasswordsFound = 4,
+  kUserCancelledDialog = 5,
+  kAuthenticatorFailed = 6,
+  kSharingServiceUnavailable = 7,
+  kSharingFailed = 8,
+  kRequestAlreadyInProgress = 9,
+  kMaxValue = kRequestAlreadyInProgress,
+};
+// LINT.ThenChange(/tools/metrics/histograms/metadata/password/enums.xml:RemoteActorCredentialSharingResult)
+
 class RemoteActorSelectionDialogController;
 
 class RemoteActorCredentialSharingImpl
@@ -40,13 +59,12 @@ class RemoteActorCredentialSharingImpl
       public PasswordStoreConsumer {
  public:
   // Factory callback type used to create the credential selection dialog.
-  using DialogFactory = base::RepeatingCallback<std::unique_ptr<
-      RemoteActorSelectionDialogController>(
-      content::WebContents* web_contents,
-      std::vector<std::unique_ptr<PasswordForm>> credentials,
-      const std::string& credential_domain,
-      base::OnceCallback<void(std::optional<PasswordForm>)>
-          callback)>;
+  using DialogFactory = base::RepeatingCallback<
+      std::unique_ptr<RemoteActorSelectionDialogController>(
+          content::WebContents* web_contents,
+          std::vector<std::unique_ptr<PasswordForm>> credentials,
+          const std::string& credential_domain,
+          base::OnceCallback<void(std::optional<PasswordForm>)> callback)>;
   ~RemoteActorCredentialSharingImpl() override;
   RemoteActorCredentialSharingImpl(const RemoteActorCredentialSharingImpl&) =
       delete;
@@ -65,7 +83,7 @@ class RemoteActorCredentialSharingImpl
   void RequestAgentAuthentication(
       const std::string& gaia_id,
       const std::string& domain,
-      const std::string& remote_actor_id,
+      const std::string& task_id,
       RequestAgentAuthenticationCallback callback) override;
 
  private:
@@ -83,8 +101,8 @@ class RemoteActorCredentialSharingImpl
     std::string gaia_id;
     // The credential domain for which credentials are requested.
     std::string domain;
-    // The ID of the remote actor requesting credentials.
-    std::string remote_actor_id;
+    // The ID of the remote actor task requesting credentials.
+    std::string task_id;
     // The callback to return the result to the Mojo caller.
     RequestAgentAuthenticationCallback callback;
     // The number of password store queries started.
@@ -104,10 +122,11 @@ class RemoteActorCredentialSharingImpl
   void OnAllLoginsRetrieved();
   void ProceedWithCredential(PasswordForm selected_form, bool auth_success);
 
-  // Validates Mojo request preconditions (e.g., primary main frame, user gesture).
+  // Validates Mojo request preconditions (e.g., primary main frame, user
+  // gesture).
   bool ValidateRequestPreconditions(const std::string& gaia_id,
                                     const std::string& domain,
-                                    const std::string& remote_actor_id);
+                                    const std::string& task_id);
 
   // Verifies the GAIA ID matches the signed-in user and sync is not in error.
   bool VerifyUserIdentityAndSyncState(Profile* profile,
@@ -117,11 +136,16 @@ class RemoteActorCredentialSharingImpl
   void QueryPasswordStores(Profile* profile,
                            const std::string& gaia_id,
                            const std::string& domain,
-                           const std::string& remote_actor_id,
+                           const std::string& task_id,
                            RequestAgentAuthenticationCallback callback);
 
-  // Callback triggered when the user selects a credential or cancels the dialog.
+  // Callback triggered when the user selects a credential or cancels the
+  // dialog.
   void OnDialogResult(std::optional<PasswordForm> selected_form);
+
+  // Callback triggered when the sharing service completes the operation.
+  void OnShareCompleted(RequestAgentAuthenticationCallback callback,
+                        bool success);
 
   // Asynchronously posts a failure response to the Mojo callback.
   void RespondWithError(RequestAgentAuthenticationCallback callback);

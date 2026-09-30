@@ -112,7 +112,8 @@ enum class PopoverHideResult {
 };
 
 enum class UnboundedEvents {
-  kFire,
+  kFireCancelable,
+  kFireNonCancelable,
   kSuppress,
 };
 
@@ -219,6 +220,7 @@ class CORE_EXPORT HTMLElement : public Element {
   // permission/usermedia trials are over.
   virtual bool IsHTMLCapabilityElementBase() const { return false; }
   virtual bool IsHTMLMediaCaptureElementBase() const { return false; }
+  virtual bool IsHTMLMediaTrackElementBase() const { return false; }
   virtual bool IsHTMLUserMediaElement() const { return false; }
   virtual bool IsHTMLCameraElement() const { return false; }
   virtual bool IsHTMLMicrophoneElement() const { return false; }
@@ -348,8 +350,6 @@ class CORE_EXPORT HTMLElement : public Element {
   // pointerup events.
   static void HandlePopoverLightDismiss(const PointerEvent& event,
                                         const Node& node);
-  static void HidePopoversForLightDismiss(const HTMLElement* target_popover,
-                                          Document& document);
   static void HandlePopoverLightDismissForClick(const Node& pointer_down_target,
                                                 const Node& pointer_up_target);
   void InvokePopover(Element& invoker);
@@ -419,8 +419,10 @@ class CORE_EXPORT HTMLElement : public Element {
   ScriptPromise<IDLUndefined> showUnboundedElement(ScriptState*);
   ScriptPromise<IDLUndefined> hideUnboundedElement(ScriptState*);
   bool IsUnboundedElementActive() const;
-  void SetUnboundedElementActive(bool active,
-                                 UnboundedEvents = UnboundedEvents::kFire);
+  // Returns true if the state change proceeded, and false if the beforetoggle
+  // event was canceled by the author.
+  bool SetUnboundedElementActive(bool active, UnboundedEvents fire_events);
+  void AttachLayoutTree(AttachContext& context) override;
   gfx::Rect LastSentUnboundedBounds() const;
   void SetLastSentUnboundedBounds(const gfx::Rect& bounds);
 

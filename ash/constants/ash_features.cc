@@ -59,6 +59,11 @@ BASE_FEATURE(kAnnotatorMode, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kApnRevamp, base::FEATURE_ENABLED_BY_DEFAULT);
 
+// Controls whether proxy settings from policy or extensions are applied
+// verbatim without appending implicit bypass rules for simple hostnames.
+BASE_FEATURE(kApplyManagedProxyBypassListVerbatim,
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
 // Controls whether to enable ARC ADB sideloading support.
 BASE_FEATURE(kArcAdbSideloadingFeature,
              "ArcAdbSideloading",
@@ -386,6 +391,9 @@ BASE_FEATURE(kCellularBypassESimInstallationConnectivityCheck,
 // and Settings.
 BASE_FEATURE(kCellularUseSecondEuicc, base::FEATURE_DISABLED_BY_DEFAULT);
 
+// Enables Enterprise Policy controls for Clipboard History.
+BASE_FEATURE(kClipboardHistoryPolicy, base::FEATURE_DISABLED_BY_DEFAULT);
+
 // When enabled alongside the keyboard auto-repeat setting, holding down Ctrl+V
 // will cause the clipboard history menu to show. From there, the user can
 // select a clipboard history item to replace the initially pasted content.
@@ -529,9 +537,6 @@ BASE_FEATURE(kDiacriticsOnPhysicalKeyboardLongpressDefaultOn,
 BASE_FEATURE(kDisableBruschettaInstallChecks,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-// Disables the DNS proxy service for ChromeOS.
-BASE_FEATURE(kDisableDnsProxy, base::FEATURE_DISABLED_BY_DEFAULT);
-
 // Disconnect WiFi when the device get connected to Ethernet.
 BASE_FEATURE(kDisconnectWiFiOnEthernetConnected,
              base::FEATURE_DISABLED_BY_DEFAULT);
@@ -594,10 +599,6 @@ BASE_FEATURE(kEnableRFC8925, base::FEATURE_ENABLED_BY_DEFAULT);
 // Enable the DNS proxy service running in root network namespace for ChromeOS.
 BASE_FEATURE(kEnableRootNsDnsProxy, base::FEATURE_ENABLED_BY_DEFAULT);
 
-// Enable the shortcut to toggle whether the camera is enabled/disabled in
-// Settings > Privacy controls.
-BASE_FEATURE(kEnableToggleCameraShortcut, base::FEATURE_ENABLED_BY_DEFAULT);
-
 // If enabled, touchscreen mapping experience is visible in settings.
 BASE_FEATURE(kEnableTouchscreenMappingExperience,
              base::FEATURE_ENABLED_BY_DEFAULT);
@@ -644,10 +645,6 @@ BASE_FEATURE(kESimEmptyActivationCodeSupported,
 
 // Enable or disable use of ordinal (unaccelerated) motion by Exo clients.
 BASE_FEATURE(kExoOrdinalMotion, base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Allows RGB Keyboard to test new animations/patterns.
-BASE_FEATURE(kExperimentalRgbKeyboardPatterns,
-             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Enables extended updates opt-in functionality.
 BASE_FEATURE(kExtendedUpdatesOptInFeature, base::FEATURE_ENABLED_BY_DEFAULT);
@@ -803,6 +800,10 @@ BASE_FEATURE(kForceOnDeviceAppControlsForAllRegions,
 // For more info, see go/crosforest.
 BASE_FEATURE(kForestFeature, base::FEATURE_ENABLED_BY_DEFAULT);
 
+// Enables low priority hint instead of overlay candidate override in
+// `FastInkHost`.
+BASE_FEATURE(kFastInkHostLowPriorityHint, base::FEATURE_ENABLED_BY_DEFAULT);
+
 // When enabled, there will be an alert bubble showing up when the device
 // returns from low brightness (e.g., sleep, closed cover) without a lock screen
 // and the active window is in fullscreen.
@@ -833,9 +834,6 @@ BASE_FEATURE(kGaiaRecordAccountCreation, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enables the Game Dashboard Main Menu utility views.
 BASE_FEATURE(kGameDashboardUtilities, base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Enables the App launch keyboard shortcut.
-BASE_FEATURE(kAppLaunchShortcut, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enables the Game Dashboard's Record Game feature. This flag is to be enabled
 // by the feature management module.
@@ -1292,9 +1290,6 @@ BASE_FEATURE(kNotificationCenterController, base::FEATURE_DISABLED_BY_DEFAULT);
 BASE_FEATURE(kNotificationExpansionAnimation,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-// Enables notification scroll bar in UnifiedSystemTray.
-BASE_FEATURE(kNotificationScrollBar, base::FEATURE_DISABLED_BY_DEFAULT);
-
 // Enables notifications to be shown within context menus.
 BASE_FEATURE(kNotificationsInContextMenu, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -1373,9 +1368,6 @@ BASE_FEATURE(kOobeSplitModifierKeyboardInfo, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enables OOBE Jelly features.
 BASE_FEATURE(kOobeJelly, base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Enables OOBE Jelly modal features.
-BASE_FEATURE(kOobeJellyModal, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enables OOBE perks discovery feature.
 BASE_FEATURE(kOobePerksDiscovery, base::FEATURE_ENABLED_BY_DEFAULT);
@@ -1532,11 +1524,6 @@ BASE_FEATURE(kPickerGifs, base::FEATURE_ENABLED_BY_DEFAULT);
 // when streaming.
 BASE_FEATURE(kPreferConstantFrameRate, base::FEATURE_DISABLED_BY_DEFAULT);
 
-// If enabled, ChromeOS print preview app is available. Enabling does not
-// replace the existing Chrome print preview UI, and will require an additional
-// flag and pref configured to facilitate. See b/323421684 for more information.
-BASE_FEATURE(kPrintPreviewCrosApp, base::FEATURE_DISABLED_BY_DEFAULT);
-
 // Controls whether the Projector app launches in debug mode, with more detailed
 // error messages.
 BASE_FEATURE(kProjectorAppDebug, base::FEATURE_DISABLED_BY_DEFAULT);
@@ -1597,10 +1584,6 @@ BASE_FEATURE(kReleaseNotesNotificationAlwaysEligible,
 
 // Enables rendering ARC notifications using ChromeOS notification framework
 BASE_FEATURE(kRenderArcNotificationsByChrome,
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Reset audio I/O selection improvement pref, used for testing purpose.
-BASE_FEATURE(kResetAudioSelectionImprovementPref,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 // If enabled, will reset all shortcut customizations on startup.
@@ -1801,10 +1784,6 @@ BASE_FEATURE(kTrafficCountersForWiFiTesting, base::FEATURE_DISABLED_BY_DEFAULT);
 // Enables trilinear filtering.
 BASE_FEATURE(kTrilinearFiltering, base::FEATURE_DISABLED_BY_DEFAULT);
 
-// Enables the Device Trust connector client code on unmanaged devices
-BASE_FEATURE(kUnmanagedDeviceDeviceTrustConnectorEnabled,
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 // Use the Android staging SM-DS server when fetching pending eSIM profiles.
 BASE_FEATURE(kUseAndroidStagingSmds, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -2003,8 +1982,6 @@ BASE_FEATURE(kDeviceMoveConfigSave, base::FEATURE_ENABLED_BY_DEFAULT);
 BASE_FEATURE(kDeviceWeeklyScheduledSuspendMgs,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-// Enables peripheral customization to be split per device.
-BASE_FEATURE(kPeripheralCustomization, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enables or disables peripherals logging.
 BASE_FEATURE(kEnablePeripheralsLogging,
@@ -2244,6 +2221,10 @@ bool IsApnRevampEnabled() {
   return base::FeatureList::IsEnabled(kApnRevamp);
 }
 
+bool IsApplyManagedProxyBypassListVerbatimEnabled() {
+  return base::FeatureList::IsEnabled(kApplyManagedProxyBypassListVerbatim);
+}
+
 bool IsAutoNightLightEnabled() {
   return base::FeatureList::IsEnabled(kAutoNightLight);
 }
@@ -2401,6 +2382,10 @@ bool IsCaptureModeOnDeviceOcrEnabled() {
          base::FeatureList::IsEnabled(kCaptureModeOnDeviceOcr);
 }
 
+bool IsClipboardHistoryPolicyEnabled() {
+  return base::FeatureList::IsEnabled(kClipboardHistoryPolicy);
+}
+
 bool IsContinuousOverviewScrollAnimationEnabled() {
   return base::FeatureList::IsEnabled(kContinuousOverviewScrollAnimation);
 }
@@ -2472,9 +2457,6 @@ bool IsDisplayPerformanceModeEnabled() {
   return base::FeatureList::IsEnabled(kDisplayPerformanceMode);
 }
 
-bool IsPeripheralCustomizationEnabled() {
-  return base::FeatureList::IsEnabled(kPeripheralCustomization);
-}
 
 bool IsPeripheralsLoggingEnabled() {
   return base::FeatureList::IsEnabled(kEnablePeripheralsLogging);
@@ -2532,10 +2514,6 @@ bool IsEcheSWAMeasureLatencyEnabled() {
 
 bool IsESimEmptyActivationCodeSupportEnabled() {
   return base::FeatureList::IsEnabled(kESimEmptyActivationCodeSupported);
-}
-
-bool IsExperimentalRgbKeyboardPatternsEnabled() {
-  return base::FeatureList::IsEnabled(kExperimentalRgbKeyboardPatterns);
 }
 
 bool IsExtendedUpdatesOptInFeatureEnabled() {
@@ -2626,6 +2604,10 @@ bool ShouldForceEnableServerSideSpeechRecognition() {
 
 bool IsFullscreenAlertBubbleEnabled() {
   return base::FeatureList::IsEnabled(kFullscreenAlertBubble);
+}
+
+bool IsFastInkHostLowPriorityHintEnabled() {
+  return base::FeatureList::IsEnabled(kFastInkHostLowPriorityHint);
 }
 
 bool IsBlockFwupdClientEnabled() {
@@ -2817,10 +2799,6 @@ bool AreGameDashboardUtilitiesEnabled() {
   return base::FeatureList::IsEnabled(kGameDashboardUtilities);
 }
 
-bool IsAppLaunchShortcutEnabled() {
-  return base::FeatureList::IsEnabled(kAppLaunchShortcut);
-}
-
 bool IsProductivityLauncherImageSearchEnabled() {
   return base::FeatureList::IsEnabled(kFeatureManagementLocalImageSearch);
 }
@@ -2864,10 +2842,6 @@ bool IsNotificationExpansionAnimationEnabled() {
   return base::FeatureList::IsEnabled(kNotificationExpansionAnimation);
 }
 
-bool IsNotificationScrollBarEnabled() {
-  return base::FeatureList::IsEnabled(kNotificationScrollBar);
-}
-
 bool IsNotificationsInContextMenuEnabled() {
   return base::FeatureList::IsEnabled(kNotificationsInContextMenu);
 }
@@ -2903,10 +2877,6 @@ bool IsSplitKeyboardRefactorEnabled() {
 
 bool IsOobeAiIntroEnabled() {
   return base::FeatureList::IsEnabled(kFeatureManagementOobeAiIntro);
-}
-
-bool IsOobeJellyModalEnabled() {
-  return IsOobeJellyEnabled() && base::FeatureList::IsEnabled(kOobeJellyModal);
 }
 
 bool IsBootAnimationEnabled() {
@@ -2982,8 +2952,7 @@ bool IsPerDeskShelfEnabled() {
 }
 
 bool IsPeripheralNotificationEnabled() {
-  return base::FeatureList::IsEnabled(kPeripheralNotification) &&
-         IsPeripheralCustomizationEnabled();
+  return base::FeatureList::IsEnabled(kPeripheralNotification);
 }
 
 bool IsPhoneHubMonochromeNotificationIconsEnabled() {
@@ -3004,10 +2973,6 @@ bool IsPhoneHubShortQuickActionPodsTitlesEnabled() {
 
 bool IsPinAutosubmitBackfillFeatureEnabled() {
   return base::FeatureList::IsEnabled(kQuickUnlockPinAutosubmitBackfill);
-}
-
-bool IsPrinterPreviewCrosAppEnabled() {
-  return base::FeatureList::IsEnabled(kPrintPreviewCrosApp);
 }
 
 bool IsProjectorAppDebugMode() {
@@ -3049,10 +3014,6 @@ bool IsRecoveryFlowReorderEnabled() {
 
 bool IsRenderArcNotificationsByChromeEnabled() {
   return base::FeatureList::IsEnabled(kRenderArcNotificationsByChrome);
-}
-
-bool IsResetAudioSelectionImprovementPrefEnabled() {
-  return base::FeatureList::IsEnabled(kResetAudioSelectionImprovementPref);
 }
 
 bool IsResetShortcutCustomizationsEnabled() {
@@ -3167,10 +3128,6 @@ bool IsTimeOfDayWallpaperEnabled() {
   return base::FeatureList::IsEnabled(kFeatureManagementTimeOfDayWallpaper);
 }
 
-bool IsToggleCameraShortcutEnabled() {
-  return base::FeatureList::IsEnabled(kEnableToggleCameraShortcut);
-}
-
 bool IsTouchscreenMappingExperienceEnabled() {
   return base::FeatureList::IsEnabled(kEnableTouchscreenMappingExperience);
 }
@@ -3196,11 +3153,6 @@ bool IsTrilinearFilteringEnabled() {
   static bool use_trilinear_filtering =
       base::FeatureList::IsEnabled(kTrilinearFiltering);
   return use_trilinear_filtering;
-}
-
-bool IsUnmanagedDeviceDeviceTrustConnectorFeatureEnabled() {
-  return base::FeatureList::IsEnabled(
-      kUnmanagedDeviceDeviceTrustConnectorEnabled);
 }
 
 bool ShouldUseAndroidStagingSmds() {

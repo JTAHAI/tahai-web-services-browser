@@ -15,9 +15,6 @@ import * as Console from 'devtools/panels/console/console.js';
       <p id="test"></p>
   `);
 
-  TestRunner.addSniffer(
-      Console.ConsoleViewMessage.ConsoleViewMessage.prototype, 'formattedParameterAsNodeForTest', formattedParameter, true);
-  ConsoleTestRunner.addConsoleViewSniffer(messageSniffer, true);
 
   await ConsoleTestRunner.evaluateInConsolePromise('$x(\'42\')');                           // number
   await ConsoleTestRunner.evaluateInConsolePromise('$x(\'name(/html)\')');                  // string
@@ -26,26 +23,10 @@ import * as Console from 'devtools/panels/console/console.js';
   await ConsoleTestRunner.evaluateInConsolePromise('$x(\'//a/@href\')[0]');                 // href, should not throw
   await ConsoleTestRunner.evaluateInConsolePromise('$x(\'./a/@href\', document.body)[0]');  // relative to document.body selector
   await ConsoleTestRunner.evaluateInConsolePromise('$x(\'./a@href\', document.body)');      // incorrect selector, shouldn't crash
-  TestRunner.evaluateInPage('console.log(\'complete\')');                      // node iterator
+  await TestRunner.evaluateInPagePromise(
+      'console.log(\'complete\')');  // node iterator
 
-  var completeMessageReceived = false;
-  function messageSniffer(uiMessage) {
-    if (uiMessage.element().deepTextContent().indexOf('complete') !== -1) {
-      completeMessageReceived = true;
-      maybeCompleteTest();
-    }
-  }
-
-  var waitForParameters = 2;
-  function formattedParameter() {
-    waitForParameters--;
-    maybeCompleteTest();
-  }
-
-  async function maybeCompleteTest() {
-    if (waitForParameters <= 0 && completeMessageReceived) {
-      await ConsoleTestRunner.dumpConsoleMessages();
-      TestRunner.completeTest();
-    }
-  }
+  await ConsoleTestRunner.waitForRemoteObjectsConsoleMessagesPromise();
+  await ConsoleTestRunner.dumpConsoleMessages();
+  TestRunner.completeTest();
 })();

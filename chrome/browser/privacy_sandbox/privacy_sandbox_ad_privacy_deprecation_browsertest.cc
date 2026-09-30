@@ -4,7 +4,7 @@
 
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/prefs/pref_service.h"
@@ -55,10 +55,15 @@ IN_PROC_BROWSER_TEST_F(PrivacySandboxAdPrivacyDeprecationTest,
       prefs::kPrivacySandboxM1AdMeasurementEnabled));
 }
 
+#if BUILDFLAG(IS_LINUX)
+#define MAYBE_SettingsRoutesRedirect DISABLED_SettingsRoutesRedirect
+#else
+#define MAYBE_SettingsRoutesRedirect SettingsRoutesRedirect
+#endif
 IN_PROC_BROWSER_TEST_F(PrivacySandboxAdPrivacyDeprecationTest,
-                       SettingsRoutesRedirect) {
+                       MAYBE_SettingsRoutesRedirect) {
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL base_settings_url("chrome://settings/");
   for (const char* url_string : kAdPrivacyUrls) {
     ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(url_string)));

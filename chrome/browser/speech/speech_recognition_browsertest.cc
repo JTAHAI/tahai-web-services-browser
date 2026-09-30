@@ -8,10 +8,12 @@
 #include "base/task/bind_post_task.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/speech/chrome_speech_recognition_manager_delegate.h"
 #include "chrome/browser/speech/fake_speech_recognition_service.h"
 #include "chrome/browser/speech/speech_recognition_service_factory.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "extensions/buildflags/buildflags.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_features.h"
@@ -34,7 +36,6 @@
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/extensions/extension_service.h"
-#include "chrome/browser/profiles/profile.h"
 #include "extensions/browser/process_map.h"
 #endif
 
@@ -211,7 +212,7 @@ IN_PROC_BROWSER_TEST_F(ChromeSpeechRecognitionTest,
   base::test::TestFuture<bool /* ask_user */, bool /* is_allowed */> future;
 
   content::ChildProcessId process_id = browser()
-                                           ->tab_strip_model()
+                                           ->GetTabStripModel()
                                            ->GetActiveWebContents()
                                            ->GetPrimaryMainFrame()
                                            ->GetProcess()
@@ -238,7 +239,7 @@ IN_PROC_BROWSER_TEST_F(ChromeSpeechRecognitionTest,
 #if !BUILDFLAG(IS_ANDROID)
 IN_PROC_BROWSER_TEST_F(ChromeSpeechRecognitionTest,
                        IncognitoRoutesToIncognitoService) {
-  Browser* incognito_browser = CreateIncognitoBrowser();
+  BrowserWindowInterface* incognito_browser = CreateIncognitoBrowser();
   ASSERT_TRUE(incognito_browser);
 
   struct TestContext {
@@ -270,7 +271,7 @@ IN_PROC_BROWSER_TEST_F(ChromeSpeechRecognitionTest,
 #endif
 
   WebContents* web_contents =
-      incognito_browser->tab_strip_model()->GetActiveWebContents();
+      incognito_browser->GetTabStripModel()->GetActiveWebContents();
   ASSERT_TRUE(web_contents);
   content::RenderFrameHost* rfh = web_contents->GetPrimaryMainFrame();
   content::GlobalRenderFrameHostId rfh_id = rfh->GetGlobalId();

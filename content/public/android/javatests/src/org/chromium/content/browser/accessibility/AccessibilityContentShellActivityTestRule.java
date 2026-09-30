@@ -37,7 +37,7 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.content_public.browser.test.util.TestCallbackHelperContainer;
 import org.chromium.content_shell_apk.ContentShellActivityTestRule;
 import org.chromium.net.test.EmbeddedTestServerRule;
-import org.chromium.ui.accessibility.AccessibilityState;
+import org.chromium.ui.accessibility.AccessibilityStateTestHelper;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -207,9 +207,10 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    AccessibilityState.setIsAnyAccessibilityServiceEnabledForTesting(true);
-                    AccessibilityState.setIsKnownScreenReaderEnabledForTesting(true);
-                    AccessibilityState.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
+                    AccessibilityStateTestHelper.setIsAnyAccessibilityServiceEnabledForTesting(
+                            true);
+                    AccessibilityStateTestHelper.setIsKnownScreenReaderEnabledForTesting(true);
+                    AccessibilityStateTestHelper.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
                 });
 
         mWcax = getWebContentsAccessibility();
@@ -228,9 +229,10 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    AccessibilityState.setIsAnyAccessibilityServiceEnabledForTesting(true);
+                    AccessibilityStateTestHelper.setIsAnyAccessibilityServiceEnabledForTesting(
+                            true);
                     if (includeEventMaskByDefault) {
-                        AccessibilityState.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
+                        AccessibilityStateTestHelper.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
                     }
                 });
 
@@ -246,10 +248,11 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    AccessibilityState.setIsAnyAccessibilityServiceEnabledForTesting(true);
-                    AccessibilityState.setIsOnlyPasswordManagersEnabledForTesting(true);
+                    AccessibilityStateTestHelper.setIsAnyAccessibilityServiceEnabledForTesting(
+                            true);
+                    AccessibilityStateTestHelper.setIsOnlyPasswordManagersEnabledForTesting(true);
                     if (includeEventMaskByDefault) {
-                        AccessibilityState.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
+                        AccessibilityStateTestHelper.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
                     }
                 });
 
@@ -265,10 +268,12 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    AccessibilityState.setIsAnyAccessibilityServiceEnabledForTesting(true);
-                    AccessibilityState.setIsComplexUserInteractionServiceEnabledForTesting(true);
+                    AccessibilityStateTestHelper.setIsAnyAccessibilityServiceEnabledForTesting(
+                            true);
+                    AccessibilityStateTestHelper
+                            .setIsComplexUserInteractionServiceEnabledForTesting(true);
                     if (includeEventMaskByDefault) {
-                        AccessibilityState.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
+                        AccessibilityStateTestHelper.setEventMaskForTesting(EVENT_TYPE_MASK_ALL);
                     }
                 });
 
@@ -608,15 +613,15 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
     }
 
     /**
-     * {@return the WebView's full AccessibilityNodeInfo tree as a String, excluding screen size
-     * dependent attributes}
+     * Returns the WebView's full AccessibilityNodeInfo tree as a String, excluding screen size
+     * dependent attributes.
      */
     public String generateAccessibilityNodeInfoTree() {
         return generateAccessibilityNodeInfoTree(false);
     }
 
     /**
-     * {@return the WebView's full AccessibilityNodeInfo tree as a String}
+     * Returns the WebView's full AccessibilityNodeInfo tree as a String.
      *
      * @param includeScreenSizeDependentAttributes whether to include attributes that depend on
      *     screen size (e.g. bounds).
@@ -726,7 +731,7 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
     }
 
     /**
-     * {@return the AccessibilityNodeInfoCompat object for the given virtual view ID}
+     * Returns the AccessibilityNodeInfoCompat object for the given virtual view ID.
      *
      * @param virtualViewId the virtual view ID of the node to create.
      */

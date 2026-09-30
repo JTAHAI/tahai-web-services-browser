@@ -56,6 +56,13 @@ using ListUpdateResponse = FetchThreatListUpdatesResponse::ListUpdateResponse;
 
 void SetSbV4UrlPrefixForTesting(const char* url_prefix);
 
+// Sets the URL prefix for testing V5 GetHash requests.
+//  - url_prefix: The URL prefix string to use in tests.
+void SetSbV5UrlPrefixForTesting(const char* url_prefix);
+
+// Returns the URL prefix to use for V5 GetHash requests.
+const char* GetSbV5UrlPrefix();
+
 // Returns the URL to use for sending threat reports and other Safe Browsing
 // hits back to Safe Browsing service.
 std::string GetReportUrl(
@@ -336,6 +343,9 @@ PrefixSize GetV5PrefixSizeForThreatType(SBThreatType threat_type);
 
 // Get the name of a v5 list.
 std::string GetV5ListName(const ListIdentifier& list_identifier);
+
+// Returns the SBThreatType corresponding to a given ListIdentifier.
+SBThreatType GetSBThreatTypeForList(const ListIdentifier& list_id);
 
 // Represents the state of each store.
 using StoreStateMap = std::unordered_map<ListIdentifier, std::string>;

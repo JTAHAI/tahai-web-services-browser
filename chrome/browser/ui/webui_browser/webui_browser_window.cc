@@ -17,11 +17,13 @@
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/accelerator_table.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_active_state_manager/browser_active_state_manager.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window_state.h"
 #include "chrome/browser/ui/browser_window_theme_observer.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
@@ -31,6 +33,7 @@
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/views/find_bar_host.h"
+#include "chrome/browser/ui/views/find_bar_owner.h"
 #include "chrome/browser/ui/views/zoom/zoom_view_controller.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/webui/webui_toolbar/webui_toolbar_extensions_container.h"
@@ -112,6 +115,14 @@ class WebUIBrowserWindow::WidgetDelegate : public views::WidgetDelegate {
       WebUIBrowserWindow* window,
       WebUIBrowserWebContentsDelegate* web_contents_delegate);
 
+  // views::WidgetDelegate:
+  bool ShouldSaveWindowPlacement() const override;
+  void SaveWindowPlacement(const gfx::Rect& bounds,
+                           ui::mojom::WindowShowState show_state) override;
+  bool GetSavedWindowPlacement(
+      const views::Widget* widget,
+      gfx::Rect* bounds,
+      ui::mojom::WindowShowState* show_state) const override;
   views::ClientView* CreateClientView(views::Widget* widget) override;
   std::u16string GetWindowTitle() const override;
   bool ShouldDescendIntoChildForEventHandling(
@@ -123,7 +134,8 @@ class WebUIBrowserWindow::WidgetDelegate : public views::WidgetDelegate {
   raw_ptr<WebUIBrowserWebContentsDelegate> web_contents_delegate_;
 };
 
-WebUIBrowserWindow::WebUIBrowserWindow(Browser* browser) : browser_(browser) {
+WebUIBrowserWindow::WebUIBrowserWindow(BrowserWindowInterface* browser)
+    : browser_(browser) {
   // GuestContents is not approved for use in production. Restrict its
   // proxy content feature kAttachUnownedInnerWebContents to development,
   // canary, and test builds.
@@ -145,7 +157,8 @@ WebUIBrowserWindow::WebUIBrowserWindow(Browser* browser) : browser_(browser) {
   views::Widget::InitParams params(
       views::Widget::InitParams::CLIENT_OWNS_WIDGET);
   params.name = "WebUIBrowserWindow";
-  params.bounds = gfx::Rect(0, 0, 800, 600);
+  chrome::GetSavedWindowBoundsAndShowState(browser_, &params.bounds,
+                                           &params.show_state);
   params.delegate = widget_delegate_.get();
   params.native_widget = CreateNativeWidget();
 #if BUILDFLAG(IS_CHROMEOS)
@@ -280,7 +293,7 @@ void WebUIBrowserWindow::Show() {
   // OnWidgetActivationChanged() until we return to the runloop. Therefore any
   // calls to Browser::GetLastActive() will return the wrong result if we do
   // not explicitly set it here.
-  browser_->DidBecomeActive();
+  BrowserActiveStateManager::From(browser_)->DidBecomeActive();
 #endif
 
   // If the window is already visible, just activate it.
@@ -304,9 +317,9 @@ void WebUIBrowserWindow::Show() {
 // BrowserView::PaintAsActiveChanged().
 void WebUIBrowserWindow::PaintAsActiveChanged() {
   if (widget_->ShouldPaintAsActive()) {
-    browser_->DidBecomeActive();
+    BrowserActiveStateManager::From(browser_)->DidBecomeActive();
   } else {
-    browser_->DidBecomeInactive();
+    BrowserActiveStateManager::From(browser_)->DidBecomeInactive();
   }
   if (webui_browser::mojom::Page* page = GetWebUIBrowserUI()->page()) {
     page->OnPaintAsActiveChanged(widget_->ShouldPaintAsActive());
@@ -636,7 +649,10 @@ void WebUIBrowserWindow::ProcessFullscreen(bool fullscreen) {
     page->OnFullscreenModeChanged(fullscreen, context);
   }
 
-  browser_->WindowFullscreenStateChanged();
+  browser_->GetFeatures()
+      .exclusive_access_manager()
+      ->fullscreen_controller()
+      ->WindowFullscreenStateChanged();
 }
 
 void WebUIBrowserWindow::DeleteBrowserWindow() {
@@ -670,8 +686,10 @@ void WebUIBrowserWindow::LoadAccelerators() {
   for (const auto& entry : GetAcceleratorList()) {
     // In app mode, only allow accelerators of allowlisted commands to pass
     // through.
-    if (is_app_mode && !IsCommandAllowedInAppMode(entry.command_id,
-                                                  browser_->is_type_popup())) {
+    if (is_app_mode &&
+        !IsCommandAllowedInAppMode(
+            entry.command_id,
+            browser_->GetType() == BrowserWindowInterface::Type::TYPE_POPUP)) {
       continue;
     }
 
@@ -811,19 +829,10 @@ void WebUIBrowserWindow::OnContentsElementShown(ui::TrackedElement* element) {
   }
 }
 
-void WebUIBrowserWindow::UpdatePageActionIcon(PageActionIconType type) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
 autofill::AutofillBubbleHandler*
 WebUIBrowserWindow::GetAutofillBubbleHandler() {
   NOTIMPLEMENTED_LOG_ONCE();
   return nullptr;
-}
-
-void WebUIBrowserWindow::ExecutePageActionIconForTesting(
-    PageActionIconType type) {
-  NOTIMPLEMENTED_LOG_ONCE();
 }
 
 LocationBar* WebUIBrowserWindow::GetLocationBar() const {
@@ -1016,7 +1025,8 @@ WebUIBrowserWindow::PreHandleKeyboardEvent(
   // - If the |browser_| is not for an app, and the |accelerator| is associated
   //   with the browser, and it is not a reserved one, do nothing.
 
-  if (browser_->is_type_app() || browser_->is_type_app_popup()) {
+  if (browser_->GetType() == BrowserWindowInterface::Type::TYPE_APP ||
+      browser_->GetType() == BrowserWindowInterface::Type::TYPE_APP_POPUP) {
     // Let all keys fall through to a v1 app's web content, even accelerators.
     // We don't use NOT_HANDLED_IS_SHORTCUT here. If we do that, the app
     // might not be able to see a subsequent Char event. See
@@ -1059,8 +1069,7 @@ views::NativeWidget* WebUIBrowserWindow::CreateNativeWidget() {
 #endif
 
 std::unique_ptr<FindBar> WebUIBrowserWindow::CreateFindBar() {
-  return std::make_unique<FindBarHost>(
-      browser_->GetFeatures().find_bar_owner());
+  return std::make_unique<FindBarHost>(FindBarOwner::From(browser_));
 }
 
 web_modal::WebContentsModalDialogHost*
@@ -1099,7 +1108,7 @@ void WebUIBrowserWindow::ShowHatsDialog(
 }
 
 ExclusiveAccessContext* WebUIBrowserWindow::GetExclusiveAccessContext() {
-  return browser_->GetFeatures().webui_browser_exclusive_access_context();
+  return WebUIBrowserExclusiveAccessContext::From(browser_);
 }
 
 std::string WebUIBrowserWindow::GetWorkspace() const {
@@ -1250,6 +1259,31 @@ WebUIBrowserWindow::WidgetDelegate::WidgetDelegate(
   SetCanMinimize(true);
 }
 
+bool WebUIBrowserWindow::WidgetDelegate::ShouldSaveWindowPlacement() const {
+  // If IsFullscreen() is true, we've just changed into fullscreen mode, and
+  // we're catching the going-into-fullscreen sizing and positioning calls,
+  // which we want to ignore.
+  return !browser_window_->IsFullscreen() &&
+         chrome::ShouldSaveWindowPlacement(browser_window_->browser());
+}
+
+void WebUIBrowserWindow::WidgetDelegate::SaveWindowPlacement(
+    const gfx::Rect& bounds,
+    ui::mojom::WindowShowState show_state) {
+  CHECK(ShouldSaveWindowPlacement());
+  views::WidgetDelegate::SaveWindowPlacement(bounds, show_state);
+  chrome::SaveWindowPlacement(browser_window_->browser(), bounds, show_state);
+}
+
+bool WebUIBrowserWindow::WidgetDelegate::GetSavedWindowPlacement(
+    const views::Widget* widget,
+    gfx::Rect* bounds,
+    ui::mojom::WindowShowState* show_state) const {
+  chrome::GetSavedWindowBoundsAndShowState(browser_window_->browser(), bounds,
+                                           show_state);
+  return true;
+}
+
 views::ClientView* WebUIBrowserWindow::WidgetDelegate::CreateClientView(
     views::Widget* widget) {
   return new WebUIBrowserClientView(web_contents_delegate_, widget,
@@ -1301,5 +1335,5 @@ void WebUIBrowserWindow::CloseSidePanel() {
 
 WebUIBrowserSidePanelUI* WebUIBrowserWindow::GetWebUIBrowserSidePanelUI() {
   return static_cast<WebUIBrowserSidePanelUI*>(
-      browser_->browser_window_features()->side_panel_ui());
+      browser_->GetFeatures().side_panel_ui());
 }

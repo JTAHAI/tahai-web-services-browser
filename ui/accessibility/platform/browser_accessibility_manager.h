@@ -469,8 +469,11 @@ class COMPONENT_EXPORT(AX_PLATFORM) BrowserAccessibilityManager
   // manager's own delegate for any other source.
   AXPlatformTreeManagerDelegate* GetDelegateForNativeView() const;
 
-  // Returns whether this is the root frame.
+  // Returns whether this is the root frame manager for a web contents tree.
   bool IsRootFrameManager() const;
+
+  // Returns whether this manager's tree was serialized from web content.
+  bool IsWebContentSource() const;
 
   // Get a snapshot of the current tree as an AXTreeUpdate.
   AXTreeUpdate SnapshotAXTreeForTesting();

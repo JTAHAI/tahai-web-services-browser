@@ -18,6 +18,9 @@
 #include "components/omnibox/browser/fake_autocomplete_controller.h"
 #include "components/omnibox/browser/omnibox_popup_selection.h"
 #include "components/omnibox/browser/test_omnibox_client.h"
+#include "components/search_engines/template_url.h"
+#include "components/search_engines/template_url_data.h"
+#include "components/search_engines/template_url_service.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/window_open_disposition.h"
@@ -149,6 +152,28 @@ TEST_F(SearchboxUtilsTest, ComputeOpenDispositionFromModifiers) {
   }
 }
 
+TEST_F(SearchboxUtilsTest, ClassifyStringUrl) {
+  AutocompleteMatch match;
+  GURL alternate_nav_url;
+  ClassifyString(&client_, u"https://example.com", /*in_keyword_mode=*/false,
+                 /*allow_exact_keyword_match=*/true, &match,
+                 &alternate_nav_url);
+  EXPECT_TRUE(match.destination_url.is_valid());
+  EXPECT_EQ(AutocompleteMatchType::URL_WHAT_YOU_TYPED, match.type);
+  EXPECT_EQ(GURL("https://example.com/"), match.destination_url);
+}
+
+TEST_F(SearchboxUtilsTest, ClassifyStringSearchQuery) {
+  AutocompleteMatch match;
+  GURL alternate_nav_url;
+  ClassifyString(&client_, u"test search query", /*in_keyword_mode=*/false,
+                 /*allow_exact_keyword_match=*/true, &match,
+                 &alternate_nav_url);
+  EXPECT_TRUE(match.destination_url.is_valid());
+  EXPECT_TRUE(AutocompleteMatch::IsSearchType(match.type));
+  EXPECT_EQ(AutocompleteMatchType::SEARCH_WHAT_YOU_TYPED, match.type);
+}
+
 TEST_F(SearchboxUtilsTest, CanPasteAndGo) {
   EXPECT_TRUE(CanPasteAndGo(&client_, u"https://example.com"));
   EXPECT_FALSE(CanPasteAndGo(&client_, u""));
@@ -175,8 +200,9 @@ TEST_F(SearchboxUtilsTest, FocusChanged) {
 
   tracker.FocusChanged(false);
   EXPECT_TRUE(tracker.last_omnibox_focus().is_null());
-  histogram_tester.ExpectUniqueSample("Omnibox.FocusResultedInNavigation", true,
-                                      1);
+  histogram_tester.ExpectUniqueSample(
+      "Omnibox.FocusResultedInNavigation",
+      FocusResultedInNavigationType::kNavigationNoAttachments, 1);
 }
 
 TEST_F(SearchboxUtilsTest, GenerateDotComMatch) {
@@ -198,6 +224,23 @@ TEST_F(SearchboxUtilsTest, GenerateDotComMatch) {
   EXPECT_EQ(AutocompleteMatchType::URL_WHAT_YOU_TYPED, match.type);
   EXPECT_TRUE(match.destination_url.is_valid());
   EXPECT_EQ(GURL("http://www.example.com/"), match.destination_url);
+}
+
+TEST_F(SearchboxUtilsTest, GetKeywordLabelNames) {
+  TemplateURLService* turl_service = client_.GetTemplateURLService();
+  TemplateURLData data;
+  data.SetShortName(u"example");
+  data.SetKeyword(u"example");
+  data.SetURL("https://example.com/search?q={searchTerms}");
+  turl_service->Add(std::make_unique<TemplateURL>(data));
+
+  KeywordLabelNames names = GetKeywordLabelNames(u"example", turl_service);
+  EXPECT_EQ(u"example", names.short_name);
+  EXPECT_FALSE(names.full_name.empty());
+
+  KeywordLabelNames empty_names = GetKeywordLabelNames(u"example", nullptr);
+  EXPECT_TRUE(empty_names.short_name.empty());
+  EXPECT_TRUE(empty_names.full_name.empty());
 }
 
 }  // namespace searchbox

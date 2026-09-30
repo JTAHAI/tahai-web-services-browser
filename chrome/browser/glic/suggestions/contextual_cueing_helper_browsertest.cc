@@ -105,9 +105,8 @@ class ContextualCueingHelperBaseBrowserTest : public glic::GlicBrowserTest {
   }
 
   glic::GlicNudgeController* glic_nudge_controller() {
-    content::WebContents* web_contents =
-        GetTabListInterface()->GetActiveTab()->GetContents();
-    auto* helper = glic::ContextualCueingHelper::FromWebContents(web_contents);
+    tabs::TabInterface* tab = GetTabListInterface()->GetActiveTab();
+    auto* helper = glic::ContextualCueingHelper::From(tab);
     CHECK(helper);
     return helper->GetGlicNudgeController();
   }
@@ -849,7 +848,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingBypassNudgeCapsTest,
         std::move(info), base::DoNothing());
   }
   glic_instance->host().instance_delegate().OnUserInputSubmitted(
-      glic::mojom::WebClientMode::kText);
+      glic::mojom::WebClientMode::kText, glic::mojom::PromptType::kUnspecified);
 
   // Close the Glic side panel.
   ASSERT_OK(CloseGlicForTabAndWait(tab));
@@ -955,7 +954,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingAutoOpenCooldownTest,
         std::move(info), base::DoNothing());
   }
   glic_instance->host().instance_delegate().OnUserInputSubmitted(
-      glic::mojom::WebClientMode::kText);
+      glic::mojom::WebClientMode::kText, glic::mojom::PromptType::kUnspecified);
 
   // 4. Close the Glic side panel.
   ASSERT_OK(CloseGlicForTabAndWait(tab));

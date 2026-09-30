@@ -6,8 +6,10 @@
 
 #include <stdint.h>
 
+#include <string>
 #include <string_view>
 
+#include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/hash/sha1.h"
 #include "base/strings/string_number_conversions.h"
@@ -67,6 +69,10 @@ std::string GenerateIdForPath(const base::FilePath& path) {
 
 std::string HashedIdInHex(std::string_view id) {
   return base::HexEncode(base::SHA1Hash(base::as_byte_span(id)));
+}
+
+std::string HashedIdInHexSha256(std::string_view id) {
+  return base::HexEncode(crypto::hash::Sha256(base::as_byte_span(id)));
 }
 
 base::FilePath MaybeNormalizePath(const base::FilePath& path) {

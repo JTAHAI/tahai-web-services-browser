@@ -8,6 +8,7 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.util.ArrayMap;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -19,8 +20,8 @@ import org.chromium.build.annotations.Nullable;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * UnownedUserDataHost is a type-safe and heterogeneous container that does not own the objects that
@@ -147,6 +148,13 @@ import java.util.List;
  */
 @NullMarked
 public final class UnownedUserDataHost {
+    private static Handler getHandler() {
+        if (ThreadUtils.runningOnUiThread()) {
+            return ThreadUtils.getUiThreadHandler();
+        }
+        return new Handler(retrieveNonNullLooperOrThrow());
+    }
+
     private static Looper retrieveNonNullLooperOrThrow() {
         Looper looper = Looper.myLooper();
         if (looper == null) throw new IllegalStateException();
@@ -163,11 +171,12 @@ public final class UnownedUserDataHost {
     private @Nullable Handler mHandler;
 
     /** The core data structure within this host. */
-    private @Nullable HashMap<UnownedUserDataKey<?>, WeakReference<Object>> mUnownedUserDataMap =
-            new HashMap<>();
+    // ArrayMap with capacity 4 avoids heap entry allocations and fits typical 1-6 entries per host.
+    private @Nullable Map<UnownedUserDataKey<?>, WeakReference<Object>> mUnownedUserDataMap =
+            new ArrayMap<>(4);
 
     public UnownedUserDataHost() {
-        this(new Handler(retrieveNonNullLooperOrThrow()));
+        this(getHandler());
     }
 
     @VisibleForTesting
@@ -280,6 +289,10 @@ public final class UnownedUserDataHost {
         checkState();
 
         return mUnownedUserDataMap.size();
+    }
+
+    /* package */ @Nullable Handler getHandlerForTesting() {
+        return mHandler;
     }
 
     @EnsuresNonNullIf(

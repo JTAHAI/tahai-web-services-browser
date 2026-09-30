@@ -2,7 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/containers/adapters.h"
+#include <ranges>
+
 #include "base/containers/circular_deque.h"
 #include "build/build_config.h"
 #include "chrome/browser/breadcrumbs/breadcrumb_manager_tab_helper.h"
@@ -11,7 +12,7 @@
 #include "chrome/browser/ssl/cert_verifier_browser_test.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/common/chrome_switches.h"
-#include "chrome/test/base/chrome_test_utils.h"
+#include "chrome/test/base/chrome_test_path_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/breadcrumbs/core/breadcrumb_manager.h"
@@ -53,7 +54,7 @@ const base::circular_deque<std::string>& GetEvents() {
 // Returns the latest breadcrumb event containing substring `str.` If no logged
 // breadcrumb event contains `str`, returns `std::nullopt`.
 const std::optional<std::string> FindEventContaining(const std::string& str) {
-  const auto& events_new_to_old = base::Reversed(GetEvents());
+  const auto& events_new_to_old = std::views::reverse(GetEvents());
   for (const auto& event : events_new_to_old) {
     if (event.find(str) != std::string::npos) {
       return event;

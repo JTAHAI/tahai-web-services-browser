@@ -67,6 +67,8 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"airplane_up_spark", SymbolType::kCustom};
     case SymbolArrowClockWise:
       return {@"arrow_clockwise", SymbolType::kCustom};
+    case SymbolArrowshapeUpSlash:
+      return {@"arrowshape_up_slash", SymbolType::kCustom};
     case SymbolBagSpark:
       return {@"bag_spark", SymbolType::kCustom};
     case SymbolBottomOmniboxOption:
@@ -85,6 +87,8 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"cloud_and_arrow_up", SymbolType::kCustom};
     case SymbolCloudSlash:
       return {@"cloud_slash", SymbolType::kCustom};
+    case SymbolCustomShield:
+      return {@"shield", SymbolType::kCustom};
     case SymbolDangerousOmnibox:
       return {@"dangerous_omnibox", SymbolType::kCustom};
     case SymbolDeepSearch:
@@ -163,8 +167,6 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"checkermark_shield", SymbolType::kCustom};
     case SymbolSharedDrives:
       return {@"shared_drives", SymbolType::kCustom};
-    case SymbolShield:
-      return {@"shield", SymbolType::kCustom};
     case SymbolSquareNumber:
       return {@"square_number", SymbolType::kCustom};
     case SymbolTextAnalysis:
@@ -193,8 +195,12 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"app", SymbolType::kSystem};
     case SymbolAppFill:
       return {@"app.fill", SymbolType::kSystem};
+    case SymbolArrowCounterclockwiseIcloud:
+      return {@"arrow.counterclockwise.icloud", SymbolType::kSystem};
     case SymbolArrowDown:
       return {@"arrow.down", SymbolType::kSystem};
+    case SymbolArrowDownCircleFill:
+      return {@"arrow.down.circle.fill", SymbolType::kSystem};
     case SymbolArrowDownToLine:
       return {@"arrow.down.to.line", SymbolType::kSystem};
     case SymbolArrowLeft:
@@ -223,6 +229,8 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"arrow.up.circle.fill", SymbolType::kSystem};
     case SymbolArrowUpTrash:
       return {@"arrow.up.trash", SymbolType::kSystem};
+    case SymbolArrowshapeUp:
+      return {@"arrowshape.up", SymbolType::kSystem};
     case SymbolAutofillData:
       return {@"wand.and.rays", SymbolType::kSystem};
     case SymbolBack:
@@ -235,6 +243,8 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"bell.badge", SymbolType::kSystem};
     case SymbolBellSlash:
       return {@"bell.slash", SymbolType::kSystem};
+    case SymbolBinocularsCircle:
+      return {@"binoculars.circle", SymbolType::kSystem};
     case SymbolBolt:
       return {@"bolt", SymbolType::kSystem};
     case SymbolBook:
@@ -309,6 +319,8 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
               SymbolType::kSystem};
     case SymbolCreditCard:
       return {@"creditcard", SymbolType::kSystem};
+    case SymbolCreditCardFill:
+      return {@"creditcard.fill", SymbolType::kSystem};
     case SymbolCreditCardFinderAction:
       return {@"creditcard.viewfinder", SymbolType::kSystem};
     case SymbolCrop:
@@ -371,6 +383,8 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"doc.text.magnifyingglass", SymbolType::kSystem};
     case SymbolFlag:
       return {@"flag", SymbolType::kSystem};
+    case SymbolFlagCheckered:
+      return {@"flag.checkered", SymbolType::kSystem};
     case SymbolFolder:
       return {@"folder", SymbolType::kSystem};
     case SymbolFolderBadgePlus:
@@ -405,10 +419,14 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"info.circle", SymbolType::kSystem};
     case SymbolKey:
       return {@"key", SymbolType::kSystem};
+    case SymbolKeyFill:
+      return {@"key.fill", SymbolType::kSystem};
     case SymbolKeyboard:
       return {@"keyboard", SymbolType::kSystem};
     case SymbolKeyboardDown:
       return {@"keyboard.chevron.compact.down", SymbolType::kSystem};
+    case SymbolLadybugCircleFill:
+      return {@"ladybug.circle.fill", SymbolType::kSystem};
     case SymbolLaptop:
       return {@"laptopcomputer", SymbolType::kSystem};
     case SymbolLaptopAndIphone:
@@ -437,10 +455,14 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"envelope.fill", SymbolType::kSystem};
     case SymbolMap:
       return {@"map", SymbolType::kSystem};
+    case SymbolMapPinAndEllipse:
+      return {@"mappin.and.ellipse", SymbolType::kSystem};
     case SymbolMarkAsReadAction:
       return {@"text.badge.checkmark", SymbolType::kSystem};
     case SymbolMarkAsUnreadAction:
       return {@"text.badge.minus", SymbolType::kSystem};
+    case SymbolMedal:
+      return {@"medal", SymbolType::kSystem};
     case SymbolMenu:
       return {@"ellipsis", SymbolType::kSystem};
     case SymbolMicrophone:
@@ -496,6 +518,8 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"person.text.rectangle", SymbolType::kSystem};
     case SymbolPersonTwo:
       return {@"person.2", SymbolType::kSystem};
+    case SymbolPersonTwoFill:
+      return {@"person.2.fill", SymbolType::kSystem};
     case SymbolPhoneFill:
       return {@"phone.fill", SymbolType::kSystem};
     case SymbolPhoto:
@@ -564,6 +588,8 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"gearshape.fill", SymbolType::kSystem};
     case SymbolShare:
       return {@"square.and.arrow.up", SymbolType::kSystem};
+    case SymbolShield:
+      return {@"shield", SymbolType::kSystem};
     case SymbolShippingBoxFill:
       return {@"shippingbox.fill", SymbolType::kSystem};
     case SymbolShowAction:
@@ -584,6 +610,8 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"square.filled.on.square", SymbolType::kSystem};
     case SymbolSquareOnSquareDashed:
       return {@"square.on.square.dashed", SymbolType::kSystem};
+    case SymbolSquareStack3dDownRight:
+      return {@"square.stack.3d.down.right", SymbolType::kSystem};
     case SymbolStarBubbleFill:
       return {@"star.bubble.fill", SymbolType::kSystem};
     case SymbolStarLeadingHalfFilled:
@@ -626,12 +654,18 @@ SymbolInfo InfoForSymbol(Symbol symbol) {
       return {@"exclamationmark.triangle", SymbolType::kSystem};
     case SymbolWarningFill:
       return {@"exclamationmark.triangle.fill", SymbolType::kSystem};
+    case SymbolWarningShield:
+      return {@"exclamationmark.shield", SymbolType::kSystem};
+    case SymbolWandAndSparkles:
+      return {@"wand.and.sparkles", SymbolType::kSystem};
     case SymbolWaveform:
       return {@"waveform.mid", SymbolType::kSystem};
     case SymbolWifi:
       return {@"wifi", SymbolType::kSystem};
     case SymbolWork:
       return {@"case", SymbolType::kSystem};
+    case SymbolWrenchAndScrewdriver:
+      return {@"wrench.and.screwdriver", SymbolType::kSystem};
     case SymbolXMark:
       return {@"xmark", SymbolType::kSystem};
     case SymbolXMarkCircle:

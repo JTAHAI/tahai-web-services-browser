@@ -4,6 +4,7 @@
 
 #include "extensions/renderer/api/core_extensions_renderer_api_provider.h"
 
+#include "base/containers/fixed_flat_map.h"
 #include "components/guest_view/buildflags/buildflags.h"
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/grit/extensions_renderer_generated_resources.h"
@@ -14,6 +15,7 @@
 #include "extensions/renderer/api/file_system_natives.h"
 #include "extensions/renderer/api/i18n_hooks_delegate.h"
 #include "extensions/renderer/api/messaging/messaging_bindings.h"
+#include "extensions/renderer/api/public_suffix_hooks_delegate.h"
 #include "extensions/renderer/api/runtime_hooks_delegate.h"
 #include "extensions/renderer/api/web_request_hooks.h"
 #include "extensions/renderer/api/web_request_natives.h"
@@ -125,7 +127,8 @@ void CoreExtensionsRendererAPIProvider::RegisterNativeHandlers(
   module_system->RegisterNativeHandler(
       "runtime", std::make_unique<RuntimeCustomBindings>(context));
   module_system->RegisterNativeHandler(
-      "web_request_natives", std::make_unique<WebRequestNatives>(context));
+      "web_request_natives",
+      std::make_unique<WebRequestNatives>(context, bindings_system));
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   module_system->RegisterNativeHandler(
@@ -153,6 +156,8 @@ void CoreExtensionsRendererAPIProvider::AddBindingsSystemHooks(
   bindings->RegisterHooksDelegate("dom", std::make_unique<DOMHooksDelegate>());
   bindings->RegisterHooksDelegate("i18n",
                                   std::make_unique<I18nHooksDelegate>());
+  bindings->RegisterHooksDelegate(
+      "publicSuffix", std::make_unique<PublicSuffixHooksDelegate>());
   bindings->RegisterHooksDelegate("runtime",
                                   std::make_unique<RuntimeHooksDelegate>(
                                       bindings_system->messaging_service()));
@@ -162,10 +167,8 @@ void CoreExtensionsRendererAPIProvider::AddBindingsSystemHooks(
 
 void CoreExtensionsRendererAPIProvider::PopulateSourceMap(
     ResourceBundleSourceMap* source_map) const {
-  static constexpr struct {
-    const char* name = nullptr;
-    int id = 0;
-  } js_resources[] = {
+  static constexpr auto kSources = base::MakeFixedFlatMap<std::string_view,
+                                                          int>({
 #if BUILDFLAG(IS_CHROMEOS)
       {"appView",
        IDR_EXTENSIONS_RENDERER_GENERATED_GUEST_VIEW_APP_VIEW_APP_VIEW_JS},
@@ -298,11 +301,9 @@ void CoreExtensionsRendererAPIProvider::PopulateSourceMap(
       // Platform app sources that are not API-specific..
       {"platformApp", IDR_EXTENSIONS_RENDERER_GENERATED_PLATFORM_APP_JS},
 #endif
-  };
+  });
 
-  for (const auto& resource : js_resources) {
-    source_map->RegisterSource(resource.name, resource.id);
-  }
+  source_map->RegisterSources(kSources);
 }
 
 void CoreExtensionsRendererAPIProvider::EnableCustomElementAllowlist() const {}

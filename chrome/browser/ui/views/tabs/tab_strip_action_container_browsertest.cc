@@ -17,12 +17,12 @@
 #include "chrome/browser/glic/browser_ui/glic_actor_task_icon_manager.h"
 #include "chrome/browser/glic/browser_ui/glic_actor_task_icon_manager_factory.h"
 #include "chrome/browser/glic/glic_profile_manager.h"
+#include "chrome/browser/glic/glic_warming_checks.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/glic/public/service/glic_instance_coordinator.h"
 #include "chrome/browser/glic/suggestions/contextual_cueing_features.h"
 #include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/optimization_guide/browser_test_util.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -70,14 +70,14 @@ class TabStripActionContainerBrowserTest : public InProcessBrowserTest {
 
   void SetUp() override {
     // This will temporarily disable preloading.
-    glic::GlicProfileManager::SetPrewarmingEnabledForTesting(false);
+    glic::SetPrewarmingEnabledForTesting(false);
 
     InProcessBrowserTest::SetUp();
   }
 
   void TearDown() override {
     InProcessBrowserTest::TearDown();
-    glic::GlicProfileManager::SetPrewarmingEnabledForTesting(true);
+    glic::SetPrewarmingEnabledForTesting(true);
   }
 
   void SetUpOnMainThread() override {
@@ -92,7 +92,7 @@ class TabStripActionContainerBrowserTest : public InProcessBrowserTest {
     InProcessBrowserTest::SetUpInProcessBrowserTestFixture();
   }
 
-  TabStripModel* tab_strip_model() { return browser()->tab_strip_model(); }
+  TabStripModel* tab_strip_model() { return browser()->GetTabStripModel(); }
 
   BrowserView* browser_view() {
     return BrowserView::GetBrowserViewForBrowser(browser());
@@ -106,7 +106,7 @@ class TabStripActionContainerBrowserTest : public InProcessBrowserTest {
  protected:
   glic::TabStripGlicButton* GlicNudgeButton() {
     return views::AsViewClass<glic::TabStripGlicButton>(
-        tab_strip_action_container()->GetGlicButton());
+        tab_strip_action_container()->GetGlicButtonForTesting());
   }
 
   glic::TabStripGlicActorTaskIcon* GlicActorTaskIcon() {
@@ -154,9 +154,7 @@ class TabStripActionContainerBrowserTest : public InProcessBrowserTest {
     }
   }
 
-  void ResetPrewarming() {
-    glic::GlicProfileManager::SetPrewarmingEnabledForTesting(true);
-  }
+  void ResetPrewarming() { glic::SetPrewarmingEnabledForTesting(true); }
 
   void ResetAnimation(int value) {
     if (tab_strip_action_container()->animation_session_for_testing()) {

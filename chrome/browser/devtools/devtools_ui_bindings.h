@@ -29,10 +29,18 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/devtools_frontend_host.h"
+#include "extensions/buildflags/buildflags.h"
 #include "ui/gfx/geometry/size.h"
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/themes/theme_service_observer.h"
+#endif
+
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#include "base/scoped_observation.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_registry_observer.h"
+#include "extensions/common/extension_id.h"
 #endif
 
 namespace content {
@@ -66,10 +74,14 @@ class DevToolsUIBindings : public DevToolsEmbedderMessageDispatcher::Delegate,
 #if !BUILDFLAG(IS_ANDROID)
                            public ThemeServiceObserver,
 #endif
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+                           public extensions::ExtensionRegistryObserver,
+#endif
                            public DevToolsFileHelper::Delegate {
   friend class DevToolsUIBindingsDispatchHttpRequestTest;
   friend class DevToolsUIBindingsDispatchHttpRequestStreamingTest;
   friend class DevToolsUIBindingsLoadNetworkResourceTest;
+  friend class DevToolsUIBindingsNavigationTest;
 
  public:
   class Delegate {
@@ -121,7 +133,6 @@ class DevToolsUIBindings : public DevToolsEmbedderMessageDispatcher::Delegate,
   ~DevToolsUIBindings() override;
 
   std::string GetTypeForMetrics() override;
-  bool MayAccessAllCookies() override;
 
   content::WebContents* web_contents() { return web_contents_; }
   Profile* profile() { return profile_; }
@@ -157,6 +168,13 @@ class DevToolsUIBindings : public DevToolsEmbedderMessageDispatcher::Delegate,
   void RegisterExtensionsAPIForTesting(const std::string& origin,
                                        const std::string& script) {
     RegisterExtensionsAPI(origin, script);
+  }
+  bool has_frontend_host_for_testing() const {
+    return frontend_host_ != nullptr;
+  }
+  void ReadyToCommitNavigationForTesting(
+      content::NavigationHandle* navigation_handle) {
+    ReadyToCommitNavigation(navigation_handle);
   }
 
   static base::DictValue GetSyncInformationForProfile(Profile* profile);
@@ -430,6 +448,14 @@ class DevToolsUIBindings : public DevToolsEmbedderMessageDispatcher::Delegate,
   // Extensions support.
   void AddDevToolsExtensionsToClient();
 
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+  // extensions::ExtensionRegistryObserver:
+  void OnExtensionUnloaded(content::BrowserContext* browser_context,
+                           const extensions::Extension* extension,
+                           extensions::UnloadedExtensionReason reason) override;
+  void OnShutdown(extensions::ExtensionRegistry* registry) override;
+#endif
+
   static bool GetFeatureStateForDevTools(const base::Feature& feature,
                                          std::string enabled_by_flags,
                                          std::string disabled_by_flags);
@@ -469,6 +495,12 @@ class DevToolsUIBindings : public DevToolsEmbedderMessageDispatcher::Delegate,
   using ExtensionsAPIs = std::map<std::string, std::string>;
   ExtensionsAPIs extensions_api_;
   std::string initial_target_id_;
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+  base::ScopedObservation<extensions::ExtensionRegistry,
+                          extensions::ExtensionRegistryObserver>
+      extension_registry_observation_{this};
+  std::set<extensions::ExtensionId> devtools_extension_ids_;
+#endif
 
   DevToolsSettings settings_;
   base::TimeTicks session_start_time_;
@@ -479,6 +511,7 @@ class DevToolsUIBindings : public DevToolsEmbedderMessageDispatcher::Delegate,
   std::unique_ptr<DevToolsHttpServiceRegistry> http_service_registry_;
 
   base::UnguessableToken session_id_for_logging_;
+  bool is_local_frontend_ = false;
   base::WeakPtrFactory<DevToolsUIBindings> weak_factory_{this};
 };
 

@@ -9,9 +9,11 @@
 #include "base/feature_list.h"
 #include "base/values.h"
 #include "build/build_config.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
@@ -27,8 +29,8 @@
 
 // Helpers --------------------------------------------------------------------
 
-std::unique_ptr<Browser> CreateBrowserWithTestWindowForParams(
-    Browser::CreateParams params) {
+std::unique_ptr<BrowserWindowInterface> CreateBrowserWithTestWindowForParams(
+    BrowserWindowCreateParams params) {
   DCHECK(!params.window);
   auto window = std::make_unique<TestBrowserWindow>();
   window->set_is_minimized(params.initial_show_state ==
@@ -40,7 +42,7 @@ std::unique_ptr<Browser> CreateBrowserWithTestWindowForParams(
       params.initial_show_state != ui::mojom::WindowShowState::kMinimized);
   params.window = window.release();
 
-  return Browser::DeprecatedCreateOwnedForTesting(params);
+  return DeprecatedCreateOwnedBrowserWindowForTesting(std::move(params));
 }
 
 // TestBrowserWindow::TestLocationBar -----------------------------------------
@@ -383,9 +385,8 @@ void TestBrowserWindow::SetCloseCallback(base::OnceClosure close_callback) {
 }
 
 void TestBrowserWindow::OnBrowserCreated(BrowserWindowInterface* browser) {
-  Browser* current_browser = browser->GetBrowserForMigrationOnly();
-  if (BrowserInitState::From(current_browser)->create_params().window == this) {
-    browser_ = current_browser;
+  if (BrowserInitState::From(browser)->create_params().window == this) {
+    browser_ = browser;
     browser_collection_observation_.Reset();
   }
 }

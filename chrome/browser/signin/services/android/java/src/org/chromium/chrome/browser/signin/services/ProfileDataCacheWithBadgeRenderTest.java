@@ -37,7 +37,6 @@ import org.chromium.components.signin.SigninFeatures;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.ui.test.util.BlankUiTestActivity;
-import org.chromium.ui.widget.ChromeImageView;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -54,8 +53,6 @@ import java.util.List;
 @UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @Batch(ProfileDataCacheRenderTest.PROFILE_DATA_BATCH_NAME)
 public class ProfileDataCacheWithBadgeRenderTest {
-    private static final long NATIVE_IDENTITY_MANAGER = 10002L;
-
     @ClassParameter
     private static final List<ParameterSet> sClassParams =
             Arrays.asList(
@@ -71,7 +68,7 @@ public class ProfileDataCacheWithBadgeRenderTest {
     @Rule
     public final ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
-                    .setRevision(1)
+                    .setRevision(2)
                     .setBugComponent(ChromeRenderTestRule.Component.SERVICES_SIGN_IN)
                     .build();
 
@@ -105,7 +102,7 @@ public class ProfileDataCacheWithBadgeRenderTest {
                 () -> {
                     mIdentityManager = mAccountManagerTestRule.getIdentityManager();
                     mContentView = new FrameLayout(sActivity);
-                    mImageView = new ChromeImageView(sActivity);
+                    mImageView = new ImageView(sActivity);
                     mContentView.addView(
                             mImageView,
                             ViewGroup.LayoutParams.WRAP_CONTENT,

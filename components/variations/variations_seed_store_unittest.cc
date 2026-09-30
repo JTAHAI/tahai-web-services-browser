@@ -33,7 +33,7 @@
 #include "components/variations/proto/study.pb.h"
 #include "components/variations/proto/variations_seed.pb.h"
 #include "components/variations/seed_reader_writer.h"
-#include "components/variations/variations_safe_seed_store_local_state.h"
+#include "components/variations/variations_safe_seed_store.h"
 #include "components/variations/variations_switches.h"
 #include "components/variations/variations_test_utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -80,18 +80,21 @@ class TestVariationsSeedStore : public VariationsSeedStore {
           std::make_unique<const MockEntropyProviders>(
               MockEntropyProviders::Results{
                   .low_entropy = kAlwaysUseLastGroup}))
-      : VariationsSeedStore(local_state,
-                            std::move(initial_seed),
-                            signature_verification_needed,
-                            std::make_unique<VariationsSafeSeedStoreLocalState>(
-                                local_state,
-                                seed_file_dir,
-                                channel,
-                                entropy_providers.get()),
-                            channel,
-                            seed_file_dir,
-                            entropy_providers.get(),
-                            use_first_run_prefs) {}
+      : VariationsSeedStore(
+            local_state,
+            std::move(initial_seed),
+            /*signature_verification_enabled_on_load=*/
+            signature_verification_needed,
+            /*signature_verification_enabled_on_receive=*/
+            signature_verification_needed,
+            std::make_unique<VariationsSafeSeedStore>(local_state,
+                                                      seed_file_dir,
+                                                      channel,
+                                                      entropy_providers.get()),
+            channel,
+            seed_file_dir,
+            entropy_providers.get(),
+            use_first_run_prefs) {}
   ~TestVariationsSeedStore() override = default;
 
   void SetSerialNumberForTesting(std::string_view serial_number) {
@@ -419,7 +422,7 @@ class SeedStoreGroupTestBase : public ::testing::Test {
     temp_seed_file_path_ = temp_dir_.GetPath().Append(kSeedFilename);
 
     VariationsSeedStore::RegisterPrefs(prefs_.registry());
-    SetUpSeedFileTrial(std::string(field_trial_group));
+    SetUpSeedFileTrial(field_trial_group);
 
     const std::string_view seed_data_field = seed_fields_prefs.seed;
     std::string histogram_suffix =

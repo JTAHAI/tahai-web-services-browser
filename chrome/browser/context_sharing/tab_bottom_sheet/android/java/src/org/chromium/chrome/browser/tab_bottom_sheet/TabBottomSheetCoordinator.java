@@ -33,7 +33,6 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
-import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.widget.RoundedCornerOutlineProvider;
 import org.chromium.components.browser_ui.widget.TouchEventObserver;
 import org.chromium.components.browser_ui.widget.TouchEventProvider;
@@ -55,10 +54,6 @@ public class TabBottomSheetCoordinator {
     // Values are not final and may need tuning.
     private static final float FLING_VELOCITY_THRESHOLD_DP = 50f;
     private static final float SCROLL_DISTANCE_THRESHOLD_DP = 100f;
-
-    // Can be modified later to be set dynamically based on device
-    private static final float FULL_HEIGHT_RATIO = 0.7f;
-    private static final float SMALL_SCREEN_HEIGHT_RATIO = 0.9f;
 
     // Interface used by the manager to monitor events related to the state of the
     // bottom sheet.
@@ -102,6 +97,7 @@ public class TabBottomSheetCoordinator {
     private boolean mIsShowingTabBottomSheet;
     private boolean mExpectingLayoutChange;
     private boolean mInitialContainerSizeChanged;
+    private boolean mPendingExpansion;
 
     private @Nullable KeyboardVisibilityListener mKeyboardVisibilityListener;
     private @Nullable ModalDialogManager mObservedModalDialogManager;
@@ -165,12 +161,14 @@ public class TabBottomSheetCoordinator {
         createSheetContent();
         assert mSheetContent != null : "TabBottomSheetContent must not be null";
 
+        mPendingExpansion = startsExpanded;
         if (mBottomSheetController.requestShowContent(mSheetContent, animate)) {
             onSheetContentShown(animate, startsExpanded);
             registerSystemObservers();
             mIsShowingTabBottomSheet = true;
             return true;
         } else {
+            mPendingExpansion = false;
             // This happens when either.
             // 1) If the sheet content is null.
             // 2) The bottom sheet is null.
@@ -223,7 +221,8 @@ public class TabBottomSheetCoordinator {
         mSheetContent =
                 provider.createContent(
                         mContentView,
-                        FULL_HEIGHT_RATIO,
+                        getDefaultHeightRatio(),
+                        TabBottomSheetUtils.getFullHeightRatio(),
                         mCoBrowseViews.getBackgroundColor(),
                         mContentView
                                 .getResources()
@@ -271,6 +270,7 @@ public class TabBottomSheetCoordinator {
                             mSheetEventsCallback.onBottomSheetOpened(/* isExpanded= */ false);
                         }
                     }
+                    mPendingExpansion = false;
                 });
     }
 
@@ -392,7 +392,7 @@ public class TabBottomSheetCoordinator {
     }
 
     private BottomSheetObserver buildBottomSheetObserver() {
-        return new EmptyBottomSheetObserver() {
+        return new BottomSheetObserver() {
             private @SheetState int mLastStableState = SheetState.HIDDEN;
 
             @Override
@@ -409,7 +409,9 @@ public class TabBottomSheetCoordinator {
                     // The sheet is considered expanded if it's in HALF, FULL, or SCROLLING above
                     // peek.
                     boolean isExpanded = state != SheetState.PEEK;
-                    mSheetEventsCallback.onBottomSheetOpened(isExpanded);
+                    if (!mPendingExpansion || isExpanded) {
+                        mSheetEventsCallback.onBottomSheetOpened(isExpanded);
+                    }
                 }
                 updateRoundingEdges();
 
@@ -694,11 +696,7 @@ public class TabBottomSheetCoordinator {
     }
 
     private float getDefaultHeightRatio() {
-        Configuration configuration = mContext.getResources().getConfiguration();
-        if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            return SMALL_SCREEN_HEIGHT_RATIO;
-        }
-        return isKeyboardShowing() ? SMALL_SCREEN_HEIGHT_RATIO : FULL_HEIGHT_RATIO;
+        return TabBottomSheetUtils.getDefaultHeightRatio(mContext, isKeyboardShowing());
     }
 
     private void updateRoundingEdges() {

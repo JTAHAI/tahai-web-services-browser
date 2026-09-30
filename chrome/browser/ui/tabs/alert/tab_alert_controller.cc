@@ -16,7 +16,7 @@
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
 #include "base/notreached.h"
-#include "chrome/browser/actor/ui/actor_ui_tab_controller.h"
+#include "chrome/browser/actor/ui/actor_ui_tab_controller_interface.h"
 #include "chrome/browser/glic/browser_ui/glic_tab_indicator_helper.h"
 #include "chrome/browser/glic/public/context/glic_sharing_manager.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
@@ -54,13 +54,14 @@ bool CompareAlerts::operator()(TabAlert first, TabAlert second) const {
            {TabAlert::kActorAccessing, 6},
            {TabAlert::kGlicAccessing, 5},
            {TabAlert::kGlicSharing, 4},
-        // NOTE: VR must take priority over the audio alert ones
-        // because most VR content has audio and its usage is implied by the
-        // VR icon.
+           // NOTE: VR must take priority over the audio alert ones
+           // because most VR content has audio and its usage is implied by the
+           // VR icon.
            {TabAlert::kVrPresentingInHeadset, 3},
            {TabAlert::kPipPlaying, 2},
            {TabAlert::kAudioMuting, 1},
-           {TabAlert::kAudioPlaying, 0}});
+           {TabAlert::kAudioPlaying, 0},
+           {TabAlert::kNone, -1}});
 
   return tab_alert_priority.at(first) > tab_alert_priority.at(second);
 }
@@ -103,7 +104,7 @@ TabAlertController::TabAlertController(TabInterface& tab)
               base::Unretained(this)));
 
   if (auto* actor_ui_tab_controller =
-          actor::ui::ActorUiTabController::From(&tab)) {
+          actor::ui::ActorUiTabControllerInterface::From(&tab)) {
     actor_tab_indicator_callback_runner_ =
         actor_ui_tab_controller->RegisterActorTabIndicatorStateChangedCallback(
             base::BindRepeating(
@@ -202,6 +203,8 @@ std::u16string TabAlertController::GetTabAlertStateText(
     case TabAlert::kGlicSharing:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_GLIC_SHARING);
+    case TabAlert::kNone:
+      NOTREACHED();
   }
   NOTREACHED();
 }
@@ -244,6 +247,8 @@ int TabAlertController::GetAccessibleAlertStringId(const TabAlert alert_state) {
       return IDS_TAB_AX_LABEL_GLIC_ACCESSING;
     case TabAlert::kGlicSharing:
       return IDS_TAB_AX_LABEL_GLIC_SHARING;
+    case TabAlert::kNone:
+      NOTREACHED();
   }
 }
 
@@ -273,6 +278,7 @@ void TabAlertController::RecordCloseTabMetrics(const TabAlert alert_state) {
     case TabAlert::kActorAccessing:
     case TabAlert::kGlicAccessing:
     case TabAlert::kGlicSharing:
+    case TabAlert::kNone:
       break;
   }
 }

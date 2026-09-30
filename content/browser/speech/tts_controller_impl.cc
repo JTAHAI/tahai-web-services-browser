@@ -12,6 +12,8 @@
 
 #include "base/containers/queue.h"
 #include "base/functional/bind.h"
+#include "base/i18n/legacy_language_tag_helpers.h"
+#include "base/i18n/tag_converters.h"
 #include "base/json/json_reader.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
@@ -841,14 +843,26 @@ int TtsControllerImpl::GetMatchingVoice(TtsUtterance* utterance,
 
     // Prefer the utterance language.
     if (!voice.lang.empty() && !utterance->GetLang().empty()) {
+      std::optional<base::i18n::LanguageTag> voice_tag =
+          base::i18n::GetLanguageTagFromString(voice.lang);
+      std::optional<base::i18n::LanguageTag> utterance_tag =
+          base::i18n::GetLanguageTagFromString(utterance->GetLang());
+
       std::string voice_language =
-          base::ToLowerASCII(l10n_util::GetLanguage(voice.lang));
+          voice_tag
+              ? base::ToLowerASCII(voice_tag->language_subtag())
+              : base::ToLowerASCII(
+                    base::i18n::GetLanguageSubtagUsingLanguageTag(voice.lang));
       std::string voice_country =
-          base::ToLowerASCII(l10n_util::GetCountry(voice.lang));
+          voice_tag ? base::ToLowerASCII(voice_tag->region_subtag()) : "";
       std::string utterance_language =
-          base::ToLowerASCII(l10n_util::GetLanguage(utterance->GetLang()));
+          utterance_tag ? base::ToLowerASCII(utterance_tag->language_subtag())
+                        : base::ToLowerASCII(
+                              base::i18n::GetLanguageSubtagUsingLanguageTag(
+                                  utterance->GetLang()));
       std::string utterance_country =
-          base::ToLowerASCII(l10n_util::GetCountry(utterance->GetLang()));
+          utterance_tag ? base::ToLowerASCII(utterance_tag->region_subtag())
+                        : "";
 
       // An exact locale match is worth more than a partial match.
       // Convert locales to lowercase to handle cases like "en-us" vs. "en-US".
@@ -905,8 +919,8 @@ int TtsControllerImpl::GetMatchingVoice(TtsUtterance* utterance,
       if (voice.lang == app_lang) {
         score += 2;
       } else if (base::EqualsCaseInsensitiveASCII(
-                     l10n_util::GetLanguage(voice.lang),
-                     l10n_util::GetLanguage(app_lang))) {
+                     base::i18n::GetLanguageSubtagUsingLanguageTag(voice.lang),
+                     base::i18n::GetLanguageSubtagUsingLanguageTag(app_lang))) {
         score += 1;
       }
     }

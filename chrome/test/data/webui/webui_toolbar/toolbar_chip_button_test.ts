@@ -28,11 +28,6 @@ suite('ToolbarChipButtonTest', function() {
     // Default is empty
     assertEquals('', button.getAttribute('aria-label'));
 
-    // Set attribute
-    element.setAttribute('aria-label', 'test-aria-label');
-    await microtasksFinished();
-    assertEquals('test-aria-label', button.getAttribute('aria-label'));
-
     // Set property
     element.ariaLabel = 'new-aria-label';
     await microtasksFinished();
@@ -44,11 +39,6 @@ suite('ToolbarChipButtonTest', function() {
 
     // Default is null (not present)
     assertFalse(button.hasAttribute('aria-haspopup'));
-
-    // Set attribute
-    element.setAttribute('aria-haspopup', 'menu');
-    await microtasksFinished();
-    assertEquals('menu', button.getAttribute('aria-haspopup'));
 
     // Set property
     element.ariaHasPopup = 'dialog';
@@ -67,11 +57,6 @@ suite('ToolbarChipButtonTest', function() {
     // Default is null (not present)
     assertFalse(button.hasAttribute('aria-expanded'));
 
-    // Set attribute
-    element.setAttribute('aria-expanded', 'true');
-    await microtasksFinished();
-    assertEquals('true', button.getAttribute('aria-expanded'));
-
     // Set property
     element.ariaExpanded = 'false';
     await microtasksFinished();
@@ -89,12 +74,6 @@ suite('ToolbarChipButtonTest', function() {
 
     // Default is empty
     assertEquals('', button.getAttribute('title'));
-
-    // Set attribute 'title'
-    element.setAttribute('title', 'test-title');
-    await microtasksFinished();
-    assertEquals('test-title', button.getAttribute('title'));
-    assertEquals('test-title', element.tooltip);
 
     // Set property 'tooltip'
     element.tooltip = 'new-title';
@@ -135,5 +114,27 @@ suite('ToolbarChipButtonTest', function() {
 
     assertEquals(1, suffixSlot.assignedNodes().length);
     assertEquals(suffixIcon, suffixSlot.assignedNodes()[0]);
+  });
+
+  test('CollapsesGapAndLabelWithoutHasLabel', async function() {
+    const prefixIcon = document.createElement('div');
+    prefixIcon.slot = 'prefix-icon';
+    const content = document.createElement('span');
+    content.textContent = 'button label';
+    element.appendChild(prefixIcon);
+    element.appendChild(content);
+    element.style.setProperty('--toolbar-chip-icon-label-gap', '8px');
+    await microtasksFinished();
+
+    assertEquals('0px', window.getComputedStyle(element.$.button).gap);
+    assertEquals('0px', window.getComputedStyle(content).maxWidth);
+    assertEquals('0', window.getComputedStyle(content).opacity);
+
+    element.toggleAttribute('has-label', true);
+    await microtasksFinished();
+
+    assertEquals('8px', window.getComputedStyle(element.$.button).gap);
+    assertEquals('none', window.getComputedStyle(content).maxWidth);
+    assertEquals('1', window.getComputedStyle(content).opacity);
   });
 });

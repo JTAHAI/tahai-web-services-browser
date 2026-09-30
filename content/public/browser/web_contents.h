@@ -118,7 +118,6 @@ class ColorProviderSource;
 }  // namespace ui
 
 namespace gfx {
-class Point;
 class PointF;
 class Rect;
 }  // namespace gfx
@@ -128,6 +127,7 @@ namespace content {
 class BackForwardTransitionAnimationManager;
 class BrowserContext;
 class BrowserPluginGuestDelegate;
+class FrameEvictionOptOutClient;
 class GuestPageHolder;
 class NavigationController;
 class NavigationEntry;
@@ -185,6 +185,30 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
   using UniqueToken = base::TokenType<class WebContentsTokenTag>;
   using DragId = base::StrongAlias<class DragIdTag, base::UnguessableToken>;
 
+  // Marks a WebContents as a privileged-contents host: it indicates that the
+  // embedder (e.g., //chrome) is loading a trusted, network-hosted site and
+  // providing it with elevated browser APIs (see //chrome's
+  // PrivilegedWebContents). Passed at creation via CreateParams and immutable
+  // for the WebContents' lifetime. The content-internal enforcements keyed
+  // off these fields only apply when the embedder explicitly provides these
+  // parameters at WebContents creation.
+  struct PrivilegedParams {
+    // Opaque embedder-assigned identifier of the blessed feature. Frames in
+    // WebContents with the same `feature_id` may share renderer processes
+    // with each other but never with ordinary WebContents. Embedders are
+    // responsible for assigning distinct ids so that different privileged
+    // features never collide.
+    int32_t feature_id = 0;
+
+    // When true, documents in this WebContents are never controlled by a
+    // service worker.
+    bool disallow_service_worker_control = false;
+
+    // When true, frames in this WebContents may not create or connect to
+    // shared workers.
+    bool disallow_shared_workers = false;
+  };
+
   struct CONTENT_EXPORT CreateParams {
     explicit CreateParams(
         BrowserContext* context,
@@ -228,6 +252,10 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
 
     // True if the contents should be initially hidden.
     bool initially_hidden = false;
+
+    // True if the contents should initially be hidden but continue painting
+    // until shown. Mutually exclusive with `initially_hidden`.
+    bool initially_hidden_but_painting = false;
 
     // Returns true if the WebContents is never user-visible, thus the renderer
     // need never produce pixels for display.
@@ -343,6 +371,9 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
     // default network will be used.
     net::handles::NetworkHandle target_network =
         net::handles::kInvalidNetworkHandle;
+
+    // See PrivilegedParams. Unset for ordinary WebContents.
+    std::optional<PrivilegedParams> privileged_params;
   };
 
   // Token that causes input to be blocked on this WebContents for at least as
@@ -708,6 +739,10 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
 
   virtual ui::AXMode GetAccessibilityMode() = 0;
 
+  // Notifies this WebContents that the platform accessibility parent of its
+  // primary main frame may have changed.
+  virtual void NotifyAccessibilityParentChanged() = 0;
+
   // Forces a reset of accessibility state in the instance's renderers.
   // Observers will receive a new accessibility tree.
   virtual void ResetAccessibility() = 0;
@@ -951,6 +986,14 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
   // Whether the tab is in the process of being destroyed.
   virtual bool IsBeingDestroyed() = 0;
 
+  // Returns true if this WebContents was created with PrivilegedParams, i.e. it
+  // is a privileged-contents host (see PrivilegedParams). Immutable for the
+  // lifetime of the WebContents. Unlike RenderProcessHost::IsPrivileged(), this
+  // is available even when no renderer process exists yet -- e.g. when deciding
+  // whether a browser-initiated main-frame navigation request should be exempt
+  // from the extensions webRequest/DNR APIs.
+  virtual bool IsPrivileged() = 0;
+
   // Convenience method for notifying the delegate of a navigation state
   // change.
   virtual void NotifyNavigationStateChanged(InvalidateTypes changed_flags) = 0;
@@ -1001,6 +1044,13 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
   // of WasShown() if you are setting Visibility to VISIBLE for the first time.
   // TODO(crbug.com/40911760): Make updating Visibility more robust.
   virtual void UpdateWebContentsVisibility(Visibility visibility) = 0;
+
+  // Opts the WebContents out of frame eviction. Once opted out, a WebContents
+  // cannot be opted back in. You should evaluate the trade-offs before using
+  // this API.
+  // See FrameEvictionOptOutClient for instructions.
+  virtual void OptOutFrameEviction(
+      base::PassKey<FrameEvictionOptOutClient>) = 0;
 
   // This function checks *all* frames in this WebContents (not just the main
   // frame) and returns true if at least one frame has either a beforeunload or
@@ -1159,9 +1209,9 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
   virtual const std::optional<gfx::Rect> GetTextSelectionBounds(
       RenderFrameHost* render_frame_host) const = 0;
 
-  // Returns the point of the focus selection in global screen coordinates in
+  // Returns the bounds of the focus selection in global screen coordinates in
   // DIPs.
-  virtual const std::optional<gfx::Point> GetFocusSelectionPoint(
+  virtual const std::optional<gfx::Rect> GetFocusSelectionBounds(
       RenderFrameHost* render_frame_host) const = 0;
 
   // Notifies when the selection bounds change. This is provided using a
@@ -1623,11 +1673,11 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
   // since the last navigation.
   virtual bool CompletedFirstVisuallyNonEmptyPaint() = 0;
 
-  // TODO(crbug.com/41379215): This is a simple mitigation to validate
-  // that an action that requires a user gesture actually has one in the
-  // trustworthy browser process, rather than relying on the untrustworthy
-  // renderer. This should be eventually merged into and accounted for in the
-  // user activation work: crbug.com/848778
+  // TODO(crbug.com/550284226): This is a simple mitigation to validate that an
+  // action that requires a user gesture actually has one in the trustworthy
+  // browser process, rather than relying on the untrustworthy renderer. This
+  // should be merged with the trusted user activation states tracked at frame
+  // granularity: crbug.com/40091540
   virtual bool HasRecentInteraction() = 0;
 
   // Returns the time ticks of the last user interaction.
@@ -1716,9 +1766,12 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
   // event and the time when the WebContents is painted.
   // `had_saved_frame_at_start` is true if a compositor frame for this view was
   // already available when the tab switch started.
+  // `destination_is_frozen` is true if the destination tab was frozen when the
+  // tab switch started.
   virtual void SetTabSwitchStartTime(base::TimeTicks start_time,
                                      bool destination_is_loaded,
-                                     bool had_saved_frame_at_start) = 0;
+                                     bool had_saved_frame_at_start,
+                                     bool destination_is_frozen) = 0;
 
   // Starts browser-initiated prefetch, triggered by embedder.
   // - `prefetch_url` is the url the prefetch will be performed.
@@ -1757,7 +1810,8 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
       scoped_refptr<PreloadPipelineInfo> preload_pipeline_info,
       base::WeakPtr<PreloadingAttempt> attempt,
       PreloadingHoldbackStatus holdback_status_override,
-      std::optional<base::TimeDelta> ttl) = 0;
+      std::optional<base::TimeDelta> ttl,
+      bool should_ignore_saver_modes) = 0;
 
   // Starts an embedder triggered (browser-initiated) prerendering page and
   // returns the unique_ptr<PrerenderHandle>, which cancels prerendering on its

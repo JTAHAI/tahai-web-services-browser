@@ -62,6 +62,7 @@
 #include "third_party/blink/renderer/platform/geometry/layout_unit.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
 #include "third_party/blink/renderer/platform/wtf/text/character_names.h"
+#include "third_party/blink/renderer/platform/wtf/text/format.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -132,7 +133,7 @@ String QuoteAndEscapeNonPrintables(const String& s) {
       if (c >= 0x20 && c < 0x7F) {
         result.Append(c);
       } else {
-        result.AppendFormat("\\x{%X}", c);
+        FormatTo(result, "\\x{{{:X}}}", c);
       }
     }
   }
@@ -176,10 +177,11 @@ void WriteLayoutObject(StringBuilder& ts,
   ts << o.DecoratedName();
 
   if (behavior & kLayoutAsTextShowAddresses)
-    ts << String::Format(" %p", &o);
+    FormatTo(ts, " {}", &o);
 
-  if (o.Style() && o.StyleRef().ZIndex())
+  if (o.StyleRef().ZIndex()) {
     ts << " zI: " << o.StyleRef().ZIndex();
+  }
 
   if (o.GetNode()) {
     String tag_name = GetTagName(o.GetNode());
@@ -477,7 +479,7 @@ static void Write(StringBuilder& ts,
   ts << "layer ";
 
   if (behavior & kLayoutAsTextShowAddresses)
-    ts << String::Format("%p ", &layer);
+    FormatTo(ts, "{} ", &layer);
 
   ts << "at " << adjusted_layer_offset;
 

@@ -13,6 +13,7 @@ import android.view.View;
 import androidx.appcompat.content.res.AppCompatResources;
 
 import org.chromium.base.Callback;
+import org.chromium.base.CallbackUtils;
 import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.base.supplier.NullableObservableSupplier;
@@ -32,7 +33,6 @@ import org.chromium.chrome.browser.user_education.IphCommandBuilder;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
-import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 
@@ -104,7 +104,7 @@ public class PriceTrackingButtonController extends BaseButtonDataProvider {
                         .build();
 
         mBottomSheetObserver =
-                new EmptyBottomSheetObserver() {
+                new BottomSheetObserver() {
                     @Override
                     public void onSheetStateChanged(int newState, int reason) {
                         mButtonData.setEnabled(newState == SheetState.HIDDEN);
@@ -145,7 +145,7 @@ public class PriceTrackingButtonController extends BaseButtonDataProvider {
                     mSnackbarManager,
                     view.getResources(),
                     profile,
-                    (success) -> {},
+                    CallbackUtils.emptyCallback(),
                     PriceDropNotificationManagerFactory.create(profile));
         } else {
             mTabBookmarkerSupplier.get().startOrModifyPriceTracking(mActiveTabSupplier.get());

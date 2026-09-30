@@ -5,25 +5,26 @@
 #include <string_view>
 #include <vector>
 
+#include "base/notimplemented.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/autofill/payments/offer_notification_bubble_views_test_base.h"
 #include "chrome/browser/ui/views/controls/subpage_view.h"
 #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
+#include "chrome/browser/ui/views/page_action/page_action_view_interface.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/autofill/core/browser/data_model/payments/autofill_offer_data.h"
 #include "components/autofill/core/browser/payments/offer_notification_handler.h"
 #include "components/autofill/core/browser/test_utils/test_autofill_clock.h"
-#include "components/autofill/core/common/autofill_features.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -46,37 +47,17 @@ struct OfferNotificationBubbleViewsInteractiveUiTestData {
 
 std::string GetTestName(
     const ::testing::TestParamInfo<
-        std::tuple<OfferNotificationBubbleViewsInteractiveUiTestData, bool>>&
-        info) {
-  const auto& params = std::get<0>(info.param);
-  bool bubble_manager_enabled = std::get<1>(info.param);
-  return params.name + (bubble_manager_enabled ? "WithBubbleManagerEnabled"
-                                               : "WithBubbleManagerDisabled");
+        OfferNotificationBubbleViewsInteractiveUiTestData>& info) {
+  return info.param.name;
 }
 
 class OfferNotificationBubbleViewsInteractiveUiTest
     : public OfferNotificationBubbleViewsTestBase,
       public testing::WithParamInterface<
-          std::tuple<OfferNotificationBubbleViewsInteractiveUiTestData, bool>> {
+          OfferNotificationBubbleViewsInteractiveUiTestData> {
  public:
   OfferNotificationBubbleViewsInteractiveUiTest()
-      : test_offer_type_(std::get<0>(GetParam()).offer_type) {
-    bool bubble_manager_enabled = std::get<1>(GetParam());
-
-    std::vector<base::test::FeatureRefAndParams> enabled_features;
-    std::vector<base::test::FeatureRef> disabled_features;
-
-    if (bubble_manager_enabled) {
-      enabled_features.push_back(
-          {features::kAutofillShowBubblesBasedOnPriorities, {}});
-    } else {
-      disabled_features.push_back(
-          features::kAutofillShowBubblesBasedOnPriorities);
-    }
-
-    feature_list_.InitWithFeaturesAndParameters(enabled_features,
-                                                disabled_features);
-  }
+      : test_offer_type_(GetParam().offer_type) {}
 
   ~OfferNotificationBubbleViewsInteractiveUiTest() override = default;
   OfferNotificationBubbleViewsInteractiveUiTest(
@@ -91,6 +72,10 @@ class OfferNotificationBubbleViewsInteractiveUiTest
         break;
       case AutofillOfferData::OfferType::GPAY_PROMO_CODE_OFFER:
         ShowBubbleForGPayPromoCodeOfferAndVerify();
+        break;
+      case AutofillOfferData::OfferType::WALLET_DIRECT_OFFER:
+        // TODO(crbug.com/546252995): Implement UI for Wallet Direct Offers.
+        NOTIMPLEMENTED();
         break;
       case AutofillOfferData::OfferType::UNKNOWN:
         NOTREACHED();
@@ -152,6 +137,10 @@ class OfferNotificationBubbleViewsInteractiveUiTest
         return "CardLinkedOffer";
       case AutofillOfferData::OfferType::GPAY_PROMO_CODE_OFFER:
         return "GPayPromoCodeOffer";
+      case AutofillOfferData::OfferType::WALLET_DIRECT_OFFER:
+        // TODO(crbug.com/546252995): Implement UI for Wallet Direct Offers.
+        NOTIMPLEMENTED();
+        return std::string();
       case AutofillOfferData::OfferType::UNKNOWN:
         NOTREACHED();
     }
@@ -164,7 +153,6 @@ class OfferNotificationBubbleViewsInteractiveUiTest
 
   TestAutofillClock test_clock_;
   const AutofillOfferData::OfferType test_offer_type_;
-  base::test::ScopedFeatureList feature_list_;
 };
 
 // TODO(crbug.com/40228302): Split parameterized tests that are
@@ -179,12 +167,10 @@ class OfferNotificationBubbleViewsInteractiveUiTest
 INSTANTIATE_TEST_SUITE_P(
     MAYBE_GPayCardLinked,
     OfferNotificationBubbleViewsInteractiveUiTest,
-    testing::Combine(
-        testing::Values(OfferNotificationBubbleViewsInteractiveUiTestData{
-            "GPayCardLinked",
-            AutofillOfferData::OfferType::GPAY_CARD_LINKED_OFFER,
-        }),
-        testing::Bool()),
+    testing::Values(OfferNotificationBubbleViewsInteractiveUiTestData{
+        "GPayCardLinked",
+        AutofillOfferData::OfferType::GPAY_CARD_LINKED_OFFER,
+    }),
     &GetTestName);
 
 // TODO(crbug.com/416010106): Flaky failures.
@@ -196,11 +182,8 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(
     MAYBE_GPayPromoCode,
     OfferNotificationBubbleViewsInteractiveUiTest,
-    testing::Combine(
-        testing::Values(OfferNotificationBubbleViewsInteractiveUiTestData{
-            "GPayPromoCode",
-            AutofillOfferData::OfferType::GPAY_PROMO_CODE_OFFER}),
-        testing::Bool()),
+    testing::Values(OfferNotificationBubbleViewsInteractiveUiTestData{
+        "GPayPromoCode", AutofillOfferData::OfferType::GPAY_PROMO_CODE_OFFER}),
     &GetTestName);
 
 // TODO(crbug.com/40285326): This fails with the field trial testing config.
@@ -223,11 +206,8 @@ class OfferNotificationBubbleViewsInteractiveUiTestNoTestingConfig
 INSTANTIATE_TEST_SUITE_P(
     MAYBE_GPayPromoCode,
     OfferNotificationBubbleViewsInteractiveUiTestNoTestingConfig,
-    testing::Combine(
-        testing::Values(OfferNotificationBubbleViewsInteractiveUiTestData{
-            "GPayPromoCode",
-            AutofillOfferData::OfferType::GPAY_PROMO_CODE_OFFER}),
-        testing::Bool()),
+    testing::Values(OfferNotificationBubbleViewsInteractiveUiTestData{
+        "GPayPromoCode", AutofillOfferData::OfferType::GPAY_PROMO_CODE_OFFER}),
     &GetTestName);
 
 // TODO(crbug.com/40817360): Flaky failures.
@@ -342,7 +322,7 @@ IN_PROC_BROWSER_TEST_P(OfferNotificationBubbleViewsInteractiveUiTest,
   OfferNotificationBubbleControllerImpl* controller =
       static_cast<OfferNotificationBubbleControllerImpl*>(
           OfferNotificationBubbleController::GetOrCreate(
-              browser()->tab_strip_model()->GetWebContentsAt(1)));
+              browser()->GetTabStripModel()->GetWebContentsAt(1)));
   ASSERT_TRUE(controller);
   AddEventObserverToController(controller);
 
@@ -353,7 +333,7 @@ IN_PROC_BROWSER_TEST_P(OfferNotificationBubbleViewsInteractiveUiTest,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
   controller = static_cast<OfferNotificationBubbleControllerImpl*>(
       OfferNotificationBubbleController::GetOrCreate(
-          browser()->tab_strip_model()->GetWebContentsAt(2)));
+          browser()->GetTabStripModel()->GetWebContentsAt(2)));
   ASSERT_TRUE(controller);
   AddEventObserverToController(controller);
 
@@ -363,7 +343,7 @@ IN_PROC_BROWSER_TEST_P(OfferNotificationBubbleViewsInteractiveUiTest,
 
   // Change to the first background tab.
   ResetEventWaiterForSequence({DialogEvent::BUBBLE_SHOWN});
-  browser()->tab_strip_model()->ActivateTabAt(1);
+  browser()->GetTabStripModel()->ActivateTabAt(1);
   ASSERT_TRUE(WaitForObservedEvent());
   // Icon should always be visible, and the bubble should be visible too.
   EXPECT_TRUE(IsIconVisible());
@@ -374,14 +354,14 @@ IN_PROC_BROWSER_TEST_P(OfferNotificationBubbleViewsInteractiveUiTest,
   // checks.
   views::test::WidgetDestroyedWaiter destroyed_waiter(
       GetOfferNotificationBubbleViews()->GetWidget());
-  browser()->tab_strip_model()->ActivateTabAt(0);
+  browser()->GetTabStripModel()->ActivateTabAt(0);
   destroyed_waiter.Wait();
   // The icon and the bubble should not be visible.
   EXPECT_FALSE(IsIconVisible());
   EXPECT_FALSE(GetOfferNotificationBubbleViews());
 
   // Change to the second background tab.
-  browser()->tab_strip_model()->ActivateTabAt(2);
+  browser()->GetTabStripModel()->ActivateTabAt(2);
   // Icon should be visible and the bubble should not be visible.
   EXPECT_TRUE(IsIconVisible());
   EXPECT_FALSE(GetOfferNotificationBubbleViews());
@@ -450,7 +430,7 @@ IN_PROC_BROWSER_TEST_P(OfferNotificationBubbleViewsInteractiveUiTest,
   // Simulate clicking on see details part of the text.
   GetOfferNotificationBubbleViews()->OnPromoCodeSeeDetailsClicked();
   EXPECT_EQ(
-      browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL(),
+      browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL(),
       GURL(GetDefaultTestDetailsUrlString()));
 }
 
@@ -502,7 +482,7 @@ IN_PROC_BROWSER_TEST_P(
     // Simulate clicking on see details part of the text.
     GetOfferNotificationBubbleViews()->OnPromoCodeSeeDetailsClicked();
     EXPECT_EQ(
-        browser()->tab_strip_model()->GetActiveWebContents()->GetVisibleURL(),
+        browser()->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL(),
         GURL(GetDefaultTestDetailsUrlString()));
   }
 }
@@ -516,9 +496,7 @@ IN_PROC_BROWSER_TEST_P(
 IN_PROC_BROWSER_TEST_P(OfferNotificationBubbleViewsInteractiveUiTest,
                        MAYBE_IconViewAccessibleName) {
   ShowBubbleForOfferAndVerify();
-  EXPECT_EQ(GetOfferNotificationPageActionView()
-                ->GetViewAccessibility()
-                .GetCachedName(),
+  EXPECT_EQ(GetOfferNotificationPageActionView()->GetAccessibleName(),
             l10n_util::GetStringUTF16(
                 IDS_AUTOFILL_OFFERS_REMINDER_ICON_TOOLTIP_TEXT));
   EXPECT_EQ(GetOfferNotificationPageActionView()->GetTooltipText(),

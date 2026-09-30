@@ -10,13 +10,14 @@
 
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/pref_names.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
+#include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
 
@@ -34,7 +35,7 @@ base::DictValue EncodeTab(const GURL& url) {
   return dict;
 }
 
-// Encodes all the pinned tabs from |browser| into |serialized_tabs|.
+// Encodes all the pinned tabs from `browser` into `serialized_tabs`.
 void EncodePinnedTabs(BrowserWindowInterface* browser,
                       base::ListValue& serialized_tabs) {
   const TabStripModel* const tab_model = browser->GetTabStripModel();
@@ -52,7 +53,7 @@ void EncodePinnedTabs(BrowserWindowInterface* browser,
   }
 }
 
-// Decodes the previously written values in |value| to |tab|, returning true
+// Decodes the previously written values in `value` to `tab`, returning true
 // on success.
 std::optional<StartupTab> DecodeTab(const base::DictValue& value) {
   const std::string* const url_string = value.FindString(kURL);

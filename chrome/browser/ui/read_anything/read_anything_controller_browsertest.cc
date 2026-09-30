@@ -11,12 +11,14 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_test_util.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/translate/chrome_translate_client.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/find_bar/find_bar_controller.h"
+#include "chrome/browser/ui/read_anything/read_anything_contents_wrapper.h"
 #include "chrome/browser/ui/read_anything/read_anything_entry_point_controller.h"
 #include "chrome/browser/ui/read_anything/read_anything_immersive_web_view.h"
 #include "chrome/browser/ui/read_anything/read_anything_lifecycle_observer.h"
@@ -28,6 +30,7 @@
 #include "chrome/browser/ui/side_panel/side_panel_enums.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -66,6 +69,8 @@
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/test/views_test_utils.h"
 
+using read_anything::mojom::ReadAnythingOpenTrigger;
+
 class MockReadAnythingLifecycleObserver : public ReadAnythingLifecycleObserver {
  public:
   MOCK_METHOD(void,
@@ -91,16 +96,16 @@ class MockReadAnythingService : public ReadAnythingService {
 
 class ReadAnythingControllerBrowserTest : public InProcessBrowserTest {
  public:
-  ReadAnythingControllerBrowserTest() = default;
+  explicit ReadAnythingControllerBrowserTest(
+      std::vector<base::test::FeatureRef> enabled_features = {},
+      std::vector<base::test::FeatureRef> disabled_features = {}) {
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+    enabled_features.push_back(features::kWasmTtsEngineAutoInstallDisabled);
+#endif
+    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
+  }
 
   void SetUp() override {
-    scoped_feature_list_.InitWithFeatures(
-        {features::kImmersiveReadAnything,
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
-         features::kWasmTtsEngineAutoInstallDisabled
-#endif
-        },
-        {});
     ReadAnythingController::SetFreezeDistillationOnCreationForTesting(true);
     InProcessBrowserTest::SetUp();
   }
@@ -130,23 +135,25 @@ class ReadAnythingControllerBrowserTest : public InProcessBrowserTest {
     return side_panel_view->web_contents();
   }
 
-  views::View* GetActiveImmersiveOverlay(Browser* browser_ptr = nullptr) {
+  views::View* GetActiveImmersiveOverlay(
+      BrowserWindowInterface* browser_ptr = nullptr) {
     if (!browser_ptr) {
       browser_ptr = browser();
     }
 
-    int active_index = browser_ptr->tab_strip_model()->active_index();
+    int active_index = browser_ptr->GetTabStripModel()->active_index();
     return GetImmersiveOverlayForTab(active_index, browser_ptr);
   }
 
-  views::View* GetImmersiveOverlayForTab(int tab_index,
-                                         Browser* browser_ptr = nullptr) {
+  views::View* GetImmersiveOverlayForTab(
+      int tab_index,
+      BrowserWindowInterface* browser_ptr = nullptr) {
     if (!browser_ptr) {
       browser_ptr = browser();
     }
 
     auto* contents =
-        browser_ptr->tab_strip_model()->GetWebContentsAt(tab_index);
+        browser_ptr->GetTabStripModel()->GetWebContentsAt(tab_index);
     BrowserView* browser_view =
         BrowserView::GetBrowserViewForBrowser(browser_ptr);
     return browser_view->GetContentsContainerViewFor(contents)->GetViewByID(
@@ -154,7 +161,7 @@ class ReadAnythingControllerBrowserTest : public InProcessBrowserTest {
   }
 
   content::WebContents* GetImmersiveWebContents(
-      Browser* browser_ptr = nullptr) {
+      BrowserWindowInterface* browser_ptr = nullptr) {
     views::View* overlay_view = GetActiveImmersiveOverlay(browser_ptr);
     if (!overlay_view || !overlay_view->GetVisible() ||
         overlay_view->children().empty()) {
@@ -165,8 +172,9 @@ class ReadAnythingControllerBrowserTest : public InProcessBrowserTest {
     return web_view->GetWebContents();
   }
 
-  void AwaitAndAssertOverlayVisibility(bool visible,
-                                       Browser* browser_ptr = nullptr) {
+  void AwaitAndAssertOverlayVisibility(
+      bool visible,
+      BrowserWindowInterface* browser_ptr = nullptr) {
     if (!browser_ptr) {
       browser_ptr = browser();
     }
@@ -219,7 +227,7 @@ class ReadAnythingControllerBrowserTest : public InProcessBrowserTest {
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowImmersiveUI_NotifiesObservers) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -239,7 +247,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        OnEntryShown_CalledWhenWebUIIsReused) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -273,7 +281,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        CloseImmersiveUI_NotifiesObservers) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -297,7 +305,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        CloseImmersiveUI_NotifiesObserversWithDuration) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -331,7 +339,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        CloseImmersiveUI_NotifiesObserversOfCloseReason) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -357,7 +365,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        TabDetached_NotifiesObservers) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -370,10 +378,10 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   EXPECT_CALL(observer, OnDestroyed()).Times(0);
 
   // Detach the tab and attach it to a new browser.
-  Browser* new_browser = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* new_browser = CreateBrowser(browser()->GetProfile());
   std::unique_ptr<tabs::TabModel> detached_tab =
-      browser()->tab_strip_model()->DetachTabAtForInsertion(0);
-  new_browser->tab_strip_model()->AppendTab(std::move(detached_tab), true);
+      browser()->GetTabStripModel()->DetachTabAtForInsertion(0);
+  new_browser->GetTabStripModel()->AppendTab(std::move(detached_tab), true);
 
   testing::Mock::VerifyAndClearExpectations(&observer);
 
@@ -383,7 +391,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        OnDestroyed_NotifiesObservers) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -403,7 +411,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        SetPresentationState_NotifiesObservers) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -421,7 +429,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowImmersiveFromAppMenu) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -443,7 +451,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ToggleImmersiveFromKeyboardShortcut) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -462,7 +470,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowImmersiveFromContextMenu) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
 
   auto* controller = ReadAnythingController::From(tab);
@@ -483,7 +491,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowImmersiveUI_SetsPresentationState) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -496,8 +504,67 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
+                       OverlayExists_IsHidden) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
+  views::View* contents_container =
+      browser_view->GetActiveContentsContainerView();
+  ASSERT_NE(contents_container, nullptr);
+
+  views::View* overlay_view = nullptr;
+  int overlay_count = 0;
+
+  for (views::View* child : contents_container->children()) {
+    if (child->GetID() == VIEW_ID_READ_ANYTHING_OVERLAY) {
+      overlay_view = child;
+      overlay_count++;
+    }
+  }
+
+  ASSERT_NE(overlay_view, nullptr) << "Overlay should exist by default.";
+  EXPECT_EQ(1, overlay_count);
+  EXPECT_FALSE(overlay_view->GetVisible()) << "Overlay should be hidden.";
+}
+
+IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
+                       OverlayExistsOnSplitViews) {
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
+  browser()->GetTabStripModel()->ActivateTabAt(0);
+  std::vector<int> other_tab_indices = {1};
+  split_tabs::SplitTabVisualData visual_data;
+  split_tabs::SplitTabCreatedSource source =
+      split_tabs::SplitTabCreatedSource::kToolbarButton;
+  browser()->GetTabStripModel()->AddToNewSplit(other_tab_indices, visual_data,
+                                               source);
+
+  const auto ContainsReadAnythingOverlay = [](views::View* container) {
+    if (!container) {
+      return false;
+    }
+
+    for (views::View* child : container->children()) {
+      if (child->GetID() == VIEW_ID_READ_ANYTHING_OVERLAY) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
+  views::View* container_0 = browser_view->GetActiveContentsContainerView();
+  ASSERT_NE(container_0, nullptr);
+  ASSERT_TRUE(ContainsReadAnythingOverlay(container_0));
+
+  browser()->GetTabStripModel()->ActivateTabAt(1);
+  views::View* container_1 = browser_view->GetActiveContentsContainerView();
+  ASSERT_NE(container_1, nullptr);
+  ASSERT_NE(container_0, container_1);
+  ASSERT_TRUE(ContainsReadAnythingOverlay(container_1));
+}
+
+IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowImmersiveUI_OverlayIsVisible) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -518,7 +585,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowImmersiveUI_CapturesMainPageWebContents) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -540,7 +607,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowImmersiveUI_Idempotency) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -571,7 +638,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        CloseImmersiveUI_SetsPresentationState) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -587,7 +654,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        CloseImmersiveUI_HidesOverlay) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -611,7 +678,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        CloseImmersiveUI_ReleasesMainPageCapture) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -629,7 +696,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        CloseImmersiveUI_PreservesWebUI) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -658,9 +725,8 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   controller->CloseImmersiveUI(ReadAnythingCloseReason::kClosedByUser);
 
   // Get the WebUI wrapper again (should be inactive now)
-  std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>> wrapper =
-      controller->GetOrCreateWebUIWrapper(
-          ReadAnythingController::PresentationState::kInactive);
+  ReadAnythingContentsWrapper wrapper = controller->GetOrCreateWebUIWrapper(
+      ReadAnythingController::PresentationState::kInactive);
   ASSERT_TRUE(wrapper->web_contents());
 
   // Verify it is the same WebContents
@@ -669,7 +735,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        TabSwitch_ClosesImmersiveUI) {
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   tabs::TabInterface* tab1 =
       tabs::TabInterface::GetFromContents(tab_strip_model->GetWebContentsAt(0));
   ReadAnythingController* controller1 = ReadAnythingController::From(tab1);
@@ -698,7 +764,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        FindBarTarget_UpdatesOnTabSwitch) {
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   tabs::TabInterface* tab1 =
       tabs::TabInterface::GetFromContents(tab_strip_model->GetWebContentsAt(0));
   ReadAnythingController* controller1 = ReadAnythingController::From(tab1);
@@ -732,7 +798,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        FindBarTarget_SwapsToIRMAndBack) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -760,7 +826,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        FindReply_ForwardsToFindTabHelper) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   auto* controller = ReadAnythingController::From(tab);
 
   // 1. Open IRM.
@@ -795,7 +861,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        FindBarTarget_UpdatesOnSplitViewFocusChange) {
   // Setup split view
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
   content::WaitForLoadStop(tab_strip_model->GetWebContentsAt(1));
   ASSERT_TRUE(tab_strip_model->IsContextMenuCommandEnabled(
@@ -842,7 +908,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        CloseImmersiveUI_Idempotency) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -859,7 +925,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ToggleImmersiveViaActionItem) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
 
   auto* controller = ReadAnythingController::From(tab);
@@ -899,7 +965,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        GetPresentationState_InitialState) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -907,7 +973,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        GetOrCreateWebUIWrapper_SetsState) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -915,16 +981,15 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
             ReadAnythingController::PresentationState::kUndefined);
 
   // The wrapper is moved to the caller, so we must keep it alive.
-  std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>> wrapper =
-      controller->GetOrCreateWebUIWrapper(
-          ReadAnythingController::PresentationState::kInSidePanel);
+  ReadAnythingContentsWrapper wrapper = controller->GetOrCreateWebUIWrapper(
+      ReadAnythingController::PresentationState::kInSidePanel);
   EXPECT_EQ(controller->GetPresentationState(),
             ReadAnythingController::PresentationState::kInSidePanel);
 }
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        TransferWebUiOwnership_ResetsState) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -948,16 +1013,15 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        TransferWebUiOwnership_ForcesRecreationIfUiNotShown) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
 
   // 1. Create the WebUI wrapper.
   // We do NOT show it, so `has_shown_ui_` remains false (default).
-  std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>> wrapper =
-      controller->GetOrCreateWebUIWrapper(
-          ReadAnythingController::PresentationState::kInSidePanel);
+  ReadAnythingContentsWrapper wrapper = controller->GetOrCreateWebUIWrapper(
+      ReadAnythingController::PresentationState::kInSidePanel);
   content::WebContents* original_contents = wrapper->web_contents();
   ASSERT_TRUE(original_contents);
 
@@ -969,9 +1033,8 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
       ReadAnythingController::PresentationState::kInSidePanel);
 
   // 3. Request the wrapper again.
-  std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>> new_wrapper =
-      controller->GetOrCreateWebUIWrapper(
-          ReadAnythingController::PresentationState::kInSidePanel);
+  ReadAnythingContentsWrapper new_wrapper = controller->GetOrCreateWebUIWrapper(
+      ReadAnythingController::PresentationState::kInSidePanel);
 
   // 4. Verify that we got a FRESH wrapper (different WebContents).
   EXPECT_NE(original_contents, new_wrapper->web_contents());
@@ -979,7 +1042,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        GetPresentationState_SidePanelState) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -994,14 +1057,13 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        GetOrCreateWebUIWrapper) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
 
-  std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>> wrapper =
-      controller->GetOrCreateWebUIWrapper(
-          ReadAnythingController::PresentationState::kInactive);
+  ReadAnythingContentsWrapper wrapper = controller->GetOrCreateWebUIWrapper(
+      ReadAnythingController::PresentationState::kInactive);
   EXPECT_TRUE(wrapper);
   EXPECT_TRUE(wrapper->web_contents());
   EXPECT_TRUE(wrapper->web_contents()->GetWebUI());
@@ -1009,15 +1071,14 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        WebUIContentsWrapperIsPassedToSidePanel) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
 
   // Create the WebUI contents and get a pointer to it.
-  std::unique_ptr<WebUIContentsWrapperT<ReadAnythingUntrustedUI>> wrapper =
-      controller->GetOrCreateWebUIWrapper(
-          ReadAnythingController::PresentationState::kInactive);
+  ReadAnythingContentsWrapper wrapper = controller->GetOrCreateWebUIWrapper(
+      ReadAnythingController::PresentationState::kInactive);
   content::WebContents* controller_web_contents = wrapper->web_contents();
   ASSERT_TRUE(controller_web_contents);
 
@@ -1042,7 +1103,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     OnTabStripModelChanged_ImmersiveShowsWhenTabBecomesActiveAgain) {
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   tabs::TabInterface* tab1 =
       tabs::TabInterface::GetFromContents(tab_strip_model->GetWebContentsAt(0));
   ReadAnythingController* controller1 = ReadAnythingController::From(tab1);
@@ -1076,7 +1137,7 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     OnTabStripModelChanged_NewBackgroundTabIsInactive_DoesNotCloseImmersive) {
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   tabs::TabInterface* tab1 =
       tabs::TabInterface::GetFromContents(tab_strip_model->GetWebContentsAt(0));
   ReadAnythingController* controller1 = ReadAnythingController::From(tab1);
@@ -1096,7 +1157,7 @@ IN_PROC_BROWSER_TEST_F(
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        WebContentsObserverPrimaryPageChangedCrossNavigation) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1132,7 +1193,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     WebContentsObserverPrimaryPageChangedFragmentNavigation) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1163,7 +1224,7 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     ShowImmersiveUIImmediatelyFollowedByShowSidePanelUI_DoesNotCrash) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1183,7 +1244,7 @@ IN_PROC_BROWSER_TEST_F(
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        UnresponsiveRenderer_ClosesImmersive) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1199,7 +1260,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowImmersive_AfterUnresponsiveRenderer_DoesNotCrash) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1221,7 +1282,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        UnresponsiveRenderer_ClosesSidePanel) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1246,7 +1307,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowSidePanelUI_AfterUnresponsiveRenderer_DoesNotCrash) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1279,7 +1340,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        RecreateWebUIWrapper_RecreatesWebUIWrapperOnNextShow) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1298,7 +1359,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowImmersiveUI_ClosesSidePanel) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1337,7 +1398,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowSidePanelUI_ClosesImmersiveUI) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1376,7 +1437,7 @@ IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     DetachAndAttachToNewWindow_PreservesWebUI_AndTabSwitchObserver) {
   // 1. Open IRM in initial window
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1387,12 +1448,12 @@ IN_PROC_BROWSER_TEST_F(
   ASSERT_TRUE(initial_web_contents);
 
   // 2. Create new window
-  Browser* new_browser = CreateBrowser(browser()->GetProfile());
+  BrowserWindowInterface* new_browser = CreateBrowser(browser()->GetProfile());
 
   // 3. Detach tab and attach to new window
   std::unique_ptr<tabs::TabModel> detached_tab =
-      browser()->tab_strip_model()->DetachTabAtForInsertion(0);
-  new_browser->tab_strip_model()->AppendTab(std::move(detached_tab), true);
+      browser()->GetTabStripModel()->DetachTabAtForInsertion(0);
+  new_browser->GetTabStripModel()->AppendTab(std::move(detached_tab), true);
 
   // 4. Open IRM in new window
   controller->ShowImmersiveUI(ReadAnythingOpenTrigger::kOmniboxChip);
@@ -1413,7 +1474,7 @@ IN_PROC_BROWSER_TEST_F(
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ToggleUI_OpensImmersive) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1430,7 +1491,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ToggleUI_ClosesImmersive) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1449,7 +1510,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ToggleUI_ClosesSidePanel) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1476,7 +1537,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        TogglePresentation_FromImmersive_OpensSidePanel) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1504,7 +1565,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        TogglePresentation_FromSidePanel_OpensImmersive) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1534,7 +1595,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        TogglePresentation_WhenClosed_DoesNothing) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1560,7 +1621,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowImmersiveUI_SetsMainPageAccessibility) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1641,7 +1702,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                 Profile::FromBrowserContext(context));
           })));
 
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1664,7 +1725,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        OnEntryShown_RecordsSelectionMetric) {
   base::HistogramTester histogram_tester;
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   auto* controller = ReadAnythingController::From(tab);
 
   // Initial open without selection and verify proper logging.
@@ -1714,7 +1775,7 @@ IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     SwitchBetweenImmersiveAndSidePanel_DoesNotRecordHistogram) {
   base::HistogramTester histogram_tester;
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1749,7 +1810,7 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        OnEntryHidden_HiddenBeforeShownRecordsHistogram) {
   base::HistogramTester histogram_tester;
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1766,7 +1827,7 @@ IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     SwitchBetweenSidePanelAndImmersive_DoesNotRecordHistogram) {
   base::HistogramTester histogram_tester;
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1803,7 +1864,7 @@ IN_PROC_BROWSER_TEST_F(
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ShowImmersiveUI_OverlayIsVisibleAfterWebUIShown) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1827,7 +1888,7 @@ IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     OnDistillationStateChanged_EmptyContentInImmersive_TogglesToSidePanel) {
   base::HistogramTester histogram_tester;
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1858,7 +1919,7 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     OnDistillationStateChanged_WithContentInImmersive_StaysImmersive) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1883,7 +1944,7 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     OnDistillationStateChanged_EmptyInSidePanel_StaysInSidePanel) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1912,7 +1973,7 @@ IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     OnDistillationStateChanged_OpenWithDistillationEmpty_OpensInSidePanel) {
   base::HistogramTester histogram_tester;
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1955,7 +2016,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
 
   // Get controller.
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -1997,9 +2058,9 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   tab_waiter.Wait();
 
   // Verify the new tab was opened with the correct search args.
-  EXPECT_EQ(2, browser()->tab_strip_model()->count());
+  EXPECT_EQ(2, browser()->GetTabStripModel()->count());
   content::WebContents* new_tab =
-      browser()->tab_strip_model()->GetWebContentsAt(1);
+      browser()->GetTabStripModel()->GetWebContentsAt(1);
 
   TemplateURLService* template_url_service =
       TemplateURLServiceFactory::GetForProfile(browser()->GetProfile());
@@ -2023,7 +2084,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   GURL url(embedded_test_server()->GetURL("/simple.html"));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
 
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -2037,7 +2098,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
       immersive_contents->GetDelegate();
   ASSERT_TRUE(immersive_delegate);
 
-  int initial_tab_count = browser()->tab_strip_model()->count();
+  int initial_tab_count = browser()->GetTabStripModel()->count();
 
   content::OpenURLParams chrome_params(
       GURL("chrome://settings/"), content::Referrer(),
@@ -2045,7 +2106,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
       false);
   EXPECT_EQ(nullptr, immersive_delegate->OpenURLFromTab(
                          immersive_contents, chrome_params, base::DoNothing()));
-  EXPECT_EQ(initial_tab_count, browser()->tab_strip_model()->count());
+  EXPECT_EQ(initial_tab_count, browser()->GetTabStripModel()->count());
 
   content::OpenURLParams file_params(GURL("file:///etc/passwd"),
                                      content::Referrer(),
@@ -2053,7 +2114,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                                      ui::PAGE_TRANSITION_LINK, false);
   EXPECT_EQ(nullptr, immersive_delegate->OpenURLFromTab(
                          immersive_contents, file_params, base::DoNothing()));
-  EXPECT_EQ(initial_tab_count, browser()->tab_strip_model()->count());
+  EXPECT_EQ(initial_tab_count, browser()->GetTabStripModel()->count());
 
   content::OpenURLParams js_params(GURL("javascript:alert(1)"),
                                    content::Referrer(),
@@ -2061,7 +2122,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                                    ui::PAGE_TRANSITION_LINK, false);
   EXPECT_EQ(nullptr, immersive_delegate->OpenURLFromTab(
                          immersive_contents, js_params, base::DoNothing()));
-  EXPECT_EQ(initial_tab_count, browser()->tab_strip_model()->count());
+  EXPECT_EQ(initial_tab_count, browser()->GetTabStripModel()->count());
 
   controller->CloseImmersiveUI(ReadAnythingCloseReason::kClosedByUser);
   AssertOverlayVisibility(/*visible=*/false);
@@ -2083,15 +2144,15 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   EXPECT_EQ(nullptr,
             side_panel_delegate->OpenURLFromTab(
                 side_panel_contents, chrome_params, base::DoNothing()));
-  EXPECT_EQ(initial_tab_count, browser()->tab_strip_model()->count());
+  EXPECT_EQ(initial_tab_count, browser()->GetTabStripModel()->count());
 
   EXPECT_EQ(nullptr, side_panel_delegate->OpenURLFromTab(
                          side_panel_contents, file_params, base::DoNothing()));
-  EXPECT_EQ(initial_tab_count, browser()->tab_strip_model()->count());
+  EXPECT_EQ(initial_tab_count, browser()->GetTabStripModel()->count());
 
   EXPECT_EQ(nullptr, side_panel_delegate->OpenURLFromTab(
                          side_panel_contents, js_params, base::DoNothing()));
-  EXPECT_EQ(initial_tab_count, browser()->tab_strip_model()->count());
+  EXPECT_EQ(initial_tab_count, browser()->GetTabStripModel()->count());
 }
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
@@ -2101,7 +2162,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   GURL url(embedded_test_server()->GetURL("/simple.html"));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
 
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -2116,7 +2177,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
       immersive_contents->GetDelegate();
   ASSERT_TRUE(immersive_delegate);
 
-  int initial_tab_count = browser()->tab_strip_model()->count();
+  int initial_tab_count = browser()->GetTabStripModel()->count();
   auto* popup_blocker = blocked_content::PopupBlockerTabHelper::FromWebContents(
       tab->GetContents());
   ASSERT_TRUE(popup_blocker);
@@ -2136,7 +2197,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
     EXPECT_EQ(nullptr, immersive_delegate->OpenURLFromTab(
                            immersive_contents, params, base::DoNothing()))
         << target;
-    EXPECT_EQ(initial_tab_count, browser()->tab_strip_model()->count())
+    EXPECT_EQ(initial_tab_count, browser()->GetTabStripModel()->count())
         << target;
   }
   // The requests are dropped by the host before reaching the main browser, so
@@ -2167,7 +2228,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
     EXPECT_EQ(nullptr, side_panel_delegate->OpenURLFromTab(
                            side_panel_contents, params, base::DoNothing()))
         << target;
-    EXPECT_EQ(initial_tab_count, browser()->tab_strip_model()->count())
+    EXPECT_EQ(initial_tab_count, browser()->GetTabStripModel()->count())
         << target;
   }
   EXPECT_EQ(0u, popup_blocker->GetBlockedPopupsCount());
@@ -2176,7 +2237,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     HandleKeyboardEvent_WhenFullscreenInImmersiveMode_EscapeClosesFullscreen) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -2215,7 +2276,7 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        AddTabToSplitView_IrmStaysOnSourceTab) {
   // Setup tabs A and B
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   ASSERT_EQ(1, tab_strip_model->count());
   tabs::TabInterface* tab_a = tab_strip_model->GetActiveTab();
   ASSERT_TRUE(tab_a);
@@ -2254,7 +2315,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        AddTabsToSplitView_IrmStaysOnBothTabs) {
   // Setup tab A and get the RAController
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   ASSERT_EQ(1, tab_strip_model->count());
   tabs::TabInterface* tab_a = tab_strip_model->GetActiveTab();
   ReadAnythingController* ra_controller_tab_a =
@@ -2320,7 +2381,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        OpenIrmInSplitView_ShowsOnActiveSide) {
   // Setup split view
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
   content::WaitForLoadStop(tab_strip_model->GetWebContentsAt(1));
   ASSERT_TRUE(tab_strip_model->IsContextMenuCommandEnabled(
@@ -2369,7 +2430,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        CloseIrmInSplitView_ClosesOnActiveSide) {
   // Setup split view with IRM open on both sides
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   tabs::TabInterface* tab_a = tab_strip_model->GetActiveTab();
   auto* controller_a = ReadAnythingController::From(tab_a);
   controller_a->ShowImmersiveUI(ReadAnythingOpenTrigger::kOmniboxChip);
@@ -2407,7 +2468,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        CloseTabWithIrmInSplitView_ClosesIrm) {
   // Setup 2 tabs
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   ASSERT_EQ(1, tab_strip_model->count());
   chrome::AddTabAt(browser(), GURL("about:blank"), -1, true);
   // Tab B is active
@@ -2457,7 +2518,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        FocusInactiveIrmInSplitView_ActivatesTab) {
   // Setup Tab A and open IRM
-  TabStripModel* tab_strip_model = browser()->tab_strip_model();
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
   ASSERT_EQ(1, tab_strip_model->count());
   tabs::TabInterface* tab_a = tab_strip_model->GetActiveTab();
   ReadAnythingController* controller_a = ReadAnythingController::From(tab_a);
@@ -2497,7 +2558,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        FirstTimeOpen_HasFocus) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -2515,7 +2576,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest, Reopen_HasFocus) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -2539,8 +2600,36 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest, Reopen_HasFocus) {
 }
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
+                       ShowImmersiveFromSidePanel_HasFocus) {
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
+  ASSERT_TRUE(tab);
+  auto* controller = ReadAnythingController::From(tab);
+  ASSERT_TRUE(controller);
+  auto* side_panel_ui = browser()->GetFeatures().side_panel_ui();
+
+  // Open Side Panel
+  controller->ShowSidePanelUI(SidePanelOpenTrigger::kAppMenu);
+
+  ASSERT_TRUE(base::test::RunUntil([&]() {
+    return side_panel_ui->IsSidePanelEntryShowing(
+        SidePanelEntryKey(SidePanelEntryId::kReadAnything));
+  }));
+
+  // Show Immersive Mode from Side Panel
+  controller->ShowImmersiveUI(ReadAnythingOpenTrigger::kOmniboxChip);
+  AwaitAndAssertOverlayVisibility(/*visible=*/true);
+
+  views::View* overlay_view = GetActiveImmersiveOverlay();
+  ASSERT_TRUE(overlay_view);
+  auto* web_view = static_cast<views::WebView*>(overlay_view->children()[0]);
+
+  // It should be focused
+  EXPECT_TRUE(base::test::RunUntil([&]() { return web_view->HasFocus(); }));
+}
+
+IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        GlueAttachedAndDetachedCorrectly) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -2573,7 +2662,7 @@ IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     CloseBackgroundTabWithSidePanelOpenOnForegroundTab_DoesNotCrash) {
   // 1. Get the active tab (Tab A) and controller.
-  tabs::TabInterface* tab_a = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab_a = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab_a);
   auto* controller_a = ReadAnythingController::From(tab_a);
   ASSERT_TRUE(controller_a);
@@ -2591,7 +2680,7 @@ IN_PROC_BROWSER_TEST_F(
   // 4. Create a new tab (Tab B) in the background.
   chrome::AddTabAt(browser(), GURL("about:blank"), /*index=*/1,
                    /*foreground=*/false);
-  tabs::TabInterface* tab_b = browser()->tab_strip_model()->GetTabAtIndex(1);
+  tabs::TabInterface* tab_b = browser()->GetTabStripModel()->GetTabAtIndex(1);
   ASSERT_TRUE(tab_b);
   ASSERT_NE(tab_a, tab_b);
 
@@ -2607,7 +2696,7 @@ IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     OnDiscardContents_BackgroundTabWithSidePanelOpen_DoesNotCrash) {
   // Open Side Panel on the first tab
-  tabs::TabInterface* tab1 = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab1 = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab1);
   auto* controller = ReadAnythingController::From(tab1);
   ASSERT_TRUE(controller);
@@ -2628,7 +2717,7 @@ IN_PROC_BROWSER_TEST_F(
 
   // Open a new tab and switch to it, to background the original tab
   chrome::AddTabAt(browser(), GURL("about:blank"), 1, true);
-  ASSERT_NE(browser()->tab_strip_model()->GetActiveTab(), tab1);
+  ASSERT_NE(browser()->GetTabStripModel()->GetActiveTab(), tab1);
 
   // Discard the original, now backgrounded tab.
   std::unique_ptr<content::WebContents> new_contents =
@@ -2636,8 +2725,8 @@ IN_PROC_BROWSER_TEST_F(
           content::WebContents::CreateParams(browser()->GetProfile()));
   content::WebContents* new_contents_ptr = new_contents.get();
 
-  browser()->tab_strip_model()->DiscardWebContentsAt(0,
-                                                     std::move(new_contents));
+  browser()->GetTabStripModel()->DiscardWebContents(old_contents,
+                                                    std::move(new_contents));
 
   // Verify original controller is observing the new contents
   EXPECT_EQ(controller->GetSidePanelControllerForTesting()->web_contents(),
@@ -2652,7 +2741,7 @@ IN_PROC_BROWSER_TEST_F(
     ReadAnythingControllerBrowserTest,
     OnDiscardContents_BackgroundTabWithImmersiveOpen_DoesNotCrash) {
   // Open Immersive on the first tab
-  tabs::TabInterface* tab1 = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab1 = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab1);
   auto* controller = ReadAnythingController::From(tab1);
   ASSERT_TRUE(controller);
@@ -2668,7 +2757,7 @@ IN_PROC_BROWSER_TEST_F(
 
   // Open a new tab and switch to it, to background the original tab
   chrome::AddTabAt(browser(), GURL("about:blank"), 1, true);
-  ASSERT_NE(browser()->tab_strip_model()->GetActiveTab(), tab1);
+  ASSERT_NE(browser()->GetTabStripModel()->GetActiveTab(), tab1);
 
   // Discard the original, now backgrounded tab.
   std::unique_ptr<content::WebContents> new_contents =
@@ -2676,8 +2765,8 @@ IN_PROC_BROWSER_TEST_F(
           content::WebContents::CreateParams(browser()->GetProfile()));
   content::WebContents* new_contents_ptr = new_contents.get();
 
-  browser()->tab_strip_model()->DiscardWebContentsAt(0,
-                                                     std::move(new_contents));
+  browser()->GetTabStripModel()->DiscardWebContents(tab1->GetContents(),
+                                                    std::move(new_contents));
 
   // Verify that the new contents can be navigated without crashing the
   // controllers
@@ -2686,7 +2775,7 @@ IN_PROC_BROWSER_TEST_F(
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        OnSoftNavigation_ClosesImmersiveUI) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -2711,7 +2800,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        SoftNavigation_ClosesImmersiveUI_EndToEnd) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -2750,7 +2839,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        RemembersLastOpenedPresentation) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   auto* controller = ReadAnythingController::From(tab);
   PrefService* prefs = browser()->GetProfile()->GetPrefs();
   auto* side_panel_ui = browser()->GetFeatures().side_panel_ui();
@@ -2831,7 +2920,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        AutomaticToggleDoesNotUpdatePreference) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   auto* controller = ReadAnythingController::From(tab);
   PrefService* prefs = browser()->GetProfile()->GetPrefs();
   controller->UnlockDistillationStateForTesting();
@@ -2879,7 +2968,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                        ToggleUI_RespectsPreference) {
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   auto* controller = ReadAnythingController::From(tab);
   PrefService* prefs = browser()->GetProfile()->GetPrefs();
   auto* side_panel_ui = browser()->GetFeatures().side_panel_ui();
@@ -2938,7 +3027,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   // User navigates to an attacker page and opens IRM on it.
   GURL attacker_page = embedded_test_server()->GetURL("/title1.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), attacker_page));
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   auto* controller = ReadAnythingController::From(tab);
   CHECK(controller);
   controller->ShowImmersiveUI(ReadAnythingOpenTrigger::kOmniboxChip);
@@ -2953,7 +3042,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   // making the downstream navigation pipeline trust the spoofed user gesture.
   ASSERT_NE(nullptr, irm_rfh->GetWebUI());
 
-  const int tabs_before = browser()->tab_strip_model()->count();
+  const int tabs_before = browser()->GetTabStripModel()->count();
   ASSERT_EQ(1, tabs_before);
 
   // Simulate a compromised renderer sending OpenURL IPCs with a spoofed user
@@ -2973,11 +3062,11 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                                        /*user_gesture=*/true);
   }
 
-  EXPECT_EQ(tabs_before, browser()->tab_strip_model()->count());
+  EXPECT_EQ(tabs_before, browser()->GetTabStripModel()->count());
 
   // Assert the popups were explicitly caught and blocked.
   auto* popup_blocker = blocked_content::PopupBlockerTabHelper::FromWebContents(
-      browser()->tab_strip_model()->GetActiveWebContents());
+      browser()->GetTabStripModel()->GetActiveWebContents());
   ASSERT_TRUE(popup_blocker);
   EXPECT_EQ(static_cast<size_t>(kSpam), popup_blocker->GetBlockedPopupsCount());
 }
@@ -2987,10 +3076,10 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   GURL attacker_page = embedded_test_server()->GetURL("/title1.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), attacker_page));
   content::WebContents* active_tab =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_EQ(attacker_page, active_tab->GetLastCommittedURL());
 
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   auto* controller = ReadAnythingController::From(tab);
   CHECK(controller);
   controller->ShowImmersiveUI(ReadAnythingOpenTrigger::kOmniboxChip);
@@ -3026,7 +3115,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   // on it.
   GURL attacker_page = embedded_test_server()->GetURL("/title1.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), attacker_page));
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   auto* controller = ReadAnythingController::From(tab);
   CHECK(controller);
 
@@ -3049,7 +3138,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   // trust the spoofed user gesture.
   ASSERT_NE(nullptr, side_panel_rfh->GetWebUI());
 
-  const int tabs_before = browser()->tab_strip_model()->count();
+  const int tabs_before = browser()->GetTabStripModel()->count();
   ASSERT_EQ(1, tabs_before);
 
   // Simulate a compromised renderer sending OpenURL IPCs with a spoofed user
@@ -3069,12 +3158,12 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
                                        /*user_gesture=*/true);
   }
 
-  const int tabs_after = browser()->tab_strip_model()->count();
+  const int tabs_after = browser()->GetTabStripModel()->count();
   EXPECT_EQ(tabs_before, tabs_after);
 
   // Assert the popups were explicitly caught and blocked.
   auto* popup_blocker = blocked_content::PopupBlockerTabHelper::FromWebContents(
-      browser()->tab_strip_model()->GetActiveWebContents());
+      browser()->GetTabStripModel()->GetActiveWebContents());
   ASSERT_TRUE(popup_blocker);
   EXPECT_EQ(static_cast<size_t>(kSpam), popup_blocker->GetBlockedPopupsCount());
 }
@@ -3084,10 +3173,10 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   GURL attacker_page = embedded_test_server()->GetURL("/title1.html");
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), attacker_page));
   content::WebContents* active_tab =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   ASSERT_EQ(attacker_page, active_tab->GetLastCommittedURL());
 
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   auto* controller = ReadAnythingController::From(tab);
   CHECK(controller);
 
@@ -3128,7 +3217,7 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(), embedded_test_server()->GetURL("/select.html")));
 
-  tabs::TabInterface* tab = browser()->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* tab = browser()->GetTabStripModel()->GetActiveTab();
   ASSERT_TRUE(tab);
   auto* controller = ReadAnythingController::From(tab);
   ASSERT_TRUE(controller);
@@ -3154,4 +3243,33 @@ IN_PROC_BROWSER_TEST_F(ReadAnythingControllerBrowserTest,
 
   // Verify focus has return to the main page.
   EXPECT_TRUE(base::test::RunUntil([&]() { return IsFocusOnMainPage(); }));
+}
+
+class ReadAnythingControllerTranslateBrowserTest
+    : public ReadAnythingControllerBrowserTest {
+ public:
+  ReadAnythingControllerTranslateBrowserTest()
+      : ReadAnythingControllerBrowserTest(
+            {features::kReadAnythingTranslateEntryPoint}) {}
+};
+
+IN_PROC_BROWSER_TEST_F(
+    ReadAnythingControllerTranslateBrowserTest,
+    ImmersiveWebView_AttachesTranslateClientWhenFeatureEnabled) {
+  TabStripModel* tab_strip_model = browser()->GetTabStripModel();
+  tabs::TabInterface* tab = tab_strip_model->GetActiveTab();
+  ASSERT_TRUE(tab);
+  auto* controller = ReadAnythingController::From(tab);
+  ASSERT_TRUE(controller);
+
+  controller->ShowImmersiveUI(ReadAnythingOpenTrigger::kOmniboxChip);
+  AwaitAndAssertOverlayVisibility(/*visible=*/true);
+  views::View* overlay_view = GetActiveImmersiveOverlay();
+  ASSERT_FALSE(overlay_view->children().empty());
+
+  ReadAnythingImmersiveWebView* web_view =
+      static_cast<ReadAnythingImmersiveWebView*>(overlay_view->children()[0]);
+  ASSERT_NE(web_view, nullptr);
+  EXPECT_NE(ChromeTranslateClient::FromWebContents(web_view->GetWebContents()),
+            nullptr);
 }

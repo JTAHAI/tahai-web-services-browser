@@ -10,6 +10,7 @@
 
 #include "base/memory/weak_ptr.h"
 #include "base/types/strong_alias.h"
+#include "chrome/browser/ui/autofill/autofill_popup_view.h"
 #include "chrome/browser/ui/autofill/autofill_suggestion_controller.h"
 #include "components/autofill/core/browser/suggestions/suggestion.h"
 #include "components/autofill/core/browser/ui/tabbed_pane_enums.h"
@@ -51,13 +52,6 @@ class AutofillPopupController : public AutofillSuggestionController {
 
     bool operator==(const SuggestionFilterMatch& other) const = default;
   };
-
-  // Selects the suggestion with `index`. For fillable items, this will trigger
-  // preview. For other items, it does not do anything.
-  virtual void SelectSuggestion(int index) = 0;
-
-  // Unselect currently selected suggestion, noop if nothing is selected.
-  virtual void UnselectSuggestion() = 0;
 
   // Creates and shows a sub-popup adjacent to `anchor_bounds`. The sub-popup
   // represents another level of `suggestions` which must be semantically
@@ -102,7 +96,9 @@ class AutofillPopupController : public AutofillSuggestionController {
   virtual bool HasFilteredOutSuggestions() const = 0;
 
   // Returns `true` if the popup should show a "no suggestions found" message.
-  virtual bool ShouldShowNoSuggestionsMessage() const = 0;
+  virtual bool ShouldShowNoSuggestionsMessage(
+      const std::optional<AutofillPopupView::SearchBarConfig>&
+          search_bar_config) const = 0;
 
   // Handles a key press event and returns whether the event should be swallowed
   // (meaning that no other handler, in particular not the default handler, can

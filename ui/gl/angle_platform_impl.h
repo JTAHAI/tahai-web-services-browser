@@ -6,7 +6,7 @@
 #define UI_GL_ANGLE_PLATFORM_IMPL_H_
 
 // Implements the ANGLE platform interface, for functionality like
-// histograms and trace profiling.
+// histograms and worker tasks.
 
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_export.h"
@@ -21,8 +21,6 @@ GL_EXPORT bool InitializePlatform(EGLDisplay display,
                                   GLGetProcAddressProc get_proc_address);
 GL_EXPORT void ResetPlatform(EGLDisplay display,
                              GLGetProcAddressProc get_proc_address);
-
-GL_EXPORT void SetPostTaskFailedForTesting(bool failed);
 
 GL_EXPORT void ANGLEPlatformImpl_postWorkerTask(PlatformMethods* platform,
                                                 void (*callback)(void*),

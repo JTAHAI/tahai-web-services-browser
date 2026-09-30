@@ -12,6 +12,22 @@ export enum SettingsItemType {
   EXPAND = 5,
 }
 
+// Notification status for language pack downloads and errors.
+export interface Notification {
+  isError: boolean;
+  text?: string;
+}
+
+// Unified data contract for language and accent dropdown items.
+export interface LanguageDropdownItem {
+  readableLanguage: string;
+  languageCode: string;
+  notification: Notification;
+  selected?: boolean;  // Single-select (Accent Menu)
+  checked?: boolean;   // Multi-select toggle (Language Menu)
+  disabled?: boolean;  // Interaction guard
+}
+
 // Represents top-level items of the settings menu. Also used for toggle items
 // in a dropdown menu.
 export interface SettingsItem {
@@ -26,6 +42,8 @@ export interface SettingsItem {
   // Needed when the aria label should be different from the title
   ariaLabel?: string;
   showSeparator?: boolean;
+  // Whether to show the "NEW" badge for this item.
+  showBadge?: boolean;
 }
 
 // Represents a single menu item in a dropown menu in the toolbar.
@@ -45,6 +63,8 @@ export interface MenuStateItem<T> {
 export interface MenuHeader {
   title: string;
   separator: boolean;
+  // Optional keyboard shortcut to display.
+  shortcut?: string;
 }
 
 export interface MenuGroup<T> {

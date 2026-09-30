@@ -21,6 +21,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/run_loop.h"
 #include "base/strings/string_split.h"
+#include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/test/run_until.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
@@ -34,15 +35,11 @@
 #include "remoting/host/base/desktop_environment_options.h"
 #include "remoting/host/desktop_display_info.h"
 #include "remoting/host/fake_desktop_environment.h"
-#include "remoting/host/fake_host_extension.h"
 #include "remoting/host/fake_terminal_session.h"
-#include "remoting/host/host_extension.h"
-#include "remoting/host/host_extension_session.h"
 #include "remoting/host/host_mock_objects.h"
 #include "remoting/host/peer_session.h"
 #include "remoting/host/security_key/security_key_auth_handler.h"
 #include "remoting/host/security_key/security_key_data_channel_handler.h"
-#include "remoting/host/security_key/security_key_extension.h"
 
 #if BUILDFLAG(IS_POSIX)
 #include "remoting/host/security_key/security_key_auth_handler_posix.h"
@@ -156,7 +153,7 @@ class MockPeerSessionEventHandler : public PeerSession::EventHandler {
   MOCK_METHOD(void,
               OnSessionClosed,
               (protocol::ErrorCode error,
-               std::string_view error_details,
+               const std::string& error_details,
                const SourceLocation& error_location),
               (override));
   MOCK_METHOD(void,
@@ -240,10 +237,6 @@ class PeerSessionImplTest : public testing::Test {
   // that require it.
   base::RunLoop run_loop_;
 
-  // HostExtensions to pass when creating the PeerSession. Caller retains
-  // ownership of the HostExtensions themselves.
-  std::vector<raw_ptr<HostExtension, VectorExperimental>> extensions_;
-
   // Vectors of events to bind to `peer_session_`, must outlive it.
   std::vector<protocol::KeyEvent> key_events_;
   std::vector<protocol::MouseEvent> mouse_events_;
@@ -267,6 +260,16 @@ class PeerSessionImplTest : public testing::Test {
   bool is_connected() const {
     return connection_ && connection_->is_connected();
   }
+
+  void OnRequestPairing(
+      const std::string& client_name,
+      PeerSessionImpl::RequestPairingResponseCallback response_cb) {
+    requested_client_name_ = client_name;
+    pairing_response_cb_ = std::move(response_cb);
+  }
+
+  std::string requested_client_name_;
+  PeerSessionImpl::RequestPairingResponseCallback pairing_response_cb_;
 };
 
 void PeerSessionImplTest::SetUp() {
@@ -306,7 +309,8 @@ void PeerSessionImplTest::CreatePeerSession() {
 
   peer_session_ = std::make_unique<PeerSessionImpl>(
       std::move(connection), desktop_environment_factory_.get(),
-      /* pairing_registry= */ nullptr);
+      base::BindRepeating(&PeerSessionImplTest::OnRequestPairing,
+                          base::Unretained(this)));
 }
 
 void PeerSessionImplTest::StartPeerSession(
@@ -315,14 +319,9 @@ void PeerSessionImplTest::StartPeerSession(
   if (!peer_session_) {
     CreatePeerSession();
   }
-  std::vector<HostExtension*> extension_ptrs;
-  extension_ptrs.reserve(extensions_.size());
-  for (HostExtension* ext : extensions_) {
-    extension_ptrs.push_back(ext);
-  }
   peer_session_->Start(&session_event_handler_, kTestClientJid,
-                       desktop_environment_options_, extension_ptrs,
-                       session_policies, session_options);
+                       desktop_environment_options_, session_policies,
+                       session_options);
 }
 
 void PeerSessionImplTest::ConnectPeerSession(
@@ -386,20 +385,6 @@ void PeerSessionImplTest::SetupSingleDisplay() {
   AddDisplayToLayout(displays.get(), 0, 0, kDisplay1Width, kDisplay1Height,
                      kDefaultDpi, kDefaultDpi, kDisplay1Id);
   NotifyDesktopDisplaySize(std::move(displays));
-}
-
-TEST_F(PeerSessionImplTest, DisconnectsAfterMaxSessionDurationIsReached) {
-  SessionPolicies policies;
-  policies.maximum_session_duration = base::Hours(10);
-  ConnectPeerSession(policies);
-
-  EXPECT_TRUE(is_connected());
-  // Calling FastForwardBy() would result in a livelock, so we just advance the
-  // clock and run all the scheduled tasks, which includes the max duration
-  // timer.
-  task_environment_.AdvanceClock(*policies.maximum_session_duration +
-                                 base::Minutes(1));
-  EXPECT_TRUE(base::test::RunUntil([this] { return !is_connected(); }));
 }
 
 // TODO(lambroslambrou): Re-implement the deleted MultiMonMouseMove
@@ -637,57 +622,7 @@ TEST_F(PeerSessionImplTest, ClampMouseEvents) {
               EqualsMouseMoveEvent(kDisplay1Width - 1, kDisplay1Height - 1));
 }
 
-// Verifies that clients can have extensions registered, resulting in the
-// correct capabilities being reported, and messages delivered correctly.
-// The extension system is tested more extensively in the
-// HostExtensionSessionManager unit-tests.
-TEST_F(PeerSessionImplTest, Extensions) {
-  // Configure fake extensions for testing.
-  FakeExtension extension1("ext1", "cap1");
-  extensions_.push_back(&extension1);
-  FakeExtension extension2("ext2", "");
-  extensions_.push_back(&extension2);
-  FakeExtension extension3("ext3", "cap3");
-  extensions_.push_back(&extension3);
 
-  // Verify that the PeerSession reports the correct capabilities.
-  EXPECT_CALL(client_stub_, SetCapabilities(IncludesCapabilities("cap1 cap3")));
-
-  ConnectPeerSession();
-
-  testing::Mock::VerifyAndClearExpectations(&client_stub_);
-
-  // Mimic the client reporting an overlapping set of capabilities.
-  protocol::Capabilities capabilities_message;
-  capabilities_message.set_capabilities("cap1 cap4 default");
-  peer_session_->SetCapabilities(capabilities_message);
-
-  // Verify that the correct extension messages are delivered, and dropped.
-  protocol::ExtensionMessage message1;
-  message1.set_type("ext1");
-  message1.set_data("data");
-  peer_session_->DeliverClientMessage(message1);
-
-  protocol::ExtensionMessage message3;
-  message3.set_type("ext3");
-  message3.set_data("data");
-  peer_session_->DeliverClientMessage(message3);
-
-  // ext1 was instantiated and sent a message, and did not wrap anything.
-  EXPECT_TRUE(extension1.was_instantiated());
-  EXPECT_TRUE(extension1.has_handled_message());
-
-  // ext2 was instantiated but not sent a message, and wrapped video encoder.
-  EXPECT_TRUE(extension2.was_instantiated());
-  EXPECT_FALSE(extension2.has_handled_message());
-
-  // ext3 was sent a message but not instantiated.
-  EXPECT_FALSE(extension3.was_instantiated());
-  EXPECT_FALSE(extension3.has_handled_message());
-
-  // Drop references to locals before they go out of scope.
-  extensions_.clear();
-}
 
 TEST_F(PeerSessionImplTest, DataChannelCallbackIsCalled) {
   ConnectPeerSession();
@@ -815,6 +750,8 @@ TEST_F(PeerSessionImplTest, ControlTerminal_CreateTerminal) {
   protocol::Capabilities capabilities;
   capabilities.set_capabilities(protocol::kTerminalModeCapability);
   peer_session_->SetCapabilities(capabilities);
+  base::ThreadPoolInstance::Get()->FlushForTesting();
+  task_environment_.RunUntilIdle();
 
   // Expect client_stub to receive the create response.
   protocol::TerminalControl create_response;
@@ -842,6 +779,8 @@ TEST_F(PeerSessionImplTest, ControlTerminal_InputAndResize) {
   protocol::Capabilities capabilities;
   capabilities.set_capabilities(protocol::kTerminalModeCapability);
   peer_session_->SetCapabilities(capabilities);
+  base::ThreadPoolInstance::Get()->FlushForTesting();
+  task_environment_.RunUntilIdle();
 
   // Create a terminal
   EXPECT_CALL(client_stub_, DeliverTerminalControl(_)).Times(1);
@@ -887,6 +826,8 @@ TEST_F(PeerSessionImplTest, ControlTerminal_OutputAndExit) {
   protocol::Capabilities capabilities;
   capabilities.set_capabilities(protocol::kTerminalModeCapability);
   peer_session_->SetCapabilities(capabilities);
+  base::ThreadPoolInstance::Get()->FlushForTesting();
+  task_environment_.RunUntilIdle();
 
   // Create a terminal
   EXPECT_CALL(client_stub_, DeliverTerminalControl(_)).Times(1);
@@ -938,6 +879,58 @@ TEST_F(PeerSessionImplTest, ControlTerminal_OutputAndExit) {
   }));
 }
 
+TEST_F(PeerSessionImplTest, ControlTerminal_ProcessInfo) {
+  CreatePeerSession();
+  ConnectPeerSession();
+
+  protocol::Capabilities capabilities;
+  capabilities.set_capabilities(protocol::kTerminalModeCapability);
+  peer_session_->SetCapabilities(capabilities);
+  base::ThreadPoolInstance::Get()->FlushForTesting();
+  base::test::TestFuture<void> future;
+  task_environment_.GetMainThreadTaskRunner()->PostTask(FROM_HERE,
+                                                        future.GetCallback());
+  future.Get();
+
+  // Create a terminal
+  EXPECT_CALL(client_stub_, DeliverTerminalControl(_)).Times(1);
+  protocol::TerminalControl create_req;
+  create_req.mutable_create_request();
+  peer_session_->ControlTerminal(create_req);
+
+  auto sessions = FakeTerminalSession::GetActiveSessions();
+  ASSERT_EQ(sessions.size(), 1u);
+
+  // Trigger ProcessInfo from the terminal
+  base::test::TestFuture<protocol::TerminalControl> info_future;
+  EXPECT_CALL(client_stub_, DeliverTerminalControl(_))
+      .WillOnce([&info_future](const protocol::TerminalControl& control) {
+        info_future.SetValue(control);
+      });
+
+  sessions[0]->TriggerProcessInfo(true);
+  protocol::TerminalControl info_received = info_future.Get();
+
+  ASSERT_TRUE(info_received.has_process_info());
+  EXPECT_EQ(info_received.process_info().terminal_id(), 1);
+  EXPECT_TRUE(info_received.process_info().is_active());
+  EXPECT_EQ(info_received.process_info().process_name(), "test-process");
+
+  base::test::TestFuture<protocol::TerminalControl> info_future2;
+  EXPECT_CALL(client_stub_, DeliverTerminalControl(_))
+      .WillOnce([&info_future2](const protocol::TerminalControl& control) {
+        info_future2.SetValue(control);
+      });
+
+  sessions[0]->TriggerProcessInfo(true, "/var/log");
+  info_received = info_future2.Get();
+
+  ASSERT_TRUE(info_received.has_process_info());
+  EXPECT_EQ(info_received.process_info().terminal_id(), 1);
+  EXPECT_TRUE(info_received.process_info().is_active());
+  EXPECT_EQ(info_received.process_info().process_name(), "/var/log");
+}
+
 TEST_F(PeerSessionImplTest, ControlTerminal_RemoveRequest) {
   CreatePeerSession();
   ConnectPeerSession();
@@ -945,6 +938,8 @@ TEST_F(PeerSessionImplTest, ControlTerminal_RemoveRequest) {
   protocol::Capabilities capabilities;
   capabilities.set_capabilities(protocol::kTerminalModeCapability);
   peer_session_->SetCapabilities(capabilities);
+  base::ThreadPoolInstance::Get()->FlushForTesting();
+  task_environment_.RunUntilIdle();
 
   // Create two terminals
   EXPECT_CALL(client_stub_, DeliverTerminalControl(_)).Times(2);
@@ -974,6 +969,227 @@ TEST_F(PeerSessionImplTest, ControlTerminal_RemoveRequest) {
 
   peer_session_->DisconnectSession(ErrorCode::OK, {}, FROM_HERE);
   peer_session_.reset();
+}
+
+TEST_F(PeerSessionImplTest, AdvertisesTerminalModeCapabilityByDefault) {
+  EXPECT_CALL(
+      client_stub_,
+      SetCapabilities(IncludesCapabilities(protocol::kTerminalModeCapability)));
+
+  ConnectPeerSession();
+
+  peer_session_->DisconnectSession(ErrorCode::OK, {}, FROM_HERE);
+  peer_session_.reset();
+}
+
+TEST_F(PeerSessionImplTest,
+       AdvertisesTerminalModeCapabilityWhenAllowedByPolicy) {
+  SessionPolicies policies;
+  policies.allow_terminal_mode = true;
+
+  EXPECT_CALL(
+      client_stub_,
+      SetCapabilities(IncludesCapabilities(protocol::kTerminalModeCapability)));
+
+  ConnectPeerSession(policies);
+
+  peer_session_->DisconnectSession(ErrorCode::OK, {}, FROM_HERE);
+  peer_session_.reset();
+}
+
+TEST_F(PeerSessionImplTest,
+       ControlTerminal_NotAdvertisedOrHandledWhenDisallowedByPolicy) {
+  SessionPolicies policies;
+  policies.allow_terminal_mode = false;
+
+  EXPECT_CALL(client_stub_, SetCapabilities(Not(IncludesCapabilities(
+                                protocol::kTerminalModeCapability))));
+
+  ConnectPeerSession(policies);
+
+  protocol::Capabilities capabilities;
+  capabilities.set_capabilities(protocol::kTerminalModeCapability);
+  peer_session_->SetCapabilities(capabilities);
+
+  EXPECT_EQ(peer_session_->terminal_session_manager_for_tests(), nullptr);
+
+  // Attempting to send a create request should not create a terminal session.
+  EXPECT_CALL(client_stub_, DeliverTerminalControl(_)).Times(0);
+  protocol::TerminalControl create_req;
+  create_req.mutable_create_request();
+  peer_session_->ControlTerminal(create_req);
+
+  // Non-create requests must also be safely dropped without crashing.
+  protocol::TerminalControl input_req;
+  input_req.mutable_terminal_input()->set_terminal_id(1);
+  input_req.mutable_terminal_input()->set_input("test\n");
+  peer_session_->ControlTerminal(input_req);
+
+  protocol::TerminalControl resize_req;
+  resize_req.mutable_resize_terminal()->set_terminal_id(1);
+  resize_req.mutable_resize_terminal()->set_width(80);
+  resize_req.mutable_resize_terminal()->set_height(24);
+  peer_session_->ControlTerminal(resize_req);
+
+  protocol::TerminalControl remove_req;
+  remove_req.mutable_remove_request()->set_terminal_id(1);
+  peer_session_->ControlTerminal(remove_req);
+
+  EXPECT_TRUE(FakeTerminalSession::GetActiveSessions().empty());
+
+  peer_session_->DisconnectSession(ErrorCode::OK, {}, FROM_HERE);
+  peer_session_.reset();
+}
+
+TEST_F(PeerSessionImplTest, RequestPairing) {
+  ConnectPeerSession();
+
+  protocol::PairingRequest request;
+  request.set_client_name("test_client");
+  peer_session_->RequestPairing(request);
+
+  EXPECT_EQ(requested_client_name_, "test_client");
+  ASSERT_TRUE(pairing_response_cb_);
+
+  protocol::PairingResponse response;
+  response.set_client_id("client_id_123");
+  response.set_shared_secret("secret_456");
+
+  base::test::TestFuture<protocol::PairingResponse> future;
+  EXPECT_CALL(client_stub_, SetPairingResponse(_))
+      .WillOnce([&future](const protocol::PairingResponse& r) {
+        future.SetValue(r);
+      });
+  std::move(pairing_response_cb_).Run(response);
+
+  protocol::PairingResponse received_response = future.Take();
+  EXPECT_EQ(received_response.client_id(), "client_id_123");
+  EXPECT_EQ(received_response.shared_secret(), "secret_456");
+}
+
+TEST_F(PeerSessionImplTest, RequestPairing_InvalidOrNullCallback) {
+  ConnectPeerSession();
+
+  EXPECT_CALL(client_stub_, SetPairingResponse(_)).Times(0);
+
+  protocol::PairingRequest empty_name_request;
+  peer_session_->RequestPairing(empty_name_request);
+  EXPECT_TRUE(requested_client_name_.empty());
+
+  protocol::PairingRequest long_name_request;
+  long_name_request.set_client_name(
+      std::string(PeerSessionImpl::kMaxClientNameLength + 1, 'a'));
+  peer_session_->RequestPairing(long_name_request);
+  EXPECT_TRUE(requested_client_name_.empty());
+
+  peer_session_->SetRequestPairingCallbackForTesting(base::NullCallback());
+  protocol::PairingRequest valid_request;
+  valid_request.set_client_name("test_client");
+  peer_session_->RequestPairing(valid_request);
+  EXPECT_TRUE(requested_client_name_.empty());
+}
+
+TEST_F(PeerSessionImplTest, RequestPairing_EmptyResponseIgnored) {
+  ConnectPeerSession();
+
+  protocol::PairingRequest request;
+  request.set_client_name("test_client");
+  peer_session_->RequestPairing(request);
+  ASSERT_TRUE(pairing_response_cb_);
+
+  EXPECT_CALL(client_stub_, SetPairingResponse(_)).Times(0);
+  std::move(pairing_response_cb_).Run(std::nullopt);
+
+  base::test::TestFuture<void> after_future;
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, after_future.GetCallback());
+  EXPECT_TRUE(after_future.Wait());
+}
+
+TEST_F(PeerSessionImplTest, RequestPairing_BufferedBeforeChannelsConnected) {
+  CreatePeerSession();
+  StartPeerSession();
+  EXPECT_FALSE(peer_session_->channels_connected());
+
+  protocol::PairingRequest request;
+  request.set_client_name("test_client");
+  peer_session_->RequestPairing(request);
+  ASSERT_TRUE(pairing_response_cb_);
+
+  protocol::PairingResponse response;
+  response.set_client_id("client_id_123");
+  response.set_shared_secret("secret_456");
+
+  EXPECT_CALL(client_stub_, SetPairingResponse(_)).Times(0);
+  std::move(pairing_response_cb_).Run(response);
+
+  base::test::TestFuture<void> after_future;
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, after_future.GetCallback());
+  EXPECT_TRUE(after_future.Wait());
+
+  EXPECT_CALL(client_stub_, SetPairingResponse(_))
+      .WillOnce([](const protocol::PairingResponse& r) {
+        EXPECT_EQ(r.client_id(), "client_id_123");
+        EXPECT_EQ(r.shared_secret(), "secret_456");
+      });
+  base::test::TestFuture<void> future;
+  EXPECT_CALL(session_event_handler_, OnSessionChannelsConnected())
+      .WillOnce([&future] { future.SetValue(); });
+  peer_session_->CreateMediaStreams();
+  peer_session_->OnConnectionChannelsConnected();
+  future.Get();
+}
+
+TEST_F(PeerSessionImplTest, RequestPairing_SubsequentRequestsIgnored) {
+  ConnectPeerSession();
+
+  protocol::PairingRequest request1;
+  request1.set_client_name("client1");
+  peer_session_->RequestPairing(request1);
+  EXPECT_EQ(requested_client_name_, "client1");
+  ASSERT_TRUE(pairing_response_cb_);
+
+  requested_client_name_.clear();
+  protocol::PairingRequest request2;
+  request2.set_client_name("client2");
+  peer_session_->RequestPairing(request2);
+  EXPECT_TRUE(requested_client_name_.empty());
+
+  EXPECT_CALL(client_stub_, SetPairingResponse(_));
+  protocol::PairingResponse response;
+  response.set_client_id("id1");
+  response.set_shared_secret("secret1");
+  std::move(pairing_response_cb_).Run(response);
+
+  base::test::TestFuture<void> after_future;
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, after_future.GetCallback());
+  EXPECT_TRUE(after_future.Wait());
+
+  protocol::PairingRequest request3;
+  request3.set_client_name("client3");
+  peer_session_->RequestPairing(request3);
+  EXPECT_TRUE(requested_client_name_.empty());
+}
+
+TEST_F(PeerSessionImplTest, RequestPairing_EmptyClientIdOrSecretIgnored) {
+  ConnectPeerSession();
+
+  protocol::PairingRequest request;
+  request.set_client_name("test_client");
+  peer_session_->RequestPairing(request);
+  ASSERT_TRUE(pairing_response_cb_);
+
+  EXPECT_CALL(client_stub_, SetPairingResponse(_)).Times(0);
+  protocol::PairingResponse bad_response;
+  bad_response.set_client_id("id_only");
+  std::move(pairing_response_cb_).Run(bad_response);
+
+  base::test::TestFuture<void> after_future;
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, after_future.GetCallback());
+  EXPECT_TRUE(after_future.Wait());
 }
 
 class PeerSessionSecurityKeyTest : public PeerSessionImplTest {
@@ -1012,61 +1228,35 @@ class PeerSessionSecurityKeyTest : public PeerSessionImplTest {
       nullptr;
 };
 
-// Verifies that the security key extension is created and its capabilities
-// advertised.
+// Verifies that the security key capability is advertised.
 TEST_F(PeerSessionSecurityKeyTest, AdvertisesCapabilities) {
-  // Expect that the client stub gets both legacy and V2 capabilities
-  // advertised.
+  // Expect that the client stub gets the V2 capability advertised.
   EXPECT_CALL(client_stub_, SetCapabilities(IncludesCapabilities(
-                                std::string(SecurityKeyExtension::kCapability) +
-                                " " + protocol::kSecurityKeyV2Capability)));
+                                protocol::kSecurityKeyV2Capability)));
 
   CreatePeerSession();
   ConnectPeerSession();
 }
 
-// Verifies that when the WebRTC data channel connects, the legacy extension
-// session is destroyed.
-TEST_F(PeerSessionSecurityKeyTest, DataChannelTakeoverDestroysLegacySession) {
+// Verifies that when the WebRTC data channel connects, the handler binds
+// to the auth handler.
+TEST_F(PeerSessionSecurityKeyTest, DataChannelConnects) {
   CreatePeerSession();
   ConnectPeerSession();
 
-  // Negotiate capabilities. The client supports both.
+  // Negotiate capabilities.
   protocol::Capabilities capabilities_message;
-  capabilities_message.set_capabilities(
-      std::string(SecurityKeyExtension::kCapability) + " " +
-      protocol::kSecurityKeyV2Capability);
+  capabilities_message.set_capabilities(protocol::kSecurityKeyV2Capability);
   peer_session_->SetCapabilities(capabilities_message);
 
-  // The signaling session should have been created.
-  HostExtensionSession* extension_session =
-      peer_session_->extension_manager_for_tests()->FindExtensionSession(
-          SecurityKeyExtension::kCapability);
-  ASSERT_TRUE(extension_session);
+  EXPECT_CALL(*mock_handler_, CreateSecurityKeyConnection()).Times(1);
 
-  // Now mimic WebRTC data channel connection.
-  // The data channel manager will invoke our callback.
-  // In the real flow, the connection will trigger this. We can trigger it by
-  // creating the channel.
   auto pipe = std::make_unique<protocol::FakeMessagePipe>(true);
-
-  // Expect that when the data channel connects:
-  // 1. The legacy extension session is destroyed.
-  // 2. The data channel handler binds to the handler.
-
-  // We can verify that the extension session is destroyed by checking the
-  // manager.
   peer_session_->OnIncomingDataChannel(
       SecurityKeyDataChannelHandler::kChannelName, pipe->Wrap());
 
-  // Open the pipe to trigger OnConnected() and the takeover.
+  // Open the pipe to trigger OnConnected().
   pipe->OpenPipe();
-
-  // Wait until the legacy extension session is destroyed.
-  ASSERT_TRUE(base::test::RunUntil([&]() {
-    return !peer_session_->extension_manager_for_tests()->FindExtensionSession(
-        SecurityKeyExtension::kCapability);
-  }));
 
   // Close the pipe to clean up the handler and avoid dangling pointers.
   pipe->ClosePipe();

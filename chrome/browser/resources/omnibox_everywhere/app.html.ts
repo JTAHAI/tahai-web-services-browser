@@ -14,6 +14,7 @@ export function getHtml(this: OmniboxEverywhereAppElement) {
     <omnibox-everywhere-composebox id="composebox" searchbox-next-enabled
         searchbox-layout-mode="${this.searchboxLayoutMode_}"
         .state="${this.composeboxState_}"
+        .clearAllInputsWhenSubmittingQuery="${true}"
         @close-composebox="${this.onCloseComposebox_}"
         @composebox-submit="${this.onComposeboxSubmit_}"
         @open-voice-search="${this.onOpenVoiceSearch_}"
@@ -22,8 +23,7 @@ export function getHtml(this: OmniboxEverywhereAppElement) {
         .usePecApi="${this.usePecApi_}"
         .isOblongShape="${this.isOblongShape_}"
         .contextManagementInComposeboxEnabled="${
-                                   this.contextManagementInComposeboxEnabled_}"
-        entrypoint-name="Omnibox">
+                                   this.contextManagementInComposeboxEnabled_}">
     </omnibox-everywhere-composebox>
   ` :
                                html`
@@ -35,6 +35,22 @@ export function getHtml(this: OmniboxEverywhereAppElement) {
                                    this.contextManagementInComposeboxEnabled_}">
     </omnibox-everywhere-omnibox>
   `}
+  ${
+      this.mostVisitedEnabled_ &&
+      !this.showFreModal_ ? html`
+    <div id="mostVisitedContainer" ?hidden="${!this.hasMostVisitedTiles_}">
+      <cr-most-visited id="mostVisited" single-row non-editable hide-title
+          max-tiles="7"></cr-most-visited>
+    </div>
+  ` : ''}
+  ${
+      this.showFreModal_ ? html`
+    <fre-modal
+        @close="${this.onFreClose_}"
+        @accept-hotkey="${this.onFreAcceptHotkey_}"
+        @open-settings="${this.onFreOpenSettings_}">
+    </fre-modal>
+  ` : ''}
 </div>
 <div id="dialogAnchor"></div>
 ${this.showVoiceSearchOverlay_ ? html`

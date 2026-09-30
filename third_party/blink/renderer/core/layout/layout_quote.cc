@@ -40,7 +40,7 @@ LayoutQuote::LayoutQuote(LayoutObject& owner, QuoteType quote)
       type_(quote),
       depth_(0),
       owning_pseudo_(DynamicTo<PseudoElement>(owner.GetNode())) {
-  SetDocumentForAnonymous(&owner.GetDocument());
+  SetDocumentForAnonymous(owner.GetDocument());
 }
 
 LayoutQuote::~LayoutQuote() {
@@ -53,7 +53,7 @@ void LayoutQuote::Trace(Visitor* visitor) const {
   LayoutInline::Trace(visitor);
 }
 
-void LayoutQuote::WillBeDestroyed() {
+void LayoutQuote::WillBeDestroyed(const ComputedStyle* style) {
   NOT_DESTROYED();
   if (scope_) {
     GetDocument()
@@ -62,7 +62,7 @@ void LayoutQuote::WillBeDestroyed() {
         .UpdateOutermostDirtyScope(scope_);
     scope_->DetachItem(*this);
   }
-  LayoutInline::WillBeDestroyed();
+  LayoutInline::WillBeDestroyed(style);
 }
 
 void LayoutQuote::WillBeRemovedFromTree() {
@@ -80,9 +80,11 @@ void LayoutQuote::WillBeRemovedFromTree() {
 void LayoutQuote::StyleDidChange(
     StyleDifference diff,
     const ComputedStyle* old_style,
+    const ComputedStyle& new_style,
     const StyleChangeContext& style_change_context) {
   NOT_DESTROYED();
-  LayoutInline::StyleDidChange(diff, old_style, style_change_context);
+  LayoutInline::StyleDidChange(diff, old_style, new_style,
+                               style_change_context);
   UpdateText();
 }
 
@@ -103,12 +105,12 @@ void LayoutQuote::UpdateText() {
   LayoutTextFragment* fragment = FindFragmentChild();
   if (fragment) {
     fragment->SetStyle(IsA<LayoutTextCombine>(fragment->Parent())
-                           ? fragment->Parent()->Style()
-                           : Style());
+                           ? &fragment->Parent()->StyleRef()
+                           : &StyleRef());
     fragment->SetContentString(text_.Impl());
   } else {
     fragment = LayoutTextFragment::CreateAnonymous(GetDocument(), text_.Impl());
-    fragment->SetStyle(Style());
+    fragment->SetStyle(&StyleRef());
     AddChild(fragment);
   }
 }

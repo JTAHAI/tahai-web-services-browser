@@ -15,9 +15,6 @@
 // Called when the view state changes.
 - (void)didSwitchToViewState:(ios::provider::GeminiViewState)viewState;
 
-// Switch to `viewState`.
-- (void)switchToViewState:(ios::provider::GeminiViewState)viewState;
-
 // Called when the processing status changes with a dormant reason.
 - (void)didUpdateProcessingStatus:(ios::provider::GeminiClientMode)processStatus
                     dormantReason:
@@ -45,6 +42,9 @@
 
 // Called when the Gemini UI did appear.
 - (void)geminiUIDidAppear;
+
+// Called when the user taps the New Chat button in Gemini UI.
+- (void)didTapNewChatButton;
 
 @end
 

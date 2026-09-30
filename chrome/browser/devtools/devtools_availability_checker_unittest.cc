@@ -4,24 +4,33 @@
 
 #include "chrome/browser/devtools/devtools_availability_checker.h"
 
+#include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
+#include "chrome/browser/devtools/features.h"
 #include "chrome/browser/policy/developer_tools_policy_handler.h"
-#include "chrome/browser/web_applications/test/web_app_test_utils.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/test/browser_task_environment.h"
+#include "content/public/test/navigation_simulator.h"
 #include "content/public/test/test_renderer_host.h"
 #include "content/public/test/web_contents_tester.h"
+#include "extensions/buildflags/buildflags.h"
+#include "testing/gtest/include/gtest/gtest.h"
+
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+#include "extensions/browser/extension_registry.h"
+#include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_features.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_constants.h"
 #include "extensions/common/manifest_handlers/options_page_info.h"
 #include "extensions/common/mojom/manifest.mojom-shared.h"
-#include "testing/gtest/include/gtest/gtest.h"
+#endif
 
 #if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/web_applications/test/web_app_test_utils.h"
 #include "chrome/browser/web_applications/web_app.h"
 #include "components/webapps/common/web_app_id.h"
 #endif
@@ -137,7 +146,6 @@ TEST_F(DevToolsAvailabilityCheckerTest,
   EXPECT_TRUE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
 }
 
-#if !BUILDFLAG(IS_ANDROID)
 TEST_F(DevToolsAvailabilityCheckerTest,
        UrlBlockedWhenNotOnAllowlistAndBlocklistIsEmpty) {
   base::ListValue allowlist;
@@ -151,7 +159,6 @@ TEST_F(DevToolsAvailabilityCheckerTest,
       ->NavigateAndCommit(GURL("https://example.com/page"));
   EXPECT_FALSE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
 }
-#endif  // !BUILDFLAG(IS_ANDROID)
 
 TEST_F(DevToolsAvailabilityCheckerTest, DeveloperToolsDisallowedByPolicy) {
   profile_->GetPrefs()->SetInteger(
@@ -163,6 +170,13 @@ TEST_F(DevToolsAvailabilityCheckerTest, DeveloperToolsDisallowedByPolicy) {
   EXPECT_FALSE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
 }
 
+TEST_F(DevToolsAvailabilityCheckerTest, IsInspectionAllowedNullWebContents) {
+  // Passing nullptr for WebContents should default to allowed.
+  EXPECT_TRUE(IsInspectionAllowed(profile_.get(),
+                                  static_cast<content::WebContents*>(nullptr)));
+}
+
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 TEST_F(DevToolsAvailabilityCheckerTest, ExtensionAllowedByPolicy) {
   base::ListValue allowlist;
   allowlist.Append("abc");
@@ -203,10 +217,77 @@ TEST_F(DevToolsAvailabilityCheckerTest,
   EXPECT_TRUE(IsInspectionAllowed(profile_.get(), extension.get()));
 }
 
-TEST_F(DevToolsAvailabilityCheckerTest, IsInspectionAllowedNullWebContents) {
-  // Passing nullptr for WebContents should default to allowed.
-  EXPECT_TRUE(IsInspectionAllowed(profile_.get(),
-                                  static_cast<content::WebContents*>(nullptr)));
+TEST_F(DevToolsAvailabilityCheckerTest, ExtensionNotOnAllowlistIsBlocked) {
+  base::ListValue allowlist;
+  allowlist.Append("allowed-extension-id");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityAllowlist,
+                                std::move(allowlist));
+
+  scoped_refptr<const extensions::Extension> extension =
+      extensions::ExtensionBuilder("Test Extension").SetID("abc").Build();
+  EXPECT_FALSE(IsInspectionAllowed(profile_.get(), extension.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest, ExtensionDisallowedByGeneralPolicy) {
+  profile_->GetPrefs()->SetInteger(
+      prefs::kDevToolsAvailability,
+      static_cast<int>(policy::DeveloperToolsAvailability::kDisallowed));
+
+  scoped_refptr<const extensions::Extension> extension =
+      extensions::ExtensionBuilder("Test Extension").SetID("abc").Build();
+  EXPECT_FALSE(IsInspectionAllowed(profile_.get(), extension.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest, ExtensionAllowlistPrecedence) {
+  base::ListValue allowlist;
+  allowlist.Append("abc");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityAllowlist,
+                                std::move(allowlist));
+
+  base::ListValue blocklist;
+  blocklist.Append("abc");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityBlocklist,
+                                std::move(blocklist));
+
+  scoped_refptr<const extensions::Extension> extension =
+      extensions::ExtensionBuilder("Test Extension").SetID("abc").Build();
+  EXPECT_TRUE(IsInspectionAllowed(profile_.get(), extension.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest,
+       ExtensionForceInstalledDisallowedByPolicy) {
+  profile_->GetPrefs()->SetInteger(
+      prefs::kDevToolsAvailability,
+      static_cast<int>(policy::DeveloperToolsAvailability::
+                           kDisallowedForForceInstalledExtensions));
+
+  scoped_refptr<const extensions::Extension> extension =
+      extensions::ExtensionBuilder("Test Extension")
+          .SetID("abc")
+          .SetLocation(
+              extensions::mojom::ManifestLocation::kExternalPolicyDownload)
+          .Build();
+  EXPECT_FALSE(IsInspectionAllowed(profile_.get(), extension.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest, ExtensionForceInstalledButAllowlisted) {
+  profile_->GetPrefs()->SetInteger(
+      prefs::kDevToolsAvailability,
+      static_cast<int>(policy::DeveloperToolsAvailability::
+                           kDisallowedForForceInstalledExtensions));
+
+  base::ListValue allowlist;
+  allowlist.Append("abc");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityAllowlist,
+                                std::move(allowlist));
+
+  scoped_refptr<const extensions::Extension> extension =
+      extensions::ExtensionBuilder("Test Extension")
+          .SetID("abc")
+          .SetLocation(
+              extensions::mojom::ManifestLocation::kExternalPolicyDownload)
+          .Build();
+  EXPECT_TRUE(IsInspectionAllowed(profile_.get(), extension.get()));
 }
 
 TEST_F(DevToolsAvailabilityCheckerTest, IsInspectionAllowedNullExtension) {
@@ -241,12 +322,183 @@ TEST_F(DevToolsAvailabilityCheckerTest,
   EXPECT_FALSE(IsInspectionAllowed(
       profile_.get(), static_cast<extensions::Extension*>(nullptr)));
 }
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
 TEST_F(DevToolsAvailabilityCheckerTest, NoPolicy_DefaultAllowed) {
   // By default, devtools are allowed.
   content::WebContentsTester::For(web_contents_.get())
       ->NavigateAndCommit(GURL("https://example.com/page"));
   EXPECT_TRUE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest, SubframeBlockedByBlocklistPolicy) {
+  base::ListValue blocklist;
+  blocklist.Append("blocked.com");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityBlocklist,
+                                std::move(blocklist));
+
+  content::WebContentsTester::For(web_contents_.get())
+      ->NavigateAndCommit(GURL("https://allowed.com/page"));
+  content::RenderFrameHost* subframe =
+      content::RenderFrameHostTester::For(web_contents_->GetPrimaryMainFrame())
+          ->AppendChild("subframe");
+  content::RenderFrameHostTester::For(subframe)
+      ->InitializeRenderFrameIfNeeded();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("https://blocked.com/iframe"), subframe);
+
+  EXPECT_TRUE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest, SubframeAllowlistPrecedence) {
+  base::ListValue allowlist;
+  allowlist.Append("example.com");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityAllowlist,
+                                std::move(allowlist));
+  base::ListValue blocklist;
+  blocklist.Append("example.com");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityBlocklist,
+                                std::move(blocklist));
+
+  content::WebContentsTester::For(web_contents_.get())
+      ->NavigateAndCommit(GURL("https://example.com/page"));
+  content::RenderFrameHost* subframe =
+      content::RenderFrameHostTester::For(web_contents_->GetPrimaryMainFrame())
+          ->AppendChild("subframe");
+  content::RenderFrameHostTester::For(subframe)
+      ->InitializeRenderFrameIfNeeded();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("https://example.com/iframe"), subframe);
+
+  EXPECT_TRUE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest,
+       NestedSubframeBlockedByBlocklistPolicy) {
+  base::ListValue blocklist;
+  blocklist.Append("blocked.com");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityBlocklist,
+                                std::move(blocklist));
+
+  content::WebContentsTester::For(web_contents_.get())
+      ->NavigateAndCommit(GURL("https://allowed.com/page"));
+  content::RenderFrameHost* subframe1 =
+      content::RenderFrameHostTester::For(web_contents_->GetPrimaryMainFrame())
+          ->AppendChild("subframe1");
+  content::RenderFrameHostTester::For(subframe1)
+      ->InitializeRenderFrameIfNeeded();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("https://allowed.com/subframe"), subframe1);
+
+  content::RenderFrameHost* subframe2 =
+      content::RenderFrameHostTester::For(subframe1)->AppendChild("subframe2");
+  content::RenderFrameHostTester::For(subframe2)
+      ->InitializeRenderFrameIfNeeded();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("https://blocked.com/iframe"), subframe2);
+
+  EXPECT_TRUE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest, AllSubframesAllowed) {
+  base::ListValue blocklist;
+  blocklist.Append("blocked.com");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityBlocklist,
+                                std::move(blocklist));
+
+  content::WebContentsTester::For(web_contents_.get())
+      ->NavigateAndCommit(GURL("https://allowed.com/page"));
+  content::RenderFrameHost* subframe =
+      content::RenderFrameHostTester::For(web_contents_->GetPrimaryMainFrame())
+          ->AppendChild("subframe");
+  content::RenderFrameHostTester::For(subframe)
+      ->InitializeRenderFrameIfNeeded();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("https://allowed.com/iframe"), subframe);
+
+  EXPECT_TRUE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest, SubframeNotOnAllowlistIsBlocked) {
+  base::ListValue allowlist;
+  allowlist.Append("allowed.com");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityAllowlist,
+                                std::move(allowlist));
+
+  content::WebContentsTester::For(web_contents_.get())
+      ->NavigateAndCommit(GURL("https://allowed.com/page"));
+  content::RenderFrameHost* subframe =
+      content::RenderFrameHostTester::For(web_contents_->GetPrimaryMainFrame())
+          ->AppendChild("subframe");
+  content::RenderFrameHostTester::For(subframe)
+      ->InitializeRenderFrameIfNeeded();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("https://other.com/iframe"), subframe);
+
+  EXPECT_TRUE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest,
+       SubframeWithAboutBlankAllowedWhenMainFrameAllowed) {
+  base::ListValue allowlist;
+  allowlist.Append("allowed.com");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityAllowlist,
+                                std::move(allowlist));
+
+  content::WebContentsTester::For(web_contents_.get())
+      ->NavigateAndCommit(GURL("https://allowed.com/page"));
+  content::RenderFrameHost* subframe =
+      content::RenderFrameHostTester::For(web_contents_->GetPrimaryMainFrame())
+          ->AppendChild("subframe");
+  content::RenderFrameHostTester::For(subframe)
+      ->InitializeRenderFrameIfNeeded();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("about:blank"), subframe);
+
+  EXPECT_TRUE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest,
+       DisallowedByGeneralPolicy_AllPagesAndSubframesBlocked) {
+  profile_->GetPrefs()->SetInteger(
+      prefs::kDevToolsAvailability,
+      static_cast<int>(policy::DeveloperToolsAvailability::kDisallowed));
+
+  content::WebContentsTester::For(web_contents_.get())
+      ->NavigateAndCommit(GURL("https://example.com/page"));
+  content::RenderFrameHost* subframe =
+      content::RenderFrameHostTester::For(web_contents_->GetPrimaryMainFrame())
+          ->AppendChild("subframe");
+  content::RenderFrameHostTester::For(subframe)
+      ->InitializeRenderFrameIfNeeded();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("https://example.com/iframe"), subframe);
+
+  EXPECT_FALSE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
+}
+
+TEST_F(DevToolsAvailabilityCheckerTest,
+       DisallowedByGeneralPolicy_MainFrameBlockedEvenWithAllowlistedIframe) {
+  profile_->GetPrefs()->SetInteger(
+      prefs::kDevToolsAvailability,
+      static_cast<int>(policy::DeveloperToolsAvailability::kDisallowed));
+
+  base::ListValue allowlist;
+  allowlist.Append("allowed.com");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityAllowlist,
+                                std::move(allowlist));
+
+  content::WebContentsTester::For(web_contents_.get())
+      ->NavigateAndCommit(GURL("https://example.com/page"));
+  content::RenderFrameHost* subframe =
+      content::RenderFrameHostTester::For(web_contents_->GetPrimaryMainFrame())
+          ->AppendChild("subframe");
+  content::RenderFrameHostTester::For(subframe)
+      ->InitializeRenderFrameIfNeeded();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("https://allowed.com/iframe"), subframe);
+
+  EXPECT_FALSE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
 }
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -297,3 +549,62 @@ TEST_F(DevToolsAvailabilityCheckerTest, IsInspectionAllowedNullWebApp) {
                                   static_cast<web_app::WebApp*>(nullptr)));
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+TEST_F(DevToolsAvailabilityCheckerTest, TargetLevelSubframeBlocked) {
+  base::ListValue blocklist;
+  blocklist.Append("blocked.com");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityBlocklist,
+                                std::move(blocklist));
+
+  content::WebContentsTester::For(web_contents_.get())
+      ->NavigateAndCommit(GURL("https://allowed.com/page"));
+  content::RenderFrameHost* subframe =
+      content::RenderFrameHostTester::For(web_contents_->GetPrimaryMainFrame())
+          ->AppendChild("subframe");
+  content::RenderFrameHostTester::For(subframe)
+      ->InitializeRenderFrameIfNeeded();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("https://blocked.com/iframe"), subframe);
+
+  // The main page should still be inspectable.
+  EXPECT_TRUE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
+
+  // But if we specifically check the blocked subframe's URL, it should be
+  // blocked.
+  EXPECT_FALSE(
+      IsInspectionAllowed(profile_.get(), GURL("https://blocked.com/iframe")));
+}
+
+class DevToolsAvailabilityCheckerTargetLevelDisabledTest
+    : public DevToolsAvailabilityCheckerTest {
+ public:
+  DevToolsAvailabilityCheckerTargetLevelDisabledTest() {
+    scoped_feature_list_.InitAndDisableFeature(
+        features::kDevToolsTargetLevelEvaluation);
+  }
+
+  ~DevToolsAvailabilityCheckerTargetLevelDisabledTest() override = default;
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+TEST_F(DevToolsAvailabilityCheckerTargetLevelDisabledTest,
+       SubframeBlockedByBlocklistPolicy) {
+  base::ListValue blocklist;
+  blocklist.Append("blocked.com");
+  profile_->GetPrefs()->SetList(prefs::kDeveloperToolsAvailabilityBlocklist,
+                                std::move(blocklist));
+
+  content::WebContentsTester::For(web_contents_.get())
+      ->NavigateAndCommit(GURL("https://allowed.com/page"));
+  content::RenderFrameHost* subframe =
+      content::RenderFrameHostTester::For(web_contents_->GetPrimaryMainFrame())
+          ->AppendChild("subframe");
+  content::RenderFrameHostTester::For(subframe)
+      ->InitializeRenderFrameIfNeeded();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("https://blocked.com/iframe"), subframe);
+
+  EXPECT_FALSE(IsInspectionAllowed(profile_.get(), web_contents_.get()));
+}

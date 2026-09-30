@@ -11,6 +11,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.chromium.components.browser_ui.widget.ListItemBuilder.buildSimpleMenuItem;
 
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.view.ViewGroup;
@@ -25,6 +26,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
@@ -39,6 +41,7 @@ import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.RequiresRestart;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.bookmarks.BookmarkUiPrefs.BookmarkRowDisplayPref;
 import org.chromium.chrome.browser.bookmarks.ImprovedBookmarkRowProperties.ImageVisibility;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
@@ -112,10 +115,7 @@ public class ImprovedBookmarkRowRenderTest {
         mActivityTestRule.getActivity().setTheme(R.style.Theme_BrowserUI_DayNight);
 
         CurrencyFormatterJni.setInstanceForTesting(mCurrencyFormatterJniMock);
-        doAnswer(
-                        (invocation) -> {
-                            return "$" + invocation.getArgument(1);
-                        })
+        doAnswer((InvocationOnMock invocation) -> "$" + invocation.getArgument(1))
                 .when(mCurrencyFormatterJniMock)
                 .format(anyLong(), any());
 
@@ -144,6 +144,11 @@ public class ImprovedBookmarkRowRenderTest {
                     mContentView.removeAllViews();
                     mContentView.addView(mImprovedBookmarkRow);
 
+                    @BookmarkRowDisplayPref
+                    int displayPref =
+                            mUseVisualRowLayout
+                                    ? BookmarkRowDisplayPref.VISUAL
+                                    : BookmarkRowDisplayPref.COMPACT;
                     mModel =
                             new PropertyModel.Builder(ImprovedBookmarkRowProperties.ALL_KEYS)
                                     .with(ImprovedBookmarkRowProperties.TITLE, "test title")
@@ -166,6 +171,16 @@ public class ImprovedBookmarkRowRenderTest {
                                     .with(
                                             ImprovedBookmarkRowProperties.START_IMAGE_VISIBILITY,
                                             ImageVisibility.DRAWABLE)
+                                    .with(
+                                            ImprovedBookmarkRowProperties.START_IMAGE_SIZE,
+                                            BookmarkViewUtils.getImageIconSize(
+                                                    mActivityTestRule.getActivity().getResources(),
+                                                    displayPref))
+                                    .with(
+                                            ImprovedBookmarkRowProperties.START_IMAGE_CORNER_RADIUS,
+                                            BookmarkViewUtils.getImageIconCornerRadius(
+                                                    mActivityTestRule.getActivity().getResources(),
+                                                    displayPref))
                                     .with(ImprovedBookmarkRowProperties.START_ICON_TINT, null)
                                     .with(
                                             ImprovedBookmarkRowProperties.END_IMAGE_VISIBILITY,
@@ -204,9 +219,7 @@ public class ImprovedBookmarkRowRenderTest {
     @Feature({"RenderTest"})
     public void testDisabled() throws IOException {
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mModel.set(ImprovedBookmarkRowProperties.ENABLED, false);
-                });
+                () -> mModel.set(ImprovedBookmarkRowProperties.ENABLED, false));
         mRenderTestRule.render(mContentView, "disabled");
     }
 
@@ -231,9 +244,7 @@ public class ImprovedBookmarkRowRenderTest {
     @Feature({"RenderTest"})
     public void testLocalBookmarkItem() throws IOException {
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mModel.set(ImprovedBookmarkRowProperties.IS_LOCAL_BOOKMARK, true);
-                });
+                () -> mModel.set(ImprovedBookmarkRowProperties.IS_LOCAL_BOOKMARK, true));
         mRenderTestRule.render(mContentView, "local_bookmark");
     }
 
@@ -326,5 +337,24 @@ public class ImprovedBookmarkRowRenderTest {
                     mModel.set(ImprovedBookmarkRowProperties.ACCESSORY_VIEW, coordinator.getView());
                 });
         mRenderTestRule.render(mContentView, "normal_with_price_tracking_disabled");
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"RenderTest"})
+    public void testSoftwareCanvasRendering() throws IOException {
+        Bitmap bitmap =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> {
+                            Bitmap b =
+                                    Bitmap.createBitmap(
+                                            mContentView.getWidth(),
+                                            mContentView.getHeight(),
+                                            Bitmap.Config.ARGB_8888);
+                            Canvas c = new Canvas(b);
+                            mContentView.draw(c);
+                            return b;
+                        });
+        mRenderTestRule.compareForResult(bitmap, "software_canvas");
     }
 }

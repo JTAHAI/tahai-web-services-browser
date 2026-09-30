@@ -8,14 +8,17 @@
 #import "base/test/ios/wait_util.h"
 #import "base/test/scoped_feature_list.h"
 #import "components/autofill/core/browser/data_manager/autofill_ai/entity_data_manager.h"
-#import "components/autofill/core/browser/test_utils/entity_data_test_utils.h"
+#import "components/autofill/core/browser/test_utils/entity_data_test_util.h"
 #import "components/autofill/core/common/autofill_features.h"
 #import "components/autofill/core/common/autofill_prefs.h"
+#import "components/autofill/core/common/dense_set.h"
 #import "components/optimization_guide/core/feature_registry/feature_registration.h"
 #import "components/optimization_guide/core/model_execution/model_execution_prefs.h"
+#import "components/personal_context/core/personal_context_prefs.h"
 #import "components/prefs/pref_service.h"
 #import "components/sync/test/test_sync_service.h"
 #import "ios/chrome/browser/autofill/model/ios_autofill_entity_data_manager_factory.h"
+#import "ios/chrome/browser/autofill/public/autofill_settings_navigator.h"
 #import "ios/chrome/browser/settings/autofill/autofill_ai/ui/autofill_ai_entity_item.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/coordinator/autofill_ai_base_mediator_protected.h"
 #import "ios/chrome/browser/settings/autofill/autofill_and_passwords/ui/identity_docs_consumer.h"
@@ -253,5 +256,53 @@ TEST_F(IdentityDocsMediatorTest, PolicyPrefChangeUpdatesConsumer) {
   profile_->GetPrefs()->SetInteger(
       kPolicyPref,
       static_cast<int>(ModelExecutionEnterprisePolicyValue::kAllow));
+  [consumer_ verify];
+}
+
+// Tests that only the entity types supported by IdentityDocsMediator return
+// AutofillSettingsPage::kIdentityDocs from
+// AutofillSettingsPageForEntityTypeName.
+TEST_F(IdentityDocsMediatorTest, AutofillSettingsPageMappingIsSynced) {
+  for (autofill::EntityTypeName type :
+       autofill::DenseSet<autofill::EntityTypeName>::all()) {
+    std::optional<AutofillSettingsPage> page =
+        AutofillSettingsPageForEntityTypeName(type);
+    if ([mediator_ supportedEntityTypes].contains(type)) {
+      EXPECT_EQ(page, AutofillSettingsPage::kIdentityDocs);
+    } else {
+      EXPECT_NE(page, AutofillSettingsPage::kIdentityDocs);
+    }
+  }
+}
+
+// Tests that setting the consumer updates suggestions from Gemini eligibility
+// and toggle state.
+TEST_F(IdentityDocsMediatorTest, SetsSuggestionsFromGeminiConsumerValues) {
+  mediator_.shouldShowSuggestionsFromGemini = YES;
+  profile_->GetPrefs()->SetBoolean(
+      personal_context::prefs::kPersonalContextInAutofillSettingsToggleStatus,
+      true);
+
+  OCMExpect([consumer_ setShouldShowSuggestionsFromGemini:YES enabled:YES]);
+
+  mediator_.consumer = consumer_;
+
+  [consumer_ verify];
+}
+
+// Tests that toggling suggestions from Gemini pref updates the consumer.
+TEST_F(IdentityDocsMediatorTest, PersonalContextPrefChangeUpdatesConsumer) {
+  mediator_.shouldShowSuggestionsFromGemini = YES;
+  profile_->GetPrefs()->SetBoolean(
+      personal_context::prefs::kPersonalContextInAutofillSettingsToggleStatus,
+      false);
+  mediator_.consumer = consumer_;
+
+  OCMExpect([consumer_ setShouldShowSuggestionsFromGemini:YES enabled:YES]);
+
+  profile_->GetPrefs()->SetBoolean(
+      personal_context::prefs::kPersonalContextInAutofillSettingsToggleStatus,
+      true);
+
   [consumer_ verify];
 }

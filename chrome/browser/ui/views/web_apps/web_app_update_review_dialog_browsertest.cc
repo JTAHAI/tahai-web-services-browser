@@ -23,7 +23,6 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/shortcuts/shortcut_icon_generator.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
@@ -155,7 +154,8 @@ class WebAppUpdateReviewDialog : public DialogBrowserTest {
       return false;
     }
     bool is_showing =
-        browser()->GetBrowserView().GetProperty(kIsPwaUpdateDialogShowingKey);
+        BrowserView::GetBrowserViewForBrowser(browser())->GetProperty(
+            kIsPwaUpdateDialogShowingKey);
     EXPECT_TRUE(is_showing);
     return is_showing;
   }
@@ -258,8 +258,8 @@ IN_PROC_BROWSER_TEST_F(WebAppUpdateReviewDialog,
   web_app::test::UninstallWebApp(browser()->GetProfile(), app_id_);
   run_loop.Run();
 
-  EXPECT_FALSE(
-      browser()->GetBrowserView().GetProperty(kIsPwaUpdateDialogShowingKey));
+  EXPECT_FALSE(BrowserView::GetBrowserViewForBrowser(browser())->GetProperty(
+      kIsPwaUpdateDialogShowingKey));
   EXPECT_EQ(dialog_result_.Get(),
             WebAppIdentityUpdateResult::kAppUninstalledDuringDialog);
 }
@@ -275,8 +275,8 @@ IN_PROC_BROWSER_TEST_F(WebAppUpdateReviewDialog,
 
   // Verify dialog is closed, and the ignore result is obtained.
   ClickIgnoreButtonOnDialog(dialog_widget);
-  EXPECT_FALSE(
-      browser()->GetBrowserView().GetProperty(kIsPwaUpdateDialogShowingKey));
+  EXPECT_FALSE(BrowserView::GetBrowserViewForBrowser(browser())->GetProperty(
+      kIsPwaUpdateDialogShowingKey));
   EXPECT_EQ(dialog_result_.Get(), WebAppIdentityUpdateResult::kIgnore);
 }
 
@@ -331,11 +331,12 @@ class WebAppUpdateDialogBrowserTests : public WebAppBrowserTestBase {
         embedded_https_test_server().GetURL("/web_apps/updating/index.html");
     const webapps::AppId app_id =
         InstallWebAppInNewTabAndClose(browser(), app_url);
-    Browser* app_browser = LaunchWebAppBrowser(app_id);
+    BrowserWindowInterface* app_browser = LaunchWebAppBrowser(app_id);
     EXPECT_NE(app_browser, nullptr);
     // Ensure that the app browser is visible before proceeding. This ensures
     // that all PWA launching processes have finished.
-    views::test::WidgetVisibleWaiter(app_browser->GetBrowserView().GetWidget())
+    views::test::WidgetVisibleWaiter(
+        BrowserView::GetBrowserViewForBrowser(app_browser)->GetWidget())
         .Wait();
     // TODO(crbug.com/442643377): Delete this wait after the update runs for
     // every navigation.

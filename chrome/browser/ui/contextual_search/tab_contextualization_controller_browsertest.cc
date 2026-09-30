@@ -7,7 +7,7 @@
 #include "base/test/bind.h"
 #include "base/test/test_future.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -35,9 +35,9 @@ namespace lens {
 namespace {
 
 // Returns the viewport size in physical pixels.
-gfx::Size GetViewportPhysicalSize(Browser* browser) {
+gfx::Size GetViewportPhysicalSize(BrowserWindowInterface* browser) {
   content::WebContents* web_contents =
-      browser->tab_strip_model()->GetActiveWebContents();
+      browser->GetTabStripModel()->GetActiveWebContents();
   return gfx::ScaleToCeiledSize(
       web_contents->GetViewBounds().size(),
       web_contents->GetRenderWidgetHostView()->GetDeviceScaleFactor());
@@ -283,9 +283,8 @@ IN_PROC_BROWSER_TEST_F(TabContextualizationControllerBrowserTest,
           content::WebContents::CreateParams(browser()->GetProfile()));
   discarded_contents->GetController().CopyStateFrom(
       &original_contents->GetController(), /*needs_reload=*/true);
-  browser()->tab_strip_model()->DiscardWebContentsAt(
-      browser()->tab_strip_model()->active_index(),
-      std::move(discarded_contents));
+  browser()->tab_strip_model()->DiscardWebContents(
+      original_contents, std::move(discarded_contents));
 
   content::WebContents* active_contents =
       browser()->tab_strip_model()->GetActiveWebContents();

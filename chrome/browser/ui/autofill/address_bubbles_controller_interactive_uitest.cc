@@ -2,9 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/ui/autofill/address_bubbles_controller.h"
+
 #include "base/functional/bind.h"
 #include "build/buildflag.h"
-#include "chrome/browser/ui/autofill/address_bubbles_controller.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/autofill/edit_address_profile_view.h"
 #include "chrome/browser/ui/views/autofill/save_address_profile_view.h"
@@ -14,7 +16,7 @@
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile_test_api.h"
 #include "components/autofill/core/browser/foundations/autofill_client.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "content/public/test/browser_test.h"
 #include "ui/base/interaction/element_identifier.h"
@@ -26,25 +28,18 @@ namespace autofill {
 constexpr char kSuppressedScreenshotError[] =
     "Screenshot can only run in pixel_tests on Windows.";
 
-constexpr char kMigrationOnTestsSuffix[] = "MigrationOn";
-constexpr char kMigrationOffTestsSuffix[] = "MigrationOff";
-
-class BaseAddressBubblesControllerTest
-    : public InteractiveBrowserTest,
-      public testing::WithParamInterface<bool> {
+class BaseAddressBubblesControllerTest : public InteractiveBrowserTest {
  protected:
   BaseAddressBubblesControllerTest() {
     feature_list_.InitWithFeaturesAndParameters(
         {
             {features::kAutofillSupportSplitZipCode, {}},
-            {::features::kPageActionsMigration,
-             {{"autofill_address", GetParam() ? "true" : "false"}}},
         },
         /*disabled_features=*/{});
   }
 
   content::WebContents* web_contents() {
-    return browser()->tab_strip_model()->GetActiveWebContents();
+    return browser()->GetTabStripModel()->GetActiveWebContents();
   }
 
   ContentAutofillClient* autofill_client() {
@@ -93,21 +88,21 @@ class SaveAddressProfileTest : public BaseAddressBubblesControllerTest {
   }
 };
 
-IN_PROC_BROWSER_TEST_P(SaveAddressProfileTest, SaveAccept) {
+IN_PROC_BROWSER_TEST_F(SaveAddressProfileTest, SaveAccept) {
   RunTestSequence(ShowInitBubble(),
                   PressButton(views::DialogClientView::kOkButtonElementId),
                   EnsureClosedWithDecision(
                       AutofillClient::AddressPromptUserDecision::kAccepted));
 }
 
-IN_PROC_BROWSER_TEST_P(SaveAddressProfileTest, SaveDecline) {
+IN_PROC_BROWSER_TEST_F(SaveAddressProfileTest, SaveDecline) {
   RunTestSequence(ShowInitBubble(),
                   PressButton(views::DialogClientView::kCancelButtonElementId),
                   EnsureClosedWithDecision(
                       AutofillClient::AddressPromptUserDecision::kDeclined));
 }
 
-IN_PROC_BROWSER_TEST_P(SaveAddressProfileTest, SaveWithEdit) {
+IN_PROC_BROWSER_TEST_F(SaveAddressProfileTest, SaveWithEdit) {
   RunTestSequence(
       ShowInitBubble(),
       SetOnIncompatibleAction(OnIncompatibleAction::kIgnoreAndContinue,
@@ -130,7 +125,7 @@ IN_PROC_BROWSER_TEST_P(SaveAddressProfileTest, SaveWithEdit) {
           AutofillClient::AddressPromptUserDecision::kAccepted));
 }
 
-IN_PROC_BROWSER_TEST_P(SaveAddressProfileTest, SaveInEdit) {
+IN_PROC_BROWSER_TEST_F(SaveAddressProfileTest, SaveInEdit) {
   RunTestSequence(
       SetOnIncompatibleAction(OnIncompatibleAction::kIgnoreAndContinue,
                               kSuppressedScreenshotError),
@@ -144,7 +139,7 @@ IN_PROC_BROWSER_TEST_P(SaveAddressProfileTest, SaveInEdit) {
           AutofillClient::AddressPromptUserDecision::kEditAccepted));
 }
 
-IN_PROC_BROWSER_TEST_P(SaveAddressProfileTest, SaveCloseAndOpenAgain) {
+IN_PROC_BROWSER_TEST_F(SaveAddressProfileTest, SaveCloseAndOpenAgain) {
   RunTestSequence(
       ShowInitBubble(),
       SetOnIncompatibleAction(OnIncompatibleAction::kIgnoreAndContinue,
@@ -162,11 +157,11 @@ IN_PROC_BROWSER_TEST_P(SaveAddressProfileTest, SaveCloseAndOpenAgain) {
                  /*baseline_cl=*/"4535916"));
 }
 
-IN_PROC_BROWSER_TEST_P(SaveAddressProfileTest, NoCrashesOnTabClose) {
+IN_PROC_BROWSER_TEST_F(SaveAddressProfileTest, NoCrashesOnTabClose) {
   RunTestSequence(
       ShowInitBubble(), EnsurePresent(SaveAddressProfileView::kTopViewId),
       Do([this]() {
-        browser()->tab_strip_model()->GetActiveWebContents()->Close();
+        browser()->GetTabStripModel()->GetActiveWebContents()->Close();
       }));
 }
 
@@ -186,7 +181,7 @@ class UpdateAddressProfileTest : public BaseAddressBubblesControllerTest {
   AutofillProfile original_profile_ = test::GetFullProfile2();
 };
 
-IN_PROC_BROWSER_TEST_P(UpdateAddressProfileTest, UpdateThroughEdit) {
+IN_PROC_BROWSER_TEST_F(UpdateAddressProfileTest, UpdateThroughEdit) {
   RunTestSequence(
       ShowInitBubble(),
       SetOnIncompatibleAction(OnIncompatibleAction::kIgnoreAndContinue,
@@ -225,7 +220,7 @@ class UpdateAccountAddressProfileTest : public UpdateAddressProfileTest {
   }
 };
 
-IN_PROC_BROWSER_TEST_P(UpdateAccountAddressProfileTest, UpdateThroughEdit) {
+IN_PROC_BROWSER_TEST_F(UpdateAccountAddressProfileTest, UpdateThroughEdit) {
   RunTestSequence(
       ShowInitBubble(),
       SetOnIncompatibleAction(OnIncompatibleAction::kIgnoreAndContinue,
@@ -263,14 +258,14 @@ class MigrateToProfileAddressProfileTest
   }
 };
 
-IN_PROC_BROWSER_TEST_P(MigrateToProfileAddressProfileTest, SaveDecline) {
+IN_PROC_BROWSER_TEST_F(MigrateToProfileAddressProfileTest, SaveDecline) {
   RunTestSequence(ShowInitBubble(),
                   PressButton(views::DialogClientView::kCancelButtonElementId),
                   EnsureClosedWithDecision(
                       AutofillClient::AddressPromptUserDecision::kNever));
 }
 
-IN_PROC_BROWSER_TEST_P(MigrateToProfileAddressProfileTest, SaveWithEdit) {
+IN_PROC_BROWSER_TEST_F(MigrateToProfileAddressProfileTest, SaveWithEdit) {
   RunTestSequence(
       ShowInitBubble(),
       SetOnIncompatibleAction(OnIncompatibleAction::kIgnoreAndContinue,
@@ -294,37 +289,5 @@ IN_PROC_BROWSER_TEST_P(MigrateToProfileAddressProfileTest, SaveWithEdit) {
 
 // TODO(crbug.com/356845298): Add a test for combining the `kAccountNameEmail`
 // profile with one of the `kAccountHome`/`kAccountWork` profiles.
-
-INSTANTIATE_TEST_SUITE_P(AllAutofillAddressStates,
-                         SaveAddressProfileTest,
-                         ::testing::Bool(),
-                         [](auto const& info) {
-                           return info.param ? kMigrationOnTestsSuffix
-                                             : kMigrationOffTestsSuffix;
-                         });
-
-INSTANTIATE_TEST_SUITE_P(AllAutofillAddressStates,
-                         UpdateAddressProfileTest,
-                         ::testing::Bool(),
-                         [](auto const& info) {
-                           return info.param ? kMigrationOnTestsSuffix
-                                             : kMigrationOffTestsSuffix;
-                         });
-
-INSTANTIATE_TEST_SUITE_P(AllAutofillAddressStates,
-                         UpdateAccountAddressProfileTest,
-                         ::testing::Bool(),
-                         [](auto const& info) {
-                           return info.param ? kMigrationOnTestsSuffix
-                                             : kMigrationOffTestsSuffix;
-                         });
-
-INSTANTIATE_TEST_SUITE_P(AllAutofillAddressStates,
-                         MigrateToProfileAddressProfileTest,
-                         ::testing::Bool(),
-                         [](auto const& info) {
-                           return info.param ? kMigrationOnTestsSuffix
-                                             : kMigrationOffTestsSuffix;
-                         });
 
 }  // namespace autofill

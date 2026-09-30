@@ -25,7 +25,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/browser/tab_list/tab_list_interface_observer.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -235,7 +234,7 @@ IN_PROC_BROWSER_TEST_F(GlicMetricsBrowserTest, SubmitQueryCuiOutcome_Failure) {
   ASSERT_TRUE(instance);
 
   instance->instance_metrics().OnUserInputSubmitted(
-      mojom::WebClientMode::kText);
+      mojom::WebClientMode::kText, mojom::PromptType::kUnspecified);
   instance->WebUiStateChanged(mojom::WebUiState::kError);
 
   ASSERT_TRUE(base::test::RunUntil([&]() {
@@ -262,7 +261,7 @@ IN_PROC_BROWSER_TEST_F(GlicMetricsBrowserTest,
   ASSERT_TRUE(instance);
 
   instance->instance_metrics().OnUserInputSubmitted(
-      mojom::WebClientMode::kText);
+      mojom::WebClientMode::kText, mojom::PromptType::kUnspecified);
   glic_service->ToggleUI(PlatformBrowserTest::browser(),
                          /*prevent_close=*/false,
                          mojom::InvocationSource::kOsButton);
@@ -435,7 +434,7 @@ IN_PROC_BROWSER_TEST_F(GlicMetricsBrowserTest,
       static_cast<GlicInstanceImpl*>(glic_service->GetInstanceForTab(tab));
   ASSERT_TRUE(instance);
   instance->instance_metrics().OnUserInputSubmitted(
-      mojom::WebClientMode::kText);
+      mojom::WebClientMode::kText, mojom::PromptType::kUnspecified);
   instance->instance_metrics().OnResponseStarted();
   ASSERT_TRUE(base::test::RunUntil([&]() {
     return histogram_tester.GetBucketCount("Glic.CUI.SubmitQuery.Outcome",
@@ -567,7 +566,8 @@ IN_PROC_BROWSER_TEST_F(GlicMetricsBrowserTest, TabSwitchingSuppressesOnOpen) {
   auto* instance =
       static_cast<GlicInstanceImpl*>(glic_service->GetInstanceForTab(tab1));
   ASSERT_TRUE(instance);
-  instance->OnUserInputSubmitted(mojom::WebClientMode::kText);
+  instance->OnUserInputSubmitted(mojom::WebClientMode::kText,
+                                 mojom::PromptType::kUnspecified);
   ASSERT_TRUE(
       base::test::RunUntil([&]() { return coordinator1->IsShowing(); }));
 
@@ -693,7 +693,8 @@ IN_PROC_BROWSER_TEST_F(GlicMetricsBrowserTest,
   auto* instance =
       static_cast<GlicInstanceImpl*>(glic_service->GetInstanceForTab(tab1));
   ASSERT_TRUE(instance);
-  instance->OnUserInputSubmitted(mojom::WebClientMode::kText);
+  instance->OnUserInputSubmitted(mojom::WebClientMode::kText,
+                                 mojom::PromptType::kUnspecified);
 
   // 2. Create a background tab (Tab 2).
   int initial_tab_count =

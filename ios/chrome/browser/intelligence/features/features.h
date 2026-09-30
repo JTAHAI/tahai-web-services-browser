@@ -202,28 +202,6 @@ BASE_DECLARE_FEATURE(kGeminiUpdatedConsent);
 // Returns true if the updated Gemini consent is enabled.
 bool IsGeminiUpdatedConsentEnabled();
 
-// Feature flag for enabling the image remixing tool in the Gemini floaty.
-BASE_DECLARE_FEATURE(kGeminiImageRemixTool);
-bool IsGeminiImageRemixToolEnabled();
-
-// Returns true if the Gemini FRE should show the image remix row.
-bool IsGeminiImageRemixToolShowFRERowEnabled();
-extern const char kGeminiImageRemixToolShowFRERow[];
-
-// Returns true if the image remix tool should appear above
-// search image with Google (entry point will be in that same section).
-bool IsGeminiImageRemixToolShowAboveSearchImageEnabled();
-extern const char kGeminiImageRemixToolShowAboveSearchImage[];
-
-// Returns true if the image remix tool should appear below
-// search image with Google (entry point will be in that same section).
-bool IsGeminiImageRemixToolShowBelowSearchImageEnabled();
-extern const char kGeminiImageRemixToolShowBelowSearchImage[];
-
-// Returns true if the image remix tool should remove/disable PageContext.
-bool IsGeminiImageRemixToolRemovePageContextEnabled();
-extern const char kGeminiImageRemixToolRemovePageContext[];
-
 // Feature flag for enabling the Gemini eligibility ablation experiment.
 BASE_DECLARE_FEATURE(kGeminiEligibilityAblation);
 bool IsGeminiEligibilityAblationEnabled();
@@ -266,6 +244,17 @@ base::TimeDelta GetActorPageStabilityTimeout();
 int GetActorPageStabilityMutationCap();
 // The post-interaction observation window duration for page stability checking.
 base::TimeDelta GetActorPageStabilityWindowDuration();
+// The amount of time to wait for LCP if it hasn't occurred yet.
+//
+// Based on the Desktop equivalent at
+// https://source.chromium.org/chromium/chromium/src/+/main:chrome/common/chrome_features.cc;l=422;drc=9c4f58fb857251ee67e9d98abcfcacef0500e51d.
+base::TimeDelta GetActorPageStabilityLcpDelay();
+// The amount of time to wait for Autofill to finish parsing and predicting form
+// fields on the page.
+//
+// Based on the Desktop equivalent at
+// https://source.chromium.org/chromium/chromium/src/+/main:chrome/common/chrome_features.cc;l=428;drc=9c4f58fb857251ee67e9d98abcfcacef0500e51d.
+base::TimeDelta GetActorPageStabilityAutofillPredictionsTimeout();
 
 // Returns true if the specified tool is disabled via the "DisabledTools"
 // feature parameter of the `kActorTools` feature.
@@ -301,6 +290,11 @@ PageActionMenuIconVariations GetPageActionMenuIcon();
 BASE_DECLARE_FEATURE(kGeminiBackendMigration);
 bool IsGeminiBackendMigrationEnabled();
 
+// Feature flag for enabling Project Aureus (quota enforcement and usage
+// limits).
+BASE_DECLARE_FEATURE(kGeminiAureus);
+bool IsGeminiAureusEnabled();
+
 // Feature flag for enabling Gemini actor.
 BASE_DECLARE_FEATURE(kGeminiActor);
 bool IsGeminiActorEnabled();
@@ -320,12 +314,6 @@ BASE_DECLARE_FEATURE(kGeminiBinaryMigration);
 
 // Returns true if the GeminiBinaryMigration feature is enabled.
 bool IsGeminiBinaryMigrationEnabled();
-
-// Enables the PersistTabContextRichExtraction feature.
-BASE_DECLARE_FEATURE(kPersistTabContextRichExtraction);
-
-// Returns true if the PersistTabContextRichExtraction feature is enabled.
-bool IsPersistTabContextRichExtractionEnabled();
 
 // Enables the PageContextIPCOptimization feature.
 BASE_DECLARE_FEATURE(kPageContextIPCOptimization);
@@ -395,6 +383,30 @@ BASE_DECLARE_FEATURE(kGeminiContextualSuggestionsCues);
 // Returns true if Gemini contextual suggestions cues framework is enabled.
 bool IsGeminiContextualSuggestionsCuesEnabled();
 
+// Feature parameter for enabling on-device category classifier in Gemini
+// contextual suggestions cues.
+extern const char kGeminiContextualSuggestionsCuesOnDeviceClassifierParam[];
+
+// Returns true if on-device category classifier is enabled for Gemini
+// contextual suggestions cues.
+bool IsGeminiContextualSuggestionsCuesOnDeviceClassifierEnabled();
+
+// Feature parameter for allowing GPU / Neural Engine execution in Gemini
+// contextual suggestions cues.
+extern const char kGeminiContextualSuggestionsCuesAllowGpuExecutionParam[];
+
+// Returns true if GPU / Neural Engine execution is allowed for Gemini
+// contextual suggestions cues.
+bool IsGeminiContextualSuggestionsCuesAllowGpuExecutionEnabled();
+
+// Feature parameter for using Title and URL only (matching Desktop) for
+// category classification.
+extern const char kGeminiContextualSuggestionsCuesTitleAndUrlOnlyParam[];
+
+// Returns true if category classification should only use Title and URL
+// instead of extracting APC and generating passages.
+bool IsGeminiContextualSuggestionsCuesTitleAndUrlOnlyEnabled();
+
 #pragma mark - Debugging Features
 
 // Holds the variations of the BWG Promo Consent flow for debugging.
@@ -449,6 +461,35 @@ BASE_DECLARE_FEATURE(kGeminiCoordinatorTeardownFix);
 // Returns true if the Gemini coordinator teardown crash fix is enabled.
 bool IsGeminiCoordinatorTeardownFixEnabled();
 
+// Feature flag to enable the Gemini FRE experiment.
+BASE_DECLARE_FEATURE(kGeminiFREExperiment);
+
+// Variations of the Lightweight FRE promo title/string.
+enum class GeminiLightweightFREVariant {
+  kConvenience = 0,
+  kPageSharing = 1,
+  kDiverse = 2,
+};
+
+// Feature parameter for Gemini FRE experiment variations.
+extern const char kGeminiFREExperimentParam[];
+extern const char kGeminiFREExperimentParamVisualRich[];
+extern const char kGeminiFREExperimentParamLightweightConvenience[];
+extern const char kGeminiFREExperimentParamLightweightPageSharing[];
+extern const char kGeminiFREExperimentParamLightweightDiverse[];
+
+// Returns true if the Gemini FRE experiment is enabled (any variation).
+bool IsGeminiFREExperimentEnabled();
+
+// Returns true if the Visual Rich variant is enabled.
+bool IsGeminiVisualRichFREEnabled();
+
+// Returns true if any Lightweight variant is enabled.
+bool IsGeminiLightweightFREEnabled();
+
+// Returns the specific Lightweight variant configured for the experiment.
+GeminiLightweightFREVariant GetGeminiLightweightFREVariant();
+
 // Feature flag for Gemini Experimental Guided Onboarding.
 // Meant for experiments only.
 BASE_DECLARE_FEATURE(kGeminiExperimentalGuidedOnboarding);
@@ -463,5 +504,56 @@ bool IsGeminiExperimentalGuidedOnboardingEnabled();
 // Returns true if Gemini Experimental Guided Onboarding should be forced for
 // debugging.
 bool ShouldForceGeminiExperimentalGuidedOnboarding();
+
+// Controls whether blacked out bounding boxes for sensitive payment fields are
+// applied to the screenshot in `PageContext`. Matches Blink's
+// `kGlicScreenshotSensitivePaymentRedaction`.
+// Note: When enabled, this feature enforces screenshot payment redactions on
+// `PageContext` extractions that use rich extraction, overriding any local
+// `PageContextWrapperConfig` setting. It has no effect on light extractions.
+BASE_DECLARE_FEATURE(kPageContextScreenshotSensitivePaymentRedaction);
+
+// Returns true if `kPageContextScreenshotSensitivePaymentRedaction` is enabled.
+bool IsPageContextScreenshotSensitivePaymentRedactionEnabled();
+
+// Controls whether Autofill credit card redactions are applied to clear
+// sensitive field values in the `AnnotatedPageContent` (APC) proto. Matches
+// Blink's `kAnnotatedPageContentAutofillCreditCardRedactions`.
+// Note: When enabled, this feature enforces field value redactions on
+// `PageContext` extractions that use rich extraction, overriding any local
+// `PageContextWrapperConfig` setting. It has no effect on light extractions.
+BASE_DECLARE_FEATURE(kPageContextAutofillCreditCardRedactions);
+
+// Returns true if `kPageContextAutofillCreditCardRedactions` is
+// enabled.
+bool IsPageContextAutofillCreditCardRedactionsEnabled();
+
+// Controls whether Autofill OTP redactions are applied to clear sensitive
+// field values in the APC proto and screenshot. Matches Blink's
+// `kAnnotatedPageContentAutofillOtpRedactions`.
+// Note: When enabled, this feature enforces redactions on
+// `PageContext` extractions that use rich extraction, overriding any local
+// `PageContextWrapperConfig` setting. It has no effect on light extractions.
+BASE_DECLARE_FEATURE(kPageContextAutofillOtpRedactions);
+
+// Returns true if `kPageContextAutofillOtpRedactions` is enabled.
+bool IsPageContextAutofillOtpRedactionsEnabled();
+
+// Controls whether blacked out bounding boxes for password fields are applied
+// to the screenshot in `PageContext`. Matches Blink's
+// `kGlicScreenshotPasswordRedaction` behavior.
+// Note: When enabled, this feature enforces screenshot password redactions on
+// `PageContext` extractions that use rich extraction, overriding any local
+// `PageContextWrapperConfig` setting. It has no effect on light extractions.
+BASE_DECLARE_FEATURE(kPageContextScreenshotPasswordRedaction);
+
+// Returns true if `kPageContextScreenshotPasswordRedaction` is enabled.
+bool IsPageContextScreenshotPasswordRedactionEnabled();
+
+// When enabled, the "Get insights with Gemini chip" is disabled.
+BASE_DECLARE_FEATURE(kGeminiInsightsChipAblation);
+
+// Returns true if the `GeminiInsightsChipAblation` feature is enabled.
+bool IsGeminiInsightsChipAblationEnabled();
 
 #endif  // IOS_CHROME_BROWSER_INTELLIGENCE_FEATURES_FEATURES_H_

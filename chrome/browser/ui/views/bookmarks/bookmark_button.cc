@@ -15,9 +15,10 @@
 #include "chrome/browser/preloading/chrome_preloading.h"
 #include "chrome/browser/preloading/prerender/prerender_manager.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_button_util.h"
 #include "chrome/browser/ui/views/event_utils.h"
@@ -25,6 +26,7 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/prefs/pref_service.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/preloading_data.h"
 #include "content/public/browser/web_contents.h"
@@ -32,6 +34,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/widget/tooltip_manager.h"
+#include "ui/views/widget/widget.h"
 
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
@@ -106,7 +109,7 @@ END_METADATA
 BookmarkButton::BookmarkButton(PressedCallback callback,
                                const GURL& url,
                                std::u16string_view title,
-                               const raw_ptr<Browser> browser)
+                               const raw_ptr<BrowserWindowInterface> browser)
     : BookmarkButtonBase(base::BindRepeating(&BookmarkButton::OnButtonPressed,
                                              base::Unretained(this)),
                          title),
@@ -226,7 +229,7 @@ void BookmarkButton::OnMouseEntered(const ui::MouseEvent& event) {
   // Now we should register the callback function that will be used to
   // compute the preloading recall.
   if (auto* web_contents =
-          browser_->tab_strip_model()->GetActiveWebContents()) {
+          browser_->GetTabStripModel()->GetActiveWebContents()) {
     content::PreloadingData* preloading_data =
         content::PreloadingData::GetOrCreateForWebContents(web_contents);
     preloading_data->SetIsNavigationInDomainCallback(
@@ -355,7 +358,7 @@ void BookmarkButton::UpdateMaxTooltipWidth() {
 
 BookmarkBarPreloadPipelineManager*
 BookmarkButton::GetBookmarkBarPreloadPipelineManager() {
-  tabs::TabInterface* active_tab = browser_->tab_strip_model()->GetActiveTab();
+  tabs::TabInterface* active_tab = browser_->GetTabStripModel()->GetActiveTab();
   // TODO(crbug.com/413259638): active_tab is only expected to be null if the
   // tab_strip is being initialized or destroyed, but putting a CHECK had caused
   // crbug.com/448228076.

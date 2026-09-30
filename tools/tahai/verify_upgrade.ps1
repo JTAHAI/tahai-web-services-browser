@@ -1,5 +1,5 @@
 param(
-  [string]$BuildDirectory = 'out\tahai_release_x64',
+  [string]$BuildDirectory = 'out\tahai_rc_154_x64',
   [string]$DepotTools = 'D:\dev\depot_tools',
   # The recovered release toolchain is deliberately pinned.  Do not replace
   # either path with a discovery of the newest VS or bootstrap directory.
@@ -9,7 +9,7 @@ param(
   # This never changes Chromium's recovered Python or build environment.
   [string]$CreatorPython = '',
   # Chromium's template/plugin-heavy units can exceed several GiB each.
-  [ValidateRange(1, 6)][int]$Jobs = 3,
+  [ValidateRange(1, 6)][int]$Jobs = 1,
   # Preserve every failed native attempt for diagnosis, then bind release
   # evidence only to the final clean Ninja attempt. This handles transient
   # Windows compiler process failures without hiding a source failure.
@@ -27,7 +27,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $nativeSource = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
-$nativeBuild = Join-Path $nativeSource $BuildDirectory
+$nativeBuild = [IO.Path]::GetFullPath((Join-Path $nativeSource $BuildDirectory))
+$allowedBuildPrefix = [IO.Path]::GetFullPath((Join-Path $nativeSource 'out')).TrimEnd('\') + '\'
+if (-not $nativeBuild.StartsWith($allowedBuildPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+  throw 'BuildDirectory must name a dedicated output directory beneath this source checkout/out.'
+}
+if (-not (Test-Path -LiteralPath (Join-Path $nativeBuild 'args.gn') -PathType Leaf)) {
+  throw 'Prepare and review args.gn in the dedicated build directory first; refusing an implicit default/debug build.'
+}
 $runnerStartedUtc = [Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().ToString('o')
 $buildLockDirectory = Join-Path $nativeBuild '.tahai-release-build.lock'
 $buildLockOwner = Join-Path $buildLockDirectory 'owner.json'
@@ -159,6 +166,13 @@ try {
   $logged = Join-Path $nativeSource 'tools\tahai\run_logged.py'
   $env:PATH = $pythonDirectory + ';' + $depotToolsRoot + ';' + $env:PATH.Replace('"', '')
 
+  $stage = 'source-pinned build prerequisites'
+  Write-UpgradeStatus 'running'
+  & $python $logged --log (Join-Path $runDirectory 'build-prerequisites.json') -- $python tools/tahai/check_windows_build_prerequisites.py --source $nativeSource --visual-studio $visualStudioPath --depot-tools $depotToolsRoot --bootstrap-python $python
+  if ($LASTEXITCODE -ne 0) { throw 'Build prerequisites failed; no GN generation or compilation started. See build-prerequisites.json.' }
+  & $python $logged --log (Join-Path $runDirectory 'guard-source-inventory.log') -- $python tools/tahai/audit_guard_dependencies.py --source-inventory docs/tahai-guard-import-inventory.json
+  if ($LASTEXITCODE -ne 0) { throw 'The checked-out Guard source does not match the reviewed inventory.' }
+
   $stage = 'creator and bundled-list checks'
   Write-UpgradeStatus 'running'
   & $python $logged --log (Join-Path $runDirectory 'creator-tests.log') -- $creatorTestExecutable docs/tahai-skins/test_build_skin.py --release-gate -v
@@ -180,14 +194,17 @@ try {
   $sourceRecord = Join-Path $runDirectory 'source-provenance.json'
   & $python (Join-Path $nativeSource 'tools\tahai\source_provenance.py') --source $nativeSource --build $nativeBuild --output $sourceRecord
   if ($LASTEXITCODE -ne 0) { throw 'Could not capture the release source state.' }
-  # Each release report must bind four outputs produced during this actual
+  # Each release report must bind the browser, Windows services and their tests
+  # produced during this actual
   # successful build interval. Preserve old binaries before asking Ninja to
   # relink them; never change timestamps or relabel a previous build as fresh.
   $previousArtifacts = Join-Path $runDirectory 'previous-artifacts'
   New-Item -ItemType Directory -Path $previousArtifacts | Out-Null
   $buildPrefix = [IO.Path]::GetFullPath($nativeBuild).TrimEnd('\') + '\'
   foreach ($name in @('chrome.exe', 'chrome.dll', 'browser_tests.exe',
-                      'tahai_mission_service_tests.exe')) {
+                      'tahai_mission_service_tests.exe', 'elevation_service.exe',
+                      'elevated_tracing_service.exe', 'elevation_service_unittests.exe',
+                      'elevated_tracing_service_unittests.exe')) {
     $artifactPath = [IO.Path]::GetFullPath((Join-Path $nativeBuild $name))
     $archivePath = [IO.Path]::GetFullPath((Join-Path $previousArtifacts $name))
     if (-not $artifactPath.StartsWith($buildPrefix, [StringComparison]::OrdinalIgnoreCase) -or
@@ -206,7 +223,7 @@ try {
   $buildExit = 1
   for ($attempt = 1; $attempt -le $MaxBuildAttempts; $attempt++) {
     $attemptLog = Join-Path $runDirectory ("build-attempt-{0}.log" -f $attempt)
-    & $python $logged --log $attemptLog -- (Join-Path $nativeSource 'third_party\ninja\ninja.exe') -C $BuildDirectory -j $Jobs chrome browser_tests tahai_mission_service_tests
+    & $python $logged --log $attemptLog -- (Join-Path $nativeSource 'third_party\ninja\ninja.exe') -C $BuildDirectory -j $Jobs chrome browser_tests tahai_mission_service_tests elevation_service elevated_tracing_service elevation_service_unittests elevated_tracing_service_unittests
     $buildExit = $LASTEXITCODE
     if ($buildExit -eq 0) {
       # The evidence verifier rejects failed lines. It receives this clean,
@@ -236,7 +253,7 @@ try {
 
   $stage = 'all native TAHAI tests'
   Write-UpgradeStatus 'running'
-  $testResults = [ordered]@{isolatedTestSession=$IsolatedTestSession; nativeExitCode=$null; browserExitCode=$null}
+  $testResults = [ordered]@{isolatedTestSession=$IsolatedTestSession; nativeExitCode=$null; browserExitCode=$null; elevationExitCode=$null; tracingExitCode=$null}
   $testResultPath = Join-Path $runDirectory 'test-results.json'
   & $python $logged --log (Join-Path $runDirectory 'native-tests.log') -- (Join-Path $nativeBuild 'tahai_mission_service_tests.exe') '--test-launcher-jobs=1' '--test-launcher-retry-limit=0' ('--test-launcher-summary-output=' + (Join-Path $runDirectory 'native-tests.json'))
   $testResults.nativeExitCode = $LASTEXITCODE
@@ -252,12 +269,39 @@ try {
   $testResults | ConvertTo-Json | Set-Content -LiteralPath $testResultPath -Encoding utf8
   if ($testResults.browserExitCode -ne 0) { Write-UpgradeStatus 'failed' $testResults.browserExitCode; exit $testResults.browserExitCode }
   $null = Assert-TahaiTestSummary (Read-TahaiEvidenceJson (Join-Path $runDirectory 'browser-tests.json')) @('TahaiWebUIBrowserTest.TahaiMissionControlLoadsThroughPublicRoute') 'browser tests' @('*Tahai*')
+
+  # These scopes exercise the real service class factories and changed COM
+  # interfaces with process-local mock callers. System-wide service installation
+  # and cross-integrity tests are separate isolated-VM acceptance work.
+  foreach ($gate in @(
+      @{name='elevation'; binary='elevation_service_unittests.exe'; scope='ServiceMainTest.*'; required='ServiceMainTest.TahaiConfiguredInterfaceMatchesTypeLibrary'},
+      @{name='tracing'; binary='elevated_tracing_service_unittests.exe'; scope='SystemTracingSessionTest.*'; required='SystemTracingSessionTest.TahaiConfiguredInterfaceMatchesTypeLibrary'})) {
+    $stage = $gate.name + ' COM interface regression tests'
+    Write-UpgradeStatus 'running'
+    $summary = Join-Path $runDirectory ($gate.name + '-tests.json')
+    & $python $logged --log (Join-Path $runDirectory ($gate.name + '-tests.log')) -- (Join-Path $nativeBuild $gate.binary) ('--gtest_filter=' + $gate.scope) '--test-launcher-jobs=1' '--test-launcher-retry-limit=0' ('--test-launcher-summary-output=' + $summary)
+    $code = $LASTEXITCODE
+    $testResults[$gate.name + 'ExitCode'] = $code
+    $testResults | ConvertTo-Json | Set-Content -LiteralPath $testResultPath -Encoding utf8
+    if ($code -ne 0) { Write-UpgradeStatus 'failed' $code; exit $code }
+    $null = Assert-TahaiTestSummary (Read-TahaiEvidenceJson $summary) @($gate.required) $stage @($gate.scope)
+  }
   $stage = 'complete'
   Write-UpgradeStatus 'passed'
 } catch {
-  $_ | Out-String | Set-Content -LiteralPath (Join-Path $runDirectory 'runner-error.log')
-  Write-UpgradeStatus 'failed' 1
-  throw
+  $runnerFailure = $_
+  # Lock acquisition can fail before there is a run directory. Preserve that
+  # original diagnostic; a null path or failed evidence write must not hide it.
+  try {
+    if (-not [string]::IsNullOrWhiteSpace($runDirectory) -and
+        (Test-Path -LiteralPath $runDirectory -PathType Container)) {
+      $runnerFailure | Out-String | Set-Content -LiteralPath (Join-Path $runDirectory 'runner-error.log')
+    }
+    Write-UpgradeStatus 'failed' 1
+  } catch {
+    Write-Warning ("Could not save release-runner failure evidence: {0}" -f $_.Exception.Message)
+  }
+  throw $runnerFailure
 } finally {
   Release-TahaiBuildLock
   Pop-Location

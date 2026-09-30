@@ -4,6 +4,8 @@
 
 #import "chrome/browser/ui/cocoa/main_menu_builder.h"
 
+#include <AvailabilityVersions.h>
+
 #include "base/feature_list.h"
 #include "base/i18n/rtl.h"
 #include "base/mac/mac_util.h"
@@ -14,7 +16,6 @@
 #include "chrome/browser/feedback/report_unsafe_site_dialog.h"
 #include "chrome/browser/ui/cocoa/accelerators_cocoa.h"
 #include "chrome/browser/ui/cocoa/history_menu_bridge.h"
-#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/chrome_features.h"
@@ -27,23 +28,32 @@
 #import "ui/base/l10n/l10n_util_mac.h"
 #include "ui/strings/grit/ui_strings.h"
 
-@interface NSImage (SPI)
+#if !defined(__MAC_27_0)
 
-// Creates a system symbol image from SF Symbols with the specified name and
-// value. Differs from +imageWithSystemSymbolName:accessibilityDescription: in
-// that it allows instantiation of private symbols, those intended for
-// Apple-only usage (see the SFSymbols.framework's bundles CoreGlyphs vs
-// CoreGlyphsPrivate).
-+ (instancetype)imageWithPrivateSystemSymbolName:(NSString*)name
-                        accessibilityDescription:(NSString*)description;
+@interface NSMenuItem (macOS27SDK)
+
+typedef NS_ENUM(NSInteger, NSMenuItemImageVisibility) {
+  NSMenuItemImageVisibilityAutomatic = 0,
+  NSMenuItemImageVisibilityVisible = 1,
+  NSMenuItemImageVisibilityHidden = 2
+} API_AVAILABLE(macos(27.0));
+
+@property NSMenuItemImageVisibility preferredImageVisibility API_AVAILABLE(
+    macos(27.0));
 
 @end
+
+#endif
 
 namespace chrome {
 namespace {
 
 using Item = internal::MenuItemBuilder;
 
+// Capitalization Policy (go/chrome-capitalization):
+// Native macOS system menu bar items follow Apple Human Interface
+// Guidelines (HIG) and must use Title Case (via `_MAC` string variants or
+// `use_titlecase`).
 NSMenuItem* BuildAppMenu(NSApplication* nsapp,
                          id app_delegate,
                          const std::u16string& product_name,
@@ -55,7 +65,7 @@ NSMenuItem* BuildAppMenu(NSApplication* nsapp,
       // determine what is displayed in bold in the menu bar as the app menu
       // title. The Info.plist's CFBundleName value is what is actually used.
       Item(IDS_APP_MENU_PRODUCT_NAME)
-          .tag(kMacChromeMenuId)
+          .tag(IDC_CHROME_MENU)
           .submenu({
               Item(IDS_ABOUT_MAC)
                   .string_format_1(product_name)
@@ -72,7 +82,7 @@ NSMenuItem* BuildAppMenu(NSApplication* nsapp,
                   .command_id(IDC_WEB_APP_SETTINGS)
                   .remove_if(!is_pwa),
               Item().is_separator(),
-              Item(IDS_CLEAR_BROWSING_DATA)
+              Item(IDS_CLEAR_BROWSING_DATA_MAC)
                   .command_id(IDC_CLEAR_BROWSING_DATA)
                   .remove_if(is_pwa),
               Item(IDS_IMPORT_SETTINGS_MENU_MAC)
@@ -124,7 +134,7 @@ NSMenuItem* BuildFileMenu(NSApplication* nsapp,
   // clang-format off
   NSMenuItem* item =
       Item(IDS_FILE_MENU_MAC)
-          .tag(kMacFileMenuId)
+          .tag(IDC_FILE_MENU)
           .submenu({
               Item(IDS_NEW_TAB_MAC)
                   .command_id(IDC_NEW_TAB)
@@ -133,6 +143,9 @@ NSMenuItem* BuildFileMenu(NSApplication* nsapp,
                   .command_id(IDC_NEW_WINDOW),
               Item(IDS_NEW_INCOGNITO_WINDOW_MAC)
                   .command_id(IDC_NEW_INCOGNITO_WINDOW)
+                  .remove_if(is_pwa),
+              Item(IDS_NEW_ISOLATED_WINDOW_MAC)
+                  .command_id(IDC_NEW_ISOLATED_WINDOW)
                   .remove_if(is_pwa),
               Item(IDS_REOPEN_CLOSED_TABS_MAC)
                   .command_id(IDC_RESTORE_TAB)
@@ -183,7 +196,7 @@ NSMenuItem* BuildEditMenu(NSApplication* nsapp,
   // clang-format off
   NSMenuItem* item =
       Item(IDS_EDIT_MENU_MAC)
-          .tag(kEditMenuId)
+          .tag(IDC_EDIT_MENU)
           .submenu({
               Item(IDS_EDIT_UNDO_MAC)
                   .tag(IDC_CONTENT_CONTEXT_UNDO)
@@ -217,7 +230,7 @@ NSMenuItem* BuildEditMenu(NSApplication* nsapp,
                   .action(@selector(selectAll:)),
               Item().is_separator(),
               Item(IDS_EDIT_FIND_SUBMENU_MAC)
-                  .tag(kFindMenuId)
+                  .tag(IDC_FIND_MENU)
                   .submenu({
                       Item(IDS_EDIT_SEARCH_WEB_MAC)
                           .command_id(IDC_FOCUS_SEARCH),
@@ -236,7 +249,7 @@ NSMenuItem* BuildEditMenu(NSApplication* nsapp,
                           .key_equivalent(@"j", NSEventModifierFlagCommand),
               }),
               Item(IDS_EDIT_SPELLING_GRAMMAR_MAC)
-                  .tag(kSpellcheckMenuId)
+                  .tag(IDC_SPELLCHECK_MENU)
                   .submenu({
                       Item(IDS_EDIT_SHOW_SPELLING_GRAMMAR_MAC)
                           .action(@selector(showGuessPanel:))
@@ -294,7 +307,7 @@ NSMenuItem* BuildViewMenu(NSApplication* nsapp,
   // clang-format off
   NSMenuItem* item =
       Item(IDS_VIEW_MENU_MAC)
-          .tag(kMacViewMenuId)
+          .tag(IDC_VIEW_MENU)
           .submenu({
               Item(IDS_BOOKMARK_BAR_ALWAYS_SHOW_MAC)
                   .command_id(IDC_SHOW_BOOKMARK_BAR)
@@ -311,13 +324,11 @@ NSMenuItem* BuildViewMenu(NSApplication* nsapp,
                    .command_id(IDC_SHOW_AI_MODE_OMNIBOX_BUTTON),
               Item(IDS_CONTEXT_MENU_SHOW_SEARCH_TOOLS)
                   .command_id(IDC_SHOW_SEARCH_TOOLS),
-              Item(IDS_SWITCH_TO_VERTICAL_TAB)
-                  .command_id(IDC_TOGGLE_VERTICAL_TABS)
-                  .remove_if(!tabs::IsVerticalTabsFeatureEnabled()),
+               Item(IDS_SWITCH_TO_VERTICAL_TAB_MAC)
+                   .command_id(IDC_TOGGLE_VERTICAL_TABS),
               Item(IDS_VERTICAL_TABS_VIEW_MENU_TOGGLE_COLLAPSE)
                   .command_id(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE)
-                  .key_equivalent(@"L", NSEventModifierFlagCommand)
-                  .remove_if(!tabs::IsVerticalTabsFeatureEnabled()),
+                  .key_equivalent(@"L", NSEventModifierFlagCommand),
               Item(IDS_CUSTOMIZE_TOUCH_BAR)
                   .tag(IDC_CUSTOMIZE_TOUCH_BAR)
                   .action(@selector(toggleTouchBarCustomizationPalette:))
@@ -350,7 +361,7 @@ NSMenuItem* BuildViewMenu(NSApplication* nsapp,
                   .command_id(IDC_ROUTE_MEDIA),
               Item().is_separator(),
               Item(IDS_DEVELOPER_MENU_MAC)
-                  .tag(kDeveloperMenuId)
+                  .tag(IDC_DEVELOPER_MENU)
                   .submenu({
                       Item(IDS_VIEW_SOURCE_MAC)
                           .command_id(IDC_VIEW_SOURCE),
@@ -377,7 +388,7 @@ NSMenuItem* BuildHistoryMenu(NSApplication* nsapp,
   // clang-format off
   NSMenuItem* item =
       Item(IDS_HISTORY_MENU_MAC)
-          .tag(kMacHistoryMenuId)
+          .tag(IDC_HISTORY_MENU)
           .submenu({
               Item(IDS_HISTORY_HOME_MAC)
                   .command_id(IDC_HOME)
@@ -403,7 +414,7 @@ NSMenuItem* BuildHistoryMenu(NSApplication* nsapp,
               Item().is_separator()
                   .tag(HistoryMenuBridge::kShowFullSeparator)
                   .remove_if(is_pwa),
-              Item(IDS_HISTORY_SHOWFULLHISTORY_LINK)
+              Item(IDS_HISTORY_SHOWFULLHISTORY_MAC)
                   .command_id(IDC_SHOW_HISTORY)
                   .sf_symbol(
                       @"clock.arrow.trianglehead.counterclockwise.rotate.90")
@@ -424,8 +435,8 @@ NSMenuItem* BuildBookmarksMenu(NSApplication* nsapp,
   }
 
   const int bookmarks_manager_string_id =
-      features::IsMenuSimplificationEnabled() ? IDS_BOOKMARK_MANAGER_V2
-                                              : IDS_BOOKMARK_MANAGER;
+      features::IsMenuSimplificationEnabled() ? IDS_BOOKMARK_MANAGER_V2_MAC
+                                              : IDS_BOOKMARK_MANAGER_MAC;
   // clang-format off
   NSMenuItem* item =
       Item(IDS_BOOKMARKS_MENU)
@@ -435,9 +446,9 @@ NSMenuItem* BuildBookmarksMenu(NSApplication* nsapp,
                   .command_id(IDC_SHOW_BOOKMARK_MANAGER),
               Item().is_separator()
                   .tag(IDC_BOOKMARK_THIS_TAB),
-              Item(IDS_BOOKMARK_THIS_TAB)
+              Item(IDS_BOOKMARK_THIS_TAB_MAC)
                   .command_id(IDC_BOOKMARK_THIS_TAB),
-              Item(IDS_BOOKMARK_ALL_TABS)
+              Item(IDS_BOOKMARK_ALL_TABS_MAC)
                   .command_id(IDC_BOOKMARK_ALL_TABS),
               Item().is_separator()
                   .tag(IDC_BOOKMARK_THIS_TAB),
@@ -456,7 +467,7 @@ NSMenuItem* BuildPeopleMenu(NSApplication* nsapp,
   // clang-format off
   NSMenuItem* item =
       Item(IDS_PROFILES_MENU_NAME)
-          .tag(kMacProfileMainMenuId)
+          .tag(IDC_PROFILE_MAIN_MENU)
           .submenu({})
           .Build();
   // clang-format on
@@ -471,7 +482,7 @@ NSMenuItem* BuildWindowMenu(NSApplication* nsapp,
   // clang-format off
   NSMenuItem* item =
       Item(IDS_WINDOW_MENU_MAC)
-          .tag(kMacWindowMenuId)
+          .tag(IDC_WINDOW_MENU)
           .submenu({
               Item(IDS_MINIMIZE_WINDOW_MAC)
                   .tag(IDC_MINIMIZE_WINDOW)
@@ -483,9 +494,9 @@ NSMenuItem* BuildWindowMenu(NSApplication* nsapp,
               Item(IDS_SHOW_AS_TAB)
                   .command_id(IDC_SHOW_AS_TAB)
                   .remove_if(is_pwa),
-              Item(IDS_NAME_WINDOW)
-                  .command_id(IDC_NAME_WINDOW)
-                  .remove_if(is_pwa),
+               Item(IDS_NAME_WINDOW_MAC)
+                   .command_id(IDC_NAME_WINDOW)
+                   .remove_if(is_pwa),
               Item().is_separator()
                   .remove_if(is_pwa),
               Item(IDS_SHOW_DOWNLOADS_MAC)
@@ -500,7 +511,7 @@ NSMenuItem* BuildWindowMenu(NSApplication* nsapp,
               Item().is_separator()
                   .remove_if(is_pwa),
               Item(IDS_ALL_WINDOWS_FRONT_MAC)
-                  .tag(kMacAllWindowsMenuId)
+                  .tag(IDC_ALL_WINDOWS_FRONT)
                   .action(@selector(arrangeInFront:)),
               Item().is_separator(),
           })
@@ -522,7 +533,7 @@ NSMenuItem* BuildTabMenu(NSApplication* nsapp,
   // clang-format off
   NSMenuItem* item =
       Item(IDS_TAB_MENU_MAC)
-          .tag(kMacTabMenuId)
+          .tag(IDC_TAB_MENU)
           .submenu({
               Item(is_rtl ? IDS_TAB_CXMENU_NEWTABTOLEFT
                           : IDS_TAB_CXMENU_NEWTABTORIGHT)
@@ -568,6 +579,8 @@ NSMenuItem* BuildTabMenu(NSApplication* nsapp,
                   .set_hidden(true),
               Item(IDS_MOVE_TAB_TO_NEW_WINDOW)
                   .command_id(IDC_MOVE_TAB_TO_NEW_WINDOW),
+              Item(IDS_TAB_CXMENU_ADD_TAB_TO_NEW_SPLIT)
+                  .command_id(IDC_NEW_SPLIT_TAB),
               Item(IDS_SEARCH_TABS)
                   .command_id(IDC_TAB_SEARCH),
               Item().is_separator(),
@@ -728,12 +741,12 @@ NSMenuItem* MenuItemBuilder::Build() const {
   item.keyEquivalentModifierMask = key_equivalent_flags;
   item.alternate = is_alternate_;
   item.hidden = is_hidden_;
-  if (@available(macOS 26, *)) {
-    if (sf_symbol_name_) {
-      // Some action images that macOS uses by default are private and aren't
-      // accessible via normal lookup, so use SPI.
-      item.image = [NSImage imageWithPrivateSystemSymbolName:sf_symbol_name_
-                                    accessibilityDescription:nil];
+  if (sf_symbol_name_) {
+    item.image = [NSImage imageWithSystemSymbolName:sf_symbol_name_
+                           accessibilityDescription:nil];
+    if (@available(macOS 27, *)) {
+      // No, really, please actually show the set image.
+      item.preferredImageVisibility = NSMenuItemImageVisibilityVisible;
     }
   }
 

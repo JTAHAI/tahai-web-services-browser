@@ -54,12 +54,12 @@ import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutView.Str
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutView.StripLayoutViewOnLongClickHandler;
 import org.chromium.chrome.browser.compositor.overlays.strip.TabLoadTracker.TabLoadTrackerCallback;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
-import org.chromium.chrome.browser.tab.MediaState;
+import org.chromium.components.tabs.TabAlert;
 import org.chromium.ui.resources.ResourceManager;
 
 /** Tests for {@link TabStripSceneLayer}. */
 @RunWith(BaseRobolectricTestRunner.class)
-@Config(manifest = Config.NONE, qualifiers = "sw600dp")
+@Config(qualifiers = "sw600dp")
 public class TabStripSceneLayerTest {
 
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
@@ -183,7 +183,7 @@ public class TabStripSceneLayerTest {
                                 mLayoutUpdateHost,
                                 false,
                                 false,
-                                MediaState.NONE));
+                                /* alertState= */ TabAlert.NONE));
         mTabStripSceneLayer.initializeNativeForTesting();
         mStripLayoutTabs = new StripLayoutTab[] {mStripLayoutTab};
         mStripGroupTitles = new StripLayoutGroupTitle[] {mStripGroupTitle};
@@ -361,6 +361,8 @@ public class TabStripSceneLayerTest {
                         anyFloat(),
                         anyFloat(),
                         anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
                         anyBoolean(),
                         anyBoolean(),
                         anyBoolean(),
@@ -381,7 +383,6 @@ public class TabStripSceneLayerTest {
                                 FOLIO_FOOT_LENGTH_DP
                                         * mContext.getResources().getDisplayMetrics().density),
                         anyBoolean(),
-                        anyFloat(),
                         anyFloat(),
                         anyFloat(),
                         anyInt(),
@@ -440,6 +441,8 @@ public class TabStripSceneLayerTest {
                         anyFloat(),
                         anyFloat(),
                         anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
                         anyBoolean(),
                         anyBoolean(),
                         anyBoolean(),
@@ -458,7 +461,6 @@ public class TabStripSceneLayerTest {
                                 FOLIO_FOOT_LENGTH_DP
                                         * mContext.getResources().getDisplayMetrics().density),
                         anyBoolean(),
-                        anyFloat(),
                         anyFloat(),
                         anyFloat(),
                         anyInt(),
@@ -517,6 +519,8 @@ public class TabStripSceneLayerTest {
                         anyFloat(),
                         anyFloat(),
                         anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
                         anyBoolean(),
                         anyBoolean(),
                         anyBoolean(),
@@ -537,7 +541,6 @@ public class TabStripSceneLayerTest {
                                 FOLIO_FOOT_LENGTH_DP
                                         * mContext.getResources().getDisplayMetrics().density),
                         anyBoolean(),
-                        anyFloat(),
                         anyFloat(),
                         anyFloat(),
                         anyInt(),
@@ -595,6 +598,8 @@ public class TabStripSceneLayerTest {
                         anyFloat(),
                         anyFloat(),
                         anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
                         anyBoolean(),
                         anyBoolean(),
                         anyBoolean(),
@@ -615,7 +620,6 @@ public class TabStripSceneLayerTest {
                                 FOLIO_FOOT_LENGTH_DP
                                         * mContext.getResources().getDisplayMetrics().density),
                         anyBoolean(),
-                        anyFloat(),
                         anyFloat(),
                         anyFloat(),
                         anyInt(),

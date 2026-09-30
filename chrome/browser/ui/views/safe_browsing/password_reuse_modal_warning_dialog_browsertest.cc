@@ -5,8 +5,8 @@
 #include "chrome/browser/ui/views/safe_browsing/password_reuse_modal_warning_dialog.h"
 
 #include "base/functional/bind.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
@@ -31,7 +31,7 @@ class PasswordReuseModalWarningTest : public DialogBrowserTest {
   // DialogBrowserTest:
   void ShowUi(const std::string& name) override {
     content::WebContents* web_contents =
-        browser()->tab_strip_model()->GetActiveWebContents();
+        browser()->GetTabStripModel()->GetActiveWebContents();
     ReusedPasswordAccountType password_type;
     password_type.set_account_type(ReusedPasswordAccountType::GSUITE);
     auto* dialog = new PasswordReuseModalWarningDialog(
@@ -45,11 +45,9 @@ class PasswordReuseModalWarningTest : public DialogBrowserTest {
   }
 
   void CloseActiveWebContents() {
-    TabStripModel* tab_strip_model = browser()->tab_strip_model();
-    tab_strip_model->CloseWebContentsAt(
-        tab_strip_model->GetIndexOfWebContents(
-            tab_strip_model->GetActiveWebContents()),
-        TabCloseTypes::CLOSE_NONE);
+    TabStripModel* tab_strip_model = browser()->GetTabStripModel();
+    tab_strip_model->CloseWebContents(tab_strip_model->GetActiveWebContents(),
+                                      TabCloseTypes::CLOSE_NONE);
   }
 
   void DialogCallback(WarningAction action) { latest_user_action_ = action; }

@@ -4,9 +4,9 @@
 
 #include "third_party/blink/renderer/bindings/core/v8/shadow_realm_context.h"
 
+#include "third_party/blink/renderer/bindings/core/v8/script_state_impl.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/shadow_realm/shadow_realm_global_scope.h"
-#include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/bindings/v8_dom_wrapper.h"
 #include "third_party/blink/renderer/platform/bindings/v8_per_context_data.h"
 #include "third_party/blink/renderer/platform/context_lifecycle_observer.h"
@@ -77,21 +77,20 @@ v8::MaybeLocal<v8::Context> OnCreateShadowRealmV8Context(
       shadow_realm_global_scope->GetWrapperTypeInfo();
 
   // Create a new v8::Context.
-  v8::ExtensionConfiguration* extension_configuration = nullptr;
   v8::Local<v8::ObjectTemplate> global_template =
       wrapper_type_info->GetV8ClassTemplate(isolate, *world)
           .As<v8::FunctionTemplate>()
           ->InstanceTemplate();
   v8::Local<v8::Object> global_proxy;  // Will request a new global proxy.
   v8::Local<v8::Context> context =
-      v8::Context::New(isolate, extension_configuration, global_template,
-                       global_proxy, v8::DeserializeInternalFieldsCallback(),
+      v8::Context::New(isolate, nullptr, global_template, global_proxy,
+                       v8::DeserializeInternalFieldsCallback(),
                        initiator_execution_context->GetMicrotaskQueue());
   context->UseDefaultSecurityToken();
 
   // Associate the Blink object with the v8::Context.
-  ScriptState* script_state =
-      ScriptState::Create(context, world, shadow_realm_global_scope);
+  ScriptState* script_state = MakeGarbageCollected<ScriptStateImpl>(
+      context, world, *shadow_realm_global_scope);
 
   // Associate the Blink object with the v8::Objects.
   global_proxy = context->Global();

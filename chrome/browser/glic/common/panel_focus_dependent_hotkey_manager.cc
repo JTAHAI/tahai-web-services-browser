@@ -8,14 +8,17 @@
 #include "base/metrics/user_metrics_action.h"
 #include "chrome/browser/glic/common/view_scoped_registration_delegate.h"
 #include "chrome/browser/glic/public/features.h"
-#include "chrome/common/chrome_features.h"
 
 namespace glic {
 
 namespace {
 
 static constexpr std::array kSupportedCommands = {
+// On Android, kClose is handled in GlicSidePanelUi to let Glic's internal
+// WebContents process Escape key first.
+#if !BUILDFLAG(IS_ANDROID)
     glic::LocalHotkeyManager::Command::kClose,
+#endif
     glic::LocalHotkeyManager::Command::kFocusToggle,
     glic::LocalHotkeyManager::Command::kZoomIn,
     glic::LocalHotkeyManager::Command::kZoomOut,
@@ -39,9 +42,20 @@ PanelFocusDependentHotkeyManager::~PanelFocusDependentHotkeyManager() = default;
 
 bool PanelFocusDependentHotkeyManager::AcceleratorPressed(
     LocalHotkeyManager::Command command) {
+  return AcceleratorPressed(command, ui::Accelerator());
+}
+
+bool PanelFocusDependentHotkeyManager::AcceleratorPressed(
+    LocalHotkeyManager::Command command,
+    const ui::Accelerator& accelerator) {
   if (!panel_ || !panel_->HasFocus()) {
     return false;
   }
+
+  // Derive source for zoom actions.
+  ZoomSource zoom_source = accelerator.IsShiftDown()
+                               ? ZoomSource::kHotkeyWithShift
+                               : ZoomSource::kHotkey;
 
   switch (command) {
     case LocalHotkeyManager::Command::kClose: {
@@ -61,22 +75,13 @@ bool PanelFocusDependentHotkeyManager::AcceleratorPressed(
       }
       return false;
     case LocalHotkeyManager::Command::kZoomIn:
-      if (!base::FeatureList::IsEnabled(features::kGlicClientZoomControl)) {
-        return false;
-      }
-      panel_->Zoom(mojom::ZoomAction::kZoomIn);
+      panel_->Zoom(mojom::ZoomAction::kZoomIn, zoom_source);
       return true;
     case LocalHotkeyManager::Command::kZoomOut:
-      if (!base::FeatureList::IsEnabled(features::kGlicClientZoomControl)) {
-        return false;
-      }
-      panel_->Zoom(mojom::ZoomAction::kZoomOut);
+      panel_->Zoom(mojom::ZoomAction::kZoomOut, zoom_source);
       return true;
     case LocalHotkeyManager::Command::kZoomReset:
-      if (!base::FeatureList::IsEnabled(features::kGlicClientZoomControl)) {
-        return false;
-      }
-      panel_->Zoom(mojom::ZoomAction::kReset);
+      panel_->Zoom(mojom::ZoomAction::kReset, zoom_source);
       return true;
 #if BUILDFLAG(IS_WIN)
     case LocalHotkeyManager::Command::kTitleBarContextMenu:

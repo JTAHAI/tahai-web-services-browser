@@ -24,6 +24,7 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.components.autofill.AutofillPolicyDataCategory;
 import org.chromium.components.autofill.AutofillProfile;
 import org.chromium.components.autofill.IbanRecordType;
 import org.chromium.components.autofill.VirtualCardEnrollmentState;
@@ -997,18 +998,32 @@ public class PersonalDataManager implements Destroyable {
     }
 
     /**
-     * @return Whether the Autofill feature for Profiles (addresses) is enabled.
+     * This checks both the underlying user setting ({@link Pref#AUTOFILL_PROFILE_ENABLED}) and
+     * whether address / contact info autofill is blocked by the {@code AutofillSettings} enterprise
+     * policy ({@code autofill.types_blocked}).
+     *
+     * @return True if profile autofill is enabled and not blocked by policy, false otherwise.
      */
     public boolean isAutofillProfileEnabled() {
-        return mPrefService.getBoolean(Pref.AUTOFILL_PROFILE_ENABLED);
+        return mPrefService.getBoolean(Pref.AUTOFILL_PROFILE_ENABLED)
+                && !isAutofillTypeDisabledByEnterprisePolicy(
+                        AutofillPolicyDataCategory.CONTACT_INFO);
     }
 
     /**
-     * @return Whether the Autofill feature for Payment Methods is enabled.
+     * This checks both the underlying user setting ({@link Pref#AUTOFILL_CREDIT_CARD_ENABLED}) and
+     * whether payments autofill is blocked by the {@code AutofillSettings} enterprise policy
+     * ({@code autofill.types_blocked}). If an enterprise policy disables payments, this will return
+     * {@code false} so that payment autofill operations are suppressed and the setting is treated
+     * as disabled.
+     *
+     * @return True if payment methods autofill is enabled and not blocked by policy, false
+     *     otherwise.
      */
     public boolean isAutofillPaymentMethodsEnabled() {
         // TODO(crbug.com/40903277): Rename pref to AUTOFILL_PAYMENT_METHODS_ENABLED.
-        return mPrefService.getBoolean(Pref.AUTOFILL_CREDIT_CARD_ENABLED);
+        return mPrefService.getBoolean(Pref.AUTOFILL_CREDIT_CARD_ENABLED)
+                && !isAutofillTypeDisabledByEnterprisePolicy(AutofillPolicyDataCategory.PAYMENTS);
     }
 
     /**
@@ -1022,6 +1037,54 @@ public class PersonalDataManager implements Destroyable {
                 AUTOFILL_ADDRESS_OPT_IN_CHANGE_HISTOGRAM_NAME,
                 enable ? AutofillAddressOptInChange.OPT_IN : AutofillAddressOptInChange.OPT_OUT,
                 AutofillAddressOptInChange.HISTOGRAM_BUCKET_COUNT);
+    }
+
+    /**
+     * @return The list of email addresses that have verification state.
+     */
+    public List<String> getEmailVerificationAddresses() {
+        ThreadUtils.assertOnUiThread();
+        return PersonalDataManagerJni.get()
+                .getEmailVerificationAddresses(mPersonalDataManagerAndroid);
+    }
+
+    /**
+     * @param email The email address to get the issuer for.
+     * @return The issuer site for the verified email address, or empty/null if not found.
+     */
+    public String getEmailVerificationIssuer(String email) {
+        ThreadUtils.assertOnUiThread();
+        return PersonalDataManagerJni.get()
+                .getEmailVerificationIssuer(mPersonalDataManagerAndroid, email);
+    }
+
+    /**
+     * Removes the email address from the email verification state.
+     *
+     * @param email The email address to remove.
+     */
+    public void removeEmailVerificationAddress(String email) {
+        ThreadUtils.assertOnUiThread();
+        PersonalDataManagerJni.get()
+                .removeEmailVerificationAddress(mPersonalDataManagerAndroid, email);
+    }
+
+    /**
+     * @return Whether email verification is enabled.
+     */
+    public boolean isEmailVerificationEnabled() {
+        return mPrefService.getBoolean(Pref.AUTOFILL_EMAIL_VERIFICATION_ENABLED);
+    }
+
+    /**
+     * @param enabled Whether email verification should be enabled.
+     */
+    public void setEmailVerificationEnabled(boolean enabled) {
+        mPrefService.setBoolean(Pref.AUTOFILL_EMAIL_VERIFICATION_ENABLED, enabled);
+    }
+
+    public boolean isEmailVerificationManaged() {
+        return mPrefService.isManagedPreference(Pref.AUTOFILL_EMAIL_VERIFICATION_ENABLED);
     }
 
     /**
@@ -1096,6 +1159,17 @@ public class PersonalDataManager implements Destroyable {
      */
     public boolean isAutofillProfileManaged() {
         return PersonalDataManagerJni.get().isAutofillProfileManaged(mPersonalDataManagerAndroid);
+    }
+
+    /**
+     * @param category The category of Autofill data.
+     * @return Whether the specified Autofill data category is blocked by the AutofillSettings
+     *     enterprise policy.
+     */
+    public boolean isAutofillTypeDisabledByEnterprisePolicy(
+            @AutofillPolicyDataCategory int category) {
+        return PersonalDataManagerJni.get()
+                .isAutofillTypeDisabledByEnterprisePolicy(mPersonalDataManagerAndroid, category);
     }
 
     /**
@@ -1265,6 +1339,9 @@ public class PersonalDataManager implements Destroyable {
 
         boolean isAutofillProfileManaged(long nativePersonalDataManagerAndroid);
 
+        boolean isAutofillTypeDisabledByEnterprisePolicy(
+                long nativePersonalDataManagerAndroid, @AutofillPolicyDataCategory int category);
+
         boolean isAutofillCreditCardManaged(long nativePersonalDataManagerAndroid);
 
         @JniType("std::string")
@@ -1299,5 +1376,15 @@ public class PersonalDataManager implements Destroyable {
                 long nativePersonalDataManagerAndroid);
 
         BnplIssuerForSettings[] getBnplIssuersForSettings(long nativePersonalDataManagerAndroid);
+
+        @JniType("std::vector<std::string>")
+        List<String> getEmailVerificationAddresses(long nativePersonalDataManagerAndroid);
+
+        @JniType("std::string")
+        String getEmailVerificationIssuer(
+                long nativePersonalDataManagerAndroid, @JniType("std::string") String email);
+
+        void removeEmailVerificationAddress(
+                long nativePersonalDataManagerAndroid, @JniType("std::string") String email);
     }
 }

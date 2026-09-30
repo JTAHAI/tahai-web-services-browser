@@ -62,6 +62,7 @@
 #include "ui/gl/gl_utils.h"
 
 #if BUILDFLAG(IS_ANDROID)
+#include "base/android/device_info.h"
 #include "base/no_destructor.h"
 #include "base/synchronization/lock.h"
 #include "ui/gfx/android/android_surface_control_compat.h"
@@ -751,6 +752,14 @@ GpuFeatureInfo ComputeGpuFeatureInfo(const GPUInfo& gpu_info,
     enabled_driver_bug_workarounds = list->MakeDecision(
         GpuControlList::kOsAny, std::string(), gpu_info, target_test_group,
         gpu_preferences.ignored_gpu_blocklist_entries);
+#if BUILDFLAG(IS_ANDROID)
+    // On Android Desktop, site isolation is active. enable
+    // enable_webgl_timer_query_extensions.
+    if (base::android::device_info::is_desktop()) {
+      enabled_driver_bug_workarounds.insert(
+          gpu::ENABLE_WEBGL_TIMER_QUERY_EXTENSIONS);
+    }
+#endif
     gpu_feature_info.applied_gpu_driver_bug_list_entries =
         list->GetActiveEntries();
 
@@ -1234,6 +1243,24 @@ void RecordNpuHistograms(const GPUInfo& gpu_info) {
 }
 
 #if BUILDFLAG(IS_WIN)
+unsigned int DirectCompositionRootSurfaceBufferCount(
+    GrContextType gr_context_type) {
+  if (switches::GetFakeVsyncIntervalFromCommandLine().has_value()) {
+    // We assume 2 swapchain buffers are intended for a standard 60Hz display.
+    // If we are simulating a high refresh rate, we increase the buffer count
+    // to 10 to prevent blocking on presentation if the actual hardware
+    // display refresh rate is slower.
+    // Note: The simulated refresh rate is used here as a heuristic for
+    // debugging high refresh rate behaviors and does not need to be exact.
+    return 10u;
+  }
+  if (gr_context_type == GrContextType::kGraphiteDawn &&
+      features::SkiaGraphiteTripleBufferedDCompRootSurface()) {
+    return 3u;
+  }
+  return 2u;
+}
+
 std::string DirectMLFeatureLevelToString(uint32_t directml_feature_level) {
   if (directml_feature_level == 0) {
     return "Not supported";

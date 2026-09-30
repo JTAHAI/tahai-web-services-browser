@@ -19,7 +19,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
-#include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
@@ -67,9 +66,6 @@ AXTreeUpdate MakeAXTreeUpdateForTesting(
     const AXNodeData& node12 /* = AXNodeData() */,
     const AXNodeData& node13 /* = AXNodeData() */,
     const AXNodeData& node14 /* = AXNodeData() */) {
-  static base::NoDestructor<AXNodeData> empty_data;
-  int32_t no_id = empty_data->id;
-
   AXTreeUpdate update;
   AXTreeData tree_data;
   tree_data.tree_id = AXTreeID::CreateNewAXTreeID();
@@ -79,32 +75,45 @@ AXTreeUpdate MakeAXTreeUpdateForTesting(
   update.has_tree_data = true;
   update.root_id = node1.id;
   update.nodes.push_back(node1);
-  if (node2.id != no_id)
+  if (node2.id != kInvalidAXNodeID) {
     update.nodes.push_back(node2);
-  if (node3.id != no_id)
+  }
+  if (node3.id != kInvalidAXNodeID) {
     update.nodes.push_back(node3);
-  if (node4.id != no_id)
+  }
+  if (node4.id != kInvalidAXNodeID) {
     update.nodes.push_back(node4);
-  if (node5.id != no_id)
+  }
+  if (node5.id != kInvalidAXNodeID) {
     update.nodes.push_back(node5);
-  if (node6.id != no_id)
+  }
+  if (node6.id != kInvalidAXNodeID) {
     update.nodes.push_back(node6);
-  if (node7.id != no_id)
+  }
+  if (node7.id != kInvalidAXNodeID) {
     update.nodes.push_back(node7);
-  if (node8.id != no_id)
+  }
+  if (node8.id != kInvalidAXNodeID) {
     update.nodes.push_back(node8);
-  if (node9.id != no_id)
+  }
+  if (node9.id != kInvalidAXNodeID) {
     update.nodes.push_back(node9);
-  if (node10.id != no_id)
+  }
+  if (node10.id != kInvalidAXNodeID) {
     update.nodes.push_back(node10);
-  if (node11.id != no_id)
+  }
+  if (node11.id != kInvalidAXNodeID) {
     update.nodes.push_back(node11);
-  if (node12.id != no_id)
+  }
+  if (node12.id != kInvalidAXNodeID) {
     update.nodes.push_back(node12);
-  if (node13.id != no_id)
+  }
+  if (node13.id != kInvalidAXNodeID) {
     update.nodes.push_back(node13);
-  if (node14.id != no_id)
+  }
+  if (node14.id != kInvalidAXNodeID) {
     update.nodes.push_back(node14);
+  }
   return update;
 }
 
@@ -574,18 +583,14 @@ bool BrowserAccessibilityManager::OnAccessibilityEvents(
     BrowserAccessibilityManager* parent_manager =
         has_parent_id ? BrowserAccessibilityManager::FromID(parent_id)
                       : nullptr;
-    if (IsRootFrameManager()) {
-      CHECK(!has_parent_id)
-          << "The root frame must be parentless, root url = "
-          << GetTreeData().url << "\nSupposed parent = "
-          << (parent_manager ? parent_manager->GetTreeData().url
-                             : "[not in map for parent_tree_id]");
+    if (IsRootFrameManager() && !has_parent_id) {
       CHECK(!connected_to_parent_tree_node_)
-          << "Root manager must not be connected to a parent tree node.";
+          << "A root tree with no parent must not be connected to a parent "
+             "tree node.";
     } else {
       CHECK(parent_manager)
-          << "Non-root trees must have a parent manager to "
-             "reach this code, otherwise CanFireEvents() "
+          << "A tree below the root of the full platform tree must have a "
+             "parent manager to reach this code, otherwise CanFireEvents() "
              "should have returned false, has_parent_id = "
           << has_parent_id << "\nCurrent url = " << GetTreeData().url;
       CHECK(connected_to_parent_tree_node_)
@@ -612,8 +617,9 @@ bool BrowserAccessibilityManager::OnAccessibilityEvents(
   // the currently-focused node. We do this so that screen readers are made
   // aware of changes in the tree which might be relevant to subsequent events
   // on the focused node, such as the focused node being a descendant of a
-  // reparented node or a newly-shown dialog box.
-  BrowserAccessibility* focus = GetFocus();
+  // reparented node or a newly-shown dialog box. `raw_ptr` mitigates
+  // crbug.com/549740754.
+  raw_ptr<BrowserAccessibility> focus = GetFocus();
   std::vector<AXEventGenerator::TargetedEvent> deferred_events;
   for (const auto& targeted_event : event_generator()) {
     if (!ShouldFireGeneratedEvent(targeted_event.event_params->event)) {
@@ -1461,7 +1467,7 @@ void BrowserAccessibilityManager::HitTest(const gfx::Point& frame_point,
 
 gfx::Rect BrowserAccessibilityManager::GetViewBoundsInScreenCoordinates()
     const {
-  AXPlatformTreeManagerDelegate* delegate = GetDelegateFromRootManager();
+  AXPlatformTreeManagerDelegate* delegate = GetDelegateForNativeView();
   if (delegate) {
     gfx::Rect bounds = delegate->AccessibilityGetViewBounds();
 
@@ -1949,7 +1955,11 @@ AXTreeManager* BrowserAccessibilityManager::GetParentManager() const {
   if (!parent)
     return nullptr;
 
-  if (delegate_ && delegate_->AccessibilityIsWebContentSource()) {
+  BrowserAccessibilityManager* parent_platform_manager =
+      BrowserAccessibilityManager::FromID(parent->GetTreeID());
+  if (delegate_ && delegate_->AccessibilityIsWebContentSource() &&
+      parent_platform_manager &&
+      parent_platform_manager->IsWebContentSource()) {
     DCHECK(!IsRootFrameManager());
   }
 
@@ -1976,13 +1986,28 @@ BrowserAccessibilityManager::GetDelegateForNativeView() const {
 
 bool BrowserAccessibilityManager::IsRootFrameManager() const {
   // delegate_ can be null in unit tests.
-  if (!delegate_)
+  if (!delegate_) {
     return GetTreeData().parent_tree_id == AXTreeIDUnknown();
+  }
+
+  if (!delegate_->AccessibilityIsWebContentSource()) {
+    return false;
+  }
 
   bool is_root_tree = delegate_->AccessibilityIsRootFrame();
-  DCHECK(!is_root_tree || GetParentTreeID() == AXTreeIDUnknown())
-      << "Root tree has parent tree id of: " << GetParentTreeID();
+
+  if (is_root_tree && GetParentTreeID() != AXTreeIDUnknown()) {
+    BrowserAccessibilityManager* parent_manager =
+        BrowserAccessibilityManager::FromID(GetParentTreeID());
+    DCHECK(parent_manager);
+    DCHECK(!parent_manager->IsWebContentSource());
+  }
   return is_root_tree;
+}
+
+bool BrowserAccessibilityManager::IsWebContentSource() const {
+  // delegate_ can be null in unit tests.
+  return !delegate_ || delegate_->AccessibilityIsWebContentSource();
 }
 
 AXTreeUpdate BrowserAccessibilityManager::SnapshotAXTreeForTesting() {
@@ -2167,7 +2192,7 @@ void BrowserAccessibilityManager::CollectChangedNodesAndParentsForAtomicUpdate(
 
     if (!changed_node->IsIgnored()) {
       BrowserAccessibility* obj = GetFromAXNode(changed_node);
-      if (obj) {
+      if (obj && obj->GetAXPlatformNode()) {
         nodes_needing_update->insert(obj->GetAXPlatformNode());
       }
     }
@@ -2183,7 +2208,7 @@ void BrowserAccessibilityManager::CollectChangedNodesAndParentsForAtomicUpdate(
     // each embedded object character offset.
     if (changed_node->data().role != ax::mojom::Role::kInlineTextBox) {
       BrowserAccessibility* parent_obj = GetFromAXNode(parent);
-      if (parent_obj) {
+      if (parent_obj && parent_obj->GetAXPlatformNode()) {
         nodes_needing_update->insert(parent_obj->GetAXPlatformNode());
       }
     }
@@ -2198,8 +2223,9 @@ void BrowserAccessibilityManager::CollectChangedNodesAndParentsForAtomicUpdate(
     }
 
     BrowserAccessibility* editable_root_obj = GetFromAXNode(editable_root);
-    if (editable_root_obj)
+    if (editable_root_obj && editable_root_obj->GetAXPlatformNode()) {
       nodes_needing_update->insert(editable_root_obj->GetAXPlatformNode());
+    }
   }
 }
 

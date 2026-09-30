@@ -58,6 +58,15 @@ enum VideoCodec;
 enum VideoCodecProfile;
 
 // See media/base/video_types.h for descriptions.
+enum VideoChromaSampling {
+  kUnknown,
+  k420,
+  k422,
+  k444,
+  k400,
+};
+
+// See media/base/video_types.h for descriptions.
 [Native]
 enum VideoPixelFormat;
 
@@ -396,8 +405,6 @@ struct CaptureVersion {
 
 // See media/base/video_frame_metadata.h for a description of fields.
 struct VideoFrameMetadata {
-  bool allow_overlay;
-
   mojo_base.mojom.TimeTicks? capture_begin_time;
   mojo_base.mojom.TimeTicks? capture_end_time;
 

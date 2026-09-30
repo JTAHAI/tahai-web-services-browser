@@ -25,9 +25,11 @@ import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.SettableNonNullObservableSupplier;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
+import org.chromium.chrome.browser.hub.HubColorMixer.ColorBlendProgress;
 import org.chromium.chrome.browser.hub.HubPaneHostView.PaneViewProvider;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
@@ -53,6 +55,8 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, Pane
     private final HubPaneHostCoordinator mHubPaneHostCoordinator;
     private final SingleChildViewManager mOverlayViewManager;
     private final HubLayoutController mHubLayoutController;
+    private final SettableNullableObservableSupplier<ColorBlendProgress>
+            mSwipeAnimationProgressSupplier;
     private final SettableNonNullObservableSupplier<Boolean> mHandleBackPressSupplier =
             ObservableSuppliers.createNonNull(false);
 
@@ -87,6 +91,7 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, Pane
      * @param edgeToEdgeSupplier The supplier of {@link EdgeToEdgeController}.
      * @param searchActivityClient A client for the search activity, used to launch search.
      * @param hubColorMixer Mixes the Hub Overview Color.
+     * @param swipeAnimationProgressSupplier Supplies current swipe transition progress.
      * @param xrSpaceModeObservableSupplier Supplies current XR space mode status. True for XR full
      *     space mode, false otherwise.
      * @param defaultPaneId The default pane's Id.
@@ -102,8 +107,10 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, Pane
             SearchActivityClient searchActivityClient,
             MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeSupplier,
             HubColorMixer hubColorMixer,
+            SettableNullableObservableSupplier<ColorBlendProgress> swipeAnimationProgressSupplier,
             NonNullObservableSupplier<Boolean> xrSpaceModeObservableSupplier,
             @PaneId int defaultPaneId) {
+        mSwipeAnimationProgressSupplier = swipeAnimationProgressSupplier;
         Context context = containerView.getContext();
         mBackPressStateChangeCallback = (ignored) -> updateHandleBackPressSupplier();
         mPaneManager = paneManager;
@@ -317,6 +324,14 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, Pane
 
     @Override
     public void onSwipeSwitchComplete(boolean isSwipeLeft) {
+        mHubToolbarCoordinator.setBlockTabSelectionCallback(false);
+        mSwipeAnimationProgressSupplier.set(null);
+
+        Pane nextPane = getAdjacentPane(isSwipeLeft);
+        if (nextPane == null) {
+            return;
+        }
+
         Pane currentPane = getFocusedPane();
         if (currentPane != null) {
             RecordUserAction.record("Android.Hub.PaneSwiped");
@@ -325,12 +340,7 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, Pane
                     "Android.Hub.PaneSwiped." + direction, currentPane.getPaneId(), PaneId.COUNT);
         }
 
-        mHubToolbarCoordinator.setBlockTabSelectionCallback(false);
-
-        Pane nextPane = getAdjacentPane(isSwipeLeft);
-        if (nextPane != null) {
-            mPaneManager.focusPane(nextPane.getPaneId());
-        }
+        mPaneManager.focusPane(nextPane.getPaneId());
     }
 
     @Override
@@ -340,6 +350,7 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, Pane
             nextPane.notifyLoadHint(LoadHint.WARM);
         }
         mHubToolbarCoordinator.setBlockTabSelectionCallback(false);
+        mSwipeAnimationProgressSupplier.set(null);
     }
 
     @Override
@@ -360,6 +371,13 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, Pane
 
         int targetActiveIndex = currentActiveIndex + (isSwipeLeft ? 1 : -1);
         if (nextActiveIndex == targetActiveIndex) {
+            @HubColorScheme int startScheme = currentPane.getColorScheme();
+            @HubColorScheme int endScheme = nextPane.getColorScheme();
+            if (startScheme != endScheme) {
+                mSwipeAnimationProgressSupplier.set(
+                        new ColorBlendProgress(startScheme, endScheme, progress));
+            }
+
             float absoluteScroll = currentActiveIndex + (isSwipeLeft ? progress : -progress);
             int scrollPosition = (int) absoluteScroll;
             float scrollOffset = absoluteScroll - scrollPosition;
@@ -429,15 +447,10 @@ public class HubCoordinator implements PaneHubController, BackPressHandler, Pane
         int paneCount = orderedPaneIds.size();
         if (paneCount <= 1) return INVALID_PANE_SWITCHER_INDEX;
 
-        // Find the next available pane to switch to.
-        for (int i = 1; i < paneCount; i++) {
-            int nextPaneIndex;
-            if (isSwipeLeft) {
-                nextPaneIndex = (currentPaneIndex + i) % paneCount;
-            } else {
-                nextPaneIndex = (currentPaneIndex - i + paneCount) % paneCount;
-            }
-
+        int step = isSwipeLeft ? 1 : -1;
+        for (int nextPaneIndex = currentPaneIndex + step;
+                nextPaneIndex >= 0 && nextPaneIndex < paneCount;
+                nextPaneIndex += step) {
             @PaneId int nextPaneId = orderedPaneIds.get(nextPaneIndex);
             Pane pane = mPaneManager.getPaneForId(nextPaneId);
             if (pane != null && pane.getReferenceButtonDataSupplier().get() != null) {

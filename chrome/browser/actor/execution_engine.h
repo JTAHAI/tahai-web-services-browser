@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_ACTOR_EXECUTION_ENGINE_H_
 #define CHROME_BROWSER_ACTOR_EXECUTION_ENGINE_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -13,6 +14,7 @@
 #include "base/callback_list.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_forward.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/safe_ref.h"
 #include "base/memory/weak_ptr.h"
@@ -124,7 +126,9 @@ class ExecutionEngine : public ToolDelegate,
     kAllowByContainerConfig = 4,
     // AgentContainerConfig was provided and blocked this site.
     kBlockByContainerConfig = 5,
-    kMaxValue = kBlockByContainerConfig,
+    // The navigation was blocked due to a dangerous MIME type in the response.
+    kBlockByDangerousMimeType = 6,
+    kMaxValue = kBlockByDangerousMimeType,
   };
   // LINT.ThenChange(//tools/metrics/histograms/metadata/actor/enums.xml:GatingDecision)
 
@@ -251,23 +255,22 @@ class ExecutionEngine : public ToolDelegate,
       std::unique_ptr<actor_login::ActorLoginService> actor_login_service);
 
   // Callback invoked when ConfirmCrossOriginNavigation, which spawns an IPC to
-  // the web client, receives its response. This callback gets a boolean
-  // indicating if navigation should continue.
+  // the web client, receives its response.
   using NavigationDecisionCallback =
-      base::OnceCallback<void(bool may_continue)>;
+      base::OnceCallback<void(MayActOnUrlBlockReason)>;
 
-  // Returns a value indicating how the given navigation should be handled
-  // (proceed, cancel and ignore, defer, etc.). This method must only be called
-  // on the primary main frame or a prerendered main frame. `callback` will be
-  // invoked iff this function returns `content::NavigationThrottle::DEFER`.
-  content::NavigationThrottle::ThrottleAction ShouldDeferNavigation(
-      content::NavigationHandle& navigation_handle,
-      NavigationDecisionCallback callback);
+  // Invokes `callback` with a value indicating how the given navigation should
+  // be handled (proceed, cancel and ignore). This method must only be called on
+  // the primary main frame or a prerendered main frame. `callback` will be
+  // invoked after this function returns.
+  void ShouldNavigationCommit(content::NavigationHandle& navigation_handle,
+                              NavigationDecisionCallback callback);
+
+  // Cancels all pending navigation gating checks, resolving their callbacks
+  // with a negative decision (e.g., false or kTaskWentAway).
+  void CancelPendingNavigations();
 
   static std::string StateToString(State state);
-
-  void OnMayActOnTabDecision(const url::Origin& evaluated_origin,
-                             MayActOnUrlBlockReason block_reason);
 
   void UserTakeover(mojom::ActionResultCode takeover_response_code,
                     base::OnceCallback<void(bool)> callback);
@@ -403,6 +406,7 @@ class ExecutionEngine : public ToolDelegate,
 
   void OnComputedGatingDecision(
       NavigationDecisionCallback callback,
+      std::unique_ptr<AggregatedJournal::PendingAsyncEntry> journal_entry,
       const url::Origin& source_origin,
       const url::Origin& destination_origin,
       State initial_state,
@@ -432,7 +436,7 @@ class ExecutionEngine : public ToolDelegate,
       ukm::SourceId ukm_source_id,
       base::ScopedUmaHistogramTimer timer,
       State engine_state,
-      NavigationDecisionCallback callback,
+      base::OnceCallback<void(bool)> callback,
       webui::mojom::NavigationConfirmationResponsePtr response);
 
   // Makes the web client confirm with the user that the actor is allowed to
@@ -444,7 +448,7 @@ class ExecutionEngine : public ToolDelegate,
       base::OnceCallback<void(NoVerdictResult)> callback);
   void OnPromptUserToConfirmNavigationDecision(
       const url::Origin& destination,
-      NavigationDecisionCallback callback,
+      base::OnceCallback<void(bool)> callback,
       webui::mojom::UserConfirmationDialogResponsePtr response);
 
   State state_ = State::kInit;
@@ -475,6 +479,9 @@ class ExecutionEngine : public ToolDelegate,
   // reached.
   size_t next_action_index_ = 0;
   base::TimeTicks action_start_time_;
+
+  // The raw navigation ID of the page before the tool was invoked.
+  int64_t pre_invoke_navigation_id_ = 0;
 
   // If set, the currently executing tool should be considered failed once it
   // completes.
@@ -511,6 +518,9 @@ class ExecutionEngine : public ToolDelegate,
   base::OnceClosure deferred_finish_tool_invoke_;
 
   base::OnceClosure tool_invoke_complete_callback_for_testing_;
+
+  // Stores cancellation closures for all currently deferred navigations.
+  base::OnceCallbackList<void()> pending_navigation_cancellations_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

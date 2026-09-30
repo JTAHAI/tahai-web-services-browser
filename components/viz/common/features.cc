@@ -43,11 +43,6 @@ BASE_FEATURE(kAndroidDumpForBadCompositedUiState,
 
 #endif  // BUILDFLAG(IS_ANDROID)
 
-// When there is a screenshot request against a surface, issue the copy request
-// into a shared image.
-BASE_FEATURE(kBackForwardTransitionsSameDocSharedImage,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 // If enabled, each render pass eligible for scanout gets its own BufferQueue.
 // This allows for BufferQueue to be used in scenarios like partial delegated
 // compositing, where no root render pass is present.
@@ -70,6 +65,33 @@ BASE_FEATURE(kUseDrmBlackFullscreenOptimization,
 #if BUILDFLAG(IS_ANDROID)
 BASE_FEATURE(kUseFrameIntervalDeciderAdaptiveFrameRate,
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+// If enabled, `ExternalBeginFrameSourceAndroid::AChoreographerImpl` derives a
+// VSync interval from the frame timelines that the OS provided via the callback
+// registered through `AChoreographer_postVsyncCallback` (as long as the OS
+// provided at least two timelines) and populates
+// `BeginFrameArgs::deadline_derived_interval`. `AChoreographerImpl` might snap
+// this timeline-derived interval to the closest display-supported interval in
+// `Display.getSupportedRefreshRates()` depending on
+// `kCalculateDeadlineDerivedIntervalSnapToleranceParam`.
+BASE_FEATURE(kCalculateDeadlineDerivedInterval,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+// Specifies how far `ExternalBeginFrameSourceAndroid::AChoreographerImpl` can
+// snap from the timeline-derived VSync interval to a display-supported VSync
+// interval, as a fraction of the timeline-derived VSync interval (e.g. 0.1
+// means 10%). Given a timeline-derived interval TDI, display-supported interval
+// DSI and snap tolerance ST, `AChoreographerImpl` will snap TDI to DSI if:
+//
+// `|TDI - DSI| <= ST * TDI`
+//
+// If this parameter is zero (`ST = 0`), `AChoreographerImpl` won't snap at all.
+const base::FeatureParam<double>
+    kCalculateDeadlineDerivedIntervalSnapToleranceParam = {
+        &kCalculateDeadlineDerivedInterval,
+        "snap_tolerance",
+        0.0,
+};
 #endif
 
 BASE_FEATURE(kUseMultipleOverlays,
@@ -183,6 +205,7 @@ const base::FeatureParam<int> kCALayerNewLimitManyVideos{&kCALayerNewLimit,
 BASE_FEATURE(kVSyncAlignedPresentationForScrolling,
              base::FEATURE_ENABLED_BY_DEFAULT);
 BASE_FEATURE(kVSyncAlignedPresentation, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kUseDisplayRefreshRateForTimer, base::FEATURE_DISABLED_BY_DEFAULT);
 #endif
 
 BASE_FEATURE(kAllowUndamagedNonrootRenderPassToSkip,
@@ -253,6 +276,20 @@ BASE_FEATURE(kAllowMultipleSwapsPerVsync, base::FEATURE_DISABLED_BY_DEFAULT);
 // dynamically select VSync deadlines based on input timestamps.
 BASE_FEATURE(kUseAndroidCustomFrameDeadlines,
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+constexpr base::FeatureParam<FrameDeadlineDeciderSequenceStrategy>::Option
+    kFrameDeadlineDeciderSequenceStrategyOptions[] = {
+        {FrameDeadlineDeciderSequenceStrategy::kPresentationDeltaLocking,
+         "presentation_delta_locking"},
+        {FrameDeadlineDeciderSequenceStrategy::kOsPreferredDeltaLocking,
+         "os_preferred_delta_locking"},
+};
+const base::FeatureParam<FrameDeadlineDeciderSequenceStrategy>
+    kAndroidCustomFrameDeadlineSequenceStrategy{
+        &kUseAndroidCustomFrameDeadlines, "sequence_strategy",
+        FrameDeadlineDeciderSequenceStrategy::kOsPreferredDeltaLocking,
+        &kFrameDeadlineDeciderSequenceStrategyOptions};
+
 const base::FeatureParam<int> kAndroidCustomFrameDeadlinePresentationOffset{
     &kUseAndroidCustomFrameDeadlines, "presentation_offset", 0};
 const base::FeatureParam<base::TimeDelta>
@@ -296,6 +333,11 @@ BASE_FEATURE(kEvictionUnlocksResources, base::FEATURE_DISABLED_BY_DEFAULT);
 // perfect cadence.
 BASE_FEATURE(kSingleVideoFrameRateThrottling,
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+// If enabled, FrameIntervalDecider will attempt to match mixed fixed-rate
+// content intervals (e.g. video coexisting with stepped compositor animations)
+// using a common integer multiple (LCM).
+BASE_FEATURE(kMixedFixedIntervalMatcher, base::FEATURE_DISABLED_BY_DEFAULT);
 
 // If enabled, the FrameEvictionManager scales its limit of max number of saved
 // frames dynamically based on memory pressure.
@@ -354,11 +396,6 @@ const base::FeatureParam<int> kNumberPendingFramesUntilThrottle{
     &kNoCompositorFrameAcks, "pending_frames", 1};
 BASE_FEATURE(kDisplaySchedulerAsClient, base::FEATURE_ENABLED_BY_DEFAULT);
 
-// Enables prioritization of the BeginFrame InputClient (like
-// FlingSchedulerAndroid) so it can dispatch events before the renderer
-// receives its BeginFrame.
-BASE_FEATURE(kFlingSchedulingImprovements, base::FEATURE_DISABLED_BY_DEFAULT);
-
 // Enables optimizations in `DirectRenderer` and `OcclusionCuller` that reuses
 // pre-existing loops to access filter data from `AggregatedRenderPassDrawQuad`.
 // This is a temporary flag to work as a kill switch for the optimization and
@@ -387,11 +424,6 @@ int DrawQuadSplitLimit() {
                     kMaxDrawQuadSplitLimit);
 }
 
-bool IsBackForwardTransitionsSameDocSharedImageEnabled() {
-  return base::FeatureList::IsEnabled(
-      kBackForwardTransitionsSameDocSharedImage);
-}
-
 bool IsDelegatedCompositingEnabled() {
   return base::FeatureList::IsEnabled(kDelegatedCompositing);
 }
@@ -411,6 +443,10 @@ bool IsVizWithIoMessagePumpEnabled() {
 
 bool IsUsingVizFrameSubmissionForWebView() {
   return base::FeatureList::IsEnabled(kVizFrameSubmissionForWebView);
+}
+
+bool IsMixedFixedIntervalMatcherEnabled() {
+  return base::FeatureList::IsEnabled(kMixedFixedIntervalMatcher);
 }
 
 bool ShouldWebRtcLogCapturePipeline() {
@@ -509,6 +545,17 @@ bool ShouldUseAdpfForSoc(std::string_view soc_allowlist,
 bool ShouldDiscardVizBufferQueueOnVisibilityChange() {
   return kAllowVizBufferQueueDiscardOnVisibilityChange &&
          base::FeatureList::IsEnabled(kVizBufferQueueDiscardOnVisibilityChange);
+}
+
+// When enabled, deadlines are tracked per activation dependency of a
+// CompositorFrame independently. Each dependent surface uses its own specified
+// deadline policy (e.g., from cc::DeadlinePolicy), allowing the frame to
+// activate once all its dependencies have individually resolved or expired,
+// without being bounded by the frame's overall global deadline.
+BASE_FEATURE(kPerDependencyDeadlines, base::FEATURE_DISABLED_BY_DEFAULT);
+
+bool UsePerDependencyDeadlines() {
+  return base::FeatureList::IsEnabled(kPerDependencyDeadlines);
 }
 
 }  // namespace features

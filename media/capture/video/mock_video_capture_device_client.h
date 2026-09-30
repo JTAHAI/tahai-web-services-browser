@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/containers/span.h"
 #include "media/capture/video/video_capture_device.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
@@ -23,8 +24,7 @@ class MockVideoCaptureDeviceClient : public VideoCaptureDevice::Client {
   MOCK_METHOD(void, OnCaptureConfigurationChanged, (), (override));
   MOCK_METHOD(void,
               OnIncomingCapturedData,
-              (const uint8_t* data,
-               int length,
+              (base::span<const uint8_t> data,
                const VideoCaptureFormat& frame_format,
                const gfx::ColorSpace& color_space,
                int rotation,
@@ -72,15 +72,9 @@ class MockVideoCaptureDeviceClient : public VideoCaptureDevice::Client {
               (VideoCaptureFrameDropReason reason),
               (override));
   MOCK_METHOD(void, OnStarted, (), (override));
+  MOCK_METHOD(void, InvalidateBuffers, (), (override));
   MOCK_METHOD(double, GetBufferPoolUtilization, (), (const override));
 
-  void OnIncomingCapturedBuffer(
-      Buffer buffer,
-      const VideoCaptureFormat& format,
-      base::TimeTicks reference_time,
-      base::TimeDelta timestamp,
-      std::optional<base::TimeTicks> capture_begin_time,
-      const std::optional<VideoFrameMetadata>& metadata) override;
   void OnIncomingCapturedBufferExt(
       Buffer buffer,
       const VideoCaptureFormat& format,
@@ -90,12 +84,6 @@ class MockVideoCaptureDeviceClient : public VideoCaptureDevice::Client {
       std::optional<base::TimeTicks> capture_begin_time,
       gfx::Rect visible_rect,
       const std::optional<VideoFrameMetadata>& additional_metadata) override;
-
-  MOCK_METHOD(
-      void,
-      DoOnIncomingCapturedBuffer,
-      (Buffer&, const VideoCaptureFormat&, base::TimeTicks, base::TimeDelta),
-      ());
   MOCK_METHOD(void,
               DoOnIncomingCapturedBufferExt,
               (Buffer & buffer,

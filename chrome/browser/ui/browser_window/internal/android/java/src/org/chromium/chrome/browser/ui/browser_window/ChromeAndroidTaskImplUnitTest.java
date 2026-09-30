@@ -43,7 +43,7 @@ import android.graphics.Rect;
 import android.os.Build;
 import android.os.Process;
 import android.util.Pair;
-import android.view.ViewTreeObserver.OnGlobalLayoutListener;
+import android.view.View.OnLayoutChangeListener;
 import android.view.WindowMetrics;
 
 import org.junit.Assert;
@@ -82,6 +82,7 @@ import org.chromium.chrome.browser.tabmodel.IncognitoTabModelObserver;
 import org.chromium.chrome.browser.tabmodel.SupportedProfileType;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.chrome.browser.ui.browser_window.AndroidBrowserWindowObserver.AndroidBrowserWindowInfo;
 import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTask.ActivityScopedObjects;
 import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTaskFeature.InitInfo;
 import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTaskImpl.State;
@@ -200,17 +201,13 @@ public class ChromeAndroidTaskImplUnitTest {
         if (assertListenerRegistration) {
             verify(activityLifecycleDispatcher, times(expectedNumberOfInvocations))
                     .register(isA(TopResumedActivityChangedWithNativeObserver.class));
-            verify(
-                            activity.findViewById(android.R.id.content).getViewTreeObserver(),
-                            times(expectedNumberOfInvocations))
-                    .addOnGlobalLayoutListener(isA(OnGlobalLayoutListener.class));
+            verify(activity.getWindow().getDecorView(), times(expectedNumberOfInvocations))
+                    .addOnLayoutChangeListener(isA(OnLayoutChangeListener.class));
         } else {
             verify(activityLifecycleDispatcher, times(expectedNumberOfInvocations))
                     .unregister(isA(TopResumedActivityChangedWithNativeObserver.class));
-            verify(
-                            activity.findViewById(android.R.id.content).getViewTreeObserver(),
-                            times(expectedNumberOfInvocations))
-                    .removeOnGlobalLayoutListener(isA(OnGlobalLayoutListener.class));
+            verify(activity.getWindow().getDecorView(), times(expectedNumberOfInvocations))
+                    .removeOnLayoutChangeListener(isA(OnLayoutChangeListener.class));
         }
     }
 
@@ -392,13 +389,13 @@ public class ChromeAndroidTaskImplUnitTest {
                         never().description(
                                         "Window should not be removed when re-adding the same"
                                                 + " activity"))
-                .onBrowserWindowRemoved(any(Long.class));
+                .onBrowserWindowRemoved(any());
         verify(
                         observer,
                         never().description(
                                         "A new window should not be added when re-adding the same"
                                                 + " activity"))
-                .onBrowserWindowAdded(any(Long.class));
+                .onBrowserWindowAdded(any());
 
         // Final check: Ensure the task still has exactly 1 window and 1 activity.
         assertEquals(1, chromeAndroidTask.getActivityScopedObjectsListForTesting().size());
@@ -877,7 +874,10 @@ public class ChromeAndroidTaskImplUnitTest {
         chromeAndroidTask.removeActivityScopedObjects(activityScopedObjects.mActivityWindowAndroid);
 
         // Assert.
-        verify(observer, times(1)).onBrowserWindowRemoved(nativePtr);
+        verify(observer, times(1))
+                .onBrowserWindowRemoved(
+                        new AndroidBrowserWindowInfo(
+                                nativePtr, profile, activityScopedObjects.mActivityWindowAndroid));
         verify(chromeAndroidTaskWithMockDeps.mMockAndroidBrowserWindowNatives, times(1))
                 .destroy(nativePtr);
     }
@@ -1469,7 +1469,7 @@ public class ChromeAndroidTaskImplUnitTest {
 
     @Test
     @SuppressLint("NewApi" /* @Config already specifies the required SDK */)
-    public void onGlobalLayout_windowBoundsChanged_invokesOnTaskBoundsChangedForFeature() {
+    public void onDecorViewLayoutChange_windowResized_invokesOnTaskBoundsChangedForFeature() {
         // Arrange.
         var chromeAndroidTaskWithMockDeps = createChromeAndroidTaskWithMockDeps(/* taskId= */ 1);
         var chromeAndroidTask =
@@ -1481,17 +1481,122 @@ public class ChromeAndroidTaskImplUnitTest {
                         TestChromeAndroidTaskFeature.class, /* profile= */ null);
         chromeAndroidTask.addFeature(featureKey, () -> testFeature);
 
-        var mockWindowManager =
-                chromeAndroidTaskWithMockDeps.mActivityWindowAndroidMocks.mMockWindowManager;
+        var activityWindowAndroidMocks = chromeAndroidTaskWithMockDeps.mActivityWindowAndroidMocks;
+        var mockWindowManager = activityWindowAndroidMocks.mMockWindowManager;
         var taskBounds0 = new Rect(0, 0, 500, 600);
         var taskBounds1 = new Rect(0, 0, 800, 600);
 
         // Act.
         ChromeAndroidTaskUnitTestSupport.mockCurrentWindowMetrics(mockWindowManager, taskBounds0);
-        chromeAndroidTask.onGlobalLayout();
+        var mockDecorView =
+                ChromeAndroidTaskUnitTestSupport.mockDecorViewBounds(
+                        activityWindowAndroidMocks, taskBounds0);
+        chromeAndroidTask
+                .getDecorViewLayoutChangeListenerForTesting()
+                .onLayoutChange(
+                        mockDecorView,
+                        mockDecorView.getLeft(),
+                        mockDecorView.getTop(),
+                        mockDecorView.getRight(),
+                        mockDecorView.getBottom(),
+                        /* oldLeft= */ 0,
+                        /* oldTop= */ 0,
+                        /* oldRight= */ 0,
+                        /* oldBottom= */ 0);
 
+        int oldLeft = mockDecorView.getLeft();
+        int oldTop = mockDecorView.getTop();
+        int oldRight = mockDecorView.getRight();
+        int oldBottom = mockDecorView.getBottom();
         ChromeAndroidTaskUnitTestSupport.mockCurrentWindowMetrics(mockWindowManager, taskBounds1);
-        chromeAndroidTask.onGlobalLayout();
+        mockDecorView =
+                ChromeAndroidTaskUnitTestSupport.mockDecorViewBounds(
+                        activityWindowAndroidMocks, taskBounds1);
+        chromeAndroidTask
+                .getDecorViewLayoutChangeListenerForTesting()
+                .onLayoutChange(
+                        mockDecorView,
+                        mockDecorView.getLeft(),
+                        mockDecorView.getTop(),
+                        mockDecorView.getRight(),
+                        mockDecorView.getBottom(),
+                        oldLeft,
+                        oldTop,
+                        oldRight,
+                        oldBottom);
+
+        // Assert.
+        assertEquals(2, testFeature.mTaskBoundsChangeDpHistory.size());
+        assertEquals(taskBounds0, testFeature.mTaskBoundsChangeDpHistory.get(0));
+        assertEquals(taskBounds1, testFeature.mTaskBoundsChangeDpHistory.get(1));
+
+        assertEquals(2, testFeature.mTaskBoundsChangeDisplayIdHistory.size());
+        assertEquals(0, (int) testFeature.mTaskBoundsChangeDisplayIdHistory.get(0));
+        assertEquals(0, (int) testFeature.mTaskBoundsChangeDisplayIdHistory.get(1));
+
+        assertEquals(2, testFeature.mTaskBoundsChangePxHistory.size());
+        assertEquals(taskBounds0, testFeature.mTaskBoundsChangePxHistory.get(0));
+        assertEquals(taskBounds1, testFeature.mTaskBoundsChangePxHistory.get(1));
+    }
+
+    @Test
+    @SuppressLint("NewApi" /* @Config already specifies the required SDK */)
+    public void onDecorViewLayoutChange_windowMoved_invokesOnTaskBoundsChangedForFeature() {
+        // Arrange.
+        var chromeAndroidTaskWithMockDeps = createChromeAndroidTaskWithMockDeps(/* taskId= */ 1);
+        var chromeAndroidTask =
+                (ChromeAndroidTaskImpl) chromeAndroidTaskWithMockDeps.mChromeAndroidTask;
+
+        var testFeature = new TestChromeAndroidTaskFeature(chromeAndroidTask);
+        var featureKey =
+                new ChromeAndroidTaskFeatureKey(
+                        TestChromeAndroidTaskFeature.class, /* profile= */ null);
+        chromeAndroidTask.addFeature(featureKey, () -> testFeature);
+
+        var activityWindowAndroidMocks = chromeAndroidTaskWithMockDeps.mActivityWindowAndroidMocks;
+        var mockWindowManager = activityWindowAndroidMocks.mMockWindowManager;
+        var taskBounds0 = new Rect(0, 0, 500, 600);
+        var taskBounds1 = new Rect(taskBounds0);
+        taskBounds1.offset(10, 10);
+
+        // Act.
+        ChromeAndroidTaskUnitTestSupport.mockCurrentWindowMetrics(mockWindowManager, taskBounds0);
+        var mockDecorView =
+                ChromeAndroidTaskUnitTestSupport.mockDecorViewBounds(
+                        activityWindowAndroidMocks, taskBounds0);
+        chromeAndroidTask
+                .getDecorViewLayoutChangeListenerForTesting()
+                .onLayoutChange(
+                        mockDecorView,
+                        mockDecorView.getLeft(),
+                        mockDecorView.getTop(),
+                        mockDecorView.getRight(),
+                        mockDecorView.getBottom(),
+                        /* oldLeft= */ 0,
+                        /* oldTop= */ 0,
+                        /* oldRight= */ 0,
+                        /* oldBottom= */ 0);
+
+        int oldLeft = mockDecorView.getLeft();
+        int oldTop = mockDecorView.getTop();
+        int oldRight = mockDecorView.getRight();
+        int oldBottom = mockDecorView.getBottom();
+        ChromeAndroidTaskUnitTestSupport.mockCurrentWindowMetrics(mockWindowManager, taskBounds1);
+        mockDecorView =
+                ChromeAndroidTaskUnitTestSupport.mockDecorViewBounds(
+                        activityWindowAndroidMocks, taskBounds1);
+        chromeAndroidTask
+                .getDecorViewLayoutChangeListenerForTesting()
+                .onLayoutChange(
+                        mockDecorView,
+                        mockDecorView.getLeft(),
+                        mockDecorView.getTop(),
+                        mockDecorView.getRight(),
+                        mockDecorView.getBottom(),
+                        oldLeft,
+                        oldTop,
+                        oldRight,
+                        oldBottom);
 
         // Assert.
         assertEquals(2, testFeature.mTaskBoundsChangeDpHistory.size());
@@ -1510,7 +1615,7 @@ public class ChromeAndroidTaskImplUnitTest {
     @Test
     @SuppressLint("NewApi" /* @Config already specifies the required SDK */)
     public void
-            onGlobalLayout_windowBoundsDoesNotChangeInPxOrDp_doesNotInvokeOnTaskBoundsChangedForFeature() {
+            onDecorViewLayoutChange_windowBoundsDoesNotChangeInPxOrDp_doesNotInvokeOnTaskBoundsChangedForFeature() {
         // Arrange: Set up ChromeAndroidTask.
         var chromeAndroidTaskWithMockDeps = createChromeAndroidTaskWithMockDeps(/* taskId= */ 1);
         var chromeAndroidTask =
@@ -1523,24 +1628,50 @@ public class ChromeAndroidTaskImplUnitTest {
                         TestChromeAndroidTaskFeature.class, /* profile= */ null);
         chromeAndroidTask.addFeature(featureKey, () -> testFeature);
 
-        // Arrange: Set up window metrics for next global layout.
+        // Arrange: Set up window metrics for next layout change.
         float dipScale = 2.0f;
-        var mockDisplayAndroid =
-                chromeAndroidTaskWithMockDeps.mActivityWindowAndroidMocks.mMockDisplayAndroid;
-        when(mockDisplayAndroid.getDipScale()).thenReturn(dipScale);
-        var mockWindowManager =
-                chromeAndroidTaskWithMockDeps.mActivityWindowAndroidMocks.mMockWindowManager;
         var taskBoundsInPx = new Rect(0, 0, 800, 600);
+
+        var activityWindowAndroidMocks = chromeAndroidTaskWithMockDeps.mActivityWindowAndroidMocks;
+        var mockDisplayAndroid = activityWindowAndroidMocks.mMockDisplayAndroid;
+        var mockWindowManager = activityWindowAndroidMocks.mMockWindowManager;
+
+        when(mockDisplayAndroid.getDipScale()).thenReturn(dipScale);
         ChromeAndroidTaskUnitTestSupport.mockCurrentWindowMetrics(
                 mockWindowManager, taskBoundsInPx);
+        var mockDecorView =
+                ChromeAndroidTaskUnitTestSupport.mockDecorViewBounds(
+                        activityWindowAndroidMocks, taskBoundsInPx);
 
         // Act.
-        chromeAndroidTask.onGlobalLayout();
-        chromeAndroidTask.onGlobalLayout();
+        chromeAndroidTask
+                .getDecorViewLayoutChangeListenerForTesting()
+                .onLayoutChange(
+                        mockDecorView,
+                        mockDecorView.getLeft(),
+                        mockDecorView.getTop(),
+                        mockDecorView.getRight(),
+                        mockDecorView.getBottom(),
+                        /* oldLeft= */ 0,
+                        /* oldTop= */ 0,
+                        /* oldRight= */ 0,
+                        /* oldBottom= */ 0);
+        chromeAndroidTask
+                .getDecorViewLayoutChangeListenerForTesting()
+                .onLayoutChange(
+                        mockDecorView,
+                        mockDecorView.getLeft(),
+                        mockDecorView.getTop(),
+                        mockDecorView.getRight(),
+                        mockDecorView.getBottom(),
+                        mockDecorView.getLeft(),
+                        mockDecorView.getTop(),
+                        mockDecorView.getRight(),
+                        mockDecorView.getBottom());
 
         // Assert:
-        // Only the first onGlobalLayout() should trigger onTaskBoundsChanged() as the
-        // second onGlobalLayout() doesn't include a change in window bounds.
+        // Only the first onLayoutChange() should trigger onTaskBoundsChanged() as the
+        // second onLayoutChange() doesn't include a change in window bounds.
         assertEquals(1, testFeature.mTaskBoundsChangeDpHistory.size());
         assertEquals(
                 DisplayUtil.scaleToEnclosingRect(taskBoundsInPx, 1.0f / dipScale),
@@ -1550,7 +1681,7 @@ public class ChromeAndroidTaskImplUnitTest {
     @Test
     @SuppressLint("NewApi" /* @Config already specifies the required SDK */)
     public void
-            onGlobalLayout_windowBoundsChangesInPxButNotInDp_doesNotInvokeOnTaskBoundsChangedForFeature() {
+            onDecorViewLayoutChange_windowBoundsChangesInPxButNotInDp_doesNotInvokeOnTaskBoundsChangedForFeature() {
         // Arrange.
         var chromeAndroidTaskWithMockDeps = createChromeAndroidTaskWithMockDeps(/* taskId= */ 1);
         var chromeAndroidTask =
@@ -1562,31 +1693,65 @@ public class ChromeAndroidTaskImplUnitTest {
                         TestChromeAndroidTaskFeature.class, /* profile= */ null);
         chromeAndroidTask.addFeature(featureKey, () -> testFeature);
 
-        var mockWindowManager =
-                chromeAndroidTaskWithMockDeps.mActivityWindowAndroidMocks.mMockWindowManager;
+        var activityWindowAndroidMocks = chromeAndroidTaskWithMockDeps.mActivityWindowAndroidMocks;
+        var mockDisplayAndroid = activityWindowAndroidMocks.mMockDisplayAndroid;
+        var mockWindowManager = activityWindowAndroidMocks.mMockWindowManager;
 
         float dipScale1 = 1.0f;
         float dipScale2 = 2.0f;
-        var mockDisplayAndroid =
-                chromeAndroidTaskWithMockDeps.mActivityWindowAndroidMocks.mMockDisplayAndroid;
 
         var taskBoundsInPx1 = new Rect(0, 0, 800, 600);
         var taskBoundsInPx2 = DisplayUtil.scaleToEnclosingRect(taskBoundsInPx1, dipScale2);
 
-        // Act.
         when(mockDisplayAndroid.getDipScale()).thenReturn(dipScale1);
         ChromeAndroidTaskUnitTestSupport.mockCurrentWindowMetrics(
                 mockWindowManager, taskBoundsInPx1);
-        chromeAndroidTask.onGlobalLayout();
+        var mockDecorView =
+                ChromeAndroidTaskUnitTestSupport.mockDecorViewBounds(
+                        activityWindowAndroidMocks, taskBoundsInPx1);
+
+        // Act.
+        chromeAndroidTask
+                .getDecorViewLayoutChangeListenerForTesting()
+                .onLayoutChange(
+                        mockDecorView,
+                        mockDecorView.getLeft(),
+                        mockDecorView.getTop(),
+                        mockDecorView.getRight(),
+                        mockDecorView.getBottom(),
+                        /* oldLeft= */ 0,
+                        /* oldTop= */ 0,
+                        /* oldRight= */ 0,
+                        /* oldBottom= */ 0);
+
+        int oldLeft = mockDecorView.getLeft();
+        int oldTop = mockDecorView.getTop();
+        int oldRight = mockDecorView.getRight();
+        int oldBottom = mockDecorView.getBottom();
 
         when(mockDisplayAndroid.getDipScale()).thenReturn(dipScale2);
         ChromeAndroidTaskUnitTestSupport.mockCurrentWindowMetrics(
                 mockWindowManager, taskBoundsInPx2);
-        chromeAndroidTask.onGlobalLayout();
+        mockDecorView =
+                ChromeAndroidTaskUnitTestSupport.mockDecorViewBounds(
+                        activityWindowAndroidMocks, taskBoundsInPx2);
+
+        chromeAndroidTask
+                .getDecorViewLayoutChangeListenerForTesting()
+                .onLayoutChange(
+                        mockDecorView,
+                        mockDecorView.getLeft(),
+                        mockDecorView.getTop(),
+                        mockDecorView.getRight(),
+                        mockDecorView.getBottom(),
+                        oldLeft,
+                        oldTop,
+                        oldRight,
+                        oldBottom);
 
         // Assert:
-        // Only the first onGlobalLayout() should trigger onTaskBoundsChanged() as the
-        // second onGlobalLayout() doesn't include a DP change in window bounds.
+        // Only the first onLayoutChange() should trigger onTaskBoundsChanged() as the
+        // second onLayoutChange() doesn't include a DP change in window bounds.
         assertEquals(1, testFeature.mTaskBoundsChangeDpHistory.size());
         assertEquals(
                 DisplayUtil.scaleToEnclosingRect(taskBoundsInPx1, 1.0f / dipScale1),
@@ -1870,13 +2035,25 @@ public class ChromeAndroidTaskImplUnitTest {
         var chromeAndroidTask =
                 (ChromeAndroidTaskImpl) chromeAndroidTaskWithMockDeps.mChromeAndroidTask;
 
-        // Arrange: scaling factor
-        // Note that changing the scaling factor should trigger onGlobalLayout().
+        // Arrange: scaling factor.
+        // Note that changing the scaling factor should trigger the decor View's onLayoutChange().
         float dipScale = 2.0f;
-        var mockDisplayAndroid =
-                chromeAndroidTaskWithMockDeps.mActivityWindowAndroidMocks.mMockDisplayAndroid;
+        var activityWindowAndroidMocks = chromeAndroidTaskWithMockDeps.mActivityWindowAndroidMocks;
+        var mockDisplayAndroid = activityWindowAndroidMocks.mMockDisplayAndroid;
+        var mockDecorView = activityWindowAndroidMocks.mMockDecorView;
         when(mockDisplayAndroid.getDipScale()).thenReturn(dipScale);
-        chromeAndroidTask.onGlobalLayout();
+        chromeAndroidTask
+                .getDecorViewLayoutChangeListenerForTesting()
+                .onLayoutChange(
+                        mockDecorView,
+                        mockDecorView.getLeft(),
+                        mockDecorView.getTop(),
+                        mockDecorView.getRight(),
+                        mockDecorView.getBottom(),
+                        mockDecorView.getLeft(),
+                        mockDecorView.getTop(),
+                        mockDecorView.getRight(),
+                        mockDecorView.getBottom());
 
         // Act
         Rect boundsInDp = chromeAndroidTask.getBoundsInDp();
@@ -3814,7 +3991,7 @@ public class ChromeAndroidTaskImplUnitTest {
         chromeAndroidTask.addAndroidBrowserWindowObserver(observer);
 
         // Assert.
-        verify(observer, never()).onBrowserWindowAdded(any(Long.class));
+        verify(observer, never()).onBrowserWindowAdded(any());
     }
 
     @Test
@@ -3830,7 +4007,14 @@ public class ChromeAndroidTaskImplUnitTest {
         chromeAndroidTask.destroy();
 
         // Assert.
-        verify(observer, times(1)).onBrowserWindowRemoved(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        verify(observer, times(1))
+                .onBrowserWindowRemoved(
+                        new AndroidBrowserWindowInfo(
+                                FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
+                                chromeAndroidTaskWithMockDeps.mMockProfile,
+                                chromeAndroidTaskWithMockDeps
+                                        .mActivityScopedObjects
+                                        .mActivityWindowAndroid));
     }
 
     @Test
@@ -3864,8 +4048,13 @@ public class ChromeAndroidTaskImplUnitTest {
         // Assert
         verify(observer, times(1))
                 .onBrowserWindowAdded(
-                        ChromeAndroidTaskUnitTestSupport
-                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+                        new AndroidBrowserWindowInfo(
+                                ChromeAndroidTaskUnitTestSupport
+                                        .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
+                                incognitoProfile,
+                                chromeAndroidTaskWithMockDeps
+                                        .mActivityScopedObjects
+                                        .mActivityWindowAndroid));
     }
 
     @Test
@@ -3882,7 +4071,7 @@ public class ChromeAndroidTaskImplUnitTest {
         chromeAndroidTask.destroy();
 
         // Assert.
-        verify(observer, never()).onBrowserWindowRemoved(any(Long.class));
+        verify(observer, never()).onBrowserWindowRemoved(any());
     }
 
     @Test
@@ -3925,11 +4114,24 @@ public class ChromeAndroidTaskImplUnitTest {
         when(tabModelSelector.getCurrentModel()).thenReturn(incognitoTabModel);
         incognitoObserverCaptor.getValue().onIncognitoModelCreated();
 
-        // Assert activated incognito window
-        verify(observer, times(1))
-                .onBrowserWindowActivated(
+        var normalWindowInfo =
+                new AndroidBrowserWindowInfo(
+                        FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
+                        chromeAndroidTaskWithMockDeps.mMockProfile,
+                        chromeAndroidTaskWithMockDeps
+                                .mActivityScopedObjects
+                                .mActivityWindowAndroid);
+        var incognitoWindowInfo =
+                new AndroidBrowserWindowInfo(
                         ChromeAndroidTaskUnitTestSupport
-                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
+                        incognitoProfile,
+                        chromeAndroidTaskWithMockDeps
+                                .mActivityScopedObjects
+                                .mActivityWindowAndroid);
+
+        // Assert activated incognito window
+        verify(observer, times(1)).onBrowserWindowActivated(incognitoWindowInfo);
 
         // Act: Switch back to normal tab model
         var normalTabModel = mock(TabModel.class);
@@ -3940,11 +4142,8 @@ public class ChromeAndroidTaskImplUnitTest {
                 .set(normalTabModel);
 
         // Assert deactivated incognito window and activated normal window
-        verify(observer, times(1))
-                .onBrowserWindowDeactivated(
-                        ChromeAndroidTaskUnitTestSupport
-                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
-        verify(observer, times(2)).onBrowserWindowActivated(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        verify(observer, times(1)).onBrowserWindowDeactivated(incognitoWindowInfo);
+        verify(observer, times(2)).onBrowserWindowActivated(normalWindowInfo);
     }
 
     @Test
@@ -3982,10 +4181,23 @@ public class ChromeAndroidTaskImplUnitTest {
         when(tabModelSelector.getCurrentModel()).thenReturn(incognitoTabModel);
         incognitoObserverCaptor.getValue().onIncognitoModelCreated();
 
-        verify(observer, times(1))
-                .onBrowserWindowActivated(
+        var normalWindowInfo =
+                new AndroidBrowserWindowInfo(
+                        FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
+                        chromeAndroidTaskWithMockDeps.mMockProfile,
+                        chromeAndroidTaskWithMockDeps
+                                .mActivityScopedObjects
+                                .mActivityWindowAndroid);
+        var incognitoWindowInfo =
+                new AndroidBrowserWindowInfo(
                         ChromeAndroidTaskUnitTestSupport
-                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
+                        incognitoProfile,
+                        chromeAndroidTaskWithMockDeps
+                                .mActivityScopedObjects
+                                .mActivityWindowAndroid);
+
+        verify(observer, times(1)).onBrowserWindowActivated(incognitoWindowInfo);
 
         // Simulate switching getCurrentModel back to normal tab model when incognito profile is
         // destroyed.
@@ -3997,11 +4209,8 @@ public class ChromeAndroidTaskImplUnitTest {
 
         // Assert: incognito window removed (no deactivation event), normal window activated
         InOrder inOrder = inOrder(observer);
-        inOrder.verify(observer)
-                .onBrowserWindowRemoved(
-                        ChromeAndroidTaskUnitTestSupport
-                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
-        inOrder.verify(observer).onBrowserWindowActivated(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        inOrder.verify(observer).onBrowserWindowRemoved(incognitoWindowInfo);
+        inOrder.verify(observer).onBrowserWindowActivated(normalWindowInfo);
     }
 
     @Test
@@ -4040,10 +4249,23 @@ public class ChromeAndroidTaskImplUnitTest {
         when(tabModelSelector.getCurrentModel()).thenReturn(incognitoTabModel);
         incognitoObserverCaptor.getValue().onIncognitoModelCreated();
 
-        verify(observer, times(1))
-                .onBrowserWindowActivated(
+        var normalWindowInfo =
+                new AndroidBrowserWindowInfo(
+                        FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
+                        chromeAndroidTaskWithMockDeps.mMockProfile,
+                        chromeAndroidTaskWithMockDeps
+                                .mActivityScopedObjects
+                                .mActivityWindowAndroid);
+        var incognitoWindowInfo =
+                new AndroidBrowserWindowInfo(
                         ChromeAndroidTaskUnitTestSupport
-                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
+                        incognitoProfile,
+                        chromeAndroidTaskWithMockDeps
+                                .mActivityScopedObjects
+                                .mActivityWindowAndroid);
+
+        verify(observer, times(1)).onBrowserWindowActivated(incognitoWindowInfo);
 
         // Simulate switching getCurrentModel back to normal tab model when incognito tabs become
         // empty.
@@ -4055,11 +4277,8 @@ public class ChromeAndroidTaskImplUnitTest {
 
         // Assert: incognito window removed (no deactivation event), normal window activated
         InOrder inOrder = inOrder(observer);
-        inOrder.verify(observer)
-                .onBrowserWindowRemoved(
-                        ChromeAndroidTaskUnitTestSupport
-                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
-        inOrder.verify(observer).onBrowserWindowActivated(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        inOrder.verify(observer).onBrowserWindowRemoved(incognitoWindowInfo);
+        inOrder.verify(observer).onBrowserWindowActivated(normalWindowInfo);
     }
 
     @Test
@@ -4097,18 +4316,21 @@ public class ChromeAndroidTaskImplUnitTest {
         var normalTabModel = tabModelSelector.getModel(false);
         when(tabModelSelector.getCurrentModel()).thenReturn(normalTabModel);
 
+        var incognitoWindowInfo =
+                new AndroidBrowserWindowInfo(
+                        ChromeAndroidTaskUnitTestSupport
+                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
+                        incognitoProfile,
+                        chromeAndroidTaskWithMockDeps
+                                .mActivityScopedObjects
+                                .mActivityWindowAndroid);
+
         // Act
         incognitoObserverCaptor.getValue().onIncognitoModelCreated();
 
         // Assert: incognito window added but NOT activated
-        verify(observer, times(1))
-                .onBrowserWindowAdded(
-                        ChromeAndroidTaskUnitTestSupport
-                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
-        verify(observer, never())
-                .onBrowserWindowActivated(
-                        ChromeAndroidTaskUnitTestSupport
-                                .FAKE_INCOGNITO_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        verify(observer, times(1)).onBrowserWindowAdded(incognitoWindowInfo);
+        verify(observer, never()).onBrowserWindowActivated(incognitoWindowInfo);
     }
 
     @Test
@@ -4128,13 +4350,21 @@ public class ChromeAndroidTaskImplUnitTest {
         var observer = mock(AndroidBrowserWindowObserver.class);
         chromeAndroidTask.addAndroidBrowserWindowObserver(observer);
 
+        var normalWindowInfo =
+                new AndroidBrowserWindowInfo(
+                        FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
+                        chromeAndroidTaskWithMockDeps.mMockProfile,
+                        chromeAndroidTaskWithMockDeps
+                                .mActivityScopedObjects
+                                .mActivityWindowAndroid);
+
         // 1. Start in foreground/active state.
         when(activityWindowAndroidMocks.mMockActivityWindowAndroid.isTopResumedActivity())
                 .thenReturn(true);
         chromeAndroidTask.onTopResumedActivityChangedWithNative(true);
 
         // Verify normal window is immediately activated since it's in the foreground.
-        verify(observer, times(1)).onBrowserWindowActivated(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        verify(observer, times(1)).onBrowserWindowActivated(normalWindowInfo);
 
         // 2. Act: Move task to background.
         when(activityWindowAndroidMocks.mMockActivityWindowAndroid.isTopResumedActivity())
@@ -4142,8 +4372,7 @@ public class ChromeAndroidTaskImplUnitTest {
         chromeAndroidTask.onTopResumedActivityChangedWithNative(false);
 
         // Assert: normal window is deactivated.
-        verify(observer, times(1))
-                .onBrowserWindowDeactivated(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        verify(observer, times(1)).onBrowserWindowDeactivated(normalWindowInfo);
 
         // 3. Act: Move task back to foreground.
         when(activityWindowAndroidMocks.mMockActivityWindowAndroid.isTopResumedActivity())
@@ -4151,7 +4380,7 @@ public class ChromeAndroidTaskImplUnitTest {
         chromeAndroidTask.onTopResumedActivityChangedWithNative(true);
 
         // Assert: normal window is activated again.
-        verify(observer, times(2)).onBrowserWindowActivated(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        verify(observer, times(2)).onBrowserWindowActivated(normalWindowInfo);
     }
 
     @Test
@@ -4172,13 +4401,21 @@ public class ChromeAndroidTaskImplUnitTest {
         var observer = mock(AndroidBrowserWindowObserver.class);
         chromeAndroidTask.addAndroidBrowserWindowObserver(observer);
 
+        var normalWindowInfo =
+                new AndroidBrowserWindowInfo(
+                        FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR,
+                        chromeAndroidTaskWithMockDeps.mMockProfile,
+                        chromeAndroidTaskWithMockDeps
+                                .mActivityScopedObjects
+                                .mActivityWindowAndroid);
+
         // 1. Start in foreground/active state.
         when(activityWindowAndroidMocks.mMockActivityWindowAndroid.isTopResumedActivity())
                 .thenReturn(true);
         chromeAndroidTask.onTopResumedActivityChangedWithNative(true);
 
         // Verify normal window is immediately activated since it's in the foreground.
-        verify(observer, times(1)).onBrowserWindowActivated(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        verify(observer, times(1)).onBrowserWindowActivated(normalWindowInfo);
 
         // 2. Act: Move task to background. Event ordering is important.
         when(activityWindowAndroidMocks.mMockActivityWindowAndroid.isTopResumedActivity())
@@ -4186,8 +4423,7 @@ public class ChromeAndroidTaskImplUnitTest {
         chromeAndroidTask.onTopResumedActivityChangedWithNative(false);
 
         // Assert: normal window is deactivated correctly.
-        verify(observer, times(1))
-                .onBrowserWindowDeactivated(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        verify(observer, times(1)).onBrowserWindowDeactivated(normalWindowInfo);
 
         // 3. Act: Move task back to foreground. Event ordering is important.
         when(activityWindowAndroidMocks.mMockActivityWindowAndroid.isTopResumedActivity())
@@ -4195,7 +4431,7 @@ public class ChromeAndroidTaskImplUnitTest {
         chromeAndroidTask.onTopResumedActivityChangedWithNative(true);
 
         // Assert: normal window is activated again correctly.
-        verify(observer, times(2)).onBrowserWindowActivated(FAKE_NATIVE_ANDROID_BROWSER_WINDOW_PTR);
+        verify(observer, times(2)).onBrowserWindowActivated(normalWindowInfo);
     }
 
     private static final class TestChromeAndroidTaskFeature implements ChromeAndroidTaskFeature {

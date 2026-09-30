@@ -13,6 +13,7 @@
 #include "third_party/blink/public/platform/web_audio_sink_descriptor.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/renderer/modules/peerconnection/peer_connection_dependency_factory.h"
+#include "third_party/blink/renderer/modules/webaudio/audio_context.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_node_input.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_node_output.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_worklet.h"
@@ -26,6 +27,7 @@
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/wtf/cross_thread_copier_base.h"
+#include "third_party/blink/renderer/platform/wtf/text/format.h"
 
 namespace blink {
 
@@ -77,10 +79,6 @@ void RealtimeAudioDestinationHandler::Dispose() {
   AudioDestinationHandler::Dispose();
 }
 
-AudioContext* RealtimeAudioDestinationHandler::Context() const {
-  return static_cast<AudioContext*>(AudioDestinationHandler::Context());
-}
-
 void RealtimeAudioDestinationHandler::Initialize() {
   DCHECK(IsMainThread());
 
@@ -105,8 +103,7 @@ void RealtimeAudioDestinationHandler::SetChannelCount(
     ExceptionState& exception_state) {
   DCHECK(IsMainThread());
 
-  SendLogMessage(__func__,
-                 String::Format("({channel_count=%u})", channel_count));
+  SendLogMessage(__func__, Format("({{channel_count={}}})", channel_count));
 
   // TODO(crbug.com/1307461): Currently creating a platform destination requires
   // a valid frame/document. This assumption is incorrect.
@@ -139,7 +136,7 @@ void RealtimeAudioDestinationHandler::SetChannelCount(
   uint32_t old_channel_count = ChannelCount();
 
   // After the context is closed, changing channel count will be ignored.
-  AudioContext* context = Context();
+  AudioContext* context = static_cast<AudioContext*>(Context());
   CHECK(context);
   if (context->ContextState() == V8AudioContextState::Enum::kClosed) {
     return;
@@ -232,7 +229,7 @@ void RealtimeAudioDestinationHandler::Render(
   // take care of all AudioNode processes within this scope.
   DenormalDisabler denormal_disabler;
 
-  AudioContext* context = Context();
+  AudioContext* context = static_cast<AudioContext*>(Context());
 
   // A sanity check for the associated context, but this does not guarantee the
   // safe execution of the subsequence operations because the handler holds
@@ -309,7 +306,9 @@ void RealtimeAudioDestinationHandler::OnRenderError() {
     return;
   }
 
-  Context()->OnRenderError();
+  if (auto* context = static_cast<AudioContext*>(Context())) {
+    context->OnRenderError();
+  }
 }
 
 void RealtimeAudioDestinationHandler::SetDetectSilenceIfNecessary(
@@ -435,16 +434,14 @@ void RealtimeAudioDestinationHandler::StartPlatformDestination() {
               __func__,
               "=> sink is OK and echo cancellation reference was updated.");
         } else {
-          SendLogMessage(
-              __func__,
-              String::Format("=> sink is OK but execution_context was null, "
-                             "echo cancellation reference was not updated."));
+          SendLogMessage(__func__,
+                         "=> sink is OK but execution_context was null, echo "
+                         "cancellation reference was not updated.");
         }
       } else {
-        SendLogMessage(
-            __func__,
-            String::Format("=> sink is not OK. (output_device_status=%i)",
-                           output_device_status));
+        SendLogMessage(__func__,
+                       Format("=> sink is not OK. (output_device_status={})",
+                              output_device_status));
       }
     }
   }
@@ -504,7 +501,7 @@ void RealtimeAudioDestinationHandler::SetSinkDescriptor(
   // After the context is closed, `SetSinkDescriptor` request will be ignored
   // because it will trigger the recreation of the platform destination. This in
   // turn can activate the audio rendering thread.
-  AudioContext* context = Context();
+  AudioContext* context = static_cast<AudioContext*>(Context());
   CHECK(context);
   if (context->ContextState() == V8AudioContextState::Enum::kClosed) {
     std::move(callback).Run(
@@ -563,8 +560,7 @@ void RealtimeAudioDestinationHandler::SetSinkDescriptor(
       StartPlatformDestination();
     }
   } else {
-    SendLogMessage(__func__,
-                   String::Format("=> sink is not OK. (status=%i)", status));
+    SendLogMessage(__func__, Format("=> sink is not OK. (status={})", status));
   }
 
   std::move(callback).Run(status);
@@ -583,11 +579,10 @@ bool RealtimeAudioDestinationHandler::
 void RealtimeAudioDestinationHandler::SendLogMessage(
     const String& function_name,
     const String& message) const {
-  WebRtcLogMessage(String::Format("[WA]RADH::%s %s (sink_descriptor_=%s)",
-                                  function_name.Utf8().c_str(),
-                                  message.Utf8().c_str(),
-                                  sink_descriptor_.SinkId().Utf8().c_str())
-                       .Utf8());
+  WebRtcLogMessage(
+      StrCat({"[WA]RADH::", function_name, " ", message,
+              " (sink_descriptor_=", sink_descriptor_.SinkId(), ")"})
+          .Utf8());
 }
 
 }  // namespace blink

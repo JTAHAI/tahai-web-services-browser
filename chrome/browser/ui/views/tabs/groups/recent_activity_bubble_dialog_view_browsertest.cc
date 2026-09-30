@@ -12,13 +12,13 @@
 #include "build/build_config.h"
 #include "chrome/browser/data_sharing/data_sharing_service_factory.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/collaboration_messaging_tab_data.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/views/data_sharing/data_sharing_bubble_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -32,6 +32,8 @@
 #include "components/saved_tab_groups/public/features.h"
 #include "components/saved_tab_groups/public/tab_group_sync_service.h"
 #include "components/signin/public/base/avatar_icon_util.h"
+#include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "net/dns/mock_host_resolver.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -223,9 +225,10 @@ class RecentActivityBubbleDialogViewBrowserTest : public DialogBrowserTest {
     EXPECT_NE(nullptr, BubbleCoordinator());
     EXPECT_EQ(nullptr, BubbleCoordinator()->GetBubble());
 
-    BubbleCoordinator()->Show(views::BubbleAnchor(anchor_view),
-                              browser()->tab_strip_model()->GetWebContentsAt(0),
-                              activity_log, browser()->GetProfile());
+    BubbleCoordinator()->Show(
+        views::BubbleAnchor(anchor_view),
+        browser()->GetTabStripModel()->GetWebContentsAt(0), activity_log,
+        browser()->GetProfile());
   }
 
   void ShowLogForCurrentTab(std::vector<ActivityLogItem> activity_log) {
@@ -238,7 +241,7 @@ class RecentActivityBubbleDialogViewBrowserTest : public DialogBrowserTest {
 
     BubbleCoordinator()->ShowForCurrentTab(
         views::BubbleAnchor(anchor_view),
-        browser()->tab_strip_model()->GetWebContentsAt(0), {}, activity_log,
+        browser()->GetTabStripModel()->GetWebContentsAt(0), {}, activity_log,
         browser()->GetProfile());
   }
 
@@ -412,33 +415,29 @@ class RecentActivityBubbleDialogViewActionBrowserTest
 
   tabs::TabInterface* CreateTab(
       GURL tab_url = GURL(chrome::kChromeUINewTabPageURL)) {
-    auto index = browser()->tab_strip_model()->count();
+    auto index = browser()->GetTabStripModel()->count();
     CHECK(AddTabAtIndex(index, tab_url, ui::PAGE_TRANSITION_TYPED));
-    auto* tab = browser()->tab_strip_model()->GetTabAtIndex(index);
+    auto* tab = browser()->GetTabStripModel()->GetTabAtIndex(index);
     CHECK(tab);
     return tab;
   }
 
   void CloseTab(tabs::TabInterface* tab) {
-    browser()->tab_strip_model()->CloseWebContentsAt(TabIndex(tab),
-                                                     TabCloseTypes::CLOSE_NONE);
+    browser()->GetTabStripModel()->CloseWebContents(tab->GetContents(),
+                                                    TabCloseTypes::CLOSE_NONE);
   }
 
   LocalTabID TabId(tabs::TabInterface* tab) {
     return tab->GetHandle().raw_value();
   }
 
-  int TabIndex(tabs::TabInterface* tab) {
-    return browser()->tab_strip_model()->GetIndexOfTab(tab);
-  }
-
   const TabGroupId CreateTabGroup(std::vector<tabs::TabInterface*> tabs) {
     std::vector<int> tab_indices = {};
     for (auto* tab : tabs) {
       tab_indices.emplace_back(
-          browser()->tab_strip_model()->GetIndexOfTab(tab));
+          browser()->GetTabStripModel()->GetIndexOfTab(tab));
     }
-    return browser()->tab_strip_model()->AddToNewGroup(tab_indices);
+    return browser()->GetTabStripModel()->AddToNewGroup(tab_indices);
   }
 
   SavedTabGroup ShareTabGroup(TabGroupId group_id) {
@@ -525,13 +524,13 @@ IN_PROC_BROWSER_TEST_F(RecentActivityBubbleDialogViewActionBrowserTest,
 
   // Tab 2 starts active.
   EXPECT_EQ(tab2_url,
-            browser()->tab_strip_model()->GetActiveWebContents()->GetURL());
+            browser()->GetTabStripModel()->GetActiveWebContents()->GetURL());
 
   bubble->GetRowForTesting(0)->FocusTab();
 
   // Now tab 1 is active.
   EXPECT_EQ(tab1_url,
-            browser()->tab_strip_model()->GetActiveWebContents()->GetURL());
+            browser()->GetTabStripModel()->GetActiveWebContents()->GetURL());
 }
 
 // Trigger kReopenTab action from the recent activity dialog.
@@ -559,35 +558,35 @@ IN_PROC_BROWSER_TEST_F(RecentActivityBubbleDialogViewActionBrowserTest,
   EXPECT_TRUE(bubble);
 
   auto* group =
-      browser()->tab_strip_model()->group_model()->GetTabGroup(group_id);
+      browser()->GetTabStripModel()->group_model()->GetTabGroup(group_id);
 
   // 4 tabs including 2 grouped.
-  EXPECT_EQ(browser()->tab_strip_model()->count(), 4);
+  EXPECT_EQ(browser()->GetTabStripModel()->count(), 4);
   EXPECT_EQ(group->tab_count(), 2);
 
   // Tab order is as it was created.
-  EXPECT_EQ(browser()->tab_strip_model()->GetWebContentsAt(1)->GetURL(),
+  EXPECT_EQ(browser()->GetTabStripModel()->GetWebContentsAt(1)->GetURL(),
             tab1_url);
-  EXPECT_EQ(browser()->tab_strip_model()->GetWebContentsAt(2)->GetURL(),
+  EXPECT_EQ(browser()->GetTabStripModel()->GetWebContentsAt(2)->GetURL(),
             tab2_url);
 
   // Close the first tab in the group.
   CloseTab(tab1);
 
   // 3 tabs including only 1 grouped.
-  EXPECT_EQ(browser()->tab_strip_model()->count(), 3);
+  EXPECT_EQ(browser()->GetTabStripModel()->count(), 3);
   EXPECT_EQ(group->tab_count(), 1);
 
   bubble->GetRowForTesting(0)->ReopenTab();
 
   // Tab order has switched because tab1 was opened at the end of the group.
-  EXPECT_EQ(browser()->tab_strip_model()->GetWebContentsAt(1)->GetURL(),
+  EXPECT_EQ(browser()->GetTabStripModel()->GetWebContentsAt(1)->GetURL(),
             tab2_url);
-  EXPECT_EQ(browser()->tab_strip_model()->GetWebContentsAt(2)->GetURL(),
+  EXPECT_EQ(browser()->GetTabStripModel()->GetWebContentsAt(2)->GetURL(),
             tab1_url);
 
   // 4 tabs including 2 grouped. Both tabs are grouped again.
-  EXPECT_EQ(browser()->tab_strip_model()->count(), 4);
+  EXPECT_EQ(browser()->GetTabStripModel()->count(), 4);
   EXPECT_EQ(group->tab_count(), 2);
 }
 

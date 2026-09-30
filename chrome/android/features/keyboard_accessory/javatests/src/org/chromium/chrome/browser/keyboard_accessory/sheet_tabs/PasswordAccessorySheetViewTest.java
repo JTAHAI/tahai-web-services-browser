@@ -37,7 +37,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.CallbackUtils;
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -66,6 +68,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** View tests for the password accessory sheet. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@Batch(Batch.PER_CLASS)
 public class PasswordAccessorySheetViewTest {
     private WebPageStation mPage;
     private AccessorySheetTabItemsModel mModel;
@@ -144,11 +147,10 @@ public class PasswordAccessorySheetViewTest {
         assertThat(mView.get().getChildCount(), is(0));
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mModel.add(
-                            new AccessorySheetDataPiece(
-                                    "Passwords", AccessorySheetDataPiece.Type.TITLE));
-                });
+                () ->
+                        mModel.add(
+                                new AccessorySheetDataPiece(
+                                        "Passwords", AccessorySheetDataPiece.Type.TITLE)));
 
         CriteriaHelper.pollUiThread(() -> Criteria.checkThat(mView.get().getChildCount(), is(1)));
         View title = mView.get().findViewById(R.id.tab_title);
@@ -177,14 +179,13 @@ public class PasswordAccessorySheetViewTest {
                         .setDisplayText("Password Suggestion")
                         .setA11yDescription("Password Suggestion")
                         .setIsObfuscated(true)
-                        .setCallback(item -> clicked.set(true))
+                        .setCallback(_ -> clicked.set(true))
                         .build());
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mModel.add(
-                            new AccessorySheetDataPiece(
-                                    testInfo, AccessorySheetDataPiece.Type.PASSWORD_INFO));
-                });
+                () ->
+                        mModel.add(
+                                new AccessorySheetDataPiece(
+                                        testInfo, AccessorySheetDataPiece.Type.PASSWORD_INFO)));
 
         CriteriaHelper.pollUiThread(() -> Criteria.checkThat(mView.get().getChildCount(), is(1)));
 
@@ -212,11 +213,11 @@ public class PasswordAccessorySheetViewTest {
         final PasskeySection kTestPasskey =
                 new PasskeySection("Passkey User", () -> clicked.set(true));
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mModel.add(
-                            new AccessorySheetDataPiece(
-                                    kTestPasskey, AccessorySheetDataPiece.Type.PASSKEY_SECTION));
-                });
+                () ->
+                        mModel.add(
+                                new AccessorySheetDataPiece(
+                                        kTestPasskey,
+                                        AccessorySheetDataPiece.Type.PASSKEY_SECTION)));
 
         CriteriaHelper.pollUiThread(() -> Criteria.checkThat(mView.get().getChildCount(), is(1)));
 
@@ -255,11 +256,11 @@ public class PasswordAccessorySheetViewTest {
                         .build());
 
         ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mModel.add(
-                            new AccessorySheetDataPiece(
-                                    usernameEnabled, AccessorySheetDataPiece.Type.PASSWORD_INFO));
-                });
+                () ->
+                        mModel.add(
+                                new AccessorySheetDataPiece(
+                                        usernameEnabled,
+                                        AccessorySheetDataPiece.Type.PASSWORD_INFO)));
 
         CriteriaHelper.pollUiThread(() -> Criteria.checkThat(mView.get().getChildCount(), is(1)));
 
@@ -284,7 +285,7 @@ public class PasswordAccessorySheetViewTest {
                         .setSuggestionType(AccessorySuggestionType.CREDENTIAL_USERNAME)
                         .setDisplayText("Unused Name")
                         .setA11yDescription("Unused Password")
-                        .setCallback(cb -> {})
+                        .setCallback(CallbackUtils.emptyCallback())
                         .build();
 
         ThreadUtils.runOnUiThreadBlocking(
@@ -320,7 +321,7 @@ public class PasswordAccessorySheetViewTest {
                         .setSuggestionType(AccessorySuggestionType.CREDENTIAL_USERNAME)
                         .setDisplayText("Unused Name")
                         .setA11yDescription("Unused Password")
-                        .setCallback(cb -> {})
+                        .setCallback(CallbackUtils.emptyCallback())
                         .build();
 
         ThreadUtils.runOnUiThreadBlocking(
@@ -366,7 +367,7 @@ public class PasswordAccessorySheetViewTest {
                                     "Save passwords for this site",
                                     false,
                                     AccessoryAction.TOGGLE_SAVE_PASSWORDS,
-                                    result -> {});
+                                    CallbackUtils.emptyCallback());
                     mModel.add(
                             new AccessorySheetDataPiece(
                                     toggle, AccessorySheetDataPiece.Type.OPTION_TOGGLE));

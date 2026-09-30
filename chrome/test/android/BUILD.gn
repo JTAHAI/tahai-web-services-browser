@@ -53,7 +53,7 @@ android_library("chrome_java_test_pagecontroller") {
   public_deps = [ ":pagecontroller_utils_java" ]
 }
 
-generate_jni_registration("baseline_profile_test_apk_dummy_jni_registration") {
+generate_final_jni("baseline_profile_test_apk_dummy_jni_registration") {
   testonly = true
   java_targets = [ ":baseline_profile_test_apk" ]
 
@@ -206,8 +206,10 @@ android_library("chrome_java_transit") {
     "javatests/src/org/chromium/chrome/test/transit/ntp/RegularNewTabPageAppMenuFacility.java",
     "javatests/src/org/chromium/chrome/test/transit/ntp/RegularNewTabPageStation.java",
     "javatests/src/org/chromium/chrome/test/transit/omnibox/FakeOmniboxSuggestions.java",
+    "javatests/src/org/chromium/chrome/test/transit/omnibox/OmniboxDraftingFacility.java",
     "javatests/src/org/chromium/chrome/test/transit/omnibox/OmniboxEnteredTextFacility.java",
     "javatests/src/org/chromium/chrome/test/transit/omnibox/OmniboxFacility.java",
+    "javatests/src/org/chromium/chrome/test/transit/omnibox/OmniboxSuggestionsFacility.java",
     "javatests/src/org/chromium/chrome/test/transit/page/BasePageStation.java",
     "javatests/src/org/chromium/chrome/test/transit/page/CctPageStation.java",
     "javatests/src/org/chromium/chrome/test/transit/page/CtaPageStation.java",
@@ -362,6 +364,7 @@ android_library("chrome_java_integration_test_support") {
 
   sources = [
     "javatests/src/org/chromium/chrome/browser/history/TestBrowsingHistoryObserver.java",
+    "javatests/src/org/chromium/chrome/browser/settings/SettingsSearchTestUtils.java",
     "javatests/src/org/chromium/chrome/browser/toolbar/top/ButtonHighlightMatcher.java",
     "javatests/src/org/chromium/chrome/test/ChromeActivityTestRule.java",
     "javatests/src/org/chromium/chrome/test/ChromeTabbedActivityTestRule.java",
@@ -445,6 +448,7 @@ android_library("chrome_java_integration_test_support") {
     "//chrome/browser/ui/android/theme:java",
     "//chrome/browser/ui/android/toolbar:java",
     "//chrome/browser/ui/messages/android:java",
+    "//chrome/browser/url_constants/android:java",
     "//chrome/browser/util:java",
     "//components/bookmarks/common/android:bookmarks_java",
     "//components/browser_ui/bottomsheet/android:java",
@@ -572,6 +576,7 @@ android_library("chrome_java_test_support_common") {
     "//components/signin/public/android:java",
     "//components/signin/public/android:signin_java_test_support",
     "//components/signin/public/android:signin_test_resources",
+    "//components/tabs/public/android:java",
     "//components/webapps/browser/android:java",
     "//content/public/android:content_java",
     "//content/public/test/android:content_java_test_support",

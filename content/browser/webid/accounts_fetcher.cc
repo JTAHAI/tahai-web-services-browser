@@ -7,14 +7,17 @@
 #include <algorithm>
 #include <set>
 
+#include "base/json/json_reader.h"
 #include "content/browser/webid/config_fetcher.h"
 #include "content/browser/webid/flags.h"
+#include "content/browser/webid/idp_accounts_parser.h"
 #include "content/browser/webid/idp_network_request_manager.h"
 #include "content/browser/webid/mappers.h"
 #include "content/browser/webid/metrics.h"
 #include "content/browser/webid/webid_utils.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/webid/federated_identity_permission_context_delegate.h"
+#include "net/http/http_status_code.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom-shared.h"
 
 namespace content::webid {
@@ -30,6 +33,17 @@ static constexpr char kVcSdJwt[] = "vc+sd-jwt";
 
 bool IsFrameActive(RenderFrameHost* frame) {
   return frame && frame->IsActive();
+}
+
+void MaybeAddAccountParsingErrorToConsole(
+    RenderFrameHost& render_frame_host,
+    const FetchStatus& status,
+    blink::mojom::FederatedRequestResult result) {
+  if (status.parse_status != ParseStatus::kSuccess) {
+    render_frame_host.AddMessageToConsole(
+        blink::mojom::ConsoleMessageLevel::kError,
+        GetConsoleErrorMessageFromResult(result));
+  }
 }
 
 bool ValidateWellKnownFormatForClientMetadata(
@@ -129,10 +143,49 @@ void AccountsFetcher::FetchEndpointsForIdps(
                      weak_ptr_factory_.GetWeakPtr()));
 }
 
+void AccountsFetcher::FetchAccountsForIdps(
+    const std::vector<std::unique_ptr<IdentityProviderInfo>>& idp_infos,
+    const base::flat_map<GURL, IdentityProviderGetInfo>&
+        token_request_get_infos,
+    Metrics* fedcm_metrics,
+    const url::Origin& embedding_origin,
+    FilterAccountsCallback filter_accounts_callback) {
+  CHECK(!idp_infos.empty());
+  num_pending_requests_ = idp_infos.size();
+
+  request_get_infos_ = token_request_get_infos;
+  fedcm_metrics_ = fedcm_metrics;
+  embedding_origin_ = embedding_origin;
+  filter_accounts_callback_ = std::move(filter_accounts_callback);
+
+  for (const auto& idp_info : idp_infos) {
+    const GURL& identity_provider_config_url =
+        idp_info->provider->config->config_url;
+    metrics_endpoints_[identity_provider_config_url] =
+        idp_info->endpoints.metrics;
+
+    GURL accounts_endpoint = idp_info->endpoints.accounts;
+    // Do not fetch accounts if the IDP is registered.
+    if (idp_info->provider->config->from_idp_registration_api) {
+      accounts_endpoint = GURL();
+    }
+    const GURL& config_url = idp_info->provider->config->config_url;
+
+    if (network_manager_->SendAccountsRequest(
+            url::Origin::Create(config_url), accounts_endpoint,
+            base::BindOnce(
+                &AccountsFetcher::OnAccountsResponseReceived,
+                weak_ptr_factory_.GetWeakPtr(),
+                std::make_unique<IdentityProviderInfo>(*idp_info)))) {
+      fedcm_metrics_->RecordAccountsRequestSent(config_url);
+    }
+  }
+}
+
 void AccountsFetcher::SendAllFailedTokenRequestMetrics(
     blink::mojom::FederatedRequestResult result,
     bool did_show_ui) {
-  DCHECK(IsMetricsEndpointEnabled());
+  CHECK(IsMetricsEndpointEnabled(), base::NotFatalUntil::M158);
   for (const auto& metrics_endpoint_kv : metrics_endpoints_) {
     SendFailedTokenRequestMetrics(metrics_endpoint_kv.second, result,
                                   did_show_ui);
@@ -146,7 +199,7 @@ void AccountsFetcher::SendSuccessfulTokenRequestMetrics(
     base::TimeDelta account_selected_to_token_response_time,
     base::TimeDelta api_call_to_token_response_time,
     bool did_show_ui) {
-  DCHECK(IsMetricsEndpointEnabled());
+  CHECK(IsMetricsEndpointEnabled(), base::NotFatalUntil::M158);
 
   for (const auto& metrics_endpoint_kv : metrics_endpoints_) {
     const GURL& metrics_endpoint = metrics_endpoint_kv.second;
@@ -175,11 +228,9 @@ void AccountsFetcher::OnAllConfigAndWellKnownFetched(
     std::vector<ConfigFetcher::FetchResult> fetch_results) {
   config_fetcher_.reset();
 
-  // Set pending requests
-  num_pending_requests_ = fetch_results.size();
-
   well_known_and_config_fetched_time_ = base::TimeTicks::Now();
 
+  std::vector<std::unique_ptr<IdentityProviderInfo>> idp_infos;
   for (const ConfigFetcher::FetchResult& fetch_result : fetch_results) {
     const GURL& identity_provider_config_url =
         fetch_result.identity_provider_config_url;
@@ -211,7 +262,7 @@ void AccountsFetcher::OnAllConfigAndWellKnownFetched(
       result.error = fetch_error.result;
       result.token_status = fetch_error.token_status;
       result.should_delay_callback = params_.rp_mode == RpMode::kPassive;
-      AddResult(std::move(result));
+      results_.push_back(std::move(result));
       continue;
     }
 
@@ -239,7 +290,7 @@ void AccountsFetcher::OnAllConfigAndWellKnownFetched(
         result.error = FederatedRequestResult::kWellKnownInvalidResponse;
         result.token_status = TokenStatus::kWellKnownInvalidResponse;
         result.should_delay_callback = false;
-        AddResult(std::move(result));
+        results_.push_back(std::move(result));
         continue;
       }
     }
@@ -253,7 +304,7 @@ void AccountsFetcher::OnAllConfigAndWellKnownFetched(
           result.error = FederatedRequestResult::kTypeNotMatching;
           result.token_status = TokenStatus::kConfigNotMatchingType;
           result.should_delay_callback = false;
-          AddResult(std::move(result));
+          results_.push_back(std::move(result));
           continue;
         }
       }
@@ -268,7 +319,7 @@ void AccountsFetcher::OnAllConfigAndWellKnownFetched(
         result.error = FederatedRequestResult::kConfigInvalidResponse;
         result.token_status = TokenStatus::kConfigInvalidResponse;
         result.should_delay_callback = false;
-        AddResult(std::move(result));
+        results_.push_back(std::move(result));
         continue;
       }
     }
@@ -282,12 +333,10 @@ void AccountsFetcher::OnAllConfigAndWellKnownFetched(
         ShouldFailAccountsEndpointRequestBecauseNotSignedInWithIdp(
             identity_provider_config_url, permission_delegate_);
     if (idp_info->has_failing_idp_signin_status) {
-      // If the user is logged out and we are in a active-mode, allow the
-      // user to sign-in to the IdP and return early.
-      if (params_.rp_mode == blink::mojom::RpMode::kActive) {
+      if (ShouldImmediatelyShowLoginDialog()) {
         result.show_active_mode_modal_dialog = true;
         result.idp_info = std::move(idp_info);
-        AddResult(std::move(result));
+        results_.push_back(std::move(result));
         continue;
       }
       // Do not send metrics for IDP where the user is not signed-in in
@@ -298,26 +347,22 @@ void AccountsFetcher::OnAllConfigAndWellKnownFetched(
       result.idp_info = std::move(idp_info);
       result.error = FederatedRequestResult::kNotSignedInWithIdp;
       result.token_status = TokenStatus::kNotSignedInWithIdp;
-      result.should_delay_callback = true;
-      AddResult(std::move(result));
+      result.should_delay_callback = params_.rp_mode == RpMode::kPassive;
+      results_.push_back(std::move(result));
       continue;
     }
 
-    GURL accounts_endpoint = idp_info->endpoints.accounts;
-    // Do not fetch accounts if the IDP is registered.
-    if (idp_info->provider->config->from_idp_registration_api) {
-      accounts_endpoint = GURL();
-    }
-    const GURL& config_url = idp_info->provider->config->config_url;
-
-    if (network_manager_->SendAccountsRequest(
-            url::Origin::Create(config_url), accounts_endpoint,
-            base::BindOnce(&AccountsFetcher::OnAccountsResponseReceived,
-                           weak_ptr_factory_.GetWeakPtr(),
-                           std::move(idp_info)))) {
-      fedcm_metrics_->RecordAccountsRequestSent(config_url);
-    }
+    idp_infos.push_back(std::move(idp_info));
   }
+
+  if (idp_infos.empty()) {
+    std::move(callback_).Run(well_known_and_config_fetched_time_,
+                             std::move(results_));
+    return;
+  }
+
+  FetchAccountsForIdps(idp_infos, request_get_infos_, fedcm_metrics_,
+                       embedding_origin_, filter_accounts_callback_);
 }
 
 void AccountsFetcher::OnAccountsResponseReceived(
@@ -339,12 +384,26 @@ void AccountsFetcher::OnAccountsResponseReceived(
   }
 
   if (status.parse_status != ParseStatus::kSuccess) {
-    std::pair<FederatedRequestResult, TokenStatus> resultAndTokenStatus =
+    if (IsFedCmNativeIdPsEnabled() && network_manager_) {
+      NativeIdpFetcher* fetcher = network_manager_->GetOrCreateNativeIdpFetcher(
+          url::Origin::Create(idp_config_url));
+      if (fetcher) {
+        NativeIdpFetcher::RequestParams params;
+        params.url = idp_info->endpoints.accounts;
+        fetcher->Fetch(
+            params, base::BindOnce(&AccountsFetcher::OnNativeAccountsFetched,
+                                   weak_ptr_factory_.GetWeakPtr(),
+                                   std::move(idp_info), old_idp_signin_status,
+                                   status, accounts_fetched_time));
+        return;
+      }
+    }
+    auto [result, token_status] =
         AccountParseStatusToRequestResultAndTokenStatus(status.parse_status);
-    HandleAccountsFetchFailure(
-        std::move(idp_info), old_idp_signin_status, resultAndTokenStatus.first,
-        resultAndTokenStatus.second, status,
-        std::vector<IdentityRequestAccountPtr>(), accounts_fetched_time);
+    HandleAccountsFetchFailure(std::move(idp_info), old_idp_signin_status,
+                               result, token_status, status,
+                               std::vector<IdentityRequestAccountPtr>(),
+                               accounts_fetched_time);
     return;
   }
   CHECK(fedcm_metrics_);
@@ -389,6 +448,58 @@ void AccountsFetcher::OnAccountsResponseReceived(
 
   OnAccountsFetchSucceeded(std::move(idp_info), status, std::move(accounts),
                            std::move(filtered_accounts), accounts_fetched_time);
+}
+
+void AccountsFetcher::OnNativeAccountsFetched(
+    std::unique_ptr<IdentityProviderInfo> idp_info,
+    std::optional<bool> old_idp_signin_status,
+    FetchStatus fetch_status,
+    base::TimeTicks accounts_fetched_time,
+    NativeIdpFetcher::FetchResult fetch_result) {
+  if (!fetch_result.has_value()) {
+    // TODO(crbug.com/465181345): Add dedicated Native IDP error metrics to
+    // differentiate fetch_result.error() from HTTP fetch status errors.
+    auto [result, token_status] =
+        AccountParseStatusToRequestResultAndTokenStatus(
+            fetch_status.parse_status);
+    HandleAccountsFetchFailure(std::move(idp_info), old_idp_signin_status,
+                               result, token_status, fetch_status,
+                               std::vector<IdentityRequestAccountPtr>(),
+                               accounts_fetched_time);
+    return;
+  }
+
+  std::optional<base::DictValue> dict =
+      base::JSONReader::ReadDict(fetch_result.value(), base::JSON_PARSE_RFC);
+  if (!dict) {
+    auto [result, token_status] =
+        AccountParseStatusToRequestResultAndTokenStatus(
+            ParseStatus::kInvalidResponseError);
+    HandleAccountsFetchFailure(
+        std::move(idp_info), old_idp_signin_status, result, token_status,
+        {ParseStatus::kInvalidResponseError, net::HTTP_OK},
+        std::vector<IdentityRequestAccountPtr>(), accounts_fetched_time);
+    return;
+  }
+
+  IdpAccountsParser::ParseResult parse_result =
+      IdpAccountsParser::ParseAccounts(*dict);
+  if (!parse_result.has_value()) {
+    auto [result, token_status] =
+        AccountParseStatusToRequestResultAndTokenStatus(
+            ParseStatus::kInvalidResponseError);
+    HandleAccountsFetchFailure(
+        std::move(idp_info), old_idp_signin_status, result, token_status,
+        {ParseStatus::kInvalidResponseError, net::HTTP_OK},
+        std::vector<IdentityRequestAccountPtr>(), accounts_fetched_time);
+    return;
+  }
+
+  IdpNetworkRequestManager::AccountsResponse response;
+  response.accounts = std::move(*parse_result);
+  OnAccountsResponseReceived(std::move(idp_info),
+                             {ParseStatus::kSuccess, net::HTTP_OK},
+                             std::move(response));
 }
 
 void AccountsFetcher::OnAccountsFetchSucceeded(
@@ -611,12 +722,23 @@ void AccountsFetcher::ComputeLoginStates(
       LoginState browser_observed_login_state =
           account->last_used_timestamp.has_value() ? LoginState::kSignIn
                                                    : LoginState::kSignUp;
-      // At this moment we can trust login_state even though it's controlled
-      // by IdP. If it's kSignUp, it could mean that the browser's sharing
-      // permission is obsolete.
+      // At this moment we can trust idp_claimed_login_state even though it's
+      // controlled by the IdP.
       account->browser_trusted_login_state =
           account->idp_claimed_login_state.value_or(
               browser_observed_login_state);
+
+      // When the IdP and browser have conflicting login states (the IdP claims
+      // kSignUp via approved_clients while the browser observed kSignIn), the
+      // browser's sharing permission is obsolete (e.g., the user revoked access
+      // on the IdP side). Revoke it from browser storage. Note that this only
+      // applies when the IdP provides approved_clients.
+      if (account->idp_claimed_login_state == LoginState::kSignUp &&
+          browser_observed_login_state == LoginState::kSignIn) {
+        permission_delegate_->RevokeSharingPermission(
+            render_frame_host_->GetLastCommittedOrigin(), embedding_origin_,
+            idp_origin, account->id);
+      }
     }
   }
 }
@@ -630,11 +752,16 @@ void AccountsFetcher::HandleAccountsFetchFailure(
     std::vector<IdentityRequestAccountPtr> filtered_accounts,
     base::TimeTicks accounts_fetched_time) {
   if (status.parse_status != ParseStatus::kSuccess) {
+    // Log to console if response is not 200.
     MaybeAddResponseCodeToConsole(*render_frame_host_, "accounts endpoint",
                                   status.response_code);
   }
   if (!old_idp_signin_status.has_value()) {
-    if (params_.rp_mode == blink::mojom::RpMode::kActive) {
+    if (ShouldImmediatelyShowLoginDialog()) {
+      // Account parsing failure is not a terminal error for active mode so we
+      // only add error details to the console instead of setting res.error.
+      MaybeAddAccountParsingErrorToConsole(*render_frame_host_, status, result);
+
       Result res;
       res.idp_config_url = idp_info->provider->config->config_url;
       res.show_active_mode_modal_dialog = true;
@@ -644,18 +771,26 @@ void AccountsFetcher::HandleAccountsFetchFailure(
       return;
     }
 
+    // Request will log the `result` error, so we do not call
+    // MaybeAddAccountParsingErrorToConsole here.
     Result res;
     res.idp_config_url = idp_info->provider->config->config_url;
     res.idp_info = std::move(idp_info);
     res.error = result;
     res.token_status = token_status;
-    res.should_delay_callback = true;
+    res.should_delay_callback = params_.rp_mode == RpMode::kPassive;
     res.filtered_accounts = std::move(filtered_accounts);
     res.accounts_fetched_time = accounts_fetched_time;
     AddResult(std::move(res));
     return;
   }
 
+  // Request will not duplicate this log because `result` is an accounts
+  // endpoint parse error (e.g., kAccountsInvalidResponse), whereas the
+  // subsequent branches return browser policy errors (kRpPageNotVisible,
+  // kSilentMediationFailure) or trigger mismatch UI without setting
+  // res.error.
+  MaybeAddAccountParsingErrorToConsole(*render_frame_host_, status, result);
   if (!IsFrameActive(render_frame_host_->GetMainFrame())) {
     Result res;
     res.idp_config_url = idp_info->provider->config->config_url;
@@ -719,7 +854,7 @@ void AccountsFetcher::SendFailedTokenRequestMetrics(
     const GURL& metrics_endpoint,
     blink::mojom::FederatedRequestResult result,
     bool did_show_ui) {
-  DCHECK(IsMetricsEndpointEnabled());
+  CHECK(IsMetricsEndpointEnabled(), base::NotFatalUntil::M158);
   if (!metrics_endpoint.is_valid()) {
     return;
   }
@@ -736,6 +871,10 @@ void AccountsFetcher::AddResult(Result&& result) {
     std::move(callback_).Run(well_known_and_config_fetched_time_,
                              std::move(results_));
   }
+}
+
+bool AccountsFetcher::ShouldImmediatelyShowLoginDialog() const {
+  return params_.rp_mode == RpMode::kActive && request_get_infos_.size() == 1u;
 }
 
 }  // namespace content::webid

@@ -11,9 +11,9 @@ import org.chromium.base.TimeUtils;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceDataProto.InstanceData;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.SessionStartupPolicy;
 import org.chromium.chrome.browser.preferences.MultiInstancePreferenceKeys;
 import org.chromium.chrome.browser.tabmodel.SupportedProfileType;
 
@@ -403,7 +403,7 @@ class ChromeMultiInstancePersistentStore extends MultiInstancePersistentStore {
 
     static void writeIsRecoverable(int instanceId, boolean isRecoverable) {
         if (sData != null
-                && ChromeFeatureList.sSessionRestoreAfterCrash.isEnabled()
+                && MultiWindowUtils.isSessionRestoreAfterCrashEnabled()
                 && hasInstance(instanceId)) {
             putInstance(
                     instanceId, getInstanceFromProto(instanceId).setIsRecoverable(isRecoverable));
@@ -421,15 +421,50 @@ class ChromeMultiInstancePersistentStore extends MultiInstancePersistentStore {
         }
     }
 
-    static int readLastSessionExitType() {
-        return sData != null ? sData.getLastSessionExitType() : 0;
+    static @SessionStartupPolicy int readSessionStartupPolicy() {
+        return sData != null ? sData.getSessionStartupPolicy() : SessionStartupPolicy.DEFAULT;
     }
 
-    static void writeLastSessionExitType(int exitType) {
+    static void writeSessionStartupPolicy(@SessionStartupPolicy int startupPolicy) {
         if (sData != null) {
-            sData = sData.toBuilder().setLastSessionExitType(exitType).build();
+            sData = sData.toBuilder().setSessionStartupPolicy(startupPolicy).build();
             saveProto();
         }
+    }
+
+    static void clearSessionStartupPolicy() {
+        if (sData != null && sData.hasSessionStartupPolicy()) {
+            sData = sData.toBuilder().clearSessionStartupPolicy().build();
+            saveProto();
+        }
+    }
+
+    static int readRestoreOnStartupPrefValue() {
+        assert sData != null;
+        return sData.hasRestoreOnStartupPrefValue()
+                ? sData.getRestoreOnStartupPrefValue()
+                : TabbedStartupWindowPolicyDelegate.PREF_UNSET;
+    }
+
+    static void writeRestoreOnStartupPrefValue(int value) {
+        assert sData != null;
+        sData = sData.toBuilder().setRestoreOnStartupPrefValue(value).build();
+        saveProto();
+    }
+
+    static List<String> readRestoreOnStartupUrls() {
+        assert sData != null;
+        return sData.getRestoreOnStartupUrlsList();
+    }
+
+    static void writeRestoreOnStartupUrls(List<String> urls) {
+        assert sData != null;
+        var builder = sData.toBuilder().clearRestoreOnStartupUrls();
+        if (!urls.isEmpty()) {
+            builder.addAllRestoreOnStartupUrls(urls);
+        }
+        sData = builder.build();
+        saveProto();
     }
 
     static List<CrashRecoveryWindowInfo> readCrashRecoveryData() {

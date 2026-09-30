@@ -24,12 +24,25 @@ class MockGmailOtpBackend : public one_time_tokens::GmailOtpBackend {
               Subscribe,
               (base::Time expiration, Callback callback),
               (override));
+  MOCK_METHOD(one_time_tokens::ExpiringSubscription,
+              SubscribeToTickles,
+              (base::Time expiration, TickleCallback callback),
+              (override));
 
   MOCK_METHOD(void,
               OnIncomingOneTimeTokenBackendNotification,
               (const one_time_tokens::OneTimeTokenBackendNotification&
                    one_time_token_backend_notification),
               (override));
+
+  MOCK_METHOD(
+      void,
+      FetchUserDataProcessingConsent,
+      (one_time_tokens::GmailOtpBackend::FetchUserDataProcessingConsentCallback
+           callback),
+      (override));
+
+  MOCK_METHOD(bool, HasPendingRequests, (), (const, override));
 };
 
 MATCHER_P3(OneTimeTokenNotificationMatches,

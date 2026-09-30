@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/views/frame/scrim_view_controller.h"
 
 #include "chrome/browser/ui/tabs/tab_change_type.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/contents_web_view.h"
 #include "chrome/browser/ui/views/frame/scrim_view.h"
@@ -13,12 +14,12 @@
 
 ScrimViewController::ScrimViewController(BrowserView* browser_view)
     : browser_view_(browser_view),
-      tab_strip_model_(browser_view->browser()->tab_strip_model()) {
-  browser_view_->browser()->tab_strip_model()->AddObserver(this);
+      tab_strip_model_(browser_view->browser()->GetTabStripModel()) {
+  browser_view_->browser()->GetTabStripModel()->AddObserver(this);
 }
 
 ScrimViewController::~ScrimViewController() {
-  browser_view_->browser()->tab_strip_model()->RemoveObserver(this);
+  browser_view_->browser()->GetTabStripModel()->RemoveObserver(this);
 }
 
 void ScrimViewController::OnTabStripModelChanged(
@@ -31,7 +32,6 @@ void ScrimViewController::OnTabStripModelChanged(
 }
 
 void ScrimViewController::OnTabChangedAt(tabs::TabInterface* tab,
-                                         int index,
                                          TabChangeType change_type) {
   if (change_type == TabChangeType::kBlockedOnly) {
     UpdateScrimViews();

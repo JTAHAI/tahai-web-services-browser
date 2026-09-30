@@ -44,13 +44,13 @@
 #include "chrome/browser/glic/widget/glic_widget.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/interaction/browser_elements.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
 #include "chrome/common/chrome_features.h"
@@ -276,8 +276,7 @@ class InteractiveGlicTestMixin : public T {
       return WaitForGlic(instrument_mode);
     }
 
-    tabs::TabInterface* active_tab =
-        browser()->tab_strip_model()->GetActiveTab();
+    tabs::TabInterface* active_tab = browser()->GetActiveTabInterface();
 
     switch (instrument_mode) {
       case GlicInstrumentMode::kHostAndContents:
@@ -711,7 +710,7 @@ class InteractiveGlicTestMixin : public T {
 
   auto CheckTabCount(int expected_count) {
     return Api::CheckResult(
-        [this] { return browser()->tab_strip_model()->count(); },
+        [this] { return browser()->GetTabStripModel()->count(); },
         expected_count, "CheckTabCount");
   }
 
@@ -824,7 +823,7 @@ class InteractiveGlicTestMixin : public T {
         Api::WithElement(
             ui::test::internal::kInteractiveTestPivotElementId,
             base::BindLambdaForTesting([this, url](ui::TrackedElement* el) {
-              Browser* const browser_ptr = browser();
+              BrowserWindowInterface* const browser_ptr = browser();
               CHECK(browser_ptr) << "No browser";
               CHECK(GetHost());
               GetHost()->instance_delegate().CreateTab(
@@ -906,7 +905,7 @@ class InteractiveGlicTestMixin : public T {
   }
 
   auto CheckGlicInstanceIsShowing() {
-    return Api::CheckResult(
+    return Api::Check(
         [this]() {
           auto* instance = GetGlicInstance();
           return instance && instance->IsShowing();
@@ -914,7 +913,7 @@ class InteractiveGlicTestMixin : public T {
         "glic panel must be open");
   }
   auto CheckGlicIsClosed() {
-    return Api::CheckResult(
+    return Api::Check(
         [this]() {
           views::View* view = GetGlicView();
           return !view || !view->GetVisible();
@@ -953,12 +952,12 @@ class InteractiveGlicTestMixin : public T {
   // `InteractiveGlicTestMixin` is configured to operate a single browser, but
   // it can change which browser it operates. This changes the browser to be
   // used in functions of `InteractiveGlicTestMixin`.
-  void SetActiveBrowser(Browser* browser) {
-    active_browser_ = browser->AsWeakPtr();
+  void SetActiveBrowser(BrowserWindowInterface* browser) {
+    active_browser_ = browser->GetWeakPtr();
   }
 
   // Returns the active browser.
-  Browser* browser() {
+  BrowserWindowInterface* browser() {
     if (active_browser_) {
       return active_browser_.get();
     } else {
@@ -1024,7 +1023,7 @@ class InteractiveGlicTestMixin : public T {
   // many functions in this fixture. Only one will be present at a time.
   GlicInstanceTracker instance_tracker_;
 
-  base::WeakPtr<Browser> active_browser_;
+  base::WeakPtr<BrowserWindowInterface> active_browser_;
   glic::GlicTestEnvironment glic_test_environment_;
   // This is the default test file. Tests can override with a different path.
   base::test::ScopedFeatureList features_;

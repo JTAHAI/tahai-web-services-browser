@@ -9,7 +9,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/page_load_metrics/integration_tests/metric_integration_test.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/page_load_metrics/browser/page_load_metrics_test_waiter.h"
@@ -389,7 +389,7 @@ IN_PROC_BROWSER_TEST_F(InteractionToNextPaintTest,
       embedded_test_server()->GetURL("/resources/empty.html"),
       content::Referrer(), ::ui::PAGE_TRANSITION_AUTO_TOPLEVEL, std::string());
 
-  auto* tab_strip_model = browser()->tab_strip_model();
+  auto* tab_strip_model = browser()->GetTabStripModel();
 
   tab_strip_model->AddWebContents(std::move(web_contents_to_add), -1,
                                   ::ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
@@ -397,11 +397,11 @@ IN_PROC_BROWSER_TEST_F(InteractionToNextPaintTest,
 
   // Verify the initial tab is backgrounded.
   EXPECT_NE(initial_web_contents,
-            browser()->tab_strip_model()->GetActiveWebContents());
+            browser()->GetTabStripModel()->GetActiveWebContents());
 
   // Switch back to the previous tab and navigate away to let the UKM entries be
   // recorded.
-  browser()->tab_strip_model()->ActivateTabAt(0);
+  browser()->GetTabStripModel()->ActivateTabAt(0);
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
 
@@ -443,7 +443,7 @@ IN_PROC_BROWSER_TEST_F(InteractionToNextPaintTest,
       embedded_test_server()->GetURL("/resources/empty.html"),
       content::Referrer(), ::ui::PAGE_TRANSITION_AUTO_TOPLEVEL, std::string());
 
-  auto* tab_strip_model = browser()->tab_strip_model();
+  auto* tab_strip_model = browser()->GetTabStripModel();
 
   // Add the tab and foreground it. Effectively this is switching tab.
   tab_strip_model->AddWebContents(std::move(web_contents_to_add), -1,
@@ -452,22 +452,16 @@ IN_PROC_BROWSER_TEST_F(InteractionToNextPaintTest,
 
   // Verify the initial tab is backgrounded.
   EXPECT_NE(initial_web_contents,
-            browser()->tab_strip_model()->GetActiveWebContents());
+            browser()->GetTabStripModel()->GetActiveWebContents());
 
   waiter->Wait();
 
   // Close the initial tab.
   waiter->AddOnCompleteCalledExpectation();
 
-  // Get the tab index of the given WebContents.
-  int tab_index = tab_strip_model->GetIndexOfWebContents(initial_web_contents);
-
-  // Expect the tab index of the given WebContents is found.
-  EXPECT_NE(tab_index, TabStripModel::kNoTab);
-
   // Close the tab.
-  tab_strip_model->CloseWebContentsAt(tab_index,
-                                      TabCloseTypes::CLOSE_USER_GESTURE);
+  tab_strip_model->CloseWebContents(initial_web_contents,
+                                    TabCloseTypes::CLOSE_USER_GESTURE);
 
   waiter->Wait();
 

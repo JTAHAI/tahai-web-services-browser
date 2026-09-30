@@ -1475,23 +1475,29 @@ policies:
   1474: FindAndFillWithGeminiSettings
   1475: OnNetworkRequestEnterpriseConnector
   1476: EnterprisePublishedSkills
-  1477: LocalOIEnabled
-  1478: LocalOIMissionIngestionEnabled
-  1479: LocalOIArtifactIngestionEnabled
-  1480: LocalOIDocumentationReferenceIngestionEnabled
-  1481: LocalOIOpsToolIngestionEnabled
-  1482: LocalOIHistoryMetadataEnabled
-  1483: LocalOIReportsEnabled
-  1484: LocalOIExportEnabled
-  1485: LocalOIMspPromotionEnabled
-  1486: LocalOILocalAIEnabled
-  1487: LocalOIRetentionDays
-  1488: TahaiNamedWorkspacesEnabled
-  1489: TahaiGuardConfiguration
-  1490: TahaiGuardCustomRules
-  1491: TahaiSkinsEnabled
-  1492: TahaiSkinInstallationsAllowed
-  1493: TahaiOperationalSkinTrustedKeys
+  1477: OnDataCopiedEnterpriseConnector
+  1478: ""
+  1479: ""
+  1480: ""
+  1481: DeviceOsMigrationTargetDate
+  1482: RendererAccessibilityEnabled
+  1483: LocalOIEnabled
+  1484: LocalOIMissionIngestionEnabled
+  1485: LocalOIArtifactIngestionEnabled
+  1486: LocalOIDocumentationReferenceIngestionEnabled
+  1487: LocalOIOpsToolIngestionEnabled
+  1488: LocalOIHistoryMetadataEnabled
+  1489: LocalOIReportsEnabled
+  1490: LocalOIExportEnabled
+  1491: LocalOIMspPromotionEnabled
+  1492: LocalOILocalAIEnabled
+  1493: LocalOIRetentionDays
+  1494: TahaiNamedWorkspacesEnabled
+  1495: TahaiGuardConfiguration
+  1496: TahaiGuardCustomRules
+  1497: TahaiSkinsEnabled
+  1498: TahaiSkinInstallationsAllowed
+  1499: TahaiOperationalSkinTrustedKeys
 
 atomic_groups:
   1: Homepage

@@ -89,15 +89,6 @@ VideoCaptureDevice::Client::Buffer CreateStubBuffer(
 MockVideoCaptureDeviceClient::MockVideoCaptureDeviceClient() = default;
 MockVideoCaptureDeviceClient::~MockVideoCaptureDeviceClient() = default;
 
-void MockVideoCaptureDeviceClient::OnIncomingCapturedBuffer(
-    Buffer buffer,
-    const media::VideoCaptureFormat& format,
-    base::TimeTicks reference_time,
-    base::TimeDelta timestamp,
-    std::optional<base::TimeTicks> capture_begin_time,
-    const std::optional<VideoFrameMetadata>& metadata) {
-  DoOnIncomingCapturedBuffer(buffer, format, reference_time, timestamp);
-}
 void MockVideoCaptureDeviceClient::OnIncomingCapturedBufferExt(
     Buffer buffer,
     const media::VideoCaptureFormat& format,
@@ -143,16 +134,11 @@ MockVideoCaptureDeviceClient::CreateMockClientWithBufferAllocator(
             return VideoCaptureDevice::Client::ReserveResult::kSucceeded;
           });
   ON_CALL(*result, OnIncomingCapturedData)
-      .WillByDefault(WithArgs<2>(
-          [raw_result_ptr](const media::VideoCaptureFormat& frame_format) {
-            raw_result_ptr->fake_frame_captured_callback_.Run(frame_format);
-          }));
-  ON_CALL(*result, OnIncomingCapturedImage)
       .WillByDefault(WithArgs<1>(
           [raw_result_ptr](const media::VideoCaptureFormat& frame_format) {
             raw_result_ptr->fake_frame_captured_callback_.Run(frame_format);
           }));
-  ON_CALL(*result, DoOnIncomingCapturedBuffer)
+  ON_CALL(*result, OnIncomingCapturedImage)
       .WillByDefault(WithArgs<1>(
           [raw_result_ptr](const media::VideoCaptureFormat& frame_format) {
             raw_result_ptr->fake_frame_captured_callback_.Run(frame_format);

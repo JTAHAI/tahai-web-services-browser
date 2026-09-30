@@ -514,7 +514,11 @@ public class NotificationPlatformBridge {
      * @param actionIndex The zero-based index of the action button, or -1 if not applicable.
      */
     static Uri makeIntentData(String notificationId, String origin, int actionIndex) {
-        return Uri.parse(origin).buildUpon().fragment(notificationId + "," + actionIndex).build();
+        return Uri.parse(origin)
+                .buildUpon()
+                .appendPath(notificationId)
+                .appendQueryParameter("actionIndex", String.valueOf(actionIndex))
+                .build();
     }
 
     /**
@@ -572,7 +576,7 @@ public class NotificationPlatformBridge {
         intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
         return PendingIntentProvider.getBroadcast(
                 context,
-                PENDING_INTENT_REQUEST_CODE,
+                actionIndex >= 0 ? actionIndex : PENDING_INTENT_REQUEST_CODE,
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT,
                 mutable);
@@ -801,7 +805,7 @@ public class NotificationPlatformBridge {
 
         ChromeWebApkHost.checkChromeBacksWebApkAsync(
                 webApkPackage,
-                (doesBrowserBackWebApk, browserPackageName) -> {
+                (doesBrowserBackWebApk, _) -> {
                     try {
                         future.complete(doesBrowserBackWebApk ? webApkPackage : "");
                     } catch (Throwable t) {
@@ -850,12 +854,6 @@ public class NotificationPlatformBridge {
                         identifyingAttributes.webApkPackage);
         // Record whether it's known whether notifications can be shown to the user at all.
         NotificationSystemStatusUtil.recordAppNotificationStatusHistogram();
-
-        if (image != null) {
-            RecordHistogram.recordCount100000Histogram(
-                    "Notifications.Android.ImageMemorySizeInKB",
-                    image.getAllocationByteCount() / 1000);
-        }
 
         NotificationBuilderBase notificationBuilder =
                 prepareNotificationBuilder(
@@ -1300,8 +1298,7 @@ public class NotificationPlatformBridge {
             String action) {
         PendingIntentProvider reportIntentProvider =
                 makePendingIntent(identifyingAttributes, action, /* actionIndex= */ -1, false);
-        @NotificationUmaTracker.ActionType
-        int umaActionType = NotificationUmaTracker.ActionType.UNKNOWN;
+        @NotificationUmaTracker.ActionType int umaActionType;
         switch (action) {
             case ACTION_REPORT_AS_SAFE:
                 umaActionType = NotificationUmaTracker.ActionType.REPORT_AS_SAFE;
@@ -1400,17 +1397,11 @@ public class NotificationPlatformBridge {
                             ContextUtils.getApplicationContext(), scopeUrl);
             if (webApkPackageFound != null) {
                 WebApkIdentityServiceClient.CheckBrowserBacksWebApkCallback callback =
-                        new WebApkIdentityServiceClient.CheckBrowserBacksWebApkCallback() {
-                            @Override
-                            public void onChecked(
-                                    boolean doesBrowserBackWebApk,
-                                    @Nullable String backingBrowser) {
+                        (doesBrowserBackWebApk, _) ->
                                 closeNotificationInternal(
                                         notificationId,
                                         doesBrowserBackWebApk ? webApkPackageFound : null,
                                         scopeUrl);
-                            }
-                        };
                 ChromeWebApkHost.checkChromeBacksWebApkAsync(webApkPackageFound, callback);
                 return;
             }
@@ -1734,7 +1725,6 @@ public class NotificationPlatformBridge {
                                 identifyingAttributes.origin,
                                 identifyingAttributes.profileId,
                                 identifyingAttributes.incognito);
-                return;
         }
     }
 

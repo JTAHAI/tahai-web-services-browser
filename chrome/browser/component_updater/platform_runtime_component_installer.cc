@@ -4,6 +4,7 @@
 
 #include "chrome/browser/component_updater/platform_runtime_component_installer.h"
 
+#include <cstdint>
 #include <iterator>
 #include <memory>
 #include <string>
@@ -149,8 +150,7 @@ base::FilePath PlatformRuntimeComponentInstallerPolicy::GetRelativeInstallDir()
 
 void PlatformRuntimeComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign(std::begin(kPlatformRuntimePublicKeySHA256),
-               std::end(kPlatformRuntimePublicKeySHA256));
+  hash->assign_range(kPlatformRuntimePublicKeySHA256);
 }
 
 std::string PlatformRuntimeComponentInstallerPolicy::GetName() const {
@@ -181,7 +181,7 @@ void PlatformRuntimeComponentInstallerPolicy::UpdateOnDemand(
             error != update_client::Error::UPDATE_IN_PROGRESS) {
           LOG(ERROR)
               << "Failed to update Platform Runtime component with error "
-              << static_cast<int>(error);
+              << std::to_underlying(error);
         }
       }));
 }

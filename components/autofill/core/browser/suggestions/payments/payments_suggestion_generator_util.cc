@@ -40,7 +40,7 @@
 #include "components/autofill/core/browser/data_model/payments/bnpl_issuer.h"
 #include "components/autofill/core/browser/data_model/payments/credit_card.h"
 #include "components/autofill/core/browser/data_quality/autofill_data_util.h"
-#include "components/autofill/core/browser/field_type_utils.h"
+#include "components/autofill/core/browser/field_type_util.h"
 #include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/browser/form_structure.h"
 #include "components/autofill/core/browser/foundations/autofill_client.h"
@@ -407,14 +407,12 @@ void AdjustVirtualCardSuggestionContent(Suggestion& suggestion,
   }
 
   suggestion.type = SuggestionType::kVirtualCreditCardEntry;
-  // If a virtual card is non-acceptable, it needs to be displayed in
-  // grayed-out style.
   if (!suggestion.IsAcceptable()) {
     suggestion.acceptability =
-        Suggestion::Acceptability::kUnacceptableWithDeactivatedStyle;
+        Suggestion::Acceptability::kUnselectableAndUnacceptable;
   }
   suggestion.iph_metadata = Suggestion::IPHMetadata(
-      suggestion.HasDeactivatedStyle()
+      !suggestion.IsSelectable()
           ? &feature_engagement::
                 kIPHAutofillDisabledVirtualCardSuggestionFeature
           : &feature_engagement::kIPHAutofillVirtualCardSuggestionFeature);
@@ -854,8 +852,8 @@ Suggestion CreateBnplSuggestion(
   bnpl_suggestion.acceptability =
       amount_extraction_status.has_timed_out_for_page_load ||
               amount_extraction_status.seen_unsupported_currency_for_page_load
-          ? Suggestion::Acceptability::kUnacceptableWithDeactivatedStyle
-          : Suggestion::Acceptability::kAcceptable;
+          ? Suggestion::Acceptability::kUnselectableAndUnacceptable
+          : Suggestion::Acceptability::kSelectableAndAcceptable;
 
   return bnpl_suggestion;
 }
@@ -864,6 +862,13 @@ std::vector<CreditCard> GetTouchToFillCardsToSuggest(
     const AutofillClient& client,
     const FormFieldData& trigger_field,
     FieldType trigger_field_type) {
+  // Do not suggest credit cards if the payments data category is blocked by
+  // enterprise policy for the current website.
+  if (client.IsAutofillTypeBlockedByPolicy(
+          client.GetLastCommittedPrimaryMainFrameURL(),
+          AutofillClient::AutofillPolicyDataCategory::kPayments)) {
+    return {};
+  }
   // TouchToFill actually has a trigger field which must be classified in some
   // way, but we intentionally fetch suggestions irrelevant of them.
   std::vector<CreditCard> cards_to_suggest = GetOrderedCardsToSuggest(
@@ -957,9 +962,8 @@ std::vector<Suggestion> GetCreditCardSuggestionsForTouchToFill(
       bool acceptable =
           IsCardSuggestionAcceptable(credit_card, manager.client());
       suggestion.acceptability =
-          acceptable
-              ? Suggestion::Acceptability::kAcceptable
-              : Suggestion::Acceptability::kUnacceptableWithDeactivatedStyle;
+          acceptable ? Suggestion::Acceptability::kSelectableAndAcceptable
+                     : Suggestion::Acceptability::kUnselectableAndUnacceptable;
       suggestion.labels.push_back(std::vector<Suggestion::Text>{
           Suggestion::Text(l10n_util::GetStringUTF16(
               acceptable
@@ -989,7 +993,9 @@ std::vector<Suggestion> GetCreditCardSuggestionsForTouchToFill(
       bnpl_manager->SetIsCardNumberFieldEmpty(
           IsCardNumberFieldEmpty(form_structure));
     }
-    manager.GetCreditCardFormEventLogger().OnBnplSuggestionShown();
+    manager.GetCreditCardFormEventLogger().OnBnplSuggestionShown(
+        /*pay_later_tab_shown=*/base::FeatureList::IsEnabled(
+            features::kAutofillEnablePayNowPayLaterTabs));
     manager.client()
         .GetPersonalDataManager()
         .payments_data_manager()
@@ -1076,7 +1082,7 @@ bool IsCreditCardFooterSuggestion(
     case SuggestionType::kManageCreditCard:
     case SuggestionType::kMaximizeCreditCardBenefitsEntry:
     case SuggestionType::kScanCreditCard:
-    case SuggestionType::kUndoOrClear:
+    case SuggestionType::kUndo:
       return true;
     case SuggestionType::kAccountStoragePasswordEntry:
     case SuggestionType::kAddressEntry:
@@ -1085,9 +1091,11 @@ bool IsCreditCardFooterSuggestion(
     case SuggestionType::kAllLoyaltyCardsEntry:
     case SuggestionType::kAllSavedPasswordsEntry:
     case SuggestionType::kAtMemoryAiDisclosure:
+    case SuggestionType::kAtMemoryFetching:
     case SuggestionType::kAtMemoryGenericError:
     case SuggestionType::kAtMemoryInactivityNudge:
     case SuggestionType::kAtMemoryNoConnection:
+    case SuggestionType::kAtMemoryOpenGemini:
     case SuggestionType::kAtMemorySearchAffordance:
     case SuggestionType::kAtMemorySearchResult:
     case SuggestionType::kAtMemorySourceAttribution:
@@ -1096,6 +1104,7 @@ bool IsCreditCardFooterSuggestion(
     case SuggestionType::kAutofillAiOtherOrders:
     case SuggestionType::kAutofillAiOtherShipments:
     case SuggestionType::kAutofillAiPrivateInferenceNotice:
+    case SuggestionType::kAutofillAiSourceAttribution:
     case SuggestionType::kBackupPasswordEntry:
     case SuggestionType::kBnplEntry:
     case SuggestionType::kComposeDisable:
@@ -1128,13 +1137,12 @@ bool IsCreditCardFooterSuggestion(
     case SuggestionType::kManageLoyaltyCard:
     case SuggestionType::kManageEnhancedAutofill:
     case SuggestionType::kMerchantPromoCodeEntry:
-    case SuggestionType::kMixedFormMessage:
     case SuggestionType::kOneTimePasswordEntry:
-    case SuggestionType::kOpenGemini:
     case SuggestionType::kPasswordEntry:
     case SuggestionType::kPasswordFieldByFieldFilling:
     case SuggestionType::kPendingStateSignin:
     case SuggestionType::kPersonalContextNotice:
+    case SuggestionType::kRemoveAutofillAi:
     case SuggestionType::kSaveAndFillCreditCardEntry:
     case SuggestionType::kSeePromoCodeDetails:
     case SuggestionType::kTitle:
@@ -1292,9 +1300,10 @@ Suggestion CreateCreditCardSuggestion(
     autofill_metrics::CardMetadataLoggingContext& metadata_logging_context) {
   Suggestion suggestion(SuggestionType::kCreditCardEntry);
   suggestion.icon = credit_card.CardIconForAutofillSuggestion();
-  suggestion.acceptability = IsCardSuggestionAcceptable(credit_card, client)
-                                 ? Suggestion::Acceptability::kAcceptable
-                                 : Suggestion::Acceptability::kUnacceptable;
+  suggestion.acceptability =
+      IsCardSuggestionAcceptable(credit_card, client)
+          ? Suggestion::Acceptability::kSelectableAndAcceptable
+          : Suggestion::Acceptability::kSelectableButUnacceptable;
   suggestion.payload = Suggestion::Guid(credit_card.guid());
 
   // Manual fallback suggestions labels are computed as if the triggering field

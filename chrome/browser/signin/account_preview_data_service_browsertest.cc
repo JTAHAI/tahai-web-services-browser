@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -14,7 +15,7 @@
 #include "chrome/browser/signin/account_preview_data_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_browser_test_base.h"
-#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "components/prefs/pref_service.h"
 #include "components/signin/core/browser/account_metrics_id_allocator.h"
 #include "components/signin/core/browser/account_preview_data_fetcher.h"
@@ -42,10 +43,12 @@ class AccountPreviewDataServiceBrowserTest : public SigninBrowserTestBase {
     return std::make_unique<content::URLLoaderInterceptor>(base::BindRepeating(
         [](content::URLLoaderInterceptor::RequestParams* params) {
           std::string expected_query;
-          for (int data_type : signin::kRequestedDataTypes) {
-            expected_query += (expected_query.empty() ? "" : "&") +
-                              std::string("dataTypes=") +
-                              base::NumberToString(data_type);
+          for (syncer::DataType data_type : signin::kRequestedDataTypes) {
+            expected_query +=
+                (expected_query.empty() ? "" : "&") +
+                std::string("dataTypes=") +
+                base::NumberToString(
+                    syncer::GetSpecificsFieldNumberFromDataType(data_type));
           }
           if (params->url_request.url.path() ==
                   "/v1/dataTypes/-/dataTypesStatistics" &&
@@ -76,7 +79,11 @@ class AccountPreviewDataServiceBrowserTest : public SigninBrowserTestBase {
             return true;
           }
           if (params->url_request.url.path() ==
-              "/v1/dataTypes/154522/entitiesPreviews") {
+              base::StrCat({"/v1/dataTypes/",
+                            base::NumberToString(
+                                syncer::GetSpecificsFieldNumberFromDataType(
+                                    syncer::DEVICE_INFO)),
+                            "/entitiesPreviews"})) {
             std::string response = R"({
                "entitiesPreviews": []
              })";

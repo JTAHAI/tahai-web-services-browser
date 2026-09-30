@@ -20,6 +20,8 @@ import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.BrowserRestartActivity;
 import org.chromium.chrome.browser.lifetime.ApplicationLifetime;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.SessionStartupPolicy;
+import org.chromium.chrome.browser.multiwindow.TabbedStartupWindowPolicyDelegate;
 
 /**
  * Answers requests to kill and (potentially) restart Chrome's main browser process.
@@ -65,18 +67,17 @@ class ChromeLifetimeController
 
     private ChromeLifetimeController() {
         mHandler = new Handler(Looper.getMainLooper());
-        mRestartRunnable =
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        fireBrowserRestartActivityIntent();
-                    }
-                };
+        mRestartRunnable = this::fireBrowserRestartActivityIntent;
     }
 
     @Override
     public void onTerminate(boolean restart) {
         mRestartChromeOnDestroy = restart;
+        // If the app is deterministically terminating (e.g. via an explicit restart or quit
+        // request), maybe persist the session state so that it can be restored on next launch
+        // when applicable.
+        TabbedStartupWindowPolicyDelegate.getInstance()
+                .maybeSaveSessionStateOnTermination(SessionStartupPolicy.RESTORE_ALL);
 
         // Tell all Chrome Activities to finish themselves.
         for (Activity activity : ApplicationStatus.getRunningActivities()) {

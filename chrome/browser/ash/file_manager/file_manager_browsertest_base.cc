@@ -128,6 +128,7 @@
 #include "chrome/browser/notifications/notification_handler.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync_file_system/mock_remote_file_sync_service.h"
 #include "chrome/browser/sync_file_system/remote_file_sync_service.h"
 #include "chrome/browser/sync_file_system/sync_file_system_service.h"
@@ -1472,7 +1473,8 @@ class DriveFsTestVolume : public TestVolume {
 
     EXPECT_FALSE(integration_service_);
     integration_service_ = new drive::DriveIntegrationService(
-        g_browser_process->local_state(), profile, std::string(),
+        g_browser_process->local_state(), profile,
+        IdentityManagerFactory::GetForProfile(profile), std::string(),
         root_path().Append("v1"), CreateDriveFsBootstrapListener());
 
     return integration_service_;
@@ -2333,9 +2335,9 @@ void FileManagerBrowserTestBase::SetUpCommandLine(
     // (At the time of writing, exactly one does).
     // Although in this path no browser is created (and so one can never
     // close..), setting this to false prevents InProcessBrowserTest from adding
-    // the kDisableZeroBrowsersOpenForTests flag, which would prevent
-    // `ChromeBrowserMainPartsAsh` from adding the keepalive that normally
-    // stops chromeos from shutting down unexpectedly.
+    // the ash::switches::kDisableZeroBrowsersOpenForTests flag, which would
+    // prevent `ChromeBrowserMainPartsAsh` from adding the keepalive that
+    // normally stops chromeos from shutting down unexpectedly.
     set_exit_when_last_browser_closes(false);
   }
 
@@ -3755,10 +3757,7 @@ void FileManagerBrowserTestBase::OnCommand(const std::string& name,
   // stores the navigation observer, which later could be used via the
   // `waitForSelectFileDialogNavigation` message.
   if (name == "runSelectFileDialog") {
-    browser()
-        ->GetFeatures()
-        .browser_select_file_dialog_controller()
-        ->OpenFile();
+    BrowserSelectFileDialogController::From(browser())->OpenFile();
 
     test_navigation_observer_ =
         std::make_unique<content::TestNavigationObserver>(
@@ -3906,12 +3905,6 @@ void FileManagerBrowserTestBase::OnCommand(const std::string& name,
     downloads_path = downloads_path.AppendASCII("Downloads");
     auto* download_prefs = DownloadPrefs::FromBrowserContext(profile());
     download_prefs->SetSaveFilePath(downloads_path);
-    return;
-  }
-
-  if (name == "onDropFailedPluginVmDirectoryNotShared") {
-    EventRouterFactory::GetForProfile(profile())
-        ->DropFailedPluginVmDirectoryNotShared();
     return;
   }
 

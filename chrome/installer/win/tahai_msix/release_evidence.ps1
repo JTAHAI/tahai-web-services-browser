@@ -101,9 +101,9 @@ function Assert-TahaiReleaseEvidence {
 
     Set-StrictMode -Version Latest
     $evidence = Read-TahaiEvidenceJson $EvidencePath
-    if (-not (Test-TahaiJsonInteger $evidence.schemaVersion) -or $evidence.schemaVersion -ne 1 -or
+    if (-not (Test-TahaiJsonInteger $evidence.schemaVersion) -or $evidence.schemaVersion -ne 2 -or
         -not (Test-TahaiJsonInteger $evidence.buildExitCode) -or $evidence.buildExitCode -ne 0) {
-        throw 'A successful build with version-1 release evidence is required.'
+        throw 'A successful build with version-2 release evidence including Windows service tests is required.'
     }
     $started = [long]$evidence.buildStartedUnixMs
     $finished = [long]$evidence.buildFinishedUnixMs
@@ -114,9 +114,11 @@ function Assert-TahaiReleaseEvidence {
         throw 'Invalid build evidence timestamps.'
     }
     $requiredArtifacts = @('chrome.exe', 'chrome.dll',
-        'tahai_mission_service_tests.exe', 'browser_tests.exe')
+        'tahai_mission_service_tests.exe', 'browser_tests.exe',
+        'elevation_service.exe', 'elevated_tracing_service.exe',
+        'elevation_service_unittests.exe', 'elevated_tracing_service_unittests.exe')
     if (@($evidence.artifacts).Count -ne $requiredArtifacts.Count) {
-        throw 'Release evidence must bind all four required native binaries.'
+        throw 'Release evidence must bind all eight required native binaries.'
     }
     foreach ($name in $requiredArtifacts) {
         $records = @($evidence.artifacts | Where-Object { $_.name -ceq $name })
@@ -151,6 +153,8 @@ function Assert-TahaiReleaseEvidence {
     $testResults = Read-TahaiEvidenceJson $testResultPath
     if (-not (Test-TahaiJsonInteger $testResults.nativeExitCode) -or $testResults.nativeExitCode -ne 0 -or
         -not (Test-TahaiJsonInteger $testResults.browserExitCode) -or $testResults.browserExitCode -ne 0 -or
+        -not (Test-TahaiJsonInteger $testResults.elevationExitCode) -or $testResults.elevationExitCode -ne 0 -or
+        -not (Test-TahaiJsonInteger $testResults.tracingExitCode) -or $testResults.tracingExitCode -ne 0 -or
         [string]::IsNullOrWhiteSpace($testResults.isolatedTestSession)) {
         throw 'Actual successful isolated test process results are required.'
     }
@@ -164,6 +168,17 @@ function Assert-TahaiReleaseEvidence {
     }
     $nativePath = Assert-TahaiEvidenceFile $root $evidence.nativeTests $finished
     $browserPath = Assert-TahaiEvidenceFile $root $evidence.browserTests $finished
+    $serviceCounts = @{}
+    foreach ($gate in @(
+        @{name='elevation'; scope='ServiceMainTest.*'; required='ServiceMainTest.TahaiConfiguredInterfaceMatchesTypeLibrary'},
+        @{name='tracing'; scope='SystemTracingSessionTest.*'; required='SystemTracingSessionTest.TahaiConfiguredInterfaceMatchesTypeLibrary'})) {
+        $record = $evidence.($gate.name + 'Tests')
+        if (-not (Test-TahaiJsonInteger $record.exitCode) -or $record.exitCode -ne 0) {
+            throw ('Windows service test process failed: ' + $gate.name)
+        }
+        $path = Assert-TahaiEvidenceFile $root $record $finished
+        $serviceCounts[$gate.name] = Assert-TahaiTestSummary (Read-TahaiEvidenceJson $path) @($gate.required) ($gate.name + ' service tests') @($gate.scope)
+    }
     $nativeCount = Assert-TahaiTestSummary (Read-TahaiEvidenceJson $nativePath) @(
         'TahaiWorkflowJournalTest.IntentSurvivesReopenAndCannotReplay',
         'TahaiSkinStudioDraftTest.CanonicalGrowthCannotReplaceLastReloadableDraft',
@@ -518,6 +533,8 @@ function Assert-TahaiReleaseEvidence {
     return [pscustomobject]@{
         NativeTestAttempts = $nativeCount
         BrowserTestAttempts = $browserCount
+        ElevationTestAttempts = $serviceCounts.elevation
+        TracingTestAttempts = $serviceCounts.tracing
         BuildLog = $buildLog
         EvidenceSha256 = (Get-FileHash -LiteralPath $EvidencePath -Algorithm SHA256).Hash
         SourceProvenance = $sourcePath

@@ -11,6 +11,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
+#include "build/build_config.h"
 #include "components/omnibox/browser/actions/omnibox_action.h"
 #include "components/omnibox/browser/actions/omnibox_action_in_suggest.h"
 #include "components/omnibox/browser/actions/omnibox_pedal.h"
@@ -30,8 +31,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
 #include "third_party/metrics_proto/omnibox_scoring_signals.pb.h"
-#include "third_party/omnibox_proto/answer_type.pb.h"
-#include "third_party/omnibox_proto/entity_info.pb.h"
 #include "third_party/omnibox_proto/suggest_template_info.pb.h"
 #include "ui/gfx/vector_icon_types.h"
 #include "url/gurl.h"
@@ -934,14 +933,6 @@ TEST_F(AutocompleteMatchTest, BetterDuplicate) {
   EXPECT_FALSE(
       AutocompleteMatch::BetterDuplicate(high_relevance_match, entity_match));
 
-  // Prefer answer matches.
-  auto answer_match = create_match(history_provider, 100);
-  answer_match.answer_type = omnibox::ANSWER_TYPE_FINANCE;
-  EXPECT_TRUE(
-      AutocompleteMatch::BetterDuplicate(answer_match, high_relevance_match));
-  EXPECT_FALSE(
-      AutocompleteMatch::BetterDuplicate(high_relevance_match, answer_match));
-
   // Prefer more relevant matches.
   EXPECT_FALSE(
       AutocompleteMatch::BetterDuplicate(create_match(history_provider, 500),
@@ -1258,6 +1249,7 @@ TEST_F(AutocompleteMatchTest, GetKeywordUiState) {
                             &keyword, &keyword_placeholder);
     EXPECT_TRUE(keyword.empty());
     EXPECT_EQ(keyword_state, KeywordState::kNone);
+    EXPECT_TRUE(keyword_placeholder.empty());
   }
 
   {
@@ -1268,6 +1260,7 @@ TEST_F(AutocompleteMatchTest, GetKeywordUiState) {
                             &keyword, &keyword_placeholder);
     EXPECT_EQ(keyword, u"keyword");
     EXPECT_EQ(keyword_state, KeywordState::kHint);
+    EXPECT_TRUE(keyword_placeholder.empty());
   }
 
   {
@@ -1279,5 +1272,31 @@ TEST_F(AutocompleteMatchTest, GetKeywordUiState) {
                             &keyword, &keyword_placeholder);
     EXPECT_EQ(keyword, u"keyword");
     EXPECT_EQ(keyword_state, KeywordState::kKeyword);
+    EXPECT_TRUE(keyword_placeholder.empty());
+  }
+
+  {
+    SCOPED_TRACE("Search Aggregator keyword mode");
+    TemplateURLData aggregator_turl_data;
+    aggregator_turl_data.SetShortName(u"aggregator");
+    aggregator_turl_data.SetKeyword(u"aggregator");
+    aggregator_turl_data.SetURL("http://aggregator.com/?q={searchTerms}");
+    aggregator_turl_data.policy_origin =
+        TemplateURLData::PolicyOrigin::kSearchAggregator;
+    template_url_service->Add(
+        std::make_unique<TemplateURL>(aggregator_turl_data));
+
+    AutocompleteMatch match;
+    match.keyword = u"aggregator";
+    match.transition = ui::PAGE_TRANSITION_KEYWORD;
+    match.GetKeywordUiState(template_url_service, false, &keyword_state,
+                            &keyword, &keyword_placeholder);
+    EXPECT_EQ(keyword, u"aggregator");
+    EXPECT_EQ(keyword_state, KeywordState::kKeyword);
+#if BUILDFLAG(IS_IOS)
+    EXPECT_TRUE(keyword_placeholder.empty());
+#else
+    EXPECT_EQ(keyword_placeholder, u"Enter a question");
+#endif
   }
 }

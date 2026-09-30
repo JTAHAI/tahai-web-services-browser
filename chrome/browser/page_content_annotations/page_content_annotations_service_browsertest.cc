@@ -32,13 +32,11 @@
 #include "chrome/browser/page_content_annotations/page_content_annotations_service_factory.h"
 #include "chrome/browser/page_content_annotations/page_content_extraction_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/omnibox/omnibox_next_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/history/core/browser/features.h"
 #include "components/history/core/browser/history_database.h"
 #include "components/history/core/browser/history_db_task.h"
 #include "components/history/core/browser/history_service.h"
@@ -140,8 +138,7 @@ class HangingPdfListener : public pdf::mojom::PdfListener {
 
   void SetCaretPosition(const gfx::PointF& position) override {}
   void MoveRangeSelectionExtent(const gfx::PointF& extent) override {}
-  void SetSelectionBounds(const gfx::PointF& base,
-                          const gfx::PointF& extent) override {}
+  void SetSelectionBase(const gfx::PointF& base) override {}
   void GetMostVisiblePageIndex(
       GetMostVisiblePageIndexCallback callback) override {
     std::move(callback).Run(std::nullopt);
@@ -219,45 +216,14 @@ class GetContentAnnotationsTask : public history::HistoryDBTask {
   std::optional<history::VisitContentAnnotations> stored_content_annotations_;
 };
 
-class PageContentAnnotationsServiceDisabledBrowserTest
-    : public InProcessBrowserTest {
- public:
-  PageContentAnnotationsServiceDisabledBrowserTest() {
-    scoped_feature_list_.InitWithFeatures(
-        /*enabled_features=*/{},
-        // TODO(crbug.com/452061489): Fix tests that fail when the WebUI Omnibox
-        // is enabled and then remove the two omnibox features below.
-        /*disabled_features=*/
-        {optimization_guide::features::kOptimizationHints,
-         features::kPageContentAnnotations,
-         omnibox::internal::kWebUIOmniboxPopup,
-         omnibox::internal::kWebUIOmniboxAimPopup});
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceDisabledBrowserTest,
-                       KeyedServiceEnabledButFeaturesDisabled) {
-  EXPECT_EQ(nullptr, PageContentAnnotationsServiceFactory::GetForProfile(
-                         browser()->GetProfile()));
-}
-
 class PageContentAnnotationsServiceKioskModeBrowserTest
     : public InProcessBrowserTest {
  public:
-  PageContentAnnotationsServiceKioskModeBrowserTest() {
-    scoped_feature_list_.InitWithFeatures({features::kPageContentAnnotations},
-                                          /*disabled_features=*/{});
-  }
+  PageContentAnnotationsServiceKioskModeBrowserTest() = default;
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
     command_line->AppendSwitch(::switches::kKioskMode);
   }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceKioskModeBrowserTest,
@@ -270,10 +236,7 @@ IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceKioskModeBrowserTest,
 class PageContentAnnotationsServiceEphemeralProfileBrowserTest
     : public MixinBasedInProcessBrowserTest {
  public:
-  PageContentAnnotationsServiceEphemeralProfileBrowserTest() {
-    scoped_feature_list_.InitWithFeatures({features::kPageContentAnnotations},
-                                          /*disabled_features=*/{});
-  }
+  PageContentAnnotationsServiceEphemeralProfileBrowserTest() = default;
 
   ~PageContentAnnotationsServiceEphemeralProfileBrowserTest() override =
       default;
@@ -285,8 +248,6 @@ class PageContentAnnotationsServiceEphemeralProfileBrowserTest
 
  private:
   ash::GuestSessionMixin guest_session_{&mixin_host_};
-
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceEphemeralProfileBrowserTest,
@@ -296,36 +257,11 @@ IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceEphemeralProfileBrowserTest,
 }
 #endif
 
-class PageContentAnnotationsServiceValidationBrowserTest
-    : public InProcessBrowserTest {
- public:
-  PageContentAnnotationsServiceValidationBrowserTest() {
-    scoped_feature_list_.InitWithFeatures(
-        {features::kPageContentAnnotationsValidation},
-        {features::kPageContentAnnotations});
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceValidationBrowserTest,
-                       ValidationEnablesService) {
-  EXPECT_NE(nullptr, PageContentAnnotationsServiceFactory::GetForProfile(
-                         browser()->GetProfile()));
-}
-
 class PageContentAnnotationsServiceBrowserTest : public InProcessBrowserTest {
  public:
   PageContentAnnotationsServiceBrowserTest() {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{features::kPageContentAnnotations,
-          {
-              {"write_to_history_service", "true"},
-          }},
-         {history::kVisitedLinksOn404, {}}},
-        /*disabled_features=*/{
-            optimization_guide::features::kPreventLongRunningPredictionModels});
+    scoped_feature_list_.InitAndDisableFeature(
+        optimization_guide::features::kPreventLongRunningPredictionModels);
   }
   ~PageContentAnnotationsServiceBrowserTest() override = default;
 
@@ -712,7 +648,7 @@ IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceBrowserTest,
                       ->GetContentVisibilityScore());
   EXPECT_TRUE(
       PageContentAnnotationsWebContentsObserver::GetOrCreateForWebContents(
-          browser()->tab_strip_model()->GetActiveWebContents(),
+          browser()->GetTabStripModel()->GetActiveWebContents(),
           *PageContentAnnotationsServiceFactory::GetForProfile(
               browser()->GetProfile()))
           ->content_visibility_score()
@@ -723,20 +659,9 @@ class PageContentAnnotationsServiceRemoteMetadataBrowserTest
     : public PageContentAnnotationsServiceBrowserTest {
  public:
   PageContentAnnotationsServiceRemoteMetadataBrowserTest() {
-    // Make sure remote page metadata works without page content annotations
-    // enabled.
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{page_content_annotations::features::kRemotePageMetadata,
-          {{"min_page_category_score", "80"},
-           {"supported_countries", "*"},
-           {"supported_locales", "*"}}}},
-        /*disabled_features=*/{{features::kPageContentAnnotations}});
     set_load_model_on_startup(false);
   }
   ~PageContentAnnotationsServiceRemoteMetadataBrowserTest() override = default;
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceRemoteMetadataBrowserTest,
@@ -876,16 +801,10 @@ class PageContentAnnotationsServiceSalientImageMetadataBrowserTest
     : public PageContentAnnotationsServiceBrowserTest {
  public:
   PageContentAnnotationsServiceSalientImageMetadataBrowserTest() {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{features::kPageContentAnnotations, {}}},
-        /*disabled_features=*/{});
     set_load_model_on_startup(false);
   }
   ~PageContentAnnotationsServiceSalientImageMetadataBrowserTest() override =
       default;
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(
@@ -965,55 +884,6 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_TRUE(got_content_annotations->has_url_keyed_image);
 }
 
-class PageContentAnnotationsServiceNoHistoryTest
-    : public PageContentAnnotationsServiceBrowserTest {
- public:
-  PageContentAnnotationsServiceNoHistoryTest() {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{features::kPageContentAnnotations,
-          {
-              {"write_to_history_service", "false"},
-          }}},
-        /*disabled_features=*/{});
-  }
-  ~PageContentAnnotationsServiceNoHistoryTest() override = default;
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceNoHistoryTest,
-                       ModelExecutesButDoesntWriteToHistory) {
-  TestPageContentAnnotator test_annotator;
-  test_annotator.UseVisibilityScores(std::nullopt, {{"Test Page", 0.5}});
-  service()->OverridePageContentAnnotatorForTesting(&test_annotator);
-
-  base::HistogramTester histogram_tester;
-
-  GURL url(embedded_test_server()->GetURL("a.test", "/hello.html"));
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
-
-  optimization_guide::RetryForHistogramUntilCountReached(
-      &histogram_tester,
-      "OptimizationGuide.PageContentAnnotationsService.ContentAnnotated", 1);
-
-  histogram_tester.ExpectUniqueSample(
-      "OptimizationGuide.PageContentAnnotationsService.ContentAnnotated", true,
-      1);
-
-  base::RunLoop().RunUntilIdle();
-
-  histogram_tester.ExpectTotalCount(
-      "OptimizationGuide.PageContentAnnotationsService."
-      "ContentAnnotationsStorageStatus",
-      0);
-
-  // The ContentAnnotations should either not exist at all, or if they do
-  // (because some other code added some annotations), the model-related fields
-  // should be empty/unset.
-  EXPECT_FALSE(ModelAnnotationsFieldsAreSetForURL(url));
-}
-
 // TODO(crbug.com/451682393): Disabled on Linux dbg due to flakiness.
 #if BUILDFLAG(IS_LINUX) && !defined(NDEBUG)
 #define MAYBE_ModelExecutesAndUsesCachedResult \
@@ -1021,7 +891,7 @@ IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceNoHistoryTest,
 #else
 #define MAYBE_ModelExecutesAndUsesCachedResult ModelExecutesAndUsesCachedResult
 #endif
-IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceNoHistoryTest,
+IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceBrowserTest,
                        MAYBE_ModelExecutesAndUsesCachedResult) {
   TestPageContentAnnotator test_annotator;
   test_annotator.UseVisibilityScores(std::nullopt, {{"Test Page", 0.5}});
@@ -1063,19 +933,13 @@ IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceNoHistoryTest,
 }
 
 class PageContentAnnotationsServiceBatchVisitTest
-    : public PageContentAnnotationsServiceNoHistoryTest {
+    : public PageContentAnnotationsServiceBrowserTest {
  public:
-  PageContentAnnotationsServiceBatchVisitTest() {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{features::kPageContentAnnotations,
-          {{"write_to_history_service", "false"},
-           {"annotate_visit_batch_size", "2"}}}},
-        /*disabled_features=*/{});
-  }
+  PageContentAnnotationsServiceBatchVisitTest() = default;
   ~PageContentAnnotationsServiceBatchVisitTest() override = default;
 
   void SetUpOnMainThread() override {
-    PageContentAnnotationsServiceNoHistoryTest::SetUpOnMainThread();
+    PageContentAnnotationsServiceBrowserTest::SetUpOnMainThread();
 
     PageContentAnnotationsService* service =
         PageContentAnnotationsServiceFactory::GetForProfile(
@@ -1096,7 +960,6 @@ class PageContentAnnotationsServiceBatchVisitTest
   }
 
  private:
-  base::test::ScopedFeatureList scoped_feature_list_;
   TestPageContentAnnotator annotator_;
 };
 
@@ -1147,17 +1010,8 @@ IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceBatchVisitTest,
 class PageContentAnnotationsServiceBatchVisitNoAnnotateTest
     : public PageContentAnnotationsServiceBatchVisitTest {
  public:
-  PageContentAnnotationsServiceBatchVisitNoAnnotateTest() {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        {{features::kPageContentAnnotations,
-          {{"write_to_history_service", "false"},
-           {"annotate_visit_batch_size", "1"}}}},
-        /*disabled_features=*/{});
-  }
+  PageContentAnnotationsServiceBatchVisitNoAnnotateTest() = default;
   ~PageContentAnnotationsServiceBatchVisitNoAnnotateTest() override = default;
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceBatchVisitNoAnnotateTest,
@@ -1167,19 +1021,15 @@ IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceBatchVisitNoAnnotateTest,
   service()->OverridePageContentAnnotatorForTesting(&test_annotator);
 
   base::HistogramTester histogram_tester;
-  HistoryVisit history_visit1(base::Time::Now(),
-                              GURL("https://probablynotarealurl1.com/"));
-  HistoryVisit history_visit2(base::Time::Now(),
-                              GURL("https://probablynotarealurl2.com/"));
-  HistoryVisit history_visit3(base::Time::Now(),
-                              GURL("https://probablynotarealurl3.com/"));
-  history_visit1.text_to_annotate = "sometext1";
-  history_visit2.text_to_annotate = "sometext2";
-  history_visit3.text_to_annotate = "sometext3";
-
-  Annotate(history_visit1);
-  Annotate(history_visit2);
-  Annotate(history_visit3);
+  for (int i = 1; i <= 11; ++i) {
+    HistoryVisit history_visit(
+        base::Time::Now(),
+        GURL(base::StrCat({"https://probablynotarealurl",
+                           base::NumberToString(i), ".com/"})));
+    history_visit.text_to_annotate =
+        base::StrCat({"sometext", base::NumberToString(i)});
+    Annotate(history_visit);
+  }
 
   optimization_guide::RetryForHistogramUntilCountReached(
       &histogram_tester,
@@ -1192,7 +1042,7 @@ IN_PROC_BROWSER_TEST_F(PageContentAnnotationsServiceBatchVisitNoAnnotateTest,
 
   histogram_tester.ExpectUniqueSample(
       "OptimizationGuide.PageContentAnnotations.AnnotateVisitResultCached",
-      false, 3);
+      false, 11);
 
   histogram_tester.ExpectTotalCount(
       "OptimizationGuide.PageContentAnnotationsService."
@@ -1287,8 +1137,7 @@ class PageContentAnnotationsServiceOnDeviceCategoryClassifierTest
  public:
   void SetUp() override {
     scoped_feature_list_.InitWithFeatures(
-        {features::kPageContentAnnotations,
-         features::kOnDeviceCategoryClassifier},
+        {features::kOnDeviceCategoryClassifier},
         /*disabled_features=*/{});
     InProcessBrowserTest::SetUp();
   }
@@ -1476,7 +1325,7 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionTest,
       future.GetRepeatingCallback());
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/hello.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
@@ -1523,7 +1372,7 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionTest,
                        Subframe) {
   base::HistogramTester histogram_tester;
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("/optimization_guide/iframe.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
   optimization_guide::RetryForHistogramUntilCountReached(
@@ -1551,9 +1400,9 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionTest,
 
 class PageContentAnnotationsServiceContentExtractionResponseCodeTest
     : public PageContentAnnotationsServiceContentExtractionTestBase,
-      public testing::WithParamInterface<std::tuple<bool, bool>> {
+      public testing::WithParamInterface<bool> {
  public:
-  bool IsPageSettledMonitorEnabled() const { return std::get<1>(GetParam()); }
+  bool IsPageSettledMonitorEnabled() const { return GetParam(); }
 
   void InitializeFeatureList() override {
     std::vector<base::test::FeatureRefAndParams> enabled_features_with_params =
@@ -1564,13 +1413,6 @@ class PageContentAnnotationsServiceContentExtractionResponseCodeTest
     AddPageSettledMonitorFeatureState(IsPageSettledMonitorEnabled(),
                                       enabled_features_with_params,
                                       disabled_features);
-
-    bool are_404_navigations_saved_to_history = std::get<0>(GetParam());
-    if (are_404_navigations_saved_to_history) {
-      enabled_features_with_params.push_back({history::kVisitedLinksOn404, {}});
-    } else {
-      disabled_features.push_back(history::kVisitedLinksOn404);
-    }
 
     scoped_feature_list_.InitWithFeaturesAndParameters(
         enabled_features_with_params, disabled_features);
@@ -1588,7 +1430,7 @@ IN_PROC_BROWSER_TEST_P(
       future.GetRepeatingCallback());
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL initial_url(embedded_test_server()->GetURL("a.test", "/links.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, initial_url,
                                                       1);
@@ -1632,7 +1474,7 @@ IN_PROC_BROWSER_TEST_P(
   ukm::TestAutoSetUkmRecorder ukm_recorder;
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL initial_url(embedded_test_server()->GetURL("a.test", "/page404.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, initial_url,
                                                       1);
@@ -1682,15 +1524,8 @@ IN_PROC_BROWSER_TEST_P(
 INSTANTIATE_TEST_SUITE_P(
     All,
     PageContentAnnotationsServiceContentExtractionResponseCodeTest,
-    ::testing::Combine(::testing::Bool(), ::testing::Bool()),
-    [](const testing::TestParamInfo<std::tuple<bool, bool>>& info) {
-      return base::StrCat(
-          {std::get<0>(info.param) ? "VisitedLinksOn404Enabled"
-                                   : "VisitedLinksOn404Disabled",
-           "_",
-           PageContentAnnotationsServiceContentExtractionTestBase::
-               GetPageSettledMonitorParamName(std::get<1>(info.param))});
-    });
+    ::testing::Bool(),
+    &PageContentAnnotationsServiceContentExtractionTest::DescribeParams);
 
 class PageContentAnnotationsServiceContentExtractionTestNoFeatureFlag
     : public PageContentAnnotationsServiceContentExtractionTest {
@@ -1742,7 +1577,7 @@ IN_PROC_BROWSER_TEST_P(
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/hello.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
@@ -1789,7 +1624,7 @@ IN_PROC_BROWSER_TEST_P(
   service->AddObserver(&observer);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/hello.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
@@ -1821,7 +1656,7 @@ IN_PROC_BROWSER_TEST_P(
   service->AddObserver(&observer);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/hello.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
@@ -1868,7 +1703,7 @@ IN_PROC_BROWSER_TEST_P(
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/hello.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
@@ -1898,7 +1733,7 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionTest,
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/hello.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
@@ -1945,7 +1780,7 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionTest,
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/hello.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
@@ -1989,7 +1824,7 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionTest,
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/hello.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
@@ -2005,8 +1840,8 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionTest,
 
   // Destroy the WebContents, which should cancel pending extractions and
   // resolve the callback with nullopt.
-  browser()->tab_strip_model()->CloseWebContentsAt(0,
-                                                   TabCloseTypes::CLOSE_NONE);
+  browser()->GetTabStripModel()->CloseWebContentsAt(0,
+                                                    TabCloseTypes::CLOSE_NONE);
 
   std::optional<page_content_annotations::ExtractedPageContentResult> result =
       refresh_future.Get();
@@ -2021,7 +1856,7 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionTest,
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/hello.html"));
   ASSERT_TRUE(content::NavigateToURL(web_contents, url));
@@ -2078,7 +1913,7 @@ IN_PROC_BROWSER_TEST_P(
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url1(embedded_test_server()->GetURL("a.test",
                                            "/optimization_guide/hello.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url1, 1);
@@ -2131,7 +1966,7 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionTestHidden,
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/hello.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
@@ -2161,7 +1996,7 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionTestHidden,
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/simple.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
@@ -2185,7 +2020,7 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionTestHidden,
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test",
                                           "/optimization_guide/hello.html"));
   content::NavigateToURLBlockUntilNavigationsComplete(web_contents, url, 1);
@@ -2798,7 +2633,7 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionPdfTest,
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test", "/pdf/test.pdf"));
   content::NavigateToURLBlockUntilNavigationsComplete(
       web_contents, url, /*number_of_navigations=*/1);
@@ -2836,7 +2671,7 @@ IN_PROC_BROWSER_TEST_P(PageContentAnnotationsServiceContentExtractionPdfTest,
   observer.Observe(service);
 
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("a.test", "/pdf/test.pdf"));
   content::NavigateToURLBlockUntilNavigationsComplete(
       web_contents, url, /*number_of_navigations=*/1);
@@ -2911,7 +2746,7 @@ IN_PROC_BROWSER_TEST_P(
     PageContentAnnotationsServiceContentExtractionPdfHangingTest,
     PDFExtractionNotCompleteWebContentsWentAway) {
   content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
+      browser()->GetTabStripModel()->GetActiveWebContents();
 
   // Navigate to a PDF document.
   ui_test_utils::NavigateToURLBlockUntilNavigationsComplete(
@@ -2921,7 +2756,7 @@ IN_PROC_BROWSER_TEST_P(
   // Wait for PDFDocumentHelper creation.
   pdf::PDFDocumentHelper* pdf_helper;
   ASSERT_TRUE(base::test::RunUntil([&pdf_helper, &web_contents]() {
-    pdf_helper = pdf::PDFDocumentHelper::MaybeGetForWebContents(web_contents);
+    pdf_helper = pdf::PDFDocumentHelper::MaybeGetForWebContents(*web_contents);
     return pdf_helper != nullptr;
   }));
 
@@ -2944,8 +2779,8 @@ IN_PROC_BROWSER_TEST_P(
   FetchPageContext(*web_contents, options, nullptr, future.GetCallback());
 
   // Close the tab to simulate the web content going away.
-  browser()->tab_strip_model()->CloseWebContentsAt(0,
-                                                   TabCloseTypes::CLOSE_NONE);
+  browser()->GetTabStripModel()->CloseWebContentsAt(0,
+                                                    TabCloseTypes::CLOSE_NONE);
 
   // Verify the callback is resolved with
   // `FetchPageContextError::kWebContentsWentAway`.

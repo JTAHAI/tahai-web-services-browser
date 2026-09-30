@@ -61,6 +61,13 @@ enum class TabGridOpeningMode {
                            dismissOmnibox:(BOOL)dismissOmnibox
                          dismissSnackbars:(BOOL)dismissSnackbars;
 
+// Dismisses all modal dialogs and calls the completion block. Optionally does
+// not dismiss the omnibox, snackbars, or Gemini.
+- (void)dismissModalDialogsWithCompletion:(ProceduralBlock)completion
+                           dismissOmnibox:(BOOL)dismissOmnibox
+                         dismissSnackbars:(BOOL)dismissSnackbars
+                            dismissGemini:(BOOL)dismissGemini;
+
 // Dismisses all modal dialogs (if any) before showing the Password Checkup page
 // for `referrer`.
 - (void)dismissModalsAndShowPasswordCheckupPageForReferrer:
@@ -85,6 +92,12 @@ enum class TabGridOpeningMode {
 // for default browser settings if specified.
 - (void)showSettingsFromViewController:(UIViewController*)baseViewController
               hasDefaultBrowserBlueDot:(BOOL)hasDefaultBrowserBlueDot;
+
+// TODO(crbug.com/41352590): Do not pass baseViewController through dispatcher.
+// Shows the Settings UI, presenting from `baseViewController` and showing
+// Level Up walkthrough IPH if specified.
+- (void)showSettingsFromViewController:(UIViewController*)baseViewController
+       shouldShowLevelUpWalkthroughIPH:(BOOL)shouldShowLevelUpWalkthroughIPH;
 
 // Shows the settings UI for price tracking notifications.
 - (void)showPriceTrackingNotificationsSettings;

@@ -2353,6 +2353,35 @@ bool IsClampKeywordLiteral(const CSSMathExpressionNode& exp_node) {
 }  // namespace
 
 // static
+const CSSMathExpressionNode* CSSMathExpressionNode::SimplifyCalculationTree(
+    const CSSMathExpressionNode* node) {
+  const auto* operation = DynamicTo<CSSMathExpressionOperation>(node);
+  if (!operation ||
+      !(operation->IsAddOrSubtract() || operation->IsMultiplyOrDivide())) {
+    return node;
+  }
+  // Rebuild the sum/product bottom-up, simplifying each binary operation with
+  // its (already-simplified) operands. CreateArithmeticOperationSimplified
+  // combines same-category terms across units (e.g. 0rad + 0deg -> 0deg).
+  const auto& operands = operation->GetOperands();
+  CHECK_EQ(operands.size(), 2u);
+  const CSSMathExpressionNode* left = SimplifyCalculationTree(operands[0]);
+  const CSSMathExpressionNode* right = SimplifyCalculationTree(operands[1]);
+  CSSMathExpressionNode* result =
+      CSSMathExpressionOperation::CreateArithmeticOperationSimplified(
+          left, right, operation->OperatorType());
+  if (!result) {
+    return node;
+  }
+  // If the operation collapsed to a single value, keep the calc() wrapper so
+  // the value reifies back as a CSSMathSum, matching the parser's behavior.
+  if (!result->IsOperation()) {
+    result->SetIsNestedCalc();
+  }
+  return result;
+}
+
+// static
 CSSMathExpressionNode*
 CSSMathExpressionOperation::CreateArithmeticOperationSimplified(
     const CSSMathExpressionNode* left_side,
@@ -4588,7 +4617,9 @@ class CSSMathExpressionNodeParser {
       }
       double progress_value = (double_values[0] - double_values[1]) /
                               (double_values[2] - double_values[1]);
-      progress_value = std::clamp(progress_value, 0., 1.);
+      if (!std::isnan(progress_value)) {
+        progress_value = std::clamp(progress_value, 0., 1.);
+      }
       return CSSMathExpressionNumericLiteral::Create(
           progress_value, CSSPrimitiveValue::UnitType::kNumber);
     }
@@ -5695,37 +5726,73 @@ const RandomCacheKey* RandomCacheKey::Parse(
 
   AtomicString ident;
   ElementScoped element_scoped(false);
-  AtomicString random_ua_ident;
+  StringBuilder random_ua_ident_builder;
+  bool is_property_scoped = false;
+  bool is_property_index_scoped = false;
   while (!stream.AtEnd() && stream.Peek().GetType() == kIdentToken) {
     token = stream.Peek();
     if (!ident && token.Value().starts_with("--")) {
       ident = stream.ConsumeIncludingWhitespace().Value().ToAtomicString();
-    } else if (!element_scoped && token.Value() == "element-scoped") {
+      continue;
+    }
+    if (!element_scoped && token.Value() == "element-scoped") {
       element_scoped = ElementScoped(true);
       stream.ConsumeIncludingWhitespace();
-    } else if (!random_ua_ident && (token.Value() == "property-scoped" ||
-                                    token.Value() == "property-index-scoped")) {
-      StringBuilder ua_ident_builder;
-      ua_ident_builder.Append("ua-");
-      ua_ident_builder.Append(local_context.PropertyName());
-      if (token.Value() == "property-index-scoped") {
-        ua_ident_builder.Append("-");
-        ua_ident_builder.AppendNumber(local_context.CurrentRandomValueIndex());
-      }
-      random_ua_ident = ua_ident_builder.ToAtomicString();
-      stream.ConsumeIncludingWhitespace();
-    } else if (!random_ua_ident && token.Value().starts_with("ua-")) {
-      random_ua_ident =
-          stream.ConsumeIncludingWhitespace().Value().ToAtomicString();
-    } else if (!ident && !element_scoped && !random_ua_ident) {
-      return nullptr;
-    } else {
-      return MakeGarbageCollected<RandomCacheKey>(ident, element_scoped,
-                                                  random_ua_ident);
+      continue;
     }
+    if (!is_property_scoped && !is_property_index_scoped &&
+        random_ua_ident_builder.empty()) {
+      if (token.Value() == "property-scoped" ||
+          token.Value() == "property-index-scoped") {
+        if (token.Value() == "property-scoped") {
+          is_property_scoped = true;
+        } else {
+          is_property_index_scoped = true;
+        }
+        stream.ConsumeIncludingWhitespace();
+        continue;
+      }
+      if (token.Value().starts_with("ua-")) {
+        random_ua_ident_builder.Append(
+            stream.ConsumeIncludingWhitespace().Value());
+        continue;
+      }
+    }
+    // Unexpected token.
+    break;
   }
-  return MakeGarbageCollected<RandomCacheKey>(ident, element_scoped,
-                                              random_ua_ident);
+
+  if (!ident && !element_scoped && random_ua_ident_builder.empty() &&
+      !is_property_scoped && !is_property_index_scoped) {
+    return nullptr;
+  }
+
+  if (is_property_scoped || is_property_index_scoped) {
+    random_ua_ident_builder.Append("ua-");
+    if (element_scoped) {
+      random_ua_ident_builder.Append(local_context.CustomFunctionNameAndCnt());
+    } else {
+      random_ua_ident_builder.Append(local_context.CustomFunctionName());
+    }
+    random_ua_ident_builder.Append(local_context.PropertyName());
+    if (is_property_index_scoped) {
+      random_ua_ident_builder.Append("-");
+      random_ua_ident_builder.AppendNumber(
+          local_context.CurrentRandomValueIndex());
+    }
+  } else if (element_scoped &&
+             !local_context.CustomFunctionNameAndCnt().empty()) {
+    if (random_ua_ident_builder.empty()) {
+      random_ua_ident_builder.Append("ua-");
+    }
+    random_ua_ident_builder.Append(local_context.CustomFunctionNameAndCnt());
+  }
+
+  return MakeGarbageCollected<RandomCacheKey>(
+      ident, element_scoped,
+      random_ua_ident_builder.empty()
+          ? g_null_atom
+          : random_ua_ident_builder.ToAtomicString());
 }
 
 const RandomCacheKey* RandomCacheKey::Fixed(double fixed_value) {
@@ -5737,6 +5804,7 @@ const RandomCacheKey* RandomCacheKey::Auto(
     const CSSParserLocalContext& local_context) {
   StringBuilder ua_ident_builder;
   ua_ident_builder.Append("ua-");
+  ua_ident_builder.Append(local_context.CustomFunctionNameAndCnt());
   ua_ident_builder.Append(local_context.PropertyName());
   ua_ident_builder.Append("-");
   ua_ident_builder.AppendNumber(local_context.CurrentRandomValueIndex());
@@ -5789,6 +5857,27 @@ CSSMathExpressionRandomFunction::CSSMathExpressionRandomFunction(
       max_(max),
       step_(step) {
   value_feature_flags_ = kHasRandomFunctions;
+  if (min_->HasComparisons() || max_->HasComparisons() ||
+      (step_ && step_->HasComparisons())) {
+    value_feature_flags_ |= kHasComparisons;
+  }
+  if (min_->HasAnchorFunctions() || max_->HasAnchorFunctions() ||
+      (step_ && step_->HasAnchorFunctions())) {
+    value_feature_flags_ |= kHasAnchorFunctions;
+  }
+  if (min_->HasRandomFunctions() || max_->HasRandomFunctions() ||
+      (step_ && step_->HasRandomFunctions())) {
+    value_feature_flags_ |= kHasRandomFunctions;
+  }
+  if (!min_->IsScopedValue() || !max_->IsScopedValue() ||
+      (step_ && !step_->IsScopedValue())) {
+    value_feature_flags_ |= kNeedsTreeScopePopulation;
+  }
+  if (min_->HasUnresolvablePercentages() ||
+      max_->HasUnresolvablePercentages() ||
+      (step_ && step_->HasUnresolvablePercentages())) {
+    value_feature_flags_ |= kHasUnresolvablePercentages;
+  }
   if (category == kCalcPercent && percentages_depend_on_used_value) {
     value_feature_flags_ |= kHasUnresolvablePercentages;
   }
@@ -5817,9 +5906,12 @@ CSSMathExpressionNode* CSSMathExpressionRandomFunction::Copy() const {
 }
 
 bool CSSMathExpressionRandomFunction::IsComputationallyIndependent() const {
+  if (!random_cache_key_->IsFixed()) {
+    return false;
+  }
   return min_->IsComputationallyIndependent() &&
          max_->IsComputationallyIndependent() &&
-         (step_ && step_->IsComputationallyIndependent());
+         (!step_ || step_->IsComputationallyIndependent());
 }
 
 bool CSSMathExpressionRandomFunction::IsElementDependent() const {
@@ -5831,6 +5923,43 @@ bool CSSMathExpressionRandomFunction::HasInvalidAnchorFunctions(
   return min_->HasInvalidAnchorFunctions(length_resolver) ||
          max_->HasInvalidAnchorFunctions(length_resolver) ||
          (step_ && step_->HasInvalidAnchorFunctions(length_resolver));
+}
+
+const CSSMathExpressionNode&
+CSSMathExpressionRandomFunction::PopulateWithTreeScope(
+    const TreeScope* tree_scope) const {
+  const CSSMathExpressionNode* populated_min =
+      &min_->EnsureScopedValue(tree_scope);
+  const CSSMathExpressionNode* populated_max =
+      &max_->EnsureScopedValue(tree_scope);
+  const CSSMathExpressionNode* populated_step =
+      step_ ? &step_->EnsureScopedValue(tree_scope) : nullptr;
+  return *MakeGarbageCollected<CSSMathExpressionRandomFunction>(
+      base::PassKey<CSSMathExpressionRandomFunction>(), category_,
+      random_cache_key_, populated_min, populated_max, populated_step,
+      HasUnresolvablePercentages());
+}
+
+const CSSMathExpressionNode* CSSMathExpressionRandomFunction::TransformAnchors(
+    LogicalAxis logical_axis,
+    const TryTacticTransform& transform,
+    const WritingDirectionMode& writing_direction) const {
+  const CSSMathExpressionNode* transformed_min =
+      min_->TransformAnchors(logical_axis, transform, writing_direction);
+  const CSSMathExpressionNode* transformed_max =
+      max_->TransformAnchors(logical_axis, transform, writing_direction);
+  const CSSMathExpressionNode* transformed_step =
+      step_
+          ? step_->TransformAnchors(logical_axis, transform, writing_direction)
+          : nullptr;
+  if (transformed_min != min_ || transformed_max != max_ ||
+      transformed_step != step_) {
+    return MakeGarbageCollected<CSSMathExpressionRandomFunction>(
+        base::PassKey<CSSMathExpressionRandomFunction>(), category_,
+        random_cache_key_, transformed_min, transformed_max, transformed_step,
+        HasUnresolvablePercentages());
+  }
+  return this;
 }
 
 bool CSSMathExpressionRandomFunction::MayHaveRelativeUnit() const {
@@ -5871,6 +6000,9 @@ double GetRandomBaseValue(const RandomCacheKey* random_cache_key,
 const CalculationExpressionNode*
 CSSMathExpressionRandomFunction::ToCalculationExpression(
     const CSSLengthResolver& length_resolver) const {
+  if (random_cache_key_->IsElementScoped()) {
+    length_resolver.ReferenceElementDependentRandom();
+  }
   double random_base_value =
       GetRandomBaseValue(random_cache_key_, length_resolver);
 

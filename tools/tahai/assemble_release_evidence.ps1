@@ -66,11 +66,15 @@ if ($buildResult.buildExitCode -ne 0 -or
 $copiedBuildLog = Copy-EvidenceFile (Join-Path $RunDirectory 'build.log')
 $copiedNative = Copy-EvidenceFile (Join-Path $RunDirectory 'native-tests.json')
 $copiedBrowser = Copy-EvidenceFile (Join-Path $RunDirectory 'browser-tests.json')
+$copiedElevation = Copy-EvidenceFile (Join-Path $RunDirectory 'elevation-tests.json')
+$copiedTracing = Copy-EvidenceFile (Join-Path $RunDirectory 'tracing-tests.json')
 $testResults = Get-Content -LiteralPath (Join-Path $RunDirectory 'test-results.json') -Raw | ConvertFrom-Json
 if ($testResults.nativeExitCode -isnot [int] -or $testResults.nativeExitCode -ne 0 -or
     $testResults.browserExitCode -isnot [int] -or $testResults.browserExitCode -ne 0 -or
+    $testResults.elevationExitCode -isnot [int] -or $testResults.elevationExitCode -ne 0 -or
+    $testResults.tracingExitCode -isnot [int] -or $testResults.tracingExitCode -ne 0 -or
     [string]::IsNullOrWhiteSpace($testResults.isolatedTestSession)) {
-  throw 'Recorded successful exits from both isolated test processes are required.'
+  throw 'Recorded successful exits from all four isolated test processes are required.'
 }
 $sourcePath = Join-Path $RunDirectory 'source-provenance.json'
 $source = Get-Content -LiteralPath $sourcePath -Raw | ConvertFrom-Json
@@ -108,7 +112,9 @@ $smoke | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $copiedSmoke -Encod
 
 $artifacts = foreach ($name in @('chrome.exe', 'chrome.dll',
                                  'tahai_mission_service_tests.exe',
-                                 'browser_tests.exe')) {
+                                 'browser_tests.exe', 'elevation_service.exe',
+                                 'elevated_tracing_service.exe', 'elevation_service_unittests.exe',
+                                 'elevated_tracing_service_unittests.exe')) {
   $file = Get-RequiredFile (Join-Path $BuildDirectory $name)
   [ordered]@{
     name = $name
@@ -118,7 +124,7 @@ $artifacts = foreach ($name in @('chrome.exe', 'chrome.dll',
 }
 
 $release = [ordered]@{
-  schemaVersion = 1
+  schemaVersion = 2
   buildExitCode = [int]$buildResult.buildExitCode
   buildStartedUnixMs = [int64]$buildResult.buildStartedUnixMs
   buildFinishedUnixMs = [int64]$buildResult.buildFinishedUnixMs
@@ -136,8 +142,20 @@ $release = [ordered]@{
     sha256 = (Get-FileHash -LiteralPath $copiedBrowser -Algorithm SHA256).Hash
     exitCode = [int]$testResults.browserExitCode
   }
+  elevationTests = [ordered]@{
+    file = (Get-Item -LiteralPath $copiedElevation).Name
+    sha256 = (Get-FileHash -LiteralPath $copiedElevation -Algorithm SHA256).Hash
+    exitCode = [int]$testResults.elevationExitCode
+  }
+  tracingTests = [ordered]@{
+    file = (Get-Item -LiteralPath $copiedTracing).Name
+    sha256 = (Get-FileHash -LiteralPath $copiedTracing -Algorithm SHA256).Hash
+    exitCode = [int]$testResults.tracingExitCode
+  }
   smoke = Get-Record $copiedSmoke
 }
 $releasePath = Join-Path $EvidenceDirectory 'release.json'
 $release | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $releasePath -Encoding utf8
+. (Join-Path $nativeSource 'chrome\installer\win\tahai_msix\release_evidence.ps1')
+$null = Assert-TahaiReleaseEvidence $releasePath $BuildDirectory
 Get-Item -LiteralPath $releasePath | Select-Object FullName, Length, LastWriteTimeUtc

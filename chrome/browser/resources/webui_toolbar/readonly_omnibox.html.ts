@@ -24,11 +24,13 @@ export function getHtml(this: ReadonlyOmniboxElement) {
        #textInput contains plaintext version of the input plus optionally an
        inline autocompletion rendered as selection.
    -->
-  <input id="textInput"
-        placeholder="${this.getInputPlaceholder_() ?? nothing}"
-        class="${this.getInputClasses_() ?? nothing}">
+  <cr-searchbox-input id="textInput"
+      .placeholderText="${this.getInputPlaceholder_()}"
+      class="${this.getInputClasses_() ?? nothing}"
+      @searchbox-input-text-updated="${this.onSearchboxInputTextUpdated_}">
+  </cr-searchbox-input>
   <!-- custom formatting/long line to prevent whitespace below -->
-  <div id="textContainer">${
+  <div id="textContainer" aria-hidden='true'>${
     this.omniboxViewState.textPieces.map(
       item => html`<span
           class="${ReadonlyOmniboxElement.getTextPieceClasses(item)}">${item.text}</span>`)
@@ -42,9 +44,17 @@ export function getHtml(this: ReadonlyOmniboxElement) {
        would mess up the IME.
 
     The composing attribute distinguishes the two cases. -->
-  <span id="inlineAutocomplete" ?composing="${this.isComposing}">${
+  <span id="inlineAutocomplete" ?composing="${this.isComposing}"
+        aria-live="polite"
+        aria-hidden="${this.isComposing ? 'false' : 'true'}">${
         this.omniboxViewState.inlineAutocompletion}</span>
   <span id="additionalText">${this.omniboxViewState.additionalText}</span>
+
+  <!-- We need to temporarily transfer ARIA focus to here via
+       ariaActiveDescendant to get ariaNotify to win over updates over the
+       <input> proper -->
+  <div id="announcementDistraction">${
+    this.omniboxViewState.a11yFriendlySuggestionText}</div>
 </div>
 
 <div id="dragTemplate" aria-hidden="true">

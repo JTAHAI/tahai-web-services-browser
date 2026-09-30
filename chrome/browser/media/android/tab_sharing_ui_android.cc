@@ -10,13 +10,14 @@
 #include "base/android/jni_android.h"
 #include "base/feature_list.h"
 #include "base/functional/callback_helpers.h"
-#include "base/memory/raw_ptr.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/render_process_host.h"
+#include "content/public/browser/render_widget_host.h"
+#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/browser/web_contents_user_data.h"
 #include "third_party/blink/public/common/mediastream/media_stream_request.h"
 #include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
 
@@ -27,49 +28,20 @@ namespace {
 // The MediaStreamUI interface specifies returning 0 if no window ID is
 // applicable.
 constexpr gfx::NativeViewId kNoWindowId = 0;
-
-class TabSharingUIAndroidHelper
-    : public content::WebContentsUserData<TabSharingUIAndroidHelper> {
- public:
-  ~TabSharingUIAndroidHelper() override = default;
-
-  void set_tab_sharing_ui(TabSharingUIAndroid* tab_sharing_ui) {
-    tab_sharing_ui_ = tab_sharing_ui;
-  }
-  TabSharingUIAndroid* get_tab_sharing_ui() const { return tab_sharing_ui_; }
-
- private:
-  friend class content::WebContentsUserData<TabSharingUIAndroidHelper>;
-  explicit TabSharingUIAndroidHelper(content::WebContents* contents)
-      : content::WebContentsUserData<TabSharingUIAndroidHelper>(*contents) {}
-
-  raw_ptr<TabSharingUIAndroid> tab_sharing_ui_ = nullptr;
-  WEB_CONTENTS_USER_DATA_KEY_DECL();
-};
-
-WEB_CONTENTS_USER_DATA_KEY_IMPL(TabSharingUIAndroidHelper);
-
 }  // namespace
 
 TabSharingUIAndroid::TabSharingUIAndroid(
     content::WebContents* capturer_web_contents,
-    const content::DesktopMediaID& media_id)
-    : capturer_web_contents_(capturer_web_contents->GetWeakPtr()),
-      media_id_(media_id) {
-  TabSharingUIAndroidHelper::CreateForWebContents(capturer_web_contents);
-  TabSharingUIAndroidHelper::FromWebContents(capturer_web_contents)
-      ->set_tab_sharing_ui(this);
-}
+    const content::DesktopMediaID& media_id,
+    bool app_preferred_current_tab)
+    : capturer_web_contents_(capturer_web_contents
+                                 ? capturer_web_contents->GetWeakPtr()
+                                 : nullptr),
+      media_id_(media_id),
+      app_preferred_current_tab_(app_preferred_current_tab) {}
 
 TabSharingUIAndroid::~TabSharingUIAndroid() {
   StopSharing();
-  if (capturer_web_contents_) {
-    auto* helper = TabSharingUIAndroidHelper::FromWebContents(
-        capturer_web_contents_.get());
-    if (helper && helper->get_tab_sharing_ui() == this) {
-      helper->set_tab_sharing_ui(nullptr);
-    }
-  }
   if (java_bridge_) {
     JNIEnv* env = base::android::AttachCurrentThread();
     Java_TabSharingUIBridge_destroy(env, java_bridge_);
@@ -77,35 +49,50 @@ TabSharingUIAndroid::~TabSharingUIAndroid() {
   }
 }
 
-void TabSharingUIAndroid::StopSharing(
-    content::WebContents* capturer_web_contents) {
-  auto* helper =
-      TabSharingUIAndroidHelper::FromWebContents(capturer_web_contents);
-  if (helper && helper->get_tab_sharing_ui()) {
-    helper->get_tab_sharing_ui()->StopSharing();
-  }
-}
-
 void TabSharingUIAndroid::StopSharing() {
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (stop_callback_) {
     std::move(stop_callback_).Run();
   }
 }
 
 void TabSharingUIAndroid::ChangeSource(content::WebContents* new_source) {
-  // TODO(crbug.com/480747775): implement this by saving the source_callback
-  // provided OnStarted() and run it here.
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (!new_source) {
+    return;
+  }
+  content::RenderFrameHost* main_frame = new_source->GetPrimaryMainFrame();
+  if (!main_frame || !main_frame->GetProcess()) {
+    return;
+  }
+  auto new_media_id =
+      content::DesktopMediaID(content::DesktopMediaID::TYPE_WEB_CONTENTS,
+                              content::DesktopMediaID::kNullId,
+                              content::WebContentsMediaCaptureId(
+                                  main_frame->GetProcess()->GetDeprecatedID(),
+                                  main_frame->GetRoutingID()));
+  // Force the renderer to produce a compositor frame so the video capturer
+  // can grab it immediately. Otherwise, if the tab is static, no frames
+  // will be emitted and the video stream will freeze.
+  content::RenderWidgetHostView* rwhv = new_source->GetRenderWidgetHostView();
+  if (rwhv && rwhv->GetRenderWidgetHost()) {
+    rwhv->GetRenderWidgetHost()->InsertVisualStateCallback(base::DoNothing());
+  }
+  if (source_callback_) {
+    source_callback_.Run(new_media_id, false);
+  }
 }
 
 gfx::NativeViewId TabSharingUIAndroid::OnStarted(
     base::OnceClosure stop_callback,
     content::MediaStreamUI::SourceCallback source_callback,
     const std::vector<content::DesktopMediaID>& media_ids) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
   DCHECK(media_id_.type == content::DesktopMediaID::TYPE_WEB_CONTENTS);
 
   DCHECK(!stop_callback_);
   stop_callback_ = std::move(stop_callback);
+  source_callback_ = std::move(source_callback);
 
   content::WebContents* const web_contents =
       content::WebContents::FromRenderFrameHost(
@@ -139,7 +126,8 @@ gfx::NativeViewId TabSharingUIAndroid::OnStarted(
       JNIEnv* env = base::android::AttachCurrentThread();
       java_bridge_ = Java_TabSharingUIBridge_create(
           env, reinterpret_cast<intptr_t>(this), capturer_web_contents_.get(),
-          web_contents);
+          web_contents, !source_callback_.is_null(),
+          app_preferred_current_tab_);
     }
   } else {
     StopSharing();

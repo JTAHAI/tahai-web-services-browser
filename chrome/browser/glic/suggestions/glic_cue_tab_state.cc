@@ -8,37 +8,58 @@
 
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
+#include "base/strings/stringprintf.h"
 #include "base/task/sequenced_task_runner.h"
+#include "chrome/browser/contextual_cueing/cueing_log.h"
 #include "chrome/browser/contextual_cueing/features.h"
 #include "chrome/browser/glic/suggestions/glic_cue_target.h"
+#include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
+#include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/page_content_annotations/page_content_annotations_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 
 namespace glic {
+namespace {
 
-WEB_CONTENTS_USER_DATA_KEY_IMPL(GlicCueTabState);
+GURL UrlWithoutQueryAndRef(const GURL& url) {
+  GURL::Replacements replacements;
+  replacements.ClearQuery();
+  replacements.ClearRef();
+  return url.ReplaceComponents(replacements);
+}
 
-GlicCueTabState::GlicCueTabState(content::WebContents* web_contents)
-    : content::WebContentsObserver(web_contents),
-      content::WebContentsUserData<GlicCueTabState>(*web_contents) {
+}  // namespace
+
+DEFINE_USER_DATA(GlicCueTabState);
+
+GlicCueTabState::GlicCueTabState(tabs::TabInterface& tab)
+    : content::WebContentsObserver(tab.GetContents()),
+      scoped_unowned_user_data_(tab.GetUnownedUserDataHost(), *this) {
+  content::WebContents* web_contents = tab.GetContents();
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents->GetBrowserContext());
+  optimization_guide_keyed_service_ =
+      OptimizationGuideKeyedServiceFactory::GetForProfile(profile);
   if (base::FeatureList::IsEnabled(
           contextual_cueing::kContextualCueingV2MultiSource)) {
-    annotation_service_ = PageContentAnnotationsServiceFactory::GetForProfile(
-        Profile::FromBrowserContext(web_contents->GetBrowserContext()));
+    annotation_service_ =
+        PageContentAnnotationsServiceFactory::GetForProfile(profile);
     if (annotation_service_) {
       annotation_service_->AddObserver(
           page_content_annotations::AnnotationType::kCategoryClassifier, this);
     }
   }
   last_committed_url_ = web_contents->GetLastCommittedURL();
-  if (web_contents->GetController().GetLastCommittedEntry()) {
-    last_committed_timestamp_ =
-        web_contents->GetController().GetLastCommittedEntry()->GetTimestamp();
-  }
+}
+
+// static
+GlicCueTabState* GlicCueTabState::From(tabs::TabInterface* tab) {
+  return Get(tab->GetUnownedUserDataHost());
 }
 
 GlicCueTabState::~GlicCueTabState() {
@@ -58,15 +79,6 @@ void GlicCueTabState::DidFinishNavigation(
   }
 
   last_committed_url_ = navigation_handle->GetURL();
-  if (navigation_handle->GetNavigationEntry()) {
-    last_committed_timestamp_ =
-        navigation_handle->GetNavigationEntry()->GetTimestamp();
-  } else if (web_contents()->GetController().GetLastCommittedEntry()) {
-    last_committed_timestamp_ =
-        web_contents()->GetController().GetLastCommittedEntry()->GetTimestamp();
-  } else {
-    last_committed_timestamp_ = base::Time();
-  }
   cached_result_ = std::nullopt;
 
   CancelPendingCheck();
@@ -75,11 +87,17 @@ void GlicCueTabState::DidFinishNavigation(
 void GlicCueTabState::OnPageContentAnnotated(
     const page_content_annotations::HistoryVisit& visit,
     const page_content_annotations::PageContentAnnotationsResult& result) {
-  if (visit.url != last_committed_url_ ||
-      visit.nav_entry_timestamp != last_committed_timestamp_) {
+  if (UrlWithoutQueryAndRef(visit.url) !=
+      UrlWithoutQueryAndRef(last_committed_url_)) {
+    CUEING_LOG(base::StringPrintf(
+        "GlicCueTabState::OnPageContentAnnotated URL mismatch: %s vs %s",
+        visit.url.spec(), last_committed_url_.spec()));
     return;
   }
 
+  CUEING_LOG(base::StringPrintf(
+      "GlicCueTabState::OnPageContentAnnotated received annotation for %s",
+      visit.url.spec()));
   cached_result_ = result;
   ResolvePendingCheck();
 }
@@ -89,6 +107,8 @@ void GlicCueTabState::CheckEligibility(
     contextual_cueing::CueTarget::EligibilityCallback callback,
     GlicCueTarget* target) {
   if (!annotation_service_) {
+    CUEING_LOG(
+        "GlicCueTabState::CheckEligibility failed: No annotation service.");
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(callback), false,
@@ -98,6 +118,9 @@ void GlicCueTabState::CheckEligibility(
 
   if (cached_result_.has_value()) {
     bool eligible = target->IsPageEligible(*cached_result_, web_contents());
+    CUEING_LOG(base::StringPrintf(
+        "GlicCueTabState::CheckEligibility using cached result: eligible=%d",
+        eligible));
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(callback), eligible,
@@ -105,6 +128,7 @@ void GlicCueTabState::CheckEligibility(
     return;
   }
 
+  CUEING_LOG("GlicCueTabState::CheckEligibility waiting for annotation.");
   CancelPendingCheck();
 
   pending_check_ = PendingCheck{
@@ -119,6 +143,8 @@ void GlicCueTabState::CheckEligibility(
 
 void GlicCueTabState::CancelPendingCheck() {
   if (pending_check_.has_value()) {
+    CUEING_LOG(
+        "GlicCueTabState::CancelPendingCheck: cancelling pending check.");
     annotation_timeout_timer_.Stop();
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
@@ -130,6 +156,9 @@ void GlicCueTabState::CancelPendingCheck() {
 
 void GlicCueTabState::ResolvePendingCheck() {
   if (!pending_check_.has_value() || !cached_result_.has_value()) {
+    CUEING_LOG(
+        "GlicCueTabState::ResolvePendingCheck: no pending check or "
+        "cached result.");
     return;
   }
 
@@ -141,6 +170,10 @@ void GlicCueTabState::ResolvePendingCheck() {
 
   const bool eligible =
       target && target->IsPageEligible(*cached_result_, web_contents());
+  CUEING_LOG(base::StringPrintf(
+      "GlicCueTabState::ResolvePendingCheck resolved pending check: "
+      "eligible=%d",
+      eligible));
 
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE,
@@ -149,6 +182,7 @@ void GlicCueTabState::ResolvePendingCheck() {
 }
 
 void GlicCueTabState::OnAnnotationTimeout() {
+  CUEING_LOG("GlicCueTabState::OnAnnotationTimeout: annotation timed out.");
   CancelPendingCheck();
 }
 

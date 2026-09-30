@@ -22,7 +22,6 @@
 #include "build/build_config.h"
 #include "build/branding_buildflags.h"
 #include "chrome/browser/ui/bookmarks/bookmark_bar_controller.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/immersive/immersive_mode_controller.h"
 #include "chrome/browser/ui/tabs/organizer/organizer_panel_state_controller.h"
@@ -45,7 +44,6 @@
 #include "components/infobars/core/infobar_container.h"
 #include "components/user_education/common/feature_promo/feature_promo_handle.h"
 #include "components/viz/common/frame_timing_details.h"
-#include "components/webapps/browser/banners/app_banner_manager.h"
 #include "content/public/browser/desktop_capture_pip_utils.h"
 #include "content/public/browser/page_user_data.h"
 #include "content/public/browser/permission_controller.h"
@@ -76,10 +74,9 @@
 class AccessibilityFocusHighlight;
 class BookmarkBarController;
 class BookmarkBarView;
-class Browser;
+class BrowserWindowInterface;
 class BrowserViewLayout;
 class ContentsContainerView;
-class ContentsLayoutManager;
 struct DropData;
 class ExclusiveAccessBubbleViews;
 class ExclusiveAccessBubbleViewsContext;
@@ -89,6 +86,7 @@ class MultiContentsView;
 class OrganizerPanelView;
 class ScrimView;
 class SidePanel;
+class SidePanelAnimationContentView;
 class TabDragTarget;
 class TabSearchBubbleHost;
 class TabStrip;
@@ -123,13 +121,9 @@ enum class Channel;
 }
 
 namespace views {
+class LabelButton;
 class WebView;
 }  // namespace views
-
-namespace webapps {
-enum class InstallableWebAppCheckResult;
-struct WebAppBannerData;
-}  // namespace webapps
 
 class CustomFloatingCorner;
 
@@ -148,7 +142,6 @@ class BrowserView : public BrowserWindow,
                     public views::ClientView,
                     public infobars::InfoBarContainer::Delegate,
                     public ImmersiveModeController::Observer,
-                    public webapps::AppBannerManager::Observer,
                     public views::FocusChangeListener,
                     public BookmarkBarController::Delegate {
   METADATA_HEADER(BrowserView, views::ClientView)
@@ -158,7 +151,7 @@ class BrowserView : public BrowserWindow,
   // locate this object using just the handle.
   static constexpr char kBrowserViewKey[] = "__BROWSER_VIEW__";
 
-  explicit BrowserView(Browser* browser);
+  explicit BrowserView(BrowserWindowInterface* browser);
   BrowserView(const BrowserView&) = delete;
   BrowserView& operator=(const BrowserView&) = delete;
   ~BrowserView() override;
@@ -191,9 +184,9 @@ class BrowserView : public BrowserWindow,
 
   bool IsLoadingAnimationRunning() const;
 
-  // Returns a Browser instance of this view.
-  Browser* browser() { return browser_; }
-  const Browser* browser() const { return browser_; }
+  // Returns a BrowserWindowInterface instance of this view.
+  BrowserWindowInterface* browser() { return browser_; }
+  const BrowserWindowInterface* browser() const { return browser_; }
 
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
   tahai::WindowModeController* tahai_window_mode_controller() const {
@@ -230,9 +223,10 @@ class BrowserView : public BrowserWindow,
   // handled by BrowserViewLayout. Used when opening the side panel using
   // SidePanelUI::ShowFrom which animates the side panel content from provided
   // bounds.
-  void SetSidePanelAnimationContent(views::View* content);
+  SidePanelAnimationContentView* SetSidePanelAnimationContent(
+      std::unique_ptr<SidePanelAnimationContentView> content);
   // Returns side panel content if it is currently parented to the BrowserView.
-  views::View* GetSidePanelAnimationContent();
+  SidePanelAnimationContentView* GetSidePanelAnimationContent();
 
   // Returns all the ContentsContainerViews that belong to this browser.
   std::vector<raw_ptr<ContentsContainerView, DanglingUntriaged>>
@@ -276,8 +270,8 @@ class BrowserView : public BrowserWindow,
   }
 #endif
 
-  // Container for the web contents.
-  views::View* contents_container() { return contents_container_; }
+  // Container for multiple contents container views.
+  views::View* contents_container();
 
   views::View* main_shadow_overlay() { return main_shadow_overlay_; }
 
@@ -496,6 +490,18 @@ class BrowserView : public BrowserWindow,
     return window_management_permission_granted_;
   }
 
+  bool is_layout_deferred_for_testing() const {
+    return layout_deferred_while_invisible_;
+  }
+
+  bool is_startup_layout_deferring_for_testing() const {
+    return startup_layout_state_ == StartupLayoutState::kDeferring;
+  }
+
+  bool is_startup_layout_disabled_for_testing() const {
+    return startup_layout_state_ == StartupLayoutState::kDisabled;
+  }
+
   void UpdateWebAppStatusIconsVisiblity();
 
   // Getter for the `window.setResizable(bool)` state.
@@ -554,9 +560,7 @@ class BrowserView : public BrowserWindow,
   bool GetCanResize() override;
   ui::mojom::WindowShowState GetWindowShowState() const override;
   bool IsFullscreen() const override;
-  void UpdatePageActionIcon(PageActionIconType type) override;
   autofill::AutofillBubbleHandler* GetAutofillBubbleHandler() override;
-  void ExecutePageActionIconForTesting(PageActionIconType type) override;
   LocationBar* GetLocationBar() const override;
   void SetFocusToLocationBar(bool is_user_initiated) override;
   void UpdateReloadStopState(bool is_loading, bool force) override;
@@ -650,7 +654,6 @@ class BrowserView : public BrowserWindow,
       const TabStripModelChange& change,
       const TabStripSelectionChange& selection) override;
   void OnTabChangedAt(tabs::TabInterface* tab,
-                      int index,
                       TabChangeType change_type) override;
   void OnSplitTabChanged(const SplitTabChange& change) override;
   void TabStripEmpty() override;
@@ -750,11 +753,6 @@ class BrowserView : public BrowserWindow,
   void OnImmersiveFullscreenEntered() override;
   void OnImmersiveFullscreenExited() override;
   void OnImmersiveModeControllerDestroyed() override;
-
-  // webapps::AppBannerManager::Observer:
-  void OnInstallableWebAppStatusUpdated(
-      webapps::InstallableWebAppCheckResult result,
-      const std::optional<webapps::WebAppBannerData>& data) override;
 
   // views::FocusChangeListener
   void OnWillChangeFocus(View* focused_before, View* focused_now) override;
@@ -1003,9 +1001,6 @@ class BrowserView : public BrowserWindow,
   bool FindCommandIdForAccelerator(const ui::Accelerator& accelerator,
                                    int* command_id) const;
 
-  // Updates AppBannerManager::Observer to observe |new_manager| exclusively.
-  void ObserveAppBannerManager(webapps::AppBannerManager* new_manager);
-
   // Called by GetAccessibleWindowTitle, split out to make it testable.
   std::u16string GetAccessibleWindowTitleForChannelAndProfile(
       version_info::Channel,
@@ -1054,6 +1049,9 @@ class BrowserView : public BrowserWindow,
 
   void UpdateWindowControlsOverlayEnabled();
   void RefreshWindowControlsOverlayAfterFullscreenTransition();
+
+  // Called each time the browser window is shown.
+  void OnWindowDidShow();
 
   // Updates the Window Controls Overlay availability in this window.
   void UpdateWindowControlsOverlayAvailable();
@@ -1106,8 +1104,8 @@ class BrowserView : public BrowserWindow,
   // The BrowserWidget that owns this view.
   std::unique_ptr<BrowserWidget> browser_widget_;
 
-  // The owning Browser object. `browser_` will outlive this.
-  const raw_ptr<Browser> browser_;
+  // The owning BrowserWindowInterface object. `browser_` will outlive this.
+  const raw_ptr<BrowserWindowInterface> browser_;
 
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(TAHAI_BRANDING)
   // Window-owned mode state is intentionally distinct from the profile
@@ -1137,10 +1135,14 @@ class BrowserView : public BrowserWindow,
   // |------------------------------------------------------------------------|
   // | All infobars (infobar_container_)                                      |
   // |------------------------------------------------------------------------|
-  // | Contents container (contents_container_)                               |
-  // |  --------------------------------------------------------------------  |
-  // |  |  MultiContentsView (multi_contents_view_)                        |  |
-  // |  --------------------------------------------------------------------  |
+  // |------------------------------------------------------------------------|
+  // | MultiContentsView (multi_contents_view_)                               |
+  // |  |------------------------------------------------------------------|  |
+  // |  | ContentsContainerView (web contents, devtools, overlay, borders) |  |
+  // |  |------------------------------------------------------------------|  |
+  // |  | ContentsContainerView (web contents, devtools, overlay, borders) |  |
+  // |  -------------------------------------------------------------------|  |
+  // |------------------------------------------------------------------------|
   // |------------------------------------------------------------------------|
   // | SidePanel (side_panel_)                                                |
   // |------------------------------------------------------------------------|
@@ -1199,17 +1201,17 @@ class BrowserView : public BrowserWindow,
   // Used when calling CreateMacOverlayView(). This widget owns `overlay_view_`.
   // Its content NSView will be reparented to a NSToolbarFullScreenWindow
   // during fullscreen.
-  raw_ptr<views::Widget, DanglingUntriaged> overlay_widget_ = nullptr;
+  std::unique_ptr<views::Widget> overlay_widget_;
 
   // Also used when calling CreateMacOverlayView(). This widget will host the
   // tabstrip contents. Its content NSView will be reparented to a separate
   // section of the NSToolbarFullScreenWindow allowing for the tabs to live in
   // the Titlebar.
-  raw_ptr<views::Widget, DanglingUntriaged> tab_overlay_widget_ = nullptr;
+  std::unique_ptr<views::Widget> tab_overlay_widget_;
 
   // The hosting view of HorizontalTabStripRegionView during immersive
   // fullscreen.
-  raw_ptr<views::View, DanglingUntriaged> tab_overlay_view_ = nullptr;
+  raw_ptr<views::View> tab_overlay_view_ = nullptr;
 
 #endif
 
@@ -1238,9 +1240,6 @@ class BrowserView : public BrowserWindow,
   // The view that contains all visible WebContents.
   raw_ptr<MultiContentsView> multi_contents_view_ = nullptr;
 
-  // Handled by ContentsLayoutManager.
-  raw_ptr<views::View> contents_container_ = nullptr;
-
   // The view responsible for housing the contents of the vertical tab strip.
   raw_ptr<VerticalTabStripRegionView> vertical_tab_strip_region_view_ = nullptr;
   raw_ptr<VerticalTabStripBackgroundBlurBackdrop>
@@ -1267,10 +1266,16 @@ class BrowserView : public BrowserWindow,
   // This is currently not used on macOS where the platform draws a native
   // scrim for window modals (NSWindow sheet).
   raw_ptr<ScrimView> window_scrim_view_ = nullptr;
+  raw_ptr<ScrimView> side_panel_content_transition_scrim_view_ = nullptr;
 
   // Anchor point for help bubbles and other dialogs that want to reliably
   // anchor outside the content area of the window.
   std::unique_ptr<views::ViewSubregionAnchor> dialog_anchor_;
+
+  // Anchor point for popup dialogs that must be able to appear in content-
+  // fullscreen and can anchor inside the content area of the window if
+  // necessary (such as the translate bubble).
+  std::unique_ptr<views::ViewSubregionAnchor> fallback_popup_anchor_;
 
   // A mapping between accelerators and command IDs.
   std::map<ui::Accelerator, int> accelerator_table_;
@@ -1350,10 +1355,6 @@ class BrowserView : public BrowserWindow,
   // exited to restore the original pre-fullscreen bounds of the window.
   base::OnceClosure restore_pre_fullscreen_bounds_callback_;
 
-  base::ScopedObservation<webapps::AppBannerManager,
-                          webapps::AppBannerManager::Observer>
-      app_banner_manager_observation_{this};
-
   base::ScopedObservation<views::FocusManager, views::FocusChangeListener>
       focus_manager_observation_{this};
 
@@ -1381,6 +1382,10 @@ class BrowserView : public BrowserWindow,
   bool is_window_controls_overlay_available_ = false;
   bool unframed_mode_enabled_ = false;
   bool window_management_permission_granted_ = false;
+
+  // True if the browser window has been shown at least once.
+  bool window_has_shown_ = false;
+
 #if BUILDFLAG(IS_WIN)
   class PipExclusionObserverImpl;
   std::unique_ptr<PipExclusionObserverImpl> pip_exclusion_observer_;

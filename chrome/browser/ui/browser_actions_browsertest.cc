@@ -15,7 +15,7 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "components/autofill/core/browser/payments/payments_autofill_client.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/test/browser_test.h"
@@ -100,7 +100,7 @@ IN_PROC_BROWSER_TEST_F(BrowserActionsBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(BrowserActionsBrowserTest, DidCreateBrowserActions) {
-  BrowserActions* browser_actions = browser()->browser_actions();
+  BrowserActions* browser_actions = BrowserActions::From(browser());
   auto& action_manager = actions::ActionManager::GetForTesting();
 
   std::vector<actions::ActionId> browser_action_ids = {
@@ -108,7 +108,9 @@ IN_PROC_BROWSER_TEST_F(BrowserActionsBrowserTest, DidCreateBrowserActions) {
       kActionClearBrowsingData,  kActionTaskManager,
       kActionDevTools,           kActionSendTabToSelf,
       kActionQrCodeGenerator,    kActionShowAddressesBubbleOrPage,
-      kActionFederation};
+      kActionFederation,         kActionCycleToNextTab,
+      kActionCycleToPrevTab,     kActionShowReadingModeSidePanel,
+      kActionBookmarksSubmenu};
 
   ASSERT_NE(browser_actions->root_action_item(), nullptr);
 
@@ -117,9 +119,23 @@ IN_PROC_BROWSER_TEST_F(BrowserActionsBrowserTest, DidCreateBrowserActions) {
   }
 }
 
+IN_PROC_BROWSER_TEST_F(BrowserActionsBrowserTest, CycleTabs) {
+  chrome::NewTab(browser(), NewTabTypes::kNoUserAction);
+  TabStripModel* tab_strip = browser()->tab_strip_model();
+  EXPECT_EQ(2, tab_strip->count());
+  EXPECT_TRUE(tab_strip->IsTabSelected(1));
+
+  auto& action_manager = actions::ActionManager::GetForTesting();
+  action_manager.FindAction(kActionCycleToNextTab)->InvokeAction();
+  EXPECT_TRUE(tab_strip->IsTabSelected(0));
+
+  action_manager.FindAction(kActionCycleToPrevTab)->InvokeAction();
+  EXPECT_TRUE(tab_strip->IsTabSelected(1));
+}
+
 IN_PROC_BROWSER_TEST_F(BrowserActionsBrowserTest,
                        CheckBrowserActionsEnabledState) {
-  BrowserActions* browser_actions = browser()->browser_actions();
+  BrowserActions* browser_actions = BrowserActions::From(browser());
   auto& action_manager = actions::ActionManager::GetForTesting();
 
   ASSERT_NE(browser_actions->root_action_item(), nullptr);

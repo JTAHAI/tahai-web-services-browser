@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "base/memory/ptr_util.h"
+#include "base/memory/raw_ref.h"
 #include "third_party/blink/renderer/core/animation/path_interpolation_functions.h"
 #include "third_party/blink/renderer/core/animation/shape_property_functions.h"
 #include "third_party/blink/renderer/core/css/css_path_value.h"
@@ -37,13 +38,10 @@ void CSSPathInterpolationType::ApplyStandardPropertyValue(
     const NonInterpolableValue* non_interpolable_value,
     StyleResolverState& state) const {
   CHECK(non_interpolable_value);
-  StylePath* path = PathInterpolationFunctions::AppliedValue(
+  BasicShapeInfo info = PathInterpolationFunctions::AppliedValue(
       interpolable_value, *non_interpolable_value);
-  CHECK(path);
-  shape_property_functions::SetBasicShape(
-      CssProperty(), *path,
-      PathInterpolationFunctions::GetBox(*non_interpolable_value),
-      state.StyleBuilder());
+  shape_property_functions::SetBasicShape(CssProperty(), info,
+                                          state.StyleBuilder());
 }
 
 void CSSPathInterpolationType::Composite(
@@ -84,11 +82,12 @@ class InheritedPathChecker : public CSSInterpolationType::CSSConversionChecker {
  private:
   bool IsValid(const StyleResolverState& state,
                const InterpolationValue& underlying) const final {
-    auto parent_info = GetPathInfo(property_, *state.ParentStyle());
+    auto parent_info = GetPathInfo(*property_, *state.ParentStyle());
     return parent_info.shape == style_path_.Get() && parent_info.box == box_;
   }
 
-  const CSSProperty& property_;
+  const raw_ref<const CSSProperty, UnprotectedInRelease | DanglingUntriaged>
+      property_;
   const Member<const StylePath> style_path_;
   const ShapeReferenceBox box_;
 };

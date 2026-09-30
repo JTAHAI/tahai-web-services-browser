@@ -2810,6 +2810,83 @@ TEST_F(IntersectionObserverV2Test, BasicOcclusion) {
   EXPECT_TRUE(observer_delegate->LastEntry()->isVisible());
 }
 
+TEST_F(IntersectionObserverV2Test, PartialOcclusion) {
+  WebView().MainFrameViewWidget()->Resize(gfx::Size(800, 600));
+  SimRequest main_resource("https://example.com/", "text/html");
+  LoadURL("https://example.com/");
+  main_resource.Complete(R"HTML(
+    <style>
+      div {
+        width: 100px;
+        height: 100px;
+      }
+    </style>
+    <div id='target'></div>
+    <div id='occluder'></div>
+  )HTML");
+  Compositor().BeginFrame();
+
+  Element* target = GetDocument().getElementById(AtomicString("target"));
+  Element* occluder = GetDocument().getElementById(AtomicString("occluder"));
+  ASSERT_TRUE(target);
+  ASSERT_TRUE(occluder);
+
+  auto hit_node_cb = base::BindRepeating(
+      [](Element* target, const PhysicalRect& hit_rect, const Node& node,
+         const PhysicalRect*, const gfx::QuadF*, const cc::Region*) {
+        if (!target || &node == target) {
+          return kStopHitTesting;
+        }
+        // Allow up to 20% occlusion.
+        PhysicalRect node_rect = node.BoundingBox();
+        node_rect.Intersect(hit_rect);
+        if (node_rect.size.height > hit_rect.size.height * 0.2f) {
+          return kStopHitTesting;
+        }
+        return kContinueHitTesting;
+      },
+      WrapWeakPersistent(target));
+
+  TestIntersectionObserverDelegate* observer_delegate =
+      MakeGarbageCollected<TestIntersectionObserverDelegate>(GetDocument());
+  IntersectionObserver* observer = MakeGarbageCollected<IntersectionObserver>(
+      *observer_delegate,
+      LocalFrameUkmAggregator::kJavascriptIntersectionObserver,
+      IntersectionObserver::Params{
+          .thresholds = {1.0f},
+          .delay = base::Milliseconds(100),
+          .track_visibility = true,
+          .hit_node_cb = hit_node_cb,
+      });
+  observer->observe(target);
+
+  Compositor().BeginFrame();
+  test::RunPendingTasks();
+  ASSERT_FALSE(Compositor().NeedsBeginFrame());
+  EXPECT_EQ(observer_delegate->CallCount(), 1);
+  EXPECT_EQ(observer_delegate->EntryCount(), 1);
+  EXPECT_TRUE(observer_delegate->LastEntry()->isIntersecting());
+  EXPECT_TRUE(observer_delegate->LastEntry()->isVisible());
+
+  // Occlude by 10% (10px <= 20px allowance). Target is still visible.
+  occluder->SetInlineStyleProperty(CSSPropertyID::kMarginTop, "-10px");
+  Compositor().BeginFrame();
+  test::RunPendingTasks();
+  ASSERT_FALSE(Compositor().NeedsBeginFrame());
+  EXPECT_EQ(observer_delegate->CallCount(), 1);
+  EXPECT_TRUE(observer_delegate->LastEntry()->isVisible());
+
+  // Occlude by 30% (30px > 20px allowance). Target is now occluded.
+  occluder->SetInlineStyleProperty(CSSPropertyID::kMarginTop, "-30px");
+  Compositor().BeginFrame();
+  test::RunPendingTasks();
+  ASSERT_FALSE(Compositor().NeedsBeginFrame());
+  EXPECT_EQ(observer_delegate->CallCount(), 2);
+  EXPECT_EQ(observer_delegate->EntryCount(), 2);
+  EXPECT_TRUE(observer_delegate->LastEntry()->isIntersecting());
+  EXPECT_FALSE(observer_delegate->LastEntry()->isVisible());
+}
+
 TEST_F(IntersectionObserverV2Test, TableRowOcclusion) {
   WebView().MainFrameViewWidget()->Resize(gfx::Size(800, 600));
   SimRequest main_resource("https://example.com/", "text/html");
@@ -2868,6 +2945,71 @@ TEST_F(IntersectionObserverV2Test, TableRowOcclusion) {
   EXPECT_EQ(observer_delegate->EntryCount(), 1);
   EXPECT_TRUE(observer_delegate->LastEntry()->isIntersecting());
   // The target is occluded by the drop-shadow of the table row.
+  EXPECT_FALSE(observer_delegate->LastEntry()->isVisible());
+}
+
+TEST_F(IntersectionObserverV2Test, Preserve3DOcclusion) {
+  WebView().MainFrameViewWidget()->Resize(gfx::Size(800, 600));
+  SimRequest main_resource("https://example.com/", "text/html");
+  LoadURL("https://example.com/");
+  main_resource.Complete(R"HTML(
+    <style>
+      #GP {
+        transform: translateX(0);
+        transform-style: preserve-3d;
+      }
+      #TC {
+        position: absolute;
+        width: 1px; height: 1px;
+        transform: translateZ(5px);
+        transform-style: preserve-3d;
+      }
+      #L {
+        position: absolute;
+        width: 1px; height: 1px;
+        isolation: isolate;
+      }
+      #occluder, #target {
+        position: absolute;
+        left: 100px; top: 100px;
+        width: 100; height: 100;
+      }
+    </style>
+    <div id="GP">
+      <div id="TC">
+        <div>
+          <div id="L">
+            <div id="occluder"></div>
+          </div>
+        </div>
+      </div>
+      <div id="target"></div>
+    </div>
+  )HTML");
+  Compositor().BeginFrame();
+
+  IntersectionObserverInit* observer_init = IntersectionObserverInit::Create();
+  observer_init->setTrackVisibility(true);
+  observer_init->setDelay(100);
+  DummyExceptionStateForTesting exception_state;
+  TestIntersectionObserverDelegate* observer_delegate =
+      MakeGarbageCollected<TestIntersectionObserverDelegate>(GetDocument());
+  IntersectionObserver* observer = IntersectionObserver::Create(
+      observer_init, *observer_delegate,
+      LocalFrameUkmAggregator::kJavascriptIntersectionObserver,
+      exception_state);
+  ASSERT_FALSE(exception_state.HadException());
+  Element* target = GetDocument().getElementById(AtomicString("target"));
+  ASSERT_TRUE(target);
+  observer->observe(target);
+
+  Compositor().BeginFrame();
+  test::RunPendingTasks();
+  ASSERT_FALSE(Compositor().NeedsBeginFrame());
+  EXPECT_EQ(observer_delegate->CallCount(), 1);
+  EXPECT_EQ(observer_delegate->EntryCount(), 1);
+  EXPECT_TRUE(observer_delegate->LastEntry()->isIntersecting());
+  // #target is occluded by #occluder which is in front of it (z=5 vs z=0).
   EXPECT_FALSE(observer_delegate->LastEntry()->isVisible());
 }
 

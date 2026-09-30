@@ -4,13 +4,16 @@
 
 #include "chrome/browser/ui/views/payments/payment_request_browsertest_base.h"
 #include "chrome/browser/ui/views/payments/payment_request_dialog_view_ids.h"
-#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_util.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 
 namespace payments {
 
-using PaymentRequestRetryTest = PaymentRequestBrowserTestBase;
+class PaymentRequestRetryTest : public PaymentRequestBrowserTestBase {
+ protected:
+  PaymentRequestRetryTest() { SetBypassUserInteractionForTesting(); }
+};
 
 IN_PROC_BROWSER_TEST_F(PaymentRequestRetryTest,
                        DoNotAllowPaymentInstrumentChange) {

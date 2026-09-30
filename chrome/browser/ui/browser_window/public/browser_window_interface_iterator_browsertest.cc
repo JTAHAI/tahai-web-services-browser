@@ -5,8 +5,9 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 
 #include "base/test/run_until.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -28,14 +29,15 @@ IN_PROC_BROWSER_TEST_F(
     BrowserWindowInterfaceIteratorBrowserTest,
     MAYBE_GetLastActiveBrowserWindowInterface_ReturnsLastActive) {
   // Start with the default browser created by the test framework.
-  Browser* const browser1 = browser();
+  BrowserWindowInterface* const browser1 = browser();
 
   // Verify initial state - the default browser should be the last active.
   EXPECT_EQ(GetLastActiveBrowserWindowInterfaceWithAnyProfile(), browser1);
 
   // Create a second browser window.
-  Browser* const browser2 =
-      Browser::Create(Browser::CreateParams(browser()->GetProfile(), true));
+  BrowserWindowInterface* const browser2 = CreateBrowserWindow(
+      BrowserWindowCreateParams(browser()->GetProfile(),
+                                /*from_user_gesture=*/true));
   ASSERT_NE(browser2, nullptr);
   browser2->GetWindow()->Show();
 
@@ -88,9 +90,9 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     BrowserWindowInterfaceIteratorBrowserTest,
     ForEachCurrentBrowserWindowInterfaceOrderedByActivationAddRemove) {
-  Browser* browser_window_1 = browser();
-  Browser* browser_window_2 = CreateBrowser(GetProfile());
-  Browser* browser_window_3 = CreateBrowser(GetProfile());
+  BrowserWindowInterface* browser_window_1 = browser();
+  BrowserWindowInterface* browser_window_2 = CreateBrowser(GetProfile());
+  BrowserWindowInterface* browser_window_3 = CreateBrowser(GetProfile());
 
   std::vector<BrowserWindowInterface*> visited;
   int i = 0;
@@ -157,10 +159,10 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     BrowserWindowInterfaceIteratorBrowserTest,
     ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivationAddRemove) {
-  Browser* browser_window_1 = browser();
-  Browser* browser_window_2 = CreateBrowser(GetProfile());
-  Browser* browser_window_3 = CreateBrowser(GetProfile());
-  Browser* browser_window_4 = nullptr;
+  BrowserWindowInterface* browser_window_1 = browser();
+  BrowserWindowInterface* browser_window_2 = CreateBrowser(GetProfile());
+  BrowserWindowInterface* browser_window_3 = CreateBrowser(GetProfile());
+  BrowserWindowInterface* browser_window_4 = nullptr;
 
   std::vector<BrowserWindowInterface*> visited;
   int i = 0;

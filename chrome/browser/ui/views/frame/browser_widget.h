@@ -138,7 +138,10 @@ class BrowserWidget : public views::Widget,
   ui::ColorProviderKey GetColorProviderKey() const override;
 
  private:
+  const ui::ThemeProvider* GetBaseThemeProvider() const;
+
   void OnTouchUiChanged();
+  void OnGlassFrameEligibilityChanged(bool is_eligible);
 
   // Callback for MenuRunner.
   void OnMenuClosed();
@@ -154,6 +157,10 @@ class BrowserWidget : public views::Widget,
 
   // Returns true if the browser instance belongs to an incognito profile.
   bool IsIncognitoBrowser() const;
+
+  // Returns true if the browser instance belongs to an enterprise isolated mode
+  // profile.
+  bool IsEnterpriseIsolatedModeBrowser() const;
 
   raw_ptr<BrowserNativeWidget> browser_native_widget_;
 
@@ -178,6 +185,10 @@ class BrowserWidget : public views::Widget,
       ui::TouchUiController::Get()->RegisterCallback(
           base::BindRepeating(&BrowserWidget::OnTouchUiChanged,
                               base::Unretained(this)));
+
+  // Observes changes in glass frame eligibility from GlassFrameService to
+  // trigger a widget theme update when eligibility transitions.
+  base::CallbackListSubscription glass_frame_subscription_;
 
   // Indicates the drag state for this window. The value can be kWindowDrag
   // if the accociated browser is the dragged browser or kTabDrag

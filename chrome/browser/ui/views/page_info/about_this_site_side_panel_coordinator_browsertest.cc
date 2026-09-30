@@ -5,8 +5,8 @@
 #include "base/strings/escape.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/page_info/about_this_site_side_panel.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_key.h"
@@ -69,7 +69,7 @@ class AboutThisSiteSidePanelCoordinatorBrowserTest
   }
 
   content::WebContents* web_contents() {
-    return browser()->tab_strip_model()->GetActiveWebContents();
+    return browser()->GetTabStripModel()->GetActiveWebContents();
   }
 
   SidePanelEntry* GetAboutThisSiteEntryForActiveTab() {
@@ -265,8 +265,9 @@ IN_PROC_BROWSER_TEST_F(AboutThisSiteSidePanelCoordinatorBrowserTest,
   // Close side panel.
   browser()->GetFeatures().side_panel_ui()->Close();
   ASSERT_TRUE(base::test::RunUntil([&]() {
-    return browser()->GetBrowserView().side_panel()->state() ==
-           SidePanel::State::kClosed;
+    return BrowserView::GetBrowserViewForBrowser(browser())
+               ->side_panel()
+               ->state() == SidePanel::State::kClosed;
   }));
   EXPECT_FALSE(IsAboutThisSiteSidePanelShowing());
 

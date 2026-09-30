@@ -29,6 +29,7 @@
 #include "components/content_settings/core/common/content_settings_constraints.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/content_settings/core/common/content_settings_utils.h"
+#include "components/content_settings/core/common/features.h"
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/metrics/dwa/dwa_recorder.h"
 #include "components/permissions/constants.h"
@@ -84,7 +85,6 @@ using PermissionStatus = blink::mojom::PermissionStatus;
 constexpr char kGrantIsImplicitHistogram[] =
     "API.StorageAccess.GrantIsImplicit";
 constexpr char kPromptResultHistogram[] = "Permissions.Action.StorageAccess";
-constexpr char kRequestOutcomeHistogram[] = "API.StorageAccess.RequestOutcome";
 constexpr int kImplicitGrantLimit = 5;  // Implicit grant limit for testing.
 constexpr int kDefaultDismissalsBeforeEmbargo = 3;
 
@@ -462,8 +462,6 @@ TEST_F(StorageAccessGrantPermissionContextTest,
   histogram_tester().ExpectUniqueSample(
       kPromptResultHistogram, /*sample=*/permissions::PermissionAction::GRANTED,
       1);
-  histogram_tester().ExpectUniqueSample(
-      kRequestOutcomeHistogram, /*sample=*/RequestOutcome::kGrantedByUser, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(
@@ -495,8 +493,6 @@ TEST_F(StorageAccessGrantPermissionContextTest, PermissionDecided) {
 
   request_manager()->Dismiss(/*prompt_options=*/std::monostate());
   EXPECT_EQ(PermissionStatus::ASK, future.Get().status);
-  histogram_tester().ExpectUniqueSample(kRequestOutcomeHistogram,
-                                        RequestOutcome::kDismissedByUser, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(
@@ -516,8 +512,6 @@ TEST_F(StorageAccessGrantPermissionContextTest,
             DecidePermission(MakePermissionRequestData(/*user_gesture=*/false))
                 .Get()
                 .status);
-  histogram_tester().ExpectUniqueSample(
-      kRequestOutcomeHistogram, RequestOutcome::kDeniedByPrerequisites, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(
@@ -537,8 +531,6 @@ TEST_F(StorageAccessGrantPermissionContextTest,
                              /*simulate_user_gesture=*/false)
                 .Get()
                 .status);
-  histogram_tester().ExpectUniqueSample(
-      kRequestOutcomeHistogram, RequestOutcome::kDeniedByPrerequisites, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(
@@ -558,8 +550,6 @@ TEST_F(StorageAccessGrantPermissionContextTest, PermissionGrantReused) {
   EXPECT_TRUE(
       RequestPermission(MakePermissionRequestData(/*user_gesture=*/true))
           .Wait());
-  histogram_tester().ExpectUniqueSample(
-      kRequestOutcomeHistogram, RequestOutcome::kReusedPreviousDecision, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(
@@ -579,8 +569,6 @@ TEST_F(StorageAccessGrantPermissionContextTest, BlockReused) {
   EXPECT_TRUE(
       RequestPermission(MakePermissionRequestData(/*user_gesture=*/true))
           .Wait());
-  histogram_tester().ExpectUniqueSample(
-      kRequestOutcomeHistogram, RequestOutcome::kReusedPreviousDecision, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(
@@ -603,8 +591,6 @@ TEST_F(StorageAccessGrantPermissionContextTest, FpsGrantReused) {
   EXPECT_TRUE(
       RequestPermission(MakePermissionRequestData(/*user_gesture=*/true))
           .Wait());
-  histogram_tester().ExpectUniqueSample(
-      kRequestOutcomeHistogram, RequestOutcome::kReusedImplicitGrant, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(
@@ -646,8 +632,6 @@ TEST_F(StorageAccessGrantPermissionContextTest, AllowedByCookieSettings) {
             DecidePermission(MakePermissionRequestData(/*user_gesture=*/false))
                 .Get()
                 .status);
-  histogram_tester().ExpectUniqueSample(
-      kRequestOutcomeHistogram, RequestOutcome::kAllowedByCookieSettings, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(
@@ -673,8 +657,6 @@ TEST_F(StorageAccessGrantPermissionContextTest, DeniedByCookieSettings) {
             DecidePermission(MakePermissionRequestData(/*user_gesture=*/false))
                 .Get()
                 .status);
-  histogram_tester().ExpectUniqueSample(
-      kRequestOutcomeHistogram, RequestOutcome::kDeniedByCookieSettings, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(
@@ -737,9 +719,6 @@ TEST_F(StorageAccessGrantPermissionContextAPIWithImplicitGrantsTest,
                                       kImplicitGrantLimit);
   histogram_tester().ExpectBucketCount(kGrantIsImplicitHistogram,
                                        /*sample=*/true, kImplicitGrantLimit);
-  EXPECT_EQ(histogram_tester().GetBucketCount(
-                kRequestOutcomeHistogram, RequestOutcome::kGrantedByAllowance),
-            kImplicitGrantLimit);
 
   std::vector<Matcher<mojo::StructPtr<DwaEntry>>> expected_dwa_entries(
       kImplicitGrantLimit,
@@ -762,9 +741,6 @@ TEST_F(StorageAccessGrantPermissionContextAPIWithImplicitGrantsTest,
     request_manager()->Dismiss(/*prompt_options=*/std::monostate());
     EXPECT_EQ(PermissionStatus::ASK, future.Get().status);
   }
-  EXPECT_EQ(histogram_tester().GetBucketCount(kRequestOutcomeHistogram,
-                                              RequestOutcome::kDismissedByUser),
-            1);
 
   expected_dwa_entries.emplace_back(
       Pointee(DwaEntryMatches(RequestOutcome::kDismissedByUser,
@@ -801,9 +777,6 @@ TEST_F(StorageAccessGrantPermissionContextAPIWithImplicitGrantsTest,
   // We should have no prompts still and our latest result should be an allow.
   EXPECT_EQ(PermissionStatus::GRANTED, future.Get().status);
   EXPECT_FALSE(request_manager()->IsRequestInProgress());
-  EXPECT_EQ(histogram_tester().GetBucketCount(
-                kRequestOutcomeHistogram, RequestOutcome::kGrantedByAllowance),
-            6);
 
   expected_dwa_entries.emplace_back(
       Pointee(DwaEntryMatches(RequestOutcome::kGrantedByAllowance,
@@ -852,12 +825,6 @@ TEST_F(StorageAccessGrantPermissionContextAPIWithImplicitGrantsTest,
                 .Get()
                 .status);
   EXPECT_FALSE(request_manager()->IsRequestInProgress());
-  EXPECT_EQ(histogram_tester().GetBucketCount(
-                kRequestOutcomeHistogram, RequestOutcome::kGrantedByAllowance),
-            implicit_grant_limit);
-  EXPECT_EQ(histogram_tester().GetBucketCount(
-                kRequestOutcomeHistogram, RequestOutcome::kReusedImplicitGrant),
-            1);
 
   expected_dwa_entries.emplace_back(
       Pointee(DwaEntryMatches(RequestOutcome::kReusedImplicitGrant,
@@ -893,8 +860,6 @@ TEST_F(StorageAccessGrantPermissionContextTest, ExplicitGrantDenial) {
   histogram_tester().ExpectUniqueSample(
       kPromptResultHistogram, /*sample=*/permissions::PermissionAction::DENIED,
       1);
-  histogram_tester().ExpectUniqueSample(
-      kRequestOutcomeHistogram, /*sample=*/RequestOutcome::kDeniedByUser, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(
@@ -966,8 +931,6 @@ TEST_F(StorageAccessGrantPermissionContextTest, ExplicitGrantAccept) {
                                         /*sample=*/false, 1);
   histogram_tester().ExpectUniqueSample(
       kPromptResultHistogram, permissions::PermissionAction::GRANTED, 1);
-  histogram_tester().ExpectUniqueSample(kRequestOutcomeHistogram,
-                                        RequestOutcome::kGrantedByUser, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(
@@ -987,7 +950,7 @@ class StorageAccessGrantPermissionContextAPIWithFirstPartySetsTest
   void SetUp() override {
     StorageAccessGrantPermissionContextTest::SetUp();
     additional_features_.InitAndEnableFeature(
-        blink::features::kStorageAccessAPIRelatedWebsiteSets);
+        content_settings::features::kStorageAccessAPIRelatedWebsiteSets);
 
     // Enable Related Website Sets (formerly First Party Sets).
     profile()->GetPrefs()->SetBoolean(
@@ -1035,8 +998,6 @@ TEST_F(StorageAccessGrantPermissionContextAPIWithFirstPartySetsTest,
                 .status,
             PermissionStatus::GRANTED);
 
-  histogram_tester().ExpectUniqueSample(
-      kRequestOutcomeHistogram, RequestOutcome::kGrantedByFirstPartySet, 1);
   histogram_tester().ExpectUniqueSample(kGrantIsImplicitHistogram,
                                         /*sample=*/true, 1);
 
@@ -1075,7 +1036,7 @@ class
     StorageAccessGrantPermissionContext::SetImplicitGrantLimitForTesting(
         kImplicitGrantLimit);
     additional_features_.InitAndDisableFeature(
-        blink::features::kStorageAccessAPIRelatedWebsiteSets);
+        content_settings::features::kStorageAccessAPIRelatedWebsiteSets);
 
     // Enable Related Website Sets (formerly First Party Sets).
     profile()->GetPrefs()->SetBoolean(
@@ -1119,8 +1080,6 @@ TEST_F(
                 .status,
             PermissionStatus::GRANTED);
 
-  histogram_tester().ExpectUniqueSample(kRequestOutcomeHistogram,
-                                        RequestOutcome::kGrantedByAllowance, 1);
   histogram_tester().ExpectUniqueSample(kGrantIsImplicitHistogram,
                                         /*sample=*/true, 1);
 
@@ -1229,9 +1188,6 @@ TEST_P(StorageAccessGrantPermissionContextAPIWithFedCMConnectionTest,
   // Ensure no prompt is shown.
   ASSERT_FALSE(request_manager()->IsRequestInProgress());
   EXPECT_EQ(PermissionStatus::GRANTED, future.Get().status);
-
-  histogram_tester().ExpectUniqueSample(kRequestOutcomeHistogram,
-                                        RequestOutcome::kAllowedByFedCM, 1);
 
   EXPECT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
               ElementsAre(Pointee(

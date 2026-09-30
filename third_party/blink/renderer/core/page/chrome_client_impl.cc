@@ -360,9 +360,7 @@ void ChromeClientImpl::SetKeyboardFocusURL(Element* new_focus_element) {
       new_focus_element && new_focus_element->GetDocument().LastFocusType() ==
                                mojom::blink::FocusType::kMouse;
   if (new_focus_element && new_focus_element->IsLiveLink() &&
-      new_focus_element->ShouldHaveFocusAppearance() &&
-      (!RuntimeEnabledFeatures::ClickFocusDoesntPersistStatusBubbleEnabled() ||
-       !is_mouse_focus)) {
+      new_focus_element->ShouldHaveFocusAppearance() && !is_mouse_focus) {
     focus_url = new_focus_element->HrefURL();
   }
   web_view_->SetKeyboardFocusURL(focus_url);
@@ -828,10 +826,14 @@ DateTimeChooser* ChromeClientImpl::OpenDateTimeChooser(
     DateTimeChooserClient* picker_client,
     const DateTimeChooserParameters& parameters) {
   NotifyPopupOpeningObservers();
+  // Android does not support PagePopup, so we must always use the native
+  // picker.
+#if !BUILDFLAG(IS_ANDROID)
   if (RuntimeEnabledFeatures::InputMultipleFieldsUIEnabled()) {
     return MakeGarbageCollected<DateTimeChooserImpl>(frame, picker_client,
                                                      parameters);
   }
+#endif
 
   // JavaScript may try to open a date time chooser while one is already open.
   if (external_date_time_chooser_ &&
@@ -1309,9 +1311,10 @@ void ChromeClientImpl::DidDispatchMouseDown(Node& mouse_down_node) {
   }
 }
 
-void ChromeClientImpl::WillDispatchPointerDown(LocalFrame& frame) {
-  if (auto* fill_client = AutofillClientFromFrame(&frame)) {
-    fill_client->DidReceiveLeftPointerDownBeforeDispatch();
+void ChromeClientImpl::WillDispatchPointerDown(Node& node) {
+  if (auto* fill_client =
+          AutofillClientFromFrame(node.GetDocument().GetFrame())) {
+    fill_client->DidReceiveLeftPointerDownBeforeDispatch(WebNode(&node));
   }
 }
 

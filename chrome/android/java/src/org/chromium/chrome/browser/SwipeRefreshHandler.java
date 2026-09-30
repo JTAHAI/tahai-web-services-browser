@@ -26,9 +26,13 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browser_controls.BottomOverscrollHandler;
 import org.chromium.chrome.browser.gesturenav.HistoryNavigationCoordinator;
-import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabWebContentsUserData;
+import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.AnchorSide;
+import org.chromium.chrome.browser.ui.side_ui.SideUiCoordinator.SideUiSpecs;
+import org.chromium.chrome.browser.ui.side_ui.SideUiObserver;
+import org.chromium.chrome.browser.ui.side_ui.SideUiStateProvider;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.third_party.android.swiperefresh.SwipeRefreshLayout;
@@ -84,7 +88,7 @@ public class SwipeRefreshHandler extends TabWebContentsUserData
     // The Tab where the swipe occurs.
     private final Tab mTab;
 
-    private final EmptyTabObserver mTabObserver;
+    private final TabObserver mTabObserver;
 
     // Async runnable for ending the refresh animation after the page first
     // loads a frame. This is used to provide a reasonable minimum animation time.
@@ -105,6 +109,20 @@ public class SwipeRefreshHandler extends TabWebContentsUserData
     // Handles overscroll PULL_FROM_BOTTOM_EDGE. This is used to track the browser controls
     // state.
     private @Nullable BottomOverscrollHandler mBottomOverscrollHandler;
+
+    private @Nullable SideUiStateProvider mSideUiStateProvider;
+    private int mLeftSideUiWidth;
+    private int mRightSideUiWidth;
+
+    private final SideUiObserver mSideUiObserver =
+            new SideUiObserver() {
+                @Override
+                public void onSideUiSpecsChanged(SideUiSpecs sideUiSpecs) {
+                    updateSideUiWidths(
+                            sideUiSpecs.getWidth(AnchorSide.LEFT),
+                            sideUiSpecs.getWidth(AnchorSide.RIGHT));
+                }
+            };
 
     /**
      * Returns a {@link SwipeRefreshHandler} for the given {@link Tab} creating a new one if needed.
@@ -143,16 +161,19 @@ public class SwipeRefreshHandler extends TabWebContentsUserData
         super(tab);
         mTab = tab;
         mTabObserver =
-                new EmptyTabObserver() {
+                new TabObserver() {
                     @Override
                     public void onActivityAttachmentChanged(
                             Tab tab, @Nullable WindowAndroid window) {
-                        if (window == null && mSwipeRefreshLayout != null) {
-                            cancelStopRefreshingRunnable();
-                            detachSwipeRefreshLayoutIfNecessary();
-                            mSwipeRefreshLayout.setOnRefreshListener(null);
-                            mSwipeRefreshLayout.setOnResetListener(null);
-                            mSwipeRefreshLayout = null;
+                        if (window == null) {
+                            removeSideUiStateObserver();
+                            if (mSwipeRefreshLayout != null) {
+                                cancelStopRefreshingRunnable();
+                                detachSwipeRefreshLayoutIfNecessary();
+                                mSwipeRefreshLayout.setOnRefreshListener(null);
+                                mSwipeRefreshLayout.setOnResetListener(null);
+                                mSwipeRefreshLayout = null;
+                            }
                         }
                     }
                 };
@@ -160,10 +181,17 @@ public class SwipeRefreshHandler extends TabWebContentsUserData
         mSwipeRefreshLayoutCreator = swipeRefreshLayoutCreator;
     }
 
+    private void removeSideUiStateObserver() {
+        if (mSideUiStateProvider == null) return;
+        mSideUiStateProvider.removeObserver(mSideUiObserver);
+        mSideUiStateProvider = null;
+    }
+
     private void initSwipeRefreshLayout(final Context context) {
         mSwipeRefreshLayout = mSwipeRefreshLayoutCreator.create(context);
         mSwipeRefreshLayout.setLayoutParams(
                 new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        mSwipeRefreshLayout.setHorizontalOffsets(mLeftSideUiWidth, mRightSideUiWidth);
         final boolean incognitoBranded = mTab.isIncognitoBranded();
         final @ColorInt int backgroundColor =
                 incognitoBranded
@@ -227,13 +255,21 @@ public class SwipeRefreshHandler extends TabWebContentsUserData
     public void cleanupWebContents(WebContents webContents) {
         webContents.setOverscrollRefreshHandler(null);
         detachSwipeRefreshLayoutIfNecessary();
+        // Null out mNavigationCoordinator before setEnabled(false) so that reset()
+        // does not reach NavigationHandler: by this point TabImpl.initWebContents()
+        // has already swapped TabAndroid's WebContents, so a forwarded cancel would
+        // reach the new WebContents' animation manager, which never received
+        // OnGestureStarted(). See crbug.com/530682179.
         mNavigationCoordinator = null;
         mBottomOverscrollHandler = null;
+        removeSideUiStateObserver();
+        updateSideUiWidths(0, 0);
         setEnabled(false);
     }
 
     @Override
     public void destroyInternal() {
+        removeSideUiStateObserver();
         // Cancel any pending posted runnables so they do not linger in the UI thread
         // MessageQueue and retain this handler (and its Activity) after the tab is gone.
         cancelStopRefreshingRunnable();
@@ -293,6 +329,41 @@ public class SwipeRefreshHandler extends TabWebContentsUserData
     public void setBottomOverscrollHandler(
             @Nullable BottomOverscrollHandler bottomOverscrollHandler) {
         mBottomOverscrollHandler = bottomOverscrollHandler;
+    }
+
+    /** Sets the {@link SideUiStateProvider} to observe side UI width changes. */
+    public void setSideUiStateProvider(@Nullable SideUiStateProvider provider) {
+        removeSideUiStateObserver();
+        mSideUiStateProvider = provider;
+        if (mSideUiStateProvider != null) {
+            mSideUiStateProvider.addObserver(mSideUiObserver);
+            SideUiSpecs currentSpecs = mSideUiStateProvider.getCurrentSideUiSpecs();
+            if (currentSpecs != null) {
+                updateSideUiWidths(
+                        currentSpecs.getWidth(AnchorSide.LEFT),
+                        currentSpecs.getWidth(AnchorSide.RIGHT));
+            } else {
+                updateSideUiWidths(0, 0);
+            }
+        } else {
+            updateSideUiWidths(0, 0);
+        }
+    }
+
+    private void updateSideUiWidths(int leftWidth, int rightWidth) {
+        mLeftSideUiWidth = leftWidth;
+        mRightSideUiWidth = rightWidth;
+        if (mSwipeRefreshLayout != null) {
+            mSwipeRefreshLayout.setHorizontalOffsets(leftWidth, rightWidth);
+        }
+    }
+
+    void setSideUiWidthsForTesting(int leftWidth, int rightWidth) {
+        updateSideUiWidths(leftWidth, rightWidth);
+    }
+
+    @Nullable SideUiStateProvider getSideUiStateProviderForTesting() {
+        return mSideUiStateProvider;
     }
 
     @Override

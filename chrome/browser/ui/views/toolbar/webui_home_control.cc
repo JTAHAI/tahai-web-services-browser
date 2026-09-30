@@ -6,7 +6,6 @@
 
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -43,9 +42,14 @@ bool WebUIHomeControl::IsPinned() const {
 }
 
 void WebUIHomeControl::SetIsOverflowed(bool is_overflowed) {
+  if (is_overflowed) {
+    CHECK(!features::IsWebUIToolbarFullyEnabled());
+  }
+
   if (is_overflowed_ == is_overflowed) {
     return;
   }
+
   is_overflowed_ = is_overflowed;
   UpdateState();
 }

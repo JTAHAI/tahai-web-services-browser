@@ -10,12 +10,19 @@
 #include "base/values.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
 #include "chrome/browser/extensions/extension_util.h"
+#include "chrome/test/base/chrome_render_view_host_test_harness.h"
+#include "components/sessions/content/session_tab_helper.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
+#include "content/public/test/web_contents_tester.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/pref_names.h"
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/mojom/context_type.mojom.h"
+#include "extensions/common/permissions/permission_set.h"
+#include "extensions/common/permissions/permissions_data.h"
+#include "extensions/common/url_pattern_set.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
@@ -53,6 +60,19 @@ TEST(ExtensionTabUtilTest, ScrubTabBehaviorForHostPermission) {
       ExtensionTabUtil::GetScrubTabBehavior(
           extension.get(), mojom::ContextType::kUnspecified,
           GURL("http://www.google.com/some/path"));
+  EXPECT_EQ(ExtensionTabUtil::kDontScrubTab, scrub_tab_behavior.committed_info);
+  EXPECT_EQ(ExtensionTabUtil::kDontScrubTab, scrub_tab_behavior.pending_info);
+}
+
+TEST(ExtensionTabUtilTest, ScrubTabBehaviorForExtensionOwnOrigin_GURL) {
+  auto extension = ExtensionBuilder("Extension with activeTab permission")
+                       .AddAPIPermission("activeTab")
+                       .Build();
+  GURL options_url = extension->GetResourceURL("options.html");
+  ExtensionTabUtil::ScrubTabBehavior scrub_tab_behavior =
+      ExtensionTabUtil::GetScrubTabBehavior(
+          extension.get(), mojom::ContextType::kPrivilegedExtension,
+          options_url);
   EXPECT_EQ(ExtensionTabUtil::kDontScrubTab, scrub_tab_behavior.committed_info);
   EXPECT_EQ(ExtensionTabUtil::kDontScrubTab, scrub_tab_behavior.pending_info);
 }
@@ -197,6 +217,78 @@ TEST_F(ChromeExtensionNavigationTest, PrepareURLForNavigation) {
         kTestPath, extension.get(), browser_context());
     EXPECT_THAT(url, base::test::ValueIs(GURL(kTestPath)));
   }
+}
+
+// Regression test for https://crbug.com/496615345. Tests that when an extension
+// has a tab-specific permission (e.g. activeTab) granted for a specific origin,
+// GetScrubTabBehavior scrubs cross-origin URLs on that tab even if the tab's
+// temporary permissions have not yet been revoked.
+TEST_F(ChromeExtensionNavigationTest,
+       ScrubTabBehaviorForTabSpecificPermissionOriginScoped) {
+  auto extension = ExtensionBuilder("Extension with activeTab permission")
+                       .AddAPIPermission("activeTab")
+                       .Build();
+  std::unique_ptr<content::WebContents> web_contents(
+      content::WebContentsTester::CreateTestWebContents(profile(), nullptr));
+  sessions::SessionTabHelper::CreateForWebContents(web_contents.get(),
+                                                   base::NullCallback());
+  content::WebContentsTester::For(web_contents.get())
+      ->NavigateAndCommit(GURL("http://www.google.com/some/path"));
+  // Simulate the extension having activeTab on this tab by directly populating
+  // tab-specific permissions in PermissionsData (avoiding async CORS and IPC
+  // side effects from ActiveTabPermissionGranter in a unittest).
+  const int kTabId = ExtensionTabUtil::GetTabId(web_contents.get());
+  APIPermissionSet apis;
+  apis.insert(mojom::APIPermissionID::kTab);
+  URLPatternSet hosts;
+  hosts.AddOrigin(URLPattern::SCHEME_ALL, GURL("http://www.google.com"));
+  PermissionSet tab_permissions(std::move(apis), ManifestPermissionSet(),
+                                hosts.Clone(), hosts.Clone());
+  extension->permissions_data()->UpdateTabSpecificPermissions(kTabId,
+                                                              tab_permissions);
+
+  ExtensionTabUtil::ScrubTabBehavior scrub_tab_behavior =
+      ExtensionTabUtil::GetScrubTabBehavior(extension.get(),
+                                            mojom::ContextType::kUnspecified,
+                                            web_contents.get());
+  EXPECT_EQ(ExtensionTabUtil::kDontScrubTab, scrub_tab_behavior.committed_info);
+
+  content::WebContentsTester::For(web_contents.get())
+      ->NavigateAndCommit(GURL("http://www.evil.com/some/path"));
+  scrub_tab_behavior = ExtensionTabUtil::GetScrubTabBehavior(
+      extension.get(), mojom::ContextType::kUnspecified, web_contents.get());
+  EXPECT_EQ(ExtensionTabUtil::kScrubTabFully,
+            scrub_tab_behavior.committed_info);
+}
+
+// Tests that an extension without global "tabs" or explicit host permissions
+// (such as an extension with only activeTab) does NOT have its own origin URLs
+// scrubbed when navigating or querying tabs.
+TEST_F(ChromeExtensionNavigationTest,
+       ScrubTabBehaviorForExtensionOwnOrigin_WebContents) {
+  auto extension = ExtensionBuilder("Extension without permissions").Build();
+  ExtensionRegistrar::Get(profile())->AddExtension(extension);
+
+  std::unique_ptr<content::WebContents> web_contents(
+      content::WebContentsTester::CreateTestWebContents(profile(), nullptr));
+  sessions::SessionTabHelper::CreateForWebContents(web_contents.get(),
+                                                   base::NullCallback());
+
+  GURL options_url = extension->GetResourceURL("options.html");
+  content::WebContentsTester::For(web_contents.get())
+      ->NavigateAndCommit(options_url);
+
+  ExtensionTabUtil::ScrubTabBehavior scrub_tab_behavior =
+      ExtensionTabUtil::GetScrubTabBehavior(
+          extension.get(), mojom::ContextType::kPrivilegedExtension,
+          web_contents.get());
+  EXPECT_EQ(ExtensionTabUtil::kDontScrubTab, scrub_tab_behavior.committed_info);
+
+  // Also verify with GURL overload.
+  scrub_tab_behavior = ExtensionTabUtil::GetScrubTabBehavior(
+      extension.get(), mojom::ContextType::kPrivilegedExtension, options_url);
+  EXPECT_EQ(ExtensionTabUtil::kDontScrubTab, scrub_tab_behavior.committed_info);
+  EXPECT_EQ(ExtensionTabUtil::kDontScrubTab, scrub_tab_behavior.pending_info);
 }
 
 TEST_F(ChromeExtensionNavigationTest,

@@ -33,7 +33,10 @@ class WaapUIMetricsRecorder {
     kKeyPress = 1,
     kMaxValue = kKeyPress
   };
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/ui/enums.xml:ReloadButtonInputType)
+  // LINT.ThenChange(
+  //   //tools/metrics/histograms/metadata/ui/enums.xml:ReloadButtonInputType,
+  //   //chrome/browser/resources/webui_toolbar/metrics_recorder.ts:ReloadButtonInputType
+  // )
 
   // Mode of the ReloadButton for use in this recorder.
   enum class ReloadButtonMode { kReload = 0, kStop = 1, kMaxValue = kStop };
@@ -58,9 +61,9 @@ class WaapUIMetricsRecorder {
     ReloadButtonInputType type;
   };
 
-  // This may be null if profile is null, e.g. in tests, or if the feature is
-  // disabled. Its lifetime is managed by the `WaapUIMetricsServiceFactory` and
-  // is guaranteed to outlive this object as long as none null.
+  // This may be null if profile is null, e.g. in tests. Its lifetime is managed
+  // by the `WaapUIMetricsServiceFactory` and is guaranteed to outlive this
+  // object as long as none null.
   // Not owned.
   const raw_ptr<WaapUIMetricsService> waap_service_;
 

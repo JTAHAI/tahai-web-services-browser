@@ -104,7 +104,7 @@ typedef NS_ENUM(NSInteger, ButtonStackButtonPosition) {
 - (void)viewDidLoad {
   [super viewDidLoad];
 
-  self.view.backgroundColor = [UIColor colorNamed:kBackgroundColor];
+  self.view.backgroundColor = [UIColor colorNamed:kPrimaryBackgroundColor];
 
   _scrollContainerView = [self createScrollContainerView];
   [self.view addSubview:_scrollContainerView];
@@ -136,6 +136,13 @@ typedef NS_ENUM(NSInteger, ButtonStackButtonPosition) {
   [super viewDidAppear:animated];
   [_scrollView flashScrollIndicators];
   [self updateGradientVisibility];
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+  [super viewDidDisappear:animated];
+  if (self.isBeingDismissed) {
+    [self.actionDelegate didDismissButtonStackViewController];
+  }
 }
 
 - (void)viewDidLayoutSubviews {

@@ -25,6 +25,8 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
 import org.chromium.components.tab_group_sync.TabGroupSyncService;
+import org.chromium.ui.base.WindowAndroid;
+import org.chromium.ui.base.WindowAndroid.ActivityStateObserver;
 import org.chromium.ui.modelutil.LayoutViewBuilder;
 import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.modelutil.SimpleRecyclerViewAdapter;
@@ -60,6 +62,9 @@ public class TabGroupListBottomSheetCoordinator {
          * @param content The content to be checked.
          */
         boolean isSameContentView(@Nullable BottomSheetContent content);
+
+        /** Invalidates any cached content height measurements. */
+        void invalidateContentHeight();
     }
 
     private final TabGroupListBottomSheetView mView;
@@ -67,6 +72,8 @@ public class TabGroupListBottomSheetCoordinator {
     private final SimpleRecyclerViewAdapter mSimpleRecyclerViewAdapter;
     private final TabListFaviconProvider mTabListFaviconProvider;
     private final TabGroupListBottomSheetMediator mMediator;
+    private final @Nullable WindowAndroid mWindowAndroid;
+    private final @Nullable ActivityStateObserver mActivityStateObserver;
 
     /**
      * @param context The {@link Context} to attach the bottom sheet to.
@@ -77,6 +84,7 @@ public class TabGroupListBottomSheetCoordinator {
      * @param bottomSheetController Used to interact with the bottom sheet.
      * @param supportsShowNewGroup Whether the 'New Tab Group' row is supported.
      * @param destroyOnHide Whether this object should be destroyed on hiding the bottom sheet.
+     * @param windowAndroid Used to observe activity state changes.
      */
     public TabGroupListBottomSheetCoordinator(
             Context context,
@@ -86,7 +94,8 @@ public class TabGroupListBottomSheetCoordinator {
             TabModel tabModel,
             BottomSheetController bottomSheetController,
             boolean supportsShowNewGroup,
-            boolean destroyOnHide) {
+            boolean destroyOnHide,
+            @Nullable WindowAndroid windowAndroid) {
         mView =
                 new TabGroupListBottomSheetView(
                         context, bottomSheetController, supportsShowNewGroup);
@@ -131,8 +140,10 @@ public class TabGroupListBottomSheetCoordinator {
         @Nullable TabGroupSyncService tabGroupSyncService =
                 isProfileOffTheRecord ? null : TabGroupSyncServiceFactory.getForProfile(profile);
 
+        TabGroupListBottomSheetCoordinatorDelegate delegate = createDelegate(destroyOnHide);
         mMediator =
                 new TabGroupListBottomSheetMediator(
+                        context,
                         modelList,
                         tabModel,
                         tabGroupCreationCallback,
@@ -140,8 +151,24 @@ public class TabGroupListBottomSheetCoordinator {
                         faviconResolver,
                         tabGroupSyncService,
                         bottomSheetController,
-                        createDelegate(destroyOnHide),
+                        delegate,
                         supportsShowNewGroup);
+
+        mWindowAndroid = windowAndroid;
+        if (mWindowAndroid != null) {
+            mActivityStateObserver =
+                    new ActivityStateObserver() {
+                        @Override
+                        public void onActivityPaused() {
+                            if (mBottomSheetController.getCurrentSheetContent() == mView) {
+                                delegate.hide(StateChangeReason.NONE);
+                            }
+                        }
+                    };
+            mWindowAndroid.addActivityStateObserver(mActivityStateObserver);
+        } else {
+            mActivityStateObserver = null;
+        }
     }
 
     /** Creates the delegate. */
@@ -170,6 +197,11 @@ public class TabGroupListBottomSheetCoordinator {
             public boolean isSameContentView(@Nullable BottomSheetContent content) {
                 return content != null && content.getContentView() == mView.getContentView();
             }
+
+            @Override
+            public void invalidateContentHeight() {
+                mView.invalidateContentHeight();
+            }
         };
     }
 
@@ -184,6 +216,9 @@ public class TabGroupListBottomSheetCoordinator {
 
     /** Permanently cleans up this component. */
     public void destroy() {
+        if (mWindowAndroid != null && mActivityStateObserver != null) {
+            mWindowAndroid.removeActivityStateObserver(mActivityStateObserver);
+        }
         mMediator.destroy();
         mSimpleRecyclerViewAdapter.destroy();
         mTabListFaviconProvider.destroy();

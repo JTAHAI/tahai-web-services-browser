@@ -25,9 +25,6 @@ namespace cc::slim {
 class Layer;
 }
 
-namespace sync_sessions {
-class SessionSyncService;
-}
 
 namespace ui {
 class UIResourceProvider;
@@ -90,7 +87,7 @@ class TabContentManager : public thumbnail::ThumbnailCacheObserver {
                           float thumbnail_scale);
   void InvalidateIfChanged(JNIEnv* env, int32_t tab_id, const GURL& url);
   void UpdateVisibleIds(JNIEnv* env,
-                        const base::android::JavaRef<jintArray>& priority,
+                        const std::vector<int32_t>& priority_ids,
                         int32_t primary_tab_id);
   void NativeRemoveTabThumbnail(int tab_id);
   void RemoveTabThumbnail(JNIEnv* env, int32_t tab_id);
@@ -110,10 +107,6 @@ class TabContentManager : public thumbnail::ThumbnailCacheObserver {
   // ThumbnailCacheObserver implementation;
   void OnThumbnailAddedToCache(thumbnail::TabId tab_id) override;
   void OnFinishedThumbnailRead(thumbnail::TabId tab_id) override;
-
-  static void CompressScreenshotForSyncForTesting(
-      const SkBitmap& bitmap,
-      base::OnceCallback<void(std::string)> callback);
 
  private:
   class TabReadbackRequest;
@@ -143,10 +136,6 @@ class TabContentManager : public thumbnail::ThumbnailCacheObserver {
                            bool need_downsampling,
                            bool result,
                            const SkBitmap& bitmap);
-
-  sync_sessions::SessionSyncService* GetSessionSyncService(int tab_id);
-
-  void AddTabScreenshotToSync(int tab_id, std::string compressed_data);
 
   absl::flat_hash_map<thumbnail::TabId,
                       base::WeakPtr<thumbnail::ThumbnailCaptureTracker>>

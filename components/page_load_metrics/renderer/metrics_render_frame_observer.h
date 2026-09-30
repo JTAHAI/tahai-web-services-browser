@@ -49,12 +49,14 @@ class MetricsRenderFrameObserver : public content::RenderFrameObserver,
 
   // RenderFrameObserver implementation
   void DidChangePerformanceTiming() override;
-  void DidObserveUserInteraction(base::TimeTicks max_event_start,
-                                 base::TimeTicks max_event_queued_main_thread,
-                                 base::TimeTicks max_event_processing_start,
-                                 base::TimeTicks max_event_commit_finish,
-                                 base::TimeTicks max_event_end,
-                                 uint64_t interaction_offset) override;
+  void DidObserveUserInteraction(
+      base::TimeTicks max_event_start,
+      base::TimeTicks max_event_queued_main_thread,
+      base::TimeTicks max_event_processing_start,
+      base::TimeTicks max_event_commit_finish,
+      base::TimeTicks max_event_end,
+      uint64_t interaction_offset,
+      uint64_t performance_timeline_navigation_id) override;
   void DidChangeCpuTiming(base::TimeDelta time) override;
   void DidObserveLoadingBehavior(blink::LoadingBehaviorFlag behavior) override;
   void DidObserveJavaScriptFrameworks(
@@ -65,9 +67,15 @@ class MetricsRenderFrameObserver : public content::RenderFrameObserver,
       const blink::UseCounterFeature& feature) override;
   void DidObserveSoftNavigation(
       blink::SoftNavigationMetricsForReporting metrics) override;
+  void DidObserveSoftNavigationFirstContentfulPaint(
+      uint64_t performance_timeline_navigation_id,
+      base::TimeDelta first_contentful_paint) override;
   void DidObserveSoftLargestContentfulPaint(
       const blink::LargestContentfulPaintDetailsForReporting& lcp) override;
-  void DidObserveLayoutShift(double score, bool after_input_or_scroll) override;
+  void DidObserveLayoutShift(
+      double score,
+      bool after_input_or_scroll,
+      uint64_t performance_timeline_navigation_id) override;
   void DidStartResponse(const url::SchemeHostPort& final_response_url,
                         int request_id,
                         const network::mojom::URLResponseHead& response_head,

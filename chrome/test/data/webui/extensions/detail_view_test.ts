@@ -89,7 +89,10 @@ suite('ExtensionDetailViewTest', function() {
 
     const computedStyle = getComputedStyle(closeButton);
     const iconImage = computedStyle.getPropertyValue('--cr-icon-image');
-    assertTrue(iconImage.includes('icon_arrow_back.svg'));
+    const isRounded =
+        document.documentElement.hasAttribute('webui-rounded-icons');
+    assertTrue(iconImage.includes(
+        isRounded ? 'icon_arrow_back.svg' : 'icon_arrow_back_old.svg'));
   });
 
   test('Layout', async () => {
@@ -901,6 +904,61 @@ suite('ExtensionDetailViewTest', function() {
             .querySelector<ExtensionsToggleRowElement>(
                 '#allow-user-scripts')!.getLabel(),
         'setItemAllowedUserScripts', [extensionData.id, true]);
+  });
+
+  test('RateExtensionLinkVisibility', async () => {
+    // Hidden when feature flag is disabled.
+    loadTimeData.overrideValues({cwsReviewPromptingEnabled: false});
+    await updateItemData({
+      webStoreUrl: 'https://chromewebstore.google.com/detail/foo',
+      location: chrome.developerPrivate.Location.FROM_STORE,
+    });
+    assertFalse(testIsVisible('#rateLink'));
+
+    // Visible when feature flag is enabled for CWS store extensions.
+    loadTimeData.overrideValues({cwsReviewPromptingEnabled: true});
+    await updateItemData({
+      webStoreUrl: 'https://chromewebstore.google.com/detail/foo',
+      location: chrome.developerPrivate.Location.FROM_STORE,
+      mustRemainInstalled: false,
+    });
+    assertTrue(testIsVisible('#rateLink'));
+
+    // Positioned directly below #viewInStore in DOM order.
+    const viewInStore =
+        item.shadowRoot.querySelector<HTMLElement>('#viewInStore')!;
+    const rateLink = item.shadowRoot.querySelector<HTMLElement>('#rateLink')!;
+    assertEquals(viewInStore.nextElementSibling, rateLink);
+
+    // Visible in developer mode as well.
+    item.inDevMode = true;
+    await microtasksFinished();
+    assertTrue(testIsVisible('#rateLink'));
+
+    item.inDevMode = false;
+    await microtasksFinished();
+    assertTrue(testIsVisible('#rateLink'));
+
+    // Hidden when ineligible (e.g. unpacked).
+    await updateItemData({
+      location: chrome.developerPrivate.Location.UNPACKED,
+    });
+    assertFalse(testIsVisible('#rateLink'));
+  });
+
+  test('RateExtensionLinkClick', async () => {
+    loadTimeData.overrideValues({cwsReviewPromptingEnabled: true});
+    await updateItemData({
+      webStoreUrl: 'https://chromewebstore.google.com/detail/foo',
+      location: chrome.developerPrivate.Location.FROM_STORE,
+      mustRemainInstalled: false,
+    });
+    assertTrue(testIsVisible('#rateLink'));
+
+    const rateLink = item.shadowRoot.querySelector<HTMLElement>('#rateLink')!;
+    assertTrue(!!rateLink);
+    await mockDelegate.testClickingCalls(
+        rateLink, 'openReviewPage', [extensionData.id]);
   });
 
 });

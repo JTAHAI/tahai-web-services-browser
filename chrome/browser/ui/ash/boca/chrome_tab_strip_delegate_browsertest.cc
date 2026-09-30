@@ -13,12 +13,14 @@
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/test/base/ash/util/ash_test_util.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_navigation_observer.h"
+#include "ui/base/base_window.h"
 
 namespace {
 constexpr char kTabUrl1[] = "https://foo/1";
@@ -53,11 +55,12 @@ class ChromeTabStripDelegateBrowserTest
     delegate_ = std::make_unique<ChromeTabStripDelegate>();
   }
 
-  Browser* CreateBrowser(const std::vector<GURL>& urls,
-                         std::optional<size_t> active_url_index) {
-    Browser::CreateParams params(Browser::TYPE_NORMAL, profile(),
-                                 /*user_gesture=*/false);
-    Browser* browser = Browser::Create(params);
+  BrowserWindowInterface* CreateBrowser(
+      const std::vector<GURL>& urls,
+      std::optional<size_t> active_url_index) {
+    BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_NORMAL,
+                                     profile(), /*from_user_gesture=*/false);
+    BrowserWindowInterface* browser = CreateBrowserWindow(std::move(params));
     // Create a new tab and make sure the urls have loaded.
     for (const auto& url : urls) {
       // content::TestNavigationObserver navigation_observer(urls[i]);
@@ -83,8 +86,8 @@ class ChromeTabStripDelegateBrowserTest
 };
 
 IN_PROC_BROWSER_TEST_F(ChromeTabStripDelegateBrowserTest, GetTabListForWindow) {
-  Browser* browser = CreateBrowser({GURL(kTabUrl1), GURL(kTabUrl2)},
-                                   /*active_url_index=*/0);
+  BrowserWindowInterface* browser =
+      CreateBrowser({GURL(kTabUrl1), GURL(kTabUrl2)}, /*active_url_index=*/0);
 
   // Add tab in a new browser.
   CreateBrowser({GURL(kTabUrl3)}, /*active_url_index=*/1);
@@ -114,7 +117,7 @@ IN_PROC_BROWSER_TEST_F(ChromeTabStripDelegateBrowserTest,
   ash::test::CreateSystemWebApp(profile(), ash::SystemWebAppType::BOCA);
   BrowserWindowInterface* const swa_browser = browser_created_observer.Wait();
 
-  chrome::AddTabAt(swa_browser->GetBrowserForMigrationOnly(), GURL(kTabUrl3),
+  chrome::AddTabAt(swa_browser, GURL(kTabUrl3),
                    /*index=*/0,
                    /*foreground=*/false);
   EXPECT_EQ(3u, GlobalBrowserCollection::GetInstance()->GetSize());

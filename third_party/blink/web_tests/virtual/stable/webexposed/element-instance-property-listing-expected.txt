@@ -88,6 +88,7 @@ namespace http://www.w3.org/1999/xhtml
     property attributeStyleMap
     property attributes
     property autocapitalize
+    property autocorrect
     property autofocus
     property baseURI
     property before
@@ -527,6 +528,11 @@ html element button
     property validity
     property value
     property willValidate
+html element camera
+    property error
+    property ontrack
+    property setConstraints
+    property track
 html element canvas
     property captureStream
     property getContext
@@ -728,7 +734,6 @@ html element iframe
     property referrerPolicy
     property sandbox
     property scrolling
-    property sharedStorageWritable
     property src
     property srcdoc
     property width
@@ -754,7 +759,6 @@ html element img
     property naturalHeight
     property naturalWidth
     property referrerPolicy
-    property sharedStorageWritable
     property sizes
     property src
     property srcset
@@ -897,6 +901,11 @@ html element meter
     property min
     property optimum
     property value
+html element microphone
+    property error
+    property ontrack
+    property setConstraints
+    property track
 html element nav
 html element nobr
 html element noembed
@@ -2341,6 +2350,9 @@ svg element textPath
     property TEXTPATH_METHODTYPE_ALIGN
     property TEXTPATH_METHODTYPE_STRETCH
     property TEXTPATH_METHODTYPE_UNKNOWN
+    property TEXTPATH_SIDETYPE_LEFT
+    property TEXTPATH_SIDETYPE_RIGHT
+    property TEXTPATH_SIDETYPE_UNKNOWN
     property TEXTPATH_SPACINGTYPE_AUTO
     property TEXTPATH_SPACINGTYPE_EXACT
     property TEXTPATH_SPACINGTYPE_UNKNOWN

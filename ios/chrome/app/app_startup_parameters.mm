@@ -4,6 +4,7 @@
 
 #import "ios/chrome/app/app_startup_parameters.h"
 
+#import "base/check.h"
 #import "base/feature_list.h"
 #import "base/metrics/histogram_functions.h"
 #import "base/metrics/histogram_macros.h"
@@ -98,6 +99,7 @@ AppSwitcherParamsRequestStatus AppSwitcherParamsAvailability(
                         completeURL:(const GURL&)completeURL
                     applicationMode:(ApplicationModeForTabOpening)mode
                forceApplicationMode:(BOOL)forceApplicationMode {
+  CHECK(!IsEnableNewStartupFlowEnabled());
   self = [super init];
   if (self) {
     _externalURL = externalURL;
@@ -115,6 +117,7 @@ AppSwitcherParamsRequestStatus AppSwitcherParamsAvailability(
                         sourceAppID:(NSString*)sourceAppID
                     applicationMode:(ApplicationModeForTabOpening)mode
                forceApplicationMode:(BOOL)forceApplicationMode {
+  CHECK(!IsEnableNewStartupFlowEnabled());
   self = [super init];
   if (self) {
     _externalURL = externalURL;
@@ -319,10 +322,14 @@ AppSwitcherParamsRequestStatus AppSwitcherParamsAvailability(
   RecordAppSwitcherFetchOutcome(success);
   RecordAppSwitcherFetchDuration(base::TimeTicks::Now() - startFetchTime);
 
-  if (IsCallerAppAllowListedForAISummarization(_sourceAppID)) {
-    if (success && result.is_ai_summarization) {
-      self.postOpeningAction = START_GEMINI_AI_SUMMARIZATION;
-      RecordAppSwitcherAISummarizationEntrypoint();
+  if (IsAppSwitcherAISummarizationEnabled()) {
+    if (IsCallerAppAllowListedForAISummarization(_sourceAppID)) {
+      if (success && result.is_ai_summarization) {
+        self.postOpeningAction = START_GEMINI_AI_SUMMARIZATION;
+        self.appSwitcherHashedUserID =
+            base::SysUTF8ToNSString(result.hashed_user_id);
+        RecordAppSwitcherAISummarizationEntrypoint();
+      }
     }
   }
 

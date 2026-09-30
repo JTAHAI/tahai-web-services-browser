@@ -39,15 +39,18 @@ content::WebContents* AddAndReturnTabAt(
     int index,
     bool foreground,
     std::optional<tab_groups::TabGroupId> group = std::nullopt,
-    bool pinned = false);
+    bool pinned = false,
+    std::optional<NavigateParams::WindowAction> window_action = std::nullopt);
 
 // Same as above, but eats the return value to make Bind*() easier.
-void AddTabAt(BrowserWindowInterface* browser,
-              const GURL& url,
-              int index,
-              bool foreground,
-              std::optional<tab_groups::TabGroupId> group = std::nullopt,
-              bool pinned = false);
+void AddTabAt(
+    BrowserWindowInterface* browser,
+    const GURL& url,
+    int index,
+    bool foreground,
+    std::optional<tab_groups::TabGroupId> group = std::nullopt,
+    bool pinned = false,
+    std::optional<NavigateParams::WindowAction> window_action = std::nullopt);
 
 // Adds a selected tab with the specified URL and transition, returns the
 // created WebContents.
@@ -77,7 +80,7 @@ content::WebContents* AddWebContents(
 
 // Closes the specified WebContents in the specified Browser. If
 // |add_to_history| is true, an entry in the historical tab database is created.
-void CloseWebContents(Browser* browser,
+void CloseWebContents(BrowserWindowInterface* browser,
                       content::WebContents* contents,
                       bool add_to_history);
 
@@ -87,6 +90,9 @@ void ConfigureTabGroupForNavigation(NavigateParams* nav_params);
 
 // Decides whether or not to create a new tab group.
 bool ShouldAutoCreateGroupForNavigation(NavigateParams* nav_params);
+
+// Returns the new tab URL for `browser`.
+GURL GetNewTabURL(const BrowserWindowInterface* browser);
 
 }  // namespace chrome
 

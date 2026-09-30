@@ -22,7 +22,6 @@
 #include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
 
-class Browser;
 class BrowserWindowInterface;
 class Profile;
 
@@ -55,25 +54,26 @@ class SavedTabGroupUtils {
   static bool IsEnabledForProfile(Profile* profile);
 
   static void RemoveGroupFromTabstrip(
-      Browser* browser,
+      BrowserWindowInterface* browser,
       const tab_groups::TabGroupId& local_group);
-  static void UngroupSavedGroup(Browser* browser,
+  static void UngroupSavedGroup(BrowserWindowInterface* browser,
                                 const base::Uuid& saved_group_guid);
-  static void DeleteSavedGroup(Browser* browser,
+  static void DeleteSavedGroup(BrowserWindowInterface* browser,
                                const base::Uuid& saved_group_guid);
-  static void LeaveSharedGroup(Browser* browser,
+  static void LeaveSharedGroup(BrowserWindowInterface* browser,
                                const base::Uuid& saved_group_guid);
 
   // Open the `url` to the end of `browser` tab strip as a new ungrouped tab.
-  static void OpenUrlInNewUngroupedTab(Browser* browser, const GURL& url);
+  static void OpenUrlInNewUngroupedTab(BrowserWindowInterface* browser,
+                                       const GURL& url);
 
   static void OpenOrMoveSavedGroupToNewWindow(
-      Browser* browser,
+      BrowserWindowInterface* browser,
       const base::Uuid& saved_group_guid);
 
   // Pin the saved tab group if it's unpinned, or unpin the saved tab group if
   // it's pinned.
-  static void ToggleGroupPinState(Browser* browser,
+  static void ToggleGroupPinState(BrowserWindowInterface* browser,
                                   const base::Uuid& saved_group_guid);
 
   // Opens a saved tab group and optionally focuses it if the appropriate
@@ -88,7 +88,7 @@ class SavedTabGroupUtils {
   // runs the callback if the dialog is not shown or it shows the dialog
   // and the callback is run asynchronously through the dialog.
   static void MaybeShowSavedTabGroupDeletionDialog(
-      Browser* browser,
+      BrowserWindowInterface* browser,
       GroupDeletionReason reason,
       base::span<const TabGroupId> group_ids,
       base::OnceCallback<void(DeletionDialogController::DeletionDialogTiming)>
@@ -105,7 +105,7 @@ class SavedTabGroupUtils {
 
   static content::NavigationHandle* OpenTabInBrowser(
       const GURL& url,
-      Browser* browser,
+      BrowserWindowInterface* browser,
       Profile* profile,
       WindowOpenDisposition disposition,
       std::optional<int> tabstrip_index = std::nullopt,
@@ -115,20 +115,16 @@ class SavedTabGroupUtils {
   static bool WasNavigationInitiatedFromSync(
       content::NavigationHandle* navigation_handle);
 
-  // Returns the Browser that contains a local group with id `group_id`.
-  static Browser* GetBrowserWithTabGroupId(tab_groups::TabGroupId group_id);
+  // Returns the BrowserWindowInterface that contains a local group with id
+  // `group_id`.
+  static BrowserWindowInterface* GetBrowserWithTabGroupId(
+      tab_groups::TabGroupId group_id);
 
   // Finds the TabGroup with id `group_id` across all Browsers.
   static TabGroup* GetTabGroupWithId(tab_groups::TabGroupId group_id);
 
   // Returns the list of Tabs in the local group `group_id` in order.
   static std::vector<tabs::TabInterface*> GetTabsInGroup(
-      tab_groups::TabGroupId group_id);
-
-  // TODO(crbug.com/350514491) remove this once all cases are handled by
-  // GetTabsInGroup. Prefer GetTabsInGroup over this method.
-  // Returns the list of WebContentses in the local group `group_id` in order.
-  static std::vector<content::WebContents*> GetWebContentsesInGroup(
       tab_groups::TabGroupId group_id);
 
   // Activates the first tab in the saved group. If a tab in the group is
@@ -184,7 +180,7 @@ class SavedTabGroupUtils {
 
   static void PerformTabGroupMenuAction(const TabGroupMenuAction& action,
                                         const TabGroupMenuContext& context,
-                                        Browser* browser,
+                                        BrowserWindowInterface* browser,
                                         TabGroupSyncService* tab_group_service);
 
   static void RecordOpenSharedGroupMetrics(const TabGroupMenuContext& context);

@@ -36,8 +36,7 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
-import androidx.test.ext.junit.rules.ActivityScenarioRule;
-
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -47,6 +46,8 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.Robolectric;
+import org.robolectric.android.controller.ActivityController;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.SyncOneshotSupplierImpl;
@@ -55,6 +56,7 @@ import org.chromium.base.test.RobolectricUtil;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.hub.NewTabAnimationUtils.RectStart;
 import org.chromium.chrome.browser.hub.ShrinkExpandHubLayoutAnimatorProvider.ImageViewWeakRefBitmapCallback;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.TestActivity;
@@ -68,10 +70,6 @@ public class ShrinkExpandHubLayoutAnimatorProviderUnitTest {
     private static final int WIDTH = 100;
     private static final int HEIGHT = 1000;
 
-    @Rule
-    public ActivityScenarioRule<TestActivity> mActivityScenarioRule =
-            new ActivityScenarioRule<>(TestActivity.class);
-
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Spy private HubLayoutAnimationListener mListener;
@@ -80,6 +78,7 @@ public class ShrinkExpandHubLayoutAnimatorProviderUnitTest {
     @Mock private Bitmap mBitmap;
     @Mock private DoubleConsumer mOnAlphaChange;
 
+    private ActivityController<TestActivity> mActivityController;
     private Activity mActivity;
     private FrameLayout mRootView;
     private HubContainerView mHubContainerView;
@@ -87,17 +86,23 @@ public class ShrinkExpandHubLayoutAnimatorProviderUnitTest {
 
     @Before
     public void setUp() {
-        mActivityScenarioRule.getScenario().onActivity(this::onActivityCreated);
+        mActivityController = Robolectric.buildActivity(TestActivity.class).setup();
+        mActivity = mActivityController.get();
+        onActivityCreated(mActivity);
         RobolectricUtil.runAllBackgroundAndUi();
         mAnimationDataSupplier = new SyncOneshotSupplierImpl<>();
     }
 
-    private void onActivityCreated(Activity activity) {
-        mActivity = activity;
-        mRootView = new FrameLayout(mActivity);
-        mActivity.setContentView(mRootView);
+    @After
+    public void tearDown() {
+        mActivityController.close();
+    }
 
-        mHubContainerView = new HubContainerView(mActivity);
+    private void onActivityCreated(Activity activity) {
+        mRootView = new FrameLayout(activity);
+        activity.setContentView(mRootView);
+
+        mHubContainerView = new HubContainerView(activity);
         mHubContainerView.setVisibility(View.INVISIBLE);
         View hubLayout = LayoutInflater.from(activity).inflate(R.layout.hub_layout, null);
         mHubContainerView.addView(hubLayout);
@@ -267,7 +272,7 @@ public class ShrinkExpandHubLayoutAnimatorProviderUnitTest {
     @Test
     public void testNewTab() {
         ShrinkExpandImageView imageView = spy(new ShrinkExpandImageView(mActivity));
-        HubLayoutAnimatorProvider animatorProvider =
+        ShrinkExpandHubLayoutAnimatorProvider animatorProvider =
                 new ShrinkExpandHubLayoutAnimatorProvider(
                         HubLayoutAnimationType.EXPAND_NEW_TAB,
                         /* needsBitmap= */ false,
@@ -325,6 +330,69 @@ public class ShrinkExpandHubLayoutAnimatorProviderUnitTest {
         verify(imageView, atLeastOnce())
                 .setRoundedCorners(0, endCornerRadius, endCornerRadius, endCornerRadius);
 
+        assertNull(animatorProvider.getFakeBottomControlsViewForTesting());
+        verifyFinalState(animatorProvider, /* wasForcedToFinish= */ false);
+    }
+
+    @Test
+    public void testNewTabAnimation_BottomCenter() {
+        ShrinkExpandImageView imageView = spy(new ShrinkExpandImageView(mActivity));
+        ShrinkExpandHubLayoutAnimatorProvider animatorProvider =
+                new ShrinkExpandHubLayoutAnimatorProvider(
+                        HubLayoutAnimationType.EXPAND_NEW_TAB,
+                        /* needsBitmap= */ false,
+                        mHubContainerView,
+                        imageView,
+                        mAnimationDataSupplier,
+                        Color.RED,
+                        HUB_LAYOUT_EXPAND_NEW_TAB_DURATION_MS,
+                        mOnAlphaChange,
+                        /* isIncognito= */ false);
+        assertEquals(
+                HubLayoutAnimationType.EXPAND_NEW_TAB, animatorProvider.getPlannedAnimationType());
+        assertNull(animatorProvider.getThumbnailCallback());
+
+        Rect initialRect = new Rect(20, -10, 40, HEIGHT);
+        Rect finalRect = new Rect(20, -10, WIDTH + 10, HEIGHT + 15);
+        int startCornerRadius = 30;
+        int endCornerRadius = 7;
+        int[] initialCornerRadius = new int[] {startCornerRadius, startCornerRadius, 0, 0};
+        int[] finalCornerRadius = new int[] {endCornerRadius, endCornerRadius, 0, 0};
+        ShrinkExpandAnimationData data =
+                ShrinkExpandAnimationData.createHubNewTabAnimationData(
+                        initialRect,
+                        finalRect,
+                        startCornerRadius,
+                        RectStart.BOTTOM_CENTER,
+                        /* useFallbackAnimation= */ false,
+                        /* bottomMargin= */ 0);
+
+        assertArrayEquals(initialCornerRadius, data.getInitialCornerRadii());
+        assertArrayEquals(finalCornerRadius, data.getFinalCornerRadii());
+
+        mAnimationDataSupplier.set(data);
+
+        HubLayoutAnimationRunner runner =
+                HubLayoutAnimationRunnerFactory.createHubLayoutAnimationRunner(animatorProvider);
+
+        setUpShrinkExpandListener(
+                /* isShrink= */ false,
+                imageView,
+                initialRect,
+                finalRect,
+                /* hasBitmap= */ false,
+                /* toolbarFades= */ true);
+        runner.addListener(mListener);
+        runner.runWithWaitForAnimatorTimeout(HUB_LAYOUT_TIMEOUT_MS);
+
+        RobolectricUtil.runAllBackgroundAndUiIncludingDelayed();
+
+        verify(imageView, atLeastOnce())
+                .setRoundedCorners(startCornerRadius, startCornerRadius, 0, 0);
+
+        verify(imageView, atLeastOnce()).setRoundedCorners(endCornerRadius, endCornerRadius, 0, 0);
+
+        assertNull(animatorProvider.getFakeBottomControlsViewForTesting());
         verifyFinalState(animatorProvider, /* wasForcedToFinish= */ false);
     }
 

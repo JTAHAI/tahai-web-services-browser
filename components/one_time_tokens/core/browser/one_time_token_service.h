@@ -6,6 +6,7 @@
 #define COMPONENTS_ONE_TIME_TOKENS_CORE_BROWSER_ONE_TIME_TOKEN_SERVICE_H_
 
 #include <optional>
+#include <vector>
 
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
@@ -14,6 +15,7 @@
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/one_time_tokens/core/browser/one_time_token.h"
 #include "components/one_time_tokens/core/browser/one_time_token_retrieval_error.h"
+#include "components/one_time_tokens/core/browser/user_data_processing_consent_states.h"
 #include "components/one_time_tokens/core/browser/util/expiring_subscription.h"
 
 namespace one_time_tokens {
@@ -27,6 +29,8 @@ enum class OneTimeTokenSource {
   kOnDeviceSms = 1,
   kGmail = 2,
 };
+
+class OneTimeTokenLogSink;
 
 // Service to subscribe to `OneTimeToken`s. One instance per profile.
 class OneTimeTokenService : public KeyedService {
@@ -51,6 +55,12 @@ class OneTimeTokenService : public KeyedService {
   // Returns the cached one-time tokens.
   virtual std::vector<OneTimeToken> GetCachedOneTimeTokens() const = 0;
 
+  // Returns true if the backend for `source` has pending requests or queued
+  // notifications.
+  virtual bool HasPendingRequests(OneTimeTokenSource source) const = 0;
+
+  using TickleCallback = base::RepeatingCallback<void(OneTimeTokenSource)>;
+
   // Creates a subscription for new incoming one time tokens. It's possible that
   // the same one time token is reported many times while a subscription is
   // active. It's the responsibility of the caller to deduplicate those.
@@ -60,6 +70,13 @@ class OneTimeTokenService : public KeyedService {
       Callback callback,
       base::OnceClosure expiration_callback) = 0;
 
+  // Creates a subscription for incoming push notifications (tickles) without
+  // triggering token fetching or network requests.
+  [[nodiscard]] virtual ExpiringSubscription SubscribeToTickles(
+      OneTimeTokenSource source,
+      base::Time expiration,
+      TickleCallback callback) = 0;
+
   // Requests one time tokens from the underlying backend. `callback` is called
   // exactly once when the request is complete, with the fetched token if
   // successful. The `callback` is called with `std::nullopt` if no token could
@@ -68,6 +85,14 @@ class OneTimeTokenService : public KeyedService {
   virtual void RequestOneTimeToken(
       base::TimeDelta timeout,
       base::OnceCallback<void(std::optional<OneTimeToken>)> callback) = 0;
+
+  virtual OneTimeTokenLogSink* log_sink() = 0;
+
+  using FetchUserDataProcessingConsentCallback =
+      base::OnceCallback<void(std::optional<UserDataProcessingConsentStates>)>;
+  // Fetches the user data processing consent states from the backend.
+  virtual void FetchUserDataProcessingConsent(
+      FetchUserDataProcessingConsentCallback callback) = 0;
 };
 
 }  // namespace one_time_tokens
