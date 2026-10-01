@@ -3,6 +3,8 @@
 # Small synthetic tests of the packaging guard only. Does not run Chromium.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'release_evidence.ps1')
+. (Join-Path $PSScriptRoot '../../../../tools/tahai/source_preflight.ps1')
+. (Join-Path $PSScriptRoot '../../../../tools/tahai/source_preflight_test_fixture.ps1')
 $script:cases = 0
 
 function Expect-Rejected {
@@ -481,16 +483,21 @@ try {
     [IO.File]::WriteAllText((Join-Path $buildDir 'args.gn'), 'SYNTHETIC args fixture')
     $source = [ordered]@{
         schemaVersion=1; identitySha256=('a' * 64)
-        identity=@{head=('b' * 40); buildArgsSha256=(Get-FileHash -LiteralPath (Join-Path $buildDir 'args.gn') -Algorithm SHA256).Hash}
+        sourceIdentitySha256=('d' * 64)
+        identity=@{head=('b' * 40); tree=('c' * 40); diffSha256=('e' * 64); indexDiffSha256=('f' * 64); overrides=@();
+            buildArgsSha256=(Get-FileHash -LiteralPath (Join-Path $buildDir 'args.gn') -Algorithm SHA256).Hash}
         sourceSnapshot=(Write-FixtureEvidence 'source.zip' @{synthetic=$true})
     }
     $testResults = @{nativeExitCode=0; browserExitCode=0; elevationExitCode=0; tracingExitCode=0; isolatedTestSession='SYNTHETIC fixture only'}
-    $evidence = [ordered]@{schemaVersion=2; buildExitCode=0;
+    $sourceIdentity = @{schemaVersion=1; identitySha256=$source.sourceIdentitySha256; identity=$source.identity}
+    $preflight = New-TahaiSourcePreflightFixture $fixtureRoot $sourceIdentity ($started - 10000) ($started - 1000)
+    $evidence = [ordered]@{schemaVersion=3; buildExitCode=0;
         buildStartedUnixMs=$started; buildFinishedUnixMs=$finished; artifacts=$artifacts;
         buildLog=@{file='build.log';sha256=(Get-FileHash -LiteralPath $logPath -Algorithm SHA256).Hash};
         nativeTests=$nativeRecord; browserTests=$browserRecord;
         elevationTests=$elevationRecord; tracingTests=$tracingRecord;
         sourceProvenance=(Write-FixtureEvidence 'source-provenance.json' $source);
+        sourcePreflight=(Write-FixtureEvidence 'source-preflight-summary.json' $preflight);
         testResults=(Write-FixtureEvidence 'test-results.json' $testResults);
         smoke=(Write-FixtureEvidence 'smoke.json' $smoke)}
     $evidencePath = Join-Path $fixtureRoot 'release.json'
@@ -506,6 +513,31 @@ try {
     $null = Write-FixtureEvidence 'release.json' $evidence
     Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'old evidence lacks required service gates'
     $evidence.schemaVersion = 2
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'version-2 evidence lacks full source preflight'
+    $evidence.schemaVersion = 3
+    $preflightRecord = $evidence.sourcePreflight
+    $evidence.Remove('sourcePreflight')
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'missing source preflight'
+    $evidence.sourcePreflight = $preflightRecord
+    $preflight.results[0].checks = 0
+    $evidence.sourcePreflight = Write-FixtureEvidence 'source-preflight-summary.json' $preflight
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'zero source selection in package evidence'
+    $preflight.results[0].checks = 1
+    $preflight.source_identity.identitySha256 = '9' * 64
+    $evidence.sourcePreflight = Write-FixtureEvidence 'source-preflight-summary.json' $preflight
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'wrong source preflight snapshot'
+    $preflight.source_identity.identitySha256 = $source.sourceIdentitySha256
+    $evidence.sourcePreflight = Write-FixtureEvidence 'source-preflight-summary.json' $preflight
+    $null = Write-FixtureEvidence 'release.json' $evidence
+    $preflightLog = Join-Path $fixtureRoot $preflight.results[0].log.file
+    [IO.File]::AppendAllText($preflightLog, 'tampered')
+    Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'tampered source log after assembly'
+    $preflight = New-TahaiSourcePreflightFixture $fixtureRoot $sourceIdentity ($started - 10000) ($started - 1000)
+    $evidence.sourcePreflight = Write-FixtureEvidence 'source-preflight-summary.json' $preflight
     $evidence.Remove('tracingTests')
     $null = Write-FixtureEvidence 'release.json' $evidence
     Expect-Rejected { Assert-TahaiReleaseEvidence $evidencePath $buildDir } 'missing tracing test report'

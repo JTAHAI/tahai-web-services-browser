@@ -6,59 +6,99 @@ param(
     [string]$PythonExecutable = 'C:\Python314\python.exe',
     [string]$NodeExecutable = 'C:\Program Files\nodejs\node.exe',
     [string]$PowerShellExecutable = 'C:\Program Files\PowerShell\7\pwsh.exe',
+    [string]$EvidenceDirectory = '',
     [switch]$RenderCss
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $PSScriptRoot 'source_preflight.ps1')
+. (Join-Path $taskRoot 'chrome/installer/win/tahai_msix/release_evidence.ps1')
 foreach ($executable in @($PythonExecutable, $NodeExecutable, $PowerShellExecutable)) {
     if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw "Missing source-check interpreter: $executable" }
 }
-$taskEvidence = Join-Path $taskRoot ('out\source-review-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$taskEvidence = if ([string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
+    Join-Path $taskRoot ('out\source-review-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+} else { [IO.Path]::GetFullPath($EvidenceDirectory) }
+$taskOutputPrefix = [IO.Path]::GetFullPath((Join-Path $taskRoot 'out')).TrimEnd('\') + '\'
+if (-not $taskEvidence.StartsWith($taskOutputPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Source evidence must be a new directory beneath this checkout/out.'
+}
 New-Item -ItemType Directory -Path $taskEvidence -ErrorAction Stop | Out-Null
+$taskStarted = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 $taskResults = [Collections.Generic.List[object]]::new()
-function Invoke-SourceCheck([string]$Name, [string]$Executable, [string[]]$Arguments) {
-    $log = Join-Path $taskEvidence ($Name + '.log')
-    & $PythonExecutable (Join-Path $PSScriptRoot 'run_logged.py') --log $log -- $Executable @Arguments
+$taskTools = [Collections.Generic.List[object]]::new()
+$taskScripts = @()
+$taskIdentity = $null
+$taskUnchanged = $false
+$taskExecutables = @{python=$PythonExecutable; node=$NodeExecutable; powershell=$PowerShellExecutable}
+function Invoke-SourceCheck($Suite) {
+    $log = Join-Path $taskEvidence ('source-' + $Suite.name + '.log')
+    $arguments = @($Suite.arguments | ForEach-Object { if ($_ -ceq '{powershell}') { $PowerShellExecutable } else { $_ } })
+    & $PythonExecutable (Join-Path $PSScriptRoot 'run_logged.py') --log $log -- $taskExecutables[$Suite.tool] @arguments
     $code = $LASTEXITCODE
-    $taskResults.Add([ordered]@{name=$Name; exit_code=$code; log=[IO.Path]::GetFileName($log)})
-    if ($code -ne 0) { throw "Source check failed: $Name (exit $code). Evidence: $taskEvidence" }
+    $checks = 0
+    $status = 'failed'
+    try {
+        if ($code -eq 0) {
+            $checks = Get-TahaiSourceCheckCount $Suite.name (Get-Content -LiteralPath $log -Raw)
+            if ($checks -le 0) { throw "Zero source-check selection: $($Suite.name)" }
+            $status = 'passed'
+        }
+    } finally {
+        $taskResults.Add([ordered]@{name=$Suite.name; exit_code=$code; status=$status; checks=$checks;
+            log=@{file=[IO.Path]::GetFileName($log); sha256=(Get-FileHash -LiteralPath $log -Algorithm SHA256).Hash}})
+    }
+    if ($status -cne 'passed') { throw "Source check failed: $($Suite.name) (exit $code). Evidence: $taskEvidence" }
+}
+function Add-SourceTool([string]$Name, [string]$Executable, [string[]]$Arguments) {
+    $version = (& $Executable @Arguments | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($version)) { throw "Cannot record source tool version: $Name" }
+    $taskTools.Add([ordered]@{name=$Name; path=$Executable; version=$version})
 }
 Push-Location $taskRoot
 $taskExit = 1
 try {
-    Invoke-SourceCheck 'royal-resources' $PowerShellExecutable @('-NoProfile', '-File', 'tools/tahai/royal_brand_assets.ps1')
-    foreach ($name in @('workflow_designer', 'workflow_editor_events', 'workflow_input_events',
-                       'studio_editor', 'studio_palette_events', 'studio_history', 'studio_transfer', 'offline_creator', 'native_mode_placement',
-                       'surface_designer', 'surface_designer_events', 'capability_review_events',
-                       'local_oi_controls', 'work_modes_events', 'local_oi_navigation')) {
-        Invoke-SourceCheck $name $NodeExecutable @("tools/tahai/${name}_test.js")
+    & $PythonExecutable (Join-Path $PSScriptRoot 'source_provenance.py') --source $taskRoot --source-only --output (Join-Path $taskEvidence 'source-start.json')
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot capture source preflight identity.' }
+    $taskIdentity = Read-TahaiEvidenceJson (Join-Path $taskEvidence 'source-start.json')
+    $taskScripts = @(Get-TahaiSourceScriptRecords $taskRoot)
+    Add-SourceTool 'python' $PythonExecutable @('--version')
+    Add-SourceTool 'node' $NodeExecutable @('--version')
+    Add-SourceTool 'powershell' $PowerShellExecutable @('-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()')
+    Add-SourceTool 'git' (@(Get-Command git -CommandType Application)[0].Source) @('--version')
+    foreach ($package in @('cryptography', 'playwright')) {
+        Add-SourceTool $package $PythonExecutable @('-c', "import importlib.metadata; print(importlib.metadata.version('$package'))")
     }
-    foreach ($name in @('source_provenance', 'audit_guard_dependencies', 'check_windows_build_prerequisites')) {
-        Invoke-SourceCheck $name $PythonExecutable @("tools/tahai/${name}_test.py")
-    }
-    Invoke-SourceCheck 'release-runner-rejections' $PythonExecutable @('tools/tahai/verify_upgrade_test.py', '--powershell', $PowerShellExecutable)
-    Invoke-SourceCheck 'guard-source-inventory' $PythonExecutable @('tools/tahai/audit_guard_dependencies.py', '--source-inventory', 'docs/tahai-guard-import-inventory.json')
-    Invoke-SourceCheck 'packaged-resource-unit' $PythonExecutable @('chrome/installer/win/tahai_msix/verify_release_resources_test.py')
-    Invoke-SourceCheck 'creator-release' $PythonExecutable @('docs/tahai-skins/test_build_skin.py', '--release-gate', '-v')
-    Invoke-SourceCheck 'creator-kit' $PythonExecutable @('docs/tahai-skins/build_creator_kit.py', '--check', '--chromium-version-file', 'chrome/VERSION')
-    Invoke-SourceCheck 'guard-lists' $PythonExecutable @('third_party/tahai_guard_lists/build_rules.py', '--check')
-    foreach ($name in @('package_unsigned_msix', 'release_evidence')) {
-        Invoke-SourceCheck $name $PowerShellExecutable @('-NoProfile', '-File', "chrome/installer/win/tahai_msix/${name}_test.ps1")
-    }
-    if ($RenderCss) {
-        Invoke-SourceCheck 'source-render-and-command-palette' $PythonExecutable @('tools/tahai/royal_brand_render_test.py')
-    }
-    if ($taskResults.Count -ne (27 + [int]$RenderCss.IsPresent)) { throw 'Incomplete or zero source-check selection' }
+    $plan = @(Get-TahaiSourcePlan $RenderCss.IsPresent)
+    foreach ($suite in $plan) { Invoke-SourceCheck $suite }
+    if ($taskResults.Count -ne $plan.Count -or $plan.Count -le 0) { throw 'Incomplete source-check selection' }
     $taskExit = 0
 } finally {
-    [ordered]@{
+    try {
+      if ($null -ne $taskIdentity) {
+        & $PythonExecutable (Join-Path $PSScriptRoot 'source_provenance.py') --source $taskRoot --source-only --compare (Join-Path $taskEvidence 'source-start.json')
+        $taskUnchanged = $LASTEXITCODE -eq 0
+      }
+      if (-not $taskUnchanged) { $taskExit = 1 }
+      [ordered]@{
+        schemaVersion=2
         scope='source-preflight-only; native/runtime/package acceptance remains pending'
         source=$taskRoot
-        head=(& git -C $taskRoot rev-parse HEAD)
+        source_identity=$taskIdentity
+        source_unchanged=$taskUnchanged
+        render_css=$RenderCss.IsPresent
+        started_unix_ms=$taskStarted
+        finished_unix_ms=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        tools=$taskTools
+        scripts=$taskScripts
         exit_code=$taskExit
         suites=$taskResults.Count
         results=$taskResults
-    } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $taskEvidence 'summary.json') -Encoding utf8
-    Pop-Location
-    Write-Output "Source preflight evidence: $taskEvidence"
+      } | ConvertTo-Json -Depth 14 | Set-Content -LiteralPath (Join-Path $taskEvidence 'source-preflight-summary.json') -Encoding utf8
+    } finally {
+      Pop-Location
+      Write-Output "Source preflight evidence: $taskEvidence"
+    }
 }
+if ($taskExit -ne 0) { throw 'Source changed during preflight; evidence is not eligible for release.' }
+if ($RenderCss) { $null = Assert-TahaiSourcePreflight (Join-Path $taskEvidence 'source-preflight-summary.json') }

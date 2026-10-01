@@ -1,0 +1,56 @@
+name: TAHAI source verification
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+    branches: [main, codex/ga-2.0.33-chromium-152]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-preflight:
+    name: TAHAI source preflight
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Enable Chromium long paths on the ephemeral Windows runner
+        shell: pwsh
+        run: git config --global core.longpaths true
+      # Untrusted pull requests run only on ephemeral hosted machines, never
+      # the native self-hosted workstation. No secrets or write token needed.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Install source-only dependencies
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check -r tools/tahai/source-check-requirements.txt
+      - name: Run every source suite, including isolated Royal render checks
+        shell: pwsh
+        run: |
+          & tools/tahai/verify_source.ps1 -RenderCss `
+            -PythonExecutable (@(Get-Command python -CommandType Application)[0].Source) `
+            -NodeExecutable (@(Get-Command node -CommandType Application)[0].Source) `
+            -PowerShellExecutable (@(Get-Command pwsh -CommandType Application)[0].Source) `
+            -EvidenceDirectory (Join-Path $PWD 'out/source-ci')
+      - name: Preserve exact-commit evidence, including failed suites
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: source-preflight-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: out/source-ci/
+          if-no-files-found: warn
+          retention-days: 30

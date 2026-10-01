@@ -10,7 +10,7 @@ import unittest
 from unittest import mock
 import zipfile
 
-from source_provenance import capture, git as source_git, write_snapshot
+from source_provenance import capture, capture_source, git as source_git, write_snapshot
 
 
 class SourceProvenanceTest(unittest.TestCase):
@@ -42,6 +42,10 @@ class SourceProvenanceTest(unittest.TestCase):
             git("-c", "user.name=Source test", "-c", "user.email=test@example.invalid",
                 "-c", "commit.gpgsign=false", "commit", "-m", "fixture")
             original, _ = capture(root, build)
+            source, _ = capture_source(root)
+            self.assertEqual(source["identitySha256"], original["sourceIdentitySha256"])
+            self.assertEqual(git("rev-parse", "HEAD^{tree}").stdout.decode().strip(),
+                             source["identity"]["tree"])
             self.assertEqual(original, capture(root, build)[0])
             (root / "source.cc").write_text("modified\n")
             dirty, patch = capture(root, build)
@@ -70,7 +74,10 @@ class SourceProvenanceTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Source changed"):
                 write_snapshot(deleted, b"", build / "changed.json")
             (build / "args.gn").write_text("is_debug = true\n")
+            before_args, _ = capture_source(root)
             self.assertNotEqual(deleted["identitySha256"], capture(root, build)[0]["identitySha256"])
+            self.assertEqual(before_args["identitySha256"],
+                             capture(root, build)[0]["sourceIdentitySha256"])
 
 
 if __name__ == "__main__":

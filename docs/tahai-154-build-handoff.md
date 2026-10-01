@@ -33,8 +33,10 @@ Do not lower the source SDK/compiler pins to use older installed tools.
 - Visual Studio 2026 >=18.0.0: Desktop development with C++, including ATL/MFC.
 - Windows SDK **10.0.28000.2270** (header/library directory `10.0.28000.0`).
 - x64 SDK Debugging Tools >=**10.0.26100.3323**.
-- Git, depot_tools and its bootstrap Python; Python 3.11+ with `cryptography`
-  for the source/creator tests; Node.js for the source DOM/logic tests.
+- Git, depot_tools and its bootstrap Python; a separate Python 3.11+ with
+  `tools/tahai/source-check-requirements.txt` installed (cryptography and
+  Playwright); Node.js for the source DOM/logic tests and stock Microsoft Edge
+  for isolated source-render checks. Do not install these into the bootstrap.
 - PowerShell 7 with `ConvertFrom-Json -DateKind` support. Do not use Windows
   PowerShell 5.1 for the release runner.
 - Dedicated NTFS checkout/output, sufficient free disk and RAM, and an identified
@@ -88,7 +90,7 @@ the actual installations. `$BootstrapPython` must be inside `$DepotTools`.
 $DepotTools = 'C:\src\depot_tools'
 $BootstrapPython = 'C:\src\depot_tools\<selected-bootstrap>\python3\bin\python3.exe'
 $VisualStudio = 'C:\<selected-Visual-Studio-2026-installation>'
-$SourcePython = 'C:\<Python-with-cryptography>\python.exe'
+$SourcePython = 'C:\<Python-with-source-check-requirements>\python.exe'
 $Node = 'C:\Program Files\nodejs\node.exe'
 $PowerShell = 'C:\Program Files\PowerShell\7\pwsh.exe'
 
@@ -99,14 +101,14 @@ if ($LASTEXITCODE -ne 0) { throw 'Build-machine preflight failed' }
 
 & $PowerShell -NoProfile -File tools/tahai/verify_source.ps1 `
   -PythonExecutable $SourcePython -NodeExecutable $Node `
-  -PowerShellExecutable $PowerShell
+  -PowerShellExecutable $PowerShell -RenderCss
 if ($LASTEXITCODE -ne 0) { throw 'Source preflight failed' }
 ```
 
 The prerequisite script checks required files and compiler stamps without
 installing or executing compilers. It **does not verify** VS component versions,
 SDK servicing/debugger versions, the whole dependency tree, or native behavior.
-The source suite is also not native acceptance. Optional `-RenderCss` exercises
+The source suite is also not native acceptance. Required `-RenderCss` exercises
 the source-render/keyboard harness with an isolated stock-Edge profile; it does
 not launch a freshly built TAHAI browser.
 
@@ -138,7 +140,8 @@ On the **already isolated** Windows test machine/session:
 & $PowerShell -NoProfile -File tools/tahai/verify_upgrade.ps1 `
   -BuildDirectory $BuildDirectory -DepotTools $DepotTools `
   -VisualStudioPath $VisualStudio -BootstrapPython $BootstrapPython `
-  -CreatorPython $SourcePython -Jobs 1 -MaxBuildAttempts 1 `
+  -CreatorPython $SourcePython -SourceNode $Node -SourcePowerShell $PowerShell `
+  -Jobs 1 -MaxBuildAttempts 1 `
   -IsolatedTestSession '<actual-machine/account/session-or-VM-identity>'
 if ($LASTEXITCODE -ne 0) { throw 'Native build or regression gate failed' }
 ```
@@ -151,6 +154,47 @@ Evidence binds eight binaries, including `chrome.dll`. It preserves old output
 binaries before relinking; a second full invocation is not a tests-only run.
 Do not delete a lock based solely on its PID. Check owner start time, actual
 runner status/logs and child processes first.
+
+Every runner invocation, including `-BuildOnly`, now runs the entire source
+preflight **before GN or compilation**. It records 29 suites including the
+isolated source render check at `source-preflight/source-preflight-summary.json`.
+The version-2 source summary binds commit/tree, dirty/staged/untracked source
+identity, tool versions, script hashes, nonzero check counts and hashed logs.
+Source edits during preflight, generation or compilation invalidate the run.
+Version-3 `release.json` requires this same preflight snapshot; old version-2
+release manifests and standalone historical source summaries cannot qualify.
+The evidence assembler preserves the summary and all 29 logs without rewriting
+them; the MSIX receipt includes their summary hash, suite count and source tree.
+
+## GitHub verification
+
+`TAHAI source preflight` is the source-only required check for the publication
+branch. It runs on ephemeral Windows hosted runners for every push/pull request
+(no path filters), with read-only permissions, immutable action pins and a
+commit-bound evidence artifact. It never starts Chromium compilation or TAHAI
+native tests. A successful check is source acceptance only.
+
+`TAHAI manual native acceptance` is dispatch-only and restricted to the approved
+repository/branch, the `tahai-native-acceptance` environment, and a dedicated
+`self-hosted, Windows, X64, tahai-native-isolated` runner. It never syncs or
+rewrites a prepared checkout, dispatches on PRs, packages, or uploads to Store.
+Set environment variables through GitHub environment/repository variables:
+`TAHAI_SOURCE`, `TAHAI_BUILD`, `TAHAI_DEPOT_TOOLS`, `TAHAI_VISUAL_STUDIO`,
+`TAHAI_BOOTSTRAP_PYTHON`, `TAHAI_SOURCE_PYTHON`, `TAHAI_SOURCE_NODE`, and
+`TAHAI_SOURCE_POWERSHELL`. The prepared checkout must be clean and its tree must
+match the dispatch commit; native/publication commit IDs may differ but their
+trees may not. Default dispatch is BuildOnly; real runtime testing additionally
+requires the actual isolated interactive Windows session. Diagnostics survive
+failure, and builds serialize without canceling an active compiler.
+
+GitHub also requires a dispatch workflow entry on the default `main` branch.
+Install only this workflow there before trying to dispatch the source branch;
+do not change the repository default branch or move browser source to `main`.
+Do not dispatch this workflow until the external workstation is prepared.
+Protect the runner environment with an approval reviewer and restrict it to the
+publication branch; never attach an everyday desktop or public-PR runner.
+See [GitHub's workflow security guidance](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions)
+for immutable action pins and self-hosted runner trust boundaries.
 
 It runs these exact scopes, one test job, **zero retries**, with nonzero
 selection and required regression sentinels:

@@ -29,10 +29,9 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def capture(root, build_directory):
+def capture_source(root):
+    """The build-independent source identity shared by CI and native acceptance."""
     root = Path(root).resolve(strict=True)
-    build_directory = Path(build_directory).resolve(strict=True)
-    build_directory.relative_to(root)
     patch = git(root, "diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD")
     changed = git(root, "diff", "--name-only", "-z", "HEAD").split(b"\0")
     untracked = git(root, "ls-files", "--others", "--exclude-standard", "-z").split(b"\0")
@@ -52,21 +51,33 @@ def capture(root, build_directory):
             raise ValueError(f"Changed source is not a regular file: {name}")
     identity = {
         "head": git(root, "rev-parse", "HEAD").decode().strip(),
+        "tree": git(root, "rev-parse", "HEAD^{tree}").decode().strip(),
         "diffSha256": sha256(patch),
         "indexDiffSha256": sha256(git(root, "diff", "--cached", "--no-ext-diff",
                                       "--no-textconv", "--binary", "HEAD")),
-        "buildArgsSha256": sha256((build_directory / "args.gn").read_bytes()),
         "overrides": entries,
     }
     return {
         "schemaVersion": 1,
         "sourceRoot": str(root),
-        "buildDirectory": str(build_directory),
         "branch": git(root, "branch", "--show-current").decode().strip(),
         "identity": identity,
         "identitySha256": sha256(json.dumps(identity, sort_keys=True,
                                               separators=(",", ":")).encode()),
     }, patch
+
+
+def capture(root, build_directory):
+    record, patch = capture_source(root)
+    build_directory = Path(build_directory).resolve(strict=True)
+    build_directory.relative_to(Path(record["sourceRoot"]))
+    record["buildDirectory"] = str(build_directory)
+    record["sourceIdentitySha256"] = record["identitySha256"]
+    record["identity"]["buildArgsSha256"] = sha256(
+        (build_directory / "args.gn").read_bytes())
+    record["identitySha256"] = sha256(json.dumps(
+        record["identity"], sort_keys=True, separators=(",", ":")).encode())
+    return record, patch
 
 
 def write_snapshot(record, patch, output_path):
@@ -97,16 +108,20 @@ def write_snapshot(record, patch, output_path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
-    parser.add_argument("--build", type=Path, required=True)
+    parser.add_argument("--build", type=Path)
+    parser.add_argument("--source-only", action="store_true")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--output", type=Path)
     group.add_argument("--compare", type=Path)
     args = parser.parse_args()
-    record, patch = capture(args.source, args.build)
+    if args.source_only == bool(args.build):
+        parser.error("Select either --source-only or --build, not both.")
+    record, patch = (capture_source(args.source) if args.source_only else
+                     capture(args.source, args.build))
     if args.compare:
         previous = json.loads(args.compare.read_text(encoding="utf-8"))
         snapshot = previous.pop("sourceSnapshot", None)
-        if (not snapshot or Path(snapshot["file"]).name != snapshot["file"] or
+        if not args.source_only and (not snapshot or Path(snapshot["file"]).name != snapshot["file"] or
                 sha256((args.compare.parent / snapshot["file"]).read_bytes()) !=
                 snapshot["sha256"]):
             raise SystemExit("Source snapshot is missing or changed.")
@@ -114,12 +129,15 @@ def main():
             raise SystemExit("Source or build arguments changed during this release run.")
     else:
         # Never overwrite the record of an earlier run.
-        snapshot = write_snapshot(record, patch, args.output)
-        if capture(args.source, args.build)[0] != record:
+        snapshot = None if args.source_only else write_snapshot(record, patch, args.output)
+        current = (capture_source(args.source) if args.source_only else
+                   capture(args.source, args.build))[0]
+        if current != record:
             raise SystemExit("Source changed while creating its snapshot.")
-        record["sourceSnapshot"] = snapshot
-        with args.output.with_suffix(".patch").open("xb") as output:
-            output.write(patch)
+        if snapshot:
+            record["sourceSnapshot"] = snapshot
+            with args.output.with_suffix(".patch").open("xb") as output:
+                output.write(patch)
         with args.output.open("x", encoding="utf-8") as output:
             json.dump(record, output, indent=2)
             output.write("\n")

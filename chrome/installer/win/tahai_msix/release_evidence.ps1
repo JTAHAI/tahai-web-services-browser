@@ -101,9 +101,9 @@ function Assert-TahaiReleaseEvidence {
 
     Set-StrictMode -Version Latest
     $evidence = Read-TahaiEvidenceJson $EvidencePath
-    if (-not (Test-TahaiJsonInteger $evidence.schemaVersion) -or $evidence.schemaVersion -ne 2 -or
+    if (-not (Test-TahaiJsonInteger $evidence.schemaVersion) -or $evidence.schemaVersion -ne 3 -or
         -not (Test-TahaiJsonInteger $evidence.buildExitCode) -or $evidence.buildExitCode -ne 0) {
-        throw 'A successful build with version-2 release evidence including Windows service tests is required.'
+        throw 'A successful build with version-3 release evidence including full source preflight and Windows service tests is required.'
     }
     $started = [long]$evidence.buildStartedUnixMs
     $finished = [long]$evidence.buildFinishedUnixMs
@@ -149,6 +149,9 @@ function Assert-TahaiReleaseEvidence {
         throw 'Source identity or build configuration does not match the candidate.'
     }
     $null = Assert-TahaiEvidenceFile $root $source.sourceSnapshot 0
+    . (Join-Path $PSScriptRoot '..\..\..\..\tools\tahai\source_preflight.ps1')
+    $preflightPath = Assert-TahaiEvidenceFile $root $evidence.sourcePreflight 0
+    $preflight = Assert-TahaiSourcePreflight $preflightPath $source $started
     $testResultPath = Assert-TahaiEvidenceFile $root $evidence.testResults $finished
     $testResults = Read-TahaiEvidenceJson $testResultPath
     if (-not (Test-TahaiJsonInteger $testResults.nativeExitCode) -or $testResults.nativeExitCode -ne 0 -or
@@ -582,5 +585,8 @@ function Assert-TahaiReleaseEvidence {
         SourceProvenance = $sourcePath
         SourceIdentitySha256 = $source.identitySha256
         SourceHead = $source.identity.head
+        SourceTree = $source.identity.tree
+        SourcePreflight = $preflightPath
+        SourcePreflightSuites = $preflight.suites
     }
 }

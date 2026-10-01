@@ -8,6 +8,10 @@ param(
   # Optional creator-test interpreter with cryptography/Ed25519 installed.
   # This never changes Chromium's recovered Python or build environment.
   [string]$CreatorPython = '',
+  # Full preflight needs cryptography/Playwright in CreatorPython and these
+  # separate source tools; never change Chromium's bootstrap environment.
+  [string]$SourceNode = 'C:\Program Files\nodejs\node.exe',
+  [string]$SourcePowerShell = 'C:\Program Files\PowerShell\7\pwsh.exe',
   # Chromium's template/plugin-heavy units can exceed several GiB each.
   [ValidateRange(1, 6)][int]$Jobs = 1,
   # Preserve every failed native attempt for diagnosis, then bind release
@@ -170,17 +174,19 @@ try {
   Write-UpgradeStatus 'running'
   & $python $logged --log (Join-Path $runDirectory 'build-prerequisites.json') -- $python tools/tahai/check_windows_build_prerequisites.py --source $nativeSource --visual-studio $visualStudioPath --depot-tools $depotToolsRoot --bootstrap-python $python
   if ($LASTEXITCODE -ne 0) { throw 'Build prerequisites failed; no GN generation or compilation started. See build-prerequisites.json.' }
-  & $python $logged --log (Join-Path $runDirectory 'guard-source-inventory.log') -- $python tools/tahai/audit_guard_dependencies.py --source-inventory docs/tahai-guard-import-inventory.json
-  if ($LASTEXITCODE -ne 0) { throw 'The checked-out Guard source does not match the reviewed inventory.' }
-
-  $stage = 'creator and bundled-list checks'
+  $sourceRecord = Join-Path $runDirectory 'source-provenance.json'
+  & $python (Join-Path $nativeSource 'tools\tahai\source_provenance.py') --source $nativeSource --build $nativeBuild --output $sourceRecord
+  if ($LASTEXITCODE -ne 0) { throw 'Could not capture the release source state.' }
+  $stage = 'full source preflight before GN or compilation'
   Write-UpgradeStatus 'running'
-  & $python $logged --log (Join-Path $runDirectory 'creator-tests.log') -- $creatorTestExecutable docs/tahai-skins/test_build_skin.py --release-gate -v
-  if ($LASTEXITCODE -ne 0) { Write-UpgradeStatus 'failed' $LASTEXITCODE; exit $LASTEXITCODE }
-  & $python $logged --log (Join-Path $runDirectory 'guard-list-check.log') -- $python third_party/tahai_guard_lists/build_rules.py --check
-  if ($LASTEXITCODE -ne 0) { Write-UpgradeStatus 'failed' $LASTEXITCODE; exit $LASTEXITCODE }
-  & $python $logged --log (Join-Path $runDirectory 'creator-kit-check.log') -- $python docs/tahai-skins/build_creator_kit.py --check --chromium-version-file chrome/VERSION
-  if ($LASTEXITCODE -ne 0) { Write-UpgradeStatus 'failed' $LASTEXITCODE; exit $LASTEXITCODE }
+  $preflightDirectory = Join-Path $runDirectory 'source-preflight'
+  & $python $logged --log (Join-Path $runDirectory 'source-preflight.log') -- $SourcePowerShell -NoProfile -File tools/tahai/verify_source.ps1 -PythonExecutable $creatorTestExecutable -NodeExecutable $SourceNode -PowerShellExecutable $SourcePowerShell -EvidenceDirectory $preflightDirectory -RenderCss
+  if ($LASTEXITCODE -ne 0) { throw 'Full source preflight failed; no GN generation or compilation started.' }
+  . (Join-Path $nativeSource 'chrome\installer\win\tahai_msix\release_evidence.ps1')
+  . (Join-Path $PSScriptRoot 'source_preflight.ps1')
+  $null = Assert-TahaiSourcePreflight (Join-Path $preflightDirectory 'source-preflight-summary.json') (Read-TahaiEvidenceJson $sourceRecord)
+  & $python (Join-Path $PSScriptRoot 'source_provenance.py') --source $nativeSource --build $nativeBuild --compare $sourceRecord
+  if ($LASTEXITCODE -ne 0) { throw 'Release source changed during source preflight.' }
 
   if (-not $SkipGenerate) {
     $stage = 'generate native build'
@@ -191,9 +197,8 @@ try {
 
   $stage = 'build chrome and native tests'
   Write-UpgradeStatus 'running'
-  $sourceRecord = Join-Path $runDirectory 'source-provenance.json'
-  & $python (Join-Path $nativeSource 'tools\tahai\source_provenance.py') --source $nativeSource --build $nativeBuild --output $sourceRecord
-  if ($LASTEXITCODE -ne 0) { throw 'Could not capture the release source state.' }
+  & $python (Join-Path $PSScriptRoot 'source_provenance.py') --source $nativeSource --build $nativeBuild --compare $sourceRecord
+  if ($LASTEXITCODE -ne 0) { throw 'Release source or arguments changed during GN generation.' }
   # Each release report must bind the browser, Windows services and their tests
   # produced during this actual
   # successful build interval. Preserve old binaries before asking Ninja to

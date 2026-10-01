@@ -1,0 +1,97 @@
+name: TAHAI manual native acceptance
+
+# Deliberately no push/PR trigger. Run only on a prepared dedicated workstation.
+on:
+  workflow_dispatch:
+    inputs:
+      build_only:
+        type: boolean
+        default: true
+        description: Compile only (runtime/package acceptance remains pending)
+      isolated_test_session:
+        type: string
+        required: false
+        description: Dedicated interactive Windows identity/session for runtime tests
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tahai-native-release-workstation
+  cancel-in-progress: false
+
+jobs:
+  native-acceptance:
+    if: github.repository == 'JTAHAI/tahai-web-services-browser' && github.ref == 'refs/heads/codex/ga-2.0.33-chromium-152'
+    environment: tahai-native-acceptance
+    runs-on: [self-hosted, Windows, X64, tahai-native-isolated]
+    timeout-minutes: 1440
+    env:
+      TAHAI_SOURCE: ${{ vars.TAHAI_SOURCE }}
+      TAHAI_BUILD: ${{ vars.TAHAI_BUILD }}
+      TAHAI_DEPOT_TOOLS: ${{ vars.TAHAI_DEPOT_TOOLS }}
+      TAHAI_VISUAL_STUDIO: ${{ vars.TAHAI_VISUAL_STUDIO }}
+      TAHAI_BOOTSTRAP_PYTHON: ${{ vars.TAHAI_BOOTSTRAP_PYTHON }}
+      TAHAI_SOURCE_PYTHON: ${{ vars.TAHAI_SOURCE_PYTHON }}
+      TAHAI_SOURCE_NODE: ${{ vars.TAHAI_SOURCE_NODE }}
+      TAHAI_SOURCE_POWERSHELL: ${{ vars.TAHAI_SOURCE_POWERSHELL }}
+      TAHAI_BUILD_ONLY: ${{ inputs.build_only }}
+      TAHAI_TEST_SESSION: ${{ inputs.isolated_test_session }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: control
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            tools/tahai
+      - name: Check prepared source identity and run the established pipeline
+        id: native
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($name in @('TAHAI_SOURCE', 'TAHAI_BUILD', 'TAHAI_DEPOT_TOOLS',
+            'TAHAI_VISUAL_STUDIO', 'TAHAI_BOOTSTRAP_PYTHON', 'TAHAI_SOURCE_PYTHON',
+            'TAHAI_SOURCE_NODE', 'TAHAI_SOURCE_POWERSHELL')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Configure the dedicated runner variable: $name"
+            }
+          }
+          $expectedTree = & git -C control rev-parse 'HEAD^{tree}'
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve dispatched source tree.' }
+          $actualTree = & git -C $env:TAHAI_SOURCE rev-parse 'HEAD^{tree}'
+          if ($LASTEXITCODE -ne 0 -or $actualTree -cne $expectedTree) {
+            throw 'Prepared Chromium checkout differs from the dispatched tree; sync it first.'
+          }
+          $dirty = & git -C $env:TAHAI_SOURCE status --porcelain --untracked-files=all
+          if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'Prepared source must be clean before dispatch.' }
+          $build = [IO.Path]::GetFullPath((Join-Path $env:TAHAI_SOURCE $env:TAHAI_BUILD))
+          $before = @(Get-ChildItem -LiteralPath $build -Directory -Filter 'upgrade-checks-*' | Select-Object -ExpandProperty FullName)
+          $arguments = @('-NoProfile', '-File', (Join-Path $env:TAHAI_SOURCE 'tools/tahai/verify_upgrade.ps1'),
+            '-BuildDirectory', $env:TAHAI_BUILD, '-DepotTools', $env:TAHAI_DEPOT_TOOLS,
+            '-VisualStudioPath', $env:TAHAI_VISUAL_STUDIO, '-BootstrapPython', $env:TAHAI_BOOTSTRAP_PYTHON,
+            '-CreatorPython', $env:TAHAI_SOURCE_PYTHON, '-SourceNode', $env:TAHAI_SOURCE_NODE,
+            '-SourcePowerShell', $env:TAHAI_SOURCE_POWERSHELL, '-Jobs', '1', '-MaxBuildAttempts', '1')
+          if ($env:TAHAI_BUILD_ONLY -ceq 'true') { $arguments += '-BuildOnly' }
+          else {
+            if ([string]::IsNullOrWhiteSpace($env:TAHAI_TEST_SESSION)) { throw 'Name the dedicated interactive session first.' }
+            $arguments += @('-IsolatedTestSession', $env:TAHAI_TEST_SESSION)
+          }
+          try {
+            & $env:TAHAI_SOURCE_POWERSHELL @arguments
+            if ($LASTEXITCODE -ne 0) { throw "Native acceptance failed with actual exit $LASTEXITCODE" }
+          } finally {
+            $runs = @(Get-ChildItem -LiteralPath $build -Directory -Filter 'upgrade-checks-*' | Where-Object { $_.FullName -notin $before })
+            if ($runs.Count -eq 1) { "evidence=$($runs[0].FullName)" >> $env:GITHUB_OUTPUT }
+          }
+      - name: Preserve native diagnostics (not a package or Store submission)
+        if: always() && steps.native.outputs.evidence != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-evidence-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ steps.native.outputs.evidence }}/**/*.json
+            ${{ steps.native.outputs.evidence }}/**/*.log
+            ${{ steps.native.outputs.evidence }}/source-provenance.zip
+            ${{ steps.native.outputs.evidence }}/source-provenance.patch
+          retention-days: 30

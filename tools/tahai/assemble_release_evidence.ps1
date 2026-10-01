@@ -79,6 +79,14 @@ if ($testResults.nativeExitCode -isnot [int] -or $testResults.nativeExitCode -ne
 $sourcePath = Join-Path $RunDirectory 'source-provenance.json'
 $source = Get-Content -LiteralPath $sourcePath -Raw | ConvertFrom-Json
 $nativeSource = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $nativeSource 'chrome\installer\win\tahai_msix\release_evidence.ps1')
+. (Join-Path $PSScriptRoot 'source_preflight.ps1')
+$preflightPath = Join-Path $RunDirectory 'source-preflight\source-preflight-summary.json'
+$preflight = Assert-TahaiSourcePreflight $preflightPath $source $buildResult.buildStartedUnixMs
+$copiedPreflight = Copy-EvidenceFile $preflightPath
+foreach ($result in $preflight.results) {
+  $null = Copy-EvidenceFile (Join-Path (Split-Path -Parent $preflightPath) $result.log.file)
+}
 & $ProvenancePython (Join-Path $PSScriptRoot 'source_provenance.py') --source $nativeSource --build $BuildDirectory --compare $sourcePath
 if ($LASTEXITCODE -ne 0) { throw 'Source differs from the verified build snapshot.' }
 if ($source.sourceSnapshot.file -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
@@ -124,13 +132,14 @@ $artifacts = foreach ($name in @('chrome.exe', 'chrome.dll',
 }
 
 $release = [ordered]@{
-  schemaVersion = 2
+  schemaVersion = 3
   buildExitCode = [int]$buildResult.buildExitCode
   buildStartedUnixMs = [int64]$buildResult.buildStartedUnixMs
   buildFinishedUnixMs = [int64]$buildResult.buildFinishedUnixMs
   artifacts = @($artifacts)
   buildLog = Get-Record $copiedBuildLog
   sourceProvenance = Get-Record $copiedSource
+  sourcePreflight = Get-Record $copiedPreflight
   testResults = Get-Record $copiedTestResults
   nativeTests = [ordered]@{
     file = (Get-Item -LiteralPath $copiedNative).Name
