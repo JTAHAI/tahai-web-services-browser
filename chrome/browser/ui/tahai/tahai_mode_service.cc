@@ -486,7 +486,8 @@ bool ModeService::SetActiveMode(std::string_view id) {
     return false;
   }
   if (persistence_enabled()) {
-    const auto* value = prefs_->GetUserPrefValue(prefs::kTahaiActiveWorkMode);
+    const auto* value =
+        prefs_->GetRawUserPrefValue(prefs::kTahaiActiveWorkMode);
     if (prefs_->IsManagedPreference(prefs::kTahaiActiveWorkMode) ||
         (value && !value->is_string())) {
       return false;
@@ -928,7 +929,8 @@ bool ModeService::CanWriteWorkspacePreferences() const {
       prefs_->IsManagedPreference(prefs::kTahaiWorkModePreferences)) {
     return false;
   }
-  const auto* user = prefs_->GetUserPrefValue(prefs::kTahaiWorkModePreferences);
+  const auto* user =
+      prefs_->GetRawUserPrefValue(prefs::kTahaiWorkModePreferences);
   if (user && !user->is_dict()) {
     return false;
   }
@@ -1028,7 +1030,7 @@ ModeService::ReadCustomModesForWrite() const {
     return std::nullopt;
   }
   const auto* user_value =
-      prefs_->GetUserPrefValue(prefs::kTahaiCustomModeDefinitions);
+      prefs_->GetRawUserPrefValue(prefs::kTahaiCustomModeDefinitions);
   if (user_value && !user_value->is_dict()) {
     return std::nullopt;
   }

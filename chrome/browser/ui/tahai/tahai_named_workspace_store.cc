@@ -318,7 +318,7 @@ std::optional<std::vector<NamedWorkspace>> NamedWorkspaceStore::Read() const {
     return std::nullopt;
   }
   const auto* user_value =
-      profile_->GetPrefs()->GetUserPrefValue(prefs::kTahaiNamedWorkspaces);
+      profile_->GetPrefs()->GetRawUserPrefValue(prefs::kTahaiNamedWorkspaces);
   if (user_value && !user_value->is_dict()) {
     // PrefService's default-dictionary fallback is not an empty user store.
     // Preserve corrupt/future data instead of replacing it with the next save.

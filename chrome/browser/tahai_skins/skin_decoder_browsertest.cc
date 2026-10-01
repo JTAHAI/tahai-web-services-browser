@@ -40,6 +40,7 @@
 #include "chrome/browser/tahai_skins/tahai_skin_signature.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/themes/theme_service_observer.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -1145,6 +1146,29 @@ class TahaiSkinManagerBrowserTest : public TahaiSkinProfileBrowserTest {
     EXPECT_FALSE(factory_->GetLastDialog()->file_types().include_all_files);
     EXPECT_FALSE(factory_->GetLastDialog()->caller());
   }
+  void PrepareAppearanceReview() {
+    const auto archive = Zip(Package({{"assets/preview.png", Png()}}));
+    auto* skins = BrowserService();
+    base::test::TestFuture<SkinOperationResult> reply;
+    skins->PreviewFile(WriteArchive(archive), reply.GetCallback());
+    auto preview = reply.Take();
+    ASSERT_EQ(SkinOperationStatus::kOk, preview.status);
+    skins->InstallPreview(preview.preview_token, reply.GetCallback());
+    ASSERT_EQ(SkinOperationStatus::kOk, reply.Take().status);
+    ShowSkinManager(browser());
+    auto* manager = Manager(browser());
+    ASSERT_TRUE(manager);
+    views::LabelButton* review = nullptr;
+    ASSERT_TRUE(base::test::RunUntil([&] {
+      review = Button(manager, kSkinManagerReviewElementId);
+      return review && review->GetEnabled();
+    }));
+    views::test::ButtonTestApi(review).NotifyDefaultMouseClick();
+    ASSERT_TRUE(base::test::RunUntil([&] {
+      auto* apply = Button(manager, kSkinManagerApplyWindowElementId);
+      return apply && apply->GetVisible() && apply->GetEnabled();
+    }));
+  }
   SkinProfileService* BrowserService() {
     return SkinProfileServiceFactory::GetForProfile(browser()->GetProfile());
   }
@@ -1233,6 +1257,175 @@ class ActivationInterruption : public WindowModeController::Observer {
   base::WeakPtr<WindowModeController> controller_;
   base::OnceClosure callback_;
 };
+
+class AppearanceInterruption : public ThemeServiceObserver {
+ public:
+  AppearanceInterruption(ThemeService* theme, base::OnceClosure callback)
+      : theme_(theme), callback_(std::move(callback)) {
+    theme_->AddObserver(this);
+  }
+  ~AppearanceInterruption() override { theme_->RemoveObserver(this); }
+  void OnThemeChanged() override {
+    if (callback_) {
+      std::move(callback_).Run();
+    }
+  }
+
+ private:
+  raw_ptr<ThemeService> theme_;
+  base::OnceClosure callback_;
+};
+
+IN_PROC_BROWSER_TEST_F(TahaiSkinProfileBrowserTest,
+                       TahaiAppearanceApplyStopsAfterServiceShutdown) {
+  auto* theme = ThemeServiceFactory::GetForProfile(profile_.get());
+  AppearanceInterruption interruption(
+      theme, base::BindLambdaForTesting([&] { service_->Shutdown(); }));
+  EXPECT_FALSE(service_->ApplyBuiltIn("terminal-green"));
+  EXPECT_FALSE(service_->enabled());
+  EXPECT_TRUE(profile_->GetPrefs()->GetDict(prefs::kTahaiAppliedSkin).empty());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiSkinProfileBrowserTest,
+                       TahaiAppearanceResetStopsAfterServiceShutdown) {
+  ASSERT_TRUE(service_->ApplyBuiltIn("terminal-green"));
+  auto* theme = ThemeServiceFactory::GetForProfile(profile_.get());
+  AppearanceInterruption interruption(
+      theme, base::BindLambdaForTesting([&] { service_->Shutdown(); }));
+  EXPECT_FALSE(service_->ResetAppearance());
+  EXPECT_FALSE(service_->enabled());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiSkinProfileBrowserTest,
+                       TahaiAppearancePreservesWrongTypedPreference) {
+  auto* preferences = profile_->GetTestingPrefService();
+  preferences->SetUserPref(prefs::kTahaiAppliedSkin,
+                           base::Value("damaged-selection"));
+  EXPECT_FALSE(service_->ApplyBuiltIn("terminal-green"));
+  EXPECT_FALSE(service_->ResetAppearance());
+  EXPECT_EQ(base::Value("damaged-selection"),
+            *preferences->GetRawUserPrefValue(prefs::kTahaiAppliedSkin));
+  preferences->ClearPref(prefs::kTahaiAppliedSkin);
+  EXPECT_TRUE(service_->ApplyBuiltIn("terminal-green"));
+}
+
+IN_PROC_BROWSER_TEST_F(
+    TahaiSkinProfileBrowserTest,
+    TahaiPreviewRestartCannotContinueAfterThemeCancellation) {
+  const auto archive = Zip(Package({{"assets/preview.png", Png()}}));
+  const auto first = Preview(archive);
+  ASSERT_EQ(SkinOperationStatus::kOk, first.status);
+  ASSERT_TRUE(service_->BeginLivePreview(first.preview_token));
+  auto* theme = ThemeServiceFactory::GetForProfile(profile_.get());
+  AppearanceInterruption interruption(
+      theme, base::BindLambdaForTesting([&] { service_->Cancel(); }));
+  base::test::TestFuture<SkinOperationResult> restarted;
+  service_->PreviewFile(WriteArchive(archive), restarted.GetCallback());
+  EXPECT_EQ(SkinOperationStatus::kCancelled, restarted.Take().status);
+  base::ThreadPoolInstance::Get()->FlushForTesting();
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(service_->busy());
+  EXPECT_FALSE(service_->live_preview_active());
+  EXPECT_FALSE(service_->GetPreview(first.preview_token));
+  EXPECT_EQ(SkinOperationStatus::kOk, Catalog().status);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
+                       TahaiPresentationRestoreRejectsObserverReplacement) {
+  auto* controller = WindowModeController::GetForBrowser(browser());
+  const auto saved = controller->CapturePresentation();
+  ActivationInterruption interruption(
+      controller, base::BindLambdaForTesting([&] {
+        EXPECT_TRUE(
+            controller->ApplyWorkspacePresentation("creator", "expanded", 350));
+      }));
+  EXPECT_FALSE(controller->RestorePresentation(saved));
+  EXPECT_EQ("creator", controller->active_mode().id);
+  EXPECT_EQ("expanded", controller->active_configuration().rail_state);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
+                       TahaiWindowAppearanceApplySurvivesManagerClose) {
+  ASSERT_NO_FATAL_FAILURE(PrepareAppearanceReview());
+  auto* manager = Manager(browser());
+  auto* apply = Button(manager, kSkinManagerApplyWindowElementId);
+  auto* controller = WindowModeController::GetForBrowser(browser());
+  bool closed = false;
+  ActivationInterruption interruption(controller,
+                                      base::BindLambdaForTesting([&] {
+                                        closed = true;
+                                        manager->CloseNow();
+                                      }));
+  views::test::ButtonTestApi(apply).NotifyDefaultMouseClick();
+  EXPECT_TRUE(closed);
+  EXPECT_FALSE(Manager(browser()));
+  EXPECT_TRUE(controller->window_skin_palette());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
+                       TahaiWindowAppearanceResetSurvivesManagerClose) {
+  ASSERT_NO_FATAL_FAILURE(PrepareAppearanceReview());
+  auto* manager = Manager(browser());
+  views::test::ButtonTestApi(Button(manager, kSkinManagerApplyWindowElementId))
+      .NotifyDefaultMouseClick();
+  auto* controller = WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(controller->window_skin_palette());
+  bool closed = false;
+  ActivationInterruption interruption(controller,
+                                      base::BindLambdaForTesting([&] {
+                                        closed = true;
+                                        manager->CloseNow();
+                                      }));
+  views::test::ButtonTestApi(Button(manager, kSkinManagerResetWindowElementId))
+      .NotifyDefaultMouseClick();
+  EXPECT_TRUE(closed);
+  EXPECT_FALSE(Manager(browser()));
+  EXPECT_FALSE(controller->window_skin_palette());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
+                       TahaiWindowAppearanceApplyStopsAfterRetarget) {
+  ASSERT_NO_FATAL_FAILURE(PrepareAppearanceReview());
+  auto* sibling = CreateBrowser(browser()->GetProfile());
+  auto* second = WindowModeController::GetForBrowser(sibling);
+  const auto before = second->SerializePresentation();
+  auto* apply = Button(Manager(browser()), kSkinManagerApplyWindowElementId);
+  auto* controller = WindowModeController::GetForBrowser(browser());
+  bool retargeted = false;
+  ActivationInterruption interruption(controller,
+                                      base::BindLambdaForTesting([&] {
+                                        retargeted = true;
+                                        ShowSkinManager(sibling);
+                                      }));
+  views::test::ButtonTestApi(apply).NotifyDefaultMouseClick();
+  EXPECT_TRUE(retargeted);
+  EXPECT_TRUE(controller->window_skin_palette());
+  EXPECT_EQ(before, second->SerializePresentation());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
+                       TahaiWindowAppearanceResetStopsAfterRetarget) {
+  ASSERT_NO_FATAL_FAILURE(PrepareAppearanceReview());
+  views::test::ButtonTestApi(
+      Button(Manager(browser()), kSkinManagerApplyWindowElementId))
+      .NotifyDefaultMouseClick();
+  auto* controller = WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(controller->window_skin_palette());
+  auto* sibling = CreateBrowser(browser()->GetProfile());
+  auto* second = WindowModeController::GetForBrowser(sibling);
+  const auto before = second->SerializePresentation();
+  auto* reset = Button(Manager(browser()), kSkinManagerResetWindowElementId);
+  bool retargeted = false;
+  ActivationInterruption interruption(controller,
+                                      base::BindLambdaForTesting([&] {
+                                        retargeted = true;
+                                        ShowSkinManager(sibling);
+                                      }));
+  views::test::ButtonTestApi(reset).NotifyDefaultMouseClick();
+  EXPECT_TRUE(retargeted);
+  EXPECT_FALSE(controller->window_skin_palette());
+  EXPECT_EQ(before, second->SerializePresentation());
+}
 
 IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
                        TahaiManagerActivationPreservesAuthoredRecovery) {

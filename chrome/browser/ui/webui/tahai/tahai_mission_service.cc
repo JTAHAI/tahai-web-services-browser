@@ -1425,10 +1425,24 @@ void MissionService::OnWorkflowDeadline() {
   else ScheduleWorkflowDeadline();
 }
 
+bool MissionService::CanMutateStorage() const {
+  if (prefs_->IsManagedPreference(prefs::kTahaiMissions)) {
+    return false;
+  }
+  const base::Value* raw = prefs_->GetRawUserPrefValue(prefs::kTahaiMissions);
+  // Private sessions are deliberately memory-only; regular profiles must not
+  // overwrite a wrong-typed value hidden by PrefService's registered default.
+  if (!persistence_enabled()) {
+    return true;
+  }
+  return (!raw || raw->is_list()) &&
+         (raw ? loaded_storage_ && *raw == *loaded_storage_ : !loaded_storage_);
+}
+
 bool MissionService::CanStoreProtectedInputs() const {
   return persistence_enabled() && profile_->IsRegularProfile() &&
          !profile_->IsGuestSession() && !profile_->IsSystemProfile() &&
-         !prefs_->IsManagedPreference(prefs::kTahaiMissions);
+         CanMutateStorage();
 }
 
 void MissionService::PrepareProtectedWorkflowInputs(
@@ -1513,7 +1527,9 @@ bool MissionService::ConsumeQueuedOperationalWorkflow() {
 std::optional<MissionSummary> MissionService::CreateMission(
     std::string_view title,
     std::string_view type) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return std::nullopt;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return std::nullopt;
+  }
   if (!IsSafeTitle(title) || !IsAllowedType(type) ||
       missions_.size() >= kMaximumMissions) {
     return std::nullopt;
@@ -1539,7 +1555,7 @@ std::optional<MissionSummary> MissionService::CreateOperationalWorkflowMission(
     std::string_view skin_id,
     std::string_view archive_sha256,
     bool native_adapter) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions) ||
+  if (shutting_down_ || !CanMutateStorage() ||
       (native_adapter && !CanStoreProtectedInputs())) {
     return std::nullopt;
   }
@@ -1557,9 +1573,12 @@ std::optional<MissionSummary> MissionService::CreateOperationalWorkflowMission(
   std::vector<TahaiOperationalWorkflowInput> variables;
   if (!ParseTahaiWorkflowVariables(&encoded_variables, &variables) ||
       variables != workflow.variables ||
-      (!variables.empty() && (!native_adapter || !persistence_enabled() ||
-          !profile_->IsRegularProfile() || profile_->IsGuestSession() || profile_->IsSystemProfile() ||
-          prefs_->IsManagedPreference(prefs::kTahaiMissions)))) return std::nullopt;
+      (!variables.empty() &&
+       (!native_adapter || !persistence_enabled() ||
+        !profile_->IsRegularProfile() || profile_->IsGuestSession() ||
+        profile_->IsSystemProfile() || !CanMutateStorage()))) {
+    return std::nullopt;
+  }
   std::vector<std::string_view> variable_ids;
   for (const auto& variable : variables) variable_ids.push_back(variable.id);
   std::vector<MissionSummary::Variable> variable_state;
@@ -1624,10 +1643,12 @@ bool MissionService::BeginNativeWorkflowStep(std::string_view id, size_t index) 
 bool MissionService::AssignWorkflowVariable(std::string_view id, size_t index) {
   OnWorkflowDeadline();
   auto* mission = FindMission(id);
-  if (shutting_down_ || !persistence_enabled() || !profile_->IsRegularProfile() ||
-      profile_->IsGuestSession() || profile_->IsSystemProfile() ||
-      prefs_->IsManagedPreference(prefs::kTahaiMissions) || !mission ||
-      !CanAssignMissionWorkflowVariable(*mission, index)) return false;
+  if (shutting_down_ || !persistence_enabled() ||
+      !profile_->IsRegularProfile() || profile_->IsGuestSession() ||
+      profile_->IsSystemProfile() || !CanMutateStorage() || !mission ||
+      !CanAssignMissionWorkflowVariable(*mission, index)) {
+    return false;
+  }
   const auto& assignment = *mission->steps[index].assignment;
   auto target = std::ranges::find_if(mission->workflow_variables,
       [&assignment](const auto& item) { return item.definition.id == assignment.variable_id; });
@@ -1719,7 +1740,9 @@ bool MissionService::FinishNativeWorkflowStep(std::string_view id, size_t index,
   const auto remaining = MissionWorkflowNativeTimeRemaining(mission->steps[index]);
   if (remaining.value_or(0) == 0) {
     CloseUncertainNativeAttempt(*mission, mission->steps[index], remaining.has_value());
-    if (!prefs_->IsManagedPreference(prefs::kTahaiMissions)) Save();
+    if (CanMutateStorage()) {
+      Save();
+    }
     return false;
   }
   // A cancellation/archive may race the journal. Retain the outcome, never
@@ -1737,14 +1760,18 @@ bool MissionService::FinishNativeWorkflowStep(std::string_view id, size_t index,
                        base::StrCat({"Native workflow action ", result}));
   // A policy may have arrived during journal I/O. Retain the closed attempt
   // in memory and in the durable journal, but never overwrite managed storage.
-  if (!prefs_->IsManagedPreference(prefs::kTahaiMissions)) Save();
+  if (CanMutateStorage()) {
+    Save();
+  }
   return true;
 }
 
 bool MissionService::SetOperationalWorkflowRunState(
     std::string_view mission_id,
     std::string_view run_state) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   OnWorkflowDeadline();
   MissionSummary* mission = FindMission(mission_id);
   if (shutting_down_ || !mission || mission->archived || !mission->operational_workflow ||
@@ -1810,39 +1837,67 @@ std::optional<MissionSummary> MissionService::ImportSanitizedMissionCapsule(
     return std::nullopt;
   }
 
-  const std::optional<MissionSummary> created =
-      CreateMission("Imported encrypted capsule", capsule.mission_type);
-  if (!created) {
+  if (shutting_down_ || !CanMutateStorage() ||
+      missions_.size() >= kMaximumMissions) {
     return std::nullopt;
   }
-  const std::string mission_id = created->id;
+  // Construct the entire sanitized import before one durable commit. A pref
+  // observer may revoke policy or destroy this service during Save(); chaining
+  // public mutations with CHECKs would crash or leave a partially imported run.
+  MissionSummary imported;
+  imported.id = base::Uuid::GenerateRandomV4().AsLowercaseString();
+  imported.title = "Imported encrypted capsule";
+  imported.type = capsule.mission_type;
+  imported.created_at = NowAsWindowsEpochMicros();
+  imported.updated_at = imported.created_at;
+  imported.steps = DefaultSteps(imported.type);
+  imported.validation_steps = DefaultValidationSteps(imported.type);
+  imported.rollback_steps = DefaultRollbackSteps(imported.type);
+  imported.export_profile = capsule.export_profile;
+  AppendGeneratedEvent(&imported, "mission", "Mission created");
   for (size_t index = 0; index < capsule.checkpoint_complete.size(); ++index) {
     if (capsule.checkpoint_complete[index]) {
-      CHECK(ToggleStep(mission_id, index));
+      imported.steps[index].complete = true;
+      AppendGeneratedEvent(&imported, "runbook",
+                           base::StrCat({"Checkpoint completed: ",
+                                         imported.steps[index].label}));
     }
   }
   for (size_t index = 0; index < capsule.validation_complete.size(); ++index) {
     if (capsule.validation_complete[index]) {
-      CHECK(ToggleValidationStep(mission_id, index));
+      imported.validation_steps[index].complete = true;
+      AppendGeneratedEvent(
+          &imported, "validation",
+          base::StrCat({"Validation completed: ",
+                        imported.validation_steps[index].label}));
     }
   }
   for (size_t index = 0; index < capsule.rollback_complete.size(); ++index) {
     if (capsule.rollback_complete[index]) {
-      CHECK(ToggleRollbackStep(mission_id, index));
+      imported.rollback_steps[index].complete = true;
+      AppendGeneratedEvent(
+          &imported, "rollback",
+          base::StrCat(
+              {"Rollback completed: ", imported.rollback_steps[index].label}));
     }
   }
-  CHECK(SetExportProfile(mission_id, capsule.export_profile));
+  AppendGeneratedEvent(&imported, "export", "Export profile selected");
   for (size_t count = 0; count < capsule.evidence_marker_count; ++count) {
-    CHECK(AddEvidenceMarker(mission_id));
+    imported.evidence.push_back({"Operator-confirmed evidence marker",
+                                 "operator-confirmed",
+                                 NowAsWindowsEpochMicros()});
+    AppendGeneratedEvent(&imported, "evidence", "Evidence marker added");
   }
-  MissionSummary* imported = FindMission(mission_id);
-  CHECK(imported);
-  return *imported;
+  missions_.push_back(imported);
+  Save();
+  return imported;
 }
 
 bool MissionService::ToggleStep(std::string_view mission_id,
                                 size_t step_index) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   OnWorkflowDeadline();
   MissionSummary* mission = FindMission(mission_id);
   if (!mission || mission->archived ||
@@ -1856,7 +1911,9 @@ bool MissionService::ToggleStep(std::string_view mission_id,
 
 bool MissionService::ToggleValidationStep(std::string_view mission_id,
                                           size_t step_index) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   MissionSummary* mission = FindMission(mission_id);
   if (!mission || mission->archived ||
       !ToggleGeneratedStep(mission, &mission->validation_steps, step_index,
@@ -1869,7 +1926,9 @@ bool MissionService::ToggleValidationStep(std::string_view mission_id,
 
 bool MissionService::ToggleRollbackStep(std::string_view mission_id,
                                         size_t step_index) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   const auto* prior = FindMission(mission_id);
   if (!prior) return false;
   const std::string token = prior->mutation_token;
@@ -1887,7 +1946,9 @@ bool MissionService::ToggleRollbackStep(std::string_view mission_id,
 }
 
 bool MissionService::ToggleEscalation(std::string_view mission_id) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   MissionSummary* mission = FindMission(mission_id);
   if (!mission || mission->archived) {
     return false;
@@ -1902,7 +1963,9 @@ bool MissionService::ToggleEscalation(std::string_view mission_id) {
 }
 
 bool MissionService::AddEvidenceMarker(std::string_view mission_id) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   MissionSummary* mission = FindMission(mission_id);
   if (!mission || mission->archived ||
       mission->evidence.size() >= kMaximumEvidenceMarkers) {
@@ -1918,7 +1981,9 @@ bool MissionService::AddEvidenceMarker(std::string_view mission_id) {
 
 bool MissionService::AddLocalNote(std::string_view mission_id,
                                   std::string_view note) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   MissionSummary* mission = FindMission(mission_id);
   if (!mission || mission->archived ||
       mission->notes.size() >= kMaximumMissionNotes ||
@@ -1938,7 +2003,9 @@ bool MissionService::SetOperationalWorkflowInputValue(
     std::string_view mission_id,
     std::string_view input_id,
     std::string_view value) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   OnWorkflowDeadline();
   MissionSummary* mission = FindMission(mission_id);
   if (!mission || mission->archived || !mission->operational_workflow ||
@@ -2008,7 +2075,9 @@ bool MissionService::SetOperationalWorkflowInputValue(
 
 bool MissionService::SetExportProfile(std::string_view mission_id,
                                       std::string_view export_profile) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   MissionSummary* mission = FindMission(mission_id);
   if (!mission || mission->archived ||
       !IsAllowedExportProfile(export_profile)) {
@@ -2021,7 +2090,9 @@ bool MissionService::SetExportProfile(std::string_view mission_id,
 }
 
 bool MissionService::ArchiveMission(std::string_view mission_id) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   OnWorkflowDeadline();
   MissionSummary* mission = FindMission(mission_id);
   if (!mission || mission->archived) {
@@ -2043,7 +2114,9 @@ bool MissionService::ArchiveMission(std::string_view mission_id) {
 }
 
 bool MissionService::RestoreMission(std::string_view mission_id) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   MissionSummary* mission = FindMission(mission_id);
   if (!mission || !mission->archived) {
     return false;
@@ -2066,7 +2139,9 @@ std::optional<MissionSummary> MissionService::DuplicateMission(
 }
 
 bool MissionService::DeleteMission(std::string_view mission_id) {
-  if (shutting_down_ || prefs_->IsManagedPreference(prefs::kTahaiMissions)) return false;
+  if (shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
   if (!IsValidId(mission_id)) {
     return false;
   }
@@ -2088,6 +2163,8 @@ bool MissionService::persistence_enabled() const {
 
 void MissionService::Load() {
   missions_.clear();
+  const auto* raw = prefs_->GetRawUserPrefValue(prefs::kTahaiMissions);
+  loaded_storage_ = raw ? std::make_optional(raw->Clone()) : std::nullopt;
   std::set<std::string> loaded_ids;
   for (const base::Value& mission_value :
        prefs_->GetList(prefs::kTahaiMissions)) {
@@ -2631,7 +2708,7 @@ void MissionService::Load() {
 void MissionService::Save() {
   ExpireWorkflowDeadlines();
   ScheduleWorkflowDeadline();
-  if (!persistence_enabled() || prefs_->IsManagedPreference(prefs::kTahaiMissions)) {
+  if (!persistence_enabled() || !CanMutateStorage()) {
     return;
   }
   ScopedListPrefUpdate update(prefs_, prefs::kTahaiMissions);
@@ -2794,6 +2871,9 @@ void MissionService::Save() {
     value.Set("timeline", std::move(timeline));
     update->Append(std::move(value));
   }
+  // Record the committed snapshot before ScopedListPrefUpdate notifies clients;
+  // an observer may replace storage, revoke policy or destroy this service.
+  loaded_storage_ = base::Value(update->Clone());
 }
 
 MissionSummary* MissionService::FindMission(std::string_view mission_id) {

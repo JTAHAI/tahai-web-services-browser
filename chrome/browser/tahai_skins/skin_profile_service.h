@@ -4,16 +4,17 @@
 #ifndef CHROME_BROWSER_TAHAI_SKINS_SKIN_PROFILE_SERVICE_H_
 #define CHROME_BROWSER_TAHAI_SKINS_SKIN_PROFILE_SERVICE_H_
 
-#include <map>
 #include <deque>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
-#include "base/files/file_path.h"
 #include "base/callback_list.h"
+#include "base/files/file_path.h"
 #include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
@@ -241,9 +242,10 @@ class SkinProfileService final : public KeyedService,
                            base::OnceCallback<void(StoreResult)> completion,
                            StoreResult result);
   bool OwnsCurrentAppearance() const;
+  base::ScopedClosureRunner ScopedAppearanceChange();
   void ResetOwnedAppearance();
   void OnPolicyChanged();
-  void ClearPreview();
+  bool ClearPreview();
   void Finish(SkinOperationResult result);
   void ClearWindowBindings();
   void StartNextWindowRestore();

@@ -42,6 +42,13 @@ $summary.per_iteration_data[0].'Fixture.Required' = @(
     [pscustomobject]@{status='FAILURE'}, [pscustomobject]@{status='SUCCESS'})
 Expect-Rejected { Assert-TahaiTestSummary $summary @('Fixture.Required') 'fixture' } 'failed retry'
 $summary = New-TestSummary @('Fixture.Required')
+$summary.per_iteration_data[0].'Fixture.Required' = @(
+    [pscustomobject]@{status='SUCCESS'}, [pscustomobject]@{status='SUCCESS'})
+Expect-Rejected { Assert-TahaiTestSummary $summary @('Fixture.Required') 'fixture' } 'passing retry'
+$summary = New-TestSummary @('Fixture.Required')
+$summary.per_iteration_data = @($summary.per_iteration_data[0], $summary.per_iteration_data[0])
+Expect-Rejected { Assert-TahaiTestSummary $summary @('Fixture.Required') 'fixture' } 'repeated iteration'
+$summary = New-TestSummary @('Fixture.Required')
 $summary.per_iteration_data[0].'Fixture.Required' = @()
 Expect-Rejected { Assert-TahaiTestSummary $summary @('Fixture.Required') 'fixture' } 'empty attempt'
 $summary = New-TestSummary @('Fixture.Required')
@@ -191,6 +198,14 @@ try {
         'MissionServiceTest.ManagedAndShutdownMissionsRejectMetadataCreationAndOrdinaryInputWrites',
         'MissionServiceTest.CapsuleKeyLeasesRecheckAfterProviderAndPreserveManagedStorage',
         'MissionServiceTest.CapsuleKeyQueueIsBoundedAndRevokedRequestsNeverGenerateKeys',
+        'MissionServiceTest.CapsuleKeyWrongTypedStorageIsNeverReplaced',
+        'MissionServiceTest.CapsuleKeyLateStorageCorruptionIsPreserved',
+        'MissionServiceTest.CapsuleKeyIdentityMismatchReportsCorruptionNotSuccess',
+        'MissionServiceTest.CapsuleKeyCallbackSurvivesOwnerDeletionDuringPersistence',
+        'MissionServiceTest.MissionExternalStorageReplacementIsNotOverwritten',
+        'MissionServiceTest.CapsuleImportCommitsAtomicallyBeforeOwnerDeletion',
+        'MissionServiceTest.MissionWrongTypedStorageRejectsMutationsWithoutDataLoss',
+        'MissionServiceTest.EnvironmentGuardRejectsDamagedStorageAndInvalidEnums',
         'TahaiOperationalSkinManifestTest.ActionStatusBindingsAreTypedPrecedingAndIterationScoped',
         'MissionServiceTest.ActionStatusBindingsPersistWithoutReplayAndRejectForgedSources',
         'MissionServiceTest.ActionStatusBindingsRespectEachIterationAndTargetConstraints',
@@ -344,6 +359,15 @@ try {
         'TahaiOperationalModeBrowserTest.TahaiNativeTrustReviewShowsCapabilitiesAndClearsOnRevocation',
         'TahaiOperationalModeBrowserTest.TahaiManagerActivationPreservesAuthoredRecovery',
         'TahaiOperationalModeBrowserTest.TahaiManagerActivationStopsOnSynchronousClose',
+        'TahaiSkinManagerBrowserTest.TahaiWindowAppearanceApplySurvivesManagerClose',
+        'TahaiSkinManagerBrowserTest.TahaiWindowAppearanceResetSurvivesManagerClose',
+        'TahaiSkinManagerBrowserTest.TahaiWindowAppearanceApplyStopsAfterRetarget',
+        'TahaiSkinManagerBrowserTest.TahaiWindowAppearanceResetStopsAfterRetarget',
+        'TahaiSkinProfileBrowserTest.TahaiAppearanceApplyStopsAfterServiceShutdown',
+        'TahaiSkinProfileBrowserTest.TahaiAppearanceResetStopsAfterServiceShutdown',
+        'TahaiSkinProfileBrowserTest.TahaiAppearancePreservesWrongTypedPreference',
+        'TahaiSkinProfileBrowserTest.TahaiPreviewRestartCannotContinueAfterThemeCancellation',
+        'TahaiSkinManagerBrowserTest.TahaiPresentationRestoreRejectsObserverReplacement',
         'TahaiOperationalModeBrowserTest.TahaiManagerCustomActivationStopsOnSynchronousClose',
         'TahaiOperationalModeBrowserTest.TahaiManagerActivationStopsOnSynchronousRetarget',
         'TahaiOperationalModeBrowserTest.TahaiManagerActivationStopsOnSynchronousRevocation',
@@ -501,9 +525,59 @@ try {
         testResults=(Write-FixtureEvidence 'test-results.json' $testResults);
         smoke=(Write-FixtureEvidence 'smoke.json' $smoke)}
     $evidencePath = Join-Path $fixtureRoot 'release.json'
+    $smokePath = Join-Path $fixtureRoot 'smoke.json'
+    $copyRoot = Join-Path $fixtureRoot 'smoke-copy'
+    New-Item -ItemType Directory -Path $copyRoot | Out-Null
+    $copiedSmoke = Copy-TahaiSmokeEvidence $smokePath $copyRoot $smoke.chromeSha256 $smoke.chromeDllSha256 $finished
+    if ((Get-FileHash -LiteralPath $copiedSmoke).Hash -ne $evidence.smoke.sha256 -or
+        (Get-Item -LiteralPath $copiedSmoke).LastWriteTimeUtc -ne (Get-Item -LiteralPath $smokePath).LastWriteTimeUtc) {
+        throw 'Smoke assembly changed the original report bytes or timestamp.'
+    }
+    $script:cases++
+    Expect-Rejected { Copy-TahaiSmokeEvidence $smokePath $copyRoot $smoke.chromeSha256 $smoke.chromeDllSha256 $finished } 'smoke destination collision'
+    $checkHash = $smoke.checks[0].evidence.sha256
+    $smoke.checks[0].evidence.sha256 = '0' * 64
+    $null = Write-FixtureEvidence 'smoke.json' $smoke
+    Expect-Rejected { Assert-TahaiSmokeEvidence $smokePath $smoke.chromeSha256 $smoke.chromeDllSha256 $finished } 'original smoke hash mismatch'
+    $smoke.checks[0].evidence.sha256 = ''
+    $null = Write-FixtureEvidence 'smoke.json' $smoke
+    Expect-Rejected { Assert-TahaiSmokeEvidence $smokePath $smoke.chromeSha256 $smoke.chromeDllSha256 $finished } 'missing original smoke hash'
+    $smoke.checks[0].evidence.sha256 = $checkHash
+    $checkName = $smoke.checks[0].evidence.file
+    $smoke.checks[0].evidence.file = '../outside.json'
+    $null = Write-FixtureEvidence 'smoke.json' $smoke
+    Expect-Rejected { Assert-TahaiSmokeEvidence $smokePath $smoke.chromeSha256 $smoke.chromeDllSha256 $finished } 'smoke traversal'
+    $smoke.checks[0].evidence.file = $checkName
+    $smoke.checks[0].status = 'failed'
+    $null = Write-FixtureEvidence 'smoke.json' $smoke
+    Expect-Rejected { Assert-TahaiSmokeEvidence $smokePath $smoke.chromeSha256 $smoke.chromeDllSha256 $finished } 'failed smoke surface'
+    $smoke.checks[0].status = 'passed'
+    $smoke.checks += $smoke.checks[0]
+    $null = Write-FixtureEvidence 'smoke.json' $smoke
+    Expect-Rejected { Assert-TahaiSmokeEvidence $smokePath $smoke.chromeSha256 $smoke.chromeDllSha256 $finished } 'duplicate smoke check'
+    $smoke.checks = @($smoke.checks | Select-Object -First 10)
+    $null = Write-FixtureEvidence 'smoke.json' $smoke
+    [IO.File]::SetLastWriteTimeUtc($smokePath, [DateTimeOffset]::FromUnixTimeMilliseconds($finished - 1000).UtcDateTime)
+    Expect-Rejected { Assert-TahaiSmokeEvidence $smokePath $smoke.chromeSha256 $smoke.chromeDllSha256 $finished } 'stale incoming smoke report'
+    $evidence.smoke = Write-FixtureEvidence 'smoke.json' $smoke
+    $checkPath = Join-Path $fixtureRoot $checkName
+    $checkTime = (Get-Item -LiteralPath $checkPath).LastWriteTimeUtc
+    [IO.File]::SetLastWriteTimeUtc($checkPath, [DateTimeOffset]::FromUnixTimeMilliseconds($finished - 1000).UtcDateTime)
+    Expect-Rejected { Assert-TahaiSmokeEvidence $smokePath $smoke.chromeSha256 $smoke.chromeDllSha256 $finished } 'stale incoming smoke check'
+    [IO.File]::SetLastWriteTimeUtc($checkPath, [DateTime]::UtcNow.AddMinutes(10))
+    Expect-Rejected { Assert-TahaiSmokeEvidence $smokePath $smoke.chromeSha256 $smoke.chromeDllSha256 $finished } 'future smoke check'
+    [IO.File]::SetLastWriteTimeUtc($checkPath, $checkTime)
+    $badCopyRoot = Join-Path $fixtureRoot 'changed-smoke-copy'
+    New-Item -ItemType Directory -Path $badCopyRoot | Out-Null
+    $smoke.checks[0].evidence.sha256 = '0' * 64
+    $null = Write-FixtureEvidence 'smoke.json' $smoke
+    Expect-Rejected { Copy-TahaiSmokeEvidence $smokePath $badCopyRoot $smoke.chromeSha256 $smoke.chromeDllSha256 $finished } 'assembler cannot launder a changed hash'
+    if (@(Get-ChildItem -LiteralPath $badCopyRoot).Count -ne 0) { throw 'Invalid smoke was partially copied.' }
+    $smoke.checks[0].evidence.sha256 = $checkHash
+    $evidence.smoke = Write-FixtureEvidence 'smoke.json' $smoke
     $null = Write-FixtureEvidence 'release.json' $evidence
     $result = Assert-TahaiReleaseEvidence $evidencePath $buildDir
-    if ($result.NativeTestAttempts -ne 180 -or $result.BrowserTestAttempts -ne 189 -or
+    if ($result.NativeTestAttempts -ne 188 -or $result.BrowserTestAttempts -ne 198 -or
         $result.ElevationTestAttempts -ne 2 -or $result.TracingTestAttempts -ne 2) {
         throw 'Positive fixture counts were incorrect.'
     }

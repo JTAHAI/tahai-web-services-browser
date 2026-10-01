@@ -78,6 +78,7 @@ DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerPublisherReviewKeyElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerPublisherRevokeElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerApplyElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerApplyWindowElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerResetWindowElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerResetElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerActivateModeElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerActivateCustomModeElementId);
@@ -188,6 +189,8 @@ class SkinManagerView final : public views::DialogDelegate,
         base::BindRepeating(&SkinManagerView::ResetWindowAppearance,
                             weak_factory_.GetWeakPtr()),
         u"Use profile appearance in this window"));
+    reset_window_->SetProperty(views::kElementIdentifierKey,
+                               kSkinManagerResetWindowElementId);
     status_ = Label(contents_.get(), {});
     publishers_ = contents_->AddChildView(std::make_unique<views::MdTextButton>(
         base::BindRepeating(&SkinManagerView::TogglePublishers, weak_factory_.GetWeakPtr()),
@@ -362,7 +365,9 @@ class SkinManagerView final : public views::DialogDelegate,
       status_->SetText(u"Key not accepted. Use a new valid key ID and a 64-character lowercase Ed25519 public key. Existing IDs, invalid local data, policy restrictions and the 32-key limit require attention.");
       return;
     }
-    ClearReview();
+    if (!ClearReview()) {
+      return;
+    }
     confirming_ = true;
     Controls();
     auto model = ui::DialogModel::Builder()
@@ -542,12 +547,12 @@ class SkinManagerView final : public views::DialogDelegate,
     Status(IDS_TAHAI_SKINS_BUSY);
     return true;
   }
-  void ClearReview() {
+  bool ClearReview() {
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto target = browser_;
     preview_status_timer_.Stop();
-    if (service_ && !preview_token_.empty()) {
-      service_->ReleasePreview(preview_token_);
-    }
-    preview_token_.clear();
+    const auto service = service_;
+    const std::string token = std::exchange(preview_token_, {});
     summary_->SetText({});
     trust_review_->SetText({});
     revision_review_->SetText({});
@@ -557,13 +562,19 @@ class SkinManagerView final : public views::DialogDelegate,
     apply_->SetVisible(false);
     apply_window_->SetVisible(false);
     review_->SetVisible(false);
+    if (service && !token.empty()) {
+      service->ReleasePreview(token);
+    }
+    return alive && (closed_ || (target && browser_.get() == target.get()));
   }
   void Refresh() {
     if (!Begin()) {
       Controls();
       if (!service_ || !service_->enabled()) {
         rows_->RemoveAllChildViews();
-        ClearReview();
+        if (!ClearReview()) {
+          return;
+        }
         Status(IDS_TAHAI_SKINS_POLICY_BLOCKED);
       }
       return;
@@ -576,7 +587,9 @@ class SkinManagerView final : public views::DialogDelegate,
     PopulatePublishers();
     rows_->RemoveAllChildViews();
     if (result.status != SkinOperationStatus::kOk) {
-      ClearReview();
+      if (!ClearReview()) {
+        return;
+      }
       Status(result);
     } else {
       Label(rows_, l10n_util::GetStringUTF16(IDS_TAHAI_SKINS_BUILT_IN));
@@ -686,7 +699,9 @@ class SkinManagerView final : public views::DialogDelegate,
         !ChromeSelectFilePolicy::FileSelectDialogsAllowed() || !Begin()) {
       return;
     }
-    ClearReview();
+    if (!ClearReview()) {
+      return;
+    }
     operation_owned_ = false;
     choosing_ = true;
     Controls();
@@ -802,7 +817,9 @@ class SkinManagerView final : public views::DialogDelegate,
     if (!Begin()) {
       return;
     }
-    ClearReview();
+    if (!ClearReview()) {
+      return;
+    }
     review_kind_ = previous ? ReviewKind::kPrevious : ReviewKind::kInstalled;
     service_->PreviewInstalled(std::move(id), std::move(hash), previous,
                                base::BindOnce(&SkinManagerView::OnPreview,
@@ -813,7 +830,9 @@ class SkinManagerView final : public views::DialogDelegate,
     const auto* skin =
         service_ ? service_->GetPreview(result.preview_token) : nullptr;
     if (result.status != SkinOperationStatus::kOk || !skin) {
-      ClearReview();
+      if (!ClearReview()) {
+        return;
+      }
       Status(result);
       Controls();
       return;
@@ -823,7 +842,9 @@ class SkinManagerView final : public views::DialogDelegate,
     if (skin->operational_manifest) {
       const auto publisher = service_->GetPreviewPublisherReview(preview_token_);
       if (!publisher) {
-        ClearReview();
+        if (!ClearReview()) {
+          return;
+        }
         Status(SkinOperationResult{SkinOperationStatus::kUntrusted, std::nullopt, std::nullopt, {}, {}});
         Controls();
         return;
@@ -995,36 +1016,63 @@ class SkinManagerView final : public views::DialogDelegate,
                                     reply_factory_.GetWeakPtr()));
   }
   void OnMutation(SkinOperationResult result) {
+    const auto alive = weak_factory_.GetWeakPtr();
     operation_owned_ = false;
-    ClearReview();
+    if (!ClearReview()) {
+      return;
+    }
     if (result.status == SkinOperationStatus::kOk) {
       Refresh();
+      if (!alive) {
+        return;
+      }
     }
     Status(result);
     Controls();
   }
   void Discard() {
+    const auto alive = weak_factory_.GetWeakPtr();
     reply_factory_.InvalidateWeakPtrs();
     if (operation_owned_ && service_) {
       service_->Cancel();
+      if (!alive) {
+        return;
+      }
     }
     operation_owned_ = false;
-    ClearReview();
+    if (!ClearReview()) {
+      return;
+    }
     Controls();
     Status(IDS_TAHAI_SKINS_CANCELLED);
   }
   void ApplyWindowAppearance() {
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto target = browser_;
     auto* controller = TargetController();
-    if (!controller || !controller->ApplyReviewedWindowSkin(preview_token_)) {
+    const bool applied =
+        controller && controller->ApplyReviewedWindowSkin(preview_token_);
+    if (!alive || !target || browser_.get() != target.get()) {
+      return;
+    }
+    if (!applied) {
       Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
       return;
     }
     service_->EndLivePreview();
+    if (!alive || !target || browser_.get() != target.get()) {
+      return;
+    }
     Refresh();
   }
   void ResetWindowAppearance() {
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto target = browser_;
     if (auto* controller = TargetController()) {
       controller->ClearWindowSkin();
+      if (!alive || !target || browser_.get() != target.get()) {
+        return;
+      }
       Refresh();
     }
   }
@@ -1032,7 +1080,13 @@ class SkinManagerView final : public views::DialogDelegate,
     if (!browser_ || !service_ || review_kind_ != ReviewKind::kInstalled) {
       return;
     }
-    if (!service_->ApplyPreview(preview_token_)) {
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto target = browser_;
+    const bool applied = service_->ApplyPreview(preview_token_);
+    if (!alive || !target || browser_.get() != target.get()) {
+      return;
+    }
+    if (!applied) {
       Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
       Controls();
       return;
@@ -1048,13 +1102,24 @@ class SkinManagerView final : public views::DialogDelegate,
     if (!browser_) {
       return;
     }
-    Status(service_ && service_->ResetAppearance()
-               ? IDS_TAHAI_SKINS_RESET_COMPLETE
-               : IDS_TAHAI_SKINS_POLICY_BLOCKED);
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto target = browser_;
+    const bool reset = service_ && service_->ResetAppearance();
+    if (!alive || !target || browser_.get() != target.get()) {
+      return;
+    }
+    Status(reset ? IDS_TAHAI_SKINS_RESET_COMPLETE
+                 : IDS_TAHAI_SKINS_POLICY_BLOCKED);
     Controls();
   }
   void ApplyBuiltIn(std::string id) {
-    if (service_ && service_->ApplyBuiltIn(id)) {
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto target = browser_;
+    const bool applied = service_ && service_->ApplyBuiltIn(id);
+    if (!alive || !target || browser_.get() != target.get()) {
+      return;
+    }
+    if (applied) {
       preview_status_timer_.Stop();
       Status(IDS_TAHAI_SKINS_APPLIED);
       Controls();
@@ -1313,7 +1378,13 @@ class SkinManagerView final : public views::DialogDelegate,
         custom_snapshot.id);
   }
   void TryAppearance() {
-    if (!service_ || !service_->BeginLivePreview(preview_token_)) {
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto target = browser_;
+    const bool started = service_ && service_->BeginLivePreview(preview_token_);
+    if (!alive || !target || browser_.get() != target.get()) {
+      return;
+    }
+    if (!started) {
       return;
     }
     Status(IDS_TAHAI_SKINS_TRY_ACTIVE);
@@ -1331,12 +1402,18 @@ class SkinManagerView final : public views::DialogDelegate,
     }
   }
   void RevertAppearance() {
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto target = browser_;
     if (service_) {
       service_->EndLivePreview();
+    }
+    if (!alive || !target || browser_.get() != target.get()) {
+      return;
     }
     UpdatePreviewStatus();
   }
   void OnPolicyChanged() {
+    const auto alive = weak_factory_.GetWeakPtr();
     exporting_ = false;
     publisher_key_->SetText({});
     publisher_key_id_->SetText({});
@@ -1349,6 +1426,9 @@ class SkinManagerView final : public views::DialogDelegate,
       exporting_ = false;
     }
     Discard();
+    if (!alive) {
+      return;
+    }
     rows_->RemoveAllChildViews();
     // The profile owner's pref observer may run after ours; refresh only once
     // all policy observers have revoked their in-flight callbacks.
@@ -1357,7 +1437,11 @@ class SkinManagerView final : public views::DialogDelegate,
         base::BindOnce(&SkinManagerView::Refresh, weak_factory_.GetWeakPtr()));
   }
   void WindowClosing() override {
+    const auto alive = lifetime_factory_.GetWeakPtr();
     Detach();
+    if (!alive) {
+      return;
+    }
     import_ = nullptr;
     creator_ = nullptr;
     refresh_ = nullptr;
@@ -1391,6 +1475,7 @@ class SkinManagerView final : public views::DialogDelegate,
       return;
     }
     closed_ = true;
+    const auto alive = weak_factory_.GetWeakPtr();
     pref_changes_.RemoveAll();
     reply_factory_.InvalidateWeakPtrs();
     if (file_dialog_) {
@@ -1399,8 +1484,13 @@ class SkinManagerView final : public views::DialogDelegate,
     }
     if (operation_owned_ && service_) {
       service_->Cancel();
+      if (!alive) {
+        return;
+      }
     }
-    ClearReview();
+    if (!ClearReview()) {
+      return;
+    }
     auto found = OpenManagers().find(profile_key_);
     if (found != OpenManagers().end() && found->second.get() == this) {
       OpenManagers().erase(found);
@@ -1456,6 +1546,9 @@ class SkinManagerView final : public views::DialogDelegate,
   bool closed_ = false;
   base::WeakPtrFactory<SkinManagerView> reply_factory_{this};
   base::WeakPtrFactory<SkinManagerView> weak_factory_{this};
+  // Unlike callback weak pointers, this is not invalidated by Detach(). It
+  // guards cleanup that must distinguish a closed view from a deleted view.
+  base::WeakPtrFactory<SkinManagerView> lifetime_factory_{this};
 };
 }  // namespace
 
@@ -1474,9 +1567,15 @@ void ShowSkinManager(BrowserWindowInterface* browser) {
   }
   auto found = OpenManagers().find(browser->GetProfile());
   if (found != OpenManagers().end() && found->second) {
-    found->second->SelectTargetWindow(browser);
-    found->second->GetWidget()->Show();
-    found->second->GetWidget()->Activate();
+    const auto manager = found->second;
+    manager->SelectTargetWindow(browser);
+    if (!manager || !manager->GetWidget()) {
+      return;
+    }
+    manager->GetWidget()->Show();
+    if (manager && manager->GetWidget()) {
+      manager->GetWidget()->Activate();
+    }
     return;
   }
   auto* view = new SkinManagerView(browser);

@@ -15,11 +15,37 @@
 #include "url/origin.h"
 
 namespace tahai {
+namespace {
+
+bool HasWritableRules(const PrefService* prefs) {
+  const base::Value* raw =
+      prefs->GetRawUserPrefValue(prefs::kTahaiEnvironmentGuardRules);
+  if (raw && !raw->is_dict()) {
+    return false;
+  }
+  const auto& rules = prefs->GetDict(prefs::kTahaiEnvironmentGuardRules);
+  if (rules.size() > kTahaiMaximumEnvironmentGuardRules) {
+    return false;
+  }
+  for (const auto [origin, value] : rules) {
+    std::string canonical;
+    if (ValidateTahaiEnvironmentRuleOrigin(origin, &canonical) !=
+            TahaiEnvironmentRuleValidationResult::kValid ||
+        canonical != origin || !value.is_string() ||
+        !TahaiEnvironmentFromName(value.GetString())) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace
 
 bool CanSetTahaiEnvironmentGuardRule(PrefService* prefs,
                                      std::string_view origin) {
   if (!prefs ||
-      prefs->IsManagedPreference(prefs::kTahaiEnvironmentGuardRules)) {
+      prefs->IsManagedPreference(prefs::kTahaiEnvironmentGuardRules) ||
+      !HasWritableRules(prefs)) {
     return false;
   }
   std::string canonical_origin;
@@ -36,6 +62,17 @@ bool CanSetTahaiEnvironmentGuardRule(PrefService* prefs,
 bool SetTahaiEnvironmentGuardRule(PrefService* prefs,
                                   TahaiEnvironment environment,
                                   std::string_view origin) {
+  switch (environment) {
+    case TahaiEnvironment::kProduction:
+    case TahaiEnvironment::kStaging:
+    case TahaiEnvironment::kDevelopment:
+    case TahaiEnvironment::kCustomer:
+    case TahaiEnvironment::kInternal:
+    case TahaiEnvironment::kSensitive:
+      break;
+    default:
+      return false;
+  }
   if (!CanSetTahaiEnvironmentGuardRule(prefs, origin)) {
     return false;
   }

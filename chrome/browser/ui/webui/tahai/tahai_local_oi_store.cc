@@ -567,7 +567,7 @@ bool TahaiLocalOiStore::Load() {
     return true;
   }
   const base::Value* user_value =
-      prefs_->GetUserPrefValue(prefs::kTahaiLocalOiStore);
+      prefs_->GetRawUserPrefValue(prefs::kTahaiLocalOiStore);
   if (user_value && !user_value->is_dict()) {
     // GetDict() falls back to the registered empty default for a wrong-typed
     // preference. That fallback must not become a destructive repair write.

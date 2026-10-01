@@ -7,7 +7,6 @@
 #include <set>
 #include <utility>
 
-#include "base/auto_reset.h"
 #include "base/check.h"
 #include "base/check_op.h"
 #include "base/files/file_util.h"
@@ -186,8 +185,8 @@ SkinProfileService::SkinProfileService(Profile* profile) : profile_(profile) {
   if (profile_->IsRegularProfile() && !profile_->IsOffTheRecord()) {
     if (auto* theme = ThemeServiceFactory::GetForProfile(profile_)) {
       theme_observation_.Observe(theme);
-      const auto& applied =
-          profile_->GetPrefs()->GetDict(prefs::kTahaiAppliedSkin);
+      const auto applied =
+          profile_->GetPrefs()->GetDict(prefs::kTahaiAppliedSkin).Clone();
       const auto* json = applied.FindString("manifest_json");
       const auto* id = applied.FindString("id");
       if (id && applied.FindInt("schema_version") == 3) {
@@ -457,7 +456,7 @@ void SkinProfileService::OnStartupDecoded(std::string id,
     ResetOwnedAppearance();
     return;
   }
-  base::AutoReset<bool> applying(&changing_appearance_, true);
+  auto applying = ScopedAppearanceChange();
   color_supplier_ = PaletteForSkin(*result.skin);
   operational_manifest_ = std::move(result.skin->operational_manifest);
   operational_archive_sha256_ = operational_manifest_
@@ -470,7 +469,9 @@ void SkinProfileService::PreviewFile(const base::FilePath& selected_file,
   if (!Start(true, std::move(callback))) {
     return;
   }
-  ClearPreview();
+  if (!ClearPreview()) {
+    return;
+  }
   preview_installable_ = true;
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
@@ -481,7 +482,9 @@ void SkinProfileService::PreviewFile(const base::FilePath& selected_file,
 
 void SkinProfileService::OnFileRead(std::optional<std::string> archive) {
   if (!archive) {
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(Result(SkinOperationStatus::kReadFailed));
     return;
   }
@@ -500,19 +503,25 @@ void SkinProfileService::OnDecoded(SkinDecodeResult decoded) {
   if (decoded.outcome != DecodeOutcome::kDecoded || !decoded.skin) {
     auto result = Result(SkinOperationStatus::kDecodeFailed);
     result.decode_error = decoded.outcome;
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(std::move(result));
     return;
   }
   // User packages cannot impersonate the immutable browser-owned recovery or
   // first-party identities. Names/creator metadata never establish trust.
   if (IsTahaiBuiltInSkinId(decoded.skin->manifest.id)) {
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(Result(SkinOperationStatus::kInvalidInput));
     return;
   }
   if (!IsTrustedOperationalSkin(*decoded.skin)) {
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(Result(SkinOperationStatus::kUntrusted));
     return;
   }
@@ -520,7 +529,9 @@ void SkinProfileService::OnDecoded(SkinDecodeResult decoded) {
       (decoded.skin->manifest.id != loaded_record_->id ||
        decoded.skin->manifest_json != loaded_record_->manifest_json ||
        decoded.skin->archive_sha256 != loaded_record_->archive_sha256)) {
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(Result(SkinOperationStatus::kInvalidInput));
     return;
   }
@@ -534,7 +545,9 @@ void SkinProfileService::OnDecoded(SkinDecodeResult decoded) {
 
 void SkinProfileService::OnPreviewCatalog(CatalogResult catalog) {
   if (!catalog.has_value()) {
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     OnCatalog(std::move(catalog));
     return;
   }
@@ -544,7 +557,9 @@ void SkinProfileService::OnPreviewCatalog(CatalogResult catalog) {
   if (reading_installed_) {
     if (found == catalog->end() || !expected_current_sha256_ ||
         found->archive_sha256 != *expected_current_sha256_) {
-      ClearPreview();
+      if (!ClearPreview()) {
+        return;
+      }
       Finish(Result(SkinOperationStatus::kStalePreview));
       return;
     }
@@ -570,14 +585,18 @@ void SkinProfileService::OnRevisionArchive(std::vector<StoredSkinInfo> catalog,
   if (!archive.has_value()) {
     auto result = Result(SkinOperationStatus::kStoreFailed);
     result.store_error = archive.error();
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(std::move(result));
     return;
   }
   if (!preview_ || !expected_current_sha256_ ||
       archive->id != preview_->manifest.id ||
       archive->archive_sha256 != *expected_current_sha256_) {
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(Result(SkinOperationStatus::kStalePreview));
     return;
   }
@@ -594,7 +613,9 @@ void SkinProfileService::OnRevisionDecoded(std::vector<StoredSkinInfo> catalog,
   if (decoded.outcome != DecodeOutcome::kDecoded || !decoded.skin) {
     auto result = Result(SkinOperationStatus::kDecodeFailed);
     result.decode_error = decoded.outcome;
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(std::move(result));
     return;
   }
@@ -602,7 +623,9 @@ void SkinProfileService::OnRevisionDecoded(std::vector<StoredSkinInfo> catalog,
       decoded.skin->manifest.id != preview_->manifest.id ||
       decoded.skin->archive_sha256 != *expected_current_sha256_ ||
       decoded.skin->manifest_json != manifest_json) {
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(Result(SkinOperationStatus::kStalePreview));
     return;
   }
@@ -615,7 +638,9 @@ void SkinProfileService::OnRevisionDecoded(std::vector<StoredSkinInfo> catalog,
   auto changes = before && after ? BuildSkinRevisionDiff(*before, *after)
                                  : std::nullopt;
   if (!changes || !IsTrustedOperationalSkin(*preview_)) {
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(Result(SkinOperationStatus::kInvalidInput));
     return;
   }
@@ -659,7 +684,9 @@ void SkinProfileService::PreviewInstalled(std::string id,
   if (!Start(previous, std::move(callback))) {
     return;
   }
-  ClearPreview();
+  if (!ClearPreview()) {
+    return;
+  }
   reading_installed_ = true;
   preview_installable_ = previous;
   EnsureStore();
@@ -682,7 +709,9 @@ void SkinProfileService::OnInstalledCatalog(std::string id,
       [](const StoredSkinInfo& info) { return info.manifest.id; });
   if (found == catalog->end() || found->archive_sha256 != current_sha256 ||
       (previous && !found->previous_sha256)) {
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(Result(SkinOperationStatus::kStalePreview));
     return;
   }
@@ -698,7 +727,9 @@ void SkinProfileService::OnArchiveRead(ArchiveResult archive) {
   if (!archive.has_value()) {
     auto result = Result(SkinOperationStatus::kStoreFailed);
     result.store_error = archive.error();
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     Finish(std::move(result));
     return;
   }
@@ -761,9 +792,26 @@ bool SkinProfileService::AcknowledgeRevisionReview(
 }
 
 bool SkinProfileService::CanChangeAppearance() const {
+  const auto* raw =
+      profile_
+          ? profile_->GetPrefs()->GetRawUserPrefValue(prefs::kTahaiAppliedSkin)
+          : nullptr;
   return enabled() && theme_observation_.IsObserving() &&
+         (!raw || raw->is_dict()) &&
          !theme_observation_.GetSource()->UsingPolicyTheme() &&
          !profile_->GetPrefs()->IsManagedPreference(prefs::kTahaiAppliedSkin);
+}
+
+base::ScopedClosureRunner SkinProfileService::ScopedAppearanceChange() {
+  const bool previous = changing_appearance_;
+  changing_appearance_ = true;
+  return base::ScopedClosureRunner(base::BindOnce(
+      [](base::WeakPtr<SkinProfileService> service, bool previous) {
+        if (service) {
+          service->changing_appearance_ = previous;
+        }
+      },
+      lifetime_weak_factory_.GetWeakPtr(), previous));
 }
 
 bool SkinProfileService::CanApplyPreview(std::string_view token) const {
@@ -772,10 +820,17 @@ bool SkinProfileService::CanApplyPreview(std::string_view token) const {
 }
 
 bool SkinProfileService::ApplyPreview(std::string_view token) {
-  if (!CanApplyPreview(token)) {
+  if (changing_appearance_ || !CanApplyPreview(token)) {
     return false;
   }
+  const auto alive = GetWeakPtr();
+  const std::string reviewed_token(token);
+  const auto generation = publisher_generation_;
   EndLivePreview();
+  if (!alive || publisher_generation_ != generation ||
+      !CanApplyPreview(reviewed_token)) {
+    return false;
+  }
   const auto& colors = preview_->manifest.appearance.light_tokens.colors;
   const auto accent =
       std::ranges::find(colors, std::string("accent"),
@@ -787,11 +842,19 @@ bool SkinProfileService::ApplyPreview(std::string_view token) {
   if (!seed) {
     return false;
   }
-  base::AutoReset<bool> applying(&changing_appearance_, true);
+  auto applying = ScopedAppearanceChange();
   auto* theme = theme_observation_.GetSource();
   theme->SetUserColorAndBrowserColorVariant(
       *seed, ui::mojom::BrowserColorVariant::kExpressive);
+  if (!alive || publisher_generation_ != generation ||
+      !CanApplyPreview(reviewed_token)) {
+    return false;
+  }
   theme->UseDeviceTheme(false);
+  if (!alive || publisher_generation_ != generation ||
+      !CanApplyPreview(reviewed_token)) {
+    return false;
+  }
   profile_->GetPrefs()->SetDict(
       prefs::kTahaiAppliedSkin,
       base::DictValue()
@@ -802,16 +865,20 @@ bool SkinProfileService::ApplyPreview(std::string_view token) {
           .Set("seed_color",
                base::StringPrintf("%02X%02X%02X", SkColorGetR(*seed),
                                   SkColorGetG(*seed), SkColorGetB(*seed))));
+  if (!alive || publisher_generation_ != generation ||
+      !CanApplyPreview(reviewed_token)) {
+    return false;
+  }
   color_supplier_ = PaletteForSkin(*preview_);
   operational_manifest_ = preview_->operational_manifest;
   operational_archive_sha256_ = operational_manifest_
       ? std::make_optional(preview_->archive_sha256) : std::nullopt;
   theme->RefreshColorPalette();
-  return true;
+  return alive && publisher_generation_ == generation && CanChangeAppearance();
 }
 
 bool SkinProfileService::ApplyBuiltIn(std::string_view id) {
-  if (!CanChangeAppearance() || busy_) {
+  if (changing_appearance_ || !CanChangeAppearance() || busy_) {
     return false;
   }
   if (id == "stock") {
@@ -831,12 +898,24 @@ bool SkinProfileService::ApplyBuiltIn(std::string_view id) {
   if (!seed) {
     return false;
   }
+  const auto alive = GetWeakPtr();
+  const auto generation = publisher_generation_;
+  const std::string selected_id(id);
   EndLivePreview();
-  base::AutoReset<bool> applying(&changing_appearance_, true);
+  if (!alive || publisher_generation_ != generation || !CanChangeAppearance()) {
+    return false;
+  }
+  auto applying = ScopedAppearanceChange();
   auto* theme = theme_observation_.GetSource();
   theme->SetUserColorAndBrowserColorVariant(
       *seed, ui::mojom::BrowserColorVariant::kExpressive);
+  if (!alive || publisher_generation_ != generation || !CanChangeAppearance()) {
+    return false;
+  }
   theme->UseDeviceTheme(false);
+  if (!alive || publisher_generation_ != generation || !CanChangeAppearance()) {
+    return false;
+  }
   color_supplier_ = base::MakeRefCounted<SkinColorSupplier>(*appearance);
   operational_manifest_.reset();
   operational_archive_sha256_.reset();
@@ -844,12 +923,15 @@ bool SkinProfileService::ApplyBuiltIn(std::string_view id) {
       prefs::kTahaiAppliedSkin,
       base::DictValue()
           .Set("schema_version", 3)
-          .Set("id", std::string(id))
+          .Set("id", selected_id)
           .Set("seed_color",
                base::StringPrintf("%02X%02X%02X", SkColorGetR(*seed),
                                   SkColorGetG(*seed), SkColorGetB(*seed))));
+  if (!alive || publisher_generation_ != generation || !CanChangeAppearance()) {
+    return false;
+  }
   theme->RefreshColorPalette();
-  return true;
+  return alive && publisher_generation_ == generation && CanChangeAppearance();
 }
 
 SkinColorSupplier* SkinProfileService::GetColorSupplier() const {
@@ -1067,17 +1149,19 @@ SkinProfileService::GetOperationalManifestArchiveSha256() const {
 }
 
 bool SkinProfileService::BeginLivePreview(std::string_view token) {
-  if (!CanChangeAppearance() || !GetPreview(token)) {
+  if (changing_appearance_ || !CanChangeAppearance() || !GetPreview(token)) {
     return false;
   }
-  base::AutoReset<bool> applying(&changing_appearance_, true);
+  const auto alive = GetWeakPtr();
+  const auto generation = publisher_generation_;
+  auto applying = ScopedAppearanceChange();
   preview_color_supplier_ = PaletteForSkin(*preview_);
   live_preview_timer_.Start(
       FROM_HERE, base::Seconds(30),
       base::BindOnce(&SkinProfileService::EndLivePreview,
                      lifetime_weak_factory_.GetWeakPtr()));
   theme_observation_.GetSource()->RefreshColorPalette();
-  return true;
+  return alive && publisher_generation_ == generation && live_preview_active();
 }
 
 void SkinProfileService::EndLivePreview() {
@@ -1087,7 +1171,7 @@ void SkinProfileService::EndLivePreview() {
   }
   preview_color_supplier_.reset();
   if (theme_observation_.IsObserving()) {
-    base::AutoReset<bool> applying(&changing_appearance_, true);
+    auto applying = ScopedAppearanceChange();
     theme_observation_.GetSource()->RefreshColorPalette();
   }
 }
@@ -1122,9 +1206,13 @@ bool SkinProfileService::OwnsCurrentAppearance() const {
 }
 
 void SkinProfileService::OnThemeChanged() {
+  const auto alive = GetWeakPtr();
   if (theme_observation_.IsObserving() &&
       theme_observation_.GetSource()->UsingPolicyTheme()) {
     ClearWindowBindings();
+    if (!alive) {
+      return;
+    }
   }
   if (!changing_appearance_ && preview_color_supplier_) {
     // We are already inside ThemeService's observer notification. Calling
@@ -1136,6 +1224,11 @@ void SkinProfileService::OnThemeChanged() {
   }
   if (!changing_appearance_ && profile_ && !OwnsCurrentAppearance() &&
       !profile_->GetPrefs()->IsManagedPreference(prefs::kTahaiAppliedSkin)) {
+    const auto* raw =
+        profile_->GetPrefs()->GetRawUserPrefValue(prefs::kTahaiAppliedSkin);
+    if (raw && !raw->is_dict()) {
+      return;
+    }
     color_supplier_.reset();
     operational_manifest_.reset();
     operational_archive_sha256_.reset();
@@ -1148,35 +1241,58 @@ void SkinProfileService::ResetOwnedAppearance() {
       profile_->GetPrefs()->IsManagedPreference(prefs::kTahaiAppliedSkin)) {
     return;
   }
+  const auto alive = GetWeakPtr();
   if (OwnsCurrentAppearance()) {
-    base::AutoReset<bool> applying(&changing_appearance_, true);
+    auto applying = ScopedAppearanceChange();
     color_supplier_.reset();
     operational_manifest_.reset();
     operational_archive_sha256_.reset();
     theme_observation_.GetSource()->UseDefaultTheme();
+    if (!alive || !profile_ ||
+        profile_->GetPrefs()->IsManagedPreference(prefs::kTahaiAppliedSkin)) {
+      return;
+    }
+  }
+  const auto* raw =
+      profile_->GetPrefs()->GetRawUserPrefValue(prefs::kTahaiAppliedSkin);
+  if (raw && !raw->is_dict()) {
+    return;
   }
   profile_->GetPrefs()->ClearPref(prefs::kTahaiAppliedSkin);
 }
 
 bool SkinProfileService::ResetAppearance() {
-  if (!CanChangeAppearance() || busy_) {
+  if (changing_appearance_ || !CanChangeAppearance() || busy_) {
     return false;
   }
+  const auto alive = GetWeakPtr();
+  const auto generation = publisher_generation_;
   EndLivePreview();
-  base::AutoReset<bool> applying(&changing_appearance_, true);
+  if (!alive || publisher_generation_ != generation || !CanChangeAppearance()) {
+    return false;
+  }
+  auto applying = ScopedAppearanceChange();
   color_supplier_.reset();
   operational_manifest_.reset();
   operational_archive_sha256_.reset();
   theme_observation_.GetSource()->UseDefaultTheme();
+  if (!alive || publisher_generation_ != generation || !CanChangeAppearance()) {
+    return false;
+  }
   profile_->GetPrefs()->ClearPref(prefs::kTahaiAppliedSkin);
+  if (!alive || publisher_generation_ != generation || !CanChangeAppearance()) {
+    return false;
+  }
   ClearWindowBindings();
-  return true;
+  return alive && publisher_generation_ == generation && CanChangeAppearance();
 }
 
 void SkinProfileService::ReleasePreview(std::string_view token) {
   // Closing an old review must not cancel a newer operation in this profile.
   if (GetPreview(token)) {
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
   }
 }
 
@@ -1192,7 +1308,9 @@ void SkinProfileService::InstallPreview(std::string token, Callback callback) {
     return;
   }
   if (!IsTrustedOperationalSkin(*preview_)) {
-    ClearPreview();
+    if (!ClearPreview()) {
+      return;
+    }
     std::move(callback).Run(Result(SkinOperationStatus::kUntrusted));
     return;
   }
@@ -1221,7 +1339,9 @@ void SkinProfileService::Remove(std::string id,
   if (!Start(false, std::move(callback))) {
     return;
   }
-  ClearPreview();
+  if (!ClearPreview()) {
+    return;
+  }
   EnsureStore();
   ++pending_catalog_mutations_;
   CancelWindowRestores();
@@ -1240,6 +1360,7 @@ void SkinProfileService::OnMutationCommitted(
     std::string old_sha256,
     base::OnceCallback<void(StoreResult)> completion,
     StoreResult result) {
+  const auto alive = GetWeakPtr();
   CHECK_GT(pending_catalog_mutations_, 0u);
   --pending_catalog_mutations_;
   // A committed removal/update retires the old appearance even when its UI
@@ -1254,6 +1375,9 @@ void SkinProfileService::OnMutationCommitted(
     });
     if (removed) {
       window_binding_changes_.Notify();
+      if (!alive) {
+        return;
+      }
     }
   }
   const auto& applied = profile_->GetPrefs()->GetDict(prefs::kTahaiAppliedSkin);
@@ -1271,12 +1395,18 @@ void SkinProfileService::OnStored(StoreResult stored) {
   if (!stored.has_value()) {
     result.store_error = stored.error();
   }
-  ClearPreview();
+  if (!ClearPreview()) {
+    return;
+  }
   Finish(std::move(result));
 }
 
-void SkinProfileService::ClearPreview() {
-  EndLivePreview();
+bool SkinProfileService::ClearPreview() {
+  const auto alive = GetWeakPtr();
+  const auto operation = operation_weak_factory_.GetWeakPtr();
+  const auto generation = publisher_generation_;
+  // Retire the reviewed authority before notifying theme observers. A nested
+  // policy change or shutdown cannot revive or continue this older operation.
   preview_.reset();
   preview_token_.clear();
   candidate_archive_.clear();
@@ -1286,6 +1416,8 @@ void SkinProfileService::ClearPreview() {
   revision_acknowledged_ = false;
   preview_installable_ = false;
   reading_installed_ = false;
+  EndLivePreview();
+  return alive && operation && publisher_generation_ == generation;
 }
 
 void SkinProfileService::Finish(SkinOperationResult result) {
@@ -1299,6 +1431,7 @@ void SkinProfileService::Finish(SkinOperationResult result) {
 }
 
 void SkinProfileService::OnPolicyChanged() {
+  const auto alive = GetWeakPtr();
   publisher_generation_ = base::UnguessableToken::Create();
   // Cancel all stages, including store replies not yet handed to the utility.
   // Restoring identical keys must not revive work from a revoked generation.
@@ -1310,10 +1443,21 @@ void SkinProfileService::OnPolicyChanged() {
   operational_manifest_.reset();
   operational_archive_sha256_.reset();
   ClearWindowBindings();
+  if (!alive) {
+    return;
+  }
   if (!enabled()) {
     ResetOwnedAppearance();
+    if (!alive) {
+      return;
+    }
   }
-  ClearPreview();
+  if (!ClearPreview()) {
+    return;
+  }
+  if (!alive) {
+    return;
+  }
   // Already-authorized background transactions may finish storing bytes, but
   // no revoked preview/callback can activate or publish them. No auto retry.
   Finish(Result(!enabled() ? SkinOperationStatus::kDisabled
@@ -1321,7 +1465,9 @@ void SkinProfileService::OnPolicyChanged() {
 }
 
 void SkinProfileService::Cancel() {
-  ClearPreview();
+  if (!ClearPreview()) {
+    return;
+  }
   Finish(Result(SkinOperationStatus::kCancelled));
 }
 
@@ -1330,16 +1476,22 @@ void SkinProfileService::Shutdown() {
     return;
   }
   shutdown_ = true;
+  const auto alive = GetWeakPtr();
   startup_weak_factory_.InvalidateWeakPtrs();
   ClearWindowBindings();
+  if (!alive) {
+    return;
+  }
   startup_decoder_.reset();
   theme_observation_.Reset();
   lifetime_weak_factory_.InvalidateWeakPtrs();
   policy_registrar_.RemoveAll();
-  ClearPreview();
+  if (!ClearPreview()) {
+    return;
+  }
   store_.Reset();
-  Finish(Result(SkinOperationStatus::kCancelled));
   profile_ = nullptr;
+  Finish(Result(SkinOperationStatus::kCancelled));
 }
 
 }  // namespace tahai::skins

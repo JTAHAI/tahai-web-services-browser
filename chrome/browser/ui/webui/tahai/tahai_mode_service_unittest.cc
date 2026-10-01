@@ -54,9 +54,9 @@ TEST_F(TahaiModeServiceTest, ExternalPreferencesAndPolicyRemainAuthoritative) {
                               base::Value("operator"));
   EXPECT_EQ("operator", service.active_mode().id);
   EXPECT_FALSE(service.SetActiveMode("daily"));
-  EXPECT_EQ(
-      "creator",
-      preferences->GetUserPrefValue(prefs::kTahaiActiveWorkMode)->GetString());
+  EXPECT_EQ("creator",
+            preferences->GetRawUserPrefValue(prefs::kTahaiActiveWorkMode)
+                ->GetString());
 
   base::DictValue settings;
   settings.Set("focus", true);
@@ -128,12 +128,13 @@ TEST_F(TahaiModeServiceTest, MalformedPreferencesAreReadOnly) {
   preferences->SetUserPref(prefs::kTahaiActiveWorkMode, base::Value(42));
   EXPECT_FALSE(service.SetActiveMode("creator"));
   EXPECT_EQ(
-      42, preferences->GetUserPrefValue(prefs::kTahaiActiveWorkMode)->GetInt());
+      42,
+      preferences->GetRawUserPrefValue(prefs::kTahaiActiveWorkMode)->GetInt());
   preferences->SetUserPref(prefs::kTahaiWorkModePreferences,
                            base::Value("corrupt"));
   EXPECT_FALSE(service.SetModifierEnabled("focus", true));
   EXPECT_EQ("corrupt",
-            preferences->GetUserPrefValue(prefs::kTahaiWorkModePreferences)
+            preferences->GetRawUserPrefValue(prefs::kTahaiWorkModePreferences)
                 ->GetString());
 }
 

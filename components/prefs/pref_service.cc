@@ -309,6 +309,14 @@ const base::Value* PrefService::GetUserPrefValue(std::string_view path) const {
   return value;
 }
 
+const base::Value* PrefService::GetRawUserPrefValue(
+    std::string_view path) const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(FindPreference(path)) << "Trying to get an unregistered pref: " << path;
+  const base::Value* value = nullptr;
+  return user_pref_store_->GetValue(path, &value) ? value : nullptr;
+}
+
 void PrefService::SetDefaultPrefValue(std::string_view path,
                                       base::Value value) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);

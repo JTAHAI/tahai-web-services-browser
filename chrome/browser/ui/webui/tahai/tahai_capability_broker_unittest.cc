@@ -158,9 +158,9 @@ TEST_F(TahaiCapabilityBrokerTest, WrongTypedStorageCannotBeRepairedByGrant) {
   EXPECT_FALSE(broker.IsAllowed(request));
   EXPECT_FALSE(broker.GetReviewableGrants());
   EXPECT_FALSE(broker.RevokeAllForProvider(request.provider_id));
-  ASSERT_TRUE(
-      profile()->GetPrefs()->GetUserPrefValue(prefs::kTahaiCapabilityGrants));
-  EXPECT_EQ(original, *profile()->GetPrefs()->GetUserPrefValue(
+  ASSERT_TRUE(profile()->GetPrefs()->GetRawUserPrefValue(
+      prefs::kTahaiCapabilityGrants));
+  EXPECT_EQ(original, *profile()->GetPrefs()->GetRawUserPrefValue(
                           prefs::kTahaiCapabilityGrants));
 }
 

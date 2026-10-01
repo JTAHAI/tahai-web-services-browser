@@ -40,9 +40,9 @@ TEST_F(TahaiNamedWorkspaceStoreTest, ManagedStoreCannotCreateShadowUserEdits) {
   EXPECT_FALSE(store.Replace(*id, Example()));
   EXPECT_FALSE(store.Rename(*id, "Shadow rename"));
   EXPECT_FALSE(store.Remove(*id));
-  EXPECT_EQ(
-      original,
-      preferences->GetUserPrefValue(prefs::kTahaiNamedWorkspaces)->GetDict());
+  EXPECT_EQ(original,
+            preferences->GetRawUserPrefValue(prefs::kTahaiNamedWorkspaces)
+                ->GetDict());
   preferences->RemoveManagedPref(prefs::kTahaiNamedWorkspaces);
   EXPECT_EQ(original, preferences->GetDict(prefs::kTahaiNamedWorkspaces));
   EXPECT_TRUE(store.Rename(*id, "Explicit rename"));
@@ -56,9 +56,9 @@ TEST_F(TahaiNamedWorkspaceStoreTest, WrongTypedStoreCannotBeReplacedBySave) {
   EXPECT_FALSE(store.Read());
   EXPECT_FALSE(store.Add(Example()));
   EXPECT_FALSE(store.Remove("missing"));
-  EXPECT_EQ(
-      "corrupt",
-      preferences->GetUserPrefValue(prefs::kTahaiNamedWorkspaces)->GetString());
+  EXPECT_EQ("corrupt",
+            preferences->GetRawUserPrefValue(prefs::kTahaiNamedWorkspaces)
+                ->GetString());
 }
 
 }  // namespace

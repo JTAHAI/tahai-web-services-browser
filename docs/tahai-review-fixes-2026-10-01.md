@@ -44,3 +44,53 @@ reproduction from that new tree. No creator artifact was regenerated to mask
 the defect, and no Python version was downgraded. The failed hosted artifact
 remains preserved at Actions run `36822146463` and locally under
 `out/review-fixes-20261001/ci-first-run`.
+
+## Iterative source repair after the next review
+
+The user requested repeated repair/review cycles before compiling elsewhere.
+The review of native `c32b793b057f1e04538e98c8edbec3def52754e5` found
+additional coding defects; the following source repairs do not claim native
+execution or a finished RC/MSIX:
+
+- Guarded the skin manager's apply/reset/preview/revert, review teardown,
+  cancellation and notification continuations against synchronous deletion or
+  retargeting. Profile appearance cleanup now uses weak-owner restoration rather
+  than an AutoReset writing to an invalid owner. Policy generations and reviewed
+  tokens are rechecked across appearance notifications.
+- Added a read-only `PrefService::GetRawUserPrefValue` API. Chromium's existing
+  type-filtered accessor returns null for a wrong-typed user value, so earlier
+  guards using that accessor were ineffective. Mode, custom-mode, workspace,
+  Local OI, capability, mission, encrypted-keyring and appearance guards now
+  validate actual user storage; existing tests no longer dereference the hidden
+  wrong-typed value through the filtered accessor.
+- Mission mutations reject unwritable storage before changing cached progress.
+  A cached owner also refuses to replace an externally changed durable snapshot.
+  Authenticated capsule imports are constructed fully and committed once, not
+  chained through CHECK-protected mutations across preference callbacks.
+- Keyring operations recheck raw storage after asynchronous encryption-provider
+  completion, survive owner deletion at authorization/persistence boundaries,
+  and report a decrypted key/record-ID mismatch as corruption, never success.
+- Environment-rule writes validate the existing collection, exact canonical
+  origins, known classifications, quota and native enum values before mutation.
+- A window presentation restore rejects an observer's replacement even when
+  that replacement did not release a skin lease or advance its generation.
+- Smoke assembly verifies the original hashes and build-relative timestamps,
+  copies unchanged report bytes/timestamps, checks the copied hashes and rejects
+  collisions. Its validator is shared with the final package evidence gate.
+  Passing retries and repeated test iterations are rejected as well as failures.
+
+Added **17 native regression cases** (8 mission/key/storage tests and 9 browser
+appearance/presentation tests), required by the release evidence gate. These
+cases have **not been compiled or executed** here. The packaging guard now runs
+54 synthetic checks, including actual shared smoke-copy helper calls; none of
+these is browser runtime evidence. The prior clean snapshot's 33 new native
+cases also remain pending on the build workstation.
+
+Repeated reviews covered the repaired paths and their storage, notification,
+policy and evidence consumers. No global absence-of-bugs claim is made. Source
+preflight results and final Git identities are recorded in the ignored run
+evidence after checkpointing. A fresh Chromium 154 compile and exact no-retry
+native/browser/service gates, isolated operational/trust/security smoke and
+eventual exact-package installation/upgrade/state-retention checks remain the
+next acceptance stages. Historical Chromium 152 binaries and accessibility
+diagnostics cannot establish acceptance of this source.

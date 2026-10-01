@@ -96,27 +96,10 @@ $copiedSource = Copy-EvidenceFile $sourcePath
 $null = Copy-EvidenceFile (Join-Path $RunDirectory $source.sourceSnapshot.file)
 $copiedTestResults = Copy-EvidenceFile (Join-Path $RunDirectory 'test-results.json')
 
-$smoke = Get-Content -LiteralPath $SmokePath -Raw | ConvertFrom-Json
-if ($smoke.schemaVersion -ne 1 -or $null -eq $smoke.checks) {
-  throw 'The smoke report has an invalid schema.'
-}
-$smokeRoot = Split-Path -Parent $SmokePath
-foreach ($check in @($smoke.checks)) {
-  if ([string]::IsNullOrWhiteSpace($check.name) -or
-      [string]::IsNullOrWhiteSpace($check.evidence.file) -or
-      $check.evidence.file -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
-    throw 'The smoke report contains an invalid check evidence reference.'
-  }
-  $sourceEvidence = Join-Path $smokeRoot $check.evidence.file
-  $copiedCheck = Copy-EvidenceFile $sourceEvidence
-  $check.evidence.file = (Get-Item -LiteralPath $copiedCheck).Name
-  $check.evidence.sha256 = (Get-FileHash -LiteralPath $copiedCheck -Algorithm SHA256).Hash
-}
-$copiedSmoke = Join-Path $EvidenceDirectory 'smoke.json'
-if (Test-Path -LiteralPath $copiedSmoke) {
-  throw "Evidence output would overwrite an existing file: $copiedSmoke"
-}
-$smoke | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $copiedSmoke -Encoding utf8
+$copiedSmoke = Copy-TahaiSmokeEvidence $SmokePath $EvidenceDirectory `
+  (Get-FileHash -LiteralPath (Join-Path $BuildDirectory 'chrome.exe') -Algorithm SHA256).Hash `
+  (Get-FileHash -LiteralPath (Join-Path $BuildDirectory 'chrome.dll') -Algorithm SHA256).Hash `
+  $buildResult.buildFinishedUnixMs
 
 $artifacts = foreach ($name in @('chrome.exe', 'chrome.dll',
                                  'tahai_mission_service_tests.exe',

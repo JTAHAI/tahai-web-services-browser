@@ -29,7 +29,6 @@
 #include "chrome/browser/ui/tahai/tahai_identity_lane.h"
 #include "chrome/browser/ui/tahai/tahai_mode_service.h"
 #include "chrome/browser/ui/tahai/tahai_named_workspace_store.h"
-#include "chrome/common/tahai_url_constants.h"
 #include "chrome/browser/ui/tahai/tahai_operational_workflow_queue.h"
 #include "chrome/browser/ui/webui/tahai/tahai_change_lens_contract.h"
 #include "chrome/browser/ui/webui/tahai/tahai_environment_guard.h"
@@ -59,9 +58,11 @@
 #include "chrome/browser/ui/webui/tahai/tahai_team_mission_contract.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
+#include "chrome/common/tahai_url_constants.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/prefs/pref_service.h"
 #include "components/os_crypt/async/browser/test_utils.h"
+#include "components/prefs/pref_change_registrar.h"
+#include "components/prefs/pref_service.h"
 #include "components/sessions/core/session_service_commands.h"
 #include "components/split_tabs/split_tab_visual_data.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
@@ -6136,6 +6137,258 @@ class DeferredCapsuleCrypt final : public os_crypt_async::OSCryptAsync {
   scoped_refptr<os_crypt_async::TestEncryptor> encryptor_;
   std::vector<InitCallback> callbacks_;
 };
+
+TEST_F(MissionServiceTest, CapsuleKeyWrongTypedStorageIsNeverReplaced) {
+  DeferredCapsuleCrypt provider;
+  TahaiSyncKeyService service(profile_.GetPrefs(), &provider);
+  base::test::TestFuture<TahaiSyncKeyResult,
+                         std::optional<TahaiSyncEnvelopeKey>>
+      created;
+  service.EnsureActiveKey(created.GetCallback());
+  provider.Release();
+  ASSERT_EQ(TahaiSyncKeyResult::kOk, created.Get<0>());
+  ASSERT_TRUE(created.Get<1>());
+  const auto original =
+      profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring).Clone();
+  std::vector<base::Value> corrupt;
+  corrupt.emplace_back("damaged-keyring");
+  corrupt.emplace_back(base::ListValue());
+  corrupt.emplace_back(7);
+  corrupt.emplace_back(true);
+  for (const auto& raw : corrupt) {
+    for (int operation = 0; operation != 3; ++operation) {
+      profile_.GetTestingPrefService()->SetUserPref(prefs::kTahaiSyncKeyring,
+                                                    raw.Clone());
+      EXPECT_TRUE(service.GetStatus().has_stored_keyring);
+      EXPECT_FALSE(service.GetStatus().has_active_key);
+      base::test::TestFuture<TahaiSyncKeyResult,
+                             std::optional<TahaiSyncEnvelopeKey>>
+          result;
+      if (operation == 0) {
+        service.EnsureActiveKey(result.GetCallback());
+      } else if (operation == 1) {
+        service.RotateActiveKey(result.GetCallback());
+      } else {
+        service.GetKeyForId(created.Get<1>()->key_id, result.GetCallback());
+      }
+      provider.Release();
+      EXPECT_EQ(TahaiSyncKeyResult::kCorruptStorage, result.Get<0>());
+      EXPECT_FALSE(result.Get<1>());
+      ASSERT_TRUE(
+          profile_.GetPrefs()->GetRawUserPrefValue(prefs::kTahaiSyncKeyring));
+      EXPECT_EQ(raw, *profile_.GetPrefs()->GetRawUserPrefValue(
+                         prefs::kTahaiSyncKeyring));
+    }
+  }
+  profile_.GetPrefs()->SetDict(prefs::kTahaiSyncKeyring, original.Clone());
+  base::test::TestFuture<TahaiSyncKeyResult,
+                         std::optional<TahaiSyncEnvelopeKey>>
+      recovered;
+  service.GetKeyForId(created.Get<1>()->key_id, recovered.GetCallback());
+  provider.Release();
+  EXPECT_EQ(TahaiSyncKeyResult::kOk, recovered.Get<0>());
+  EXPECT_EQ(original, profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring));
+}
+
+TEST_F(MissionServiceTest, CapsuleKeyLateStorageCorruptionIsPreserved) {
+  DeferredCapsuleCrypt provider;
+  TahaiSyncKeyService service(profile_.GetPrefs(), &provider);
+  base::test::TestFuture<TahaiSyncKeyResult,
+                         std::optional<TahaiSyncEnvelopeKey>>
+      result;
+  service.EnsureActiveKey(result.GetCallback());
+  profile_.GetTestingPrefService()->SetUserPref(prefs::kTahaiSyncKeyring,
+                                                base::Value("late-corruption"));
+  provider.Release();
+  EXPECT_EQ(TahaiSyncKeyResult::kCorruptStorage, result.Get<0>());
+  EXPECT_FALSE(result.Get<1>());
+  EXPECT_EQ(
+      base::Value("late-corruption"),
+      *profile_.GetPrefs()->GetRawUserPrefValue(prefs::kTahaiSyncKeyring));
+}
+
+TEST_F(MissionServiceTest,
+       CapsuleKeyIdentityMismatchReportsCorruptionNotSuccess) {
+  DeferredCapsuleCrypt provider;
+  TahaiSyncKeyService service(profile_.GetPrefs(), &provider);
+  base::test::TestFuture<TahaiSyncKeyResult,
+                         std::optional<TahaiSyncEnvelopeKey>>
+      created;
+  service.EnsureActiveKey(created.GetCallback());
+  provider.Release();
+  ASSERT_EQ(TahaiSyncKeyResult::kOk, created.Get<0>());
+  ASSERT_TRUE(created.Get<1>());
+  auto damaged = profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring).Clone();
+  const std::string forged_id = created.Get<1>()->key_id == std::string(64, '0')
+                                    ? std::string(64, '1')
+                                    : std::string(64, '0');
+  damaged.Set("active_key_id", forged_id);
+  damaged.FindList("entries")->front().GetDict().Set("key_id", forged_id);
+  profile_.GetPrefs()->SetDict(prefs::kTahaiSyncKeyring, damaged.Clone());
+  for (int operation = 0; operation != 3; ++operation) {
+    base::test::TestFuture<TahaiSyncKeyResult,
+                           std::optional<TahaiSyncEnvelopeKey>>
+        result;
+    if (operation == 0) {
+      service.EnsureActiveKey(result.GetCallback());
+    } else if (operation == 1) {
+      service.RotateActiveKey(result.GetCallback());
+    } else {
+      service.GetKeyForId(forged_id, result.GetCallback());
+    }
+    provider.Release();
+    EXPECT_EQ(TahaiSyncKeyResult::kCorruptStorage, result.Get<0>());
+    EXPECT_FALSE(result.Get<1>());
+    EXPECT_EQ(damaged, profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring));
+  }
+}
+
+TEST_F(MissionServiceTest,
+       CapsuleKeyCallbackSurvivesOwnerDeletionDuringPersistence) {
+  DeferredCapsuleCrypt provider;
+  auto service =
+      std::make_unique<TahaiSyncKeyService>(profile_.GetPrefs(), &provider);
+  PrefChangeRegistrar registrar;
+  registrar.Init(profile_.GetPrefs());
+  registrar.Add(prefs::kTahaiSyncKeyring,
+                base::BindLambdaForTesting([&] { service.reset(); }));
+  base::test::TestFuture<TahaiSyncKeyResult,
+                         std::optional<TahaiSyncEnvelopeKey>>
+      result;
+  service->EnsureActiveKey(result.GetCallback());
+  provider.Release();
+  EXPECT_FALSE(service);
+  EXPECT_EQ(TahaiSyncKeyResult::kPersistenceFailed, result.Get<0>());
+  EXPECT_FALSE(result.Get<1>());
+  EXPECT_FALSE(profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring).empty());
+}
+
+TEST_F(MissionServiceTest, MissionExternalStorageReplacementIsNotOverwritten) {
+  MissionService service(&profile_);
+  const auto mission = service.CreateMission("Original", "incident");
+  ASSERT_TRUE(mission);
+  const auto original =
+      profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  const auto replacement =
+      base::ListValue().Append(base::DictValue().Set("future", true));
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, replacement.Clone());
+  EXPECT_FALSE(service.CreateMission("Stale owner", "incident"));
+  EXPECT_FALSE(service.AddLocalNote(mission->id, "Must not clobber"));
+  EXPECT_FALSE(service.DeleteMission(mission->id));
+  EXPECT_EQ(replacement, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, original.Clone());
+  EXPECT_TRUE(service.AddLocalNote(mission->id, "Recovered snapshot"));
+}
+
+TEST_F(MissionServiceTest, CapsuleImportCommitsAtomicallyBeforeOwnerDeletion) {
+  auto service = std::make_unique<MissionService>(&profile_);
+  const auto source = service->CreateMission("Source", "incident");
+  ASSERT_TRUE(source);
+  const auto encoded = BuildTahaiMissionCapsule(*source);
+  ASSERT_TRUE(encoded);
+  auto capsule = ExtractTahaiMissionCapsuleImport(*encoded);
+  ASSERT_TRUE(capsule);
+  capsule->checkpoint_complete[0] = true;
+  capsule->validation_complete[0] = true;
+  capsule->rollback_complete[0] = true;
+  capsule->evidence_marker_count = 2;
+  int commits = 0;
+  PrefChangeRegistrar registrar;
+  registrar.Init(profile_.GetPrefs());
+  registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
+                  ++commits;
+                  service.reset();
+                }));
+  const auto imported = service->ImportSanitizedMissionCapsule(*capsule);
+  ASSERT_TRUE(imported);
+  EXPECT_FALSE(service);
+  EXPECT_EQ(1, commits);
+  registrar.RemoveAll();
+  MissionService reloaded(&profile_);
+  ASSERT_EQ(2u, reloaded.missions().size());
+  const auto& saved = reloaded.missions().back();
+  EXPECT_EQ(imported->id, saved.id);
+  EXPECT_TRUE(saved.steps[0].complete);
+  EXPECT_TRUE(saved.validation_steps[0].complete);
+  EXPECT_TRUE(saved.rollback_steps[0].complete);
+  EXPECT_EQ(2u, saved.evidence.size());
+}
+
+TEST_F(MissionServiceTest,
+       MissionWrongTypedStorageRejectsMutationsWithoutDataLoss) {
+  MissionService service(&profile_);
+  const auto mission =
+      service.CreateMission("Storage preservation", "incident");
+  ASSERT_TRUE(mission);
+  const auto original =
+      profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  std::vector<base::Value> corrupt;
+  corrupt.emplace_back("damaged-missions");
+  corrupt.emplace_back(base::DictValue());
+  corrupt.emplace_back(7);
+  corrupt.emplace_back(true);
+  for (const auto& raw : corrupt) {
+    profile_.GetTestingPrefService()->SetUserPref(prefs::kTahaiMissions,
+                                                  raw.Clone());
+    MissionService reloaded(&profile_);
+    EXPECT_TRUE(reloaded.missions().empty());
+    EXPECT_FALSE(reloaded.CreateMission("Must not overwrite", "incident"));
+    EXPECT_FALSE(service.CreateMission("Must not overwrite", "incident"));
+    EXPECT_FALSE(service.ToggleStep(mission->id, 0));
+    EXPECT_FALSE(service.ToggleValidationStep(mission->id, 0));
+    EXPECT_FALSE(service.ToggleRollbackStep(mission->id, 0));
+    EXPECT_FALSE(service.ToggleEscalation(mission->id));
+    EXPECT_FALSE(service.AddEvidenceMarker(mission->id));
+    EXPECT_FALSE(service.AddLocalNote(mission->id, "A local note"));
+    EXPECT_FALSE(service.SetExportProfile(mission->id, "sanitized-handoff"));
+    EXPECT_FALSE(service.ArchiveMission(mission->id));
+    EXPECT_FALSE(service.RestoreMission(mission->id));
+    EXPECT_FALSE(service.DuplicateMission(mission->id));
+    EXPECT_FALSE(service.DeleteMission(mission->id));
+    EXPECT_EQ(raw,
+              *profile_.GetPrefs()->GetRawUserPrefValue(prefs::kTahaiMissions));
+    EXPECT_EQ(mission->mutation_token, service.missions()[0].mutation_token);
+    reloaded.Shutdown();
+    EXPECT_EQ(raw,
+              *profile_.GetPrefs()->GetRawUserPrefValue(prefs::kTahaiMissions));
+  }
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, original.Clone());
+  EXPECT_TRUE(
+      service.AddLocalNote(mission->id, "Explicitly recovered storage"));
+}
+
+TEST_F(MissionServiceTest,
+       EnvironmentGuardRejectsDamagedStorageAndInvalidEnums) {
+  auto* preferences = profile_.GetTestingPrefService();
+  std::vector<base::Value> corrupt;
+  corrupt.emplace_back("damaged-rules");
+  corrupt.emplace_back(base::ListValue());
+  corrupt.emplace_back(7);
+  corrupt.emplace_back(true);
+  corrupt.emplace_back(
+      base::DictValue().Set("https://admin.example.com", "unknown"));
+  corrupt.emplace_back(
+      base::DictValue().Set("https://admin.example.com/path", "production"));
+  corrupt.emplace_back(base::DictValue().Set("https://admin.example.com", 7));
+  for (const auto& raw : corrupt) {
+    preferences->SetUserPref(prefs::kTahaiEnvironmentGuardRules, raw.Clone());
+    EXPECT_FALSE(CanSetTahaiEnvironmentGuardRule(preferences,
+                                                 "https://admin.example.com"));
+    EXPECT_FALSE(SetTahaiEnvironmentGuardRule(preferences,
+                                              TahaiEnvironment::kProduction,
+                                              "https://admin.example.com"));
+    EXPECT_EQ(raw, *preferences->GetRawUserPrefValue(
+                       prefs::kTahaiEnvironmentGuardRules));
+  }
+  preferences->ClearPref(prefs::kTahaiEnvironmentGuardRules);
+  EXPECT_FALSE(SetTahaiEnvironmentGuardRule(preferences,
+                                            static_cast<TahaiEnvironment>(-1),
+                                            "https://admin.example.com"));
+  EXPECT_TRUE(SetTahaiEnvironmentGuardRule(
+      preferences, TahaiEnvironment::kProduction, "https://admin.example.com"));
+  EXPECT_TRUE(FindTahaiEnvironmentGuardRule(preferences,
+                                            GURL("https://admin.example.com")));
+}
 
 TEST_F(MissionServiceTest, CapsuleKeyLeasesRecheckAfterProviderAndPreserveManagedStorage) {
   DeferredCapsuleCrypt provider;

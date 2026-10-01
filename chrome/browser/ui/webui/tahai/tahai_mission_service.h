@@ -10,13 +10,14 @@
 #include <string_view>
 #include <vector>
 
-#include "base/memory/raw_ptr.h"
 #include "base/functional/callback_forward.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "base/values.h"
 #include "chrome/browser/profiles/profile_keyed_service_factory.h"
 #include "chrome/browser/ui/webui/tahai/tahai_oi_link_contract.h"
 #include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
@@ -309,6 +310,7 @@ class MissionService : public KeyedService {
   void Load();
   void Save();
   bool CanStoreProtectedInputs() const;
+  bool CanMutateStorage() const;
   bool ExpireWorkflowDeadlines();
   void ScheduleWorkflowDeadline();
   void OnWorkflowDeadline();
@@ -318,6 +320,7 @@ class MissionService : public KeyedService {
   const raw_ptr<Profile> profile_;
   const raw_ptr<PrefService> prefs_;
   std::vector<MissionSummary> missions_;
+  std::optional<base::Value> loaded_storage_;
   scoped_refptr<os_crypt_async::Encryptor> input_encryptor_;
   bool shutting_down_ = false;
   // One bounded wakeup for the earliest wait/native deadline across local runs.

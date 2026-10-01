@@ -305,6 +305,12 @@ class COMPONENTS_PREFS_EXPORT PrefService {
   // the preference is not set in the user pref store, returns NULL.
   const base::Value* GetUserPrefValue(std::string_view path) const;
 
+  // Returns the exact user-store value, including a mismatched type, or null
+  // if absent. For fail-closed validation/preservation of damaged storage;
+  // callers must validate type and schema before using it. Does not alter the
+  // effective preference or the type-filtered GetUserPrefValue contract.
+  const base::Value* GetRawUserPrefValue(std::string_view path) const;
+
   // Changes the default value for a preference.
   //
   // Will cause a pref change notification to be fired if this causes

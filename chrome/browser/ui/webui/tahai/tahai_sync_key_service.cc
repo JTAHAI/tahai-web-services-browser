@@ -156,8 +156,11 @@ LoadedKeyring LoadKeyring(const base::DictValue& stored,
     TahaiSyncKeyResult key_result;
     std::optional<TahaiSyncEnvelopeKey> key =
         DecodeProtectedKey(*protected_key, encryptor, &key_result);
-    if (!key || key->key_id != *key_id) {
+    if (!key) {
       return {.result = key_result};
+    }
+    if (key->key_id != *key_id) {
+      return {};
     }
     keyring.entries.push_back(
         {.key = std::move(*key), .created_micros = created_micros});
@@ -233,6 +236,12 @@ TahaiSyncKeyService::~TahaiSyncKeyService() = default;
 TahaiSyncKeyringStatus TahaiSyncKeyService::GetStatus() const {
   TahaiSyncKeyringStatus status;
   if (!persistence_allowed_ || !prefs_ || prefs_->IsManagedPreference(prefs::kTahaiSyncKeyring)) {
+    return status;
+  }
+  const base::Value* raw =
+      prefs_->GetRawUserPrefValue(prefs::kTahaiSyncKeyring);
+  if (raw && !raw->is_dict()) {
+    status.has_stored_keyring = true;
     return status;
   }
   const base::DictValue& stored = prefs_->GetDict(prefs::kTahaiSyncKeyring);
@@ -315,8 +324,15 @@ void TahaiSyncKeyService::Start(Operation operation,
                             std::nullopt);
     return;
   }
+  const auto alive = weak_ptr_factory_.GetWeakPtr();
+  const bool authorized = !authorization || authorization.Run();
+  if (!alive || !authorized) {
+    std::move(callback).Run(TahaiSyncKeyResult::kPersistenceFailed,
+                            std::nullopt);
+    return;
+  }
   if (prefs_->IsManagedPreference(prefs::kTahaiSyncKeyring) ||
-      (authorization && !authorization.Run()) || pending_operations_.size() >= 16u) {
+      pending_operations_.size() >= 16u) {
     std::move(callback).Run(TahaiSyncKeyResult::kPersistenceFailed, std::nullopt);
     return;
   }
@@ -346,13 +362,29 @@ void TahaiSyncKeyService::OnEncryptorReady(
   pending_operations_.pop_front();
   operation_in_flight_ = false;
 
-  if (prefs_->IsManagedPreference(prefs::kTahaiSyncKeyring) ||
-      (pending.authorization && !pending.authorization.Run())) {
+  const auto alive = weak_ptr_factory_.GetWeakPtr();
+  const bool authorized = !pending.authorization || pending.authorization.Run();
+  if (!alive) {
+    std::move(pending.callback)
+        .Run(TahaiSyncKeyResult::kPersistenceFailed, std::nullopt);
+    return;
+  }
+  if (prefs_->IsManagedPreference(prefs::kTahaiSyncKeyring) || !authorized) {
     FinishOperation(std::move(pending), TahaiSyncKeyResult::kPersistenceFailed, std::nullopt);
     return;
   }
   if (!encryptor || !encryptor->IsDecryptionAvailable()) {
     FinishOperation(std::move(pending), TahaiSyncKeyResult::kOsCryptUnavailable,
+                    std::nullopt);
+    return;
+  }
+  // GetDict falls back to the registered empty dictionary for a wrong-typed
+  // user value. Never mistake damaged storage for permission to replace keys.
+  // Check after the asynchronous provider returns, not just at admission.
+  const base::Value* raw =
+      prefs_->GetRawUserPrefValue(prefs::kTahaiSyncKeyring);
+  if (raw && !raw->is_dict()) {
+    FinishOperation(std::move(pending), TahaiSyncKeyResult::kCorruptStorage,
                     std::nullopt);
     return;
   }
@@ -392,7 +424,13 @@ void TahaiSyncKeyService::OnEncryptorReady(
   if (keyring.entries.size() > kTahaiSyncKeyringMaxRetainedKeys) {
     keyring.entries.resize(kTahaiSyncKeyringMaxRetainedKeys);
   }
-  if (!PersistKeyring(prefs_, keyring, encryptor.get())) {
+  const bool persisted = PersistKeyring(prefs_, keyring, encryptor.get());
+  if (!alive) {
+    std::move(pending.callback)
+        .Run(TahaiSyncKeyResult::kPersistenceFailed, std::nullopt);
+    return;
+  }
+  if (!persisted) {
     FinishOperation(std::move(pending), TahaiSyncKeyResult::kPersistenceFailed,
                     std::nullopt);
     return;

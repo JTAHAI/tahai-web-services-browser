@@ -97,8 +97,8 @@ TEST_F(TahaiLocalOiStoreTest,
   EXPECT_EQ(LocalOiStoreStatus::kUnavailable, store.status());
   EXPECT_FALSE(store.UpsertEntity(MakeMission(kEntityId)));
   EXPECT_FALSE(store.DeleteAll());
-  ASSERT_TRUE(prefs_.GetUserPrefValue(prefs::kTahaiLocalOiStore));
-  EXPECT_EQ(original, *prefs_.GetUserPrefValue(prefs::kTahaiLocalOiStore));
+  ASSERT_TRUE(prefs_.GetRawUserPrefValue(prefs::kTahaiLocalOiStore));
+  EXPECT_EQ(original, *prefs_.GetRawUserPrefValue(prefs::kTahaiLocalOiStore));
 }
 
 TEST_F(TahaiLocalOiStoreTest, StaleBatchCannotReplaceNewerMutation) {

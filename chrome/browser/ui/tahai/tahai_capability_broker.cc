@@ -122,7 +122,7 @@ std::optional<std::vector<TahaiCapabilityGrant>> ReadGrants(Profile* profile) {
     return std::nullopt;
   }
   const base::Value* user_value =
-      profile->GetPrefs()->GetUserPrefValue(prefs::kTahaiCapabilityGrants);
+      profile->GetPrefs()->GetRawUserPrefValue(prefs::kTahaiCapabilityGrants);
   if (user_value && !user_value->is_dict()) {
     // A registered default is not evidence that unfamiliar durable storage
     // was empty. A review must never silently repair or replace such a store.

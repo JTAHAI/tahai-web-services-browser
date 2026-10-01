@@ -16,7 +16,7 @@ function Assert-TahaiTestSummary {
 
     Set-StrictMode -Version Latest
     $iterations = @($Summary.per_iteration_data)
-    if ($iterations.Count -eq 0 -or $RequiredTests.Count -eq 0) {
+    if ($iterations.Count -ne 1 -or $RequiredTests.Count -eq 0) {
         throw "$Suite has no test iterations or required test selection."
     }
     foreach ($pattern in $RequiredPatterns) {
@@ -33,7 +33,7 @@ function Assert-TahaiTestSummary {
         if ($names.Count -eq 0) { throw "$Suite ran zero tests." }
         foreach ($name in $names) {
             $attempts = @($iteration.PSObject.Properties[$name].Value)
-            if ($attempts.Count -eq 0) { throw "$Suite did not run $name." }
+            if ($attempts.Count -ne 1) { throw "$Suite must run $name exactly once without retries." }
             foreach ($attempt in $attempts) {
                 if ($null -eq $attempt -or $attempt.status -cne 'SUCCESS') {
                     throw "$Suite contains a non-passing attempt: $name. Retries do not erase failures."
@@ -67,7 +67,8 @@ function Assert-TahaiTestSummary {
 function Read-TahaiEvidenceJson {
     param([string]$Path)
     $file = Get-Item -LiteralPath $Path -ErrorAction Stop
-    if ($file.PSIsContainer -or $file.Length -le 0 -or $file.Length -gt 64MB) {
+    if ($file.PSIsContainer -or $file.Length -le 0 -or $file.Length -gt 64MB -or
+        ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
         throw "Evidence must be a nonempty JSON file of at most 64 MiB: $Path"
     }
     return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
@@ -90,10 +91,83 @@ function Assert-TahaiEvidenceFile {
     }
     $written = ([DateTimeOffset]$file.LastWriteTimeUtc).ToUnixTimeMilliseconds()
     if ($written -lt $NotBeforeUnixMs -or
+        $written -gt [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() -or
         (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $Record.sha256) {
         throw "Evidence is stale or its SHA-256 changed: $path"
     }
     return $path
+}
+
+function Assert-TahaiSmokeEvidence {
+    param([string]$Path, [string]$ChromeSha256, [string]$ChromeDllSha256,
+          [long]$NotBeforeUnixMs)
+    Set-StrictMode -Version Latest
+    $root = Split-Path -Parent $Path
+    $record = @{ file = (Get-Item -LiteralPath $Path).Name;
+                 sha256 = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash }
+    $null = Assert-TahaiEvidenceFile $root $record $NotBeforeUnixMs
+    $smoke = Read-TahaiEvidenceJson $Path
+    if (-not (Test-TahaiJsonInteger $smoke.schemaVersion) -or $smoke.schemaVersion -ne 1 -or
+        $smoke.isolatedProfile -isnot [bool] -or -not $smoke.isolatedProfile -or
+        $smoke.cleanExit -isnot [bool] -or -not $smoke.cleanExit -or
+        -not (Test-TahaiJsonInteger $smoke.exitCode) -or $smoke.exitCode -ne 0 -or
+        $ChromeSha256 -notmatch '^[a-fA-F0-9]{64}$' -or
+        $ChromeDllSha256 -notmatch '^[a-fA-F0-9]{64}$' -or
+        $smoke.chromeSha256 -ne $ChromeSha256 -or
+        $smoke.chromeDllSha256 -ne $ChromeDllSha256) {
+        throw 'An isolated, clean-exit smoke report bound to these browser binaries is required.'
+    }
+    $names = @{}
+    foreach ($check in @($smoke.checks)) {
+        if ([string]::IsNullOrWhiteSpace($check.name) -or
+            $names.ContainsKey($check.name) -or $check.status -cne 'passed') {
+            throw 'Smoke checks must be uniquely named and passing.'
+        }
+        $names[$check.name] = $true
+        $null = Assert-TahaiEvidenceFile $root $check.evidence $NotBeforeUnixMs
+    }
+    foreach ($surface in @('rail-icons', 'rail-expanded', 'rail-hidden',
+                           'native-menu-recovery', 'dual-view', 'local-oi', 'named-workspaces', 'guard-custom-rules', 'guard-native-panel', 'skin-package-manager')) {
+        if (@($smoke.checks.name) -cnotcontains $surface) {
+            throw "Smoke evidence is missing: $surface"
+        }
+    }
+    $null = Assert-TahaiEvidenceFile $root $record $NotBeforeUnixMs
+    return $smoke
+}
+
+function Copy-TahaiSmokeEvidence {
+    param([string]$Path, [string]$DestinationDirectory, [string]$ChromeSha256,
+          [string]$ChromeDllSha256, [long]$NotBeforeUnixMs)
+    Set-StrictMode -Version Latest
+    $root = Split-Path -Parent $Path
+    $reportRecord = @{ file = (Get-Item -LiteralPath $Path).Name;
+                       sha256 = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash }
+    $smoke = Assert-TahaiSmokeEvidence $Path $ChromeSha256 $ChromeDllSha256 $NotBeforeUnixMs
+    $records = @($smoke.checks | ForEach-Object { $_.evidence })
+    $destinations = @{ 'smoke.json' = $true }
+    foreach ($record in $records) {
+        if ($destinations.ContainsKey($record.file) -or
+            (Test-Path -LiteralPath (Join-Path $DestinationDirectory $record.file))) {
+            throw 'Smoke evidence has a duplicate or colliding destination.'
+        }
+        $destinations[$record.file] = $true
+    }
+    $copiedSmoke = Join-Path $DestinationDirectory 'smoke.json'
+    if (Test-Path -LiteralPath $copiedSmoke) { throw 'Smoke output already exists.' }
+    foreach ($record in $records) {
+        $sourcePath = Assert-TahaiEvidenceFile $root $record $NotBeforeUnixMs
+        Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $DestinationDirectory $record.file) -ErrorAction Stop
+        $null = Assert-TahaiEvidenceFile $DestinationDirectory $record $NotBeforeUnixMs
+    }
+    $null = Assert-TahaiEvidenceFile $root $reportRecord $NotBeforeUnixMs
+    # Preserve original bytes, attestations and timestamps. Never reserialize
+    # or replace a check's recorded hash with whatever bytes happen to exist.
+    Copy-Item -LiteralPath $Path -Destination $copiedSmoke -ErrorAction Stop
+    $copiedRecord = @{ file = 'smoke.json'; sha256 = $reportRecord.sha256 }
+    $null = Assert-TahaiEvidenceFile $DestinationDirectory $copiedRecord $NotBeforeUnixMs
+    $null = Assert-TahaiSmokeEvidence $copiedSmoke $ChromeSha256 $ChromeDllSha256 $NotBeforeUnixMs
+    return $copiedSmoke
 }
 
 function Assert-TahaiReleaseEvidence {
@@ -286,6 +360,14 @@ function Assert-TahaiReleaseEvidence {
         'MissionServiceTest.ManagedAndShutdownMissionsRejectMetadataCreationAndOrdinaryInputWrites',
         'MissionServiceTest.CapsuleKeyLeasesRecheckAfterProviderAndPreserveManagedStorage',
         'MissionServiceTest.CapsuleKeyQueueIsBoundedAndRevokedRequestsNeverGenerateKeys',
+        'MissionServiceTest.CapsuleKeyWrongTypedStorageIsNeverReplaced',
+        'MissionServiceTest.CapsuleKeyLateStorageCorruptionIsPreserved',
+        'MissionServiceTest.CapsuleKeyIdentityMismatchReportsCorruptionNotSuccess',
+        'MissionServiceTest.CapsuleKeyCallbackSurvivesOwnerDeletionDuringPersistence',
+        'MissionServiceTest.MissionExternalStorageReplacementIsNotOverwritten',
+        'MissionServiceTest.CapsuleImportCommitsAtomicallyBeforeOwnerDeletion',
+        'MissionServiceTest.MissionWrongTypedStorageRejectsMutationsWithoutDataLoss',
+        'MissionServiceTest.EnvironmentGuardRejectsDamagedStorageAndInvalidEnums',
         'TahaiOperationalSkinManifestTest.ActionStatusBindingsAreTypedPrecedingAndIterationScoped',
         'MissionServiceTest.ActionStatusBindingsPersistWithoutReplayAndRejectForgedSources',
         'MissionServiceTest.ActionStatusBindingsRespectEachIterationAndTargetConstraints',
@@ -439,6 +521,15 @@ function Assert-TahaiReleaseEvidence {
         'TahaiOperationalModeBrowserTest.TahaiNativeTrustReviewShowsCapabilitiesAndClearsOnRevocation',
         'TahaiOperationalModeBrowserTest.TahaiManagerActivationPreservesAuthoredRecovery',
         'TahaiOperationalModeBrowserTest.TahaiManagerActivationStopsOnSynchronousClose',
+        'TahaiSkinManagerBrowserTest.TahaiWindowAppearanceApplySurvivesManagerClose',
+        'TahaiSkinManagerBrowserTest.TahaiWindowAppearanceResetSurvivesManagerClose',
+        'TahaiSkinManagerBrowserTest.TahaiWindowAppearanceApplyStopsAfterRetarget',
+        'TahaiSkinManagerBrowserTest.TahaiWindowAppearanceResetStopsAfterRetarget',
+        'TahaiSkinProfileBrowserTest.TahaiAppearanceApplyStopsAfterServiceShutdown',
+        'TahaiSkinProfileBrowserTest.TahaiAppearanceResetStopsAfterServiceShutdown',
+        'TahaiSkinProfileBrowserTest.TahaiAppearancePreservesWrongTypedPreference',
+        'TahaiSkinProfileBrowserTest.TahaiPreviewRestartCannotContinueAfterThemeCancellation',
+        'TahaiSkinManagerBrowserTest.TahaiPresentationRestoreRejectsObserverReplacement',
         'TahaiOperationalModeBrowserTest.TahaiManagerCustomActivationStopsOnSynchronousClose',
         'TahaiOperationalModeBrowserTest.TahaiManagerActivationStopsOnSynchronousRetarget',
         'TahaiOperationalModeBrowserTest.TahaiManagerActivationStopsOnSynchronousRevocation',
@@ -556,25 +647,9 @@ function Assert-TahaiReleaseEvidence {
         'TahaiGuardProxyBrowserTest.TahaiLostTerminalCannotAcceptLateDecision'
     ) 'TAHAI browser tests' @('*Tahai*')
     $smokePath = Assert-TahaiEvidenceFile $root $evidence.smoke $finished
-    $smoke = Read-TahaiEvidenceJson $smokePath
     $chrome = @($evidence.artifacts | Where-Object { $_.name -ceq 'chrome.exe' })[0]
     $chromeDll = @($evidence.artifacts | Where-Object { $_.name -ceq 'chrome.dll' })[0]
-    if (-not (Test-TahaiJsonInteger $smoke.schemaVersion) -or $smoke.schemaVersion -ne 1 -or
-        $smoke.isolatedProfile -isnot [bool] -or -not $smoke.isolatedProfile -or
-        $smoke.cleanExit -isnot [bool] -or -not $smoke.cleanExit -or
-        -not (Test-TahaiJsonInteger $smoke.exitCode) -or $smoke.exitCode -ne 0 -or
-        $smoke.chromeSha256 -ne $chrome.sha256 -or
-        $smoke.chromeDllSha256 -ne $chromeDll.sha256) {
-        throw 'An isolated, clean-exit smoke report bound to these browser binaries is required.'
-    }
-    foreach ($surface in @('rail-icons', 'rail-expanded', 'rail-hidden',
-                           'native-menu-recovery', 'dual-view', 'local-oi', 'named-workspaces', 'guard-custom-rules', 'guard-native-panel', 'skin-package-manager')) {
-        $checks = @($smoke.checks | Where-Object { $_.name -ceq $surface })
-        if ($checks.Count -ne 1 -or $checks[0].status -cne 'passed') {
-            throw "Smoke evidence is missing or failed: $surface"
-        }
-        $null = Assert-TahaiEvidenceFile $root $checks[0].evidence $finished
-    }
+    $null = Assert-TahaiSmokeEvidence $smokePath $chrome.sha256 $chromeDll.sha256 $finished
     return [pscustomobject]@{
         NativeTestAttempts = $nativeCount
         BrowserTestAttempts = $browserCount

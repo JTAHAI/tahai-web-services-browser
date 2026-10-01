@@ -292,7 +292,8 @@ bool WindowModeController::RestorePresentation(
   }
   // An observer may have applied a newer appearance while handling the update.
   // Do not start the superseded skin restore or report it as the current mode.
-  if (window_restore_generation_ != generation) {
+  if (window_restore_generation_ != generation ||
+      CapturePresentation() != presentation) {
     return false;
   }
   if (!restoring_window_skin_) {
