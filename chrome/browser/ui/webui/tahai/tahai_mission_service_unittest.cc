@@ -3365,6 +3365,98 @@ TEST_F(MissionServiceTest,
             local_oi.data().findings.front().resolution_reason);
 }
 
+TEST_F(MissionServiceTest, LocalOiNotificationCanDeleteOwnerDuringMutation) {
+  MissionService missions(&profile_);
+  ASSERT_TRUE(missions.CreateMission("Local projection", "incident"));
+  for (const char* operation : {"direct", "sync", "artifact", "environment"}) {
+    SCOPED_TRACE(operation);
+    profile_.GetPrefs()->ClearPref(prefs::kTahaiLocalOiStore);
+    auto local_oi = std::make_unique<TahaiLocalOiService>(&profile_);
+    const auto weak = local_oi->GetWeakPtr();
+    const auto rules =
+        profile_.GetPrefs()->GetDict(prefs::kTahaiEnvironmentGuardRules).Clone();
+    bool notified = false;
+    PrefChangeRegistrar registrar;
+    registrar.Init(profile_.GetPrefs());
+    registrar.Add(prefs::kTahaiLocalOiStore, base::BindLambdaForTesting([&] {
+      notified = true;
+      local_oi.reset();
+    }));
+    bool accepted = false;
+    const std::string_view kind(operation);
+    if (kind == "direct") {
+      LocalOiEntityRecord entity;
+      entity.id = base::Uuid::GenerateRandomV4().AsLowercaseString();
+      entity.type = LocalOiEntityType::kEndpoint;
+      entity.title = "Approved endpoint";
+      entity.summary = "Bounded explicit local metadata.";
+      entity.source = LocalOiRecordSource::kExplicitUserEntry;
+      entity.created_at = LocalOiNowTimestamp();
+      entity.updated_at = entity.created_at;
+      accepted = local_oi->UpsertEntity(std::move(entity));
+    } else if (kind == "sync") {
+      accepted = local_oi->SyncMissions(missions.missions());
+    } else if (kind == "artifact") {
+      accepted = local_oi->RecordArtifactMetadata(
+          {"Fixture", "https://example.com/download", std::string(64, 'a'), ""})
+                     .has_value();
+    } else {
+      accepted = local_oi->ConfigureEnvironmentClassification(
+          TahaiEnvironment::kProduction, "https://example.com").has_value();
+    }
+    EXPECT_TRUE(notified);
+    EXPECT_FALSE(accepted);
+    EXPECT_FALSE(local_oi);
+    EXPECT_FALSE(weak);
+    EXPECT_EQ(rules, profile_.GetPrefs()->GetDict(prefs::kTahaiEnvironmentGuardRules));
+  }
+}
+
+TEST_F(MissionServiceTest, LocalOiNotificationShutdownOrPolicyStopsNextStage) {
+  for (const char* boundary : {"shutdown", "enabled", "ops"}) {
+    SCOPED_TRACE(boundary);
+    profile_.GetPrefs()->ClearPref(prefs::kTahaiLocalOiStore);
+    profile_.GetPrefs()->SetBoolean(prefs::kTahaiLocalOiEnabled, true);
+    profile_.GetPrefs()->SetBoolean(prefs::kTahaiLocalOiOpsToolIngestionEnabled, true);
+    TahaiLocalOiService local_oi(&profile_);
+    const auto rules =
+        profile_.GetPrefs()->GetDict(prefs::kTahaiEnvironmentGuardRules).Clone();
+    bool notified = false;
+    PrefChangeRegistrar registrar;
+    registrar.Init(profile_.GetPrefs());
+    registrar.Add(prefs::kTahaiLocalOiStore, base::BindLambdaForTesting([&] {
+      if (notified) return;
+      notified = true;
+      if (std::string_view(boundary) == "shutdown") {
+        local_oi.Shutdown();
+      } else {
+        profile_.GetPrefs()->SetBoolean(
+            std::string_view(boundary) == "enabled"
+                ? prefs::kTahaiLocalOiEnabled
+                : prefs::kTahaiLocalOiOpsToolIngestionEnabled,
+            false);
+      }
+    }));
+    EXPECT_FALSE(local_oi.ConfigureEnvironmentClassification(
+        TahaiEnvironment::kProduction, "https://example.com"));
+    EXPECT_TRUE(notified);
+    EXPECT_EQ(rules, profile_.GetPrefs()->GetDict(prefs::kTahaiEnvironmentGuardRules));
+  }
+}
+
+TEST_F(MissionServiceTest, LocalOiReportCannotExportAfterNotificationRevokesPolicy) {
+  TahaiLocalOiService local_oi(&profile_);
+  bool notified = false;
+  PrefChangeRegistrar registrar;
+  registrar.Init(profile_.GetPrefs());
+  registrar.Add(prefs::kTahaiLocalOiStore, base::BindLambdaForTesting([&] {
+    notified = true;
+    profile_.GetPrefs()->SetBoolean(prefs::kTahaiLocalOiExportEnabled, false);
+  }));
+  EXPECT_FALSE(local_oi.GenerateSafeReport(LocalOiSafeReportKind::kOverview));
+  EXPECT_TRUE(notified);
+}
+
 TEST_F(MissionServiceTest, LocalOiSearchReadsOnlyPersistedTypedRecords) {
   TahaiLocalOiService local_oi(&profile_);
   const std::string now = LocalOiNowTimestamp();
@@ -6368,6 +6460,75 @@ TEST_F(MissionServiceTest,
   EXPECT_EQ(TahaiSyncKeyResult::kPersistenceFailed, result.Get<0>());
   EXPECT_FALSE(result.Get<1>());
   EXPECT_FALSE(profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring).empty());
+}
+
+TEST_F(MissionServiceTest, CapsuleKeyPersistenceMustSurviveNotificationAndLease) {
+  for (bool rotate : {false, true}) {
+    for (const char* boundary : {"clear", "replace", "managed", "lease"}) {
+      SCOPED_TRACE(rotate);
+      SCOPED_TRACE(boundary);
+      profile_.GetPrefs()->ClearPref(prefs::kTahaiSyncKeyring);
+      DeferredCapsuleCrypt provider;
+      TahaiSyncKeyService service(profile_.GetPrefs(), &provider);
+      if (rotate) {
+        base::test::TestFuture<TahaiSyncKeyResult,
+                               std::optional<TahaiSyncEnvelopeKey>> initial;
+        service.EnsureActiveKey(initial.GetCallback());
+        provider.Release();
+        ASSERT_EQ(TahaiSyncKeyResult::kOk, initial.Get<0>());
+        base::RunLoop().RunUntilIdle();
+      }
+      const auto original =
+          profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring).Clone();
+      auto replacement = original.Clone();
+      if (replacement.empty()) replacement.Set("future-keyring", true);
+      bool authorized = true;
+      bool notified = false;
+      PrefChangeRegistrar registrar;
+      registrar.Init(profile_.GetPrefs());
+      registrar.Add(prefs::kTahaiSyncKeyring, base::BindLambdaForTesting([&] {
+        if (notified) return;
+        notified = true;
+        const std::string_view kind(boundary);
+        if (kind == "clear") {
+          profile_.GetPrefs()->ClearPref(prefs::kTahaiSyncKeyring);
+        } else if (kind == "replace") {
+          profile_.GetPrefs()->SetDict(prefs::kTahaiSyncKeyring, replacement.Clone());
+        } else if (kind == "managed") {
+          profile_.GetTestingPrefService()->SetManagedPref(
+              prefs::kTahaiSyncKeyring, base::Value(base::DictValue()));
+        } else {
+          authorized = false;
+        }
+      }));
+      base::test::TestFuture<TahaiSyncKeyResult,
+                             std::optional<TahaiSyncEnvelopeKey>> result;
+      const auto lease = base::BindLambdaForTesting([&] { return authorized; });
+      if (rotate) service.RotateActiveKey(result.GetCallback(), lease);
+      else service.EnsureActiveKey(result.GetCallback(), lease);
+      provider.Release();
+      EXPECT_TRUE(notified);
+      EXPECT_EQ(TahaiSyncKeyResult::kPersistenceFailed, result.Get<0>());
+      EXPECT_FALSE(result.Get<1>());
+      if (std::string_view(boundary) == "replace") {
+        EXPECT_EQ(replacement, profile_.GetPrefs()->GetDict(prefs::kTahaiSyncKeyring));
+      } else if (std::string_view(boundary) == "clear") {
+        EXPECT_FALSE(profile_.GetPrefs()->GetRawUserPrefValue(prefs::kTahaiSyncKeyring));
+      }
+      registrar.RemoveAll();
+      profile_.GetTestingPrefService()->RemoveManagedPref(prefs::kTahaiSyncKeyring);
+      profile_.GetPrefs()->SetDict(prefs::kTahaiSyncKeyring, original.Clone());
+      authorized = true;
+      base::RunLoop().RunUntilIdle();
+      base::test::TestFuture<TahaiSyncKeyResult,
+                             std::optional<TahaiSyncEnvelopeKey>> recovered;
+      service.EnsureActiveKey(recovered.GetCallback(), lease);
+      provider.Release();
+      EXPECT_EQ(TahaiSyncKeyResult::kOk, recovered.Get<0>());
+      EXPECT_TRUE(recovered.Get<1>());
+      base::RunLoop().RunUntilIdle();
+    }
+  }
 }
 
 TEST_F(MissionServiceTest, MissionExternalStorageReplacementIsNotOverwritten) {

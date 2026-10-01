@@ -1751,14 +1751,22 @@ std::optional<MissionSummary> MissionService::CreateOperationalWorkflowMission(
 }
 
 bool MissionService::BeginNativeWorkflowStep(std::string_view id, size_t index,
-                                            std::string* pending_token) {
+                                            std::string* pending_token,
+                                            std::string_view expected_token) {
   const std::string owned_id(id);
+  const auto* reviewed = FindMission(owned_id);
+  // Deadline settlement can notify observers before the attempt is opened.
+  // Never turn their replacement review into authority for this invocation.
+  const std::string reviewed_token =
+      expected_token.empty() && reviewed ? reviewed->mutation_token
+                                        : std::string(expected_token);
   if (!SettleWorkflowDeadlines()) {
     return false;
   }
   auto* mission = FindMission(owned_id);
   if (shutting_down_ || !CanStoreProtectedInputs() ||
-      !mission || !CanBeginMissionNativeStep(*mission, index)) {
+      !mission || mission->mutation_token != reviewed_token ||
+      !CanBeginMissionNativeStep(*mission, index)) {
     return false;
   }
   FreezeRecordedConditionsThrough(*mission, index);
@@ -1788,8 +1796,10 @@ bool MissionService::CanContinueNativeWorkflowStep(std::string_view id,
          MissionWorkflowNativeTimeRemaining(mission->steps[index]).value_or(0) > 0;
 }
 
-bool MissionService::AssignWorkflowVariable(std::string_view id, size_t index) {
+bool MissionService::AssignWorkflowVariable(std::string_view id, size_t index,
+                                            std::string_view expected_token) {
   const std::string owned_id(id);
+  const std::string reviewed_token(expected_token);
   if (!SettleWorkflowDeadlines()) {
     return false;
   }
@@ -1797,6 +1807,7 @@ bool MissionService::AssignWorkflowVariable(std::string_view id, size_t index) {
   if (shutting_down_ || !persistence_enabled() ||
       !profile_->IsRegularProfile() || profile_->IsGuestSession() ||
       profile_->IsSystemProfile() || !CanMutateStorage() || !mission ||
+      (!reviewed_token.empty() && mission->mutation_token != reviewed_token) ||
       !CanAssignMissionWorkflowVariable(*mission, index)) {
     return false;
   }
@@ -1849,13 +1860,17 @@ bool MissionService::AssignWorkflowVariable(std::string_view id, size_t index) {
   return true;
 }
 
-bool MissionService::ControlWorkflowWait(std::string_view id, size_t index, bool complete) {
+bool MissionService::ControlWorkflowWait(std::string_view id, size_t index,
+                                        bool complete,
+                                        std::string_view expected_token) {
   const std::string owned_id(id);
+  const std::string reviewed_token(expected_token);
   if (!SettleWorkflowDeadlines()) {
     return false;
   }
   auto* mission = FindMission(owned_id);
   if (shutting_down_ || !CanStoreProtectedInputs() || !mission ||
+      (!reviewed_token.empty() && mission->mutation_token != reviewed_token) ||
       !CanControlMissionWorkflowWait(*mission, index, complete)) return false;
   auto& step = mission->steps[index];
   FreezeRecordedConditionsThrough(*mission, index);
@@ -1927,11 +1942,13 @@ bool MissionService::FinishNativeWorkflowStep(std::string_view id, size_t index,
 
 bool MissionService::SetOperationalWorkflowRunState(
     std::string_view mission_id,
-    std::string_view run_state) {
+    std::string_view run_state,
+    std::string_view expected_token) {
   if (shutting_down_ || !CanMutateStorage()) {
     return false;
   }
   const std::string owned_id(mission_id);
+  const std::string reviewed_token(expected_token);
   const std::string owned_run_state(run_state);
   run_state = owned_run_state;
   if (!SettleWorkflowDeadlines() || shutting_down_ || !CanMutateStorage()) {
@@ -1939,6 +1956,7 @@ bool MissionService::SetOperationalWorkflowRunState(
   }
   MissionSummary* mission = FindMission(owned_id);
   if (shutting_down_ || !mission || mission->archived || !mission->operational_workflow ||
+      (!reviewed_token.empty() && mission->mutation_token != reviewed_token) ||
       (!IsOperationalWorkflowRunState(run_state) ||
        (mission->operational_workflow->run_state != run_state &&
         !IsAllowedOperationalWorkflowTransition(
@@ -2058,16 +2076,19 @@ std::optional<MissionSummary> MissionService::ImportSanitizedMissionCapsule(
 }
 
 bool MissionService::ToggleStep(std::string_view mission_id,
-                                size_t step_index) {
+                                size_t step_index,
+                                std::string_view expected_token) {
   if (shutting_down_ || !CanMutateStorage()) {
     return false;
   }
   const std::string owned_id(mission_id);
+  const std::string reviewed_token(expected_token);
   if (!SettleWorkflowDeadlines() || shutting_down_ || !CanMutateStorage()) {
     return false;
   }
   MissionSummary* mission = FindMission(owned_id);
   if (!mission || mission->archived ||
+      (!reviewed_token.empty() && mission->mutation_token != reviewed_token) ||
       !ToggleGeneratedStep(mission, &mission->steps, step_index, "runbook",
                            "Checkpoint")) {
     return false;
@@ -2172,11 +2193,13 @@ bool MissionService::AddLocalNote(std::string_view mission_id,
 bool MissionService::SetOperationalWorkflowInputValue(
     std::string_view mission_id,
     std::string_view input_id,
-    std::string_view value) {
+    std::string_view value,
+    std::string_view expected_token) {
   if (shutting_down_ || !CanMutateStorage()) {
     return false;
   }
   const std::string owned_id(mission_id);
+  const std::string reviewed_token(expected_token);
   const std::string owned_input_id(input_id);
   const std::string owned_value(value);
   input_id = owned_input_id;
@@ -2186,6 +2209,7 @@ bool MissionService::SetOperationalWorkflowInputValue(
   }
   MissionSummary* mission = FindMission(owned_id);
   if (!mission || mission->archived || !mission->operational_workflow ||
+      (!reviewed_token.empty() && mission->mutation_token != reviewed_token) ||
       IsTerminalWorkflowState(mission->operational_workflow->run_state) ||
       std::ranges::any_of(mission->steps, [](const auto& step) {
         return step.action_state == "pending";
@@ -2266,16 +2290,19 @@ bool MissionService::SetExportProfile(std::string_view mission_id,
   return true;
 }
 
-bool MissionService::ArchiveMission(std::string_view mission_id) {
+bool MissionService::ArchiveMission(std::string_view mission_id,
+                                    std::string_view expected_token) {
   if (shutting_down_ || !CanMutateStorage()) {
     return false;
   }
   const std::string owned_id(mission_id);
+  const std::string reviewed_token(expected_token);
   if (!SettleWorkflowDeadlines() || shutting_down_ || !CanMutateStorage()) {
     return false;
   }
   MissionSummary* mission = FindMission(owned_id);
-  if (!mission || mission->archived) {
+  if (!mission || mission->archived ||
+      (!reviewed_token.empty() && mission->mutation_token != reviewed_token)) {
     return false;
   }
   mission->archived = true;

@@ -176,7 +176,8 @@ LoadedKeyring LoadKeyring(const base::DictValue& stored,
 
 bool PersistKeyring(PrefService* prefs,
                     const Keyring& keyring,
-                    os_crypt_async::Encryptor* encryptor) {
+                    os_crypt_async::Encryptor* encryptor,
+                    base::DictValue* persisted_snapshot) {
   if (prefs->IsManagedPreference(prefs::kTahaiSyncKeyring) ||
       !encryptor->IsEncryptionAvailable() || keyring.entries.empty() ||
       keyring.entries.size() > kTahaiSyncKeyringMaxRetainedKeys ||
@@ -205,6 +206,9 @@ bool PersistKeyring(PrefService* prefs,
     serialized_entries.Append(std::move(serialized_entry));
   }
   serialized.Set(kEntriesField, std::move(serialized_entries));
+  // Capture before SetDict notifies observers. The caller checks its lifetime
+  // before reading preferences again; this helper must not do so after writing.
+  *persisted_snapshot = serialized.Clone();
   prefs->SetDict(prefs::kTahaiSyncKeyring, std::move(serialized));
   return true;
 }
@@ -429,13 +433,26 @@ void TahaiSyncKeyService::OnEncryptorReady(
   if (keyring.entries.size() > kTahaiSyncKeyringMaxRetainedKeys) {
     keyring.entries.resize(kTahaiSyncKeyringMaxRetainedKeys);
   }
-  const bool persisted = PersistKeyring(prefs_, keyring, encryptor.get());
+  base::DictValue persisted_snapshot;
+  const bool persisted =
+      PersistKeyring(prefs_, keyring, encryptor.get(), &persisted_snapshot);
   if (!alive) {
     std::move(pending.callback)
         .Run(TahaiSyncKeyResult::kPersistenceFailed, std::nullopt);
     return;
   }
-  if (!persisted) {
+  const bool still_authorized =
+      !pending.authorization || pending.authorization.Run();
+  if (!alive) {
+    std::move(pending.callback)
+        .Run(TahaiSyncKeyResult::kPersistenceFailed, std::nullopt);
+    return;
+  }
+  const auto* committed =
+      prefs_->GetRawUserPrefValue(prefs::kTahaiSyncKeyring);
+  if (!persisted || !still_authorized ||
+      prefs_->IsManagedPreference(prefs::kTahaiSyncKeyring) || !committed ||
+      !committed->is_dict() || committed->GetDict() != persisted_snapshot) {
     FinishOperation(std::move(pending), TahaiSyncKeyResult::kPersistenceFailed,
                     std::nullopt);
     return;

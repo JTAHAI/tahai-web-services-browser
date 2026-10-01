@@ -182,7 +182,8 @@ class WorkflowNativeHandler final : public content::WebUIMessageHandler,
     // retires this invocation before closing its attempt, never after callbacks.
     active_ = invocation;
     std::string pending_token;
-    const bool began = service->BeginNativeWorkflowStep(id, index, &pending_token);
+    const bool began = service->BeginNativeWorkflowStep(
+        id, index, &pending_token, invocation.mutation_token);
     if (!self) {
       // Cancel may have run before Begin actually opened the attempt (while
       // settling another deadline). Close it without touching this dead UI.

@@ -574,39 +574,49 @@ bool TahaiLocalOiService::CanWriteLocalData() const {
 }
 
 bool TahaiLocalOiService::UpsertEntity(LocalOiEntityRecord record) {
+  const auto alive = weak_factory_.GetWeakPtr();
   return CanWriteLocalData() && store_.UpsertEntity(std::move(record)) &&
-         EnforceRetentionAfterDirectMutation();
+         alive && CanWriteLocalData() && EnforceRetentionAfterDirectMutation();
 }
 
 bool TahaiLocalOiService::UpsertRelationship(LocalOiRelationshipRecord record) {
+  const auto alive = weak_factory_.GetWeakPtr();
   return CanWriteLocalData() && store_.UpsertRelationship(std::move(record)) &&
-         EnforceRetentionAfterDirectMutation();
+         alive && CanWriteLocalData() && EnforceRetentionAfterDirectMutation();
 }
 
 bool TahaiLocalOiService::UpsertFinding(LocalOiFindingRecord record) {
+  const auto alive = weak_factory_.GetWeakPtr();
   return CanWriteLocalData() && store_.UpsertFinding(std::move(record)) &&
-         EnforceRetentionAfterDirectMutation();
+         alive && CanWriteLocalData() && EnforceRetentionAfterDirectMutation();
 }
 
 bool TahaiLocalOiService::AppendMemory(LocalOiMemoryRecord record) {
+  const auto alive = weak_factory_.GetWeakPtr();
   return CanWriteLocalData() && store_.AppendMemory(std::move(record)) &&
-         EnforceRetentionAfterDirectMutation();
+         alive && CanWriteLocalData() && EnforceRetentionAfterDirectMutation();
 }
 
 bool TahaiLocalOiService::AddReport(LocalOiReportRecord record) {
+  const auto alive = weak_factory_.GetWeakPtr();
   return CanWriteLocalData() &&
          TahaiLocalOiPolicy(profile_->GetPrefs())
              .IsEnabled(LocalOiPolicyControl::kReports) &&
-         store_.AddReport(std::move(record)) &&
+         store_.AddReport(std::move(record)) && alive &&
+         CanWriteLocalData() &&
+         TahaiLocalOiPolicy(profile_->GetPrefs())
+             .IsEnabled(LocalOiPolicyControl::kReports) &&
          EnforceRetentionAfterDirectMutation();
 }
 
 bool TahaiLocalOiService::DeleteEntity(std::string_view entity_id) {
-  return available() && store_.DeleteEntity(entity_id);
+  const auto alive = weak_factory_.GetWeakPtr();
+  return available() && store_.DeleteEntity(entity_id) && alive;
 }
 
 bool TahaiLocalOiService::DeleteAllData() {
-  return available() && store_.DeleteAll();
+  const auto alive = weak_factory_.GetWeakPtr();
+  return available() && store_.DeleteAll() && alive;
 }
 
 bool TahaiLocalOiService::EnforceRetentionAfterDirectMutation() {
@@ -616,7 +626,7 @@ bool TahaiLocalOiService::EnforceRetentionAfterDirectMutation() {
           TahaiLocalOiPolicy(profile_->GetPrefs()).RetentionDays())) {
     return true;
   }
-  return store_.Commit(std::move(retained));
+  return CommitWithRetention(std::move(retained));
 }
 
 bool TahaiLocalOiService::CommitWithRetention(LocalOiStoreData data) {
@@ -625,7 +635,11 @@ bool TahaiLocalOiService::CommitWithRetention(LocalOiStoreData data) {
   }
   PruneExpiredSupplementalLocalOiData(
       &data, TahaiLocalOiPolicy(profile_->GetPrefs()).RetentionDays());
-  return store_.Commit(std::move(data));
+  const auto alive = weak_factory_.GetWeakPtr();
+  const bool committed = store_.Commit(std::move(data));
+  // A scoped preference commit can synchronously destroy/shut down this owner.
+  // Check lifetime before rechecking policy or returning to the next stage.
+  return committed && alive && CanWriteLocalData();
 }
 
 bool TahaiLocalOiService::RecordNetworkInspection(
@@ -1762,6 +1776,9 @@ TahaiLocalOiService::ConfigureEnvironmentClassification(
   if (!CommitWithRetention(std::move(next))) {
     return std::nullopt;
   }
+  if (!policy.IsEnabled(LocalOiPolicyControl::kOpsToolIngestion)) {
+    return std::nullopt;
+  }
   if (!SetTahaiEnvironmentGuardRule(profile_->GetPrefs(), environment,
                                     canonical_origin)) {
     return std::nullopt;
@@ -1883,6 +1900,10 @@ std::optional<std::string> TahaiLocalOiService::GenerateSafeReport(
   AddMemory(&next, LocalOiMemoryAction::kReportGenerated, report_id,
             "A safe aggregate Local OI report was generated.", now);
   if (!CommitWithRetention(std::move(next))) {
+    return std::nullopt;
+  }
+  if (!policy.IsEnabled(LocalOiPolicyControl::kReports) ||
+      !policy.IsEnabled(LocalOiPolicyControl::kExport)) {
     return std::nullopt;
   }
   return redaction.text;
@@ -2244,6 +2265,7 @@ void TahaiLocalOiService::Shutdown() {
   // Store writes are synchronous scoped pref commits. After this point we
   // reject all new mutations instead of queuing work past profile shutdown.
   shutdown_ = true;
+  weak_factory_.InvalidateWeakPtrs();
 }
 
 }  // namespace tahai

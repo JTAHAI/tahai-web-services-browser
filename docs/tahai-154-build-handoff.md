@@ -229,6 +229,13 @@ new sentinels. The source preflight now also exercises actual shipped Work Modes
 and Local OI request/navigation JavaScript with DOM doubles. Those tests are not
 native WebUI or Windows integration evidence.
 
+The October 1 notification/persistence follow-up adds six native and five
+browser sentinel tests. Run the complete scopes, not only these eleven cases.
+They exercise main WebUI closure/replacement and import reentry, Local OI
+shutdown/policy revocation, review-token changes during deadline settlement,
+and key persistence/authorization changes during notification. They remain
+uncompiled/unexecuted until this fresh build's runtime evidence is captured.
+
 ## Operational and package acceptance still required
 
 After all four native gates pass, launch only the new binary with a new explicit

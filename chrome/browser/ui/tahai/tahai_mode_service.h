@@ -165,6 +165,10 @@ class ModeService : public KeyedService {
   bool ResetConfigurationForMode(std::string_view mode_id);
   bool persistence_enabled() const;
 
+  base::WeakPtr<ModeService> GetWeakPtr() {
+    return shutdown_ ? base::WeakPtr<ModeService>() : weak_factory_.GetWeakPtr();
+  }
+
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);
 

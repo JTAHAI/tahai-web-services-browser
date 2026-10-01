@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/webui/tahai/tahai_change_lens_contract.h"
 #include "chrome/browser/ui/webui/tahai/tahai_environment_guard.h"
 #include "chrome/browser/ui/webui/tahai/tahai_local_oi_model.h"
@@ -311,6 +312,11 @@ class TahaiLocalOiService : public KeyedService {
   // KeyedService:
   void Shutdown() override;
 
+  base::WeakPtr<TahaiLocalOiService> GetWeakPtr() {
+    return shutdown_ ? base::WeakPtr<TahaiLocalOiService>()
+                     : weak_factory_.GetWeakPtr();
+  }
+
  private:
   bool CanWriteLocalData() const;
   bool EnforceRetentionAfterDirectMutation();
@@ -323,6 +329,7 @@ class TahaiLocalOiService : public KeyedService {
   TahaiLocalOiStore store_;
   TahaiLocalOiRuleEngine rule_engine_;
   bool shutdown_ = false;
+  base::WeakPtrFactory<TahaiLocalOiService> weak_factory_{this};
 };
 
 }  // namespace tahai

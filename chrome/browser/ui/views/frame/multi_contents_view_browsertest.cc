@@ -16,7 +16,9 @@
 #include "base/files/file_path.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/memory/ref_counted_memory.h"
 #include "base/notreached.h"
+#include "base/run_loop.h"
 #include "base/scoped_observation.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -58,7 +60,10 @@
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
 #include "chrome/browser/ui/views/test/split_view_browser_test_mixin.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "chrome/browser/ui/webui/tahai/tahai_local_oi_service.h"
+#include "chrome/browser/ui/webui/tahai/tahai_local_oi_service_factory.h"
 #include "chrome/browser/ui/webui/tahai/tahai_mission_service.h"
+#include "chrome/browser/ui/webui/tahai/tahai_ui.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/tahai_url_constants.h"
 #include "chrome/common/webui_url_constants.h"
@@ -66,10 +71,13 @@
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/split_tab_data.h"
 #include "components/tabs/public/tab_group.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/weak_document_ptr.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/webui_config_map.h"
 #include "content/public/common/url_constants.h"
@@ -4430,6 +4438,233 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   EXPECT_EQ("imported", content::EvalJs(contents, "window.capsuleResult"));
   EXPECT_NE(created->id, service->missions().back().id);
   EXPECT_NE("Private capsule source", service->missions().back().title);
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiMissionMutationNotificationsCanCloseWebUi) {
+  auto* tabs = browser()->GetTabStripModel();
+  auto* profile = browser()->GetProfile();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(profile);
+  ASSERT_TRUE(service);
+  const auto created = service->CreateMission("Closure fixture", "incident");
+  ASSERT_TRUE(created);
+  const std::string id = created->id;
+  for (const char* boundary :
+       {"create", "checklist", "note", "projection", "replace"}) {
+    SCOPED_TRACE(boundary);
+    const int original_count = tabs->count();
+    chrome::AddTabAt(browser(), GURL(tahai::kTahaiMissionURL), -1, true);
+    auto* contents = tabs->GetActiveWebContents();
+    ASSERT_TRUE(content::WaitForLoadStop(contents));
+    const auto document = contents->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const size_t mission_count = service->missions().size();
+    const std::string token = service->missions().front().mutation_token;
+    bool closed = false;
+    PrefChangeRegistrar registrar;
+    registrar.Init(profile->GetPrefs());
+    registrar.Add(std::string_view(boundary) == "projection"
+                      ? prefs::kTahaiLocalOiStore : prefs::kTahaiMissions,
+                  base::BindLambdaForTesting([&] {
+      if (closed) return;
+      closed = true;
+      if (std::string_view(boundary) == "replace") {
+        contents->GetController().LoadURLWithParams(
+            content::NavigationController::LoadURLParams(GURL("about:blank")));
+        return;
+      }
+      tabs->CloseWebContentsAt(tabs->GetIndexOfWebContents(contents),
+                               TabCloseTypes::CLOSE_NONE);
+    }));
+    const std::string script =
+        std::string_view(boundary) == "create"
+            ? "chrome.send('createTahaiMission', ['Created once', 'incident'])"
+        : std::string_view(boundary) == "checklist"
+            ? content::JsReplace(
+                  "chrome.send('toggleTahaiMissionStep', [$1, 0, $2])", id, token)
+            : content::JsReplace(
+                  "chrome.send('addTahaiMissionNote', [$1, 'Local note', $2])",
+                  id, token);
+    // Teardown may abort the renderer response. Assert native durable state,
+    // closure, and safe completion instead of mistaking that abort for failure.
+    static_cast<void>(content::ExecJs(contents, script));
+    ASSERT_TRUE(base::test::RunUntil([&] { return closed; }));
+    if (std::string_view(boundary) == "replace") {
+      ASSERT_TRUE(content::WaitForLoadStop(contents));
+      EXPECT_EQ(GURL("about:blank"), contents->GetLastCommittedURL());
+      tabs->CloseWebContentsAt(tabs->GetIndexOfWebContents(contents),
+                               TabCloseTypes::CLOSE_NONE);
+    }
+    EXPECT_FALSE(document.AsRenderFrameHostIfValid());
+    EXPECT_EQ(original_count, tabs->count());
+    EXPECT_EQ(mission_count + (std::string_view(boundary) == "create" ? 1u : 0u),
+              service->missions().size());
+    if (std::string_view(boundary) != "create") {
+      EXPECT_NE(token, service->missions().front().mutation_token);
+    }
+    registrar.RemoveAll();
+    base::RunLoop().RunUntilIdle();
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiPolicyMutationNotificationCanCloseWebUi) {
+  auto* tabs = browser()->GetTabStripModel();
+  auto* profile = browser()->GetProfile();
+  for (bool guard : {false, true}) {
+    SCOPED_TRACE(guard);
+    chrome::AddTabAt(browser(), GURL(guard ? tahai::kTahaiSupportURL
+                                         : tahai::kTahaiLocalOiURL), -1, true);
+    auto* contents = tabs->GetActiveWebContents();
+    ASSERT_TRUE(content::WaitForLoadStop(contents));
+    bool closed = false;
+    PrefChangeRegistrar registrar;
+    registrar.Init(profile->GetPrefs());
+    registrar.Add(guard ? prefs::kTahaiGuardConfiguration : prefs::kTahaiLocalOiEnabled,
+                  base::BindLambdaForTesting([&] {
+      if (closed) return;
+      closed = true;
+      tabs->CloseWebContentsAt(tabs->GetIndexOfWebContents(contents),
+                               TabCloseTypes::CLOSE_NONE);
+    }));
+    static_cast<void>(content::ExecJs(contents, guard
+        ? "chrome.send('setTahaiGuardConfiguration', [{schema_version: 1, mode: 'custom', local_statistics_enabled: false, site_overrides: []}])"
+        : "chrome.send('setTahaiLocalOiControl', ['enabled', false])"));
+    ASSERT_TRUE(base::test::RunUntil([&] { return closed; }));
+    registrar.RemoveAll();
+    base::RunLoop().RunUntilIdle();
+    if (guard) {
+      const auto* mode = profile->GetPrefs()
+                             ->GetDict(prefs::kTahaiGuardConfiguration)
+                             .FindString("mode");
+      ASSERT_TRUE(mode);
+      EXPECT_EQ("custom", *mode);
+    } else {
+      EXPECT_FALSE(profile->GetPrefs()->GetBoolean(prefs::kTahaiLocalOiEnabled));
+    }
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiLocalOiRenderRechecksNotifyingProjectionBoundary) {
+  auto* profile = browser()->GetProfile();
+  auto* missions = tahai::MissionServiceFactory::GetForProfile(profile);
+  auto* local_oi = tahai::TahaiLocalOiServiceFactory::GetForProfile(profile);
+  ASSERT_TRUE(missions);
+  ASSERT_TRUE(local_oi);
+  for (bool shutdown : {false, true}) {
+    SCOPED_TRACE(shutdown);
+    profile->GetPrefs()->SetBoolean(prefs::kTahaiLocalOiEnabled, true);
+    ASSERT_TRUE(missions->CreateMission("Projection privacy sentinel", "incident"));
+    bool notified = false;
+    PrefChangeRegistrar registrar;
+    registrar.Init(profile->GetPrefs());
+    registrar.Add(prefs::kTahaiLocalOiStore, base::BindLambdaForTesting([&] {
+      if (notified) return;
+      notified = true;
+      if (shutdown) {
+        local_oi->Shutdown();
+      } else {
+        profile->GetPrefs()->SetBoolean(prefs::kTahaiLocalOiEnabled, false);
+      }
+    }));
+    // Exercise the real profile-backed document source without making the
+    // service teardown dependent on renderer navigation/response timing.
+    tahai::TahaiPlaceholderSource source(profile);
+    base::test::TestFuture<scoped_refptr<base::RefCountedMemory>> response;
+    source.StartDataRequest(
+        GURL(tahai::kTahaiTrustedLocalOiURL),
+        base::BindRepeating([]() -> content::WebContents* { return nullptr; }),
+        response.GetCallback());
+    ASSERT_TRUE(notified);
+    ASSERT_TRUE(response.Get());
+    const auto bytes = base::as_byte_span(*response.Get());
+    const std::string html(bytes.begin(), bytes.end());
+    EXPECT_EQ(std::string::npos, html.find("Projection privacy sentinel"));
+    EXPECT_NE(std::string::npos, html.find(shutdown
+        ? "profile services became unavailable during refresh"
+        : "Local OI reads and writes are disabled"));
+    registrar.RemoveAll();
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiCapsuleImportNotificationCannotReplayOrUseClosedWebUi) {
+  auto* profile = browser()->GetProfile();
+  auto* tabs = browser()->GetTabStripModel();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(profile);
+  ASSERT_TRUE(service);
+  ASSERT_TRUE(service->CreateMission("Import closure fixture", "incident"));
+  chrome::AddTabAt(browser(), GURL(tahai::kTahaiMissionURL), -1, true);
+  auto* contents = tabs->GetActiveWebContents();
+  ASSERT_TRUE(content::WaitForLoadStop(contents));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    window.capsuleResult = '';
+    window.tahaiEncryptedMissionCapsuleUpdate = result => window.capsuleResult = result;
+    document.querySelector('[data-tahai-mission-action=copy-encrypted-capsule]').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.capsuleResult !== ''").ExtractBool();
+  }));
+  ASSERT_EQ("copied", content::EvalJs(contents, "window.capsuleResult"));
+  const auto envelope = ui::clipboard_test_util::ReadText(
+      ui::Clipboard::GetForCurrentThread(), ui::ClipboardBuffer::kCopyPaste, nullptr);
+  ASSERT_TRUE(content::ExecJs(contents, content::JsReplace(
+      "window.capsuleResult = ''; chrome.send('verifyTahaiEncryptedMissionCapsule', [$1])", envelope)));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.capsuleResult !== ''").ExtractBool();
+  }));
+  ASSERT_EQ("verified_ready", content::EvalJs(contents, "window.capsuleResult"));
+  bool closed = false;
+  PrefChangeRegistrar registrar;
+  registrar.Init(profile->GetPrefs());
+  registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
+    if (closed) return;
+    closed = true;
+    // Reentry runs before the first notifying commit has returned.
+    contents->GetWebUI()->ProcessWebUIMessage(
+        GURL(tahai::kTahaiMissionURL), "importTahaiVerifiedMissionCapsule", base::ListValue());
+    tabs->CloseWebContentsAt(tabs->GetIndexOfWebContents(contents),
+                             TabCloseTypes::CLOSE_NONE);
+  }));
+  static_cast<void>(content::ExecJs(contents, "chrome.send('importTahaiVerifiedMissionCapsule', [])"));
+  ASSERT_TRUE(base::test::RunUntil([&] { return closed; }));
+  EXPECT_EQ(2u, service->missions().size());
+  registrar.RemoveAll();
+  base::RunLoop().RunUntilIdle();
+  EXPECT_EQ(2u, service->missions().size());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
+                       TahaiCapsuleExportCannotUseKeyRemovedDuringNotification) {
+  auto* profile = browser()->GetProfile();
+  auto* service = tahai::MissionServiceFactory::GetForProfile(profile);
+  ASSERT_TRUE(service);
+  ASSERT_TRUE(service->CreateMission("Key persistence fixture", "incident"));
+  profile->GetPrefs()->ClearPref(prefs::kTahaiSyncKeyring);
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(tahai::kTahaiMissionURL)));
+  auto* contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste).WriteText(u"key-sentinel");
+  bool cleared = false;
+  PrefChangeRegistrar registrar;
+  registrar.Init(profile->GetPrefs());
+  registrar.Add(prefs::kTahaiSyncKeyring, base::BindLambdaForTesting([&] {
+    if (cleared) return;
+    cleared = true;
+    profile->GetPrefs()->ClearPref(prefs::kTahaiSyncKeyring);
+  }));
+  ASSERT_TRUE(content::ExecJs(contents, R"JS(
+    window.capsuleResult = '';
+    window.tahaiEncryptedMissionCapsuleUpdate = result => window.capsuleResult = result;
+    document.querySelector('[data-tahai-mission-action=copy-encrypted-capsule]').click();
+  )JS"));
+  ASSERT_TRUE(base::test::RunUntil([&] {
+    return content::EvalJs(contents, "window.capsuleResult !== ''").ExtractBool();
+  }));
+  EXPECT_TRUE(cleared);
+  EXPECT_EQ("key_unavailable", content::EvalJs(contents, "window.capsuleResult"));
+  EXPECT_EQ(u"key-sentinel", ui::clipboard_test_util::ReadText(
+      ui::Clipboard::GetForCurrentThread(), ui::ClipboardBuffer::kCopyPaste, nullptr));
+  EXPECT_FALSE(profile->GetPrefs()->GetRawUserPrefValue(prefs::kTahaiSyncKeyring));
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,

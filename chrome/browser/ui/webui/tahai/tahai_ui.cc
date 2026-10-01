@@ -3663,16 +3663,26 @@ std::string LocalOiHtml(MissionService* service,
   CHECK(service);
   CHECK(mode_service);
   CHECK(prefs);
-  const TahaiLocalOiPolicy local_oi_policy(prefs);
-  const bool local_oi_enabled =
-      local_oi_policy.IsEnabled(LocalOiPolicyControl::kEnabled);
   // The current surface is a WebUI read of the profile-owned service. Mission
   // ingestion is bounded to the explicitly persisted Mission schema.
   bool local_oi_sync_succeeded = false;
-  if (local_oi_service && local_oi_enabled) {
+  if (local_oi_service &&
+      TahaiLocalOiPolicy(prefs).IsEnabled(LocalOiPolicyControl::kEnabled)) {
+    const auto mission_alive = service->GetWeakPtr();
+    const auto mode_alive = mode_service->GetWeakPtr();
+    const auto local_oi_alive = local_oi_service->GetWeakPtr();
     local_oi_sync_succeeded =
         local_oi_service->SyncMissions(service->missions());
+    // Projection commits can notify profile/service teardown or revoke policy.
+    // Do not render from stale owners or cache permission across that write.
+    if (!mission_alive || !mode_alive || !local_oi_alive) {
+      return "<!doctype html><title>Local OI unavailable</title>"
+             "<p>The profile services became unavailable during refresh.</p>";
+    }
   }
+  const TahaiLocalOiPolicy local_oi_policy(prefs);
+  const bool local_oi_enabled =
+      local_oi_policy.IsEnabled(LocalOiPolicyControl::kEnabled);
   const LocalOiSnapshot snapshot =
       local_oi_service && local_oi_enabled
           ? BuildLocalOiSnapshot(local_oi_service->data())
@@ -4755,9 +4765,12 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
                       ModeService* mode_service,
                       TahaiLocalOiService* local_oi_service,
                       Profile* profile)
-      : mission_service_(mission_service),
-        mode_service_(mode_service),
-        local_oi_service_(local_oi_service),
+      : mission_service_(mission_service ? mission_service->GetWeakPtr()
+                                         : base::WeakPtr<MissionService>()),
+        mode_service_(mode_service ? mode_service->GetWeakPtr()
+                                   : base::WeakPtr<ModeService>()),
+        local_oi_service_(local_oi_service ? local_oi_service->GetWeakPtr()
+                                         : base::WeakPtr<TahaiLocalOiService>()),
         profile_(profile),
         prefs_(ProfilePrefsForTahaiHandler(profile)),
         sync_key_service_(std::make_unique<TahaiSyncKeyService>(
@@ -5166,6 +5179,43 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     }
   }
 
+  // A preference write may synchronously close the WebUI or replace its
+  // document. Keep this check in a local callback: calling a member function
+  // after that write is unsafe even when it would only check a weak pointer.
+  base::RepeatingCallback<bool()> DocumentContinuation() {
+    auto* frame = web_ui()->GetWebContents()->GetPrimaryMainFrame();
+    return base::BindRepeating(
+        [](base::WeakPtr<TahaiCommandHandler> handler,
+           content::WeakDocumentPtr document) {
+          auto* frame = document.AsRenderFrameHostIfValid();
+          if (!handler || !frame) return false;
+          auto* contents = handler->web_ui()->GetWebContents();
+          return !contents->IsBeingDestroyed() &&
+                 !contents->GetController().GetPendingEntry() &&
+                 frame == contents->GetPrimaryMainFrame();
+        },
+        weak_factory_.GetWeakPtr(),
+        frame ? frame->GetWeakDocumentPtr() : content::WeakDocumentPtr());
+  }
+
+  base::RepeatingCallback<bool()> MissionContinuation() {
+    return base::BindRepeating(
+        [](base::RepeatingCallback<bool()> document,
+           base::WeakPtr<MissionService> service) {
+          return document.Run() && service;
+        },
+        DocumentContinuation(), mission_service_);
+  }
+
+  base::RepeatingCallback<bool()> LocalOiContinuation() {
+    return base::BindRepeating(
+        [](base::RepeatingCallback<bool()> document,
+           base::WeakPtr<TahaiLocalOiService> service) {
+          return document.Run() && service;
+        },
+        DocumentContinuation(), local_oi_service_);
+  }
+
   void Execute(const base::ListValue& args) {
     if (!HasActiveTahaiGesture() || args.size() != 1u ||
         !args.front().is_string()) {
@@ -5230,8 +5280,14 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         !args[1].is_string()) {
       return;
     }
-    if (!mission_service_->CreateMission(args[0].GetString(),
-                                         args[1].GetString())) {
+    const auto continuation = MissionContinuation();
+    mission_mutation_document_ =
+        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const bool created = mission_service_->CreateMission(
+        args[0].GetString(), args[1].GetString()).has_value();
+    if (!continuation.Run()) return;
+    if (!created) {
+      mission_mutation_document_ = {};
       web_ui()->CallJavascriptFunctionUnsafe("tahaiMissionControlRejected");
       return;
     }
@@ -5251,13 +5307,21 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         args[1].GetInt() < 0 || args[1].GetInt() >= 32) return;
     const auto& missions = mission_service_->missions();
     const auto mission = std::ranges::find(missions, args[0].GetString(), &MissionSummary::id);
-    if (mission == missions.end() || mission->mutation_token != args[2].GetString() ||
-        !mission_service_->AssignWorkflowVariable(args[0].GetString(), args[1].GetInt())) {
+    if (mission == missions.end() || mission->mutation_token != args[2].GetString()) {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkflowAssignmentRejected");
+      return;
+    }
+    const auto continuation = MissionContinuation();
+    const bool assigned = mission_service_->AssignWorkflowVariable(
+        args[0].GetString(), args[1].GetInt(), args[2].GetString());
+    if (!continuation.Run()) return;
+    if (!assigned) {
       web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkflowAssignmentRejected");
       return;
     }
     RefreshLocalOiAfterMissionMutation();
-    contents->GetController().Reload(content::ReloadType::NORMAL, false);
+    if (!continuation.Run()) return;
+    web_ui()->GetWebContents()->GetController().Reload(content::ReloadType::NORMAL, false);
   }
 
   void ControlWorkflowWait(const base::ListValue& args) {
@@ -5270,13 +5334,22 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         !args[3].is_string() || args[3].GetString().size() != 36u) return;
     const auto& missions = mission_service_->missions();
     const auto mission = std::ranges::find(missions, args[0].GetString(), &MissionSummary::id);
-    if (mission == missions.end() || mission->mutation_token != args[3].GetString() ||
-        !mission_service_->ControlWorkflowWait(args[0].GetString(), args[1].GetInt(), args[2].GetString() == "complete")) {
+    if (mission == missions.end() || mission->mutation_token != args[3].GetString()) {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkflowWaitRejected");
+      return;
+    }
+    const auto continuation = MissionContinuation();
+    const bool changed = mission_service_->ControlWorkflowWait(
+        args[0].GetString(), args[1].GetInt(), args[2].GetString() == "complete",
+        args[3].GetString());
+    if (!continuation.Run()) return;
+    if (!changed) {
       web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkflowWaitRejected");
       return;
     }
     RefreshLocalOiAfterMissionMutation();
-    contents->GetController().Reload(content::ReloadType::NORMAL, false);
+    if (!continuation.Run()) return;
+    web_ui()->GetWebContents()->GetController().Reload(content::ReloadType::NORMAL, false);
   }
 
   void ToggleValidationStep(const base::ListValue& args) {
@@ -5307,36 +5380,45 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
 
   void CompleteMissionMutation() {
     auto* contents = web_ui()->GetWebContents();
+    const auto continuation = MissionContinuation();
     // Creation/duplication do not change the source record's token. Consume
     // this document's mutation opportunity before reload to prevent double
     // submissions, without permanently disabling a replacement document.
     mission_mutation_document_ = contents->GetPrimaryMainFrame()->GetWeakDocumentPtr();
     RefreshLocalOiAfterMissionMutation();
-    contents->GetController().Reload(content::ReloadType::NORMAL, false);
+    if (!continuation.Run()) return;
+    web_ui()->GetWebContents()->GetController().Reload(content::ReloadType::NORMAL, false);
   }
 
   void ToggleMissionChecklist(const base::ListValue& args, std::string_view kind) {
     if (!HasCurrentMissionControl(args) || !args[1].is_int() || args[1].GetInt() < 0 || args[1].GetInt() >= 32) return;
     const auto& id = args[0].GetString(); const size_t index = args[1].GetInt();
-    const bool changed = kind == "runbook" ? mission_service_->ToggleStep(id, index) :
+    const auto continuation = MissionContinuation();
+    const bool changed = kind == "runbook" ? mission_service_->ToggleStep(id, index, args[2].GetString()) :
         kind == "validation" ? mission_service_->ToggleValidationStep(id, index) :
         kind == "rollback" && mission_service_->ToggleRollbackStep(id, index);
+    if (!continuation.Run()) return;
     if (!changed) { web_ui()->CallJavascriptFunctionUnsafe("tahaiMissionControlRejected"); return; }
     RefreshLocalOiAfterMissionMutation();
+    if (!continuation.Run()) return;
     web_ui()->GetWebContents()->GetController().Reload(
         content::ReloadType::NORMAL, false);
   }
 
   void SetOperationalWorkflowState(const base::ListValue& args) {
     if (!HasCurrentMissionControl(args)) return;
-    if (!args[1].is_string() ||
-        !mission_service_->SetOperationalWorkflowRunState(
-            args[0].GetString(), args[1].GetString())) {
+    const auto continuation = MissionContinuation();
+    const bool changed = args[1].is_string() &&
+        mission_service_->SetOperationalWorkflowRunState(
+            args[0].GetString(), args[1].GetString(), args[2].GetString());
+    if (!continuation.Run()) return;
+    if (!changed) {
       web_ui()->CallJavascriptFunctionUnsafe(
           "tahaiMissionWorkflowStartRejected");
       return;
     }
     RefreshLocalOiAfterMissionMutation();
+    if (!continuation.Run()) return;
     web_ui()->GetWebContents()->GetController().Reload(
         content::ReloadType::NORMAL, false);
   }
@@ -5389,11 +5471,18 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     const auto* mission = mission_service_ && args.size() == 4u && args[0].is_string() ?
         FindMissionSummary(args[0].GetString()) : nullptr;
     if (!HasMissionMutationDocument() || !mission || !args[1].is_string() || !args[2].is_string() ||
-        !args[3].is_string() || args[3].GetString() != mission->mutation_token ||
-        !mission_service_->SetOperationalWorkflowInputValue(
-            args[0].GetString(), args[1].GetString(), args[2].GetString())) {
+        !args[3].is_string() || args[3].GetString() != mission->mutation_token) {
       web_ui()->CallJavascriptFunctionUnsafe(
           "tahaiMissionWorkflowInputRejected");
+      return;
+    }
+    const auto continuation = MissionContinuation();
+    const bool changed = mission_service_->SetOperationalWorkflowInputValue(
+        args[0].GetString(), args[1].GetString(), args[2].GetString(),
+        args[3].GetString());
+    if (!continuation.Run()) return;
+    if (!changed) {
+      web_ui()->CallJavascriptFunctionUnsafe("tahaiMissionWorkflowInputRejected");
       return;
     }
     CompleteMissionMutation();
@@ -5441,15 +5530,20 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     if (!HasCurrentMissionControl(args) || !args[1].is_string() || args[1].GetString().size() > 512u) return;
     const auto& id = args[0].GetString(); const auto& value = args[1].GetString();
     if (kind != "note" && kind != "export" && !value.empty()) return;
+    const auto continuation = MissionContinuation();
+    mission_mutation_document_ =
+        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
     const bool changed = kind == "escalation" ? mission_service_->ToggleEscalation(id) :
         kind == "evidence" ? mission_service_->AddEvidenceMarker(id) :
         kind == "note" ? mission_service_->AddLocalNote(id, value) :
         kind == "export" ? mission_service_->SetExportProfile(id, value) :
         kind == "delete" ? mission_service_->DeleteMission(id) :
-        kind == "archive" ? mission_service_->ArchiveMission(id) :
+        kind == "archive" ? mission_service_->ArchiveMission(id, args[2].GetString()) :
         kind == "restore" ? mission_service_->RestoreMission(id) :
         kind == "duplicate" && mission_service_->DuplicateMission(id).has_value();
+    if (!continuation.Run()) return;
     if (!changed) {
+      mission_mutation_document_ = {};
       web_ui()->CallJavascriptFunctionUnsafe(kind == "note" ? "tahaiMissionNoteRejected" : "tahaiMissionControlRejected");
       return;
     }
@@ -5464,13 +5558,17 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     const RecipeDefinition* recipe = FindRecipe(args.front().GetString());
     BrowserWindowInterface* browser =
         FindBrowserForWebContents(web_ui()->GetWebContents());
-    if (!recipe || !LaunchRecipeWorkspace(browser, *recipe)) {
+    if (!recipe) return;
+    const auto continuation = MissionContinuation();
+    const bool launched = LaunchRecipeWorkspace(browser, *recipe);
+    if (!continuation.Run() || !launched) {
       return;
     }
     // Persist only the fixed library label and generated checkpoints. The
     // launched destinations, their content, and any authentication state are
     // intentionally not mission data.
     mission_service_->CreateMission(recipe->label, recipe->mission_type);
+    if (!continuation.Run()) return;
     RefreshLocalOiAfterMissionMutation();
   }
 
@@ -5576,11 +5674,13 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       return;
     }
     TahaiGuardConfiguration configuration;
+    const auto continuation = DocumentContinuation();
     const bool stored =
         ValidateTahaiGuardConfiguration(args.front().GetDict(),
                                         &configuration) ==
             TahaiGuardConfigurationValidationResult::kValid &&
         tahai::SetTahaiGuardConfigurationForProfile(profile_, configuration);
+    if (!continuation.Run()) return;
     web_ui()->CallJavascriptFunctionUnsafe(
         "tahaiGuardConfigurationStored", base::Value(stored),
         base::Value(
@@ -5618,10 +5718,16 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       OnGuardRulesInstalled(guard::GuardProfileService::UpdateResult::kDenied);
       return;
     }
+    const auto continuation = DocumentContinuation();
     service->InstallCustomRules(
         args.front().GetString(),
-        base::BindOnce(&TahaiCommandHandler::OnGuardRulesInstalled,
-                       weak_factory_.GetWeakPtr()));
+        base::BindOnce(
+            [](base::RepeatingCallback<bool()> continuation,
+               base::WeakPtr<TahaiCommandHandler> handler,
+               guard::GuardProfileService::UpdateResult result) {
+              if (continuation.Run()) handler->OnGuardRulesInstalled(result);
+            },
+            continuation, weak_factory_.GetWeakPtr()));
   }
 
   void OnGuardRulesInstalled(guard::GuardProfileService::UpdateResult result) {
@@ -5663,9 +5769,11 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
 
   void ClearTahaiGuardCustomRules(const base::ListValue& args) {
     auto* service = guard::GuardProfileServiceFactory::GetForProfile(profile_);
+    const auto continuation = DocumentContinuation();
     const bool cleared =
         HasActiveSurfaceGesture(kTahaiSupportURL, kTahaiTrustedSupportURL) &&
         args.empty() && service && service->ClearCustomRules();
+    if (!continuation.Run()) return;
     web_ui()->CallJavascriptFunctionUnsafe(
         "tahaiGuardRulesUpdated", base::Value(cleared),
         base::Value(cleared ? "Custom rules cleared from this profile."
@@ -5925,14 +6033,24 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       pending_capsule_import_.reset();
       return;
     }
+    const auto continuation = MissionContinuation();
+    // Consume the verified payload before notifying observers. A reentrant
+    // import must not replay it, or erase a newer verification's payload.
+    const auto import = std::move(*pending_capsule_import_);
+    pending_capsule_import_.reset();
+    const uint64_t generation = ++capsule_generation_;
+    mission_mutation_document_ =
+        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
     const std::optional<MissionSummary> imported =
         mission_service_->ImportSanitizedMissionCapsule(
-            *pending_capsule_import_);
-    pending_capsule_import_.reset();
-    ++capsule_generation_;
+            import);
+    if (!continuation.Run() || generation != capsule_generation_) return;
     if (imported) {
       mission_mutation_document_ = web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
       RefreshLocalOiAfterMissionMutation();
+      if (!continuation.Run() || generation != capsule_generation_) return;
+    } else {
+      mission_mutation_document_ = {};
     }
     NotifyEncryptedMissionCapsule(imported ? "imported" : "failed");
   }
@@ -5999,8 +6117,11 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
                    const std::string& accepted,
                    const std::string& rejected,
                    bool saved) {
-    if (document.AsRenderFrameHostIfValid() !=
-        web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+    auto* frame = document.AsRenderFrameHostIfValid();
+    auto* contents = web_ui()->GetWebContents();
+    if (!frame || contents->IsBeingDestroyed() ||
+        contents->GetController().GetPendingEntry() ||
+        frame != contents->GetPrimaryMainFrame()) {
       return;
     }
     web_ui()->CallJavascriptFunctionUnsafe(saved ? accepted : rejected,
@@ -6016,12 +6137,9 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       NotifyWorkModeResult(false, request);
       return;
     }
-    const auto alive = weak_factory_.GetWeakPtr();
-    const auto document =
-        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const auto continuation = DocumentContinuation();
     const bool saved = controller->SetActiveMode(args.front().GetString());
-    if (alive && document.AsRenderFrameHostIfValid() ==
-                     web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+    if (continuation.Run()) {
       NotifyWorkModeResult(saved, request);
     }
   }
@@ -6307,6 +6425,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void RevokeCapabilityGrant(const base::ListValue& args) {
+    const auto continuation = DocumentContinuation();
     bool revoked = false;
     if (IsCapabilityReviewDocument() && args.size() == 2u &&
         args[0].is_string() && args[1].is_int() && args[1].GetInt() >= 0 &&
@@ -6320,6 +6439,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       revoked = TahaiCapabilityBroker(profile_).Revoke(
           capability_review_grants_[args[1].GetInt()]);
     }
+    if (!continuation.Run()) return;
     capability_review_token_.clear();
     capability_review_grants_.clear();
     capability_review_document_ = {};
@@ -6328,6 +6448,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
 
   void SaveSkinStudioDraft(const base::ListValue& args) {
     TahaiSkinStudioDraftResult result;
+    const auto continuation = DocumentContinuation();
     // Optional bounded request ID correlates UI responses, never authority.
     const int request = args.size() == 2u && args[1].is_int() &&
                                 args[1].GetInt() > 0
@@ -6341,6 +6462,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     } else {
       result = SaveTahaiSkinStudioDraft(prefs_, args.front().GetString());
     }
+    if (!continuation.Run()) return;
     web_ui()->CallJavascriptFunctionUnsafe(
         "tahaiSkinStudioDraftSaved",
         base::Value(std::string(SkinStudioDraftStatusName(result.status))),
@@ -6369,11 +6491,19 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     }
     ProfileManager* profile_manager =
         g_browser_process ? g_browser_process->profile_manager() : nullptr;
-    if (!profile_manager ||
-        !OpenTahaiIdentityLane(
+    const auto continuation = DocumentContinuation();
+    const bool requested = profile_manager &&
+        OpenTahaiIdentityLane(
             profile_manager, args[0].GetString(), destination,
-            base::BindOnce(&TahaiCommandHandler::OnIdentityLaneOpened,
-                           weak_factory_.GetWeakPtr()))) {
+            base::BindOnce(
+                [](base::RepeatingCallback<bool()> continuation,
+                   base::WeakPtr<TahaiCommandHandler> handler,
+                   TahaiIdentityLaneOpenResult result) {
+                  if (continuation.Run()) handler->OnIdentityLaneOpened(result);
+                },
+                continuation, weak_factory_.GetWeakPtr()));
+    if (!continuation.Run()) return;
+    if (!requested) {
       OnIdentityLaneOpened(TahaiIdentityLaneOpenResult::kProfileUnavailable);
     }
   }
@@ -6393,13 +6523,10 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       NotifyWorkModeResult(false, request);
       return;
     }
-    const auto alive = weak_factory_.GetWeakPtr();
-    const auto document =
-        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const auto continuation = DocumentContinuation();
     const bool saved = mode_service_->SetModifierEnabled(args[0].GetString(),
                                                          args[1].GetBool());
-    if (!alive || document.AsRenderFrameHostIfValid() !=
-                      web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+    if (!continuation.Run()) {
       return;
     }
     if (!saved) {
@@ -6417,8 +6544,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         chrome::SetTahaiMultiViewFocusMode(browser, args[1].GetBool());
       }
     }
-    if (alive && document.AsRenderFrameHostIfValid() ==
-                     web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+    if (continuation.Run()) {
       NotifyWorkModeResult(true, request);
     }
   }
@@ -6432,13 +6558,10 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       NotifyWorkModeResult(false, request);
       return;
     }
-    const auto alive = weak_factory_.GetWeakPtr();
-    const auto document =
-        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const auto continuation = DocumentContinuation();
     const bool saved = controller->SetActiveConfigurationValue(
         args[0].GetString(), args[1].GetString());
-    if (alive && document.AsRenderFrameHostIfValid() ==
-                     web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+    if (continuation.Run()) {
       NotifyWorkModeResult(saved, request);
     }
   }
@@ -6451,12 +6574,9 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       NotifyWorkModeResult(false, request);
       return;
     }
-    const auto alive = weak_factory_.GetWeakPtr();
-    const auto document =
-        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const auto continuation = DocumentContinuation();
     const bool saved = controller->ResetActiveConfiguration();
-    if (alive && document.AsRenderFrameHostIfValid() ==
-                     web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+    if (continuation.Run()) {
       NotifyWorkModeResult(saved, request);
     }
   }
@@ -6477,15 +6597,12 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       NotifyWorkModeResult(false, request);
       return;
     }
-    const auto alive = weak_factory_.GetWeakPtr();
-    const auto document =
-        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const auto continuation = MissionContinuation();
     const bool saved =
         mission_service_
             ->CreateMission(work_template->title, work_template->mission_type)
             .has_value();
-    if (!alive || document.AsRenderFrameHostIfValid() !=
-                      web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+    if (!continuation.Run()) {
       return;
     }
     if (!saved) {
@@ -6535,8 +6652,10 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       web_ui()->CallJavascriptFunctionUnsafe("tahaiLocalOiReportCopyFailed");
       return;
     }
+    const auto continuation = LocalOiContinuation();
     const std::optional<std::string> report =
         local_oi_service_->GenerateSafeReport(*report_kind, *report_format);
+    if (!continuation.Run()) return;
     if (!report) {
       web_ui()->CallJavascriptFunctionUnsafe("tahaiLocalOiReportCopyFailed");
       return;
@@ -6545,8 +6664,10 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         .WriteText(base::UTF8ToUTF16(*report));
     const std::string format =
         report_format == LocalOiSafeReportFormat::kJson ? "json" : "markdown";
+    const bool recorded = local_oi_service_->RecordSafeReportCopied(*report_kind);
+    if (!continuation.Run()) return;
     web_ui()->CallJavascriptFunctionUnsafe(
-        local_oi_service_->RecordSafeReportCopied(*report_kind)
+        recorded
             ? "tahaiLocalOiReportCopied"
             : "tahaiLocalOiReportCopiedUnrecorded",
         base::Value(format));
@@ -6743,12 +6864,15 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     if (!profile || !control) {
       return;
     }
+    const auto continuation = DocumentContinuation();
     const bool updated = TahaiLocalOiPolicy(profile->GetPrefs())
                              .SetEnabled(*control, args[1].GetBool());
+    if (!continuation.Run()) return;
     if (updated && args[1].GetBool() &&
         (*control == LocalOiPolicyControl::kEnabled ||
          *control == LocalOiPolicyControl::kMissionIngestion)) {
       RefreshLocalOiAfterMissionMutation();
+      if (!continuation.Run()) return;
     }
     web_ui()->CallJavascriptFunctionUnsafe("tahaiLocalOiControlUpdated",
                                            base::Value(args[0].GetString()),
@@ -6760,8 +6884,10 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         !args.empty() || !local_oi_service_ || !mission_service_) {
       return;
     }
+    const auto continuation = LocalOiContinuation();
     const bool refreshed =
         local_oi_service_->SyncMissions(mission_service_->missions());
+    if (!continuation.Run()) return;
     web_ui()->CallJavascriptFunctionUnsafe("tahaiLocalOiProjectionRefreshed",
                                            base::Value(refreshed));
   }
@@ -6775,6 +6901,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     const std::string& finding_id = args[0].GetString();
     const std::string& action = args[1].GetString();
     const std::string& rationale = args[2].GetString();
+    const auto continuation = LocalOiContinuation();
     bool updated = false;
     if (action == "acknowledge") {
       updated = local_oi_service_->AcknowledgeFinding(finding_id, rationale);
@@ -6785,6 +6912,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     } else if (action == "reopen") {
       updated = local_oi_service_->ReopenFinding(finding_id, rationale);
     }
+    if (!continuation.Run()) return;
     if (updated) {
       web_ui()->CallJavascriptFunctionUnsafe("tahaiLocalOiFindingUpdated");
     }
@@ -6796,10 +6924,12 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       return;
     }
     Profile* profile = Profile::FromWebUI(web_ui());
+    const auto continuation = DocumentContinuation();
     if (!profile || !SetTahaiOiMspPromotionEnabled(profile->GetPrefs(),
                                                    args.front().GetBool())) {
       return;
     }
+    if (!continuation.Run()) return;
     web_ui()->GetWebContents()->GetController().Reload(
         content::ReloadType::NORMAL, false);
   }
@@ -6941,9 +7071,11 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       guidance.Append(step);
     }
     value.Set("guidance", std::move(guidance));
+    const auto continuation = DocumentContinuation();
     const bool recorded =
         local_oi_service_ && local_oi_service_->RecordNetworkInspection(
                                  result, mission_id, watch_id);
+    if (!continuation.Run() || generation != network_inspection_generation_) return;
     last_network_inspection_ = result;
     last_network_inspection_recorded_ = recorded;
     value.Set("recorded", recorded);
@@ -7078,10 +7210,12 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     if (!kind) {
       return;
     }
+    const auto continuation = LocalOiContinuation();
     const std::optional<LocalOiChangeCaptureOutcome> outcome =
         local_oi_service_->RecordChangeCapture(
             {*kind, args[1].GetString(), args[2].GetString()},
             args.size() == 4u ? args[3].GetString() : "");
+    if (!continuation.Run()) return;
     if (!outcome) {
       web_ui()->CallJavascriptFunctionUnsafe(
           "tahaiChangeCaptureComplete", base::Value(false),
@@ -7127,10 +7261,12 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         (args.size() == 4u && !args[3].is_string())) {
       return;
     }
+    const auto continuation = LocalOiContinuation();
     const std::optional<LocalOiArtifactOutcome> outcome =
         local_oi_service_->RecordArtifactMetadata(
             {args[0].GetString(), args[1].GetString(), args[2].GetString(),
              args.size() == 4u ? args[3].GetString() : ""});
+    if (!continuation.Run()) return;
     web_ui()->CallJavascriptFunctionUnsafe(
         "tahaiArtifactMetadataComplete", base::Value(outcome.has_value()),
         base::Value(outcome ? outcome->canonical_source_url : ""));
@@ -7159,10 +7295,12 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         (args.size() == 4u && !args[3].is_string())) {
       return;
     }
+    const auto continuation = LocalOiContinuation();
     const std::optional<LocalOiDocumentReferenceOutcome> outcome =
         local_oi_service_->RecordDocumentReference(
             {args[0].GetString(), args[1].GetString(), args[2].GetString(),
              args.size() == 4u ? args[3].GetString() : ""});
+    if (!continuation.Run()) return;
     web_ui()->CallJavascriptFunctionUnsafe(
         "tahaiDocumentationReferenceComplete", base::Value(outcome.has_value()),
         base::Value(outcome ? outcome->canonical_reference_url : ""),
@@ -7313,10 +7451,12 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     if (!kind) {
       return;
     }
+    const auto continuation = LocalOiContinuation();
     const std::optional<LocalOiManualWatchOutcome> outcome =
         local_oi_service_->ConfigureManualWatch(
             {*kind, args[1].GetString(), args[2].GetInt()},
             args.size() == 4u ? args[3].GetString() : "");
+    if (!continuation.Run()) return;
     web_ui()->CallJavascriptFunctionUnsafe(
         "tahaiManualWatchConfigured", base::Value(outcome.has_value()),
         base::Value(outcome ? outcome->canonical_target : ""));
@@ -7348,10 +7488,12 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
 
   void DeleteLocalOiData(const base::ListValue& args) {
     if (!HasActiveSurfaceGesture(kTahaiLocalOiURL, kTahaiTrustedLocalOiURL) ||
-        !local_oi_service_ || !args.empty() ||
-        !local_oi_service_->DeleteAllData()) {
+        !local_oi_service_ || !args.empty()) {
       return;
     }
+    const auto continuation = LocalOiContinuation();
+    const bool deleted = local_oi_service_->DeleteAllData();
+    if (!continuation.Run() || !deleted) return;
     web_ui()->CallJavascriptFunctionUnsafe("tahaiLocalOiDataDeleted");
   }
 
@@ -7366,10 +7508,12 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     if (!environment) {
       return;
     }
+    const auto continuation = LocalOiContinuation();
     const std::optional<LocalOiEnvironmentClassificationOutcome> outcome =
         local_oi_service_->ConfigureEnvironmentClassification(
             *environment, args[1].GetString(),
             args.size() == 3u ? args[2].GetString() : "");
+    if (!continuation.Run()) return;
     web_ui()->CallJavascriptFunctionUnsafe(
         "tahaiEnvironmentClassificationConfigured",
         base::Value(outcome.has_value()),
@@ -7415,9 +7559,9 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
                                            base::Value(std::move(missions)));
   }
 
-  const raw_ptr<MissionService> mission_service_;
-  const raw_ptr<ModeService> mode_service_;
-  const raw_ptr<TahaiLocalOiService> local_oi_service_;
+  const base::WeakPtr<MissionService> mission_service_;
+  const base::WeakPtr<ModeService> mode_service_;
+  const base::WeakPtr<TahaiLocalOiService> local_oi_service_;
   const raw_ptr<Profile> profile_;
   const raw_ptr<PrefService> prefs_;
   const std::unique_ptr<TahaiSyncKeyService> sync_key_service_;

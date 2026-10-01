@@ -1,7 +1,9 @@
 // Copyright 2026 TAHAI Web Services
 // SPDX-License-Identifier: Apache-2.0
 
+#include <algorithm>
 #include <string>
+#include <string_view>
 
 #include "base/test/bind.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -819,6 +821,107 @@ TEST_F(TahaiWorkflowNativeTest, NativeBeginPinsTokenBeforePreferenceNotification
   EXPECT_FALSE(pending_token.empty());
   EXPECT_NE(pending_token, mission().mutation_token);
   EXPECT_EQ("pending", mission().steps[1].action_state);
+}
+
+TEST_F(TahaiWorkflowNativeTest,
+       NativeBeginRejectsReviewChangedDuringDeadlineSettlement) {
+  ASSERT_TRUE(service_->ToggleStep(id_, 0));
+  for (bool explicit_token : {false, true}) {
+    SCOPED_TRACE(explicit_token);
+    const auto other = service_->CreateOperationalWorkflowMission(
+        manifest_.workflows.front(), manifest_.appearance.id, sha_, true);
+    ASSERT_TRUE(other);
+    ASSERT_TRUE(service_->SetOperationalWorkflowInputValue(
+        other->id, "approved", "true"));
+    ASSERT_TRUE(service_->SetOperationalWorkflowRunState(other->id, "running"));
+    ASSERT_TRUE(service_->ToggleStep(other->id, 0));
+    ASSERT_TRUE(service_->BeginNativeWorkflowStep(other->id, 1));
+    // Advance without running the timer: Begin must settle the other run,
+    // which notifies an observer before opening this reviewed attempt.
+    environment_.AdvanceClock(kMissionNativeAttemptTimeout);
+    const std::string reviewed_token = mission().mutation_token;
+    bool changed = false;
+    PrefChangeRegistrar registrar;
+    registrar.Init(profile_.GetPrefs());
+    registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
+      if (changed) return;
+      changed = true;
+      EXPECT_TRUE(service_->AddLocalNote(id_, "Review changed during settlement"));
+    }));
+    std::string pending_token;
+    EXPECT_FALSE(service_->BeginNativeWorkflowStep(
+        id_, 1, &pending_token, explicit_token ? reviewed_token : std::string()));
+    EXPECT_TRUE(changed);
+    EXPECT_TRUE(pending_token.empty());
+    EXPECT_NE(reviewed_token, mission().mutation_token);
+    EXPECT_EQ("ready", mission().steps[1].action_state);
+  }
+  // A new explicit review still works; the rejection must not open an attempt.
+  const std::string current_token = mission().mutation_token;
+  EXPECT_FALSE(service_->BeginNativeWorkflowStep(id_, 1, nullptr,
+                                                 std::string(36, 'x')));
+  EXPECT_TRUE(service_->BeginNativeWorkflowStep(id_, 1, nullptr, current_token));
+}
+
+TEST_F(TahaiWorkflowNativeTest,
+       RenderedMutationTokenIsCheckedAfterDeadlineSettlement) {
+  for (const char* operation : {"step", "assign", "wait", "state", "input", "archive"}) {
+    SCOPED_TRACE(operation);
+    const std::string_view action(operation);
+    auto workflow = manifest_.workflows.front();
+    if (action == "assign") {
+      workflow.variables = {{"copied", "Copied approval",
+          TahaiOperationalWorkflowInputType::kBoolean, false, {}}};
+      workflow.steps = {{"copy", "Copy approval",
+          TahaiOperationalWorkflowStepKind::kAssignVariable, {}}};
+      workflow.steps[0].assignment = TahaiWorkflowAssignment{"copied", "approved", false};
+    } else if (action == "wait") {
+      workflow.steps = {{"delay", "Local delay",
+          TahaiOperationalWorkflowStepKind::kWait, {}}};
+      workflow.steps[0].wait_seconds = 1;
+    }
+    const auto target = service_->CreateOperationalWorkflowMission(
+        workflow, manifest_.appearance.id, sha_, true);
+    ASSERT_TRUE(target);
+    ASSERT_TRUE(service_->SetOperationalWorkflowInputValue(target->id, "approved", "true"));
+    ASSERT_TRUE(service_->SetOperationalWorkflowRunState(target->id, "running"));
+    const auto other = service_->CreateOperationalWorkflowMission(
+        manifest_.workflows.front(), manifest_.appearance.id, sha_, true);
+    ASSERT_TRUE(other);
+    ASSERT_TRUE(service_->SetOperationalWorkflowInputValue(other->id, "approved", "true"));
+    ASSERT_TRUE(service_->SetOperationalWorkflowRunState(other->id, "running"));
+    ASSERT_TRUE(service_->ToggleStep(other->id, 0));
+    ASSERT_TRUE(service_->BeginNativeWorkflowStep(other->id, 1));
+    environment_.AdvanceClock(kMissionNativeAttemptTimeout);
+    const auto token = [&] {
+      return std::ranges::find(service_->missions(), target->id, &MissionSummary::id)
+          ->mutation_token;
+    };
+    const std::string reviewed = token();
+    const auto mutate = [&](std::string_view expected) {
+      if (action == "step") return service_->ToggleStep(target->id, 0, expected);
+      if (action == "assign") return service_->AssignWorkflowVariable(target->id, 0, expected);
+      if (action == "wait") return service_->ControlWorkflowWait(target->id, 0, false, expected);
+      if (action == "state") return service_->SetOperationalWorkflowRunState(target->id, "paused", expected);
+      if (action == "input") return service_->SetOperationalWorkflowInputValue(target->id, "approved", "false", expected);
+      return service_->ArchiveMission(target->id, expected);
+    };
+    bool changed = false;
+    PrefChangeRegistrar registrar;
+    registrar.Init(profile_.GetPrefs());
+    registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
+      if (changed) return;
+      changed = true;
+      EXPECT_TRUE(service_->AddLocalNote(target->id, "Changed after UI admission"));
+    }));
+    EXPECT_FALSE(mutate(reviewed));
+    EXPECT_TRUE(changed);
+    EXPECT_NE(reviewed, token());
+    registrar.RemoveAll();
+    // Each case is a valid operation when explicitly reviewed again, rather
+    // than a malformed fixture that would have been rejected before this fix.
+    EXPECT_TRUE(mutate(token()));
+  }
 }
 
 TEST_F(TahaiWorkflowNativeTest, MissionUnknownNestedWorkflowFieldsRemainReadOnly) {

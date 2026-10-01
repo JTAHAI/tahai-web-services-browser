@@ -144,3 +144,57 @@ token during Begin notification. These eight new tests and the
 corrected native fixture have not been compiled or executed here. Source-only
 preflight evidence is recorded separately; compilation and native/runtime
 acceptance remain on the build workstation. No binary or MSIX build was started.
+
+## Main WebUI, Local OI and persistence-boundary repair
+
+The review of native `6b84b65aff638f7290ff9f5f352cdbd8df3237a0`
+identified four more source defects. This follow-up repairs those boundaries
+and their related callers:
+
+- Main WebUI mutation handlers now keep their continuation checks in local
+  callbacks, checking weak handler/service lifetimes and the original document
+  before every post-write response, projection refresh or reload. Checks also
+  reject a pending replacement navigation, not just an already-invalidated
+  document. Mission, Mode and Local OI references held by the WebUI are weak. The same
+  protection covers Guard/policy/grant/studio writers and mode/identity replies.
+  The broader caller pass also found Local OI HTML rendering continued through
+  a notifying projection write with cached permission and raw owner pointers.
+  Rendering now checks all three service lifetimes after refresh and re-reads
+  policy before building any record snapshot. Teardown returns an inert page;
+  policy revocation renders the disabled surface without local records.
+  Creation and duplication consume their document opportunity before notifying;
+  capsule import consumes its verified payload before commit and cannot replay
+  or overwrite a newer verification from reentrant notification.
+- Local OI direct writers and retained commits stop after synchronous deletion,
+  shutdown or disabled collection policy. Environment classification cannot
+  continue to the independent native rule write after teardown or operations
+  policy revocation. Safe report generation rechecks reports/export permission
+  after its notifying commit, before returning text to the clipboard caller.
+- Native workflow Begin pins the reviewed token before deadline settlement and
+  rechecks it after notifications. The handler explicitly supplies its original
+  rendered token; it cannot adopt an observer's newer review as dispatch consent.
+  Assignment, wait, checkpoint, run-state, input and archive controls likewise
+  supply an owned reviewed token for post-settlement validation. Legacy trusted
+  local service calls retain their explicit state-transition semantics.
+- Generated capsule keys are returned only when the exact persisted ciphertext
+  snapshot still exists, remains unmanaged and the document-owned authorization
+  lease remains valid after notification. Clearing/replacing storage or revoking
+  authority reports failure without exposing the generated key or clobbering
+  the observer's replacement. Existing queue serialization remains intact.
+
+Added **six native and five browser regressions**, all required by the release
+evidence gate. They cover direct/projection/ingestion deletion, shutdown and
+policy changes, stale native review during another run's deadline settlement,
+key persistence/lease replacement and recovery, WebUI closure and pending
+navigation, policy UI closure, capsule import reentry/closure and clipboard
+preservation after key removal, and policy/shutdown during document-source
+projection refresh. The synthetic evidence fixture now expects 211
+native and 204 browser sentinel attempts; those counts are validator fixtures,
+not actual runtime results or narrowed execution filters.
+
+These eleven tests have **not been compiled or executed** here. Source preflight
+and repeated source review are recorded separately. No further actionable defect
+was found in the final reviewed patch and caller paths; this is not a global
+absence-of-bugs or RC/runtime acceptance claim. Compile the exact published tree
+and run the complete no-retry native/browser/service scopes and isolated
+operational/trust/security gates on the build workstation before packaging.

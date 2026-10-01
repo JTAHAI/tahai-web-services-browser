@@ -73,6 +73,8 @@ class TahaiSyncKeyService {
   // Creates the initial random AES-256 key when no keyring exists.
   // An optional browser-owned lease is checked before queueing and again after
   // asynchronous provider work, before any key is exposed or storage mutated.
+  // A notifying write must still match the saved ciphertext and lease before
+  // success is reported; an observer's replacement is never overwritten.
   using Authorization = base::RepeatingCallback<bool()>;
   void EnsureActiveKey(KeyCallback callback, Authorization authorization = {});
 

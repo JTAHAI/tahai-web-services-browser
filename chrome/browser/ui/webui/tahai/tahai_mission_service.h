@@ -261,8 +261,11 @@ class MissionService : public KeyedService {
   // journal before dispatch. Completion cannot bypass a pending action.
   // Capture the pending token before notification so a caller cannot silently
   // adopt an observer's newer mutation as its own dispatch authority.
+  // Pin the caller's reviewed token across deadline settlement as well. When
+  // omitted, use the entry snapshot, never a post-notification replacement.
   bool BeginNativeWorkflowStep(std::string_view mission_id, size_t step_index,
-                               std::string* pending_token = nullptr);
+                               std::string* pending_token = nullptr,
+                               std::string_view expected_token = {});
   // Recheck the durable snapshot and pending attempt after notifications/I/O.
   // This is not command authority; the handler must still pin and resolve it.
   bool CanContinueNativeWorkflowStep(std::string_view mission_id,
@@ -273,21 +276,26 @@ class MissionService : public KeyedService {
                                 std::string_view result);
   // One explicit local typed copy and checkpoint update, in the same saved run
   // record. Never an external effect, implicit replay, or plaintext downgrade.
-  bool AssignWorkflowVariable(std::string_view mission_id, size_t step_index);
+  // Renderer-originated callers supply their reviewed token. It is owned and
+  // checked after notifying deadline settlement, not merely at UI admission.
+  bool AssignWorkflowVariable(std::string_view mission_id, size_t step_index,
+                              std::string_view expected_token = {});
   // Start/resume or acknowledge an elapsed local wait. No automatic completion
   // or subsequent action is dispatched. Pause/restart require explicit resume.
   bool ControlWorkflowWait(std::string_view mission_id, size_t step_index,
-                           bool complete);
+                           bool complete, std::string_view expected_token = {});
   // Transitions only a revision-pinned operational checklist through the
   // browser-owned local state machine. It never executes a workflow action,
   // replays a command, or changes an archived Mission.
   bool SetOperationalWorkflowRunState(std::string_view mission_id,
-                                      std::string_view run_state);
+                                      std::string_view run_state,
+                                      std::string_view expected_token = {});
   // Creates a fresh local Mission from a previously authenticated capsule.
   // Source identity, title, timestamps, and event ledger are never restored.
   std::optional<MissionSummary> ImportSanitizedMissionCapsule(
       const TahaiMissionCapsuleImport& capsule);
-  bool ToggleStep(std::string_view mission_id, size_t step_index);
+  bool ToggleStep(std::string_view mission_id, size_t step_index,
+                  std::string_view expected_token = {});
   bool ToggleValidationStep(std::string_view mission_id, size_t step_index);
   bool ToggleRollbackStep(std::string_view mission_id, size_t step_index);
   bool ToggleEscalation(std::string_view mission_id);
@@ -299,13 +307,15 @@ class MissionService : public KeyedService {
   // page action, connector, command, or workflow step.
   bool SetOperationalWorkflowInputValue(std::string_view mission_id,
                                         std::string_view input_id,
-                                        std::string_view value);
+                                        std::string_view value,
+                                        std::string_view expected_token = {});
   // Validates saved ciphertext without resuming a run or returning plaintext.
   void PrepareProtectedWorkflowInputs(os_crypt_async::OSCryptAsync* provider,
                                      base::OnceCallback<void(bool)> callback);
   bool SetExportProfile(std::string_view mission_id,
                         std::string_view export_profile);
-  bool ArchiveMission(std::string_view mission_id);
+  bool ArchiveMission(std::string_view mission_id,
+                      std::string_view expected_token = {});
   bool RestoreMission(std::string_view mission_id);
   std::optional<MissionSummary> DuplicateMission(std::string_view mission_id);
   bool DeleteMission(std::string_view mission_id);

@@ -204,6 +204,10 @@ try {
         'MissionServiceTest.CapsuleKeyCallbackSurvivesOwnerDeletionDuringPersistence',
         'MissionServiceTest.CapsuleKeyRealProviderStartupPreservesFifoReentry',
         'MissionServiceTest.CapsuleKeyCompletionCanDeleteOwnerWithQueuedWork',
+        'MissionServiceTest.CapsuleKeyPersistenceMustSurviveNotificationAndLease',
+        'MissionServiceTest.LocalOiNotificationCanDeleteOwnerDuringMutation',
+        'MissionServiceTest.LocalOiNotificationShutdownOrPolicyStopsNextStage',
+        'MissionServiceTest.LocalOiReportCannotExportAfterNotificationRevokesPolicy',
         'MissionServiceTest.MissionExternalStorageReplacementIsNotOverwritten',
         'MissionServiceTest.MissionUnsupportedLoadedRecordsRemainReadOnly',
         'MissionServiceTest.MissionOverQuotaStorageRemainsReadOnly',
@@ -252,6 +256,8 @@ try {
         'TahaiWorkflowNativeTest.NativeCompletionCallerSurvivesOwnerDeletion',
         'TahaiWorkflowNativeTest.NativeContinuationRechecksStoragePolicyAndDeadline',
         'TahaiWorkflowNativeTest.NativeBeginPinsTokenBeforePreferenceNotification',
+        'TahaiWorkflowNativeTest.NativeBeginRejectsReviewChangedDuringDeadlineSettlement',
+        'TahaiWorkflowNativeTest.RenderedMutationTokenIsCheckedAfterDeadlineSettlement',
         'TahaiWorkflowNativeTest.MissionUnknownNestedWorkflowFieldsRemainReadOnly',
         'TahaiWorkflowNativeTest.QueuedWorkflowCannotReplayOrResumeAfterOwnerDeletion',
         'TahaiWorkflowNativeTest.QueuedWorkflowPreservesManagedAndUnknownStorage',
@@ -429,6 +435,11 @@ try {
         'TahaiWebUIBrowserTest.TahaiEvidenceReviewIsCardScopedSingleUseAndRevisionBound',
         'TahaiWebUIBrowserTest.TahaiEvidenceReviewRequiresMissionGestureAndCannotSurviveNavigation',
         'TahaiWebUIBrowserTest.TahaiCapsuleMessagesRequireMissionGestureAndVerifiedSingleUseImport',
+        'TahaiWebUIBrowserTest.TahaiMissionMutationNotificationsCanCloseWebUi',
+        'TahaiWebUIBrowserTest.TahaiPolicyMutationNotificationCanCloseWebUi',
+        'TahaiWebUIBrowserTest.TahaiLocalOiRenderRechecksNotifyingProjectionBoundary',
+        'TahaiWebUIBrowserTest.TahaiCapsuleImportNotificationCannotReplayOrUseClosedWebUi',
+        'TahaiWebUIBrowserTest.TahaiCapsuleExportCannotUseKeyRemovedDuringNotification',
         'TahaiWebUIBrowserTest.TahaiWorkflowInputsRejectUnactivatedStaleAndRepeatedEdits',
         'TahaiWebUIBrowserTest.TahaiSkinStudioActionStatusBindingsAuthorSimulateAndRestoreDefinitions',
         'TahaiOperationalModeBrowserTest.TahaiActionStatusBindingFollowsRealDispatchAndExplicitCheckpoint',
@@ -595,7 +606,7 @@ try {
     $evidence.smoke = Write-FixtureEvidence 'smoke.json' $smoke
     $null = Write-FixtureEvidence 'release.json' $evidence
     $result = Assert-TahaiReleaseEvidence $evidencePath $buildDir
-    if ($result.NativeTestAttempts -ne 205 -or $result.BrowserTestAttempts -ne 199 -or
+    if ($result.NativeTestAttempts -ne 211 -or $result.BrowserTestAttempts -ne 204 -or
         $result.ElevationTestAttempts -ne 2 -or $result.TracingTestAttempts -ne 2) {
         throw 'Positive fixture counts were incorrect.'
     }
