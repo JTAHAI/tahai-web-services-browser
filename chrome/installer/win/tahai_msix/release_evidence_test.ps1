@@ -203,6 +203,8 @@ try {
         'MissionServiceTest.CapsuleKeyIdentityMismatchReportsCorruptionNotSuccess',
         'MissionServiceTest.CapsuleKeyCallbackSurvivesOwnerDeletionDuringPersistence',
         'MissionServiceTest.MissionExternalStorageReplacementIsNotOverwritten',
+        'MissionServiceTest.MissionUnsupportedLoadedRecordsRemainReadOnly',
+        'MissionServiceTest.MissionOverQuotaStorageRemainsReadOnly',
         'MissionServiceTest.CapsuleImportCommitsAtomicallyBeforeOwnerDeletion',
         'MissionServiceTest.MissionWrongTypedStorageRejectsMutationsWithoutDataLoss',
         'MissionServiceTest.EnvironmentGuardRejectsDamagedStorageAndInvalidEnums',
@@ -585,7 +587,7 @@ try {
     $evidence.smoke = Write-FixtureEvidence 'smoke.json' $smoke
     $null = Write-FixtureEvidence 'release.json' $evidence
     $result = Assert-TahaiReleaseEvidence $evidencePath $buildDir
-    if ($result.NativeTestAttempts -ne 196 -or $result.BrowserTestAttempts -ne 198 -or
+    if ($result.NativeTestAttempts -ne 198 -or $result.BrowserTestAttempts -ne 198 -or
         $result.ElevationTestAttempts -ne 2 -or $result.TracingTestAttempts -ne 2) {
         throw 'Positive fixture counts were incorrect.'
     }

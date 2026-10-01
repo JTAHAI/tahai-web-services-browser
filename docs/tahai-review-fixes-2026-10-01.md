@@ -67,6 +67,10 @@ execution or a finished RC/MSIX:
   A cached owner also refuses to replace an externally changed durable snapshot.
   Authenticated capsule imports are constructed fully and committed once, not
   chained through CHECK-protected mutations across preference callbacks.
+  Loaded collections with unsupported/duplicate records, unknown record fields
+  or rejected operational snapshots are read-only so a
+  subsequent edit cannot silently erase skipped data; over-quota collections
+  are rejected before cloning or restoring an unbounded mission list.
 - Synchronous deadline settlement now stops continuation if preference
   notification deletes or shuts down the mission owner; ordinary mutations
   recheck storage policy afterward. Borrowed mutation arguments are owned across
@@ -87,7 +91,7 @@ execution or a finished RC/MSIX:
   collisions. Its validator is shared with the final package evidence gate.
   Passing retries and repeated test iterations are rejected as well as failures.
 
-Added **25 native regression cases** (16 mission/key/storage/workflow tests and 9 browser
+Added **27 native regression cases** (18 mission/key/storage/workflow tests and 9 browser
 appearance/presentation tests), required by the release evidence gate. These
 cases have **not been compiled or executed** here. The packaging guard now runs
 54 synthetic checks, including actual shared smoke-copy helper calls; none of

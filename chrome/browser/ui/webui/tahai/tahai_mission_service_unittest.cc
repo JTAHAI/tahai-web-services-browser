@@ -6280,6 +6280,59 @@ TEST_F(MissionServiceTest, MissionExternalStorageReplacementIsNotOverwritten) {
   EXPECT_TRUE(service.AddLocalNote(mission->id, "Recovered snapshot"));
 }
 
+TEST_F(MissionServiceTest, MissionUnsupportedLoadedRecordsRemainReadOnly) {
+  MissionService original_service(&profile_);
+  const auto mission =
+      original_service.CreateMission("Readable mission", "incident");
+  ASSERT_TRUE(mission);
+  const auto original =
+      profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (const char* corruption :
+       {"type", "future", "duplicate", "field", "workflow"}) {
+    SCOPED_TRACE(corruption);
+    auto damaged = original.Clone();
+    if (std::string_view(corruption) == "type") {
+      damaged.Append("unknown record");
+    } else if (std::string_view(corruption) == "future") {
+      damaged.Append(base::DictValue().Set("future", true));
+    } else if (std::string_view(corruption) == "duplicate") {
+      damaged.Append(original.front().Clone());
+    } else if (std::string_view(corruption) == "field") {
+      damaged.front().GetDict().Set("future", true);
+    } else {
+      damaged.front().GetDict().Set("operational_workflow",
+                                    base::DictValue().Set("future", true));
+    }
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, damaged.Clone());
+    MissionService reloaded(&profile_);
+    ASSERT_EQ(1u, reloaded.missions().size());
+    const auto token = reloaded.missions().front().mutation_token;
+    EXPECT_FALSE(
+        reloaded.CreateMission("Must not erase unknown data", "incident"));
+    EXPECT_FALSE(reloaded.ToggleStep(mission->id, 0));
+    EXPECT_FALSE(
+        reloaded.AddLocalNote(mission->id, "Must not erase unknown data"));
+    EXPECT_FALSE(reloaded.DeleteMission(mission->id));
+    EXPECT_EQ(token, reloaded.missions().front().mutation_token);
+    reloaded.Shutdown();
+    EXPECT_EQ(damaged, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+}
+
+TEST_F(MissionServiceTest, MissionOverQuotaStorageRemainsReadOnly) {
+  base::ListValue oversized;
+  for (size_t index = 0; index < 501u; ++index) {
+    oversized.Append(base::DictValue().Set("future", true));
+  }
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, oversized.Clone());
+  MissionService service(&profile_);
+  EXPECT_TRUE(service.missions().empty());
+  EXPECT_FALSE(
+      service.CreateMission("Must not replace oversized data", "incident"));
+  service.Shutdown();
+  EXPECT_EQ(oversized, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+}
+
 TEST_F(MissionServiceTest, CapsuleImportCommitsAtomicallyBeforeOwnerDeletion) {
   auto service = std::make_unique<MissionService>(&profile_);
   const auto source = service->CreateMission("Source", "incident");

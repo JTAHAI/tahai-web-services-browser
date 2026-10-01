@@ -322,6 +322,7 @@ class MissionService : public KeyedService {
   const raw_ptr<PrefService> prefs_;
   std::vector<MissionSummary> missions_;
   std::optional<base::Value> loaded_storage_;
+  bool loaded_storage_writable_ = true;
   scoped_refptr<os_crypt_async::Encryptor> input_encryptor_;
   bool shutting_down_ = false;
   // One bounded wakeup for the earliest wait/native deadline across local runs.

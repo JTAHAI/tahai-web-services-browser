@@ -365,6 +365,8 @@ function Assert-TahaiReleaseEvidence {
         'MissionServiceTest.CapsuleKeyIdentityMismatchReportsCorruptionNotSuccess',
         'MissionServiceTest.CapsuleKeyCallbackSurvivesOwnerDeletionDuringPersistence',
         'MissionServiceTest.MissionExternalStorageReplacementIsNotOverwritten',
+        'MissionServiceTest.MissionUnsupportedLoadedRecordsRemainReadOnly',
+        'MissionServiceTest.MissionOverQuotaStorageRemainsReadOnly',
         'MissionServiceTest.CapsuleImportCommitsAtomicallyBeforeOwnerDeletion',
         'MissionServiceTest.MissionWrongTypedStorageRejectsMutationsWithoutDataLoss',
         'MissionServiceTest.EnvironmentGuardRejectsDamagedStorageAndInvalidEnums',

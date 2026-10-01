@@ -44,6 +44,27 @@ constexpr std::array<std::string_view, 11> kAllowedMissionTypes = {
     "admin",         "support",     "development"};
 
 constexpr size_t kMaximumMissions = 500u;
+constexpr std::array<std::string_view, 20> kKnownMissionFields = {
+    "id",
+    "title",
+    "type",
+    "created_at",
+    "updated_at",
+    "operational_workflow",
+    "steps",
+    "validation_steps",
+    "rollback_steps",
+    "escalation_required",
+    "archived",
+    "export_profile",
+    "timeline_integrity_verified",
+    "links",
+    "evidence",
+    "notes",
+    "workflow_inputs",
+    "workflow_variables",
+    "workflow_outputs",
+    "timeline"};
 constexpr size_t kMaximumTimelineEvents = 64u;
 constexpr size_t kMaximumEvidenceMarkers = 12u;
 constexpr size_t kMaximumMissionNotes = 24u;
@@ -1445,7 +1466,7 @@ bool MissionService::CanMutateStorage() const {
   if (!persistence_enabled()) {
     return true;
   }
-  return (!raw || raw->is_list()) &&
+  return loaded_storage_writable_ && (!raw || raw->is_list()) &&
          (raw ? loaded_storage_ && *raw == *loaded_storage_ : !loaded_storage_);
 }
 
@@ -2225,14 +2246,31 @@ bool MissionService::persistence_enabled() const {
 
 void MissionService::Load() {
   missions_.clear();
+  loaded_storage_writable_ = true;
   const auto* raw = prefs_->GetRawUserPrefValue(prefs::kTahaiMissions);
+  const auto& stored = prefs_->GetList(prefs::kTahaiMissions);
+  if ((raw && !raw->is_list()) || stored.size() > kMaximumMissions ||
+      (raw && raw->GetList().size() > kMaximumMissions)) {
+    // Do not clone an unbounded collection or replace unsupported storage with
+    // the registered default. Recovery must preserve the original bytes.
+    loaded_storage_.reset();
+    loaded_storage_writable_ = false;
+    return;
+  }
   loaded_storage_ = raw ? std::make_optional(raw->Clone()) : std::nullopt;
   std::set<std::string> loaded_ids;
-  for (const base::Value& mission_value :
-       prefs_->GetList(prefs::kTahaiMissions)) {
+  for (const base::Value& mission_value : stored) {
     const base::DictValue* dict = mission_value.GetIfDict();
     if (!dict) {
+      loaded_storage_writable_ = false;
       continue;
+    }
+    for (const auto entry : *dict) {
+      if (std::ranges::find(kKnownMissionFields, entry.first) ==
+          kKnownMissionFields.end()) {
+        loaded_storage_writable_ = false;
+        break;
+      }
     }
     const std::string* id = dict->FindString("id");
     const std::string* title = dict->FindString("title");
@@ -2241,6 +2279,10 @@ void MissionService::Load() {
     if (!id || !title || !type || !created_at || !IsValidId(*id) ||
         !IsSafeTitle(*title) || !IsSafeTimestamp(*created_at) ||
         !IsAllowedType(*type) || !loaded_ids.insert(*id).second) {
+      // Saving only the accepted subset would silently erase an unsupported
+      // record (including future data) or a duplicate. Keep readable records
+      // visible, but do not permit a partial collection to be rewritten.
+      loaded_storage_writable_ = false;
       continue;
     }
     MissionSummary mission;
@@ -2587,6 +2629,16 @@ void MissionService::Load() {
       }
     }
     if (!mission.operational_workflow) {
+      if (dict->contains("operational_workflow")) {
+        loaded_storage_writable_ = false;
+      }
+      for (const auto key :
+           {"workflow_inputs", "workflow_variables", "workflow_outputs"}) {
+        const auto* value = dict->Find(key);
+        if (value && (!value->is_list() || !value->GetList().empty())) {
+          loaded_storage_writable_ = false;
+        }
+      }
       load_steps("steps", &mission.steps);
     }
     load_steps("validation_steps", &mission.validation_steps);
