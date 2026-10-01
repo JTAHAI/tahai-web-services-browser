@@ -202,9 +202,12 @@ try {
         'MissionServiceTest.CapsuleKeyLateStorageCorruptionIsPreserved',
         'MissionServiceTest.CapsuleKeyIdentityMismatchReportsCorruptionNotSuccess',
         'MissionServiceTest.CapsuleKeyCallbackSurvivesOwnerDeletionDuringPersistence',
+        'MissionServiceTest.CapsuleKeyRealProviderStartupPreservesFifoReentry',
+        'MissionServiceTest.CapsuleKeyCompletionCanDeleteOwnerWithQueuedWork',
         'MissionServiceTest.MissionExternalStorageReplacementIsNotOverwritten',
         'MissionServiceTest.MissionUnsupportedLoadedRecordsRemainReadOnly',
         'MissionServiceTest.MissionOverQuotaStorageRemainsReadOnly',
+        'MissionServiceTest.MissionUnknownNestedFixedFieldsRemainReadOnly',
         'MissionServiceTest.CapsuleImportCommitsAtomicallyBeforeOwnerDeletion',
         'MissionServiceTest.MissionWrongTypedStorageRejectsMutationsWithoutDataLoss',
         'MissionServiceTest.EnvironmentGuardRejectsDamagedStorageAndInvalidEnums',
@@ -246,6 +249,10 @@ try {
         'TahaiWorkflowNativeTest.NativeDeadlineEncryptorCallbackSurvivesOwnerDeletion',
         'TahaiWorkflowNativeTest.NativeDeadlineRechecksMutationPolicyAfterNotification',
         'TahaiWorkflowNativeTest.NativeDeadlinePinsBorrowedMutationArguments',
+        'TahaiWorkflowNativeTest.NativeCompletionCallerSurvivesOwnerDeletion',
+        'TahaiWorkflowNativeTest.NativeContinuationRechecksStoragePolicyAndDeadline',
+        'TahaiWorkflowNativeTest.NativeBeginPinsTokenBeforePreferenceNotification',
+        'TahaiWorkflowNativeTest.MissionUnknownNestedWorkflowFieldsRemainReadOnly',
         'TahaiWorkflowNativeTest.QueuedWorkflowCannotReplayOrResumeAfterOwnerDeletion',
         'TahaiWorkflowNativeTest.QueuedWorkflowPreservesManagedAndUnknownStorage',
         'TahaiWorkflowNativeTest.QueuedWorkflowNotificationCannotReplaceConsumedLaunch',
@@ -435,6 +442,7 @@ try {
         'TahaiWebUIBrowserTest.TahaiSkinStudioNativeFailureSimulationIsDisposable',
         'TahaiOperationalModeBrowserTest.TahaiWorkflowNativeActionDispatchesOnceAndRevokesAtUse',
         'TahaiOperationalModeBrowserTest.TahaiWorkflowNativeDeadlineStopsDelayedJournalDispatch',
+        'TahaiOperationalModeBrowserTest.TahaiWorkflowNativeNotificationCanCloseDocument',
         'TahaiSkinProfileBrowserTest.TahaiSkinProfileIsolationAndPrivateDenial',
         'TahaiSkinProfileBrowserTest.TahaiSkinManagedPolicyRevokesReviewAndRetainsPackages',
         'TahaiSkinProfileBrowserTest.TahaiSkinCancelledAndSupersededReviewsCannotCommit',
@@ -587,7 +595,7 @@ try {
     $evidence.smoke = Write-FixtureEvidence 'smoke.json' $smoke
     $null = Write-FixtureEvidence 'release.json' $evidence
     $result = Assert-TahaiReleaseEvidence $evidencePath $buildDir
-    if ($result.NativeTestAttempts -ne 198 -or $result.BrowserTestAttempts -ne 198 -or
+    if ($result.NativeTestAttempts -ne 205 -or $result.BrowserTestAttempts -ne 199 -or
         $result.ElevationTestAttempts -ne 2 -or $result.TracingTestAttempts -ne 2) {
         throw 'Positive fixture counts were incorrect.'
     }

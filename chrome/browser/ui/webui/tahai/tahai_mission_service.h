@@ -259,7 +259,14 @@ class MissionService : public KeyedService {
   // These only change local state. The document-bound native handler must
   // separately resolve trusted command authority and commit the attempt
   // journal before dispatch. Completion cannot bypass a pending action.
-  bool BeginNativeWorkflowStep(std::string_view mission_id, size_t step_index);
+  // Capture the pending token before notification so a caller cannot silently
+  // adopt an observer's newer mutation as its own dispatch authority.
+  bool BeginNativeWorkflowStep(std::string_view mission_id, size_t step_index,
+                               std::string* pending_token = nullptr);
+  // Recheck the durable snapshot and pending attempt after notifications/I/O.
+  // This is not command authority; the handler must still pin and resolve it.
+  bool CanContinueNativeWorkflowStep(std::string_view mission_id,
+                                     size_t step_index) const;
   // Rejection/uncertain outcome closes the run as failed (or preserves explicit
   // cancellation). An uncertain attempt is never claimed to have had no effect.
   bool FinishNativeWorkflowStep(std::string_view mission_id, size_t step_index,

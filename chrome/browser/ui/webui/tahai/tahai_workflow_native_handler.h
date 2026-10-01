@@ -7,11 +7,15 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
+
+#include "base/memory/weak_ptr.h"
 
 class Profile;
 namespace content { class WebUIMessageHandler; }
 namespace tahai {
+class MissionService;
 struct MissionSummary;
 struct TahaiOperationalSkinManifest;
 
@@ -21,6 +25,12 @@ struct TahaiOperationalSkinManifest;
 std::optional<int> ResolveMissionNativeCommand(
     const TahaiOperationalSkinManifest& manifest, std::string_view mode_id,
     std::string_view archive_sha256, const MissionSummary& mission, size_t index);
+
+// Completion notifies preference observers. Never retain a raw owner or a
+// borrowed mission ID across that notification; report only its surviving state.
+std::string CompleteMissionNativeAttempt(base::WeakPtr<MissionService> service,
+                                         std::string_view id, size_t index,
+                                         std::string_view result);
 
 std::unique_ptr<content::WebUIMessageHandler> CreateWorkflowNativeHandler(Profile* profile);
 }  // namespace tahai

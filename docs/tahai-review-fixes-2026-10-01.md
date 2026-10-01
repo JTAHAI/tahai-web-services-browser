@@ -106,3 +106,41 @@ native/browser/service gates, isolated operational/trust/security smoke and
 eventual exact-package installation/upgrade/state-retention checks remain the
 next acceptance stages. Historical Chromium 152 binaries and accessibility
 diagnostics cannot establish acceptance of this source.
+
+## Callback-boundary and nested-schema repair
+
+The next source review found four additional issues in native `5aef3747ced1`:
+
+- Queued keyring work re-entered the real OS Crypt provider while its first
+  initialization callback was still on the stack. Queue advancement is now
+  posted non-nestably after the client callback returns, with the operation reserved across
+  preference and client callbacks. Completion stays FIFO, including reentrant
+  requests and a client pumping a nested event loop; deletion cancels queued work.
+  An additional encryption consumer pumping a nested loop during initialization
+  also cannot run the queued advance before the provider's task unwinds.
+- Native workflow callers retained raw service/handler/target pointers across
+  synchronous mission preference notifications. Completion now owns its ID and
+  checks a weak service after notification. Launch reserves its invocation
+  before Begin, checks weak lifetimes and current document/window/mode/trust/
+  durable-storage authority afterward and again after journal work. Cancellation
+  clears the invocation before notifying observers, preventing recursive teardown
+  from touching stale handler state.
+  Begin exposes the pending token before notification; the handler cannot adopt
+  a notification's newer token as if it belonged to the rendered invocation.
+- The borrowed-ID deadline test tried to delete an unarchived fixture, which the
+  product correctly rejects. It now archives that fixture before arranging the
+  deadline and synchronous deletion boundary.
+- Unknown fields within otherwise supported mission records could be discarded
+  by Save. Nested workflow source/step/input/variable/output, evidence/note/
+  timeline and link records now participate in read-only schema protection.
+  Fixed-family steps also reject ignored operational metadata. The original
+  durable collection is preserved rather than reconstructed from a projection.
+
+Added seven native tests and one real browser regression, all required by the
+release evidence gate, covering real-provider initialization, FIFO reentry,
+owner deletion, durable policy/deadline changes, nested-field preservation and
+document teardown during Begin/cancellation, retargeting and a changed mission
+token during Begin notification. These eight new tests and the
+corrected native fixture have not been compiled or executed here. Source-only
+preflight evidence is recorded separately; compilation and native/runtime
+acceptance remain on the build workstation. No binary or MSIX build was started.

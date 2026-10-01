@@ -101,6 +101,7 @@ class TahaiSyncKeyService {
   void Start(Operation operation, std::string key_id, KeyCallback callback,
              Authorization authorization);
   void StartNextOperation();
+  void AdvanceOperationQueue();
   void OnEncryptorReady(scoped_refptr<os_crypt_async::Encryptor> encryptor);
   void FinishOperation(PendingOperation pending,
                        TahaiSyncKeyResult result,
@@ -111,9 +112,10 @@ class TahaiSyncKeyService {
   // Off-the-record preference overlays can read the regular profile's stored
   // values. Do not use one for a capsule key lifecycle, even transiently.
   const bool persistence_allowed_;
-  // OS Crypt callbacks are asynchronous. Serializing mutations prevents two
+  // OS Crypt callbacks may run inline. Serializing mutations prevents two
   // rapid exports/rotations from both reading the same old keyring and then
-  // overwriting one another's newly persisted active key.
+  // overwriting one another's newly persisted active key. Keep the current
+  // operation reserved through its callback and the deferred queue advance.
   std::deque<PendingOperation> pending_operations_;
   bool operation_in_flight_ = false;
   base::WeakPtrFactory<TahaiSyncKeyService> weak_ptr_factory_{this};

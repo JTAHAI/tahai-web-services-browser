@@ -16,6 +16,7 @@
 #include "base/functional/bind.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/common/pref_names.h"
@@ -352,6 +353,11 @@ void TahaiSyncKeyService::StartNextOperation() {
       &TahaiSyncKeyService::OnEncryptorReady, weak_ptr_factory_.GetWeakPtr()));
 }
 
+void TahaiSyncKeyService::AdvanceOperationQueue() {
+  operation_in_flight_ = false;
+  StartNextOperation();
+}
+
 void TahaiSyncKeyService::OnEncryptorReady(
     scoped_refptr<os_crypt_async::Encryptor> encryptor) {
   if (pending_operations_.empty()) {
@@ -360,7 +366,6 @@ void TahaiSyncKeyService::OnEncryptorReady(
   }
   PendingOperation pending = std::move(pending_operations_.front());
   pending_operations_.pop_front();
-  operation_in_flight_ = false;
 
   const auto alive = weak_ptr_factory_.GetWeakPtr();
   const bool authorized = !pending.authorization || pending.authorization.Run();
@@ -443,11 +448,19 @@ void TahaiSyncKeyService::FinishOperation(
     PendingOperation pending,
     TahaiSyncKeyResult result,
     std::optional<TahaiSyncEnvelopeKey> key) {
-  // Start any already-queued request before invoking user code. The callback
-  // can re-enter or destroy this service, so this function cannot touch its
-  // members after it has run.
-  StartNextOperation();
+  // The real provider is still initializing while delivering its first
+  // callbacks; re-entering GetInstance there hits its initialization CHECK.
+  // A non-nestable advance also preserves FIFO completion when later callbacks
+  // run inline. Another initialization client may pump messages after this
+  // callback returns; never advance inside that provider's still-active task.
+  // Keep the reservation set so client/pref reentry only queues work.
+  // No member access after the client callback, which may destroy this owner.
+  const auto runner = base::SequencedTaskRunner::GetCurrentDefault();
+  const auto alive = weak_ptr_factory_.GetWeakPtr();
   std::move(pending.callback).Run(result, std::move(key));
+  runner->PostNonNestableTask(
+      FROM_HERE,
+      base::BindOnce(&TahaiSyncKeyService::AdvanceOperationQueue, alive));
 }
 
 }  // namespace tahai

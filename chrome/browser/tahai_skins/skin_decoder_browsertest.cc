@@ -69,6 +69,7 @@
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "components/policy/policy_constants.h"
 #include "components/prefs/pref_service.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/test/browser_test.h"
@@ -1766,6 +1767,87 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   SetPublisherPolicy(base::DictValue());
   EXPECT_FALSE(skins->GetOperationalManifest());
   EXPECT_FALSE(skins->GetWindowBinding(*pinned));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
+                       TahaiWorkflowNativeNotificationCanCloseDocument) {
+  const auto key = crypto::keypair::PrivateKey::GenerateEd25519();
+  SetPublisherPolicy(OperationalTrustPolicy(key));
+  const auto archive = SignedOperationalArchive(key, true);
+  auto* skins = BrowserService();
+  base::test::TestFuture<SkinOperationResult> result;
+  skins->PreviewFile(WriteArchive(archive), result.GetCallback());
+  auto preview = result.Take();
+  ASSERT_EQ(SkinOperationStatus::kOk, preview.status);
+  skins->InstallPreview(preview.preview_token, result.GetCallback());
+  ASSERT_EQ(SkinOperationStatus::kOk, result.Take().status);
+  skins->PreviewInstalled("decoder-fixture", Hash(archive), false, result.GetCallback());
+  preview = result.Take();
+  ASSERT_EQ(SkinOperationStatus::kOk, preview.status);
+  auto* controller = WindowModeController::GetForBrowser(browser());
+  ASSERT_TRUE(controller->ApplyReviewedWindowSkin(preview.preview_token));
+  ASSERT_TRUE(controller->SelectOperationalMode("review-mode"));
+  const auto workflow = controller->operational_manifest()->workflows.front();
+  auto* tabs = browser()->GetTabStripModel();
+  auto* missions = MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  for (const char* boundary : {"begin", "cancel", "scope", "retarget"}) {
+    SCOPED_TRACE(boundary);
+    ASSERT_TRUE(QueueOperationalWorkflowLaunch(browser()->GetProfile(), workflow,
+                                              "decoder-fixture", Hash(archive)));
+    ASSERT_TRUE(chrome::ExecuteCommand(browser(), IDC_TAHAI_MISSION_CONTROL));
+    auto* contents = tabs->GetActiveWebContents();
+    ASSERT_TRUE(content::WaitForLoadStop(contents));
+    ASSERT_GE(tabs->count(), 2);  // Keep the browser alive after closing this UI.
+    const auto id = missions->missions().back().id;
+    const auto send = content::JsReplace(
+        "chrome.send('runTahaiNativeWorkflowStep', [$1, 0, $2]);",
+        id, missions->missions().back().mutation_token);
+    bool closed = false;
+    PrefChangeRegistrar registrar;
+    registrar.Init(browser()->GetProfile()->GetPrefs());
+    {
+      base::ScopedThreadPoolExecutionFence fence;
+      if (std::string_view(boundary) == "cancel") {
+        ASSERT_TRUE(content::ExecJs(contents, send));
+        ASSERT_TRUE(base::test::RunUntil([&] {
+          return missions->missions().back().steps[0].action_state == "pending";
+        }));
+      }
+      registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
+        if (closed) return;
+        const auto& state = missions->missions().back().steps[0].action_state;
+        if (state != (std::string_view(boundary) == "cancel" ? "unknown" : "pending")) return;
+        closed = true;
+        if (std::string_view(boundary) == "scope") {
+          EXPECT_TRUE(missions->AddLocalNote(id, "Changed during Begin notification"));
+          return;
+        }
+        if (std::string_view(boundary) == "retarget") {
+          EXPECT_TRUE(controller->SelectOperationalMode("second-review-mode"));
+          return;
+        }
+        tabs->CloseWebContentsAt(tabs->GetIndexOfWebContents(contents),
+                                 TabCloseTypes::CLOSE_NONE);
+      }));
+      if (std::string_view(boundary) != "cancel") {
+        // Synchronous teardown can abort the renderer's evaluation response.
+        // Acceptance is document closure and a durable non-dispatch outcome.
+        static_cast<void>(content::ExecJs(contents, send));
+      } else {
+        static_cast<void>(ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
+      }
+      ASSERT_TRUE(base::test::RunUntil([&] { return closed; }));
+      EXPECT_EQ(std::string_view(boundary) == "scope" ||
+                        std::string_view(boundary) == "retarget" ? "rejected" : "unknown",
+                missions->missions().back().steps[0].action_state);
+      registrar.RemoveAll();
+    }
+    base::RunLoop().RunUntilIdle();
+    EXPECT_EQ(std::string_view(boundary) == "scope" ||
+                      std::string_view(boundary) == "retarget" ? "rejected" : "unknown",
+              missions->missions().back().steps[0].action_state);
+    EXPECT_FALSE(tabs->GetActiveTab()->GetSplit());
+  }
 }
 
 IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,

@@ -5,18 +5,23 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "base/check.h"
 #include "base/containers/span.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/pickle.h"
+#include "base/run_loop.h"
 #include "base/scoped_observation.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/test/bind.h"
@@ -61,6 +66,8 @@
 #include "chrome/common/tahai_url_constants.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/os_crypt/async/browser/test_utils.h"
+#include "components/os_crypt/async/browser/key_provider.h"
+#include "components/os_crypt/async/common/algorithm.mojom.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/sessions/core/session_service_commands.h"
@@ -6128,6 +6135,7 @@ class DeferredCapsuleCrypt final : public os_crypt_async::OSCryptAsync {
   DeferredCapsuleCrypt() : OSCryptAsync({}), encryptor_(os_crypt_async::GetTestEncryptorForTesting()) {}
   void GetInstance(InitCallback callback) override { callbacks_.push_back(std::move(callback)); }
   void Release() {
+    base::RunLoop().RunUntilIdle();
     ASSERT_FALSE(callbacks_.empty());
     auto callback = std::move(callbacks_.front()); callbacks_.erase(callbacks_.begin());
     std::move(callback).Run(encryptor_);
@@ -6137,6 +6145,105 @@ class DeferredCapsuleCrypt final : public os_crypt_async::OSCryptAsync {
   scoped_refptr<os_crypt_async::TestEncryptor> encryptor_;
   std::vector<InitCallback> callbacks_;
 };
+
+// Exercise OSCryptAsync's real initialization state machine, not an overridden
+// GetInstance: its initial callback is delivered before initialization unwinds.
+class DeferredCapsuleKeyProvider final : public os_crypt_async::KeyProvider {
+ public:
+  void GetKey(KeyCallback callback) override { callback_ = std::move(callback); }
+  bool UseForEncryption() override { return true; }
+  void Release() {
+    ASSERT_TRUE(callback_);
+    std::array<uint8_t, os_crypt_async::Encryptor::Key::kAES256GCMKeySize> key{};
+    key.fill(0x42);
+    std::move(callback_).Run(
+        "TAHAITEST", os_crypt_async::Encryptor::Key(
+                         key, os_crypt_async::mojom::Algorithm::kAES256GCM));
+  }
+
+ private:
+  KeyCallback callback_;
+};
+
+TEST_F(MissionServiceTest, CapsuleKeyRealProviderStartupPreservesFifoReentry) {
+  auto provider = std::make_unique<DeferredCapsuleKeyProvider>();
+  auto* deferred = provider.get();
+  std::vector<std::pair<size_t, std::unique_ptr<os_crypt_async::KeyProvider>>>
+      providers;
+  providers.emplace_back(10u, std::move(provider));
+  os_crypt_async::OSCryptAsync crypt(std::move(providers));
+  TahaiSyncKeyService service(profile_.GetPrefs(), &crypt);
+  std::vector<int> completions;
+  const auto complete = [&](int index) {
+    return base::BindLambdaForTesting(
+        [&, index](TahaiSyncKeyResult result,
+                   std::optional<TahaiSyncEnvelopeKey> key) {
+          EXPECT_EQ(TahaiSyncKeyResult::kOk, result);
+          ASSERT_TRUE(key);
+          EXPECT_EQ(key->key_id, service.GetStatus().active_key_id);
+          completions.push_back(index);
+          if (index == 0) {
+            service.RotateActiveKey(base::BindLambdaForTesting(
+                [&](TahaiSyncKeyResult nested_result,
+                    std::optional<TahaiSyncEnvelopeKey> nested_key) {
+                  EXPECT_EQ(TahaiSyncKeyResult::kOk, nested_result);
+                  ASSERT_TRUE(nested_key);
+                  EXPECT_EQ(nested_key->key_id, service.GetStatus().active_key_id);
+                  completions.push_back(3);
+                }));
+            // A client may pump messages before returning. It must not advance
+            // the queue back into the provider's initialization CHECK.
+            base::RunLoop().RunUntilIdle();
+            EXPECT_EQ(std::vector<int>({0}), completions);
+          }
+        });
+  };
+  for (int index = 0; index < 3; ++index) {
+    service.RotateActiveKey(complete(index));
+  }
+  EXPECT_TRUE(completions.empty());
+  crypt.GetInstance(base::BindLambdaForTesting(
+      [&](scoped_refptr<os_crypt_async::Encryptor>) {
+        // A different consumer's callback runs after our completion has posted
+        // its advance, but before OSCryptAsync clears is_initializing_.
+        base::RunLoop(base::RunLoop::Type::kNestableTasksAllowed).RunUntilIdle();
+        EXPECT_EQ(std::vector<int>({0}), completions);
+      }));
+  bool released = false;
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindLambdaForTesting([&] {
+        deferred->Release();
+        released = true;
+        EXPECT_EQ(std::vector<int>({0}), completions);
+      }));
+  base::RunLoop().RunUntilIdle();
+  EXPECT_TRUE(released);
+  EXPECT_EQ(std::vector<int>({0, 1, 2, 3}), completions);
+  EXPECT_EQ(kTahaiSyncKeyringMaxRetainedKeys, service.GetStatus().stored_key_count);
+}
+
+TEST_F(MissionServiceTest, CapsuleKeyCompletionCanDeleteOwnerWithQueuedWork) {
+  DeferredCapsuleCrypt provider;
+  auto service =
+      std::make_unique<TahaiSyncKeyService>(profile_.GetPrefs(), &provider);
+  int callbacks = 0;
+  service->EnsureActiveKey(base::BindLambdaForTesting(
+      [&](TahaiSyncKeyResult result, std::optional<TahaiSyncEnvelopeKey> key) {
+        EXPECT_EQ(TahaiSyncKeyResult::kOk, result);
+        EXPECT_TRUE(key);
+        ++callbacks;
+        service.reset();
+      }));
+  service->RotateActiveKey(base::BindLambdaForTesting(
+      [&](TahaiSyncKeyResult, std::optional<TahaiSyncEnvelopeKey>) {
+        ++callbacks;
+      }));
+  provider.Release();
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(service);
+  EXPECT_EQ(1, callbacks);
+  EXPECT_EQ(0u, provider.pending());
+}
 
 TEST_F(MissionServiceTest, CapsuleKeyWrongTypedStorageIsNeverReplaced) {
   DeferredCapsuleCrypt provider;
@@ -6331,6 +6438,40 @@ TEST_F(MissionServiceTest, MissionOverQuotaStorageRemainsReadOnly) {
       service.CreateMission("Must not replace oversized data", "incident"));
   service.Shutdown();
   EXPECT_EQ(oversized, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+}
+
+TEST_F(MissionServiceTest, MissionUnknownNestedFixedFieldsRemainReadOnly) {
+  MissionService source(&profile_);
+  const auto created = source.CreateMission("Readable fixed mission", "incident");
+  ASSERT_TRUE(created);
+  ASSERT_TRUE(source.AddLocalNote(created->id, "Known note"));
+  ASSERT_TRUE(source.AddEvidenceMarker(created->id));
+  const auto original = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (const char* key : {"steps", "validation_steps", "rollback_steps",
+                         "notes", "evidence", "timeline"}) {
+    SCOPED_TRACE(key);
+    auto extended = original.Clone();
+    extended.front().GetDict().FindList(key)->front().GetDict().Set("future", true);
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, extended.Clone());
+    MissionService reloaded(&profile_);
+    ASSERT_EQ(1u, reloaded.missions().size());
+    EXPECT_FALSE(reloaded.ToggleStep(created->id, 0));
+    EXPECT_FALSE(reloaded.AddLocalNote(created->id, "Must not discard data"));
+    reloaded.Shutdown();
+    EXPECT_EQ(extended, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+  // Operational metadata on a fixed step is ignored by its loader, so even a
+  // known outer field cannot conceal future nested expression data.
+  auto extended = original.Clone();
+  extended.front().GetDict().FindList("steps")->front().GetDict().Set(
+      "assign", base::DictValue().Set("future", true));
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, extended.Clone());
+  MissionService reloaded(&profile_);
+  EXPECT_FALSE(reloaded.ToggleStep(created->id, 0));
+  EXPECT_EQ(extended, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, original.Clone());
+  MissionService current(&profile_);
+  EXPECT_TRUE(current.ToggleStep(created->id, 0));
 }
 
 TEST_F(MissionServiceTest, CapsuleImportCommitsAtomicallyBeforeOwnerDeletion) {

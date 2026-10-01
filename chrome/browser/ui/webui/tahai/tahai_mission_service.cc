@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <initializer_list>
 #include <limits>
 #include <memory>
 #include <set>
@@ -82,6 +83,82 @@ constexpr std::array<std::string_view, 6> kAllowedExportProfiles = {
 constexpr std::array<std::string_view, 7> kOperationalWorkflowRunStates = {
     "ready", "running", "waiting-for-input", "paused", "succeeded",
     "failed", "cancelled"};
+
+bool HasKnownStoredFields(
+    const base::DictValue* record,
+    std::initializer_list<std::string_view> fields) {
+  return !record || std::ranges::all_of(*record, [&fields](const auto entry) {
+    return std::ranges::find(fields, entry.first) != fields.end();
+  });
+}
+
+bool HasKnownMissionNestedFields(const base::DictValue& mission) {
+  const auto check_records = [&mission](
+      std::string_view key, std::initializer_list<std::string_view> fields) {
+    const auto* records = mission.FindList(key);
+    return !records || std::ranges::all_of(*records, [&fields](const auto& item) {
+      return HasKnownStoredFields(item.GetIfDict(), fields);
+    });
+  };
+  if (!HasKnownStoredFields(mission.FindDict("operational_workflow"),
+                           {"skin_id", "workflow_id", "archive_sha256",
+                            "run_state", "adapter_version"}) ||
+      !HasKnownStoredFields(mission.FindDict("links"), {"oi"}) ||
+      !HasKnownStoredFields(
+          mission.FindDict("links") ? mission.FindDict("links")->FindDict("oi")
+                                    : nullptr,
+          {"opaque_reference", "hosted_deep_link"}) ||
+      !check_records("evidence", {"label", "capture_scope", "captured_at"}) ||
+      !check_records("notes", {"text", "created_at"}) ||
+      !check_records("timeline", {"kind", "detail", "created_at",
+                                  "previous_hash", "entry_hash"}) ||
+      !check_records("workflow_outputs", {"id", "name", "from"}) ||
+      !check_records("workflow_inputs",
+                     {"id", "name", "type", "required", "value", "options",
+                      "validation", "protected", "protected_value"}) ||
+      !check_records("workflow_variables",
+                     {"id", "name", "type", "options", "validation",
+                      "protected", "value", "protected_value"})) {
+    return false;
+  }
+  for (const auto key : {"steps", "validation_steps", "rollback_steps"}) {
+    if (std::string_view(key) != "steps" ||
+        !mission.FindDict("operational_workflow")) {
+      // Fixed-family and compensation steps restore only these two fields.
+      // Treat ignored operational metadata as unsupported, including any
+      // nested expression that the fixed-family loader would never parse.
+      if (!check_records(key, {"label", "complete"})) {
+        return false;
+      }
+      continue;
+    }
+    if (!check_records(key,
+                       {"label", "complete", "assign", "wait_seconds",
+                        "wait_remaining_ms", "wait_state", "wait_timeout_seconds",
+                        "wait_timeout_remaining_ms", "workflow_step_id",
+                        "requires_native_action", "action_state", "native_action_error",
+                        "condition_predicate", "variable_condition_result",
+                        "condition_input_id", "condition_from_variable",
+                        "condition_compare", "condition_equals"})) {
+      return false;
+    }
+  }
+  // The operational expression/output parsers already reject unknown nested
+  // fields. Input records are restored manually, so cover their rule objects
+  // here as well. Legacy malformed known fields retain their existing handling.
+  for (const auto key : {"workflow_inputs", "workflow_variables"}) {
+    if (const auto* records = mission.FindList(key)) {
+      for (const auto& item : *records) {
+        const auto* record = item.GetIfDict();
+        if (record && !HasKnownStoredFields(record->FindDict("validation"),
+                    {"min_bytes", "max_bytes", "minimum", "maximum"})) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
 
 bool IsAllowedType(std::string_view type) {
   for (std::string_view allowed : kAllowedMissionTypes) {
@@ -1673,7 +1750,8 @@ std::optional<MissionSummary> MissionService::CreateOperationalWorkflowMission(
   return mission;
 }
 
-bool MissionService::BeginNativeWorkflowStep(std::string_view id, size_t index) {
+bool MissionService::BeginNativeWorkflowStep(std::string_view id, size_t index,
+                                            std::string* pending_token) {
   const std::string owned_id(id);
   if (!SettleWorkflowDeadlines()) {
     return false;
@@ -1687,8 +1765,27 @@ bool MissionService::BeginNativeWorkflowStep(std::string_view id, size_t index) 
   mission->steps[index].action_state = "pending";
   mission->steps[index].native_action_started = base::TimeTicks::Now();
   AppendGeneratedEvent(mission, "runbook", "Native workflow action pending");
+  if (pending_token) {
+    *pending_token = mission->mutation_token;
+  }
   Save();
   return true;
+}
+
+bool MissionService::CanContinueNativeWorkflowStep(std::string_view id,
+                                                   size_t index) const {
+  if (shutting_down_ || !CanStoreProtectedInputs()) {
+    return false;
+  }
+  const auto mission = std::ranges::find(missions_, id, &MissionSummary::id);
+  return mission != missions_.end() && !mission->archived &&
+         mission->operational_workflow &&
+         mission->operational_workflow->adapter_version == 1 &&
+         mission->operational_workflow->run_state == "running" &&
+         index < mission->steps.size() &&
+         mission->steps[index].requires_native_action &&
+         mission->steps[index].action_state == "pending" &&
+         MissionWorkflowNativeTimeRemaining(mission->steps[index]).value_or(0) > 0;
 }
 
 bool MissionService::AssignWorkflowVariable(std::string_view id, size_t index) {
@@ -2271,6 +2368,11 @@ void MissionService::Load() {
         loaded_storage_writable_ = false;
         break;
       }
+    }
+    if (!HasKnownMissionNestedFields(*dict)) {
+      // A supported outer record can still carry newer nested data. Read its
+      // known projection, but never rebuild storage and erase that data.
+      loaded_storage_writable_ = false;
     }
     const std::string* id = dict->FindString("id");
     const std::string* title = dict->FindString("title");
