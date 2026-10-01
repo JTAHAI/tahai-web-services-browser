@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -56,6 +57,41 @@ class CreatorTests(unittest.TestCase):
                     self.assertEqual(expected, manifest["compatibility"], name)
                     archives += 1
         self.assertEqual(8, archives)
+
+    def test_creator_kit_reproduces_from_fresh_windows_text_checkout(self):
+        # Real Git export applies Windows text conversion, unlike testing only
+        # an already-engineered working directory. Preserve every source file.
+        repo = Path(self.temp.name) / "checkout-fixture"
+        creator = repo / "docs/tahai-skins"
+        shutil.copytree(Path(__file__).parent, creator,
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        native_root = Path(__file__).resolve().parents[2]
+        shutil.copy2(native_root / ".gitattributes", repo / ".gitattributes")
+        (repo / "chrome").mkdir()
+        shutil.copy2(native_root / "chrome/VERSION", repo / "chrome/VERSION")
+
+        def git(*arguments):
+            return subprocess.run(["git", "-C", str(repo), *arguments], check=True,
+                                  stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+
+        git("init")
+        git("-c", "core.autocrlf=true", "add", ".")
+        git("-c", "user.name=Creator fixture", "-c", "user.email=test@example.invalid",
+            "-c", "commit.gpgsign=false", "commit", "-m", "synthetic source fixture")
+        exported = git("-c", "core.autocrlf=true", "archive", "--format=zip", "HEAD").stdout
+        checkout = Path(self.temp.name) / "fresh-checkout"
+        with zipfile.ZipFile(io.BytesIO(exported)) as snapshot:
+            snapshot.extractall(checkout)  # This test's own finite, trusted tree.
+        for name in ("studio.css", "studio.js", "studio.html", "build_creator_kit.py"):
+            self.assertNotIn(b"\r\n", (checkout / "docs/tahai-skins" / name).read_bytes(), name)
+        result = subprocess.run(
+            [sys.executable, str(checkout / "docs/tahai-skins/build_creator_kit.py"),
+             "--check", "--chromium-version-file", str(checkout / "chrome/VERSION")],
+            check=False, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_creator_version_guard_fails_closed_without_rewriting_templates(self):
         version = Path(self.temp.name) / "VERSION"

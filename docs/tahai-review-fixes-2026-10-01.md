@@ -34,3 +34,13 @@ and 64 isolated stock-Edge CSS/keyboard/CSP checks. Both workflow files also pas
 actionlint 1.7.12. Historical failed count-parser/tool-selection runs remain in
 their separate evidence directories. Clean-checkpoint and hosted GitHub results
 are recorded separately after publication; these are still not native evidence.
+
+The first hosted run caught an actual Windows fresh-checkout gap: `.css` was
+missing `text eol=lf`, so Git's CRLF conversion changed `studio.css` embedded in
+the offline creator ZIP. A fresh Git export reproduced the exact mismatch.
+Added the missing source attribute and a regression that exports a finite
+creator fixture with `core.autocrlf=true` and verifies byte-for-byte kit
+reproduction from that new tree. No creator artifact was regenerated to mask
+the defect, and no Python version was downgraded. The failed hosted artifact
+remains preserved at Actions run `36822146463` and locally under
+`out/review-fixes-20261001/ci-first-run`.
