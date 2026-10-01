@@ -104,6 +104,18 @@ bool HasUniqueIds(const std::vector<T>& records) {
   return true;
 }
 
+bool HasValidRelationshipTargets(const LocalOiStoreData& data) {
+  std::set<std::string> entity_ids;
+  for (const LocalOiEntityRecord& entity : data.entities) {
+    entity_ids.insert(entity.id);
+  }
+  return std::all_of(data.relationships.begin(), data.relationships.end(),
+                     [&entity_ids](const LocalOiRelationshipRecord& record) {
+                       return entity_ids.contains(record.source_id) &&
+                              entity_ids.contains(record.target_id);
+                     });
+}
+
 base::ListValue SerializeStrings(const std::vector<std::string>& values) {
   base::ListValue result;
   for (const std::string& value : values) {
@@ -493,7 +505,7 @@ std::optional<LocalOiStoreData> DeserializeStore(
   }
   if (!HasUniqueIds(data.entities) || !HasUniqueIds(data.relationships) ||
       !HasUniqueIds(data.findings) || !HasUniqueIds(data.memory) ||
-      !HasUniqueIds(data.reports)) {
+      !HasUniqueIds(data.reports) || !HasValidRelationshipTargets(data)) {
     return std::nullopt;
   }
   return data;
@@ -554,7 +566,25 @@ bool TahaiLocalOiStore::Load() {
     status_ = LocalOiStoreStatus::kEphemeral;
     return true;
   }
+  const base::Value* user_value =
+      prefs_->GetUserPrefValue(prefs::kTahaiLocalOiStore);
+  if (user_value && !user_value->is_dict()) {
+    // GetDict() falls back to the registered empty default for a wrong-typed
+    // preference. That fallback must not become a destructive repair write.
+    status_ = LocalOiStoreStatus::kUnavailable;
+    return false;
+  }
   base::DictValue root = prefs_->GetDict(prefs::kTahaiLocalOiStore).Clone();
+  // An older browser cannot safely interpret or repair a newer schema. Keep
+  // its exact bytes for the owning version instead of overwriting user data
+  // with an empty current-version document. Managed storage is also read-only.
+  const base::Value* version = root.Find(kSchemaVersionKey);
+  if (prefs_->IsManagedPreference(prefs::kTahaiLocalOiStore) ||
+      (version && (!version->is_int() || version->GetInt() < 0 ||
+                   version->GetInt() > kTahaiLocalOiCurrentSchemaVersion))) {
+    status_ = LocalOiStoreStatus::kUnavailable;
+    return false;
+  }
   if (root.empty()) {
     status_ = LocalOiStoreStatus::kReady;
     return Persist();
@@ -579,7 +609,7 @@ bool TahaiLocalOiStore::Persist() {
   if (!durable_) {
     return true;
   }
-  if (!prefs_) {
+  if (!prefs_ || prefs_->IsManagedPreference(prefs::kTahaiLocalOiStore)) {
     status_ = LocalOiStoreStatus::kUnavailable;
     return false;
   }
@@ -590,6 +620,25 @@ bool TahaiLocalOiStore::Persist() {
 }
 
 bool TahaiLocalOiStore::Replace(LocalOiStoreData data) {
+  // Commit is a compare-and-replace of the caller's current snapshot, not an
+  // import operation. A stale batch must not discard an intervening mutation.
+  if (status_ == LocalOiStoreStatus::kUnavailable ||
+      data.generation != data_.generation) {
+    return false;
+  }
+  if (durable_) {
+    const base::DictValue& persisted =
+        prefs_->GetDict(prefs::kTahaiLocalOiStore);
+    if (prefs_->IsManagedPreference(prefs::kTahaiLocalOiStore) ||
+        persisted.FindInt(kSchemaVersionKey) !=
+            kTahaiLocalOiCurrentSchemaVersion ||
+        persisted.FindInt(kGenerationKey) != data_.generation) {
+      // Another owner/version changed the durable document. Do not silently
+      // merge unrelated snapshots or leave the in-memory view writable.
+      status_ = LocalOiStoreStatus::kUnavailable;
+      return false;
+    }
+  }
   data.schema_version = kTahaiLocalOiCurrentSchemaVersion;
   if (data.generation == std::numeric_limits<int>::max()) {
     return false;
@@ -617,15 +666,7 @@ bool TahaiLocalOiStore::Replace(LocalOiStoreData data) {
                    ValidateLocalOiReport)) {
     return false;
   }
-  std::set<std::string> entity_ids;
-  for (const LocalOiEntityRecord& entity : data.entities) {
-    entity_ids.insert(entity.id);
-  }
-  if (!std::all_of(data.relationships.begin(), data.relationships.end(),
-                   [&entity_ids](const LocalOiRelationshipRecord& record) {
-                     return entity_ids.contains(record.source_id) &&
-                            entity_ids.contains(record.target_id);
-                   })) {
+  if (!HasValidRelationshipTargets(data)) {
     return false;
   }
   data_ = std::move(data);

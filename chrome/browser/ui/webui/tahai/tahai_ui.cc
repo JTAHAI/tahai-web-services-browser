@@ -1161,14 +1161,139 @@ constexpr char kActionsJs[] = R"TAHAI(
 )TAHAI";
 
 constexpr char kModesJs[] = R"TAHAI(
-(()=>{'use strict';const status=document.querySelector('#mode-status'),save=(key,value)=>{status.textContent='Saving this profile-scoped workspace choice…';chrome.send('setTahaiWorkModeConfiguration',[key,String(value)])};for(const opener of document.querySelectorAll('[data-tahai-open-dialog]')){opener.addEventListener('click',()=>document.getElementById(opener.dataset.tahaiOpenDialog)?.showModal())}for(const closer of document.querySelectorAll('[data-tahai-close-dialog]')){closer.addEventListener('click',()=>closer.closest('dialog')?.close())}for(const dialog of document.querySelectorAll('dialog')){dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()})}for(const button of document.querySelectorAll('[data-tahai-mode]')){button.addEventListener('click',()=>{status.textContent='Switching mode without changing this profile, tabs, or pane assignments…';chrome.send('setTahaiWorkMode',[button.dataset.tahaiMode])})}for(const control of document.querySelectorAll('[data-tahai-modifier]')){control.addEventListener('change',()=>{status.textContent='Saving the explicit workspace modifier…';chrome.send('setTahaiWorkModeModifier',[control.dataset.tahaiModifier,control.checked])})}for(const control of document.querySelectorAll('[data-tahai-mode-config]')){const key=control.dataset.tahaiModeConfig;if(control.matches('input[type=checkbox]'))control.addEventListener('change',()=>save(key,control.checked));else control.addEventListener('click',()=>save(key,control.dataset.tahaiValue))}for(const control of document.querySelectorAll('[data-tahai-template]')){control.addEventListener('click',()=>{status.textContent='Creating the selected local runbook…';chrome.send('createTahaiWorkModeTemplateMission',[control.dataset.tahaiTemplate])})}const reset=document.querySelector('[data-tahai-mode-reset]');if(reset)reset.addEventListener('click',()=>{status.textContent='Restoring this mode’s safe defaults…';chrome.send('resetTahaiWorkModeConfiguration')});window.tahaiWorkModeUpdated=()=>location.replace('tahai://modes/');})();
+(() => {
+  'use strict';
+  const status = document.querySelector('#mode-status');
+  if (!status) return;
+  const controls = [...document.querySelectorAll(
+      '[data-tahai-mode],[data-tahai-modifier],[data-tahai-mode-config],[data-tahai-template],[data-tahai-mode-reset]')];
+  const messages = [status];
+  const editors = [...document.querySelectorAll('button,input,select,textarea')].filter(
+      control => !control.hasAttribute('data-tahai-open-dialog') &&
+          !control.hasAttribute('data-tahai-close-dialog') &&
+          !control.hasAttribute('data-tahai-close-palette'));
+  const usable = control => control?.isConnected && !control.disabled &&
+      control.getAttribute('aria-disabled') !== 'true';
+  const announce = text => { for (const sink of messages) sink.textContent = text; };
+  let sequence = 0, pending = null;
+  // A modal makes the outer live region inert. Keep acknowledgments available
+  // inside each native dialog as well as in the page-level status region.
+  for (const dialog of document.querySelectorAll('.mode-dialog')) {
+    const message = document.createElement('p');
+    message.className = 'muted'; message.setAttribute('role', 'status');
+    message.setAttribute('aria-live', 'polite'); dialog.append(message);
+    messages.push(message);
+    dialog.addEventListener('click', event => {
+      if (event.target === dialog) dialog.close();
+    });
+  }
+  for (const opener of document.querySelectorAll('[data-tahai-open-dialog]'))
+    opener.addEventListener('click', () => {
+      const dialog = document.getElementById(opener.dataset.tahaiOpenDialog);
+      if (usable(opener) && dialog?.isConnected && !dialog.open) dialog.showModal();
+    });
+  for (const closer of document.querySelectorAll('[data-tahai-close-dialog]'))
+    closer.addEventListener('click', () => {
+      if (usable(closer)) closer.closest('dialog')?.close();
+    });
+  const reject = (request, message) => {
+    if (!pending || pending.id !== request) return;
+    const previous = pending; pending = null;
+    for (const [control, disabled] of previous.disabled) control.disabled = disabled;
+    if (previous.checkbox?.isConnected) previous.checkbox.checked = previous.checked;
+    announce(message || 'That mode choice could not be saved. Its previous setting is restored. The profile, mode or policy may have changed; refresh to review its current state.');
+  };
+  const send = (control, name, args, message) => {
+    if (pending || !usable(control)) return;
+    const checkbox = control.matches('input[type=checkbox]') ? control : null;
+    const id = ++sequence;
+    pending = {id, checkbox, checked: checkbox ? !checkbox.checked : false,
+      disabled: [...new Set([...controls, ...editors])].map(item => [item, item.disabled])};
+    for (const [item] of pending.disabled) item.disabled = true;
+    announce(message);
+    try { chrome.send(name, [...args, id]); } catch { reject(id); }
+  };
+  for (const control of controls) {
+    const checkbox = control.matches('input[type=checkbox]');
+    control.addEventListener(checkbox ? 'change' : 'click', () => {
+      if (control.dataset.tahaiMode !== undefined)
+        send(control, 'setTahaiWorkMode', [control.dataset.tahaiMode],
+            'Switching this window’s mode without changing tabs or pane assignments…');
+      else if (control.dataset.tahaiModifier !== undefined)
+        send(control, 'setTahaiWorkModeModifier', [control.dataset.tahaiModifier, control.checked],
+            'Saving the explicit workspace modifier…');
+      else if (control.dataset.tahaiModeConfig !== undefined)
+        send(control, 'setTahaiWorkModeConfiguration', [control.dataset.tahaiModeConfig,
+          String(checkbox ? control.checked : control.dataset.tahaiValue)],
+            'Saving this window’s profile-scoped workspace choice…');
+      else if (control.dataset.tahaiTemplate !== undefined)
+        send(control, 'createTahaiWorkModeTemplateMission', [control.dataset.tahaiTemplate],
+            'Creating the selected local runbook…');
+      else send(control, 'resetTahaiWorkModeConfiguration', [], 'Restoring this mode’s safe defaults…');
+    });
+  }
+  const complete = (request, message, navigate = true) => {
+    if (!pending || pending.id !== request) return;
+    // Acknowledgments belong to one request. A delayed result cannot navigate
+    // away from a subsequent request or recover a different control's state.
+    const previous = pending; pending = null;
+    if (navigate) location.replace('tahai://modes/');
+    else {
+      for (const [control, disabled] of previous.disabled) control.disabled = disabled;
+      announce(message);
+    }
+  };
+  window.tahaiModeRequests = Object.freeze({send, complete, reject, busy: () => !!pending});
+  window.tahaiWorkModeRejected = request => reject(request);
+  window.tahaiWorkModeUpdated = request => complete(request);
+})();
 )TAHAI";
 
 // The compact primary modes script deliberately owns only fixed workspace
 // settings. Custom-mode creation stays in this separate listener so it can
 // submit exactly the two bounded fields accepted by the browser handler.
 constexpr char kCustomModesJs[] = R"TAHAI(
-(()=>{'use strict';const form=document.querySelector('#tahai-custom-mode-form'),status=document.querySelector('#mode-status');if(!status)return;if(form)form.addEventListener('submit',event=>{event.preventDefault();const data=new FormData(form),title=String(data.get('title')||'').trim(),operational=String(data.get('operational_mode_id')||''),workspace=String(data.get('workspace_id')||'');if(!title||title.length>80||!operational)return;status.textContent='Creating the bounded custom workspace…';chrome.send('createTahaiCustomMode',[title,operational,workspace])});for(const control of document.querySelectorAll('[data-tahai-custom-mode-action]'))control.addEventListener('click',()=>{const id=String(control.dataset.tahaiCustomModeId||''),action=String(control.dataset.tahaiCustomModeAction||''),card=control.closest('[data-tahai-custom-mode-card]'),input=card?.querySelector('[data-tahai-custom-mode-title]'),title=String(input?.value||'').trim();if(!id||!['rename','delete'].includes(action)||(action==='rename'&&(!title||title.length>80))||(action==='delete'&&!window.confirm('Delete this custom workspace? The saved workspace itself is not deleted.')))return;status.textContent=action==='rename'?'Renaming custom workspace…':'Deleting custom workspace…';chrome.send('updateTahaiCustomMode',[id,action,title])});window.tahaiCustomModeCreated=()=>{status.textContent='Custom workspace saved for this profile.';window.setTimeout(()=>location.replace('tahai://modes/'),300)};window.tahaiCustomModeUpdated=()=>{status.textContent='Custom workspace updated.';window.setTimeout(()=>location.replace('tahai://modes/'),300)};window.tahaiCustomModeRejected=()=>{status.textContent='That custom workspace request was rejected. Keep a reviewed operational skin applied and choose an existing saved workspace if needed.'}})();
+(() => {
+  'use strict';
+  const form = document.querySelector('#tahai-custom-mode-form');
+  const status = document.querySelector('#mode-status'), requests = window.tahaiModeRequests;
+  if (!status || !requests) return;
+  form?.addEventListener('submit', event => {
+    event.preventDefault();
+    if (requests.busy()) return;
+    const data = new FormData(form), title = String(data.get('title') || '').trim();
+    const operational = String(data.get('operational_mode_id') || '');
+    const workspace = String(data.get('workspace_id') || '');
+    if (!title || title.length > 80 || !operational) {
+      status.textContent = 'Enter a name of at most 80 characters and choose a reviewed operational mode.';
+      return;
+    }
+    requests.send(form, 'createTahaiCustomMode', [title, operational, workspace],
+        'Creating the bounded custom workspace…');
+  });
+  for (const control of document.querySelectorAll('[data-tahai-custom-mode-action]'))
+    control.addEventListener('click', () => {
+      if (control.disabled || !control.isConnected) return;
+      const id = String(control.dataset.tahaiCustomModeId || '');
+      const action = String(control.dataset.tahaiCustomModeAction || '');
+      const input = control.closest('[data-tahai-custom-mode-card]')
+          ?.querySelector('[data-tahai-custom-mode-title]');
+      const title = String(input?.value || '').trim();
+      if (!id || !['rename', 'delete'].includes(action)) return;
+      if (action === 'rename' && (!title || title.length > 80)) {
+        status.textContent = 'Enter a name of at most 80 characters before renaming.';
+        return;
+      }
+      if (action === 'delete' && !window.confirm(
+          'Delete this custom workspace? The saved workspace itself is not deleted.')) return;
+      requests.send(control, 'updateTahaiCustomMode', [id, action, title],
+          action === 'rename' ? 'Renaming custom workspace…' : 'Deleting custom workspace…');
+    });
+  window.tahaiCustomModeCreated = request => requests.complete(request);
+  window.tahaiCustomModeUpdated = request => requests.complete(request);
+  window.tahaiCustomModeRejected = request => requests.reject(request,
+      'That custom workspace request was rejected. Your edits are retained. Keep a reviewed operational skin applied and choose an existing saved workspace if needed.');
+})();
 )TAHAI";
 
 constexpr char kSkinStudioImportExportJs[] = R"TAHAI(
@@ -1707,7 +1832,106 @@ constexpr char kMissionKeyRotationJs[] = R"TAHAI(
 )TAHAI";
 
 constexpr char kLocalOiJs[] = R"TAHAI(
-(()=>{'use strict';const form=document.querySelector('#local-oi-search-form'),input=document.querySelector('#local-oi-search'),kind=document.querySelector('#local-oi-search-kind'),mission=document.querySelector('#local-oi-search-mission'),severity=document.querySelector('#local-oi-search-severity'),findingState=document.querySelector('#local-oi-search-state'),age=document.querySelector('#local-oi-search-age'),status=document.querySelector('#local-oi-search-status'),output=document.querySelector('#local-oi-search-results');let timer=0,requestSequence=0,activeRequest=0;const filters=()=>({kind:kind?.value||'all',mission_id:mission?.value||'',severity:severity?.value||'all',finding_state:findingState?.value||'all',age_days:Number(age?.value||0)});const clearResults=()=>{if(output)output.replaceChildren()};const resultButtons=()=>output?[...output.querySelectorAll('.oi-search-result')]:[];const renderResults=(query,items)=>{if(!output)return;clearResults();const values=Array.isArray(items)?items:[];if(!values.length){const empty=document.createElement('div');empty.className='oi-search-row';empty.textContent='No matching records in this profile-local index.';output.append(empty)}for(const item of values){if(!item||typeof item!=='object')continue;const row=document.createElement('button'),title=document.createElement('strong'),detail=document.createElement('span'),metadata=[];row.type='button';row.className='oi-search-row oi-search-result';title.textContent=`${typeof item.kind==='string'?item.kind:'record'}: ${typeof item.title==='string'?item.title:'Local record'}`;if(typeof item.severity==='string'&&item.severity)metadata.push(item.severity);if(typeof item.finding_state==='string'&&item.finding_state)metadata.push(item.finding_state);detail.textContent=`${typeof item.detail==='string'?item.detail:'No display-safe summary.'}${metadata.length?` · ${metadata.join(' · ')}`:''}`;row.append(title,detail);output.append(row)}if(status)status.textContent=`${values.length} local record${values.length===1?'':'s'} match “${query}” with the current filters.`};window.tahaiLocalOiSearchResults=(query,requestId,items)=>{if(requestId!==activeRequest)return;renderResults(query,items)};const search=()=>{const query=input?.value.trim()||'';activeRequest=++requestSequence;if(!query){clearResults();if(status)status.textContent='Searches only the persisted Local OI index in this profile. Filters are evaluated by the native Local OI handler.';return}if(status)status.textContent='Searching the private local index…';chrome.send('searchTahaiLocalOi',[query,filters(),activeRequest])};if(form)form.addEventListener('submit',event=>{event.preventDefault();clearTimeout(timer);search()});if(input)input.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(search,140)});for(const control of [kind,mission,severity,findingState,age])if(control)control.addEventListener('change',search);if(output)output.addEventListener('keydown',event=>{if(event.key!=='ArrowDown'&&event.key!=='ArrowUp')return;const buttons=resultButtons(),current=buttons.indexOf(document.activeElement);if(!buttons.length)return;event.preventDefault();buttons[(current+(event.key==='ArrowDown'?1:buttons.length-1))%buttons.length].focus()});window.tahaiLocalOiReportCopied=()=>{if(status)status.textContent='Sanitized Local OI report copied and recorded locally. Mission names and browser data were omitted.'};window.tahaiLocalOiFindingUpdated=()=>{if(status)status.textContent='Local finding lifecycle updated.';window.location.reload()};for(const button of document.querySelectorAll('[data-tahai-oi-action]'))button.addEventListener('click',()=>{const action=button.dataset.tahaiOiAction;if(action==='copy-report'){const reportKind=button.dataset.tahaiOiReport||'overview';if(status)status.textContent='Creating a sanitized Local OI report…';chrome.send('copyTahaiLocalOiReport',[reportKind]);return}if(action==='visit-msp'){chrome.send('openTahaiOiMsp',[button.dataset.tahaiOiContext||'local_oi_header']);return}if(action==='promotion-setting'){if(status)status.textContent='Saving hosted OI referral choice…';chrome.send('setTahaiOiMspPromotion',[button.dataset.tahaiOiEnabled==='true']);return}if(action==='acknowledge'||action==='resolve'||action==='suppress'||action==='reopen'){const card=button.closest('[data-tahai-oi-finding-id]'),note=card&&card.querySelector('[data-tahai-oi-finding-note]'),rationale=note&&note.value.trim();if(!card||!rationale){if(status)status.textContent='Enter a bounded local rationale before changing a finding.';return}if(status)status.textContent='Updating the local finding lifecycle…';chrome.send('updateTahaiLocalOiFinding',[card.dataset.tahaiOiFindingId,action,rationale])}});})();
+(() => {
+  'use strict';
+  const form = document.querySelector('#local-oi-search-form');
+  const input = document.querySelector('#local-oi-search');
+  const kind = document.querySelector('#local-oi-search-kind');
+  const mission = document.querySelector('#local-oi-search-mission');
+  const severity = document.querySelector('#local-oi-search-severity');
+  const findingState = document.querySelector('#local-oi-search-state');
+  const age = document.querySelector('#local-oi-search-age');
+  const status = document.querySelector('#local-oi-search-status');
+  const output = document.querySelector('#local-oi-search-results');
+  let timer = 0, requestSequence = 0, activeRequest = 0, activeQuery = '';
+  const filters = () => ({kind: kind?.value || 'all', mission_id: mission?.value || '',
+    severity: severity?.value || 'all', finding_state: findingState?.value || 'all',
+    age_days: Number(age?.value || 0)});
+  const clearResults = () => { if (output) output.replaceChildren(); };
+  const invalidate = () => {
+    clearTimeout(timer); timer = 0; activeRequest = 0; activeQuery = '';
+    clearResults();
+    output?.setAttribute('aria-busy', 'false');
+  };
+  const resultButtons = () => output ? [...output.querySelectorAll('.oi-search-result')] : [];
+  const renderResults = (query, items) => {
+    if (!output) return;
+    clearResults();
+    const values = (Array.isArray(items) ? items : []).filter(
+        item => item && typeof item === 'object');
+    if (!values.length) {
+      const empty = document.createElement('div');
+      empty.className = 'oi-search-row';
+      empty.textContent = 'No matching records in this profile-local index.';
+      output.append(empty);
+    }
+    for (const item of values) {
+      const hasDetail = typeof item.entity_id === 'string' && item.entity_id;
+      const row = document.createElement(hasDetail ? 'button' : 'div');
+      const title = document.createElement('strong'), detail = document.createElement('span');
+      const metadata = [];
+      row.className = 'oi-search-row';
+      if (hasDetail) {
+        row.type = 'button'; row.className += ' oi-search-result';
+        row.setAttribute('aria-controls', 'local-oi-entity-detail');
+        row.addEventListener('click', () => {
+          if (!row.isConnected || row.disabled) return;
+          document.dispatchEvent(new CustomEvent('tahai-local-oi-select',
+              {detail: {entityId: item.entity_id}}));
+        });
+      }
+      title.textContent = `${typeof item.kind === 'string' ? item.kind : 'record'}: ${typeof item.title === 'string' ? item.title : 'Local record'}`;
+      if (typeof item.severity === 'string' && item.severity) metadata.push(item.severity);
+      if (typeof item.finding_state === 'string' && item.finding_state) metadata.push(item.finding_state);
+      detail.textContent = `${typeof item.detail === 'string' ? item.detail : 'No display-safe summary.'}${metadata.length ? ` · ${metadata.join(' · ')}` : ''}`;
+      row.append(title, detail); output.append(row);
+    }
+    if (status) status.textContent = `${values.length} local record${values.length === 1 ? '' : 's'} match “${query}” with the current filters. Select a record button to read its saved local detail.`;
+  };
+  window.tahaiLocalOiSearchResults = (query, requestId, items) => {
+    if (!activeRequest || requestId !== activeRequest || query !== activeQuery) return;
+    activeRequest = 0; output?.setAttribute('aria-busy', 'false');
+    renderResults(query, items);
+  };
+  const search = () => {
+    invalidate();
+    const query = input?.value.trim() || '';
+    if (!query) {
+      if (status) status.textContent = 'Searches only the persisted Local OI index in this profile. Filters are evaluated by the native Local OI handler.';
+      return;
+    }
+    activeRequest = ++requestSequence; activeQuery = query;
+    output?.setAttribute('aria-busy', 'true');
+    if (status) status.textContent = 'Searching the private local index…';
+    chrome.send('searchTahaiLocalOi', [query, filters(), activeRequest]);
+  };
+  form?.addEventListener('submit', event => { event.preventDefault(); search(); });
+  input?.addEventListener('input', () => {
+    // Invalidate immediately, not at the end of debounce: a response for the
+    // previous query must never render under newly edited filter text.
+    invalidate();
+    if (!input.value.trim()) { search(); return; }
+    if (status) status.textContent = 'Search changed; waiting for the current query…';
+    timer = setTimeout(search, 140);
+  });
+  for (const control of [kind, mission, severity, findingState, age])
+    control?.addEventListener('change', search);
+  document.addEventListener('tahai-local-oi-updated', () => {
+    invalidate();
+    if (status) status.textContent = 'Local data or policy changed. Submit a new search to review current records.';
+  });
+  output?.addEventListener('keydown', event => {
+    if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey ||
+        event.metaKey || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    const buttons = resultButtons(), current = buttons.indexOf(document.activeElement);
+    if (!buttons.length || current < 0) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 :
+        (current + (event.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length;
+    buttons[next].focus();
+  });
+  window.tahaiLocalOiReportCopied=()=>{if(status)status.textContent='Sanitized Local OI report copied and recorded locally. Mission names and browser data were omitted.'};window.tahaiLocalOiFindingUpdated=()=>{if(status)status.textContent='Local finding lifecycle updated.';window.location.reload()};for(const button of document.querySelectorAll('[data-tahai-oi-action]'))button.addEventListener('click',()=>{const action=button.dataset.tahaiOiAction;if(action==='copy-report'){const reportKind=button.dataset.tahaiOiReport||'overview';if(status)status.textContent='Creating a sanitized Local OI report…';chrome.send('copyTahaiLocalOiReport',[reportKind]);return}if(action==='visit-msp'){chrome.send('openTahaiOiMsp',[button.dataset.tahaiOiContext||'local_oi_header']);return}if(action==='promotion-setting'){if(status)status.textContent='Saving hosted OI referral choice…';chrome.send('setTahaiOiMspPromotion',[button.dataset.tahaiOiEnabled==='true']);return}if(action==='acknowledge'||action==='resolve'||action==='suppress'||action==='reopen'){const card=button.closest('[data-tahai-oi-finding-id]'),note=card&&card.querySelector('[data-tahai-oi-finding-note]'),rationale=note&&note.value.trim();if(!card||!rationale){if(status)status.textContent='Enter a bounded local rationale before changing a finding.';return}if(status)status.textContent='Updating the local finding lifecycle…';chrome.send('updateTahaiLocalOiFinding',[card.dataset.tahaiOiFindingId,action,rationale])}});
+})();
 )TAHAI";
 
 constexpr char kLocalOiGraphExplorerJs[] = R"TAHAI(
@@ -1724,19 +1948,42 @@ constexpr char kLocalOiGraphExplorerJs[] = R"TAHAI(
   let activeRequest = 0;
   let detailRequestSequence = 0;
   let activeDetailRequest = 0;
+  let activeDetailEntity = '';
   const clear = () => { if (output) output.replaceChildren(); };
+  const clearDetail = () => {
+    activeDetailRequest = 0; activeDetailEntity = '';
+    if (detailOutput) {
+      detailOutput.setAttribute('aria-busy', 'false');
+      detailOutput.textContent = 'Select a saved record to read its current local detail.';
+    }
+  };
+  const invalidate = () => {
+    activeRequest = 0; clear(); clearDetail();
+    output?.setAttribute('aria-busy', 'false');
+  };
   const showDetail = (entityId) => {
     if (typeof entityId !== 'string' || !entityId) return;
     activeDetailRequest = ++detailRequestSequence;
-    if (detailOutput) detailOutput.textContent = 'Loading saved local record detail…';
+    activeDetailEntity = entityId;
+    if (detailOutput) {
+      detailOutput.textContent = 'Loading saved local record detail…';
+      detailOutput.setAttribute('aria-busy', 'true');
+      detailOutput.tabIndex = -1;
+      detailOutput.focus();
+    }
     chrome.send('getTahaiLocalOiEntityDetail', [entityId, activeDetailRequest]);
   };
+  document.addEventListener('tahai-local-oi-select', event => {
+    showDetail(event.detail?.entityId);
+  });
   const recordButton = (label, entityId) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'chip';
     button.textContent = label;
-    button.addEventListener('click', () => showDetail(entityId));
+    button.addEventListener('click', () => {
+      if (button.isConnected && !button.disabled) showDetail(entityId);
+    });
     return button;
   };
   const render = (items) => {
@@ -1773,7 +2020,7 @@ constexpr char kLocalOiGraphExplorerJs[] = R"TAHAI(
   const renderDetail = (detail) => {
     if (!detailOutput) return;
     detailOutput.replaceChildren();
-    if (!detail || typeof detail !== 'object') {
+    if (!detail || typeof detail !== 'object' || !detail.id) {
       detailOutput.textContent = 'This local record is no longer available.';
       return;
     }
@@ -1786,16 +2033,29 @@ constexpr char kLocalOiGraphExplorerJs[] = R"TAHAI(
     detailOutput.append(title, description, metadata);
   };
   window.tahaiLocalOiRelationshipResults = (requestId, items) => {
-    if (requestId !== activeRequest) return;
+    if (!activeRequest || requestId !== activeRequest) return;
+    activeRequest = 0; output?.setAttribute('aria-busy', 'false');
     render(items);
     if (status) status.textContent = `${Array.isArray(items) ? items.length : 0} bounded local relationship${Array.isArray(items) && items.length === 1 ? '' : 's'} returned.`;
   };
   window.tahaiLocalOiEntityDetail = (requestId, detail) => {
-    if (requestId !== activeDetailRequest) return;
+    if (!activeDetailRequest || requestId !== activeDetailRequest ||
+        (detail?.id && detail.id !== activeDetailEntity)) return;
+    activeDetailRequest = 0; activeDetailEntity = '';
+    detailOutput?.setAttribute('aria-busy', 'false');
     renderDetail(detail);
   };
+  for (const control of [entity, type, depth]) control?.addEventListener('change', () => {
+    invalidate();
+    if (status) status.textContent = 'Selection changed. Explore again to review current saved relationships.';
+  });
+  document.addEventListener('tahai-local-oi-updated', () => {
+    invalidate();
+    if (status) status.textContent = 'Local data or policy changed. Explore again to review current relationships.';
+  });
   if (form) form.addEventListener('submit', (event) => {
     event.preventDefault();
+    invalidate();
     const entityId = entity?.value || '';
     const relationship = type?.value || 'all';
     const maximumDepth = Number(depth?.value || 1);
@@ -1804,6 +2064,7 @@ constexpr char kLocalOiGraphExplorerJs[] = R"TAHAI(
       return;
     }
     activeRequest = ++requestSequence;
+    output?.setAttribute('aria-busy', 'true');
     if (status) status.textContent = 'Traversing only the profile-local relationship projection…';
     chrome.send('exploreTahaiLocalOiRelationships', [entityId, relationship, maximumDepth, activeRequest]);
   });
@@ -5706,23 +5967,73 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
                                            base::Value(std::string(result)));
   }
 
-  void SetWorkMode(const base::ListValue& args) {
-    auto* browser = BrowserForModeEditor(web_ui()->GetWebContents(), profile_);
-    auto* controller = WindowModeController::GetForBrowser(browser);
-    if (!controller || args.size() != 1u || !args.front().is_string() ||
-        !controller->SetActiveMode(args.front().GetString())) {
+  static int WorkModeRequestId(const base::ListValue& args, size_t payload) {
+    return args.size() == payload + 1u && args.back().is_int() &&
+                   args.back().GetInt() > 0
+               ? args.back().GetInt()
+               : 0;
+  }
+
+  static bool ValidWorkModeRequest(const base::ListValue& args,
+                                   size_t payload) {
+    return args.size() == payload || WorkModeRequestId(args, payload) > 0;
+  }
+
+  void NotifyWorkModeResult(bool saved, int request) {
+    web_ui()->CallJavascriptFunctionUnsafe(
+        saved ? "tahaiWorkModeUpdated" : "tahaiWorkModeRejected",
+        base::Value(request));
+  }
+
+  base::OnceCallback<void(bool)> ModeReply(int request,
+                                           std::string_view accepted,
+                                           std::string_view rejected) {
+    return base::BindOnce(
+        &TahaiCommandHandler::OnModeReply, weak_factory_.GetWeakPtr(),
+        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr(),
+        request, std::string(accepted), std::string(rejected));
+  }
+
+  void OnModeReply(content::WeakDocumentPtr document,
+                   int request,
+                   const std::string& accepted,
+                   const std::string& rejected,
+                   bool saved) {
+    if (document.AsRenderFrameHostIfValid() !=
+        web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
       return;
     }
-    web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkModeUpdated");
+    web_ui()->CallJavascriptFunctionUnsafe(saved ? accepted : rejected,
+                                           base::Value(request));
+  }
+
+  void SetWorkMode(const base::ListValue& args) {
+    const int request = WorkModeRequestId(args, 1u);
+    auto* browser = BrowserForModeEditor(web_ui()->GetWebContents(), profile_);
+    auto* controller = WindowModeController::GetForBrowser(browser);
+    if (!controller || !ValidWorkModeRequest(args, 1u) ||
+        !args.front().is_string()) {
+      NotifyWorkModeResult(false, request);
+      return;
+    }
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto document =
+        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const bool saved = controller->SetActiveMode(args.front().GetString());
+    if (alive && document.AsRenderFrameHostIfValid() ==
+                     web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+      NotifyWorkModeResult(saved, request);
+    }
   }
 
   void CreateCustomMode(const base::ListValue& args) {
+    auto reply = ModeReply(WorkModeRequestId(args, 3u),
+                           "tahaiCustomModeCreated", "tahaiCustomModeRejected");
     auto* browser = BrowserForModeEditor(web_ui()->GetWebContents(), profile_);
     auto* controller = WindowModeController::GetForBrowser(browser);
-    if (!mode_service_ || !controller ||
-        args.size() != 3u || !args[0].is_string() || !args[1].is_string() ||
-        !args[2].is_string()) {
-      NotifyCustomModeCreation(false);
+    if (!mode_service_ || !controller || !ValidWorkModeRequest(args, 3u) ||
+        !args[0].is_string() || !args[1].is_string() || !args[2].is_string()) {
+      std::move(reply).Run(false);
       return;
     }
 
@@ -5732,7 +6043,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     const std::string& workspace_id = args[2].GetString();
     if (!workspace_id.empty() &&
         !NamedWorkspaceStore(profile_).Find(workspace_id)) {
-      NotifyCustomModeCreation(false);
+      std::move(reply).Run(false);
       return;
     }
     const TahaiOperationalSkinManifest* operational =
@@ -5751,27 +6062,24 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
                                          WindowSkinReference{
                                              operational->appearance.id,
                                              *archive})) {
-      NotifyCustomModeCreation(false);
+      std::move(reply).Run(false);
       return;
     }
-    NotifyCustomModeCreation(true);
-  }
-
-  void NotifyCustomModeCreation(bool created) {
-    web_ui()->CallJavascriptFunctionUnsafe(
-        created ? "tahaiCustomModeCreated" : "tahaiCustomModeRejected");
+    std::move(reply).Run(true);
   }
 
   void CreateNativeCustomMode(const base::ListValue& args) {
+    const int request = WorkModeRequestId(args, 6u);
+    const size_t payload = args.size() - (request > 0 ? 1u : 0u);
+    auto reply =
+        ModeReply(request, "tahaiNativeModeCreated", "tahaiNativeModeRejected");
     auto* browser = BrowserForModeEditor(web_ui()->GetWebContents(), profile_);
     auto* controller = WindowModeController::GetForBrowser(browser);
-    const auto reject = [this]() {
-      web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeRejected");
-    };
-    if (!controller || !mode_service_ || (args.size() != 5u && args.size() != 6u) ||
+    const auto reject = [&reply]() { std::move(reply).Run(false); };
+    if (!controller || !mode_service_ || (payload != 5u && payload != 6u) ||
         !args[0].is_string() || !args[1].is_string() || !args[2].is_string() ||
         !args[3].is_list() || !args[4].is_bool() ||
-        (args.size() == 6u && !args[5].is_bool()) ||
+        (payload == 6u && !args[5].is_bool()) ||
         !ModeService::FindDefinition(args[1].GetString()) ||
         args[3].GetList().size() > GetNativeModeActionCatalog().size()) {
       reject();
@@ -5802,7 +6110,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         return;
       }
     }
-    if (args.size() == 6u && args[5].GetBool()) {
+    if (payload == 6u && args[5].GetBool()) {
       presentation.surface_design = controller->CapturePresentation().surface_design;
       if (!presentation.surface_design) {
         reject();
@@ -5816,56 +6124,67 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       reject();
       return;
     }
-    web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeCreated");
+    std::move(reply).Run(true);
   }
 
   void SetNativeModeSurface(const base::ListValue& args) {
+    auto reply = ModeReply(WorkModeRequestId(args, 2u),
+                           "tahaiNativeModeUpdated", "tahaiNativeModeRejected");
     auto* controller = WindowModeController::GetForBrowser(
         BrowserForModeEditor(web_ui()->GetWebContents(), profile_));
     std::optional<SurfaceDesign> design;
     const bool valid =
-        controller && mode_service_ && args.size() == 2u &&
+        controller && mode_service_ && ValidWorkModeRequest(args, 2u) &&
         args[0].is_string() && args[1].is_string() &&
         (args[1].GetString() == "clear" ||
          (args[1].GetString() == "capture" &&
-          (design = controller->CapturePresentation().surface_design).has_value()));
+          (design = controller->CapturePresentation().surface_design)
+              .has_value()));
     const bool saved = valid && mode_service_->SetNativeCustomModeSurface(
         args[0].GetString(), std::move(design));
-    web_ui()->CallJavascriptFunctionUnsafe(
-        saved ? "tahaiNativeModeUpdated" : "tahaiNativeModeRejected");
+    std::move(reply).Run(saved);
   }
 
   void ActivateNativeMode(const base::ListValue& args) {
+    auto reply =
+        ModeReply(WorkModeRequestId(args, 1u), "tahaiNativeModeActivated",
+                  "tahaiNativeModeRejected");
     auto* browser = BrowserForModeEditor(web_ui()->GetWebContents(), profile_);
-    const bool activated = browser && args.size() == 1u && args[0].is_string() &&
+    const bool activated =
+        browser && ValidWorkModeRequest(args, 1u) && args[0].is_string() &&
         ActivateNativeCustomMode(browser, args[0].GetString());
-    web_ui()->CallJavascriptFunctionUnsafe(
-        activated ? "tahaiNativeModeActivated" : "tahaiNativeModeRejected");
+    std::move(reply).Run(activated);
   }
 
   void SetNativeModeSkin(const base::ListValue& args) {
+    auto reply = ModeReply(WorkModeRequestId(args, 2u),
+                           "tahaiNativeModeUpdated", "tahaiNativeModeRejected");
     auto* controller = WindowModeController::GetForBrowser(
         BrowserForModeEditor(web_ui()->GetWebContents(), profile_));
     std::optional<WindowSkinReference> skin;
-    const bool valid = controller && mode_service_ && args.size() == 2u &&
+    const bool valid =
+        controller && mode_service_ && ValidWorkModeRequest(args, 2u) &&
         args[0].is_string() && args[1].is_string() &&
         (args[1].GetString() == "clear" ||
-         (args[1].GetString() == "capture" && controller->window_skin_palette() &&
+         (args[1].GetString() == "capture" &&
+          controller->window_skin_palette() &&
           (skin = controller->CapturePresentation().skin).has_value()));
     const bool saved = valid && mode_service_->SetNativeCustomModeSkin(
         args[0].GetString(), std::move(skin));
-    web_ui()->CallJavascriptFunctionUnsafe(
-        saved ? "tahaiNativeModeUpdated" : "tahaiNativeModeRejected");
+    std::move(reply).Run(saved);
   }
 
   void UpdateNativeMode(const base::ListValue& args) {
-    const auto reject = [this]() {
-      web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeRejected");
-    };
-    if (!mode_service_ || !BrowserForModeEditor(web_ui()->GetWebContents(), profile_) ||
-        (args.size() != 4u && args.size() != 5u) || !args[0].is_string() || !args[1].is_string() ||
-        !args[2].is_list() || !args[3].is_string() ||
-        (args.size() == 5u && !args[4].is_dict()) ||
+    const int request = WorkModeRequestId(args, 5u);
+    const size_t payload = args.size() - (request > 0 ? 1u : 0u);
+    auto reply =
+        ModeReply(request, "tahaiNativeModeUpdated", "tahaiNativeModeRejected");
+    const auto reject = [&reply]() { std::move(reply).Run(false); };
+    if (!mode_service_ ||
+        !BrowserForModeEditor(web_ui()->GetWebContents(), profile_) ||
+        (payload != 4u && payload != 5u) || !args[0].is_string() ||
+        !args[1].is_string() || !args[2].is_list() || !args[3].is_string() ||
+        (payload == 5u && !args[4].is_dict()) ||
         args[2].GetList().size() > GetNativeModeActionCatalog().size() ||
         (!args[3].GetString().empty() &&
          !NamedWorkspaceStore(profile_).Find(args[3].GetString()))) {
@@ -5881,7 +6200,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       actions.push_back(action.GetString());
     }
     std::optional<NativeModeCommandLayout> layout;
-    if (args.size() == 5u) {
+    if (payload == 5u) {
       layout = DecodeNativeModeCommandLayout(args[4].GetDict(), actions);
       if (!layout) {
         reject();
@@ -5895,35 +6214,44 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
       reject();
       return;
     }
-    web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeUpdated");
+    std::move(reply).Run(true);
   }
 
   void DuplicateCustomMode(const base::ListValue& args) {
-    if (!mode_service_ || !BrowserForModeEditor(web_ui()->GetWebContents(), profile_) ||
-        args.size() != 2u || !args[0].is_string() || !args[1].is_string() ||
-        !mode_service_->DuplicateCustomMode(args[0].GetString(), args[1].GetString())) {
-      web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeRejected");
+    auto reply = ModeReply(WorkModeRequestId(args, 2u),
+                           "tahaiNativeModeCreated", "tahaiNativeModeRejected");
+    if (!mode_service_ ||
+        !BrowserForModeEditor(web_ui()->GetWebContents(), profile_) ||
+        !ValidWorkModeRequest(args, 2u) || !args[0].is_string() ||
+        !args[1].is_string() ||
+        !mode_service_->DuplicateCustomMode(args[0].GetString(),
+                                            args[1].GetString())) {
+      std::move(reply).Run(false);
       return;
     }
-    web_ui()->CallJavascriptFunctionUnsafe("tahaiNativeModeCreated");
+    std::move(reply).Run(true);
   }
 
   void DuplicateBuiltinModePreset(const base::ListValue& args) {
-    const auto* preset = args.size() == 1u && args[0].is_string()
-        ? FindBuiltinNativeModePreset(args[0].GetString()) : nullptr;
+    auto reply = ModeReply(WorkModeRequestId(args, 1u),
+                           "tahaiNativeModeCreated", "tahaiNativeModeRejected");
+    const auto* preset = ValidWorkModeRequest(args, 1u) && args[0].is_string()
+                             ? FindBuiltinNativeModePreset(args[0].GetString())
+                             : nullptr;
     const bool saved = mode_service_ && preset &&
         BrowserForModeEditor(web_ui()->GetWebContents(), profile_) &&
         mode_service_->DuplicateBuiltinModePreset(preset->id, preset->title + " copy");
-    web_ui()->CallJavascriptFunctionUnsafe(
-        saved ? "tahaiNativeModeCreated" : "tahaiNativeModeRejected");
+    std::move(reply).Run(saved);
   }
 
   void UpdateCustomMode(const base::ListValue& args) {
+    auto reply = ModeReply(WorkModeRequestId(args, 3u),
+                           "tahaiCustomModeUpdated", "tahaiCustomModeRejected");
     if (!mode_service_ ||
         !BrowserForModeEditor(web_ui()->GetWebContents(), profile_) ||
-        args.size() != 3u || !args[0].is_string() || !args[1].is_string() ||
-        !args[2].is_string()) {
-      NotifyCustomModeUpdate(false);
+        !ValidWorkModeRequest(args, 3u) || !args[0].is_string() ||
+        !args[1].is_string() || !args[2].is_string()) {
+      std::move(reply).Run(false);
       return;
     }
     const std::string& id = args[0].GetString();
@@ -5934,12 +6262,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         action == "rename" ? mode_service_->RenameCustomMode(id, title)
                            : action == "delete" &&
                                  mode_service_->RemoveCustomMode(id);
-    NotifyCustomModeUpdate(updated);
-  }
-
-  void NotifyCustomModeUpdate(bool updated) {
-    web_ui()->CallJavascriptFunctionUnsafe(
-        updated ? "tahaiCustomModeUpdated" : "tahaiCustomModeRejected");
+    std::move(reply).Run(updated);
   }
 
   bool IsCapabilityReviewDocument() {
@@ -6062,10 +6385,25 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
   }
 
   void SetWorkModeModifier(const base::ListValue& args) {
-    if (!mode_service_ || args.size() != 2u || !args[0].is_string() ||
-        !args[1].is_bool() ||
-        !mode_service_->SetModifierEnabled(args[0].GetString(),
-                                           args[1].GetBool())) {
+    const int request = WorkModeRequestId(args, 2u);
+    if (!mode_service_ ||
+        !BrowserForModeEditor(web_ui()->GetWebContents(), profile_) ||
+        !ValidWorkModeRequest(args, 2u) || !args[0].is_string() ||
+        !args[1].is_bool()) {
+      NotifyWorkModeResult(false, request);
+      return;
+    }
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto document =
+        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const bool saved = mode_service_->SetModifierEnabled(args[0].GetString(),
+                                                         args[1].GetBool());
+    if (!alive || document.AsRenderFrameHostIfValid() !=
+                      web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+      return;
+    }
+    if (!saved) {
+      NotifyWorkModeResult(false, request);
       return;
     }
 
@@ -6079,44 +6417,79 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
         chrome::SetTahaiMultiViewFocusMode(browser, args[1].GetBool());
       }
     }
-    web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkModeUpdated");
+    if (alive && document.AsRenderFrameHostIfValid() ==
+                     web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+      NotifyWorkModeResult(true, request);
+    }
   }
 
   void SetWorkModeConfiguration(const base::ListValue& args) {
+    const int request = WorkModeRequestId(args, 2u);
     auto* controller = WindowModeController::GetForBrowser(
         BrowserForModeEditor(web_ui()->GetWebContents(), profile_));
-    if (!controller || args.size() != 2u || !args[0].is_string() ||
-        !args[1].is_string() ||
-        !controller->SetActiveConfigurationValue(args[0].GetString(),
-                                                    args[1].GetString())) {
+    if (!controller || !ValidWorkModeRequest(args, 2u) ||
+        !args[0].is_string() || !args[1].is_string()) {
+      NotifyWorkModeResult(false, request);
       return;
     }
-    web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkModeUpdated");
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto document =
+        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const bool saved = controller->SetActiveConfigurationValue(
+        args[0].GetString(), args[1].GetString());
+    if (alive && document.AsRenderFrameHostIfValid() ==
+                     web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+      NotifyWorkModeResult(saved, request);
+    }
   }
 
   void ResetWorkModeConfiguration(const base::ListValue& args) {
+    const int request = WorkModeRequestId(args, 0u);
     auto* controller = WindowModeController::GetForBrowser(
         BrowserForModeEditor(web_ui()->GetWebContents(), profile_));
-    if (!mode_service_ || !controller || !args.empty() ||
-        !controller->ResetActiveConfiguration()) {
+    if (!mode_service_ || !controller || !ValidWorkModeRequest(args, 0u)) {
+      NotifyWorkModeResult(false, request);
       return;
     }
-    web_ui()->CallJavascriptFunctionUnsafe("tahaiWorkModeUpdated");
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto document =
+        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const bool saved = controller->ResetActiveConfiguration();
+    if (alive && document.AsRenderFrameHostIfValid() ==
+                     web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+      NotifyWorkModeResult(saved, request);
+    }
   }
 
   void CreateWorkModeTemplateMission(const base::ListValue& args) {
+    const int request = WorkModeRequestId(args, 1u);
     auto* controller = WindowModeController::GetForBrowser(
         BrowserForModeEditor(web_ui()->GetWebContents(), profile_));
-    if (!mission_service_ || !controller || args.size() != 1u ||
+    if (!mission_service_ || !controller || !ValidWorkModeRequest(args, 1u) ||
         !args.front().is_string()) {
+      NotifyWorkModeResult(false, request);
       return;
     }
     const WorkModeTemplate* work_template =
         ModeService::FindTemplate(args.front().GetString());
     if (!work_template ||
-        work_template->mode_id != controller->active_mode_id() ||
-        !mission_service_->CreateMission(work_template->title,
-                                         work_template->mission_type)) {
+        work_template->mode_id != controller->active_mode_id()) {
+      NotifyWorkModeResult(false, request);
+      return;
+    }
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto document =
+        web_ui()->GetWebContents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+    const bool saved =
+        mission_service_
+            ->CreateMission(work_template->title, work_template->mission_type)
+            .has_value();
+    if (!alive || document.AsRenderFrameHostIfValid() !=
+                      web_ui()->GetWebContents()->GetPrimaryMainFrame()) {
+      return;
+    }
+    if (!saved) {
+      NotifyWorkModeResult(false, request);
       return;
     }
     web_ui()->GetWebContents()->GetController().LoadURLWithParams(
@@ -6205,6 +6578,7 @@ class TahaiCommandHandler : public content::WebUIMessageHandler {
     for (const LocalOiSearchResult& result :
          local_oi_service_->Search(options)) {
       base::DictValue value;
+      value.Set("entity_id", result.entity_id);
       value.Set("kind", result.kind);
       value.Set("mission_id", result.mission_id);
       value.Set("title", result.title);

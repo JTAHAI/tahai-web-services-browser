@@ -348,3 +348,65 @@ failed fixture run is retained under `out/source-review-20260930-195556`.
 Native compilation, all four runtime gates, accessibility leak verification and
 exact-package acceptance remain pending on the other machine. There is no
 "every feature verified" or GA claim from this source-only checkpoint.
+
+## Cross-feature engineering follow-up
+
+This source pass extends beyond operational skins. It retains the Chromium 154
+pins, Royal defaults, Store identity and extension-only provider connectors.
+
+- Work Modes now observe profile/policy preference changes, reject managed or
+  malformed writes, merge only the edited mode while preserving unknown data,
+  and keep density/compact snapshots consistent. Notification dispatch tolerates
+  reentrant edits, shutdown and observer-driven destruction. Explicit private
+  edits stay ephemeral and do not acknowledge superseded settings. Merely loading
+  an unknown active mode no longer rewrites it; an explicit selection can replace
+  that fallback. Named workspace storage also rejects managed shadow writes and
+  wrong-typed default-fallback overwrites. Workspace restore pins tab/content
+  identity, ordering, pin/group/split membership, applied visuals and active
+  selection across synchronous notifications; interruptions preserve the partial
+  window and return failure rather than applying saved indices to changed tabs.
+- All fixed/custom/native Work Mode controls correlate acknowledgments, restore
+  rejected controls, preserve edits, block cross-control duplicate submissions
+  and retain status inside dialogs. Creation, activation, copying and retained
+  skin/layout edits use the same request owner. Local OI search results
+  open typed, read-only entity detail; findings/memory are not misrepresented as
+  entity IDs. Search and graph requests are invalidated immediately when their
+  query, filter, selected record or availability changes.
+- Archiving pauses running operational workflows even without a pending timer.
+  Restoring does not implicitly resume native actions. Mission loading rejects
+  duplicate identifiers and keeps history-integrity warnings sticky after malformed
+  records are discarded. Titles/notes require valid UTF-8; duplication preserves
+  character boundaries.
+- Local OI preserves unfamiliar schema/wrong-typed data, rejects stale snapshot
+  commits and managed hidden writes, and validates relationship targets on reload.
+  Finding lifecycle changes update the search/graph projection atomically and
+  clear obsolete acknowledgment/suppression metadata. Unavailable storage does not
+  authorize continued searches, briefs, exports or mutations. Public raw-data
+  projections also return an immutable empty snapshot while disabled/unavailable,
+  so relationship/detail/list adapters cannot bypass those checks.
+- Capability approval/use now requires a live HTTPS primary document: an inherited
+  origin on `about:blank` and a crashed renderer do not meet that contract.
+  Wrong-typed persisted grants cannot be silently replaced during approval.
+
+The 33 new native regressions (29 service/unit, four browser) are wired into the
+mandatory release evidence sentinels, not
+represented as executed results. The two new shipped-JavaScript suites use DOM
+doubles for Work Mode request handling and Local OI navigation. The preliminary
+expanded source preflight passed **28/28 suites, exit 0**, including the isolated
+stock-Edge source-render harness, at
+`out/source-review-20260930-202646/summary.json`. The completed combined source
+also passed **28/28, exit 0**, at
+`out/source-review-20260930-203255/summary.json`; the Work Modes suite now exercises
+30 checks across the production script sequence, and Local OI navigation has 23.
+The packaging validator passes 36 synthetic checks with all new sentinels required.
+None of these checks compile or execute the
+native Chromium 154 candidate. Native regression, operational, accessibility and
+package acceptance remain required on the user's build workstation.
+
+The first clean-checkpoint run (`out/source-review-20260930-203518`) failed in
+the source-render harness: Playwright polled a string expression using page-world
+`eval`, which the unchanged production `script-src 'self'` correctly rejected.
+The harness now polls explicit functions for focus and CSP violation events;
+neither `unsafe-eval` nor a CSP bypass was enabled. The corrected harness executed
+all 64 checks with zero failures. The failed run remains preserved and is not a
+native product failure or a passing full-source run.

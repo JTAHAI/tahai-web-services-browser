@@ -171,6 +171,9 @@ struct LocalOiSearchResult {
   std::string severity;
   std::string finding_state;
   std::string created_at;
+  // Only persisted typed entities can open the read-only detail projection.
+  // Findings and memory summaries intentionally do not acquire entity IDs.
+  std::string entity_id;
 };
 
 // A finite, local-only search request. Every filter is an exact value from a

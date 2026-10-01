@@ -10,12 +10,13 @@
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/observer_list.h"
 #include "chrome/browser/profiles/profile_keyed_service_factory.h"
 #include "chrome/browser/ui/tahai/tahai_custom_mode_registry.h"
-#include "components/prefs/pref_change_registrar.h"
 #include "components/keyed_service/core/keyed_service.h"
+#include "components/prefs/pref_change_registrar.h"
 
 class PrefService;
 class Profile;
@@ -99,6 +100,7 @@ class ModeService : public KeyedService {
   ModeService(const ModeService&) = delete;
   ModeService& operator=(const ModeService&) = delete;
   ~ModeService() override;
+  void Shutdown() override;
 
   static const std::vector<WorkModeDefinition>& definitions();
   static const std::vector<WorkModeModifier>& modifiers();
@@ -124,10 +126,12 @@ class ModeService : public KeyedService {
   bool RemoveCustomMode(std::string_view id);
   bool DuplicateCustomMode(std::string_view id, std::string title);
   bool DuplicateBuiltinModePreset(std::string_view id, std::string title);
-  bool UpdateNativeCustomMode(std::string_view id, std::string title,
-                              std::vector<std::string> actions,
-                              std::string workspace_id,
-                              std::optional<NativeModeCommandLayout> layout = std::nullopt);
+  bool UpdateNativeCustomMode(
+      std::string_view id,
+      std::string title,
+      std::vector<std::string> actions,
+      std::string workspace_id,
+      std::optional<NativeModeCommandLayout> layout = std::nullopt);
   bool SetCustomModes(base::DictValue definitions);
   bool SetNativeCustomModeConfiguration(std::string_view id,
                                         std::string_view key,
@@ -166,6 +170,7 @@ class ModeService : public KeyedService {
 
  private:
   struct StoredConfiguration {
+    bool operator==(const StoredConfiguration&) const = default;
     std::string mode_id;
     WorkModeWorkspaceConfiguration configuration;
   };
@@ -177,20 +182,26 @@ class ModeService : public KeyedService {
       std::string_view mode_id) const;
   bool IsKnownModifier(std::string_view modifier) const;
   static bool IsValidConfiguration(std::string_view mode_id,
-                            std::string_view key,
-                            std::string_view value);
+                                   std::string_view key,
+                                   std::string_view value);
   static bool ApplyConfigurationValue(std::string_view mode_id,
-                                       std::string_view key,
-                                       std::string_view value,
-                                       WorkModeWorkspaceConfiguration* result);
+                                      std::string_view key,
+                                      std::string_view value,
+                                      WorkModeWorkspaceConfiguration* result);
   void LoadConfigurations();
   void LoadCustomModes();
+  void OnActiveModePreferenceChanged();
+  void OnWorkspacePreferenceChanged();
   void OnCustomModePreferenceChanged();
-  std::optional<std::vector<TahaiCustomModeDefinition>> ReadCustomModesForWrite() const;
-  void SaveConfigurations();
+  std::optional<std::vector<TahaiCustomModeDefinition>>
+  ReadCustomModesForWrite() const;
+  bool CanWriteWorkspacePreferences() const;
+  bool SaveConfiguration(std::string_view mode_id,
+                         const WorkModeWorkspaceConfiguration& configuration);
   void SetDefaultForOffTheRecord();
   void NotifyActiveModeChanged();
   void NotifyModeConfigurationChanged();
+  void DispatchNotifications();
 
   const raw_ptr<Profile> profile_;
   const raw_ptr<PrefService> prefs_;
@@ -200,6 +211,12 @@ class ModeService : public KeyedService {
   std::vector<TahaiCustomModeDefinition> custom_modes_;
   PrefChangeRegistrar custom_mode_pref_registrar_;
   base::ObserverList<Observer> observers_;
+  bool shutdown_ = false;
+  bool notifying_ = false;
+  bool active_notification_pending_ = false;
+  bool configuration_notification_pending_ = false;
+  bool notification_task_pending_ = false;
+  base::WeakPtrFactory<ModeService> weak_factory_{this};
 };
 
 class ModeServiceFactory : public ProfileKeyedServiceFactory {

@@ -66,12 +66,112 @@ TEST_F(TahaiLocalOiStoreTest, RejectsSelfReferentialRelationship) {
 TEST_F(TahaiLocalOiStoreTest, CorruptDocumentRecoversToEmptyCurrentSchema) {
   {
     ScopedDictPrefUpdate update(&prefs_, prefs::kTahaiLocalOiStore);
-    update->Set("schema_version", 999);
+    update->Set("schema_version", kTahaiLocalOiCurrentSchemaVersion);
   }
   TahaiLocalOiStore recovered(&prefs_, /*durable=*/true);
   EXPECT_EQ(LocalOiStoreStatus::kRecoveredFromCorruption, recovered.status());
   EXPECT_TRUE(recovered.data().entities.empty());
   EXPECT_EQ(kTahaiLocalOiCurrentSchemaVersion, recovered.data().schema_version);
+}
+
+TEST_F(TahaiLocalOiStoreTest, FutureSchemaIsPreservedAndCannotBeOverwritten) {
+  base::DictValue future;
+  future.Set("schema_version", kTahaiLocalOiCurrentSchemaVersion + 1);
+  future.Set("generation", 42);
+  future.Set("future_only_metadata", "Keep for the newer browser.");
+  prefs_.SetDict(prefs::kTahaiLocalOiStore, future.Clone());
+  TahaiLocalOiStore store(&prefs_, /*durable=*/true);
+  EXPECT_EQ(LocalOiStoreStatus::kUnavailable, store.status());
+  EXPECT_TRUE(store.data().entities.empty());
+  EXPECT_FALSE(store.UpsertEntity(MakeMission(kEntityId)));
+  EXPECT_FALSE(store.Commit(store.data()));
+  EXPECT_FALSE(store.DeleteAll());
+  EXPECT_EQ(future, prefs_.GetDict(prefs::kTahaiLocalOiStore));
+}
+
+TEST_F(TahaiLocalOiStoreTest,
+       WrongTypedPreferenceIsPreservedWithoutDefaultReset) {
+  const base::Value original("Unfamiliar store encoding; do not replace.");
+  prefs_.SetUserPref(prefs::kTahaiLocalOiStore, original.Clone());
+  TahaiLocalOiStore store(&prefs_, /*durable=*/true);
+  EXPECT_EQ(LocalOiStoreStatus::kUnavailable, store.status());
+  EXPECT_FALSE(store.UpsertEntity(MakeMission(kEntityId)));
+  EXPECT_FALSE(store.DeleteAll());
+  ASSERT_TRUE(prefs_.GetUserPrefValue(prefs::kTahaiLocalOiStore));
+  EXPECT_EQ(original, *prefs_.GetUserPrefValue(prefs::kTahaiLocalOiStore));
+}
+
+TEST_F(TahaiLocalOiStoreTest, StaleBatchCannotReplaceNewerMutation) {
+  TahaiLocalOiStore store(&prefs_, /*durable=*/true);
+  LocalOiStoreData stale = store.data();
+  ASSERT_TRUE(store.UpsertEntity(MakeMission(kEntityId)));
+  const base::DictValue durable =
+      prefs_.GetDict(prefs::kTahaiLocalOiStore).Clone();
+  stale.entities.push_back(MakeMission(kSecondEntityId));
+  EXPECT_FALSE(store.Commit(std::move(stale)));
+  ASSERT_EQ(1u, store.data().entities.size());
+  EXPECT_EQ(kEntityId, store.data().entities.front().id);
+  EXPECT_EQ(durable, prefs_.GetDict(prefs::kTahaiLocalOiStore));
+  // A newly captured batch remains writable after an ordinary stale caller.
+  LocalOiStoreData current = store.data();
+  current.entities.push_back(MakeMission(kSecondEntityId));
+  ASSERT_TRUE(store.Commit(std::move(current)));
+  EXPECT_EQ(2u, store.data().entities.size());
+}
+
+TEST_F(TahaiLocalOiStoreTest, OtherStoreOwnerCannotOverwriteNewerGeneration) {
+  TahaiLocalOiStore first(&prefs_, /*durable=*/true);
+  TahaiLocalOiStore second(&prefs_, /*durable=*/true);
+  ASSERT_TRUE(first.UpsertEntity(MakeMission(kEntityId)));
+  const base::DictValue durable =
+      prefs_.GetDict(prefs::kTahaiLocalOiStore).Clone();
+  EXPECT_FALSE(second.UpsertEntity(MakeMission(kSecondEntityId)));
+  EXPECT_EQ(LocalOiStoreStatus::kUnavailable, second.status());
+  EXPECT_TRUE(second.data().entities.empty());
+  EXPECT_FALSE(second.DeleteAll());
+  EXPECT_EQ(durable, prefs_.GetDict(prefs::kTahaiLocalOiStore));
+  TahaiLocalOiStore reopened(&prefs_, /*durable=*/true);
+  ASSERT_TRUE(reopened.UpsertEntity(MakeMission(kSecondEntityId)));
+  EXPECT_EQ(2u, reopened.data().entities.size());
+}
+
+TEST_F(TahaiLocalOiStoreTest, ManagedStorageCannotAcquireHiddenUserWrites) {
+  TahaiLocalOiStore store(&prefs_, /*durable=*/true);
+  const base::DictValue prior =
+      prefs_.GetDict(prefs::kTahaiLocalOiStore).Clone();
+  prefs_.SetManagedPref(prefs::kTahaiLocalOiStore, base::Value(prior.Clone()));
+  EXPECT_FALSE(store.UpsertEntity(MakeMission(kEntityId)));
+  EXPECT_FALSE(store.DeleteAll());
+  TahaiLocalOiStore managed(&prefs_, /*durable=*/true);
+  EXPECT_EQ(LocalOiStoreStatus::kUnavailable, managed.status());
+  EXPECT_FALSE(managed.UpsertEntity(MakeMission(kSecondEntityId)));
+  prefs_.RemoveManagedPref(prefs::kTahaiLocalOiStore);
+  EXPECT_EQ(prior, prefs_.GetDict(prefs::kTahaiLocalOiStore));
+}
+
+TEST_F(TahaiLocalOiStoreTest, ReloadRejectsDanglingRelationshipTargets) {
+  {
+    TahaiLocalOiStore store(&prefs_, /*durable=*/true);
+    ASSERT_TRUE(store.UpsertEntity(MakeMission(kEntityId)));
+    ASSERT_TRUE(store.UpsertEntity(MakeMission(kSecondEntityId)));
+    LocalOiRelationshipRecord relationship;
+    relationship.id = "33333333-3333-4333-8333-333333333333";
+    relationship.type = LocalOiRelationshipType::kMissionContains;
+    relationship.source_id = kEntityId;
+    relationship.target_id = kSecondEntityId;
+    relationship.basis = "Synthetic fixture only.";
+    relationship.created_at = "1";
+    relationship.updated_at = "1";
+    ASSERT_TRUE(store.UpsertRelationship(std::move(relationship)));
+  }
+  {
+    ScopedDictPrefUpdate update(&prefs_, prefs::kTahaiLocalOiStore);
+    update->FindList("entities")->erase(update->FindList("entities")->begin());
+  }
+  TahaiLocalOiStore store(&prefs_, /*durable=*/true);
+  EXPECT_EQ(LocalOiStoreStatus::kRecoveredFromCorruption, store.status());
+  EXPECT_TRUE(store.data().entities.empty());
+  EXPECT_TRUE(store.data().relationships.empty());
 }
 
 TEST_F(TahaiLocalOiStoreTest, SchemaV1MigrationRemovesRawDnsInspectionFields) {

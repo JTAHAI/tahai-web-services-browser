@@ -36,7 +36,10 @@ class TahaiLocalOiStore {
   bool DeleteEntity(std::string_view entity_id);
   bool DeleteAll();
   // Used by the Local OI service to atomically apply a typed ingestion or
-  // deterministic recalculation batch. It is not exposed to WebUI messages.
+  // deterministic recalculation batch. The batch must retain the generation
+  // from data(); a stale snapshot is rejected without replacing newer data.
+  // Unfamiliar schema versions are preserved read-only, never reset by an
+  // older browser. This operation is not exposed to WebUI messages.
   bool Commit(LocalOiStoreData data);
   bool ReplaceForTesting(LocalOiStoreData data);
 

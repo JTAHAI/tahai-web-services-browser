@@ -65,6 +65,148 @@ class TahaiLocalOiBrowserTest : public InProcessBrowserTest {
 };
 
 IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
+                       FindingTransitionsUpdateSearchProjectionAtomically) {
+  auto* service =
+      TahaiLocalOiServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  browser()->GetProfile()->GetPrefs()->SetBoolean(prefs::kTahaiLocalOiEnabled,
+                                                  true);
+  LocalOiEntityRecord endpoint;
+  endpoint.id = NewLocalOiId();
+  endpoint.type = LocalOiEntityType::kEndpoint;
+  endpoint.title = "Synthetic support endpoint";
+  endpoint.summary = "Metadata-only lifecycle fixture.";
+  endpoint.source = LocalOiRecordSource::kExplicitUserEntry;
+  endpoint.created_at = LocalOiNowTimestamp();
+  endpoint.updated_at = endpoint.created_at;
+  const std::string endpoint_id = endpoint.id;
+  ASSERT_TRUE(service->UpsertEntity(std::move(endpoint)));
+  ASSERT_TRUE(service->RecalculateFindings());
+  const auto finding = std::find_if(
+      service->data().findings.begin(), service->data().findings.end(),
+      [](const LocalOiFindingRecord& record) {
+        return record.rule_id ==
+               "local_oi.knowledge.endpoint_no_documentation.v1";
+      });
+  ASSERT_NE(service->data().findings.end(), finding);
+  const std::string finding_id = finding->id;
+  auto expect_state = [&](std::string_view expected) {
+    const auto current = std::find_if(
+        service->data().findings.begin(), service->data().findings.end(),
+        [&finding_id](const LocalOiFindingRecord& record) {
+          return record.id == finding_id;
+        });
+    ASSERT_NE(service->data().findings.end(), current);
+    EXPECT_EQ(expected, LocalOiFindingStateName(current->state));
+    EXPECT_EQ(expected == "acknowledged", current->acknowledged);
+    EXPECT_EQ(expected != "acknowledged",
+              current->acknowledgement_note.empty());
+    if (expected == "open" || expected == "acknowledged") {
+      EXPECT_TRUE(current->resolution_reason.empty());
+    }
+    const auto entity = std::find_if(
+        service->data().entities.begin(), service->data().entities.end(),
+        [&finding_id](const LocalOiEntityRecord& record) {
+          return record.id == finding_id &&
+                 record.type == LocalOiEntityType::kFinding;
+        });
+    ASSERT_NE(service->data().entities.end(), entity);
+    const auto field = std::find_if(
+        entity->fields.begin(), entity->fields.end(),
+        [](const LocalOiField& item) { return item.key == "state"; });
+    ASSERT_NE(entity->fields.end(), field);
+    EXPECT_EQ(expected, field->value);
+    TahaiLocalOiStore persisted(browser()->GetProfile()->GetPrefs(), true);
+    const auto saved = std::find_if(
+        persisted.data().entities.begin(), persisted.data().entities.end(),
+        [&finding_id](const LocalOiEntityRecord& record) {
+          return record.id == finding_id;
+        });
+    ASSERT_NE(persisted.data().entities.end(), saved);
+    EXPECT_TRUE(std::any_of(saved->fields.begin(), saved->fields.end(),
+                            [expected](const LocalOiField& item) {
+                              return item.key == "state" &&
+                                     item.value == expected;
+                            }));
+  };
+  expect_state("open");
+  ASSERT_TRUE(service->AcknowledgeFinding(finding_id, "Reviewed locally."));
+  expect_state("acknowledged");
+  ASSERT_TRUE(service->ResolveFinding(finding_id, "Resolution reviewed."));
+  expect_state("resolved");
+  ASSERT_TRUE(service->ReopenFinding(finding_id, "Follow-up required."));
+  expect_state("open");
+  ASSERT_TRUE(
+      service->SuppressFinding(finding_id, "Explicit exception reviewed."));
+  expect_state("suppressed");
+  ASSERT_TRUE(
+      service->AcknowledgeFinding(finding_id, "Exception reconsidered."));
+  expect_state("acknowledged");
+  browser()->GetProfile()->GetPrefs()->SetBoolean(
+      prefs::kTahaiLocalOiDocumentationReferenceIngestionEnabled, true);
+  ASSERT_TRUE(service->RecordDocumentReference({"Synthetic documentation",
+                                                "https://example.com/docs",
+                                                endpoint_id, ""}));
+  expect_state("resolved");
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
+                       UnavailableStoreCannotSearchBriefExportOrMutate) {
+  auto* service =
+      TahaiLocalOiServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(service);
+  auto* prefs = browser()->GetProfile()->GetPrefs();
+  prefs->SetBoolean(prefs::kTahaiLocalOiEnabled, true);
+  prefs->SetBoolean(prefs::kTahaiLocalOiLocalAiEnabled, true);
+  prefs->SetBoolean(prefs::kTahaiLocalOiReportsEnabled, true);
+  prefs->SetBoolean(prefs::kTahaiLocalOiExportEnabled, true);
+  LocalOiEntityRecord record;
+  record.id = NewLocalOiId();
+  record.type = LocalOiEntityType::kNote;
+  record.title = "Synthetic reference";
+  record.summary = "Explicit metadata-only fixture.";
+  record.source = LocalOiRecordSource::kExplicitUserEntry;
+  record.created_at = LocalOiNowTimestamp();
+  record.updated_at = record.created_at;
+  ASSERT_TRUE(service->UpsertEntity(record));
+  const LocalOiAssistRequest assist{
+      LocalOiAssistOperation::kSummarizeSelectedRecords, {record.id}};
+  ASSERT_FALSE(service->Search("Synthetic").empty());
+  ASSERT_TRUE(service->BuildDeterministicLocalBrief(assist));
+  ASSERT_FALSE(service->data().entities.empty());
+  const base::DictValue before_disable =
+      prefs->GetDict(prefs::kTahaiLocalOiStore).Clone();
+  prefs->SetBoolean(prefs::kTahaiLocalOiEnabled, false);
+  EXPECT_TRUE(service->data().entities.empty());
+  EXPECT_TRUE(service->data().relationships.empty());
+  EXPECT_TRUE(service->data().findings.empty());
+  EXPECT_TRUE(service->data().memory.empty());
+  EXPECT_TRUE(service->data().reports.empty());
+  EXPECT_TRUE(service->Search("Synthetic").empty());
+  EXPECT_FALSE(service->BuildDeterministicLocalBrief(assist));
+  EXPECT_EQ(before_disable, prefs->GetDict(prefs::kTahaiLocalOiStore));
+  prefs->SetBoolean(prefs::kTahaiLocalOiEnabled, true);
+  EXPECT_FALSE(service->data().entities.empty());
+  base::DictValue future = prefs->GetDict(prefs::kTahaiLocalOiStore).Clone();
+  future.Set("schema_version", kTahaiLocalOiCurrentSchemaVersion + 1);
+  prefs->SetDict(prefs::kTahaiLocalOiStore, future.Clone());
+  EXPECT_FALSE(service->UpsertEntity(record));
+  EXPECT_FALSE(service->available());
+  EXPECT_TRUE(service->data().entities.empty());
+  EXPECT_TRUE(service->data().relationships.empty());
+  EXPECT_TRUE(service->data().findings.empty());
+  EXPECT_TRUE(service->data().memory.empty());
+  EXPECT_TRUE(service->data().reports.empty());
+  EXPECT_TRUE(service->Search("Synthetic").empty());
+  EXPECT_FALSE(service->BuildDeterministicLocalBrief(assist));
+  EXPECT_FALSE(service->PrepareLocalAssistPrompt(assist));
+  EXPECT_FALSE(service->GenerateSafeReport(LocalOiSafeReportKind::kOverview));
+  EXPECT_FALSE(service->DeleteEntity(record.id));
+  EXPECT_FALSE(service->DeleteAllData());
+  EXPECT_EQ(future, prefs->GetDict(prefs::kTahaiLocalOiStore));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
                        TrustedLocalOiWebUiRendersRealLocalSurfaces) {
   content::WebContents* contents = NavigateToLocalOi();
   ASSERT_TRUE(contents);

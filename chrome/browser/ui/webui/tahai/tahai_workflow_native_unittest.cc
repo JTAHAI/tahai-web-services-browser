@@ -412,6 +412,60 @@ TEST_F(TahaiWorkflowNativeTest, PausedCancelledAndArchivedRunsCannotDispatch) {
   EXPECT_FALSE(Resolve(mission()));
 }
 
+TEST_F(TahaiWorkflowNativeTest,
+       ArchiveRestoreNeverImplicitlyResumesNativeWork) {
+  ASSERT_TRUE(service_->ToggleStep(id_, 0));
+  ASSERT_EQ(IDC_FOCUS_LOCATION, Resolve(mission()));
+  ASSERT_TRUE(service_->ArchiveMission(id_));
+  EXPECT_EQ("paused", mission().operational_workflow->run_state);
+  EXPECT_FALSE(Resolve(mission()));
+  EXPECT_FALSE(service_->BeginNativeWorkflowStep(id_, 1));
+  ASSERT_TRUE(service_->RestoreMission(id_));
+  EXPECT_EQ("paused", mission().operational_workflow->run_state);
+  EXPECT_FALSE(Resolve(mission()));
+  EXPECT_FALSE(service_->BeginNativeWorkflowStep(id_, 1));
+  ASSERT_TRUE(service_->SetOperationalWorkflowRunState(id_, "running"));
+  ASSERT_EQ(IDC_FOCUS_LOCATION, Resolve(mission()));
+  ASSERT_TRUE(service_->BeginNativeWorkflowStep(id_, 1));
+  ASSERT_TRUE(service_->ArchiveMission(id_));
+  EXPECT_EQ("paused", mission().operational_workflow->run_state);
+  ASSERT_TRUE(service_->FinishNativeWorkflowStep(id_, 1, "dispatched"));
+  EXPECT_EQ("dispatched", mission().steps[1].action_state);
+  EXPECT_EQ("paused", mission().operational_workflow->run_state);
+  ASSERT_TRUE(service_->RestoreMission(id_));
+  EXPECT_FALSE(service_->ToggleStep(id_, 1));
+  EXPECT_FALSE(service_->BeginNativeWorkflowStep(id_, 1));
+  ASSERT_TRUE(service_->SetOperationalWorkflowRunState(id_, "running"));
+  ASSERT_TRUE(service_->ToggleStep(id_, 1));
+  ASSERT_TRUE(service_->SetOperationalWorkflowRunState(id_, "succeeded"));
+  ASSERT_TRUE(service_->ArchiveMission(id_));
+  ASSERT_TRUE(service_->RestoreMission(id_));
+  EXPECT_EQ("succeeded", mission().operational_workflow->run_state);
+  EXPECT_FALSE(service_->SetOperationalWorkflowRunState(id_, "running"));
+}
+
+TEST_F(TahaiWorkflowNativeTest,
+       LegacyArchivedRunningSnapshotRequiresExplicitResume) {
+  ASSERT_TRUE(service_->ToggleStep(id_, 0));
+  auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  ASSERT_EQ(1u, saved.size());
+  saved.front().GetDict().Set("archived", true);
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, std::move(saved));
+  service_ = std::make_unique<MissionService>(&profile_);
+  ASSERT_EQ(1u, service_->missions().size());
+  ASSERT_TRUE(mission().operational_workflow);
+  EXPECT_TRUE(mission().archived);
+  EXPECT_EQ("paused", mission().operational_workflow->run_state);
+  EXPECT_TRUE(mission().timeline_integrity_verified);
+  ASSERT_TRUE(service_->RestoreMission(id_));
+  EXPECT_FALSE(Resolve(mission()));
+  EXPECT_FALSE(service_->BeginNativeWorkflowStep(id_, 1));
+  service_ = std::make_unique<MissionService>(&profile_);
+  EXPECT_EQ("paused", mission().operational_workflow->run_state);
+  ASSERT_TRUE(service_->SetOperationalWorkflowRunState(id_, "running"));
+  EXPECT_EQ(IDC_FOCUS_LOCATION, Resolve(mission()));
+}
+
 TEST_F(TahaiWorkflowNativeTest, LegacyMissionNeverAcquiresCommandAuthority) {
   auto legacy = service_->CreateOperationalWorkflowMission(
       manifest_.workflows[0], manifest_.appearance.id, sha_);

@@ -96,7 +96,8 @@ bool IsValidRequest(Profile* profile, const TahaiCapabilityRequest& request) {
   // Revalidate the browser-held document on every call, including after a
   // same-origin reload, frame replacement, tab closure or BFCache transition.
   return frame && frame->GetBrowserContext() == profile && frame->IsActive() &&
-         frame->IsInPrimaryMainFrame() &&
+         frame->IsRenderFrameLive() && frame->IsInPrimaryMainFrame() &&
+         frame->GetLastCommittedURL().SchemeIs("https") &&
          !frame->GetLastCommittedURL().has_username() &&
          !frame->GetLastCommittedURL().has_password() &&
          IsSafeIdentifier(request.provider_id) &&
@@ -118,6 +119,13 @@ bool IsSameGrant(const TahaiCapabilityGrant& first,
 std::optional<std::vector<TahaiCapabilityGrant>> ReadGrants(Profile* profile) {
   std::vector<TahaiCapabilityGrant> grants;
   if (!CanManageGrants(profile)) {
+    return std::nullopt;
+  }
+  const base::Value* user_value =
+      profile->GetPrefs()->GetUserPrefValue(prefs::kTahaiCapabilityGrants);
+  if (user_value && !user_value->is_dict()) {
+    // A registered default is not evidence that unfamiliar durable storage
+    // was empty. A review must never silently repair or replace such a store.
     return std::nullopt;
   }
   const base::DictValue& stored =

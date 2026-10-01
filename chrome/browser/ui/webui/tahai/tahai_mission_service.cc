@@ -131,11 +131,11 @@ bool IsOperationalWorkflowStateEvent(std::string_view detail) {
 }
 
 bool IsSafeTitle(std::string_view title) {
-  if (title.empty() || title.size() > 128u) {
+  if (title.empty() || title.size() > 128u || !base::IsStringUTF8(title)) {
     return false;
   }
   for (char c : title) {
-    if (static_cast<unsigned char>(c) < 0x20u) {
+    if (static_cast<unsigned char>(c) < 0x20u || c == '\x7f') {
       return false;
     }
   }
@@ -143,7 +143,8 @@ bool IsSafeTitle(std::string_view title) {
 }
 
 bool IsSafeMissionNote(std::string_view note) {
-  if (note.empty() || note.size() > kMaximumMissionNoteLength) {
+  if (note.empty() || note.size() > kMaximumMissionNoteLength ||
+      !base::IsStringUTF8(note)) {
     return false;
   }
   if (!std::all_of(note.begin(), note.end(), [](unsigned char character) {
@@ -230,8 +231,9 @@ bool VerifyTimelineLedger(const MissionSummary& mission) {
 
 std::string DuplicateTitle(std::string_view title) {
   CHECK_LE(kDuplicateTitleSuffix.size(), 128u);
-  return base::StrCat({title.substr(0, 128u - kDuplicateTitleSuffix.size()),
-                       kDuplicateTitleSuffix});
+  return base::StrCat(
+      {base::TruncateUTF8ToByteSize(title, 128u - kDuplicateTitleSuffix.size()),
+       kDuplicateTitleSuffix});
 }
 
 std::string NowAsWindowsEpochMicros() {
@@ -2026,7 +2028,11 @@ bool MissionService::ArchiveMission(std::string_view mission_id) {
     return false;
   }
   mission->archived = true;
-  if (SuspendMissionWaits(*mission) && mission->operational_workflow &&
+  SuspendMissionWaits(*mission);
+  // Archiving suspends the whole run, not just an active local wait. Merely
+  // restoring a record must not re-enable the next native action/assignment.
+  // An in-flight attempt still settles on its existing bounded deadline.
+  if (mission->operational_workflow &&
       mission->operational_workflow->run_state == "running") {
     mission->operational_workflow->run_state = "paused";
     AppendGeneratedEvent(mission, "mission", "Operational workflow state: paused");
@@ -2082,6 +2088,7 @@ bool MissionService::persistence_enabled() const {
 
 void MissionService::Load() {
   missions_.clear();
+  std::set<std::string> loaded_ids;
   for (const base::Value& mission_value :
        prefs_->GetList(prefs::kTahaiMissions)) {
     const base::DictValue* dict = mission_value.GetIfDict();
@@ -2094,7 +2101,7 @@ void MissionService::Load() {
     const std::string* created_at = dict->FindString("created_at");
     if (!id || !title || !type || !created_at || !IsValidId(*id) ||
         !IsSafeTitle(*title) || !IsSafeTimestamp(*created_at) ||
-        !IsAllowedType(*type)) {
+        !IsAllowedType(*type) || !loaded_ids.insert(*id).second) {
       continue;
     }
     MissionSummary mission;
@@ -2520,7 +2527,8 @@ void MissionService::Load() {
         }
       }
     }
-    bool discarded_ledger_record = false;
+    bool discarded_ledger_record =
+        dict->contains("timeline") && !dict->FindList("timeline");
     if (const base::ListValue* saved_timeline = dict->FindList("timeline")) {
       for (const base::Value& event_value : *saved_timeline) {
         const base::DictValue* event = event_value.GetIfDict();
@@ -2533,6 +2541,7 @@ void MissionService::Load() {
             !IsAllowedTimelineKind(*kind) ||
             !IsGeneratedTimelineDetail(mission, *kind, *detail) ||
             !IsSafeTimestamp(*event_created_at)) {
+          discarded_ledger_record = true;
           continue;
         }
         const std::string* previous_hash = event->FindString("previous_hash");
@@ -2541,10 +2550,8 @@ void MissionService::Load() {
             (!previous_hash || !entry_hash ||
              (!previous_hash->empty() && !IsLedgerHash(*previous_hash)) ||
              !IsLedgerHash(*entry_hash))) {
-          // An otherwise valid generated record with a malformed ledger is
-          // different from an arbitrary preference payload. Keep the latter
-          // out of Mission state silently; retain an explicit integrity
-          // warning for the former so it cannot be exported as evidence.
+          // Never admit malformed ledger fields or silently turn a partially
+          // discarded history into a verified evidence record.
           discarded_ledger_record = true;
           continue;
         }
@@ -2558,7 +2565,6 @@ void MissionService::Load() {
     }
     if (mission.timeline.empty()) {
       AppendGeneratedEvent(&mission, "mission", "Mission loaded");
-      mission.timeline_integrity_verified = !discarded_ledger_record;
     } else if (std::any_of(mission.timeline.begin(), mission.timeline.end(),
                            [](const MissionEvent& event) {
                              return event.entry_hash.empty();
@@ -2569,6 +2575,13 @@ void MissionService::Load() {
       mission.timeline.clear();
       mission.timeline_integrity_verified = false;
       AppendGeneratedEvent(&mission, "mission", "Mission loaded");
+    }
+    // An anchored suffix can still verify after a malformed oldest event was
+    // discarded. That proves only the retained suffix, not the loaded history.
+    // Likewise, a preexisting integrity warning is sticky even when no events
+    // remain; loading or later edits must not manufacture historical evidence.
+    if (discarded_ledger_record) {
+      mission.timeline_integrity_verified = false;
     }
     // A persisted pending attempt has already become unknown above. Older
     // snapshots could also leave a rejected/unknown run active (or even claim
@@ -2585,6 +2598,15 @@ void MissionService::Load() {
         })) {
       mission.operational_workflow->run_state = "failed";
       AppendGeneratedEvent(&mission, "mission", "Operational workflow state: failed");
+    }
+    // Older versions suspended only runs with a currently waiting timer.
+    // Preserve terminal results, but restore every archived active run paused
+    // so unarchiving alone is never a resume gesture.
+    if (mission.archived && mission.operational_workflow &&
+        mission.operational_workflow->run_state == "running") {
+      mission.operational_workflow->run_state = "paused";
+      AppendGeneratedEvent(&mission, "mission",
+                           "Operational workflow state: paused");
     }
     // Older snapshots could leave an optional branch choice unset while
     // reporting a running checklist. Restore the unresolved gate explicitly;

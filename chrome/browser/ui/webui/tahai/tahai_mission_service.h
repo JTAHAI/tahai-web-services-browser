@@ -173,6 +173,8 @@ struct MissionSummary {
   // Archived missions are retained as immutable local records. They may be
   // restored or used as the source for a fresh generated runbook, but their
   // checkpoint, evidence, escalation, and export state cannot be changed.
+  // Archiving a running operational workflow pauses it even without an active
+  // wait; restoring the record never substitutes for explicit workflow resume.
   bool archived = false;
   std::optional<OperationalWorkflowSource> operational_workflow;
   // Browser-owned freshness token for local assignment controls. Runtime only:

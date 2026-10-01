@@ -581,7 +581,7 @@ std::vector<LocalOiSearchResult> SearchLocalOiSnapshot(
         MatchesSearchFilters(options, entity.kind, entity.mission_id, "", "",
                              entity.created_at)) {
       append({entity.kind, entity.mission_id, entity.label, entity.detail, "",
-              "", entity.created_at},
+              "", entity.created_at, entity.id},
              match_score);
     }
   }
@@ -596,7 +596,7 @@ std::vector<LocalOiSearchResult> SearchLocalOiSnapshot(
                              finding_state, finding.created_at)) {
       append({"finding", finding.mission_id, finding.title,
               finding.recommendation, std::string(severity),
-              std::string(finding_state), finding.created_at},
+              std::string(finding_state), finding.created_at, ""},
              match_score);
     }
   }
@@ -607,7 +607,7 @@ std::vector<LocalOiSearchResult> SearchLocalOiSnapshot(
         MatchesSearchFilters(options, "memory", memory.mission_id, "", "",
                              memory.created_at)) {
       append({"memory", memory.mission_id, memory.kind, memory.detail, "", "",
-              memory.created_at},
+              memory.created_at, ""},
              match_score);
     }
   }

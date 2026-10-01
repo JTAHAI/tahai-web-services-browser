@@ -30,7 +30,7 @@ try {
     foreach ($name in @('workflow_designer', 'workflow_editor_events', 'workflow_input_events',
                        'studio_editor', 'studio_palette_events', 'studio_history', 'studio_transfer', 'offline_creator', 'native_mode_placement',
                        'surface_designer', 'surface_designer_events', 'capability_review_events',
-                       'local_oi_controls')) {
+                       'local_oi_controls', 'work_modes_events', 'local_oi_navigation')) {
         Invoke-SourceCheck $name $NodeExecutable @("tools/tahai/${name}_test.js")
     }
     foreach ($name in @('source_provenance', 'audit_guard_dependencies', 'check_windows_build_prerequisites')) {
@@ -48,7 +48,7 @@ try {
     if ($RenderCss) {
         Invoke-SourceCheck 'source-render-and-command-palette' $PythonExecutable @('tools/tahai/royal_brand_render_test.py')
     }
-    if ($taskResults.Count -ne (25 + [int]$RenderCss.IsPresent)) { throw 'Incomplete or zero source-check selection' }
+    if ($taskResults.Count -ne (27 + [int]$RenderCss.IsPresent)) { throw 'Incomplete or zero source-check selection' }
     $taskExit = 0
 } finally {
     [ordered]@{

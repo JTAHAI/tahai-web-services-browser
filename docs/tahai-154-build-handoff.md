@@ -176,6 +176,15 @@ manager activation must stop on synchronous close, retarget and trust revocation
 The creator-kit check also compares bundled compatibility against `chrome/VERSION`.
 The source-only JS/creator tests do not substitute for these native tests.
 
+The cross-feature follow-up adds required native coverage for Work Mode preference
+authority, preservation, shutdown/reentrancy and private-profile acknowledgment;
+workspace storage policy; mission ledger integrity and UTF-8; archive/restore
+workflow suspension; Local OI generation/schema integrity and finding projections;
+and live-document capability boundaries. Run the complete scopes, not only the
+new sentinels. The source preflight now also exercises actual shipped Work Modes
+and Local OI request/navigation JavaScript with DOM doubles. Those tests are not
+native WebUI or Windows integration evidence.
+
 ## Operational and package acceptance still required
 
 After all four native gates pass, launch only the new binary with a new explicit

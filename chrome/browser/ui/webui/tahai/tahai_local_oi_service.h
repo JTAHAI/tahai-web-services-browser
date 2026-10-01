@@ -170,9 +170,14 @@ class TahaiLocalOiService : public KeyedService {
   TahaiLocalOiService& operator=(const TahaiLocalOiService&) = delete;
   ~TahaiLocalOiService() override;
 
-  const LocalOiStoreData& data() const { return store_.data(); }
+  // Public projections must respect availability and collection policy too;
+  // native read-only consumers must not bypass disabled Local OI through
+  // data().
+  const LocalOiStoreData& data() const;
   LocalOiStoreStatus store_status() const { return store_.status(); }
-  bool available() const { return !shutdown_; }
+  bool available() const {
+    return !shutdown_ && store_.status() != LocalOiStoreStatus::kUnavailable;
+  }
 
   bool UpsertEntity(LocalOiEntityRecord record);
   bool UpsertRelationship(LocalOiRelationshipRecord record);

@@ -317,6 +317,13 @@ std::optional<std::vector<NamedWorkspace>> NamedWorkspaceStore::Read() const {
   if (!enabled()) {
     return std::nullopt;
   }
+  const auto* user_value =
+      profile_->GetPrefs()->GetUserPrefValue(prefs::kTahaiNamedWorkspaces);
+  if (user_value && !user_value->is_dict()) {
+    // PrefService's default-dictionary fallback is not an empty user store.
+    // Preserve corrupt/future data instead of replacing it with the next save.
+    return std::nullopt;
+  }
   const auto& root =
       profile_->GetPrefs()->GetDict(prefs::kTahaiNamedWorkspaces);
   if (root.empty()) {
@@ -359,7 +366,9 @@ std::optional<NamedWorkspace> NamedWorkspaceStore::Find(
 }
 
 bool NamedWorkspaceStore::Write(const std::vector<NamedWorkspace>& workspaces) {
-  if (!enabled() || workspaces.size() > kMaxWorkspaces) {
+  if (!enabled() || workspaces.size() > kMaxWorkspaces ||
+      profile_->GetPrefs()->IsManagedPreference(prefs::kTahaiNamedWorkspaces) ||
+      !Read()) {
     return false;
   }
   base::ListValue entries;

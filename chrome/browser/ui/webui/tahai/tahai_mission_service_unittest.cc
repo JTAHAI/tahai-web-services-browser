@@ -3307,6 +3307,7 @@ TEST_F(MissionServiceTest, ReloadsOnlyGeneratedMissionVocabulary) {
   EXPECT_FALSE(restored.steps.front().complete);
   ASSERT_EQ(1u, restored.timeline.size());
   EXPECT_EQ("Mission loaded", restored.timeline.front().detail);
+  EXPECT_FALSE(restored.timeline_integrity_verified);
 }
 
 TEST_F(MissionServiceTest, SupportsNativeElectronParityMissionFamilies) {
@@ -5144,6 +5145,123 @@ TEST_F(MissionServiceTest, RejectsTamperedGeneratedLedgerRecords) {
   EXPECT_EQ("Mission loaded", mission.timeline.front().detail);
 }
 
+TEST_F(MissionServiceTest,
+       DiscardedOldestLedgerRecordCannotVerifyRemainingHistory) {
+  {
+    MissionService service(&profile_);
+    const auto mission = service.CreateMission("Ledger boundary", "change");
+    ASSERT_TRUE(mission);
+    ASSERT_TRUE(service.ToggleStep(mission->id, 0u));
+    ASSERT_TRUE(service.AddEvidenceMarker(mission->id));
+  }
+  const auto saved =
+      profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  // Every variant removes only the oldest record, so the remaining anchored
+  // suffix still has valid hashes. It must not erase the integrity warning.
+  for (int variant = 0; variant < 5; ++variant) {
+    SCOPED_TRACE(variant);
+    auto damaged = saved.Clone();
+    auto* timeline = damaged.front().GetDict().FindList("timeline");
+    ASSERT_TRUE(timeline);
+    ASSERT_EQ(3u, timeline->size());
+    auto& oldest = timeline->back().GetDict();
+    if (variant == 0) {
+      oldest.Set("entry_hash", "invalid");
+    }
+    if (variant == 1) {
+      oldest.Remove("previous_hash");
+    }
+    if (variant == 2) {
+      oldest.Set("kind", "unrecognized");
+    }
+    if (variant == 3) {
+      oldest.Set("created_at", "not-a-timestamp");
+    }
+    if (variant == 4) {
+      oldest.Set("detail", "Not a generated event");
+    }
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, std::move(damaged));
+    MissionService restored(&profile_);
+    ASSERT_EQ(1u, restored.missions().size());
+    EXPECT_EQ(2u, restored.missions().front().timeline.size());
+    EXPECT_FALSE(restored.missions().front().timeline_integrity_verified);
+    ASSERT_TRUE(restored.AddEvidenceMarker(restored.missions().front().id));
+    MissionService reloaded(&profile_);
+    ASSERT_EQ(1u, reloaded.missions().size());
+    EXPECT_FALSE(reloaded.missions().front().timeline_integrity_verified);
+  }
+}
+
+TEST_F(MissionServiceTest, EmptyOrMalformedHistoryCannotClearIntegrityWarning) {
+  {
+    MissionService service(&profile_);
+    ASSERT_TRUE(service.CreateMission("Integrity warning", "audit"));
+  }
+  const auto saved =
+      profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  for (int variant = 0; variant < 4; ++variant) {
+    SCOPED_TRACE(variant);
+    auto damaged = saved.Clone();
+    auto& stored = damaged.front().GetDict();
+    if (variant == 0) {
+      stored.Set("timeline", base::ListValue());
+      stored.Set("timeline_integrity_verified", false);
+    } else if (variant == 1) {
+      stored.Remove("timeline");
+      stored.Set("timeline_integrity_verified", false);
+    } else if (variant == 2) {
+      stored.Set("timeline", "invalid");
+    } else {
+      base::ListValue invalid;
+      invalid.Append(base::DictValue());
+      stored.Set("timeline", std::move(invalid));
+    }
+    profile_.GetPrefs()->SetList(prefs::kTahaiMissions, std::move(damaged));
+    MissionService restored(&profile_);
+    ASSERT_EQ(1u, restored.missions().size());
+    ASSERT_EQ(1u, restored.missions().front().timeline.size());
+    EXPECT_EQ("Mission loaded",
+              restored.missions().front().timeline.front().detail);
+    EXPECT_FALSE(restored.missions().front().timeline_integrity_verified);
+    ASSERT_TRUE(restored.ToggleStep(restored.missions().front().id, 0u));
+    MissionService reloaded(&profile_);
+    ASSERT_EQ(1u, reloaded.missions().size());
+    EXPECT_FALSE(reloaded.missions().front().timeline_integrity_verified);
+  }
+}
+
+TEST_F(MissionServiceTest, RestoredMissionIdentifiersRemainUnambiguous) {
+  std::string first_id;
+  std::string second_id;
+  {
+    MissionService service(&profile_);
+    const auto first = service.CreateMission("First mission", "change");
+    const auto second = service.CreateMission("Second mission", "audit");
+    ASSERT_TRUE(first);
+    ASSERT_TRUE(second);
+    first_id = first->id;
+    second_id = second->id;
+  }
+  auto stored = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+  auto duplicate = stored.front().Clone();
+  duplicate.GetDict().Set("title", "Conflicting duplicate");
+  duplicate.GetDict().Set("archived", true);
+  stored.Append(std::move(duplicate));
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, std::move(stored));
+  MissionService restored(&profile_);
+  ASSERT_EQ(2u, restored.missions().size());
+  EXPECT_EQ(first_id, restored.missions()[0].id);
+  EXPECT_EQ(second_id, restored.missions()[1].id);
+  EXPECT_EQ("First mission", restored.missions()[0].title);
+  EXPECT_FALSE(restored.missions()[0].archived);
+  ASSERT_TRUE(restored.ToggleStep(first_id, 0u));
+  EXPECT_TRUE(restored.missions()[0].steps[0].complete);
+  EXPECT_FALSE(restored.missions()[1].steps[0].complete);
+  ASSERT_EQ(2u, profile_.GetPrefs()->GetList(prefs::kTahaiMissions).size());
+  MissionService reloaded(&profile_);
+  EXPECT_EQ(2u, reloaded.missions().size());
+}
+
 TEST_F(MissionServiceTest, PersistsGeneratedRunbookAndEvidencePackState) {
   std::string mission_id;
   {
@@ -5253,6 +5371,45 @@ TEST_F(MissionServiceTest, DuplicateTitleRemainsWithinTheSchemaLimit) {
   EXPECT_EQ(128u, duplicate->title.size());
   EXPECT_TRUE(
       base::EndsWith(duplicate->title, " copy", base::CompareCase::SENSITIVE));
+}
+
+TEST_F(MissionServiceTest,
+       MissionTextRemainsValidUtf8AcrossDuplicationAndRestore) {
+  MissionService service(&profile_);
+  const std::string compass = "\xF0\x9F\xA7\xAD";
+  const std::string boundary = std::string(121u, 'a') + compass + "xyz";
+  ASSERT_EQ(128u, boundary.size());
+  const auto source = service.CreateMission(boundary, "audit");
+  ASSERT_TRUE(source);
+  const auto duplicate = service.DuplicateMission(source->id);
+  ASSERT_TRUE(duplicate);
+  EXPECT_EQ(std::string(121u, 'a') + " copy", duplicate->title);
+  EXPECT_TRUE(base::IsStringUTF8(duplicate->title));
+
+  const auto exact = service.CreateMission(
+      std::string(119u, 'b') + compass + "tail!", "audit");
+  ASSERT_TRUE(exact);
+  const auto exact_copy = service.DuplicateMission(exact->id);
+  ASSERT_TRUE(exact_copy);
+  EXPECT_EQ(std::string(119u, 'b') + compass + " copy", exact_copy->title);
+  EXPECT_EQ(128u, exact_copy->title.size());
+  EXPECT_TRUE(service.AddLocalNote(source->id, "Review direction " + compass));
+
+  for (const auto& invalid :
+       {std::string("broken \xF0\x9F"), std::string("broken \xC0\xAF"),
+        std::string("hidden\x7f")}) {
+    EXPECT_FALSE(service.CreateMission(invalid, "audit"));
+    EXPECT_FALSE(service.AddLocalNote(source->id, invalid));
+  }
+  MissionService restored(&profile_);
+  ASSERT_EQ(4u, restored.missions().size());
+  for (const auto& mission : restored.missions()) {
+    EXPECT_TRUE(base::IsStringUTF8(mission.title));
+    EXPECT_LE(mission.title.size(), 128u);
+  }
+  ASSERT_EQ(1u, restored.missions()[0].notes.size());
+  EXPECT_EQ("Review direction " + compass,
+            restored.missions()[0].notes[0].text);
 }
 
 TEST_F(MissionServiceTest, EnforcesMissionCountLimit) {
@@ -7118,6 +7275,47 @@ TEST_F(MissionServiceTest,
   EXPECT_FALSE(local_oi.ConfigureEnvironmentClassification(
       TahaiEnvironment::kSensitive, "https://admin.example.com",
       "not-a-local-oi-id"));
+}
+
+TEST_F(MissionServiceTest, LocalOiSearchRetainsOnlyTypedEntityDetailTargets) {
+  const std::string mission_id = NewLocalOiId();
+  const std::string endpoint_id = NewLocalOiId();
+  LocalOiSnapshot snapshot;
+  snapshot.entities = {{mission_id, mission_id, "mission", "Release mission",
+                        "Typed mission", "1", ""},
+                       {endpoint_id, mission_id, "endpoint", "Release endpoint",
+                        "Typed endpoint", "1", ""}};
+  snapshot.findings.push_back(
+      {NewLocalOiId(), mission_id, "Release mission",
+       LocalOiSeverity::kAttention, LocalOiFindingState::kOpen, false,
+       "Release finding", "Typed finding", "Review the existing context", "1",
+       "local rule basis"});
+  snapshot.memory.push_back(
+      {mission_id, "release", "Release context reviewed", "1"});
+
+  const auto results = SearchLocalOiSnapshot(snapshot, "release");
+  ASSERT_EQ(4u, results.size());
+  size_t typed_results = 0;
+  size_t summary_results = 0;
+  for (const auto& result : results) {
+    EXPECT_EQ(mission_id, result.mission_id);
+    if (result.kind == "mission" || result.kind == "endpoint") {
+      ++typed_results;
+      EXPECT_EQ(result.kind == "mission" ? mission_id : endpoint_id,
+                result.entity_id);
+      const auto detail = GetLocalOiEntityDetail(snapshot, result.entity_id);
+      ASSERT_TRUE(detail);
+      EXPECT_EQ(result.title, detail->label);
+      EXPECT_EQ(result.kind, detail->kind);
+    } else {
+      ++summary_results;
+      EXPECT_TRUE(result.kind == "finding" || result.kind == "memory");
+      EXPECT_TRUE(result.entity_id.empty());
+      EXPECT_FALSE(GetLocalOiEntityDetail(snapshot, result.entity_id));
+    }
+  }
+  EXPECT_EQ(2u, typed_results);
+  EXPECT_EQ(2u, summary_results);
 }
 
 TEST_F(MissionServiceTest, LocalOiEmptyStoreHasNoSyntheticProjection) {

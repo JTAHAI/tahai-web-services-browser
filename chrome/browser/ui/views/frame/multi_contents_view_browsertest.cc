@@ -31,11 +31,14 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/tahai/tahai_mode_command_model.h"
 #include "chrome/browser/ui/tahai/tahai_mode_service.h"
 #include "chrome/browser/ui/tahai/tahai_named_workspace_controller.h"
@@ -213,6 +216,60 @@ tahai::SurfaceDesign ReferenceSurfaceDesign() {
       .rail_dock = "trailing", .gap = 12, .keyboard_order = {1, 2, 0}};
 }
 
+class TahaiWorkspaceVisualInterruption : public BrowserCollectionObserver,
+                                         public TabStripModelObserver {
+ public:
+  explicit TahaiWorkspaceVisualInterruption(
+      base::OnceCallback<void(BrowserWindowInterface*)> callback)
+      : callback_(std::move(callback)) {
+    browsers_.Observe(GlobalBrowserCollection::GetInstance());
+  }
+
+  void OnBrowserCreated(BrowserWindowInterface* browser) override {
+    browsers_.Reset();
+    restored = browser->GetWeakPtr();
+    tabs_.Observe(browser->GetTabStripModel());
+  }
+
+  void OnTabGroupChanged(const TabGroupChange& change) override {
+    if (change.type != TabGroupChange::kVisualsChanged ||
+        change.GetVisualsChange()->new_visuals->title() != u"Restored first") {
+      return;
+    }
+    // Visual changes are outside the tab-strip mutation guard. Stop observing
+    // before the deliberate structural change emits its own notifications.
+    tabs_.Reset();
+    std::move(callback_).Run(restored.get());
+  }
+
+  base::WeakPtr<BrowserWindowInterface> restored;
+
+ private:
+  base::OnceCallback<void(BrowserWindowInterface*)> callback_;
+  base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
+      browsers_{this};
+  base::ScopedObservation<TabStripModel, TabStripModelObserver> tabs_{this};
+};
+
+std::optional<std::string> SaveTahaiGroupedRestoreFixture(
+    BrowserWindowInterface* browser) {
+  AddBlankTabsUntilCount(browser, 4u);
+  auto* model = browser->GetTabStripModel();
+  const auto first = model->AddToNewGroup({0, 1});
+  const auto second = model->AddToNewGroup({2, 3});
+  model->ChangeTabGroupVisuals(
+      first, tab_groups::TabGroupVisualData(
+                 u"Restored first", tab_groups::TabGroupColorId::kBlue));
+  model->ChangeTabGroupVisuals(
+      second, tab_groups::TabGroupVisualData(
+                  u"Restored second", tab_groups::TabGroupColorId::kGreen));
+  const auto capture =
+      tahai::CaptureNamedWorkspace(browser, "Restore boundary");
+  return capture.workspace ? tahai::NamedWorkspaceStore(browser->GetProfile())
+                                 .Add(*capture.workspace)
+                           : std::nullopt;
+}
+
 }  // namespace
 
 class MultiContentsViewBrowserTest
@@ -287,6 +344,52 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   EXPECT_TRUE(
       restored_model->GetWebContentsAt(5)->GetController().NeedsReload());
   EXPECT_FALSE(restored_model->GetWebContentsAt(5)->IsLoading());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiNamedWorkspaceStopsAfterObserverRemovesNextGroup) {
+  const auto id = SaveTahaiGroupedRestoreFixture(browser());
+  ASSERT_TRUE(id);
+  bool interrupted = false;
+  TahaiWorkspaceVisualInterruption observer(
+      base::BindLambdaForTesting([&](BrowserWindowInterface* restored) {
+        ASSERT_TRUE(restored);
+        auto* model = restored->GetTabStripModel();
+        ASSERT_EQ(4, model->count());
+        ASSERT_TRUE(model->GetTabAtIndex(2)->GetGroup());
+        model->RemoveFromGroup({2, 3});
+        interrupted = true;
+      }));
+  EXPECT_EQ(nullptr, tahai::OpenNamedWorkspace(browser(), *id));
+  ASSERT_TRUE(interrupted);
+  ASSERT_TRUE(observer.restored);
+  auto* model = observer.restored->GetTabStripModel();
+  EXPECT_EQ(4, model->count());
+  EXPECT_FALSE(model->GetTabAtIndex(2)->GetGroup());
+  EXPECT_FALSE(model->GetTabAtIndex(3)->GetGroup());
+  EXPECT_TRUE(browser()->GetTabStripModel()->GetTabAtIndex(2)->GetGroup());
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiNamedWorkspaceStopsAfterObserverReordersTabs) {
+  const auto id = SaveTahaiGroupedRestoreFixture(browser());
+  ASSERT_TRUE(id);
+  base::WeakPtr<tabs::TabInterface> moved_tab;
+  TahaiWorkspaceVisualInterruption observer(
+      base::BindLambdaForTesting([&](BrowserWindowInterface* restored) {
+        ASSERT_TRUE(restored);
+        auto* model = restored->GetTabStripModel();
+        ASSERT_EQ(4, model->count());
+        moved_tab = model->GetTabAtIndex(3)->GetWeakPtr();
+        model->MoveWebContentsAt(3, 2, false);
+      }));
+  EXPECT_EQ(nullptr, tahai::OpenNamedWorkspace(browser(), *id));
+  ASSERT_TRUE(observer.restored);
+  ASSERT_TRUE(moved_tab);
+  auto* model = observer.restored->GetTabStripModel();
+  EXPECT_EQ(4, model->count());
+  EXPECT_EQ(moved_tab.get(), model->GetTabAtIndex(2));
+  EXPECT_EQ(4, browser()->GetTabStripModel()->count());
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,

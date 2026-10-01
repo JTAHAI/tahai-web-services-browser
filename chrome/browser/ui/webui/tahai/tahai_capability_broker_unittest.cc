@@ -11,8 +11,11 @@
 #include "components/prefs/pref_service.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/test/mock_render_process_host.h"
+#include "content/public/test/navigation_simulator.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 namespace tahai {
 namespace {
@@ -73,6 +76,36 @@ TEST_F(TahaiCapabilityBrokerTest, SameOriginNavigationExpiresCapturedDocument) {
   EXPECT_FALSE(broker.IsAllowed(Request()));
 }
 
+TEST_F(TahaiCapabilityBrokerTest, CrashedDocumentCannotGrantOrUseCapability) {
+  TahaiCapabilityBroker broker(profile());
+  const auto request = Request();
+  ASSERT_TRUE(broker.GrantReviewed(request));
+  ASSERT_TRUE(main_rfh()->IsRenderFrameLive());
+  static_cast<content::MockRenderProcessHost*>(main_rfh()->GetProcess())
+      ->SimulateRenderProcessExit(base::TERMINATION_STATUS_PROCESS_CRASHED, 0);
+  EXPECT_FALSE(main_rfh()->IsRenderFrameLive());
+  EXPECT_FALSE(broker.IsAllowed(request));
+  EXPECT_FALSE(broker.GrantReviewed(request));
+  // Crashing is not a preference revocation. A new, live reviewed-origin
+  // document may use the existing grant, but never the dead document handle.
+  NavigateAndCommit(GURL("https://connector.example/recovered"));
+  EXPECT_TRUE(broker.IsAllowed(Request()));
+  EXPECT_FALSE(broker.IsAllowed(request));
+}
+
+TEST_F(TahaiCapabilityBrokerTest, InheritedOriginIsNotAnHttpsDocument) {
+  TahaiCapabilityBroker broker(profile());
+  ASSERT_TRUE(broker.GrantReviewed(Request()));
+  const url::Origin approved_origin = main_rfh()->GetLastCommittedOrigin();
+  content::NavigationSimulator::NavigateAndCommitFromDocument(
+      GURL("about:blank"), main_rfh());
+  EXPECT_EQ(GURL("about:blank"), main_rfh()->GetLastCommittedURL());
+  ASSERT_EQ(approved_origin, main_rfh()->GetLastCommittedOrigin());
+  EXPECT_FALSE(broker.GrantReviewed(Request()));
+  EXPECT_FALSE(broker.IsAllowed(Request()));
+  ASSERT_EQ(1u, broker.GetGrants().size());
+}
+
 TEST_F(TahaiCapabilityBrokerTest, RejectsPrivateForeignAndManagedProfiles) {
   TahaiCapabilityBroker broker(profile());
   const auto request = Request();
@@ -113,6 +146,22 @@ TEST_F(TahaiCapabilityBrokerTest, PreservesMalformedStateAndDeniesGrants) {
   EXPECT_FALSE(broker.RevokeAllForProvider(request.provider_id));
   EXPECT_TRUE(broker.GetGrants().empty());
   EXPECT_EQ(malformed, profile()->GetPrefs()->GetDict(prefs::kTahaiCapabilityGrants));
+}
+
+TEST_F(TahaiCapabilityBrokerTest, WrongTypedStorageCannotBeRepairedByGrant) {
+  TahaiCapabilityBroker broker(profile());
+  const base::Value original("Unfamiliar capability store encoding.");
+  profile()->GetTestingPrefService()->SetUserPref(prefs::kTahaiCapabilityGrants,
+                                                  original.Clone());
+  const auto request = Request();
+  EXPECT_FALSE(broker.GrantReviewed(request));
+  EXPECT_FALSE(broker.IsAllowed(request));
+  EXPECT_FALSE(broker.GetReviewableGrants());
+  EXPECT_FALSE(broker.RevokeAllForProvider(request.provider_id));
+  ASSERT_TRUE(
+      profile()->GetPrefs()->GetUserPrefValue(prefs::kTahaiCapabilityGrants));
+  EXPECT_EQ(original, *profile()->GetPrefs()->GetUserPrefValue(
+                          prefs::kTahaiCapabilityGrants));
 }
 
 TEST_F(TahaiCapabilityBrokerTest, RevokingProviderRemovesEveryRevision) {

@@ -146,7 +146,7 @@ def main():
                     page.keyboard.press('End')
                     checks.append({'name': 'End chooses last command', 'pass': page.evaluate("document.activeElement.dataset.tahaiPaletteCommand==='quad.exit'")})
                     page.keyboard.press('Escape')
-                    page.wait_for_function("document.activeElement.id==='opener'")
+                    page.wait_for_function("() => document.activeElement.id==='opener'")
                     checks.append({'name': 'Escape restores opener focus without dispatch', 'pass': page.evaluate('sent.length===0')})
                     page.keyboard.press('Control+Shift+Space')
                     page.locator('#tahai-palette-input').fill('not-a-command')
@@ -163,11 +163,14 @@ def main():
                     checks.append({'name': 'Royal stylesheet loads under actual source CSP', 'pass': page.evaluate("getComputedStyle(document.body).backgroundColor==='rgb(7, 5, 14)'")})
                     page.evaluate("window.violations=[];document.addEventListener('securitypolicyviolation',event=>violations.push(event.effectiveDirective));")
                     rejected = page.evaluate("async()=>{try{await fetch('data:text/plain,forbidden');return false}catch{return true}}")
-                    page.wait_for_function("violations.includes('connect-src')", timeout=5000)
+                    # Poll a function, not an expression that Playwright's
+                    # page-world predicate evaluates with eval(). The actual
+                    # production CSP must remain intact during this check.
+                    page.wait_for_function("() => violations.includes('connect-src')", timeout=5000)
                     checks.append({'name': 'renderer fetch rejected by connect-src', 'pass': rejected})
                     base_uri = page.evaluate('document.baseURI')
                     page.evaluate("const base=document.createElement('base');base.href='https://replacement.invalid/';document.head.append(base);")
-                    page.wait_for_function("violations.includes('base-uri')", timeout=5000)
+                    page.wait_for_function("() => violations.includes('base-uri')", timeout=5000)
                     checks.append({'name': 'resource base cannot be replaced', 'pass': page.evaluate('document.baseURI') == base_uri})
                 finally:
                     context.close()

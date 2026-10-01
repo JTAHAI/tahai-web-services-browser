@@ -448,6 +448,8 @@ if (is_win) {
       "tahai/tahai_local_oi_store_unittest.cc",
       "tahai/tahai_mission_service_test_main.cc",
       "tahai/tahai_mission_service_unittest.cc",
+      "tahai/tahai_mode_service_unittest.cc",
+      "tahai/tahai_named_workspace_store_unittest.cc",
       "tahai/tahai_workflow_native_unittest.cc",
       "tahai/tahai_workflow_journal_unittest.cc",
       "tahai/tahai_custom_mode_registry_unittest.cc",

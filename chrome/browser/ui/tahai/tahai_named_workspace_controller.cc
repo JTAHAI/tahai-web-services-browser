@@ -6,9 +6,12 @@
 
 #include <algorithm>
 #include <map>
+#include <optional>
 #include <set>
+#include <utility>
 #include <vector>
 
+#include "base/memory/weak_ptr.h"
 #include "base/uuid.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_tabrestore.h"
@@ -22,6 +25,7 @@
 #include "components/sessions/core/serialized_navigation_entry.h"
 #include "components/tabs/public/split_tab_data.h"
 #include "components/tabs/public/tab_group.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
 
@@ -152,6 +156,53 @@ BrowserWindowInterface* OpenNamedWorkspace(BrowserWindowInterface* source,
     restored->GetWindow()->Show();
     return nullptr;
   }
+  struct RestoredTabIdentity {
+    base::WeakPtr<tabs::TabInterface> tab;
+    base::WeakPtr<content::WebContents> contents;
+  };
+  std::vector<RestoredTabIdentity> identities;
+  std::vector<std::optional<tab_groups::TabGroupId>> expected_groups(
+      workspace->tabs.size());
+  std::vector<std::optional<split_tabs::SplitTabId>> expected_splits(
+      workspace->tabs.size());
+  std::vector<std::pair<tab_groups::TabGroupId, tab_groups::TabGroupVisualData>>
+      applied_visuals;
+  bool active_tab_selected = false;
+  const auto matches_restored_tabs = [&] {
+    if (!weak_restored || restored->GetTabStripModel() != model ||
+        model->count() != static_cast<int>(identities.size())) {
+      return false;
+    }
+    for (size_t index = 0; index < identities.size(); ++index) {
+      const auto& identity = identities[index];
+      if (!identity.tab || !identity.contents ||
+          model->GetTabAtIndex(static_cast<int>(index)) != identity.tab.get() ||
+          identity.tab->GetContents() != identity.contents.get() ||
+          identity.tab->IsPinned() != workspace->tabs[index].pinned ||
+          identity.tab->GetGroup() != expected_groups[index] ||
+          identity.tab->GetSplit() != expected_splits[index] ||
+          (expected_groups[index] &&
+           !model->group_model()->ContainsTabGroup(*expected_groups[index])) ||
+          (expected_splits[index] &&
+           !model->GetSplitData(*expected_splits[index]))) {
+        return false;
+      }
+    }
+    for (const auto& [group, visual] : applied_visuals) {
+      if (!model->group_model()->ContainsTabGroup(group) ||
+          *model->group_model()->GetTabGroup(group)->visual_data() != visual) {
+        return false;
+      }
+    }
+    return !active_tab_selected ||
+           model->active_index() == workspace->active_tab;
+  };
+  const auto preserve_interrupted_window = [&]() -> BrowserWindowInterface* {
+    if (weak_restored) {
+      restored->GetWindow()->Show();
+    }
+    return nullptr;
+  };
   // Chromium's restore path creates background WebContents without renderer
   // processes. Only visible panes need loading; do not fetch 64 URLs at once.
   for (size_t index = 0; index < workspace->tabs.size(); ++index) {
@@ -170,12 +221,18 @@ BrowserWindowInterface* OpenNamedWorkspace(BrowserWindowInterface* source,
     if (!weak_restored) {
       return nullptr;
     }
-    if (!contents || contents->GetBrowserContext() != restored->GetProfile() ||
-        model->count() != static_cast<int>(index + 1)) {
+    if (!contents || model->count() != static_cast<int>(index + 1) ||
+        model->GetWebContentsAt(static_cast<int>(index)) != contents ||
+        contents->GetBrowserContext() != restored->GetProfile()) {
       // An unusual browser observer changed the new window. Preserve any
       // work it may have acquired; never force-close a partially opened window.
-      restored->GetWindow()->Show();
-      return nullptr;
+      return preserve_interrupted_window();
+    }
+    identities.push_back(
+        {model->GetTabAtIndex(static_cast<int>(index))->GetWeakPtr(),
+         contents->GetWeakPtr()});
+    if (!matches_restored_tabs()) {
+      return preserve_interrupted_window();
     }
   }
   std::vector<tab_groups::TabGroupId> groups;
@@ -187,20 +244,27 @@ BrowserWindowInterface* OpenNamedWorkspace(BrowserWindowInterface* source,
       }
     }
     groups.push_back(model->AddToNewGroup(indices));
-    if (!weak_restored) {
-      return nullptr;
+    for (int index : indices) {
+      expected_groups[index] = groups.back();
+    }
+    if (!matches_restored_tabs()) {
+      return preserve_interrupted_window();
     }
   }
   for (const auto& split : workspace->splits) {
-    model->RestoreSplit(split_tabs::SplitTabId::GenerateNew(), split.tabs,
-                        split.visual);
-    if (!weak_restored) {
-      return nullptr;
+    const auto split_id = split_tabs::SplitTabId::GenerateNew();
+    model->RestoreSplit(split_id, split.tabs, split.visual);
+    for (int index : split.tabs) {
+      expected_splits[index] = split_id;
+    }
+    if (!matches_restored_tabs()) {
+      return preserve_interrupted_window();
     }
   }
   model->ActivateTabAt(workspace->active_tab);
-  if (!weak_restored) {
-    return nullptr;
+  active_tab_selected = true;
+  if (!matches_restored_tabs()) {
+    return preserve_interrupted_window();
   }
   for (size_t group = 0; group < groups.size(); ++group) {
     auto visual = workspace->groups[group];
@@ -212,8 +276,12 @@ BrowserWindowInterface* OpenNamedWorkspace(BrowserWindowInterface* source,
           tab_groups::TabGroupVisualData(visual.title(), visual.color(), false);
     }
     model->ChangeTabGroupVisuals(groups[group], visual);
-    if (!weak_restored) {
-      return nullptr;
+    applied_visuals.emplace_back(groups[group], visual);
+    // Group visual observers are synchronous and can legitimately rearrange
+    // tabs or remove the next group without destroying the window. Never use
+    // the saved indices/IDs again unless their identities still match.
+    if (!matches_restored_tabs()) {
+      return preserve_interrupted_window();
     }
   }
   auto* mode = WindowModeController::GetForBrowser(restored);
@@ -225,11 +293,12 @@ BrowserWindowInterface* OpenNamedWorkspace(BrowserWindowInterface* source,
                                                       workspace->rail_width));
   // Presentation and Show() notify native observers, which can close a window.
   // Never return or dereference its raw pointer after those callbacks.
-  if (!weak_restored) {
-    return nullptr;
+  if (!matches_restored_tabs()) {
+    return preserve_interrupted_window();
   }
   restored->GetWindow()->Show();
-  return presentation_restored ? weak_restored.get() : nullptr;
+  return presentation_restored && matches_restored_tabs() ? weak_restored.get()
+                                                          : nullptr;
 }
 
 }  // namespace tahai

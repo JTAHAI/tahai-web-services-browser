@@ -121,10 +121,12 @@ inline constexpr char kNativeModeEditorJs[] = R"TAHAI(
 (() => {
   'use strict';
   const status = document.querySelector('#mode-status');
-  if (!status) return;
+  const requests = window.tahaiModeRequests;
+  if (!status || !requests) return;
   const form = document.querySelector('#tahai-native-mode-form');
   if (form) form.addEventListener('submit', event => {
     event.preventDefault();
+    if (requests.busy()) return;
     const data = new FormData(form);
     const title = String(data.get('title') || '').trim();
     const actions = data.getAll('actions').map(String);
@@ -132,21 +134,21 @@ inline constexpr char kNativeModeEditorJs[] = R"TAHAI(
       status.textContent = 'Enter a name and choose at least one native control.';
       return;
     }
-    status.textContent = 'Saving independent mode…';
-    chrome.send('createTahaiNativeCustomMode', [title,
+    requests.send(form, 'createTahaiNativeCustomMode', [title,
       String(data.get('base_mode') || ''),
-      String(data.get('workspace_id') || ''), actions, data.has('retain_skin'), data.has('retain_layout')]);
+      String(data.get('workspace_id') || ''), actions, data.has('retain_skin'), data.has('retain_layout')],
+      'Saving independent mode…');
   });
   for (const button of document.querySelectorAll('[data-tahai-native-mode-use]')) {
     button.addEventListener('click', () => {
-      status.textContent = 'Opening independent mode…';
-      chrome.send('activateTahaiNativeCustomMode',
-        [String(button.dataset.tahaiNativeModeUse || '')]);
+      requests.send(button, 'activateTahaiNativeCustomMode',
+        [String(button.dataset.tahaiNativeModeUse || '')], 'Opening independent mode…');
     });
   }
   for (const editor of document.querySelectorAll('[data-tahai-native-mode-controls]')) {
     editor.addEventListener('submit', event => {
       event.preventDefault();
+      if (requests.busy()) return;
       const title = String(editor.closest('[data-tahai-custom-mode-card]')
         ?.querySelector('[data-tahai-custom-mode-title]')?.value || '').trim();
       const data = new FormData(editor);
@@ -162,10 +164,9 @@ inline constexpr char kNativeModeEditorJs[] = R"TAHAI(
         status.textContent = 'Use unique positions from 1–17 for checked controls, or 0 to hide them. Uncheck a control only after setting all of its positions to 0.';
         return;
       }
-      status.textContent = 'Saving mode controls…';
-      chrome.send('updateTahaiNativeCustomMode', [
+      requests.send(editor, 'updateTahaiNativeCustomMode', [
         String(editor.dataset.tahaiNativeModeControls || ''), title, actions,
-        String(data.get('workspace_id') || ''), layout]);
+        String(data.get('workspace_id') || ''), layout], 'Saving mode controls…');
     });
   }
   for (const button of document.querySelectorAll('[data-tahai-native-mode-copy]')) {
@@ -173,38 +174,30 @@ inline constexpr char kNativeModeEditorJs[] = R"TAHAI(
       const title = String(button.closest('[data-tahai-custom-mode-card]')
         ?.querySelector('[data-tahai-custom-mode-title]')?.value || '').trim();
       if (!title) return;
-      chrome.send('duplicateTahaiCustomMode', [
-        String(button.dataset.tahaiNativeModeCopy || ''), title]);
+      requests.send(button, 'duplicateTahaiCustomMode', [
+        String(button.dataset.tahaiNativeModeCopy || ''), title], 'Copying independent mode…');
     });
   }
   for (const button of document.querySelectorAll('[data-tahai-builtin-mode-copy]')) {
     button.addEventListener('click', () => {
-      status.textContent = 'Copying the built-in preset…';
-      chrome.send('duplicateTahaiBuiltinModePreset', [button.dataset.tahaiBuiltinModeCopy]);
+      requests.send(button, 'duplicateTahaiBuiltinModePreset',
+        [button.dataset.tahaiBuiltinModeCopy], 'Copying the built-in preset…');
     });
   }
   for (const button of document.querySelectorAll('[data-tahai-mode-surface]')) {
-    button.addEventListener('click', () => chrome.send('setTahaiNativeModeSurface', [
-      button.dataset.tahaiModeSurface, button.dataset.surfaceAction]));
+    button.addEventListener('click', () => requests.send(button, 'setTahaiNativeModeSurface', [
+      button.dataset.tahaiModeSurface, button.dataset.surfaceAction], 'Saving retained mode layout…'));
   }
   for (const button of document.querySelectorAll('[data-tahai-mode-skin]')) {
-    button.addEventListener('click', () => chrome.send('setTahaiNativeModeSkin', [
-      button.dataset.tahaiModeSkin, button.dataset.skinAction]));
+    button.addEventListener('click', () => requests.send(button, 'setTahaiNativeModeSkin', [
+      button.dataset.tahaiModeSkin, button.dataset.skinAction], 'Saving retained mode skin…'));
   }
-  window.tahaiNativeModeUpdated = () => {
-    status.textContent = 'Mode settings saved. No controls were run.';
-    window.setTimeout(() => location.reload(), 300);
-  };
-  window.tahaiNativeModeCreated = () => {
-    status.textContent = 'Independent mode saved. Use it when ready.';
-    window.setTimeout(() => location.reload(), 300);
-  };
-  window.tahaiNativeModeActivated = () => {
-    status.textContent = 'Mode opened. A retained skin is being reverified; the window title shows any unavailable skin. No mode controls were run.';
-  };
-  window.tahaiNativeModeRejected = () => {
-    status.textContent = 'Mode request rejected. Choose a valid name, native controls and an existing workspace. To retain a skin, apply it to this window first. To retain a layout, keep it in Studio first. Managed or damaged saved settings cannot be overwritten.';
-  };
+  window.tahaiNativeModeUpdated = request => requests.complete(request);
+  window.tahaiNativeModeCreated = request => requests.complete(request);
+  window.tahaiNativeModeActivated = request => requests.complete(request,
+      'Mode opened. A retained skin is being reverified; the window title shows any unavailable skin. No mode controls were run.', false);
+  window.tahaiNativeModeRejected = request => requests.reject(request,
+      'Mode request rejected. Your edits are retained. Choose a valid name, native controls and an existing workspace. To retain a skin, apply it to this window first. To retain a layout, keep it in Studio first. Managed or damaged saved settings cannot be overwritten.');
 })();
 )TAHAI";
 

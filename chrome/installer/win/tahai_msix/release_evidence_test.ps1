@@ -87,6 +87,35 @@ try {
     }
     $native = New-TestSummary @(
         'TahaiWorkflowJournalTest.IntentSurvivesReopenAndCannotReplay',
+        'TahaiModeServiceTest.ExternalPreferencesAndPolicyRemainAuthoritative',
+        'TahaiModeServiceTest.ConfigurationWritesPreserveUnknownAndOtherModes',
+        'TahaiModeServiceTest.MalformedPreferencesAreReadOnly',
+        'TahaiModeServiceTest.UnknownActiveModeIsNotRewrittenOnLoad',
+        'TahaiModeServiceTest.DensityMigrationProducesCanonicalSnapshots',
+        'TahaiModeServiceTest.ReentrantNotificationsAreDeferred',
+        'TahaiModeServiceTest.ObserverCanDestroyServiceDuringPreferenceWrite',
+        'TahaiModeServiceTest.ShutdownRejectsAllMutationsAndDropsQueuedNotifications',
+        'TahaiModeServiceTest.ModifierChangesNotifyOnceAndNoopsDoNotPersist',
+        'TahaiModeServiceTest.PrivateEditsCannotAcknowledgeSupersededSettings',
+        'TahaiModeServiceTest.PrivateObserverCanDestroyServiceDuringEdit',
+        'TahaiNamedWorkspaceStoreTest.ManagedStoreCannotCreateShadowUserEdits',
+        'TahaiNamedWorkspaceStoreTest.WrongTypedStoreCannotBeReplacedBySave',
+        'MissionServiceTest.DiscardedOldestLedgerRecordCannotVerifyRemainingHistory',
+        'MissionServiceTest.EmptyOrMalformedHistoryCannotClearIntegrityWarning',
+        'MissionServiceTest.RestoredMissionIdentifiersRemainUnambiguous',
+        'MissionServiceTest.MissionTextRemainsValidUtf8AcrossDuplicationAndRestore',
+        'MissionServiceTest.LocalOiSearchRetainsOnlyTypedEntityDetailTargets',
+        'TahaiWorkflowNativeTest.ArchiveRestoreNeverImplicitlyResumesNativeWork',
+        'TahaiWorkflowNativeTest.LegacyArchivedRunningSnapshotRequiresExplicitResume',
+        'TahaiLocalOiStoreTest.FutureSchemaIsPreservedAndCannotBeOverwritten',
+        'TahaiLocalOiStoreTest.WrongTypedPreferenceIsPreservedWithoutDefaultReset',
+        'TahaiLocalOiStoreTest.StaleBatchCannotReplaceNewerMutation',
+        'TahaiLocalOiStoreTest.OtherStoreOwnerCannotOverwriteNewerGeneration',
+        'TahaiLocalOiStoreTest.ManagedStorageCannotAcquireHiddenUserWrites',
+        'TahaiLocalOiStoreTest.ReloadRejectsDanglingRelationshipTargets',
+        'TahaiCapabilityBrokerTest.CrashedDocumentCannotGrantOrUseCapability',
+        'TahaiCapabilityBrokerTest.WrongTypedStorageCannotBeRepairedByGrant',
+        'TahaiCapabilityBrokerTest.InheritedOriginIsNotAnHttpsDocument',
         'TahaiSkinStudioDraftTest.CanonicalGrowthCannotReplaceLastReloadableDraft',
         'TahaiSkinStudioDraftTest.NewDraftTargetsRunningEngineOnly',
         'TahaiSkinStudioDraftTest.ExistingCompatibilityIsNeverSilentlyWidened',
@@ -242,6 +271,10 @@ try {
         'TahaiWebUIBrowserTest.TahaiRailHasOnlyIconsLabelsOrHidden',
         'TahaiWebUIBrowserTest.TahaiCollapsedRailActivatesAndRestoresPreferences',
         'TahaiLocalOiBrowserTest.TrustedLocalOiWebUiRendersRealLocalSurfaces',
+        'TahaiLocalOiBrowserTest.FindingTransitionsUpdateSearchProjectionAtomically',
+        'MultiContentsViewBrowserTest.TahaiNamedWorkspaceStopsAfterObserverRemovesNextGroup',
+        'MultiContentsViewBrowserTest.TahaiNamedWorkspaceStopsAfterObserverReordersTabs',
+        'TahaiLocalOiBrowserTest.UnavailableStoreCannotSearchBriefExportOrMutate',
         'TahaiLocalOiBrowserTest.OffTheRecordSurfaceDoesNotReadRegularLocalOiData',
         'TahaiLocalOiBrowserTest.LocalOiStorePersistsOnlyProfileLocalTypedRecord',
         'TahaiLocalOiBrowserTest.InspectionLoaderBlocksLocalConnectionEndpoint',
@@ -463,7 +496,7 @@ try {
     $evidencePath = Join-Path $fixtureRoot 'release.json'
     $null = Write-FixtureEvidence 'release.json' $evidence
     $result = Assert-TahaiReleaseEvidence $evidencePath $buildDir
-    if ($result.NativeTestAttempts -ne 151 -or $result.BrowserTestAttempts -ne 185 -or
+    if ($result.NativeTestAttempts -ne 180 -or $result.BrowserTestAttempts -ne 189 -or
         $result.ElevationTestAttempts -ne 2 -or $result.TracingTestAttempts -ne 2) {
         throw 'Positive fixture counts were incorrect.'
     }

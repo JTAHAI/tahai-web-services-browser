@@ -10,6 +10,7 @@
 
 #include "base/check.h"
 #include "base/memory/raw_ptr.h"
+#include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
@@ -558,9 +559,18 @@ TahaiLocalOiService::TahaiLocalOiService(Profile* profile)
 
 TahaiLocalOiService::~TahaiLocalOiService() = default;
 
+const LocalOiStoreData& TahaiLocalOiService::data() const {
+  if (!available() || !TahaiLocalOiPolicy(profile_->GetPrefs())
+                           .IsEnabled(LocalOiPolicyControl::kEnabled)) {
+    static const base::NoDestructor<LocalOiStoreData> empty;
+    return *empty;
+  }
+  return store_.data();
+}
+
 bool TahaiLocalOiService::CanWriteLocalData() const {
-  return !shutdown_ && TahaiLocalOiPolicy(profile_->GetPrefs())
-                           .IsEnabled(LocalOiPolicyControl::kEnabled);
+  return available() && TahaiLocalOiPolicy(profile_->GetPrefs())
+                            .IsEnabled(LocalOiPolicyControl::kEnabled);
 }
 
 bool TahaiLocalOiService::UpsertEntity(LocalOiEntityRecord record) {
@@ -592,11 +602,11 @@ bool TahaiLocalOiService::AddReport(LocalOiReportRecord record) {
 }
 
 bool TahaiLocalOiService::DeleteEntity(std::string_view entity_id) {
-  return !shutdown_ && store_.DeleteEntity(entity_id);
+  return available() && store_.DeleteEntity(entity_id);
 }
 
 bool TahaiLocalOiService::DeleteAllData() {
-  return !shutdown_ && store_.DeleteAll();
+  return available() && store_.DeleteAll();
 }
 
 bool TahaiLocalOiService::EnforceRetentionAfterDirectMutation() {
@@ -623,7 +633,7 @@ bool TahaiLocalOiService::RecordNetworkInspection(
     std::string_view mission_id,
     std::string_view watch_id) {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kOpsToolIngestion) ||
       !IsValidTahaiNetworkInspectionHost(result.host) ||
       !IsValidLocalOiTimestamp(result.inspected_at) ||
@@ -948,7 +958,7 @@ bool TahaiLocalOiService::RecordNetworkInspection(
 
 std::vector<LocalOiNetworkInspectionHistoryItem>
 TahaiLocalOiService::NetworkInspectionHistory(std::string_view host) const {
-  if (shutdown_ || !IsValidTahaiNetworkInspectionHost(host) ||
+  if (!available() || !IsValidTahaiNetworkInspectionHost(host) ||
       !TahaiLocalOiPolicy(profile_->GetPrefs())
            .IsEnabled(LocalOiPolicyControl::kEnabled)) {
     return {};
@@ -1014,7 +1024,7 @@ TahaiLocalOiService::RecordChangeCapture(
     const TahaiChangeCaptureRequest& request,
     std::string_view mission_id) {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kArtifactIngestion) ||
       (!mission_id.empty() && !IsValidLocalOiId(mission_id))) {
     return std::nullopt;
@@ -1165,7 +1175,7 @@ std::vector<LocalOiChangeCaptureHistoryItem>
 TahaiLocalOiService::ChangeCaptureHistory(TahaiChangeCaptureKind kind,
                                           std::string_view target) const {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kArtifactIngestion)) {
     return {};
   }
@@ -1227,7 +1237,7 @@ std::optional<LocalOiArtifactOutcome>
 TahaiLocalOiService::RecordArtifactMetadata(
     const LocalOiArtifactRequest& request) {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kArtifactIngestion) ||
       !IsSafeArtifactLabel(request.title) ||
       (!request.mission_id.empty() && !IsValidLocalOiId(request.mission_id))) {
@@ -1289,7 +1299,7 @@ TahaiLocalOiService::RecordArtifactMetadata(
 std::vector<LocalOiArtifactHistoryItem> TahaiLocalOiService::ArtifactHistory(
     std::string_view source_url) const {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kArtifactIngestion)) {
     return {};
   }
@@ -1338,7 +1348,7 @@ std::optional<LocalOiDocumentReferenceOutcome>
 TahaiLocalOiService::RecordDocumentReference(
     const LocalOiDocumentReferenceRequest& request) {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(
           LocalOiPolicyControl::kDocumentationReferenceIngestion) ||
       !IsSafeDocumentReferenceTitle(request.title) ||
@@ -1440,7 +1450,7 @@ std::vector<LocalOiDocumentReferenceItem>
 TahaiLocalOiService::DocumentReferencesForEndpoint(
     std::string_view endpoint_id) const {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(
           LocalOiPolicyControl::kDocumentationReferenceIngestion) ||
       !IsValidLocalOiId(endpoint_id)) {
@@ -1498,7 +1508,7 @@ TahaiLocalOiService::ConfigureManualWatch(
     const TahaiSentinelWatchRequest& request,
     std::string_view mission_id) {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kOpsToolIngestion) ||
       (!mission_id.empty() && !IsValidLocalOiId(mission_id))) {
     return std::nullopt;
@@ -1610,7 +1620,7 @@ TahaiLocalOiService::ConfigureManualWatch(
 
 std::vector<LocalOiManualWatchItem> TahaiLocalOiService::ManualWatches() const {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kOpsToolIngestion)) {
     return {};
   }
@@ -1680,7 +1690,7 @@ TahaiLocalOiService::ConfigureEnvironmentClassification(
     std::string_view origin,
     std::string_view mission_id) {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kOpsToolIngestion) ||
       (!mission_id.empty() && !IsValidLocalOiId(mission_id))) {
     return std::nullopt;
@@ -1762,7 +1772,7 @@ TahaiLocalOiService::ConfigureEnvironmentClassification(
 std::vector<LocalOiEnvironmentClassificationItem>
 TahaiLocalOiService::EnvironmentClassifications() const {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kOpsToolIngestion)) {
     return {};
   }
@@ -1830,8 +1840,8 @@ std::vector<LocalOiSearchResult> TahaiLocalOiService::Search(
 
 std::vector<LocalOiSearchResult> TahaiLocalOiService::Search(
     const LocalOiSearchOptions& options) const {
-  if (shutdown_ || !TahaiLocalOiPolicy(profile_->GetPrefs())
-                        .IsEnabled(LocalOiPolicyControl::kEnabled)) {
+  if (!available() || !TahaiLocalOiPolicy(profile_->GetPrefs())
+                           .IsEnabled(LocalOiPolicyControl::kEnabled)) {
     return {};
   }
   return SearchLocalOiSnapshot(BuildLocalOiSnapshot(store_.data()), options);
@@ -1846,7 +1856,7 @@ std::optional<std::string> TahaiLocalOiService::GenerateSafeReport(
     LocalOiSafeReportKind kind,
     LocalOiSafeReportFormat format) {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kReports) ||
       !policy.IsEnabled(LocalOiPolicyControl::kExport)) {
     return std::nullopt;
@@ -1880,7 +1890,7 @@ std::optional<std::string> TahaiLocalOiService::GenerateSafeReport(
 
 bool TahaiLocalOiService::RecordSafeReportCopied(LocalOiSafeReportKind kind) {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kReports) ||
       !policy.IsEnabled(LocalOiPolicyControl::kExport)) {
     return false;
@@ -1905,7 +1915,7 @@ std::optional<LocalOiAssistPrompt>
 TahaiLocalOiService::PrepareLocalAssistPrompt(
     const LocalOiAssistRequest& request) const {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !policy.IsEnabled(LocalOiPolicyControl::kLocalAi)) {
     return std::nullopt;
   }
@@ -1917,7 +1927,7 @@ std::optional<LocalOiDeterministicBrief>
 TahaiLocalOiService::BuildDeterministicLocalBrief(
     const LocalOiAssistRequest& request) const {
   const TahaiLocalOiPolicy policy(profile_->GetPrefs());
-  if (shutdown_ || !policy.IsEnabled(LocalOiPolicyControl::kEnabled)) {
+  if (!available() || !policy.IsEnabled(LocalOiPolicyControl::kEnabled)) {
     return std::nullopt;
   }
   const std::optional<LocalOiAssistPrompt> prompt =
@@ -1954,6 +1964,7 @@ bool TahaiLocalOiService::TransitionFinding(std::string_view finding_id,
       finding->state = state;
       finding->acknowledged = true;
       finding->acknowledgement_note = std::string(rationale);
+      finding->resolution_reason.clear();
       action = LocalOiMemoryAction::kFindingAcknowledged;
       break;
     case LocalOiFindingState::kResolved:
@@ -1979,6 +1990,19 @@ bool TahaiLocalOiService::TransitionFinding(std::string_view finding_id,
       break;
   }
   finding->updated_at = now;
+  // Search and graph views also contain a typed Finding entity. Keep that
+  // projection in the same commit as the authoritative lifecycle record;
+  // otherwise a resolved/suppressed finding remains searchable as "open"
+  // until unrelated ingestion happens to recalculate all findings.
+  for (LocalOiEntityRecord& entity : next.entities) {
+    if (entity.id == finding->id &&
+        entity.type == LocalOiEntityType::kFinding &&
+        entity.source == LocalOiRecordSource::kRuleEngine) {
+      SetField(&entity, "state",
+               std::string(LocalOiFindingStateName(finding->state)));
+      entity.updated_at = now;
+    }
+  }
   AddMemory(
       &next, action, finding->id,
       "A Local OI finding lifecycle state changed by explicit operator action.",
@@ -1988,7 +2012,7 @@ bool TahaiLocalOiService::TransitionFinding(std::string_view finding_id,
 
 bool TahaiLocalOiService::SyncMissions(
     const std::vector<MissionSummary>& missions) {
-  if (shutdown_ ||
+  if (!available() ||
       !TahaiLocalOiPolicy(profile_->GetPrefs())
            .IsEnabled(LocalOiPolicyControl::kEnabled) ||
       !TahaiLocalOiPolicy(profile_->GetPrefs())
@@ -2171,6 +2195,8 @@ bool TahaiLocalOiService::RecalculateFindings() {
         finding.state != LocalOiFindingState::kResolved &&
         finding.state != LocalOiFindingState::kSuppressed) {
       finding.state = LocalOiFindingState::kResolved;
+      finding.acknowledged = false;
+      finding.acknowledgement_note.clear();
       finding.resolution_reason = "The required local data is now present.";
       finding.updated_at = now;
       AddMemory(&next, LocalOiMemoryAction::kFindingResolved, finding.id,
