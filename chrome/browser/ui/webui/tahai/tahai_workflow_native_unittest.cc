@@ -1,15 +1,17 @@
 // Copyright 2026 TAHAI Web Services
 // SPDX-License-Identifier: Apache-2.0
 
-#include "chrome/browser/ui/webui/tahai/tahai_workflow_native_handler.h"
-
 #include <string>
 
+#include "base/test/bind.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/ui/tahai/tahai_operational_workflow_queue.h"
 #include "chrome/browser/ui/webui/tahai/tahai_mission_service.h"
+#include "chrome/browser/ui/webui/tahai/tahai_workflow_native_handler.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
 #include "chrome/test/base/testing_profile.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/test/browser_task_environment.h"
@@ -627,6 +629,254 @@ TEST_F(TahaiWorkflowNativeTest, NativeDeadlineCannotBeBypassedBeforeTimerDeliver
   const auto events = mission().timeline.size();
   environment_.RunUntilIdle();
   EXPECT_EQ(events, mission().timeline.size());
+}
+
+TEST_F(TahaiWorkflowNativeTest, NativeDeadlineMutationSurvivesOwnerDeletion) {
+  for (const char* operation : {"begin", "assign", "wait", "finish", "state",
+                                "step", "rollback", "input", "archive"}) {
+    SCOPED_TRACE(operation);
+    if (!service_) {
+      service_ = std::make_unique<MissionService>(&profile_);
+    }
+    const auto created = service_->CreateOperationalWorkflowMission(
+        manifest_.workflows.front(), manifest_.appearance.id, sha_, true);
+    ASSERT_TRUE(created);
+    const std::string id = created->id;
+    ASSERT_TRUE(
+        service_->SetOperationalWorkflowInputValue(id, "approved", "true"));
+    ASSERT_TRUE(service_->SetOperationalWorkflowRunState(id, "running"));
+    ASSERT_TRUE(service_->ToggleStep(id, 0));
+    ASSERT_TRUE(service_->BeginNativeWorkflowStep(id, 1));
+    environment_.AdvanceClock(kMissionNativeAttemptTimeout);
+    PrefChangeRegistrar registrar;
+    registrar.Init(profile_.GetPrefs());
+    registrar.Add(prefs::kTahaiMissions,
+                  base::BindLambdaForTesting([&] { service_.reset(); }));
+    const std::string_view action(operation);
+    bool result = true;
+    if (action == "begin") {
+      result = service_->BeginNativeWorkflowStep(id, 1);
+    } else if (action == "assign") {
+      result = service_->AssignWorkflowVariable(id, 0);
+    } else if (action == "wait") {
+      result = service_->ControlWorkflowWait(id, 0, false);
+    } else if (action == "finish") {
+      result = service_->FinishNativeWorkflowStep(id, 1, "dispatched");
+    } else if (action == "state") {
+      result = service_->SetOperationalWorkflowRunState(id, "paused");
+    } else if (action == "step") {
+      result = service_->ToggleStep(id, 0);
+    } else if (action == "rollback") {
+      result = service_->ToggleRollbackStep(id, 0);
+    } else if (action == "input") {
+      result =
+          service_->SetOperationalWorkflowInputValue(id, "approved", "false");
+    } else if (action == "archive") {
+      result = service_->ArchiveMission(id);
+    }
+    EXPECT_FALSE(result);
+    EXPECT_FALSE(service_);
+    registrar.RemoveAll();
+    MissionService reloaded(&profile_);
+    EXPECT_EQ("unknown", reloaded.missions().back().steps[1].action_state);
+    EXPECT_EQ("deadline-exceeded",
+              reloaded.missions().back().steps[1].native_action_error);
+  }
+}
+
+TEST_F(TahaiWorkflowNativeTest, NativeDeadlineShutdownSurvivesOwnerDeletion) {
+  ASSERT_TRUE(service_->ToggleStep(id_, 0));
+  ASSERT_TRUE(service_->BeginNativeWorkflowStep(id_, 1));
+  environment_.AdvanceClock(kMissionNativeAttemptTimeout);
+  PrefChangeRegistrar registrar;
+  registrar.Init(profile_.GetPrefs());
+  registrar.Add(prefs::kTahaiMissions,
+                base::BindLambdaForTesting([&] { service_.reset(); }));
+  service_->Shutdown();
+  EXPECT_FALSE(service_);
+  registrar.RemoveAll();
+  MissionService reloaded(&profile_);
+  EXPECT_EQ("unknown", reloaded.missions().front().steps[1].action_state);
+  EXPECT_EQ("deadline-exceeded",
+            reloaded.missions().front().steps[1].native_action_error);
+}
+
+TEST_F(TahaiWorkflowNativeTest,
+       NativeDeadlineEncryptorCallbackSurvivesOwnerDeletion) {
+  ASSERT_TRUE(service_->ToggleStep(id_, 0));
+  ASSERT_TRUE(service_->BeginNativeWorkflowStep(id_, 1));
+  environment_.AdvanceClock(kMissionNativeAttemptTimeout);
+  PrefChangeRegistrar registrar;
+  registrar.Init(profile_.GetPrefs());
+  registrar.Add(prefs::kTahaiMissions,
+                base::BindLambdaForTesting([&] { service_.reset(); }));
+  bool completed = false;
+  service_->PrepareProtectedWorkflowInputs(
+      nullptr, base::BindLambdaForTesting([&](bool ready) {
+        EXPECT_FALSE(ready);
+        completed = true;
+      }));
+  EXPECT_TRUE(completed);
+  EXPECT_FALSE(service_);
+}
+
+TEST_F(TahaiWorkflowNativeTest,
+       NativeDeadlineRechecksMutationPolicyAfterNotification) {
+  const auto other = service_->CreateMission("Unchanged mission", "incident");
+  ASSERT_TRUE(other);
+  ASSERT_TRUE(service_->ToggleStep(id_, 0));
+  ASSERT_TRUE(service_->BeginNativeWorkflowStep(id_, 1));
+  environment_.AdvanceClock(kMissionNativeAttemptTimeout);
+  bool revoked = false;
+  PrefChangeRegistrar registrar;
+  registrar.Init(profile_.GetPrefs());
+  registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
+                  if (revoked) {
+                    return;
+                  }
+                  revoked = true;
+                  profile_.GetTestingPrefService()->SetManagedPref(
+                      prefs::kTahaiMissions, base::Value(base::ListValue()));
+                }));
+  EXPECT_FALSE(service_->ToggleStep(other->id, 0));
+  EXPECT_TRUE(revoked);
+  EXPECT_FALSE(service_->missions().back().steps[0].complete);
+  EXPECT_EQ("unknown", mission().steps[1].action_state);
+}
+
+TEST_F(TahaiWorkflowNativeTest, NativeDeadlinePinsBorrowedMutationArguments) {
+  const auto other =
+      service_->CreateMission("Removed during notification", "incident");
+  ASSERT_TRUE(other);
+  ASSERT_TRUE(service_->ToggleStep(id_, 0));
+  ASSERT_TRUE(service_->BeginNativeWorkflowStep(id_, 1));
+  environment_.AdvanceClock(kMissionNativeAttemptTimeout);
+  const std::string_view borrowed_id(service_->missions().back().id);
+  bool removed = false;
+  PrefChangeRegistrar registrar;
+  registrar.Init(profile_.GetPrefs());
+  registrar.Add(prefs::kTahaiMissions, base::BindLambdaForTesting([&] {
+                  if (removed) {
+                    return;
+                  }
+                  removed = true;
+                  EXPECT_TRUE(service_->DeleteMission(other->id));
+                }));
+  EXPECT_FALSE(service_->ToggleStep(borrowed_id, 0));
+  EXPECT_TRUE(removed);
+  EXPECT_EQ(1u, service_->missions().size());
+}
+
+TEST_F(TahaiWorkflowNativeTest,
+       QueuedWorkflowCannotReplayOrResumeAfterOwnerDeletion) {
+  for (const char* boundary : {"consume", "create"}) {
+    SCOPED_TRACE(boundary);
+    service_ = std::make_unique<MissionService>(&profile_);
+    ASSERT_TRUE(QueueOperationalWorkflowLaunch(
+        &profile_, manifest_.workflows.front(), manifest_.appearance.id, sha_));
+    const size_t previous = service_->missions().size();
+    PrefChangeRegistrar registrar;
+    registrar.Init(profile_.GetPrefs());
+    registrar.Add(std::string_view(boundary) == "consume"
+                      ? prefs::kTahaiPendingOperationalWorkflow
+                      : prefs::kTahaiMissions,
+                  base::BindLambdaForTesting([&] { service_.reset(); }));
+    EXPECT_FALSE(service_->ConsumeQueuedOperationalWorkflow());
+    EXPECT_FALSE(service_);
+    EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(&profile_));
+    registrar.RemoveAll();
+    MissionService reloaded(&profile_);
+    EXPECT_TRUE(reloaded.ConsumeQueuedOperationalWorkflow());
+    EXPECT_EQ(previous + (std::string_view(boundary) == "create" ? 1u : 0u),
+              reloaded.missions().size());
+  }
+}
+
+TEST_F(TahaiWorkflowNativeTest,
+       QueuedWorkflowPreservesManagedAndUnknownStorage) {
+  auto* preferences = profile_.GetTestingPrefService();
+  for (const char* corruption : {"type", "version", "managed"}) {
+    SCOPED_TRACE(corruption);
+    const std::string_view shape(corruption);
+    if (shape == "type") {
+      preferences->SetUserPref(prefs::kTahaiPendingOperationalWorkflow,
+                               base::Value("wrong type"));
+    } else if (shape == "version") {
+      preferences->SetDict(
+          prefs::kTahaiPendingOperationalWorkflow,
+          base::DictValue().Set("schema_version", 100).Set("future", true));
+    } else {
+      ASSERT_TRUE(
+          QueueOperationalWorkflowLaunch(&profile_, manifest_.workflows.front(),
+                                         manifest_.appearance.id, sha_));
+      preferences->SetManagedPref(prefs::kTahaiPendingOperationalWorkflow,
+                                  base::Value(base::DictValue()));
+    }
+    const auto original =
+        preferences
+            ->GetRawUserPrefValue(prefs::kTahaiPendingOperationalWorkflow)
+            ->Clone();
+    const size_t count = service_->missions().size();
+    EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(&profile_));
+    EXPECT_FALSE(QueueOperationalWorkflowLaunch(
+        &profile_, manifest_.workflows.front(), manifest_.appearance.id, sha_));
+    EXPECT_FALSE(ClearQueuedOperationalWorkflowLaunch(&profile_));
+    EXPECT_FALSE(service_->ConsumeQueuedOperationalWorkflow());
+    EXPECT_EQ(original, *preferences->GetRawUserPrefValue(
+                            prefs::kTahaiPendingOperationalWorkflow));
+    EXPECT_EQ(count, service_->missions().size());
+    preferences->RemoveManagedPref(prefs::kTahaiPendingOperationalWorkflow);
+    preferences->ClearPref(prefs::kTahaiPendingOperationalWorkflow);
+  }
+}
+
+TEST_F(TahaiWorkflowNativeTest,
+       QueuedWorkflowNotificationCannotReplaceConsumedLaunch) {
+  for (const char* interruption : {"replacement", "reentry", "policy"}) {
+    SCOPED_TRACE(interruption);
+    const std::string_view change(interruption);
+    ASSERT_TRUE(QueueOperationalWorkflowLaunch(
+        &profile_, manifest_.workflows.front(), manifest_.appearance.id, sha_));
+    const size_t count = service_->missions().size();
+    bool notified = false;
+    PrefChangeRegistrar registrar;
+    registrar.Init(profile_.GetPrefs());
+    registrar.Add(
+        change == "reentry" ? prefs::kTahaiMissions
+                            : prefs::kTahaiPendingOperationalWorkflow,
+        base::BindLambdaForTesting([&] {
+          if (notified) {
+            return;
+          }
+          notified = true;
+          if (change == "replacement") {
+            auto replacement = manifest_.workflows.front();
+            replacement.id = "replacement-flow";
+            EXPECT_TRUE(QueueOperationalWorkflowLaunch(
+                &profile_, replacement, manifest_.appearance.id, sha_));
+          } else if (change == "policy") {
+            profile_.GetTestingPrefService()->SetManagedPref(
+                prefs::kTahaiPendingOperationalWorkflow,
+                base::Value(base::DictValue()));
+          } else {
+            EXPECT_TRUE(service_->ConsumeQueuedOperationalWorkflow());
+          }
+        }));
+    EXPECT_EQ(change == "reentry",
+              service_->ConsumeQueuedOperationalWorkflow());
+    EXPECT_TRUE(notified);
+    EXPECT_EQ(count + (change == "reentry" ? 1u : 0u),
+              service_->missions().size());
+    if (change == "replacement") {
+      const auto retained = GetQueuedOperationalWorkflowLaunch(&profile_);
+      ASSERT_TRUE(retained);
+      EXPECT_EQ("replacement-flow", retained->workflow.id);
+    }
+    registrar.RemoveAll();
+    profile_.GetTestingPrefService()->RemoveManagedPref(
+        prefs::kTahaiPendingOperationalWorkflow);
+    profile_.GetPrefs()->ClearPref(prefs::kTahaiPendingOperationalWorkflow);
+  }
 }
 
 TEST_F(TahaiWorkflowNativeTest, NativeCompletionDisarmsDeadlineAndLateResultsCannotOverwriteOutcome) {

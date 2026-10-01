@@ -67,6 +67,14 @@ execution or a finished RC/MSIX:
   A cached owner also refuses to replace an externally changed durable snapshot.
   Authenticated capsule imports are constructed fully and committed once, not
   chained through CHECK-protected mutations across preference callbacks.
+- Synchronous deadline settlement now stops continuation if preference
+  notification deletes or shuts down the mission owner; ordinary mutations
+  recheck storage policy afterward. Borrowed mutation arguments are owned across
+  notifications. Queued workflow launches are consumed before mission creation,
+  preventing callback replay and continuation after deletion at either boundary.
+  Queue writes/consumption reject managed, wrong-typed and unknown-version
+  storage, recheck actual state after notification and preserve a replacement
+  launch rather than clearing or consuming it under stale authority.
 - Keyring operations recheck raw storage after asynchronous encryption-provider
   completion, survive owner deletion at authorization/persistence boundaries,
   and report a decrypted key/record-ID mismatch as corruption, never success.
@@ -79,7 +87,7 @@ execution or a finished RC/MSIX:
   collisions. Its validator is shared with the final package evidence gate.
   Passing retries and repeated test iterations are rejected as well as failures.
 
-Added **17 native regression cases** (8 mission/key/storage tests and 9 browser
+Added **25 native regression cases** (16 mission/key/storage/workflow tests and 9 browser
 appearance/presentation tests), required by the release evidence gate. These
 cases have **not been compiled or executed** here. The packaging guard now runs
 54 synthetic checks, including actual shared smoke-copy helper calls; none of

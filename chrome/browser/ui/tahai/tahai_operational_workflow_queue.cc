@@ -46,16 +46,45 @@ bool IsQueueProfile(Profile* profile) {
   return profile && profile->IsRegularProfile() && !profile->IsOffTheRecord();
 }
 
+bool HasWritableQueueStorage(Profile* profile) {
+  if (!IsQueueProfile(profile) ||
+      profile->GetPrefs()->IsManagedPreference(
+          prefs::kTahaiPendingOperationalWorkflow)) {
+    return false;
+  }
+  const auto* raw = profile->GetPrefs()->GetRawUserPrefValue(
+      prefs::kTahaiPendingOperationalWorkflow);
+  if (!raw) {
+    return true;
+  }
+  const auto* value = raw->GetIfDict();
+  if (!value) {
+    return false;
+  }
+  if (value->empty()) {
+    return true;
+  }
+  if (value->contains("schema_version")) {
+    const auto version = value->FindInt("schema_version");
+    // Malformed known-version handoffs can be rejected and cleared, but a
+    // newer schema or hidden wrong type is not ours to replace or erase.
+    return version == 2 || version == 3;
+  }
+  return GetQueuedOperationalWorkflowLaunch(profile).has_value();
+}
+
 }  // namespace
 
 bool QueueOperationalWorkflowLaunch(Profile* profile,
                                     const TahaiOperationalWorkflow& workflow,
                                     std::string_view skin_id,
                                     std::string_view archive_sha256) {
-  if (!IsQueueProfile(profile) || !IsSafeIdentifier(skin_id) ||
+  if (!HasWritableQueueStorage(profile) || !IsSafeIdentifier(skin_id) ||
       !IsSafeIdentifier(workflow.id) || !IsSafeLabel(workflow.name) ||
       !IsSha256(archive_sha256) || workflow.steps.empty() ||
-      workflow.steps.size() > 32u || !ValidateTahaiWorkflowActionBindings(workflow.steps) || !ExpandTahaiWorkflowSteps(workflow)) {
+      workflow.steps.size() > 32u ||
+      !ValidateTahaiWorkflowActionBindings(workflow.steps) ||
+      !ExpandTahaiWorkflowSteps(workflow)) {
     return false;
   }
   base::ListValue steps;
@@ -166,14 +195,25 @@ bool QueueOperationalWorkflowLaunch(Profile* profile,
   queued.Set("archive_sha256", archive_sha256);
   queued.Set("workflow", std::move(saved_workflow));
   queued.Set("command_steps", std::move(command_steps));
+  const auto expected = queued.Clone();
+  const auto weak = profile->GetWeakPtr();
   profile->GetPrefs()->SetDict(prefs::kTahaiPendingOperationalWorkflow,
                                std::move(queued));
-  return true;
+  return weak && HasWritableQueueStorage(weak.get()) &&
+         weak->GetPrefs()->GetDict(prefs::kTahaiPendingOperationalWorkflow) ==
+             expected;
 }
 
 std::optional<QueuedOperationalWorkflowLaunch>
 GetQueuedOperationalWorkflowLaunch(Profile* profile) {
-  if (!IsQueueProfile(profile)) {
+  if (!IsQueueProfile(profile) ||
+      profile->GetPrefs()->IsManagedPreference(
+          prefs::kTahaiPendingOperationalWorkflow)) {
+    return std::nullopt;
+  }
+  const auto* raw = profile->GetPrefs()->GetRawUserPrefValue(
+      prefs::kTahaiPendingOperationalWorkflow);
+  if (raw && !raw->is_dict()) {
     return std::nullopt;
   }
   const base::DictValue& queued =
@@ -252,10 +292,16 @@ GetQueuedOperationalWorkflowLaunch(Profile* profile) {
   return result;
 }
 
-void ClearQueuedOperationalWorkflowLaunch(Profile* profile) {
-  if (IsQueueProfile(profile)) {
-    profile->GetPrefs()->ClearPref(prefs::kTahaiPendingOperationalWorkflow);
+bool ClearQueuedOperationalWorkflowLaunch(Profile* profile) {
+  if (!HasWritableQueueStorage(profile)) {
+    return false;
   }
+  const auto weak = profile->GetWeakPtr();
+  profile->GetPrefs()->ClearPref(prefs::kTahaiPendingOperationalWorkflow);
+  return weak && HasWritableQueueStorage(weak.get()) &&
+         weak->GetPrefs()
+             ->GetDict(prefs::kTahaiPendingOperationalWorkflow)
+             .empty();
 }
 
 }  // namespace tahai

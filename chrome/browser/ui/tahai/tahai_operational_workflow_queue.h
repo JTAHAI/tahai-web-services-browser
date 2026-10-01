@@ -34,7 +34,9 @@ bool QueueOperationalWorkflowLaunch(Profile* profile,
                                     std::string_view archive_sha256);
 std::optional<QueuedOperationalWorkflowLaunch> GetQueuedOperationalWorkflowLaunch(
     Profile* profile);
-void ClearQueuedOperationalWorkflowLaunch(Profile* profile);
+// Reject managed, wrong-typed or unknown-version storage; report success only
+// while the queue remains empty after notification.
+bool ClearQueuedOperationalWorkflowLaunch(Profile* profile);
 
 }  // namespace tahai
 

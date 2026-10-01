@@ -1345,7 +1345,9 @@ MissionService::~MissionService() = default;
 
 void MissionService::Shutdown() {
   if (shutting_down_) return;
-  OnWorkflowDeadline();
+  if (!SettleWorkflowDeadlines()) {
+    return;
+  }
   shutting_down_ = true;
   workflow_deadline_timer_.Stop();
   weak_factory_.InvalidateWeakPtrs();
@@ -1425,6 +1427,14 @@ void MissionService::OnWorkflowDeadline() {
   else ScheduleWorkflowDeadline();
 }
 
+bool MissionService::SettleWorkflowDeadlines() {
+  // Saving an expired attempt synchronously notifies preference observers.
+  // They may destroy this service or shut it down before the caller resumes.
+  const auto weak = weak_factory_.GetWeakPtr();
+  OnWorkflowDeadline();
+  return !!weak;
+}
+
 bool MissionService::CanMutateStorage() const {
   if (prefs_->IsManagedPreference(prefs::kTahaiMissions)) {
     return false;
@@ -1461,7 +1471,10 @@ void MissionService::OnProtectedInputEncryptor(
     base::OnceCallback<void(bool)> callback,
     scoped_refptr<os_crypt_async::Encryptor> encryptor) {
   if (shutting_down_) { std::move(callback).Run(false); return; }
-  OnWorkflowDeadline();
+  if (!SettleWorkflowDeadlines()) {
+    std::move(callback).Run(false);
+    return;
+  }
   input_encryptor_ = CanStoreProtectedInputs() && encryptor &&
                              encryptor->IsEncryptionAvailable() &&
                              encryptor->IsDecryptionAvailable()
@@ -1497,6 +1510,15 @@ void MissionService::OnProtectedInputEncryptor(
 }
 
 bool MissionService::ConsumeQueuedOperationalWorkflow() {
+  if (shutting_down_) {
+    return false;
+  }
+  const auto* raw =
+      prefs_->GetRawUserPrefValue(prefs::kTahaiPendingOperationalWorkflow);
+  if (prefs_->IsManagedPreference(prefs::kTahaiPendingOperationalWorkflow) ||
+      (raw && !raw->is_dict())) {
+    return false;
+  }
   if (!persistence_enabled() ||
       prefs_->GetDict(prefs::kTahaiPendingOperationalWorkflow).empty()) {
     return true;
@@ -1506,13 +1528,18 @@ bool MissionService::ConsumeQueuedOperationalWorkflow() {
     ClearQueuedOperationalWorkflowLaunch(profile_);
     return false;
   }
+  const auto weak = weak_factory_.GetWeakPtr();
+  // Consume the launch before any mission notification. A callback must not
+  // replay the same launch, including when it destroys this service. Failed
+  // creation must not create an unexpected run on a later visit either.
+  const bool consumed = ClearQueuedOperationalWorkflowLaunch(profile_);
+  if (!weak || !consumed) {
+    return false;
+  }
   const auto mission = CreateOperationalWorkflowMission(
       queued->workflow, queued->skin_id, queued->archive_sha256,
       queued->adapter_version == 1);
-  // Never leave a failed attempt to create an unexpected run on a later visit
-  // (for example, after the person deletes a mission to free storage).
-  ClearQueuedOperationalWorkflowLaunch(profile_);
-  if (!mission) {
+  if (!weak || !mission) {
     return false;
   }
   const bool needs_input = std::ranges::any_of(
@@ -1626,8 +1653,11 @@ std::optional<MissionSummary> MissionService::CreateOperationalWorkflowMission(
 }
 
 bool MissionService::BeginNativeWorkflowStep(std::string_view id, size_t index) {
-  OnWorkflowDeadline();
-  auto* mission = FindMission(id);
+  const std::string owned_id(id);
+  if (!SettleWorkflowDeadlines()) {
+    return false;
+  }
+  auto* mission = FindMission(owned_id);
   if (shutting_down_ || !CanStoreProtectedInputs() ||
       !mission || !CanBeginMissionNativeStep(*mission, index)) {
     return false;
@@ -1641,8 +1671,11 @@ bool MissionService::BeginNativeWorkflowStep(std::string_view id, size_t index) 
 }
 
 bool MissionService::AssignWorkflowVariable(std::string_view id, size_t index) {
-  OnWorkflowDeadline();
-  auto* mission = FindMission(id);
+  const std::string owned_id(id);
+  if (!SettleWorkflowDeadlines()) {
+    return false;
+  }
+  auto* mission = FindMission(owned_id);
   if (shutting_down_ || !persistence_enabled() ||
       !profile_->IsRegularProfile() || profile_->IsGuestSession() ||
       profile_->IsSystemProfile() || !CanMutateStorage() || !mission ||
@@ -1699,8 +1732,11 @@ bool MissionService::AssignWorkflowVariable(std::string_view id, size_t index) {
 }
 
 bool MissionService::ControlWorkflowWait(std::string_view id, size_t index, bool complete) {
-  OnWorkflowDeadline();
-  auto* mission = FindMission(id);
+  const std::string owned_id(id);
+  if (!SettleWorkflowDeadlines()) {
+    return false;
+  }
+  auto* mission = FindMission(owned_id);
   if (shutting_down_ || !CanStoreProtectedInputs() || !mission ||
       !CanControlMissionWorkflowWait(*mission, index, complete)) return false;
   auto& step = mission->steps[index];
@@ -1724,8 +1760,13 @@ bool MissionService::ControlWorkflowWait(std::string_view id, size_t index, bool
 
 bool MissionService::FinishNativeWorkflowStep(std::string_view id, size_t index,
                                              std::string_view result) {
-  OnWorkflowDeadline();
-  auto* mission = FindMission(id);
+  const std::string owned_id(id);
+  const std::string owned_result(result);
+  result = owned_result;
+  if (!SettleWorkflowDeadlines()) {
+    return false;
+  }
+  auto* mission = FindMission(owned_id);
   if (shutting_down_ || !persistence_enabled() || !profile_->IsRegularProfile() ||
       profile_->IsGuestSession() || profile_->IsSystemProfile() ||
       !mission || !mission->operational_workflow ||
@@ -1772,8 +1813,13 @@ bool MissionService::SetOperationalWorkflowRunState(
   if (shutting_down_ || !CanMutateStorage()) {
     return false;
   }
-  OnWorkflowDeadline();
-  MissionSummary* mission = FindMission(mission_id);
+  const std::string owned_id(mission_id);
+  const std::string owned_run_state(run_state);
+  run_state = owned_run_state;
+  if (!SettleWorkflowDeadlines() || shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
+  MissionSummary* mission = FindMission(owned_id);
   if (shutting_down_ || !mission || mission->archived || !mission->operational_workflow ||
       (!IsOperationalWorkflowRunState(run_state) ||
        (mission->operational_workflow->run_state != run_state &&
@@ -1898,8 +1944,11 @@ bool MissionService::ToggleStep(std::string_view mission_id,
   if (shutting_down_ || !CanMutateStorage()) {
     return false;
   }
-  OnWorkflowDeadline();
-  MissionSummary* mission = FindMission(mission_id);
+  const std::string owned_id(mission_id);
+  if (!SettleWorkflowDeadlines() || shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
+  MissionSummary* mission = FindMission(owned_id);
   if (!mission || mission->archived ||
       !ToggleGeneratedStep(mission, &mission->steps, step_index, "runbook",
                            "Checkpoint")) {
@@ -1931,9 +1980,12 @@ bool MissionService::ToggleRollbackStep(std::string_view mission_id,
   }
   const auto* prior = FindMission(mission_id);
   if (!prior) return false;
+  const std::string owned_id(mission_id);
   const std::string token = prior->mutation_token;
-  OnWorkflowDeadline();
-  MissionSummary* mission = FindMission(mission_id);
+  if (!SettleWorkflowDeadlines() || shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
+  MissionSummary* mission = FindMission(owned_id);
   // A newly settled deadline changes what the person is reviewing. Require a
   // fresh document/token instead of acknowledging recovery against stale UI.
   if (!mission || mission->mutation_token != token || mission->archived ||
@@ -2006,8 +2058,15 @@ bool MissionService::SetOperationalWorkflowInputValue(
   if (shutting_down_ || !CanMutateStorage()) {
     return false;
   }
-  OnWorkflowDeadline();
-  MissionSummary* mission = FindMission(mission_id);
+  const std::string owned_id(mission_id);
+  const std::string owned_input_id(input_id);
+  const std::string owned_value(value);
+  input_id = owned_input_id;
+  value = owned_value;
+  if (!SettleWorkflowDeadlines() || shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
+  MissionSummary* mission = FindMission(owned_id);
   if (!mission || mission->archived || !mission->operational_workflow ||
       IsTerminalWorkflowState(mission->operational_workflow->run_state) ||
       std::ranges::any_of(mission->steps, [](const auto& step) {
@@ -2093,8 +2152,11 @@ bool MissionService::ArchiveMission(std::string_view mission_id) {
   if (shutting_down_ || !CanMutateStorage()) {
     return false;
   }
-  OnWorkflowDeadline();
-  MissionSummary* mission = FindMission(mission_id);
+  const std::string owned_id(mission_id);
+  if (!SettleWorkflowDeadlines() || shutting_down_ || !CanMutateStorage()) {
+    return false;
+  }
+  MissionSummary* mission = FindMission(owned_id);
   if (!mission || mission->archived) {
     return false;
   }

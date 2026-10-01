@@ -1240,10 +1240,16 @@ class SkinManagerView final : public views::DialogDelegate,
       failed();
       return;
     }
+    const auto queued_snapshot =
+        profile->GetPrefs()
+            ->GetDict(prefs::kTahaiPendingOperationalWorkflow)
+            .Clone();
     if (!selection_current() ||
         !chrome::IsCommandEnabled(target.get(), IDC_TAHAI_MISSION_CONTROL) ||
         !chrome::ExecuteCommand(target.get(), IDC_TAHAI_MISSION_CONTROL)) {
-      if (profile) {
+      if (profile &&
+          profile->GetPrefs()->GetDict(
+              prefs::kTahaiPendingOperationalWorkflow) == queued_snapshot) {
         ClearQueuedOperationalWorkflowLaunch(profile.get());
       }
       failed();

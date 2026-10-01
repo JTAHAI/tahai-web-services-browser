@@ -314,6 +314,7 @@ class MissionService : public KeyedService {
   bool ExpireWorkflowDeadlines();
   void ScheduleWorkflowDeadline();
   void OnWorkflowDeadline();
+  bool SettleWorkflowDeadlines();
   void OnProtectedInputEncryptor(base::OnceCallback<void(bool)> callback,
                                 scoped_refptr<os_crypt_async::Encryptor> encryptor);
 
