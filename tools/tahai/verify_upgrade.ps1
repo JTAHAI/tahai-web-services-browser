@@ -179,7 +179,7 @@ try {
   if ($LASTEXITCODE -ne 0) { Write-UpgradeStatus 'failed' $LASTEXITCODE; exit $LASTEXITCODE }
   & $python $logged --log (Join-Path $runDirectory 'guard-list-check.log') -- $python third_party/tahai_guard_lists/build_rules.py --check
   if ($LASTEXITCODE -ne 0) { Write-UpgradeStatus 'failed' $LASTEXITCODE; exit $LASTEXITCODE }
-  & $python $logged --log (Join-Path $runDirectory 'creator-kit-check.log') -- $python docs/tahai-skins/build_creator_kit.py --check
+  & $python $logged --log (Join-Path $runDirectory 'creator-kit-check.log') -- $python docs/tahai-skins/build_creator_kit.py --check --chromium-version-file chrome/VERSION
   if ($LASTEXITCODE -ne 0) { Write-UpgradeStatus 'failed' $LASTEXITCODE; exit $LASTEXITCODE }
 
   if (-not $SkipGenerate) {

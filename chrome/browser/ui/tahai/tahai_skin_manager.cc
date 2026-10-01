@@ -79,6 +79,8 @@ DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerPublisherRevokeElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerApplyElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerApplyWindowElementId);
 DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerResetElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerActivateModeElementId);
+DEFINE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerActivateCustomModeElementId);
 namespace {
 
 std::u16string CapabilityLabel(TahaiOperationalCapability capability) {
@@ -643,6 +645,8 @@ class SkinManagerView final : public views::DialogDelegate,
                   base::BindRepeating(&SkinManagerView::ActivateOperationalMode,
                                       weak_factory_.GetWeakPtr(), mode.id),
                   base::UTF8ToUTF16("Activate " + mode.name)));
+          activate->SetProperty(views::kElementIdentifierKey,
+                                kSkinManagerActivateModeElementId);
           activate->SetTooltipText(
               u"Applies this mode's workspace and opens its local workflow.");
           activate->SetEnabled(
@@ -658,6 +662,8 @@ class SkinManagerView final : public views::DialogDelegate,
                   base::BindRepeating(&SkinManagerView::ActivateCustomMode,
                                       weak_factory_.GetWeakPtr(), mode.id),
                   base::UTF8ToUTF16("Activate " + mode.title)));
+          activate->SetProperty(views::kElementIdentifierKey,
+                                kSkinManagerActivateCustomModeElementId);
           activate->SetTooltipText(
               mode.native_presentation
                   ? u"Restores the saved workspace and reverifies any pinned "
@@ -1054,6 +1060,134 @@ class SkinManagerView final : public views::DialogDelegate,
       Controls();
     }
   }
+  // Every native mutation below may synchronously notify observers, destroy
+  // this dialog/window, retarget the manager or revoke a skin binding. Own the
+  // reviewed data and recheck weak owners and authority between each dispatch.
+  void RunOperationalActivation(
+      BrowserWindowInterface* target_browser,
+      const TahaiOperationalSkinActivation& activation,
+      const TahaiOperationalWorkflow& workflow,
+      const std::vector<std::string>& rail_modules,
+      const std::optional<SurfaceDesign>& surface_design,
+      const std::string& skin_id,
+      const std::string& archive_sha256,
+      const std::string& mode_id,
+      const std::string& custom_mode_id = {}) {
+    if (activating_ || !browser_ || !target_browser || !service_) {
+      return;
+    }
+    const auto alive = weak_factory_.GetWeakPtr();
+    const auto source = browser_;
+    const auto target = target_browser->GetWeakPtr();
+    const auto profile = target->GetProfile()->GetWeakPtr();
+    auto* target_controller = WindowModeController::GetForBrowser(target.get());
+    auto* source_controller = TargetController();
+    if (!target_controller || !source_controller) {
+      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      return;
+    }
+    const auto controller = target_controller->GetWeakPtr();
+    const auto origin = source_controller->GetWeakPtr();
+    activating_ = true;
+    base::ScopedClosureRunner reset(base::BindOnce(
+        [](base::WeakPtr<SkinManagerView> view) {
+          if (view) {
+            view->activating_ = false;
+          }
+        },
+        alive));
+    const auto owners_current = [&] {
+      return alive && source && target && profile && controller && origin &&
+             alive->service_ && alive->browser_.get() == source.get();
+    };
+    const auto failed = [&] {
+      if (alive && alive->browser_.get() == source.get()) {
+        alive->Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
+      }
+    };
+    const auto revision_current = [&] {
+      if (!owners_current()) {
+        return false;
+      }
+      const auto* manifest = controller->operational_manifest();
+      return manifest && manifest->appearance.id == skin_id &&
+             controller->operational_archive_sha256() == archive_sha256;
+    };
+    bool custom_selected = false;
+    const auto selection_current = [&] {
+      return revision_current() &&
+             controller->active_operational_mode_id() == mode_id &&
+             (!custom_selected ||
+              controller->active_custom_mode_id() == custom_mode_id);
+    };
+    // Preflight before changing the target; each command is also rechecked at
+    // use. A saved workspace can target another window, but never another
+    // profile.
+    if (target->GetProfile() != source->GetProfile() ||
+        std::ranges::any_of(activation.command_ids,
+                            [&](int command_id) {
+                              return !chrome::IsCommandEnabled(target.get(),
+                                                               command_id);
+                            }) ||
+        !chrome::IsCommandEnabled(target.get(), IDC_TAHAI_MISSION_CONTROL) ||
+        !controller->CopyWindowSkinFrom(*origin) || !revision_current()) {
+      failed();
+      return;
+    }
+    // Keep rail changes local to the selected window, not the profile template.
+    if (!controller->ApplyWorkspacePresentation(
+            controller->active_mode_id(),
+            controller->active_configuration().rail_state,
+            controller->active_configuration().rail_width) ||
+        !revision_current() || !controller->SelectOperationalMode(mode_id) ||
+        !selection_current()) {
+      failed();
+      return;
+    }
+    for (int command_id : activation.command_ids) {
+      if (command_id == IDC_TAHAI_MISSION_CONTROL) {
+        continue;
+      }
+      if (!selection_current() ||
+          !chrome::IsCommandEnabled(target.get(), command_id) ||
+          !chrome::ExecuteCommand(target.get(), command_id) ||
+          !selection_current()) {
+        failed();
+        return;
+      }
+    }
+    if (!custom_mode_id.empty()) {
+      custom_selected = true;
+      if (!controller->SetCustomModePresentation(custom_mode_id) ||
+          !selection_current()) {
+        failed();
+        return;
+      }
+    }
+    if (!controller->SetOperationalRailModules(rail_modules) ||
+        !selection_current() || !controller->SetSurfaceDesign(surface_design) ||
+        !selection_current()) {
+      failed();
+      return;
+    }
+    if (!QueueOperationalWorkflowLaunch(profile.get(), workflow, skin_id,
+                                        archive_sha256)) {
+      failed();
+      return;
+    }
+    if (!selection_current() ||
+        !chrome::IsCommandEnabled(target.get(), IDC_TAHAI_MISSION_CONTROL) ||
+        !chrome::ExecuteCommand(target.get(), IDC_TAHAI_MISSION_CONTROL)) {
+      if (profile) {
+        ClearQueuedOperationalWorkflowLaunch(profile.get());
+      }
+      failed();
+      return;
+    }
+    if (selection_current()) {
+      alive->Status(IDS_TAHAI_SKINS_APPLIED);
+    }
+  }
   void ActivateOperationalMode(std::string mode_id) {
     if (!browser_ || !service_) {
       return;
@@ -1092,57 +1226,12 @@ class SkinManagerView final : public views::DialogDelegate,
     const std::vector<std::string> rail_modules = surface->rail_modules;
     const auto surface_design = surface->design;
     const std::string skin_id = operational->appearance.id;
-    // Preflight the complete command set before changing the target window.
-    if (std::ranges::any_of(activation->command_ids, [this](int command_id) {
-          return !chrome::IsCommandEnabled(browser_.get(), command_id);
-        }) || !chrome::IsCommandEnabled(browser_.get(),
-                                        IDC_TAHAI_MISSION_CONTROL)) {
-      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-      return;
-    }
-    WindowModeController* const controller =
-        WindowModeController::GetForBrowser(browser_.get());
-    if (!controller || !controller->ApplyWorkspacePresentation(
-                           controller->active_mode_id(),
-                           controller->active_configuration().rail_state,
-                           controller->active_configuration().rail_width)) {
-      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-      return;
-    }
-    // Applying a skin's rail choice must be window-local. Without the
-    // workspace override, these commands would change the profile template
-    // and every sibling window still using that mode.
-    if (!controller->SelectOperationalMode(mode_id) ||
-        controller->operational_archive_sha256() != archive_sha256) {
-      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-      return;
-    }
-    for (int command_id : activation->command_ids) {
-      if (command_id == IDC_TAHAI_MISSION_CONTROL) {
-        continue;
-      }
-      if (!chrome::ExecuteCommand(browser_.get(), command_id)) {
-        Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-        return;
-      }
-    }
-    if (!controller->SetOperationalRailModules(rail_modules) ||
-        !controller->SetSurfaceDesign(surface_design)) {
-      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-      return;
-    }
-    if (!QueueOperationalWorkflowLaunch(browser_->GetProfile(), workflow_snapshot,
-                                        skin_id,
-                                        *archive_sha256) ||
-        !chrome::ExecuteCommand(browser_.get(), IDC_TAHAI_MISSION_CONTROL)) {
-      ClearQueuedOperationalWorkflowLaunch(browser_->GetProfile());
-      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-      return;
-    }
-    Status(IDS_TAHAI_SKINS_APPLIED);
+    RunOperationalActivation(browser_.get(), *activation, workflow_snapshot,
+                             rail_modules, surface_design, skin_id,
+                             *archive_sha256, mode_id);
   }
   void ActivateCustomMode(std::string custom_mode_id) {
-    if (!browser_ || !mode_service_) {
+    if (activating_ || !browser_ || !mode_service_) {
       return;
     }
     const auto custom = std::ranges::find(
@@ -1204,12 +1293,13 @@ class SkinManagerView final : public views::DialogDelegate,
     const TahaiCustomModeDefinition custom_snapshot = *custom;
     BrowserWindowInterface* target = browser_.get();
     const auto alive = weak_factory_.GetWeakPtr();
+    const auto source = browser_;
     if (!custom_snapshot.workspace_id.empty()) {
       // A saved workspace is restored only by Chromium's browser-owned
       // controller. It opens a separate regular-profile window and cannot
       // accept a renderer-provided URL or mutate the source window.
       target = OpenNamedWorkspace(target, custom_snapshot.workspace_id);
-      if (!alive) {
+      if (!alive || !source || browser_.get() != source.get()) {
         return;
       }
       if (!target) {
@@ -1217,58 +1307,10 @@ class SkinManagerView final : public views::DialogDelegate,
         return;
       }
     }
-    if (std::ranges::any_of(activation->command_ids,
-                            [target](int command_id) {
-                              return !chrome::IsCommandEnabled(target,
-                                                                command_id);
-                            }) ||
-        !chrome::IsCommandEnabled(target, IDC_TAHAI_MISSION_CONTROL)) {
-      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-      return;
-    }
-    WindowModeController* const controller =
-        WindowModeController::GetForBrowser(target);
-    if (!controller || !TargetController() ||
-        !controller->CopyWindowSkinFrom(*TargetController()) ||
-        !controller->ApplyWorkspacePresentation(
-                           controller->active_mode_id(),
-                           controller->active_configuration().rail_state,
-                           controller->active_configuration().rail_width)) {
-      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-      return;
-    }
-    if (!controller->SelectOperationalMode(custom_snapshot.operational_mode_id) ||
-        controller->operational_archive_sha256() != archive_sha256) {
-      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-      return;
-    }
-    for (int command_id : activation->command_ids) {
-      if (command_id == IDC_TAHAI_MISSION_CONTROL) {
-        continue;
-      }
-      if (!chrome::ExecuteCommand(target, command_id)) {
-        Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-        return;
-      }
-    }
-    if (!controller->SetCustomModePresentation(custom_snapshot.id)) {
-      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-      return;
-    }
-    if (!controller->SetOperationalRailModules(rail_modules) ||
-        !controller->SetSurfaceDesign(surface_design)) {
-      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-      return;
-    }
-    if (!QueueOperationalWorkflowLaunch(target->GetProfile(), workflow_snapshot,
-                                        skin_id,
-                                        *archive_sha256) ||
-        !chrome::ExecuteCommand(target, IDC_TAHAI_MISSION_CONTROL)) {
-      ClearQueuedOperationalWorkflowLaunch(target->GetProfile());
-      Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
-      return;
-    }
-    Status(IDS_TAHAI_SKINS_APPLIED);
+    RunOperationalActivation(
+        target, *activation, workflow_snapshot, rail_modules, surface_design,
+        skin_id, *archive_sha256, custom_snapshot.operational_mode_id,
+        custom_snapshot.id);
   }
   void TryAppearance() {
     if (!service_ || !service_->BeginLivePreview(preview_token_)) {
@@ -1409,6 +1451,7 @@ class SkinManagerView final : public views::DialogDelegate,
   bool choosing_ = false;
   bool exporting_ = false;
   bool exporting_skin_ = false;
+  bool activating_ = false;
   base::RepeatingTimer preview_status_timer_;
   bool closed_ = false;
   base::WeakPtrFactory<SkinManagerView> reply_factory_{this};

@@ -88,6 +88,10 @@ try {
     $native = New-TestSummary @(
         'TahaiWorkflowJournalTest.IntentSurvivesReopenAndCannotReplay',
         'TahaiSkinStudioDraftTest.CanonicalGrowthCannotReplaceLastReloadableDraft',
+        'TahaiSkinStudioDraftTest.NewDraftTargetsRunningEngineOnly',
+        'TahaiSkinStudioDraftTest.ExistingCompatibilityIsNeverSilentlyWidened',
+        'MissionServiceTest.QueuedActivationPreservesAuthoredManualRecovery',
+        'MissionServiceTest.InvalidQueuedRecoveryCannotReplacePriorLaunch',
         'TahaiCapabilityBrokerTest.ExactOriginRevisionAndOperationAreRequired',
         'TahaiCapabilityBrokerTest.SameOriginNavigationExpiresCapturedDocument',
         'TahaiCapabilityBrokerTest.RejectsPrivateForeignAndManagedProfiles',
@@ -303,6 +307,11 @@ try {
         'TahaiSkinManagerBrowserTest.TahaiNativeRevisionReviewRequiresCheckboxAndConfirmation',
         'TahaiOperationalModeBrowserTest.TahaiPublisherReviewBindsKeyFingerprintAndRevokesWithPolicy',
         'TahaiOperationalModeBrowserTest.TahaiNativeTrustReviewShowsCapabilitiesAndClearsOnRevocation',
+        'TahaiOperationalModeBrowserTest.TahaiManagerActivationPreservesAuthoredRecovery',
+        'TahaiOperationalModeBrowserTest.TahaiManagerActivationStopsOnSynchronousClose',
+        'TahaiOperationalModeBrowserTest.TahaiManagerCustomActivationStopsOnSynchronousClose',
+        'TahaiOperationalModeBrowserTest.TahaiManagerActivationStopsOnSynchronousRetarget',
+        'TahaiOperationalModeBrowserTest.TahaiManagerActivationStopsOnSynchronousRevocation',
         'TahaiWebUIBrowserTest.TahaiMissionProtectedInputIsMaskedStoredEncryptedAndExplicitlyCleared',
         'TahaiWebUIBrowserTest.TahaiMissionInputLimitsAreExplainedAndEnforcedByNativeService',
         'TahaiWebUIBrowserTest.TahaiMissionNamedOutputsRequireSuccessStayLocalAndMaskProtectedValues',
@@ -454,7 +463,7 @@ try {
     $evidencePath = Join-Path $fixtureRoot 'release.json'
     $null = Write-FixtureEvidence 'release.json' $evidence
     $result = Assert-TahaiReleaseEvidence $evidencePath $buildDir
-    if ($result.NativeTestAttempts -ne 147 -or $result.BrowserTestAttempts -ne 180 -or
+    if ($result.NativeTestAttempts -ne 151 -or $result.BrowserTestAttempts -ne 185 -or
         $result.ElevationTestAttempts -ne 2 -or $result.TracingTestAttempts -ne 2) {
         throw 'Positive fixture counts were incorrect.'
     }

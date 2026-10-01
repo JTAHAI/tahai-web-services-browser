@@ -1,6 +1,7 @@
 // Copyright 2026 TAHAI Web Services. SPDX-License-Identifier: Apache-2.0
 'use strict';
 const manifest = structuredClone(window.tahaiStarter.manifest);
+let exporting = false;
 const byId = id => document.getElementById(id);
 const paletteNames = ['light_tokens', 'dark_tokens', 'high_contrast_tokens'];
 const reserved = new Set(['stock','tahai-neon','tahai-sentinel','terminal-green','bare-metal','glass-command','classic-amp-inspired','midnight-operations','high-contrast-operator']);
@@ -25,7 +26,7 @@ function updatePreview() {
   for (const [token, value] of Object.entries(palette)) byId('preview').style.setProperty(`--${token}`,value);
   const errors = contrastErrors();
   byId('contrast').textContent = errors.length ? `Increase text contrast to at least 4.5:1. ${errors.join('; ')}` : 'All three palettes meet 4.5:1 text contrast.';
-  byId('download').disabled = !!errors.length;
+  byId('download').disabled = exporting || !!errors.length;
 }
 function showPalette() {
   const palette = manifest.appearance[byId('palette').value];
@@ -78,27 +79,40 @@ function archive(entries) {
 byId('palette').addEventListener('change',showPalette);
 byId('studio').addEventListener('submit',async event => {
   event.preventDefault();
-  if (!byId('studio').reportValidity() || contrastErrors().length) return;
+  if (exporting || !byId('studio').reportValidity() || contrastErrors().length) return;
+  exporting = true;
   const button=byId('download'); button.disabled=true;
+  // Hashing yields to the editor. Only this gesture's snapshot may enter the
+  // archive; later palette/metadata edits belong to the next explicit export.
+  const snapshot = structuredClone(manifest);
   try {
-    manifest.id=byId('identity-value').value;
-    if (reserved.has(manifest.id)) throw new Error('Choose your own unique ID; this ID belongs to an included browser palette.');
+    snapshot.id=byId('identity-value').value;
+    if (!/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(snapshot.id) || reserved.has(snapshot.id)) throw new Error('Choose your own unique 3-64 character lowercase ID, using letters, digits and interior hyphens.');
     for (const field of ['name','creator','license']) {
       const value=byId(field).value.trim();
       if (!value || value.length>128 || /[^\x20-\x7e]|[\\"<>]/.test(value)) throw new Error(`${field}: use plain text without quotes, backslashes or markup.`);
-      manifest[field]=value;
+      snapshot[field]=value;
     }
-    manifest.appearance.density=byId('density').value;
-    manifest.appearance.reduced_motion=byId('motion').checked;
+    snapshot.appearance.density=byId('density').value;
+    if (!['compact', 'comfortable'].includes(snapshot.appearance.density)) throw new Error('Choose compact or comfortable density.');
+    snapshot.appearance.reduced_motion=byId('motion').checked;
     const preview=Uint8Array.from(atob(window.tahaiStarter.png),c=>c.charCodeAt(0));
     const hash=await crypto.subtle.digest('SHA-256',preview);
-    manifest.assets[0].sha256=Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
-    const blob=archive([['manifest.json',encoder.encode(JSON.stringify(manifest,null,2)+'\n')],['assets/preview.png',preview]]);
-    const url=URL.createObjectURL(blob), link=document.createElement('a');
-    link.href=url; link.download=`${manifest.id}.tahaiskin`; document.body.append(link); link.click(); link.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    snapshot.assets[0].sha256=Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
+    const blob=archive([['manifest.json',encoder.encode(JSON.stringify(snapshot,null,2)+'\n')],['assets/preview.png',preview]]);
+    const url=URL.createObjectURL(blob);
+    let link;
+    let downloaded = false;
+    try {
+      link=document.createElement('a');
+      link.href=url; link.download=`${snapshot.id}.tahaiskin`; document.body.append(link); link.click(); downloaded = true;
+    } finally {
+      link?.remove();
+      if (downloaded) setTimeout(()=>URL.revokeObjectURL(url),60000);
+      else URL.revokeObjectURL(url);
+    }
     byId('status').textContent='Skin created. Review the download in TAHAI Skin packages, try it, then install and apply it.';
   } catch(error) { byId('status').textContent=error.message; }
-  finally { updatePreview(); }
+  finally { exporting = false; updatePreview(); }
 });
 showPalette();

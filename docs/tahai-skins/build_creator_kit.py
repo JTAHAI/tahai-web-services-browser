@@ -5,6 +5,7 @@ import base64
 import io
 import json
 from pathlib import Path
+import re
 import tempfile
 import zipfile
 
@@ -13,7 +14,28 @@ from operational_templates import TEMPLATES, readme, source_manifest
 ROOT = Path(__file__).resolve().parent
 
 
-def outputs():
+def validate_compatibility(version_file):
+    """Release-only guard; the exported standalone kit needs no source checkout.
+
+    Never rewrite an author's ranges here. A new engine needs an explicit
+    template review and regenerated archives, not silent range widening.
+    """
+    values = re.findall(r"^MAJOR=(\d+)$", Path(version_file).read_text().strip(), re.M)
+    if len(values) != 1 or not 1 <= int(values[0]) <= 999:
+        raise ValueError("Expected one valid MAJOR in the selected chrome/VERSION")
+    major = int(values[0])
+    expected = {"min_chromium_major": major, "max_chromium_major": major}
+    for name in ("starter-skin/manifest.json", "operational-starter-skin/manifest.json",
+                 "operational-skin-v2.example.json"):
+        manifest = json.loads((ROOT / name).read_text(encoding="utf-8"))
+        if manifest.get("compatibility") != expected:
+            raise ValueError(f"Bundled {name} must explicitly target Chromium {major}; "
+                             "review the template and regenerate the creator kit")
+
+
+def outputs(chromium_version_file=None):
+    if chromium_version_file is not None:
+        validate_compatibility(chromium_version_file)
     from build_skin import build
     starter = ROOT / "starter-skin"
     operational_starter = ROOT / "operational-starter-skin"
@@ -68,8 +90,10 @@ def outputs():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--chromium-version-file", type=Path,
+                        help="Release guard against stale bundled compatibility ranges")
     args = parser.parse_args()
-    for name, content in outputs().items():
+    for name, content in outputs(args.chromium_version_file).items():
         target = ROOT / name
         if args.check:
             if not target.exists() or target.read_bytes() != content:

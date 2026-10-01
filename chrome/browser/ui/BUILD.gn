@@ -3624,6 +3624,7 @@ group("ui_public_dependencies") {
   }
   if (is_win) {
     public_deps += [
+      "//base/version_info",
       "//build:branding_buildflags",
       "//ui/views",
       "//ui/views/controls/webview",

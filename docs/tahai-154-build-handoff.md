@@ -168,6 +168,14 @@ Evidence lives in `out/<build>/upgrade-checks-<timestamp>`; preserve actual exit
 codes, failed attempts, summaries, source snapshot and status. Never retry a
 failing test into a claimed clean pass or package old output.
 
+The operational-skin follow-up adds nine required regression sentinels. Preserve
+the complete scopes above: fresh drafts must target the running engine without
+rewriting saved author ranges; authored manual recovery must survive activation,
+cancellation and restart; malformed handoffs must not replace valid ones; native
+manager activation must stop on synchronous close, retarget and trust revocation.
+The creator-kit check also compares bundled compatibility against `chrome/VERSION`.
+The source-only JS/creator tests do not substitute for these native tests.
+
 ## Operational and package acceptance still required
 
 After all four native gates pass, launch only the new binary with a new explicit

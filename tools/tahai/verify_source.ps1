@@ -28,7 +28,7 @@ $taskExit = 1
 try {
     Invoke-SourceCheck 'royal-resources' $PowerShellExecutable @('-NoProfile', '-File', 'tools/tahai/royal_brand_assets.ps1')
     foreach ($name in @('workflow_designer', 'workflow_editor_events', 'workflow_input_events',
-                       'studio_editor', 'studio_palette_events', 'studio_history', 'native_mode_placement',
+                       'studio_editor', 'studio_palette_events', 'studio_history', 'studio_transfer', 'offline_creator', 'native_mode_placement',
                        'surface_designer', 'surface_designer_events', 'capability_review_events',
                        'local_oi_controls')) {
         Invoke-SourceCheck $name $NodeExecutable @("tools/tahai/${name}_test.js")
@@ -40,7 +40,7 @@ try {
     Invoke-SourceCheck 'guard-source-inventory' $PythonExecutable @('tools/tahai/audit_guard_dependencies.py', '--source-inventory', 'docs/tahai-guard-import-inventory.json')
     Invoke-SourceCheck 'packaged-resource-unit' $PythonExecutable @('chrome/installer/win/tahai_msix/verify_release_resources_test.py')
     Invoke-SourceCheck 'creator-release' $PythonExecutable @('docs/tahai-skins/test_build_skin.py', '--release-gate', '-v')
-    Invoke-SourceCheck 'creator-kit' $PythonExecutable @('docs/tahai-skins/build_creator_kit.py', '--check')
+    Invoke-SourceCheck 'creator-kit' $PythonExecutable @('docs/tahai-skins/build_creator_kit.py', '--check', '--chromium-version-file', 'chrome/VERSION')
     Invoke-SourceCheck 'guard-lists' $PythonExecutable @('third_party/tahai_guard_lists/build_rules.py', '--check')
     foreach ($name in @('package_unsigned_msix', 'release_evidence')) {
         Invoke-SourceCheck $name $PowerShellExecutable @('-NoProfile', '-File', "chrome/installer/win/tahai_msix/${name}_test.ps1")
@@ -48,7 +48,7 @@ try {
     if ($RenderCss) {
         Invoke-SourceCheck 'source-render-and-command-palette' $PythonExecutable @('tools/tahai/royal_brand_render_test.py')
     }
-    if ($taskResults.Count -ne (23 + [int]$RenderCss.IsPresent)) { throw 'Incomplete or zero source-check selection' }
+    if ($taskResults.Count -ne (25 + [int]$RenderCss.IsPresent)) { throw 'Incomplete or zero source-check selection' }
     $taskExit = 0
 } finally {
     [ordered]@{

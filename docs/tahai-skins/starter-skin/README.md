@@ -19,7 +19,8 @@ the same folder. The steps below also let you use custom artwork.
 4. Replace `assets/preview.png` with a still PNG or WebP. Keep each image under
    4 MiB and 2048 by 2048 pixels. Update the path in the manifest if needed.
 5. Check your Chromium major version at `chrome://version` and set the tested
-   compatibility range. The included example targets version 152.
+   compatibility range. The included candidate example targets version 154;
+   native runtime validation is still required before release.
 6. From the extracted kit folder, run these commands with Python 3.9 or newer:
 
    ```powershell

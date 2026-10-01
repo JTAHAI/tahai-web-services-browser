@@ -1174,8 +1174,218 @@ class TahaiOperationalModeBrowserTest : public TahaiSkinManagerBrowserTest {
     base::RunLoop().RunUntilIdle();
   }
 
+  void PrepareManagerActivation(const std::string& archive,
+                                bool custom = false) {
+    auto* skins = BrowserService();
+    base::test::TestFuture<SkinOperationResult> result;
+    skins->PreviewFile(WriteArchive(archive), result.GetCallback());
+    auto preview = result.Take();
+    ASSERT_EQ(SkinOperationStatus::kOk, preview.status);
+    skins->InstallPreview(preview.preview_token, result.GetCallback());
+    ASSERT_EQ(SkinOperationStatus::kOk, result.Take().status);
+    skins->PreviewInstalled("decoder-fixture", Hash(archive), false,
+                            result.GetCallback());
+    preview = result.Take();
+    ASSERT_EQ(SkinOperationStatus::kOk, preview.status);
+    auto* controller = WindowModeController::GetForBrowser(browser());
+    ASSERT_TRUE(controller);
+    ASSERT_TRUE(controller->ApplyReviewedWindowSkin(preview.preview_token));
+    ASSERT_TRUE(controller->SelectOperationalMode("review-mode"));
+    if (custom) {
+      ASSERT_TRUE(ModeServiceFactory::GetForProfile(browser()->GetProfile())
+                      ->CreateCustomMode("Saved review", "review-mode", "",
+                                         WindowSkinReference{"decoder-fixture",
+                                                             Hash(archive)}));
+    }
+    ShowSkinManager(browser());
+    auto* manager = Manager(browser());
+    ASSERT_TRUE(manager);
+    ASSERT_TRUE(base::test::RunUntil([&] {
+      auto* activate = Button(manager, kSkinManagerActivateModeElementId);
+      return activate && activate->GetEnabled();
+    }));
+  }
+
   testing::NiceMock<policy::MockConfigurationPolicyProvider> provider_;
 };
+
+// A one-shot synchronous observer models native UI teardown/retargeting at a
+// presentation notification boundary, not a renderer-privileged test shortcut.
+class ActivationInterruption : public WindowModeController::Observer {
+ public:
+  ActivationInterruption(WindowModeController* controller,
+                         base::OnceClosure callback)
+      : controller_(controller->GetWeakPtr()), callback_(std::move(callback)) {
+    controller_->AddObserver(this);
+  }
+  ~ActivationInterruption() override {
+    if (controller_) {
+      controller_->RemoveObserver(this);
+    }
+  }
+  void OnTahaiWindowModeChanged() override {
+    if (callback_) {
+      std::move(callback_).Run();
+    }
+  }
+
+ private:
+  base::WeakPtr<WindowModeController> controller_;
+  base::OnceClosure callback_;
+};
+
+IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
+                       TahaiManagerActivationPreservesAuthoredRecovery) {
+  const auto key = crypto::keypair::PrivateKey::GenerateEd25519();
+  SetPublisherPolicy(OperationalTrustPolicy(key));
+  const auto archive = SignedOperationalArchive(
+      key, false, base::BindRepeating([](base::DictValue& manifest) {
+        manifest.FindDict("operational")
+            ->FindList("workflows")
+            ->front()
+            .GetDict()
+            .Set("compensation_steps",
+                 base::ListValue().Append(
+                     base::DictValue()
+                         .Set("id", "restore-local")
+                         .Set("name", "Review the original local workspace")));
+      }));
+  ASSERT_NO_FATAL_FAILURE(PrepareManagerActivation(archive));
+  auto* sibling = CreateBrowser(browser()->GetProfile());
+  auto* sibling_controller = WindowModeController::GetForBrowser(sibling);
+  ASSERT_TRUE(sibling_controller);
+  const auto sibling_before = sibling_controller->SerializePresentation();
+  const auto profile_before = browser()
+                                  ->GetProfile()
+                                  ->GetPrefs()
+                                  ->GetDict(prefs::kTahaiAppliedSkin)
+                                  .Clone();
+  auto* activate =
+      Button(Manager(browser()), kSkinManagerActivateModeElementId);
+  ASSERT_TRUE(activate);
+  auto* missions =
+      MissionServiceFactory::GetForProfile(browser()->GetProfile());
+  ASSERT_TRUE(missions);
+  const size_t before = missions->missions().size();
+  views::test::ButtonTestApi(activate).NotifyDefaultMouseClick();
+  auto* contents = browser()->GetTabStripModel()->GetActiveWebContents();
+  ASSERT_TRUE(content::WaitForLoadStop(contents));
+  ASSERT_TRUE(base::test::RunUntil(
+      [&] { return missions->missions().size() > before; }));
+  ASSERT_EQ(before + 1u, missions->missions().size());
+  const auto& mission = missions->missions().back();
+  ASSERT_TRUE(mission.operational_workflow);
+  ASSERT_EQ(1u, mission.rollback_steps.size());
+  EXPECT_EQ("Review the original local workspace",
+            mission.rollback_steps[0].label);
+  EXPECT_FALSE(mission.rollback_steps[0].complete);
+  EXPECT_EQ(sibling_before, sibling_controller->SerializePresentation());
+  EXPECT_EQ(profile_before, browser()->GetProfile()->GetPrefs()->GetDict(
+                                prefs::kTahaiAppliedSkin));
+  EXPECT_EQ("review-mode", WindowModeController::GetForBrowser(browser())
+                               ->active_operational_mode_id());
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
+                       TahaiManagerActivationStopsOnSynchronousClose) {
+  const auto key = crypto::keypair::PrivateKey::GenerateEd25519();
+  SetPublisherPolicy(OperationalTrustPolicy(key));
+  ASSERT_NO_FATAL_FAILURE(
+      PrepareManagerActivation(SignedOperationalArchive(key)));
+  auto* manager = Manager(browser());
+  auto* activate = Button(manager, kSkinManagerActivateModeElementId);
+  ASSERT_TRUE(activate);
+  const int tab_count = browser()->GetTabStripModel()->count();
+  bool closed = false;
+  ActivationInterruption interruption(
+      WindowModeController::GetForBrowser(browser()),
+      base::BindLambdaForTesting([&] {
+        closed = true;
+        manager->CloseNow();
+      }));
+  views::test::ButtonTestApi(activate).NotifyDefaultMouseClick();
+  EXPECT_TRUE(closed);
+  EXPECT_FALSE(Manager(browser()));
+  EXPECT_EQ(tab_count, browser()->GetTabStripModel()->count());
+  EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(browser()->GetProfile()));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
+                       TahaiManagerActivationStopsOnSynchronousRetarget) {
+  const auto key = crypto::keypair::PrivateKey::GenerateEd25519();
+  SetPublisherPolicy(OperationalTrustPolicy(key));
+  ASSERT_NO_FATAL_FAILURE(
+      PrepareManagerActivation(SignedOperationalArchive(key)));
+  auto* sibling = CreateBrowser(browser()->GetProfile());
+  auto* sibling_controller = WindowModeController::GetForBrowser(sibling);
+  const auto sibling_before = sibling_controller->SerializePresentation();
+  auto* activate =
+      Button(Manager(browser()), kSkinManagerActivateModeElementId);
+  ASSERT_TRUE(activate);
+  const int tab_count = browser()->GetTabStripModel()->count();
+  bool retargeted = false;
+  ActivationInterruption interruption(
+      WindowModeController::GetForBrowser(browser()),
+      base::BindLambdaForTesting([&] {
+        retargeted = true;
+        ShowSkinManager(sibling);
+      }));
+  views::test::ButtonTestApi(activate).NotifyDefaultMouseClick();
+  EXPECT_TRUE(retargeted);
+  EXPECT_EQ(sibling_before, sibling_controller->SerializePresentation());
+  EXPECT_EQ(tab_count, browser()->GetTabStripModel()->count());
+  EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(browser()->GetProfile()));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
+                       TahaiManagerCustomActivationStopsOnSynchronousClose) {
+  const auto key = crypto::keypair::PrivateKey::GenerateEd25519();
+  SetPublisherPolicy(OperationalTrustPolicy(key));
+  ASSERT_NO_FATAL_FAILURE(
+      PrepareManagerActivation(SignedOperationalArchive(key), true));
+  auto* manager = Manager(browser());
+  auto* activate = Button(manager, kSkinManagerActivateCustomModeElementId);
+  ASSERT_TRUE(activate);
+  ASSERT_TRUE(activate->GetEnabled());
+  const int tab_count = browser()->GetTabStripModel()->count();
+  bool closed = false;
+  ActivationInterruption interruption(
+      WindowModeController::GetForBrowser(browser()),
+      base::BindLambdaForTesting([&] {
+        closed = true;
+        manager->CloseNow();
+      }));
+  views::test::ButtonTestApi(activate).NotifyDefaultMouseClick();
+  EXPECT_TRUE(closed);
+  EXPECT_FALSE(Manager(browser()));
+  EXPECT_EQ(tab_count, browser()->GetTabStripModel()->count());
+  EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(browser()->GetProfile()));
+}
+
+IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
+                       TahaiManagerActivationStopsOnSynchronousRevocation) {
+  const auto key = crypto::keypair::PrivateKey::GenerateEd25519();
+  SetPublisherPolicy(OperationalTrustPolicy(key));
+  ASSERT_NO_FATAL_FAILURE(
+      PrepareManagerActivation(SignedOperationalArchive(key)));
+  auto* activate =
+      Button(Manager(browser()), kSkinManagerActivateModeElementId);
+  ASSERT_TRUE(activate);
+  const int tab_count = browser()->GetTabStripModel()->count();
+  auto* controller = WindowModeController::GetForBrowser(browser());
+  bool revoked = false;
+  ActivationInterruption interruption(
+      controller, base::BindLambdaForTesting([&] {
+        revoked = true;
+        browser()->GetProfile()->GetPrefs()->SetBoolean(
+            prefs::kTahaiSkinsEnabled, false);
+      }));
+  views::test::ButtonTestApi(activate).NotifyDefaultMouseClick();
+  EXPECT_TRUE(revoked);
+  EXPECT_FALSE(controller->operational_manifest());
+  EXPECT_EQ(tab_count, browser()->GetTabStripModel()->count());
+  EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(browser()->GetProfile()));
+}
 
 IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
                        TahaiRevisionReviewReportsCapabilitiesDefinitionsAndPolicyRevocation) {

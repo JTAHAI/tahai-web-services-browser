@@ -40,6 +40,34 @@ class CreatorTests(unittest.TestCase):
                              manifest["assets"][0]["sha256"])
         self.assertEqual("stale", json.loads((self.source / "manifest.json").read_text())["assets"][0]["sha256"])
 
+    def test_bundled_creator_sources_and_archives_target_current_engine(self):
+        version_file = Path(__file__).resolve().parents[2] / "chrome/VERSION"
+        kit = build_creator_kit.outputs(version_file)["skin-creator-kit.zip"]
+        major = int(dict(line.split("=", 1) for line in
+                         version_file.read_text().splitlines())["MAJOR"])
+        expected = {"min_chromium_major": major, "max_chromium_major": major}
+        archives = 0
+        with zipfile.ZipFile(io.BytesIO(kit)) as bundle:
+            for name in bundle.namelist():
+                if not name.endswith(".tahaiskin"):
+                    continue
+                with zipfile.ZipFile(io.BytesIO(bundle.read(name))) as skin:
+                    manifest = json.loads(skin.read("manifest.json"))
+                    self.assertEqual(expected, manifest["compatibility"], name)
+                    archives += 1
+        self.assertEqual(8, archives)
+
+    def test_creator_version_guard_fails_closed_without_rewriting_templates(self):
+        version = Path(self.temp.name) / "VERSION"
+        paths = [build_creator_kit.ROOT / "starter-skin/manifest.json",
+                 build_creator_kit.ROOT / "operational-starter-skin/manifest.json"]
+        before = [path.read_bytes() for path in paths]
+        for contents in ("MAJOR=999\n", "MAJOR=0\n", "MAJOR=154\nMAJOR=154\n", "BUILD=8037\n"):
+            version.write_text(contents, encoding="utf-8")
+            with self.subTest(contents=contents), self.assertRaises(ValueError):
+                build_creator_kit.outputs(version)
+            self.assertEqual(before, [path.read_bytes() for path in paths])
+
     def test_corrupt_image_is_rejected_even_when_manifest_hash_is_updated(self):
         path = self.source / "assets/preview.png"
         image = bytearray(path.read_bytes())

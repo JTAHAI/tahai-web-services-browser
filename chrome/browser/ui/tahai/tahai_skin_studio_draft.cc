@@ -6,8 +6,10 @@
 #include <optional>
 #include <utility>
 
+#include "base/check.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/version_info/version_info.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/tahai_skins/skin_limits.h"
 #include "chrome/common/tahai_skins/tahai_operational_skin_manifest.h"
@@ -25,8 +27,8 @@ constexpr char kDefaultDraft[] = R"TAHAI({
   "creator": "Local author",
   "license": "BSD-3-Clause",
   "compatibility": {
-    "min_chromium_major": 152,
-    "max_chromium_major": 152
+    "min_chromium_major": 154,
+    "max_chromium_major": 154
   },
   "appearance": {
     "density": "comfortable",
@@ -138,7 +140,18 @@ TahaiSkinStudioDraftResult ValidateAndCanonicalize(std::string manifest_json) {
 }  // namespace
 
 std::string GetTahaiSkinStudioDefaultDraft() {
-  return kDefaultDraft;
+  // Only a new browser-owned draft targets the running engine. Never widen a
+  // saved/imported author's compatibility range or rewrite a signed package.
+  auto draft = base::JSONReader::ReadDict(kDefaultDraft, base::JSON_PARSE_RFC);
+  CHECK(draft);
+  auto* compatibility = draft->FindDict("compatibility");
+  CHECK(compatibility);
+  const int major = version_info::GetMajorVersionNumberAsInt();
+  compatibility->Set("min_chromium_major", major);
+  compatibility->Set("max_chromium_major", major);
+  auto encoded = base::WriteJson(*draft);
+  CHECK(encoded);
+  return std::move(*encoded);
 }
 
 TahaiSkinStudioDraftResult LoadTahaiSkinStudioDraft(PrefService* prefs) {

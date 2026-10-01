@@ -462,6 +462,7 @@ if (is_win) {
       "//chrome/browser/tahai_skins:unit_tests",
       "//base",
       "//base/test:test_support",
+      "//base/version_info",
       "//chrome/browser:chrome_content_browser_client",
       "//chrome/browser/ui",
       "//chrome/install_static/test:test_support",

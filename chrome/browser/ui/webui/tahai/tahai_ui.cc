@@ -1171,7 +1171,6 @@ constexpr char kCustomModesJs[] = R"TAHAI(
 (()=>{'use strict';const form=document.querySelector('#tahai-custom-mode-form'),status=document.querySelector('#mode-status');if(!status)return;if(form)form.addEventListener('submit',event=>{event.preventDefault();const data=new FormData(form),title=String(data.get('title')||'').trim(),operational=String(data.get('operational_mode_id')||''),workspace=String(data.get('workspace_id')||'');if(!title||title.length>80||!operational)return;status.textContent='Creating the bounded custom workspace…';chrome.send('createTahaiCustomMode',[title,operational,workspace])});for(const control of document.querySelectorAll('[data-tahai-custom-mode-action]'))control.addEventListener('click',()=>{const id=String(control.dataset.tahaiCustomModeId||''),action=String(control.dataset.tahaiCustomModeAction||''),card=control.closest('[data-tahai-custom-mode-card]'),input=card?.querySelector('[data-tahai-custom-mode-title]'),title=String(input?.value||'').trim();if(!id||!['rename','delete'].includes(action)||(action==='rename'&&(!title||title.length>80))||(action==='delete'&&!window.confirm('Delete this custom workspace? The saved workspace itself is not deleted.')))return;status.textContent=action==='rename'?'Renaming custom workspace…':'Deleting custom workspace…';chrome.send('updateTahaiCustomMode',[id,action,title])});window.tahaiCustomModeCreated=()=>{status.textContent='Custom workspace saved for this profile.';window.setTimeout(()=>location.replace('tahai://modes/'),300)};window.tahaiCustomModeUpdated=()=>{status.textContent='Custom workspace updated.';window.setTimeout(()=>location.replace('tahai://modes/'),300)};window.tahaiCustomModeRejected=()=>{status.textContent='That custom workspace request was rejected. Keep a reviewed operational skin applied and choose an existing saved workspace if needed.'}})();
 )TAHAI";
 
-
 constexpr char kSkinStudioImportExportJs[] = R"TAHAI(
 (()=>{
   'use strict';
@@ -1181,18 +1180,34 @@ constexpr char kSkinStudioImportExportJs[] = R"TAHAI(
   const imported = document.querySelector('#skin-studio-import');
   if (!source || !status) return;
   let importGeneration = 0, sourceRevision = 0;
+  const bounded = text => text.length <= 65536 &&
+      new TextEncoder().encode(text).length <= 65536;
   source.addEventListener('input', () => ++sourceRevision);
   download?.addEventListener('click', () => {
-    const blob = new Blob([source.value], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'tahai-operational-skin-draft.json';
-    document.body.append(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-    status.textContent = 'Source download requested. This is not a package.';
+    if (download.disabled) return;
+    if (!bounded(source.value)) {
+      status.textContent = 'The source exceeds the Studio download size limit. No download was created.';
+      return;
+    }
+    let url, link;
+    try {
+      const blob = new Blob([source.value], {type: 'application/json'});
+      url = URL.createObjectURL(blob);
+      link = document.createElement('a');
+      link.href = url;
+      link.download = 'tahai-operational-skin-draft.json';
+      document.body.append(link);
+      link.click();
+      const completedUrl = url;
+      window.setTimeout(() => URL.revokeObjectURL(completedUrl), 60000);
+      url = null;
+      status.textContent = 'Source download requested. This is not a package.';
+    } catch {
+      status.textContent = 'The source download could not be started. Your draft is unchanged.';
+    } finally {
+      link?.remove();
+      if (url) URL.revokeObjectURL(url);
+    }
   });
   imported?.addEventListener('change', async () => {
     const generation = ++importGeneration;
@@ -1206,8 +1221,8 @@ constexpr char kSkinStudioImportExportJs[] = R"TAHAI(
       status.textContent = 'The selected source exceeds the Studio size limit.';
       return;
     }
+    const before = source.value, revision = sourceRevision;
     try {
-      const before = source.value, revision = sourceRevision;
       const text = await file.text();
       if (generation !== importGeneration) return;
       if (source.readOnly || source.disabled || sourceRevision !== revision ||
@@ -1215,11 +1230,21 @@ constexpr char kSkinStudioImportExportJs[] = R"TAHAI(
         status.textContent = 'The draft changed while the file was being read. Nothing was replaced; select the file again to import it.';
         return;
       }
+      // Invalid UTF-8 can expand when File.text replaces bytes. Enforce the
+      // native UTF-8 budget on the decoded value too, before replacing edits.
+      if (!bounded(text)) {
+        status.textContent = 'The decoded source exceeds the Studio size limit. Nothing was replaced.';
+        return;
+      }
       source.value = text;
       source.dispatchEvent(new Event('input', {bubbles: true}));
       status.textContent = 'Imported source is being validated before saving.';
     } catch {
-      if (generation === importGeneration) status.textContent = 'The selected source could not be read.';
+      if (generation === importGeneration && sourceRevision === revision &&
+          source.value === before && file === imported.files?.[0] &&
+          !source.readOnly && !source.disabled) {
+        status.textContent = 'The selected source could not be read. Your draft is unchanged.';
+      }
     }
   });
 })();

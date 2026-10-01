@@ -25,6 +25,8 @@ DECLARE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerPublisherRevokeElementId);
 DECLARE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerApplyElementId);
 DECLARE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerApplyWindowElementId);
 DECLARE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerResetElementId);
+DECLARE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerActivateModeElementId);
+DECLARE_ELEMENT_IDENTIFIER_VALUE(kSkinManagerActivateCustomModeElementId);
 bool CanShowSkinManager(BrowserWindowInterface* browser);
 void ShowSkinManager(BrowserWindowInterface* browser);
 }  // namespace tahai::skins

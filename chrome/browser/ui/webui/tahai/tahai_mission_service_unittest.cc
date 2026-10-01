@@ -530,6 +530,80 @@ TEST_F(MissionServiceTest,
   EXPECT_TRUE(restored.ToggleRollbackStep(mission_id, 1u));
 }
 
+TEST_F(MissionServiceTest, QueuedActivationPreservesAuthoredManualRecovery) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "queued-recovery";
+  workflow.name = "Queued recovery";
+  workflow.steps = {
+      {"review", "Review", TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  workflow.compensation_steps = {
+      {"confirm-authority", "Confirm the actual authority"},
+      {"record-outcome", "Record the actual outcome"}};
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin",
+                                             std::string(64, 'a')));
+  const auto queued = GetQueuedOperationalWorkflowLaunch(&profile_);
+  ASSERT_TRUE(queued);
+  EXPECT_EQ(workflow.compensation_steps, queued->workflow.compensation_steps);
+  std::string mission_id;
+  {
+    MissionService service(&profile_);
+    ASSERT_TRUE(service.ConsumeQueuedOperationalWorkflow());
+    EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(&profile_));
+    ASSERT_EQ(1u, service.missions().size());
+    const auto& mission = service.missions().front();
+    mission_id = mission.id;
+    ASSERT_EQ(2u, mission.rollback_steps.size());
+    EXPECT_EQ("Confirm the actual authority", mission.rollback_steps[0].label);
+    EXPECT_EQ("Record the actual outcome", mission.rollback_steps[1].label);
+    EXPECT_FALSE(service.ToggleRollbackStep(mission_id, 0));
+    ASSERT_TRUE(
+        service.SetOperationalWorkflowRunState(mission_id, "cancelled"));
+    EXPECT_TRUE(service.ToggleRollbackStep(mission_id, 0));
+  }
+  MissionService restored(&profile_);
+  ASSERT_EQ(1u, restored.missions().size());
+  const auto& mission = restored.missions().front();
+  EXPECT_EQ(mission_id, mission.id);
+  ASSERT_EQ(2u, mission.rollback_steps.size());
+  EXPECT_EQ("Confirm the actual authority", mission.rollback_steps[0].label);
+  EXPECT_TRUE(mission.rollback_steps[0].complete);
+  EXPECT_FALSE(mission.rollback_steps[1].complete);
+  ASSERT_TRUE(mission.operational_workflow);
+  EXPECT_EQ("cancelled", mission.operational_workflow->run_state);
+  EXPECT_TRUE(mission.timeline_integrity_verified);
+}
+
+TEST_F(MissionServiceTest, InvalidQueuedRecoveryCannotReplacePriorLaunch) {
+  TahaiOperationalWorkflow workflow;
+  workflow.id = "queued-recovery";
+  workflow.name = "Queued recovery";
+  workflow.steps = {
+      {"review", "Review", TahaiOperationalWorkflowStepKind::kCheckpoint}};
+  workflow.compensation_steps = {{"review-outcome", "Review actual outcome"}};
+  ASSERT_TRUE(QueueOperationalWorkflowLaunch(&profile_, workflow, "review-skin",
+                                             std::string(64, 'a')));
+  const auto before = profile_.GetPrefs()
+                          ->GetDict(prefs::kTahaiPendingOperationalWorkflow)
+                          .Clone();
+  workflow.compensation_steps.push_back(workflow.compensation_steps.front());
+  EXPECT_FALSE(QueueOperationalWorkflowLaunch(
+      &profile_, workflow, "review-skin", std::string(64, 'b')));
+  EXPECT_EQ(before, profile_.GetPrefs()->GetDict(
+                        prefs::kTahaiPendingOperationalWorkflow));
+  auto corrupt = before.Clone();
+  corrupt.FindDict("workflow")
+      ->FindList("compensation_steps")
+      ->front()
+      .GetDict()
+      .Set("action", "address.focus");
+  profile_.GetPrefs()->SetDict(prefs::kTahaiPendingOperationalWorkflow,
+                               std::move(corrupt));
+  EXPECT_FALSE(GetQueuedOperationalWorkflowLaunch(&profile_));
+  MissionService service(&profile_);
+  EXPECT_FALSE(service.ConsumeQueuedOperationalWorkflow());
+  EXPECT_TRUE(service.missions().empty());
+}
+
 TEST_F(MissionServiceTest, CancelledRecoveryWaitsForNativeOutcomeAndNeverReplaysIt) {
   MissionService service(&profile_);
   for (const char* result : {"dispatched", "rejected", "unknown"}) {

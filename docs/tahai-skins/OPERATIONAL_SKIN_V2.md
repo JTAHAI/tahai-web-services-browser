@@ -92,8 +92,8 @@ The v2 manifest has the v1 fields plus `operational`:
   "creator": "Example Studio",
   "license": "CC-BY-4.0",
   "compatibility": {
-    "min_chromium_major": 152,
-    "max_chromium_major": 152
+    "min_chromium_major": 154,
+    "max_chromium_major": 154
   },
   "appearance": { "...": "the unchanged v1 appearance contract" },
   "assets": ["the unchanged v1 asset declarations"],

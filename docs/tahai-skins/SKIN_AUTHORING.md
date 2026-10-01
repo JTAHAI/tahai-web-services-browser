@@ -7,7 +7,8 @@ focus rings, or forced-colors behavior.
 
 Start with `starter-skin` from the creator kit. The kit also includes an
 offline visual editor (`studio.html`) and a deterministic builder
-(`build_skin.py`). It targets Chromium 152.
+(`build_skin.py`). It targets the Chromium 154 candidate; native validation is
+still required before release.
 
 For a v2 operational-skin source draft, open `tahai://skin-studio/` in the
 native browser. Studio keeps only validated, profile-local JSON source. Its
@@ -266,8 +267,8 @@ reproducible archive with only declared entries.
   "creator": "Example Studio",
   "license": "CC-BY-4.0",
   "compatibility": {
-    "min_chromium_major": 152,
-    "max_chromium_major": 152
+    "min_chromium_major": 154,
+    "max_chromium_major": 154
   },
   "appearance": {
     "density": "comfortable",
@@ -286,8 +287,11 @@ Keep the ID unchanged when publishing an update. `name`, `creator`, and
 quotes, backslashes, angle brackets, markup, or control characters.
 
 Set the compatibility range to every Chromium major version you actually test.
-The shipped starter is intentionally scoped to 152 so an untested package is
-not silently accepted by a newer browser.
+The candidate starter is intentionally scoped to 154; this declaration is not
+evidence that native acceptance has passed. Existing authors' ranges and signed
+archives are never widened automatically during an engine upgrade. The release
+source check compares every bundled starter against `chrome/VERSION` and rejects
+stale templates before packaging.
 
 ## Operational work modes (v2)
 

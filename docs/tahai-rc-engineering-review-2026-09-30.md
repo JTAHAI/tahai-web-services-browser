@@ -299,3 +299,52 @@ expected exit 1 for the 11 missing SDK 28000 headers/libraries/tools; both compi
 stamps and the other required files matched. That failure is preserved in
 `out/upgrade-154-20260930/build-machine-prerequisite-check.log` and is not being
 counted as a build pass. No installer, GN generation or native build was started.
+
+## Operational-skin correctness follow-up
+
+The next source review found and repaired concrete gaps rather than treating the
+prior source pass as complete product acceptance:
+
+- Fresh native Studio drafts and all eight creator-kit packages now target the
+  selected Chromium 154 engine. Native fresh drafts derive their milestone from
+  version_info; saved/imported source and signed archives are never silently
+  widened. The release runner and source preflight reject stale bundled starter
+  ranges against `chrome/VERSION`. The new regression first reproduced the old
+  152 mismatch (exit 1), preserved under
+  `out/upgrade-154-20260930/creator-current-engine-regression-before.log`.
+- Operational activation now carries authored `compensation_steps` through the
+  native-to-Mission-Control handoff. The existing queue had dropped them and
+  substituted generic recovery labels. Malformed recovery definitions fail
+  validation without replacing an existing queued launch. Recovery remains a
+  manual terminal-state checklist, never automatic commands or undo claims.
+- Built-in operational modes and saved operational aliases share one guarded
+  native activation path. It holds weak window/dialog/profile/controller owners,
+  blocks reentrant activation, and rechecks selected mode/revision and command
+  availability across synchronous notifications. Closing or retargeting the
+  manager, revoking a binding, or changing the selected custom mode stops further
+  dispatch. Rail presentation remains window-local.
+- Native Studio source transfer checks the decoded UTF-8 budget before replacing
+  edits, suppresses stale asynchronous read errors and releases failed downloads.
+  The offline creator exports an immutable gesture-time snapshot while hashing,
+  prevents duplicate exports during edits, and releases failed download URLs.
+- Creator outputs were regenerated deterministically; no browser binaries or
+  MSIX were built. Royal brand assets, Store identity, dependency pins and the
+  separate build-machine instruction are unchanged.
+
+Nine new native regressions are mandatory in the packaging evidence validator:
+two fresh/persisted draft compatibility tests, two queued-recovery tests, and
+five native manager tests covering authored recovery, close, custom-alias close,
+retarget and revocation. **They are added source, not executed native evidence.**
+The test fixture's expected sentinel counts were explicitly updated after the
+first full source run correctly failed on the old count; no assertion was
+disabled. The evidence validator passes 36 synthetic rejection/acceptance checks.
+
+Source verification includes 34 creator tests (including Ed25519 package
+verification), 19 shipped Studio transfer checks and 17 offline export checks.
+The full preflight has 26 nonzero suites, including 64 CSS/command/CSP checks in
+the isolated stock-Edge source harness. These do not prove native TAHAI behavior.
+Current full-run logs are under `out/source-review-20260930-200018`; the earlier
+failed fixture run is retained under `out/source-review-20260930-195556`.
+Native compilation, all four runtime gates, accessibility leak verification and
+exact-package acceptance remain pending on the other machine. There is no
+"every feature verified" or GA claim from this source-only checkpoint.

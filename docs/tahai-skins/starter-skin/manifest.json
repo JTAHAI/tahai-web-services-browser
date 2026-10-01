@@ -5,8 +5,8 @@
   "creator": "Replace with your name",
   "license": "BSD-3-Clause",
   "compatibility": {
-    "min_chromium_major": 152,
-    "max_chromium_major": 152
+    "min_chromium_major": 154,
+    "max_chromium_major": 154
   },
   "appearance": {
     "density": "comfortable",

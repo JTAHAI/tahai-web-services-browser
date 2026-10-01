@@ -148,6 +148,14 @@ bool QueueOperationalWorkflowLaunch(Profile* profile,
   if (!ValidateTahaiWorkflowOutputs(workflow.outputs, input_ids, variable_ids)) return false;
   if (!workflow.outputs.empty()) saved_workflow.Set(
       "outputs", SerializeTahaiWorkflowOutputs(workflow.outputs));
+  // Activation must preserve the author's manual recovery checklist. Dropping
+  // it here silently substituted generic recovery steps in Mission Control.
+  // The shared validator below rejects malformed lists before touching prefs.
+  if (!workflow.compensation_steps.empty()) {
+    saved_workflow.Set(
+        "compensation_steps",
+        SerializeTahaiWorkflowCompensationSteps(workflow.compensation_steps));
+  }
   TahaiOperationalWorkflow validated;
   if (!ValidateTahaiOperationalWorkflow(saved_workflow, {}, &validated, true)) {
     return false;

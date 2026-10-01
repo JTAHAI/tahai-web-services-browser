@@ -7,14 +7,50 @@
 #include "base/json/json_writer.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
+#include "base/version_info/version_info.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/tahai_skins/skin_limits.h"
-#include "components/prefs/testing_pref_service.h"
 #include "components/prefs/pref_registry_simple.h"
+#include "components/prefs/testing_pref_service.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace tahai {
 namespace {
+
+TEST(TahaiSkinStudioDraftTest, NewDraftTargetsRunningEngineOnly) {
+  const auto draft = base::JSONReader::ReadDict(
+      GetTahaiSkinStudioDefaultDraft(), base::JSON_PARSE_RFC);
+  ASSERT_TRUE(draft);
+  const auto* compatibility = draft->FindDict("compatibility");
+  ASSERT_TRUE(compatibility);
+  EXPECT_EQ(version_info::GetMajorVersionNumberAsInt(),
+            compatibility->FindInt("min_chromium_major"));
+  EXPECT_EQ(version_info::GetMajorVersionNumberAsInt(),
+            compatibility->FindInt("max_chromium_major"));
+}
+
+TEST(TahaiSkinStudioDraftTest, ExistingCompatibilityIsNeverSilentlyWidened) {
+  TestingPrefServiceSimple prefs;
+  prefs.registry()->RegisterDictionaryPref(prefs::kTahaiSkinStudioDraft);
+  auto draft = base::JSONReader::ReadDict(GetTahaiSkinStudioDefaultDraft(),
+                                          base::JSON_PARSE_RFC);
+  ASSERT_TRUE(draft);
+  auto* compatibility = draft->FindDict("compatibility");
+  ASSERT_TRUE(compatibility);
+  compatibility->Set("min_chromium_major", 152);
+  compatibility->Set("max_chromium_major", 152);
+  auto encoded = base::WriteJson(*draft);
+  ASSERT_TRUE(encoded);
+  const auto saved = SaveTahaiSkinStudioDraft(&prefs, *encoded);
+  ASSERT_EQ(TahaiSkinStudioDraftStatus::kOk, saved.status);
+  const auto loaded = LoadTahaiSkinStudioDraft(&prefs);
+  EXPECT_EQ(saved.manifest_json, loaded.manifest_json);
+  const auto restored =
+      base::JSONReader::ReadDict(loaded.manifest_json, base::JSON_PARSE_RFC);
+  ASSERT_TRUE(restored);
+  EXPECT_EQ(152,
+            restored->FindDict("compatibility")->FindInt("max_chromium_major"));
+}
 
 TEST(TahaiSkinStudioDraftTest, ValidatesBeforePersistingDeclarativeSource) {
   TestingPrefServiceSimple prefs;
