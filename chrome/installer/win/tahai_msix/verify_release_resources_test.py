@@ -5,10 +5,37 @@ import hashlib
 from pathlib import Path
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from verify_release_resources import resource_id, verify_resource
 
 
 class ResourceChecks(unittest.TestCase):
+    def test_branded_translation_inputs_match_owned_source_catalogs(self):
+        source = Path(__file__).resolve().parents[4]
+        build = (source / 'components/strings/BUILD.gn').read_text(encoding='utf-8')
+        branded = build.split('grit_strings("components_branded_strings") {', 1)[1].split(
+            'grit_strings("components_locale_settings") {', 1)[0]
+        self.assertIn('source = "../components_${branding_path_product}_strings.grd"', branded)
+        self.assertIn('_translation_product = branding_path_product', branded)
+        self.assertRegex(branded, r'if \(is_tahai_branded\)\s*\{\s*'
+                                 r'_translation_product = "chromium"\s*\}')
+        self.assertIn('components_${_translation_product}_strings_{{source_name_part}}.xtb',
+                      branded)
+        self.assertNotIn('components_${branding_path_product}_strings_{{source_name_part}}.xtb',
+                         branded)
+        for product, translations in (('tahai', 'chromium'), ('chromium', 'chromium'),
+                                      ('google_chrome', 'google_chrome')):
+            with self.subTest(product=product):
+                catalog_path = source / f'components/components_{product}_strings.grd'
+                catalog = ET.parse(catalog_path).getroot()
+                imports = catalog.findall('./translations/file')
+                self.assertGreater(len(imports), 0)
+                for translation in imports:
+                    path = catalog_path.parent / translation.attrib['path']
+                    self.assertTrue(path.is_file(), str(path))
+                    self.assertTrue(path.name.startswith(f'components_{translations}_strings_'),
+                                    str(path))
+
     def test_exact_compiled_bytes_are_required(self):
         master = b'approved-Royal-master'
         self.assertEqual(hashlib.sha256(master).hexdigest(),

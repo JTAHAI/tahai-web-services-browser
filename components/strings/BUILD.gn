@@ -130,9 +130,17 @@ if (is_android) {
 
 grit_strings("components_branded_strings") {
   source = "../components_${branding_path_product}_strings.grd"
+
+  # TAHAI owns its source messages, but its GRD imports the existing Chromium
+  # translations. Keep Ninja's explicit inputs aligned with that catalog;
+  # selecting the TAHAI source does not create a new family of XTB files.
+  _translation_product = branding_path_product
+  if (is_tahai_branded) {
+    _translation_product = "chromium"
+  }
   inputs = process_file_template(
           xtb_locales,
-          [ "components_${branding_path_product}_strings_{{source_name_part}}.xtb" ])
+          [ "components_${_translation_product}_strings_{{source_name_part}}.xtb" ])
   outputs = [ "grit/components_branded_strings.h" ]
 }
 

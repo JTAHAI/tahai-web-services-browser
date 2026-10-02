@@ -198,3 +198,23 @@ was found in the final reviewed patch and caller paths; this is not a global
 absence-of-bugs or RC/runtime acceptance claim. Compile the exact published tree
 and run the complete no-retry native/browser/service scopes and isolated
 operational/trust/security gates on the build workstation before packaging.
+
+## First local Chromium 154 build: explicit translation dependency
+
+The user subsequently authorized building locally while their separate inference
+work continues. The required SDK 10.0.28000.2270 was installed side by side;
+the source-pinned prerequisite check and dependency hooks passed. The fresh
+`out/tahai_rc_154_x64` runner's source preflight passed all 29 suites with 11,744
+checks, and GN generated 34,126 targets. Actual Ninja exit was 1 before any
+compilation: `components_tahai_strings_af.xtb` was listed as an input but does
+not exist. Evidence is preserved at
+`out/tahai_rc_154_x64/upgrade-checks-20261001-230534`.
+
+The TAHAI-owned component GRD already imports Chromium's XTB catalogs. The GN
+dependency list now uses those same existing translations for TAHAI, without
+changing its source GRD or the Chromium/Google Chrome flavors, manufacturing
+translations, dropping locales, or removing the input dependency tracking.
+An additional mandatory packaged-resource unit test checks all three component
+catalogs, the GN source/input split, and every referenced translation file.
+The failed attempt is not build or runtime acceptance; the repaired source
+requires a new recorded build attempt and fresh runtime gates afterward.
