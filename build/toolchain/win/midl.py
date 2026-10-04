@@ -272,6 +272,27 @@ def generate_idl_from_template(idl_template, dynamic_guids, idl):
     open(idl, 'wb').write(contents)
 
 
+def update_compiler_settings_path(filename, idl_template, idl):
+    # A previously static IDL can acquire dynamic GUIDs without changing its
+    # interface. MIDL then compiles the generated IDL, so its settings comment
+    # names that path instead of the original template. Adjust only the exact
+    # comment line in the copied baseline; all code and typelib bytes still
+    # participate in the normal comparison. Already-dynamic baselines are left
+    # unchanged, as are unexpected paths (which must still fail comparison).
+    with open(filename, 'rb') as source_file:
+        contents = source_file.read()
+    original_line = b'/* Compiler settings for ' + idl_template.encode() + b':'
+    generated_line = b'/* Compiler settings for ' + idl.encode() + b':'
+    updated = re.sub(
+        rb'(?m)^' + re.escape(original_line) + rb'(?=\r?$)',
+        lambda match: generated_line,
+        contents,
+    )
+    if updated != contents:
+        with open(filename, 'wb') as output_file:
+            output_file.write(updated)
+
+
 # This function runs the MIDL compiler with the provided arguments. It creates
 # and returns a tuple of |0,midl_output_dir| on success.
 def run_midl(args, env_dict):
@@ -469,6 +490,11 @@ def main(
         # substituted with |dynamic_guids|, and then MIDL is run on the substituted
         # IDL file.
         generate_idl_from_template(idl_template, dynamic_guids_bytes, idl)
+        for file in [h, iid, proxy]:
+            if file:
+                update_compiler_settings_path(
+                    os.path.join(outdir, file), idl_template, idl
+                )
 
     # On Windows, run midl.exe on the input and check that its outputs are
     # identical to the checked-in outputs (after replacing guids if
