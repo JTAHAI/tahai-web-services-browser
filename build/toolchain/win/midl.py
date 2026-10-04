@@ -526,9 +526,9 @@ def main(
     if returncode != 0:
         return returncode
 
-    # Now compare the output in midl_output_dir to the copied-over outputs.
+    # Always compare bytes, even when file sizes and timestamps happen to match.
     _, mismatch, errors = filecmp.cmpfiles(
-        midl_output_dir, outdir, common_files
+        midl_output_dir, outdir, common_files, shallow=False
     )
     assert not errors
 

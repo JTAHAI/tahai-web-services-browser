@@ -98,7 +98,13 @@ class DynamicIdlPathTest(unittest.TestCase):
                 contents = contents.replace(old_path.encode(), generated_path.encode())
                 if mutation and name == mutation[0]:
                     contents = contents.replace(mutation[1], mutation[2])
-                (actual / name).write_bytes(contents)
+                actual_file = actual / name
+                actual_file.write_bytes(contents)
+                # Force matching metadata: equal-length semantic changes must
+                # fail even when MIDL and the baseline have identical mtimes.
+                copied_stat = (output / name).stat()
+                os.utime(actual_file, ns=(copied_stat.st_atime_ns,
+                                         copied_stat.st_mtime_ns))
             return 0, str(actual)
 
         with mock.patch.object(MIDL.sys, "platform", "win32"), \
