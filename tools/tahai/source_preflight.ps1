@@ -9,7 +9,7 @@ function Get-TahaiSourcePlan([bool]$RenderCss = $true) {
         'capability_review_events', 'local_oi_controls', 'work_modes_events', 'local_oi_navigation')) {
         $plan += [pscustomobject]@{name=$name; tool='node'; arguments=@("tools/tahai/${name}_test.js")}
     }
-    foreach ($name in @('source_provenance', 'audit_guard_dependencies', 'check_windows_build_prerequisites', 'midl_dynamic_paths')) {
+    foreach ($name in @('source_provenance', 'audit_guard_dependencies', 'check_windows_build_prerequisites', 'midl_dynamic_paths', 'aho_corasick_policy')) {
         $plan += [pscustomobject]@{name=$name; tool='python'; arguments=@("tools/tahai/${name}_test.py")}
     }
     $plan += @(

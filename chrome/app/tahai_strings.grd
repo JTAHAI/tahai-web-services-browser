@@ -2454,6 +2454,10 @@ TAHAI Browser is unable to recover your settings.
           desc="Label for the Lens overlay command, through which the current tab will be searched using the Image Search service.">
           Search this tab with Image Search
         </message>
+        <message name="IDS_LENS_OVERLAY_TAB_ENTRYPOINT_LABEL_CONTEXT_MENU"
+          desc="Label for the Lens overlay command in the context menu, through which the current tab will be searched using the Image Search service.">
+          Search this tab with Image Search
+        </message>
         <message name="IDS_LENS_OVERLAY_TAB_ENTRYPOINT_LABEL_V2"
           desc="Label for the Lens overlay command, through which the current tab will be searched using the Image Search service.">
           Search with Image Search
@@ -3305,6 +3309,22 @@ TAHAI Browser is unable to recover your settings.
       <message name="IDS_GLIC_STATUS_ICON_MENU_TOGGLE" translateable="false" desc="This is the menu item for toggling the glic UI.">
         Toggle Gemini in TAHAI Browser
       </message>
+
+      <!-- Omnibox Everywhere status tray icon strings -->
+      <if expr="is_macosx">
+        <message name="IDS_OMNIBOX_EVERYWHERE_STATUS_ICON_MENU_TOGGLE" desc="In Title Case: Label for the toggle item in the TAHAI Search status tray context menu.">
+          Open Search with TAHAI Browser
+        </message>
+      </if>
+      <if expr="not is_macosx">
+        <message name="IDS_OMNIBOX_EVERYWHERE_STATUS_ICON_MENU_TOGGLE" desc="Label for the toggle item in the TAHAI Search status tray context menu.">
+          Open search with TAHAI Browser
+        </message>
+      </if>
+      <message name="IDS_OMNIBOX_EVERYWHERE_STATUS_ICON_TOOLTIP" desc="Tooltip text for the TAHAI Search status tray icon.">
+        Search in TAHAI Browser
+      </message>
+
       <message name ="IDS_GLIC_INELIGIBLE_PROFILE_NOTICE" translateable="false" desc="This is the text of the glic ineligible profile notice.">
         To use Gemini in TAHAI Browser, sign in with a different Google Account
       </message>

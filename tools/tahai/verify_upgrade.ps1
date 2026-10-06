@@ -39,6 +39,11 @@ if (-not $nativeBuild.StartsWith($allowedBuildPrefix, [StringComparison]::Ordina
 if (-not (Test-Path -LiteralPath (Join-Path $nativeBuild 'args.gn') -PathType Leaf)) {
   throw 'Prepare and review args.gn in the dedicated build directory first; refusing an implicit default/debug build.'
 }
+$nativeArgsText = Get-Content -LiteralPath (Join-Path $nativeBuild 'args.gn') -Raw
+$singleProcessSetting = '(?i)--single' + '-process|single' + '_process|run_renderer_in' + '_process'
+if ($nativeArgsText -match $singleProcessSetting) {
+  throw 'The supported TAHAI release build cannot use Chromium single-process execution.'
+}
 $runnerStartedUtc = [Diagnostics.Process]::GetCurrentProcess().StartTime.ToUniversalTime().ToString('o')
 $buildLockDirectory = Join-Path $nativeBuild '.tahai-release-build.lock'
 $buildLockOwner = Join-Path $buildLockDirectory 'owner.json'
