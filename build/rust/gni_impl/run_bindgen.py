@@ -19,6 +19,39 @@ import action_helpers
 from filter_clang_args import filter_clang_args
 
 
+def cross_volume_output():
+  # libclang resolves the output junction before interpreting relative paths.
+  # Keep the upstream arguments for ordinary and same-volume output directories.
+  return (sys.platform == 'win32' and
+          os.path.splitdrive(os.getcwd())[0].lower() !=
+          os.path.splitdrive(os.path.realpath('.'))[0].lower())
+
+
+def absolute_clang_paths(clangargs):
+  """Anchor filesystem arguments to the logical cwd across an output junction."""
+  separate = {
+      '-I', '-isystem', '-iquote', '-idirafter', '-imsvc', '-include',
+      '-include-pch', '-resource-dir', '-isysroot', '--sysroot'
+  }
+  joined = ('-isystem', '-iquote', '-idirafter', '-imsvc', '-I')
+  assigned = ('-resource-dir=', '--sysroot=',
+              '--warning-suppression-mappings=', '-fcrash-diagnostics-dir=')
+  result = []
+  path_next = False
+  for arg in clangargs:
+    if path_next:
+      result.append(os.path.abspath(arg))
+      path_next = False
+    elif arg in separate:
+      result.append(arg)
+      path_next = True
+    else:
+      prefix = next((p for p in assigned + joined if arg.startswith(p)), None)
+      result.append(prefix + os.path.abspath(arg[len(prefix):])
+                    if prefix else arg)
+  return result
+
+
 def PrependVersionLine(filepath):
   # Prepending a version line accomplishes two goals:
   # * P1: Incrementing the version forces reindexing of the generated code
@@ -109,9 +142,12 @@ def main():
       genargs.append('--wrap-static-fns')
       genargs.append('--wrap-static-fns-path')
       genargs.append(wrap_static_fns.name)
-    genargs.append(args.header)
+    absolute_paths = cross_volume_output()
+    genargs.append(os.path.abspath(args.header) if absolute_paths else args.header)
     genargs.append('--')
-    genargs.extend(filter_clang_args(args.clangargs))
+    clangargs = filter_clang_args(args.clangargs)
+    genargs.extend(absolute_clang_paths(clangargs)
+                   if absolute_paths else clangargs)
     env = os.environ
     if args.ld_library_path:
       if sys.platform == 'darwin':

@@ -36,6 +36,15 @@
         "tools/tahai/source_preflight.ps1"
       ],
       "rationale": "The exact Chromium 152 stdlib generation action reproduced a cross-volume relpath failure with a dedicated leaf output junction. Retain the upstream physical-path workaround for subst aliases; use the owned logical working directory when the output and toolchain physical drives differ. Reject paths relative to unrelated volumes. Register four path regressions and hash the real generator in source preflight. Compiler pins, crate safety policy, sandbox ownership, and generated target semantics are unchanged."
+    },
+    {
+      "category": "B",
+      "paths": [
+        "build/rust/gni_impl/run_bindgen.py",
+        "tools/tahai/rust_bindgen_paths_test.py",
+        "tools/tahai/source_preflight.ps1"
+      ],
+      "rationale": "The exact Chromium 152 allocator bindgen action failed because libclang interpreted relative source, warning-mapping and toolchain paths from the physical output volume. Anchor the header and filesystem Clang arguments to the logical working directory only for cross-volume Windows output junctions. The original same-volume arguments, all compiler warning/security flags, toolchain pins and crate safety policy are retained. The failing Ninja action passes after the repair; four regressions cover source/generated/system headers, absolute toolchain paths, unchanged ordinary outputs and retained security/metadata arguments. Hash and register this adapter in source preflight."
     }
   ],
   "upstream_changes": {
